@@ -192,3 +192,57 @@ class TestLLMJudge:
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
         assert result.reasoning is None
+
+
+class TestLLMJudgePublish:
+    def test_publish_requires_llmobs_enabled(self, monkeypatch):
+        from ddtrace.llmobs import LLMObs
+
+        monkeypatch.setattr(LLMObs, "_instance", None)
+
+        def mock_client(messages, json_schema=None):
+            return "ok"
+
+        judge = LLMJudge(client=mock_client, user_prompt="test")
+        with pytest.raises(RuntimeError, match="LLMObs must be enabled"):
+            judge.publish("test-app")
+
+    def test_publish_builds_correct_payload(self, llmobs, monkeypatch):
+        captured = {}
+
+        def mock_publish(body):
+            captured["body"] = body
+
+        monkeypatch.setattr(llmobs._instance._dne_client, "evaluator_config_publish", mock_publish)
+
+        def mock_client(messages, json_schema=None):
+            return "{}"
+
+        judge = LLMJudge(
+            client=mock_client,
+            system_prompt="You are an evaluator.",
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanOutput("Correctness", reasoning=True, pass_when=True),
+            name="my_evaluator",
+        )
+        judge._provider = "openai"
+        judge._model = "gpt-4o"
+        judge.publish("test-app")
+
+        body = captured["body"]
+        assert body["data"]["type"] == "evaluator_config"
+        evaluation = body["data"]["attributes"]["evaluation"]
+        assert evaluation["eval_name"] == "my_evaluator"
+        app_config = evaluation["applications"][0]
+        assert app_config["application_name"] == "test-app"
+        assert app_config["enabled"] is False
+        assert app_config["model_provider"] == "openai"
+        assert app_config["model_name"] == "gpt-4o"
+
+        byop = app_config["byop_config"]
+        assert len(byop["prompt_template"]) == 2
+        assert byop["prompt_template"][0]["role"] == "system"
+        assert byop["prompt_template"][1]["role"] == "user"
+        assert byop["parsing_type"] == "structured_output"
+        assert byop["output_schema"]["properties"]["boolean_eval"]["type"] == "boolean"
+        assert byop["assessment_criteria"] == {"pass_when": True}

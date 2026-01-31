@@ -216,13 +216,17 @@ class LLMJudge(BaseEvaluator):
         self._system_prompt = system_prompt
         self._user_prompt = user_prompt
         self._structured_output = structured_output
+        self._provider = provider
+        self._model = model
 
         if client:
             self._client = client
         elif provider == "openai":
-            self._client = _create_openai_client(model or "gpt-4o")
+            self._model = model or "gpt-4o"
+            self._client = _create_openai_client(self._model)
         elif provider == "anthropic":
-            self._client = _create_anthropic_client(model or "claude-sonnet-4-5-20250929")
+            self._model = model or "claude-sonnet-4-5-20250929"
+            self._client = _create_anthropic_client(self._model)
         else:
             raise ValueError("Provide either 'client' or 'provider' (openai/anthropic)")
 
@@ -342,3 +346,73 @@ class LLMJudge(BaseEvaluator):
         if match:
             return match.group(0)
         return text
+
+    def publish(self, ml_app: str) -> None:
+        """Publish this evaluator configuration to Datadog.
+
+        Args:
+            ml_app: The ML application name to associate with this evaluator.
+        """
+        from ddtrace.llmobs import LLMObs
+
+        if not LLMObs._instance:
+            raise RuntimeError("LLMObs must be enabled before publishing evaluator config")
+
+        prompt_template: List[Dict[str, str]] = []
+        if self._system_prompt:
+            prompt_template.append({"role": "system", "content": self._system_prompt})
+        prompt_template.append({"role": "user", "content": self._user_prompt})
+
+        output_schema = None
+        assessment_criteria = None
+        if self._structured_output and self._structured_output is not JSONType:
+            output_schema = self._structured_output.to_json_schema()
+            assessment_criteria = self._build_assessment_criteria()
+
+        byop_config: Dict[str, Any] = {
+            "inference_params": {},
+            "prompt_template": prompt_template,
+            "parsing_type": "structured_output",
+        }
+        if output_schema:
+            byop_config["output_schema"] = output_schema
+        if assessment_criteria:
+            byop_config["assessment_criteria"] = assessment_criteria
+
+        body: Dict[str, Any] = {
+            "data": {
+                "type": "evaluator_config",
+                "attributes": {
+                    "evaluation": {
+                        "eval_name": self.name,
+                        "applications": [
+                            {
+                                "application_name": ml_app,
+                                "enabled": False,
+                                "model_provider": self._provider,
+                                "model_name": self._model,
+                                "byop_config": byop_config,
+                            }
+                        ],
+                    },
+                },
+            },
+        }
+
+        LLMObs._instance._dne_client.evaluator_config_publish(body)
+
+    def _build_assessment_criteria(self) -> Optional[Dict[str, Any]]:
+        """Build assessment criteria from structured output configuration."""
+        so = self._structured_output
+        if isinstance(so, BooleanOutput) and so.pass_when is not None:
+            return {"pass_when": so.pass_when}
+        if isinstance(so, CategoricalOutput) and so.pass_values is not None:
+            return {"pass_values": so.pass_values}
+        if isinstance(so, ScoreOutput):
+            criteria: Dict[str, Any] = {}
+            if so.min_threshold is not None:
+                criteria["min_threshold"] = so.min_threshold
+            if so.max_threshold is not None:
+                criteria["max_threshold"] = so.max_threshold
+            return criteria if criteria else None
+        return None

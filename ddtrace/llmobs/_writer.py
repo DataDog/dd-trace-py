@@ -708,6 +708,13 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
 
+    def evaluator_config_publish(self, body: JSONType) -> None:
+        path = "/api/unstable/llm-obs/v1/config/evaluators/custom"
+        resp = self.request("PUT", path, body)
+        if resp.status not in (200, 202):
+            raise ValueError(f"Failed to publish evaluator config: {resp.status} {resp.get_json()}")
+        logger.debug("Published evaluator config")
+
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""
