@@ -59,14 +59,7 @@ class MemoryCollector:
         # We import _threads here to ensure periodic_threads dict exists.
         import ddtrace.internal._threads  # noqa: F401
 
-        try:
-            _memalloc.start(self.max_nframe, self.heap_sample_size)
-        except RuntimeError:
-            # This happens on fork because we don't call the shutdown hook since
-            # the thread responsible for doing so is not running in the child
-            # process. Therefore we stop and restart the collector instead.
-            _memalloc.stop()
-            _memalloc.start(self.max_nframe, self.heap_sample_size)
+        _memalloc.start(self.max_nframe, self.heap_sample_size)
 
     def __enter__(self) -> Self:
         self.start()
@@ -85,10 +78,7 @@ class MemoryCollector:
 
     def stop(self) -> None:
         if _memalloc is not None:
-            try:
-                _memalloc.stop()
-            except RuntimeError:
-                LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
+            _memalloc.stop()
 
     def snapshot(self) -> None:
         """Take a snapshot of collected data, to be exported."""

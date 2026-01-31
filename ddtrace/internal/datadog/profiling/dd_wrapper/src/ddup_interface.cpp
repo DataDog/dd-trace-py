@@ -2,7 +2,6 @@
 
 #include "defer.hpp"
 #include "libdatadog_helpers.hpp"
-#include "profiler_stats.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
