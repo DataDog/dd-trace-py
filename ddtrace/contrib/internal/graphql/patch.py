@@ -189,7 +189,7 @@ def _traced_execute(func, args, kwargs):
 
     with tracer.trace(
         name="graphql.execute",
-        resource=source_str,
+        resource=source_str or None,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
@@ -219,7 +219,7 @@ def _traced_query(func, args, kwargs):
 
     with tracer.trace(
         name=schematize_url_operation("graphql.request", protocol="graphql", direction=SpanDirection.INBOUND),
-        resource=resource,
+        resource=resource or None,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
