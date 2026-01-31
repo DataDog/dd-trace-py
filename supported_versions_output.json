@@ -439,7 +439,7 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.26.0",
+        "max_tracer_supported": "1.16.0",
         "auto-instrumented": true
     },
     {
@@ -524,7 +524,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.15.0",
+        "max_tracer_supported": "4.16.0",
         "auto-instrumented": true
     },
     {
