@@ -21,6 +21,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_durable_functions:
+    - ddtrace/contrib/internal/azure_durable_functions/*
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
     - ddtrace/ext/azure_eventhubs.py
@@ -375,6 +377,18 @@ suites:
     services:
       - azurite
       - azureeventhubsemulator
+  azure_durable_functions:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_durable_functions'
+      - tests/contrib/azure_durable_functions/*
+      - tests/snapshots/tests.contrib.azure_durable_functions.*
+    runner: riot
+    snapshot: true
   azure_functions:
     parallelism: 4
     paths:
