@@ -71,3 +71,9 @@ Datadog::SampleManager::init()
 {
     Datadog::Sample::profile_state.one_time_init(type_mask, max_nframes);
 }
+
+void
+Datadog::SampleManager::cleanup()
+{
+    Datadog::Sample::cleanup();
+}
