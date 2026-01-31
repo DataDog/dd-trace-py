@@ -368,7 +368,7 @@
         "dependency": "kombu",
         "integration": "kombu",
         "minimum_tracer_supported": "4.6.11",
-        "max_tracer_supported": "5.5.4",
+        "max_tracer_supported": "5.6.2",
         "auto-instrumented": false
     },
     {
@@ -439,7 +439,7 @@
         "dependency": "mcp",
         "integration": "mcp",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.26.0",
+        "max_tracer_supported": "1.16.0",
         "auto-instrumented": true
     },
     {
