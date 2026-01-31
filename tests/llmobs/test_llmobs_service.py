@@ -421,7 +421,11 @@ def test_embedding_span(llmobs, llmobs_events):
 def test_annotate_no_active_span_logs_warning(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.annotate(metadata={"test": "test"})
-    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+    assert str(excinfo.value) == (
+        "No span provided and no active LLMObs-generated span found. "
+        "Ensure you pass the span explicitly using LLMObs.annotate(span=<your_span>, ...) "
+        "when annotating from a different thread or async task than where the span was created."
+    )
 
 
 def test_annotate_non_llm_span_logs_warning(tracer, llmobs):
@@ -951,14 +955,22 @@ def test_export_span_specified_span_returns_span_context(llmobs):
 def test_export_span_no_specified_span_no_active_span_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.export_span()
-    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+    assert str(excinfo.value) == (
+        "No span provided and no active LLMObs-generated span found. "
+        "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+        "when exporting from a different thread or async task than where the span was created."
+    )
 
 
 def test_export_span_active_span_not_llmobs_span_raises(llmobs):
     with llmobs._instance.tracer.trace("non_llmobs_span"):
         with pytest.raises(Exception) as excinfo:
             llmobs.export_span()
-        assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+        assert str(excinfo.value) == (
+            "No span provided and no active LLMObs-generated span found. "
+            "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+            "when exporting from a different thread or async task than where the span was created."
+        )
 
 
 def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
