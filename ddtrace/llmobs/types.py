@@ -1,6 +1,8 @@
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import TypedDict
 from typing import Union
 
@@ -115,3 +117,7 @@ class _SpanLink(TypedDict):
     span_id: str
     trace_id: str
     attributes: Dict[str, str]
+
+
+TemplateContent = Union[str, List[Dict[str, str]]]
+PromptFallback = Optional[Union[TemplateContent, Prompt, Callable[[], Union[TemplateContent, Prompt]]]]
