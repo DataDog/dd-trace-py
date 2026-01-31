@@ -479,7 +479,7 @@ integrations:
   tested_versions_by_dependency:
     kombu:
       min: 4.6.11
-      max: 5.5.4
+      max: 5.6.2
 
 - integration_name: langchain
   is_external_package: true
@@ -571,7 +571,7 @@ integrations:
   tested_versions_by_dependency:
     mcp:
       min: 1.10.1
-      max: 1.26.0
+      max: 1.16.0
 
 - integration_name: molten
   is_external_package: true
