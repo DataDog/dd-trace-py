@@ -165,10 +165,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )
 def test_heap_profiler_large_heap_overhead() -> None:
-    # TODO(nick): this test case used to crash due to integer arithmetic bugs.
-    # Now it doesn't crash, but it takes far too long to run to be useful in CI.
-    # Un-skip this test if/when we improve the worst-case performance of the
-    # heap profiler for large heaps
+    # NOTE: A regression test for integer arithmetic bugs. 
     from ddtrace.profiling import Profiler
     from tests.profiling.collector.test_memalloc import one
 
@@ -284,6 +281,7 @@ def get_tracemalloc_stats_per_func(
     ),
 )
 def test_memalloc_data_race_regression() -> None:
+    import gc
     import threading
     import time
 
