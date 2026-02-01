@@ -41,6 +41,7 @@ static void
 memalloc_postfork_child()
 {
     memalloc_rng_reseed();
+    memalloc_heap_postfork_child();
 }
 
 static void
@@ -124,8 +125,18 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     // Ensure profile_state is initialized before creating Sample objects
     // This initializes the Sample::profile_state which is required for Sample objects to work correctly
     // ddup_start() uses std::call_once, so it's safe to call multiple times
+    // ddup_start also registers fork handlers for various components, so if
+    // any of memalloc's states refer to states that are reset after fork,
+    // memalloc also has to clear its state after fork via below fork handler.
     ddup_start();
 
+    // Register fork handler
+    // Mainly to clear the heap tracker state before running any Python code,
+    // otherwise it can lead to undefined behaviors and/or crashes, ref:
+    // incident-48649.
+    // We use std::call_once as registered fork handlers persist after fork, and
+    // we want to ensure that the fork handlers are registered only once per
+    // process, even when the memory profiler is restarted after fork.
     std::call_once(memalloc_fork_handler_once_flag,
                    []() { pthread_atfork(nullptr, nullptr, memalloc_postfork_child); });
 
