@@ -165,7 +165,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )
 def test_heap_profiler_large_heap_overhead() -> None:
-    # NOTE: A regression test for integer arithmetic bugs. 
+    # NOTE: A regression test for integer arithmetic bugs.
     from ddtrace.profiling import Profiler
     from tests.profiling.collector.test_memalloc import one
 
