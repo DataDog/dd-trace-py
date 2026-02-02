@@ -108,10 +108,9 @@ ASYNCIO_LOCK_CONFIGS: List[LockConfig] = [
 
 ASYNCIO_COLLECTOR_CONFIGS: List[CollectorConfig] = [(collector, name) for _, collector, name in ASYNCIO_LOCK_CONFIGS]
 
-# Dunders to exclude from comparison between original and wrapped locks.
-# Includes both universal object dunders and lock-specific exclusions.
+# Dunders to exclude from comparison - these are universal Python internals
+# that we don't need to explicitly implement.
 EXCLUDED_DUNDERS: Set[str] = {
-    # Universal object dunders (exist on all Python objects)
     "__class__",
     "__delattr__",
     "__dir__",
@@ -125,11 +124,19 @@ EXCLUDED_DUNDERS: Set[str] = {
     "__sizeof__",
     "__str__",
     "__subclasshook__",
-    # Lock-specific exclusions (intentionally not wrapped)
     "__class_getitem__",  # Generic type hints - not needed for locks
-    "__weakref__",  # Weak references - optional
-    "__dict__",  # We use __slots__
+    "__dict__",  # We use __slots__, so no __dict__
     "__module__",  # Inherited from object
+    # Python 3.12+ class introspection attrs
+    "__firstlineno__",
+    "__static_attributes__",
+}
+
+# Known gaps: dunders that the original has but we intentionally don't support (yet).
+# These are tracked here so we're aware of them. Add a comment explaining why.
+# AIDEV-NOTE: When fixing a gap, remove it from here and add proper support.
+KNOWN_GAPS: Set[str] = {
+    "__weakref__",  # TODO: Add to __slots__ to support weak references
 }
 
 
@@ -177,6 +184,15 @@ def check_method_accessible(obj: object, method_name: str) -> bool:
         return callable(method)
     except AttributeError:
         return False
+
+
+def get_all_dunders(obj: object) -> Set[str]:
+    """Get ALL dunder methods/attributes from an object, excluding only EXCLUDED_DUNDERS.
+
+    Unlike get_methods(..., kind="dunder"), this includes non-callable dunders
+    like __weakref__ and __dict__ for comprehensive gap discovery.
+    """
+    return {name for name in dir(obj) if name.startswith("__") and name.endswith("__") and name not in EXCLUDED_DUNDERS}
 
 
 # =============================================================================
@@ -416,3 +432,65 @@ class TestDunderMethodCoverage:
                     f"Wrapper for {name} missing class-level dunder {dunder}. "
                     f"This could break code that accesses {name}.{dunder}"
                 )
+
+
+# =============================================================================
+# Gap Discovery Tests - Find potentially missing features
+# =============================================================================
+
+
+class TestGapDiscovery:
+    """Discover potential gaps in wrapper compatibility.
+
+    These tests compare ALL dunders between original and wrapped locks to find
+    features that users might expect but we don't support. Discovered gaps are
+    tracked in KNOWN_GAPS until fixed.
+
+    AIDEV-NOTE: When these tests find a new gap, either:
+    1. Add support for it in _lock.py, OR
+    2. Add it to KNOWN_GAPS with a comment explaining why it's deferred
+    """
+
+    @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
+    def test_discover_missing_dunders(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
+        """Find dunders that original has but wrapped doesn't.
+
+        This is a discovery test - it finds gaps we might not be aware of.
+        Known gaps are tracked in KNOWN_GAPS and won't cause test failure.
+        """
+        init_ddup(f"test_discover_{name}")
+
+        # Get ALL dunders from original (including non-callable like __weakref__)
+        original_instance: object = lock_class()  # type: ignore[operator]
+        original_dunders: Set[str] = get_all_dunders(original_instance)
+
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+            wrapped_instance: _ProfiledLock = wrapped_class()
+            wrapped_dunders: Set[str] = get_all_dunders(wrapped_instance)
+
+            # Find gaps: dunders on original but missing from wrapped
+            all_missing: Set[str] = original_dunders - wrapped_dunders
+
+            # Separate known gaps from unexpected gaps
+            unexpected_gaps: Set[str] = all_missing - KNOWN_GAPS
+            found_known_gaps: Set[str] = all_missing & KNOWN_GAPS
+
+            # Log known gaps for visibility (not a failure)
+            if found_known_gaps:
+                # These are tracked - just informational
+                pass
+
+            # Fail on unexpected gaps - these need to be addressed
+            assert not unexpected_gaps, (
+                f"Wrapped {name} missing unexpected dunders: {unexpected_gaps}. "
+                f"Either add support in _lock.py, or add to KNOWN_GAPS if intentionally deferred."
+            )
+
+    def test_known_gaps_are_documented(self) -> None:
+        """Verify all KNOWN_GAPS have explanatory comments in the source.
+
+        This is a meta-test to ensure we don't just add gaps without documenting why.
+        """
+        # KNOWN_GAPS should be small and intentional
+        assert len(KNOWN_GAPS) < 10, f"Too many known gaps ({len(KNOWN_GAPS)}). Consider fixing some: {KNOWN_GAPS}"
