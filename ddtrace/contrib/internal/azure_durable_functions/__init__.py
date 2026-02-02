@@ -13,12 +13,14 @@ Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 Global Configuration
 ~~~~~~~~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.azure_durable_functions["service"]
+This integration shares configuration with the ``azure_functions`` integration.
 
-   The service name reported by default for durable function apps.
+.. py:data:: ddtrace.config.azure_functions["service"]
+
+   The service name reported by default for Azure function apps.
 
    This option can also be set with the ``DD_SERVICE`` environment
    variable.
 
-   Default: ``"azure_durable_functions"``
+   Default: ``"azure_functions"``
 """
