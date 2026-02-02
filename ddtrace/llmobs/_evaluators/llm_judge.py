@@ -119,51 +119,6 @@ class CategoricalOutput:
         return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
 
 
-@dataclass
-class KeywordOutput:
-    """Represents a Keyword-based LLM Judge output using keyword search instead of structured output."""
-
-    true_keywords: Optional[List[str]] = None
-    false_keywords: Optional[List[str]] = None
-    pass_when: Optional[bool] = None
-
-    def __post_init__(self):
-        if self.true_keywords is None and self.false_keywords is None:
-            raise ValueError("At least one of true_keywords or false_keywords must be provided")
-
-    def evaluate(self, response: str) -> EvaluatorResult:
-        response_lower = response.lower()
-        true_match = False
-        false_match = False
-
-        if self.true_keywords:
-            true_match = any(kw.lower() in response_lower for kw in self.true_keywords)
-        if self.false_keywords:
-            false_match = any(kw.lower() in response_lower for kw in self.false_keywords)
-
-        if self.true_keywords is not None and self.false_keywords is not None:
-            if true_match and not false_match:
-                result = True
-            elif false_match and not true_match:
-                result = False
-            else:
-                result = None
-        elif self.true_keywords is not None:
-            result = true_match
-        else:
-            result = not false_match
-
-        assessment = None
-        if self.pass_when is not None and result is not None:
-            assessment = "pass" if result == self.pass_when else "fail"
-
-        return EvaluatorResult(
-            value=result,
-            assessment=assessment,
-            metadata={"raw_response": response},
-        )
-
-
 StructuredOutput = Union[BooleanOutput, ScoreOutput, CategoricalOutput, Dict[str, JSONType]]
 
 
@@ -267,7 +222,6 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        keyword_output: Optional[KeywordOutput] = None,
         provider: Optional[Literal["openai", "anthropic"]] = None,
         model: Optional[str] = None,
         model_params: Optional[Dict[str, Any]] = None,
@@ -284,8 +238,6 @@ class LLMJudge(BaseEvaluator):
             - ``BooleanOutput``: Returns True/False with optional pass/fail assessment.
             - ``ScoreOutput``: Returns a numeric score within a defined range with optional thresholds.
             - ``CategoricalOutput``: Returns one of predefined categories with optional pass values.
-            - ``KeywordOutput``: Matches keywords in response without structured output (useful for
-              models that don't support JSON schema).
             - ``Dict[str, JSONType]``: Custom JSON schema for arbitrary structured responses.
 
         Template Variables:
@@ -300,10 +252,7 @@ class LLMJudge(BaseEvaluator):
                 to inject span context.
             system_prompt: Optional system prompt to set judge behavior/persona.
             structured_output: Output format specification (BooleanOutput, ScoreOutput,
-                CategoricalOutput, or a custom JSON schema dict). Mutually exclusive with
-                ``keyword_output``.
-            keyword_output: Keyword-based evaluation for models without structured output support.
-                Mutually exclusive with ``structured_output``.
+                CategoricalOutput, or a custom JSON schema dict).
             provider: LLM provider to use (``"openai"`` or ``"anthropic"``). Required if
                 ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
@@ -313,8 +262,7 @@ class LLMJudge(BaseEvaluator):
             name: Optional evaluator name for identification in results.
 
         Raises:
-            ValueError: If both ``structured_output`` and ``keyword_output`` are specified,
-                or if neither ``client`` nor ``provider`` is provided.
+            ValueError: If neither ``client`` nor ``provider`` is provided.
 
         Examples:
             Boolean evaluation with pass/fail assessment::
@@ -360,12 +308,7 @@ class LLMJudge(BaseEvaluator):
         super().__init__(name=name)
         self._system_prompt = system_prompt
         self._user_prompt = user_prompt
-
-        if structured_output is not None and keyword_output is not None:
-            raise ValueError("Cannot specify both structured_output and keyword_output")
         self._structured_output = structured_output
-        self._keyword_output = keyword_output
-
         self._model_params = model_params
         self._provider = provider
         self._model = model
@@ -402,8 +345,6 @@ class LLMJudge(BaseEvaluator):
 
         if self._structured_output:
             return self._parse_response(response)
-        if self._keyword_output:
-            return self._keyword_output.evaluate(response)
         return response
 
     def _render(self, template: str, context: EvaluatorContext) -> str:

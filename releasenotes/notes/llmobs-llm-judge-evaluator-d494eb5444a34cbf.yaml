@@ -2,4 +2,4 @@
 features:
   - |
     LLM Observability: Adds ``LLMJudge`` evaluator for automated evaluation of LLM outputs using another LLM as the judge.
-    Supports OpenAI and Anthropic providers with boolean, score, categorical, and keyword-based output formats.
+    Supports OpenAI and Anthropic providers with boolean, score, categorical, and custom JSON schema output formats.
