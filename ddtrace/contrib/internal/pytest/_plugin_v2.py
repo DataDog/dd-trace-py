@@ -15,6 +15,7 @@ from ddtrace.contrib.internal.coverage.patch import start_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
@@ -409,7 +410,7 @@ def _handle_coverage_patch_early(config):
 
     # Verify patching worked
     if not _is_coverage_available():
-        log.warning("Coverage requested but coverage.py not available - install with 'pip install coverage'")
+        log.debug("Coverage requested but coverage.py not available - install with 'pip install coverage'")
         return
 
     if pytest_cov_enabled:
@@ -812,7 +813,6 @@ def _pytest_run_one_test(item, nextitem):
 
 def _handle_coverage_report_upload(config: pytest_Config) -> None:
     """Handle coverage report upload if enabled using shared implementation."""
-    from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 
     def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
         """Upload coverage report using native V2 writer/recorder infrastructure."""
@@ -824,7 +824,7 @@ def _handle_coverage_report_upload(config: pytest_Config) -> None:
             return ci_visibility_service.upload_coverage_report(coverage_report_bytes, coverage_format)
 
         except Exception as e:
-            log.exception("Error in native coverage upload: %s", e)
+            log.debug("Error during coverage upload: %s", e)
             return False
 
     handle_coverage_report(
@@ -1054,7 +1054,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             log.debug("Unable to retrieve coverage data for the session span")
         elif not isinstance(lines_pct_value, (float, int)):
             t = type(lines_pct_value)
-            log.warning(
+            log.debug(
                 "Unexpected format for total covered percentage: type=%s.%s, value=%r",
                 t.__module__,
                 t.__name__,

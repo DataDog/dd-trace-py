@@ -18,6 +18,7 @@ from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import stop_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
 from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -272,8 +273,6 @@ class TestOptPlugin:
 
         # If coverage report upload is enabled, generate and upload the report
         if self.manager.settings.coverage_report_upload_enabled:
-            from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
-
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
                 return self.manager.upload_coverage_report(
@@ -1016,8 +1015,7 @@ def pytest_configure(config: pytest.Config) -> None:
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
     # AIDEV-NOTE: Coverage.py integration when report upload is enabled
-    # If pytest-cov is NOT enabled and coverage_report_upload_enabled is True, start our own coverage
-    # If pytest-cov IS enabled, we respect the user's configuration and don't modify it
+    # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
     if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
         # Start coverage.py ourselves for report generation
         from ddtrace.contrib.internal.coverage.patch import start_coverage
