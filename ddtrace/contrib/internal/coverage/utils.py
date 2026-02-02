@@ -139,10 +139,7 @@ def _validate_and_read_report(tmp_path):
     if not coverage_report_bytes:
         log.warning("LCOV report file is empty: %s", tmp_path)
         # Clean up empty file
-        try:
-            tmp_path.unlink()
-        except Exception:
-            pass  # Ignore cleanup errors
+        _cleanup_temp_file(tmp_path)
         return None
 
     log.debug("Read coverage report: %d bytes", len(coverage_report_bytes))
