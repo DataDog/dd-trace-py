@@ -93,6 +93,7 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             Start a tracing with default attributes and tags
             """
             # create a new span
+            # ddtracer references `ddtrace.trace.tracer`, tracer parameter will be removed in a future release.
             s = ddtracer.trace(
                 schematize_cache_operation(cmd, cache_provider="flask_cache"),
                 span_type=SpanTypes.CACHE,
