@@ -48,6 +48,10 @@ class Flare:
         self._api_key: Optional[str] = api_key
         self.ddconfig = ddconfig
 
+        self._create_native_manager()
+
+    def _create_native_manager(self):
+        """Create or recreate the native manager to ensure clean state."""
         self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
 
     def prepare(self, log_level: str) -> bool:
@@ -79,17 +83,20 @@ class Flare:
         Revert tracer flare configurations back to original state
         before sending the flare.
         """
-        if return_action.is_send() is False:
-            return
-        self.revert_configs()
-
-        # Ensure the flare directory exists (it might have been deleted by clean_up_files)
-        self.flare_dir.mkdir(exist_ok=True)
-
+        # Always revert configs and cleanup, even for invalid requests
         try:
+            if return_action.is_send() is False:
+                return
+            self.revert_configs()
+
+            # Ensure the flare directory exists (it might have been deleted by clean_up_files)
+            self.flare_dir.mkdir(exist_ok=True)
+
             self._send_flare_request(return_action)
         finally:
             self.clean_up_files()
+            # Recreate the native manager to reset its state for the next flare
+            self._create_native_manager()
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")

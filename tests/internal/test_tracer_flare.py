@@ -6,6 +6,7 @@ import os
 import pathlib
 import re
 import shutil
+from datetime import datetime
 from typing import Dict
 from typing import Optional
 from typing import Union
@@ -13,6 +14,7 @@ from typing import cast
 import unittest
 from unittest import mock
 
+from pyfakefs.fake_filesystem_unittest import TestCase
 import pytest
 
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
@@ -74,10 +76,11 @@ def _multiproc_handle_agent_config(trace_agent_url: str, shared_dir: pathlib.Pat
         errors.put(e)
 
 
-def _multiproc_handle_agent_task(trace_agent_url: str, shared_dir: pathlib.Path, errors: multiprocessing.Queue, data_manager: native_flare.TracerFlareManager):
+def _multiproc_handle_agent_task(trace_agent_url: str, shared_dir: pathlib.Path, errors: multiprocessing.Queue):
     """Helper for multiprocessing tests - handles AGENT_TASK (send)."""
     try:
-        # Create Flare object inside the process to avoid pickling issues
+        # Create both Flare and data_manager inside the process to avoid pickling issues
+        data_manager = native_flare.TracerFlareManager(trace_agent_url, "python")
         flare = Flare(
             trace_agent_url=trace_agent_url,
             flare_dir=shared_dir,
@@ -92,14 +95,20 @@ def _multiproc_handle_agent_task(trace_agent_url: str, shared_dir: pathlib.Path,
 
 def _multiproc_do_tracer_flare(
     log_level: str,
-    send_request: native_flare.ReturnAction,
+    case_id: str,
+    hostname: str,
+    email: str,
+    uuid: str,
     trace_agent_url: str,
     shared_dir: pathlib.Path,
     errors: multiprocessing.Queue,
 ):
     """Helper for multiprocessing partial failure test."""
     try:
-        # Create Flare object inside the process to avoid pickling issues
+        # Create Flare and ReturnAction inside the process to avoid pickling issues
+        data_manager = native_flare.TracerFlareManager(trace_agent_url, "python")
+        send_request = setup_task_request(data_manager, case_id, hostname, email, uuid)
+
         flare = Flare(
             trace_agent_url=trace_agent_url,
             flare_dir=shared_dir,
@@ -129,7 +138,7 @@ def setup_task_request(manager: native_flare.TracerFlareManager, case_id: str, h
     }
     return manager.handle_remote_config_data(config, "AGENT_TASK")
 
-class TracerFlareTests(unittest.TestCase):
+class TracerFlareTests(TestCase):
     mock_config_dict = {}
 
     @pytest.fixture(autouse=True)
@@ -156,11 +165,12 @@ class TracerFlareTests(unittest.TestCase):
 
         self.flare = Flare(
             trace_agent_url=TRACE_AGENT_URL,
-            flare_dir=self.shared_dir,
+            flare_dir=pathlib.Path(self.shared_dir.name),
             ddconfig={"config": "testconfig"},
         )
         self.pid = os.getpid()
-        self.flare_file_path = self.shared_dir / f"tracer_python_{self.pid}.log"
+        self.flare_file_path = f"{self.shared_dir.name}/tracer_python_{self.pid}.log"
+        self.config_file_path = f"{self.shared_dir.name}/tracer_config_{self.pid}.json"
         self.prepare_called = False  # Track if prepare() was called
 
     def tearDown(self):
@@ -648,7 +658,7 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
 
         for i in range(num_processes):
             p = multiprocessing.Process(
-                target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, self.shared_dir, self.errors, self.data_manager)
+                target=_multiproc_handle_agent_task, args=(TRACE_AGENT_URL, self.shared_dir, self.errors)
             )
             processes.append(p)
             p.start()
@@ -672,17 +682,17 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
         processes = []
 
         # Create successful process - use module-level function for pickling
-        # Flare objects are created inside the process to avoid pickling issues
+        # Flare objects and ReturnActions are created inside the process to avoid pickling issues
         p = multiprocessing.Process(
             target=_multiproc_do_tracer_flare,
-            args=("DEBUG", setup_task_request(self.data_manager, *MOCK_FLARE_SEND_REQUEST), TRACE_AGENT_URL, self.shared_dir, self.errors),
+            args=("DEBUG", *MOCK_FLARE_SEND_REQUEST, TRACE_AGENT_URL, self.shared_dir, self.errors),
         )
         processes.append(p)
         p.start()
         # Create failing process
         p = multiprocessing.Process(
             target=_multiproc_do_tracer_flare,
-            args=(None, setup_task_request(self.data_manager, *MOCK_FLARE_SEND_REQUEST), TRACE_AGENT_URL, self.shared_dir, self.errors),
+            args=(None, *MOCK_FLARE_SEND_REQUEST, TRACE_AGENT_URL, self.shared_dir, self.errors),
         )
         processes.append(p)
         p.start()
@@ -710,7 +720,7 @@ class MockPubSubConnector(PublisherSubscriberConnector):
 
 
 class TracerFlareSubscriberTests(unittest.TestCase):
-    agent_config = [False, {"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
+    agent_config = [False, {"name": "flare-log-level.test", "config": {"log_level": "DEBUG"}}]
     agent_task = [
         False,
         {
@@ -753,17 +763,15 @@ class TracerFlareSubscriberTests(unittest.TestCase):
 
     def test_process_flare_request_success(self):
         """
-        Ensure a full successful tracer flare process
+        Ensure a successful tracer flare process
         """
         assert self.tracer_flare_sub.stale_tracer_flare_num_mins == 20
-        # Generate an AGENT_CONFIG product to trigger a request
+
+        # Generate an AGENT_CONFIG product to start the flare request
         with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
             self.generate_agent_config()
-            mock_flare_prep.assert_called_once()
-
-        assert self.tracer_flare_sub.current_request_start is not None, (
-            "current_request_start should be a non-None value after request is received"
-        )
+            # prepare should be called with the log level from config (lowercase from libdatadog)
+            mock_flare_prep.assert_called_once_with("debug")
 
         # Generate an AGENT_TASK product to complete the request
         with mock.patch("ddtrace.internal.flare.flare.Flare.send") as mock_flare_send:
@@ -783,18 +791,22 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         # Set this to 0 so all requests are stale
         self.tracer_flare_sub.stale_tracer_flare_num_mins = 0
 
-        # Generate an AGENT_CONFIG product to trigger a request
-        with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
-            self.generate_agent_config()
-            mock_flare_prep.assert_called_once()
-
+        # Start a flare request with AGENT_CONFIG
+        self.generate_agent_config()
         assert self.tracer_flare_sub.current_request_start is not None
 
         # Setting this to 0 minutes so all jobs are considered stale
         assert self.tracer_flare_sub.has_stale_flare()
 
-        self.generate_agent_config()
+        # Trigger cleanup of stale request by receiving another AGENT_CONFIG
+        with mock.patch("ddtrace.internal.flare.flare.Flare.revert_configs") as mock_revert:
+            with mock.patch("ddtrace.internal.flare.flare.Flare.clean_up_files") as mock_cleanup:
+                self.tracer_flare_sub._get_data_from_connector_and_exec()
+                # The subscriber should detect staleness and clean up
+                mock_revert.assert_called_once()
+                mock_cleanup.assert_called_once()
 
+        # After handling stale request, state should be reset
         assert self.tracer_flare_sub.current_request_start is None, "current_request_start should have been reset"
 
     def test_no_overlapping_requests(self):
@@ -803,18 +815,22 @@ class TracerFlareSubscriberTests(unittest.TestCase):
         a pre-existing request, we will continue processing the current
         one while disregarding the new request(s)
         """
-        # Generate initial AGENT_CONFIG product to trigger a request
+        # Start initial flare request
         with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
+            mock_flare_prep.return_value = True
             self.generate_agent_config()
-            mock_flare_prep.assert_called_once()
+            # prepare should be called for the first request (lowercase from libdatadog)
+            mock_flare_prep.assert_called_once_with("debug")
 
         original_request_start = self.tracer_flare_sub.current_request_start
         assert original_request_start is not None
 
-        # Generate another AGENT_CONFIG product to trigger a request
-        # This should not be processed
+        # Generate another AGENT_CONFIG while first one is still active
+        # libdatadog v26 will return None since already collecting,
+        # and subscriber will ignore it
         with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
             self.generate_agent_config()
+            # prepare should not be called because there's already an active request
             mock_flare_prep.assert_not_called()
 
         assert self.tracer_flare_sub.current_request_start == original_request_start, (
@@ -855,7 +871,9 @@ def test_native_logs(tmp_path):
 
         # Sends request to testagent
         # This just validates the request params
-        flare.send(MOCK_FLARE_SEND_REQUEST)
+        data_manager = native_flare.TracerFlareManager(TRACE_AGENT_URL, "python")
+        send_request = setup_task_request(data_manager, *MOCK_FLARE_SEND_REQUEST)
+        flare.send(send_request)
     finally:
         config._trace_writer_native = original_trace_writer_native
         if flare is not None:

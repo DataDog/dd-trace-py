@@ -91,6 +91,54 @@ pub struct AgentTaskFilePy {
     inner: AgentTaskFile,
 }
 
+#[pymethods]
+impl AgentTaskFilePy {
+    #[new]
+    #[pyo3(signature = (case_id, hostname, user_handle, task_type, uuid))]
+    fn new(case_id: u64, hostname: String, user_handle: String, task_type: String, uuid: String) -> PyResult<Self> {
+        let case_id_nonzero: NonZero<u64> = case_id
+            .try_into()
+            .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("case_id cannot be zero"))?;
+
+        Ok(Self {
+            inner: AgentTaskFile {
+                args: AgentTask {
+                    case_id: case_id_nonzero,
+                    hostname,
+                    user_handle,
+                },
+                task_type,
+                uuid,
+            }
+        })
+    }
+
+    #[getter]
+    fn case_id(&self) -> u64 {
+        self.inner.args.case_id.get()
+    }
+
+    #[getter]
+    fn hostname(&self) -> String {
+        self.inner.args.hostname.clone()
+    }
+
+    #[getter]
+    fn user_handle(&self) -> String {
+        self.inner.args.user_handle.clone()
+    }
+
+    #[getter]
+    fn task_type(&self) -> String {
+        self.inner.task_type.clone()
+    }
+
+    #[getter]
+    fn uuid(&self) -> String {
+        self.inner.uuid.clone()
+    }
+}
+
 /// Python wrapper for AgentConfigFile
 #[pyclass(name = "AgentConfigFile")]
 pub struct AgentConfigFilePy {
@@ -112,7 +160,15 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFilePy {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("case_id".to_string())
         })?.extract()?;
 
-        let case_id: NonZero<u64> = case_id_str.parse::<u64>()
+        // Parse case_id to NonZero<u64> as required by libdatadog v26
+        // For debug patterns like "123-with-debug", extract the numeric prefix
+        let numeric_part = if let Some(hyphen_pos) = case_id_str.find('-') {
+            &case_id_str[..hyphen_pos]
+        } else {
+            &case_id_str[..]
+        };
+
+        let case_id: NonZero<u64> = numeric_part.parse::<u64>()
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid case_id: {}", e)))?
             .try_into()
             .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("case_id cannot be zero"))?;
@@ -178,6 +234,52 @@ pub struct ReturnActionPy {
 
 #[pymethods]
 impl ReturnActionPy {
+    /// Create a ReturnAction.None variant
+    #[staticmethod]
+    fn none() -> Self {
+        ReturnActionPy {
+            inner: ReturnAction::None,
+        }
+    }
+
+    /// Create a ReturnAction.Unset variant
+    #[staticmethod]
+    fn unset() -> Self {
+        ReturnActionPy {
+            inner: ReturnAction::Unset,
+        }
+    }
+
+    /// Create a ReturnAction.Send variant
+    #[staticmethod]
+    fn send(task: Bound<'_, AgentTaskFilePy>) -> PyResult<Self> {
+        let task_ref = task.borrow();
+        Ok(ReturnActionPy {
+            inner: ReturnAction::Send(task_ref.inner.clone()),
+        })
+    }
+
+    /// Create a ReturnAction.Set variant
+    #[staticmethod]
+    fn set(level: &str) -> PyResult<Self> {
+        let log_level = match level.to_uppercase().as_str() {
+            "TRACE" => LogLevel::Trace,
+            "DEBUG" => LogLevel::Debug,
+            "INFO" => LogLevel::Info,
+            "WARN" | "WARNING" => LogLevel::Warn,
+            "ERROR" => LogLevel::Error,
+            "CRITICAL" | "FATAL" => LogLevel::Critical,
+            "OFF" => LogLevel::Off,
+            _ => return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Invalid log level: {}. Valid levels are: TRACE, DEBUG, INFO, WARN, ERROR, CRITICAL, OFF", level)
+            )),
+        };
+
+        Ok(ReturnActionPy {
+            inner: ReturnAction::Set(log_level),
+        })
+    }
+
     fn __repr__(&self) -> String {
         match &self.inner {
             ReturnAction::Send(task) => {
@@ -286,6 +388,36 @@ impl TracerFlareManagerPy {
             return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.inner))
                 .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e)))?.into());
         } else if product == "AGENT_TASK" {
+            // Pre-validate case_id before extraction to handle invalid case_ids gracefully
+            if let Ok(dict) = data.cast::<PyDict>() {
+                if let Ok(Some(args)) = dict.get_item("args") {
+                    if let Ok(args_dict) = args.cast::<PyDict>() {
+                        if let Ok(Some(case_id_obj)) = args_dict.get_item("case_id") {
+                            if let Ok(case_id_str) = case_id_obj.extract::<String>() {
+                                // Check if case_id is invalid (empty or zero)
+                                if case_id_str.is_empty() {
+                                    return Ok(ReturnAction::None.into());
+                                }
+
+                                // Try to parse as u64, or extract numeric prefix for debug patterns
+                                let numeric_part = if let Some(hyphen_pos) = case_id_str.find('-') {
+                                    // Extract numeric part before hyphen (e.g., "123" from "123-with-debug")
+                                    &case_id_str[..hyphen_pos]
+                                } else {
+                                    &case_id_str[..]
+                                };
+
+                                // Check if the numeric part is valid and non-zero
+                                if numeric_part.parse::<u64>().ok().map_or(true, |v| v == 0) {
+                                    // Invalid or zero case_id - return None action
+                                    return Ok(ReturnAction::None.into());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             let agent_task : AgentTaskFilePy = data.extract() // Need to extract the config in data only
                 .map_err(|e| ParsingError::new_err(format!("Failed to extract AgentTaskFile: {}, data: {}", e, data)))?;
 
