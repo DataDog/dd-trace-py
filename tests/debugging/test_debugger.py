@@ -32,7 +32,10 @@ from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.inspection import linenos
 from tests.debugging.mocking import debugger
+from tests.debugging.utils import compile_capture_expressions
 from tests.debugging.utils import compile_template
+from tests.debugging.utils import create_capture_expressions_function_probe
+from tests.debugging.utils import create_capture_expressions_line_probe
 from tests.debugging.utils import create_log_function_probe
 from tests.debugging.utils import create_log_line_probe
 from tests.debugging.utils import create_metric_line_probe
@@ -621,6 +624,101 @@ def test_debugger_line_probe_on_wrapped_function(stuff):
             assert snapshot.probe.probe_id == "line-probe-wrapped-method"
 
 
+def test_debugger_function_and_line_probse_on_lazy_wrapped_function(stuff):
+    """Test that we can correctly instrument view functions with line and function
+    probes.
+    """
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    class CounterWC(LazyWrappingContext):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.count = 0
+
+        def __enter__(self):
+            self.count += 1
+            return super().__enter__()
+
+    (wc := CounterWC(stuff.durationstuff)).wrap()
+
+    line_probes = [
+        create_snapshot_line_probe(
+            probe_id=f"line-probe-lazy-wrapping-{n}",
+            source_file="tests/submod/stuff.py",
+            line=132,
+            condition=None,
+            rate=float("inf"),
+        )
+        for n in range(10)
+    ]
+
+    function_probes = [
+        create_snapshot_function_probe(
+            probe_id=f"function-probe-lazy-wrapping-{n}",
+            module="tests.submod.stuff",
+            func_qname="durationstuff",
+            rate=float("inf"),
+        )
+        for n in range(10)
+    ]
+
+    with debugger() as d:
+        for r in range(10):
+            d.add_probes(*function_probes, *line_probes)
+
+            stuff.durationstuff(0)
+
+            d.remove_probes(*function_probes, *line_probes)
+
+            snapshots = d.uploader.wait_for_payloads(len(function_probes) + len(line_probes))
+
+            assert {s["debugger"]["snapshot"]["probe"]["id"] for s in snapshots} == {
+                f"line-probe-lazy-wrapping-{n}" for n in range(len(line_probes))
+            } | {f"function-probe-lazy-wrapping-{n}" for n in range(len(function_probes))}
+
+            assert wc.count == r + 1
+
+
+def test_debugger_function_probe_on_lazy_wrapped_function(stuff):
+    from ddtrace.internal.wrapping.context import LazyWrappingContext
+
+    class LWC(LazyWrappingContext):
+        entered = False
+
+        def __enter__(self):
+            self.entered = True
+            return super().__enter__()
+
+    (c := LWC(stuff.throwexcstuff)).wrap()
+
+    probe = create_snapshot_function_probe(
+        probe_id="function-probe-lazy-wrapping",
+        module="tests.submod.stuff",
+        func_qname="throwexcstuff",
+        rate=float("inf"),
+    )
+
+    with debugger() as d:
+        # Test that we can re-instrument the function correctly and that we
+        # don't accidentally instrument the temporary trampoline instead.
+        for _ in range(10):
+            d.add_probes(probe)
+
+            try:
+                stuff.throwexcstuff()
+            except Exception:
+                pass
+
+            d.remove_probes(probe)
+
+            assert c.entered
+
+            c.entered = False
+
+            with d.assert_single_snapshot() as snapshot:
+                assert snapshot.probe.probe_id == "function-probe-lazy-wrapping"
+
+
 def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -900,6 +998,83 @@ def test_debugger_log_line_probe_generate_messages(stuff):
         assert not msg1["debugger"]["snapshot"]["captures"]
 
 
+def test_debugger_capture_expressions_line_probe_(stuff):
+    with debugger(upload_flush_interval=float("inf")) as d:
+        d.add_probes(
+            create_capture_expressions_line_probe(
+                probe_id="foo",
+                source_file="tests/submod/stuff.py",
+                line=36,
+                rate=float("inf"),
+                **compile_capture_expressions([{"name": "foo", "expr": {"dsl": "bar", "json": {"ref": "bar"}}}]),
+            ),
+        )
+
+        sentinel = {"foo": 42}
+        # recursive reference to itself for infinite depth
+        sentinel["self"] = sentinel  # type: ignore
+
+        stuff.Stuff().instancestuff(sentinel)
+
+        (msg,) = d.uploader.wait_for_payloads(1)
+
+        assert msg["debugger"]["snapshot"]["captures"]["lines"]["36"] == {
+            "captureExpressions": {
+                "foo": {
+                    "type": "dict",
+                    "entries": [
+                        [{"type": "str", "value": "'foo'"}, {"type": "int", "value": "42"}],
+                        [
+                            {"type": "str", "value": "'self'"},
+                            {
+                                "type": "dict",
+                                "entries": [
+                                    [{"type": "str", "value": "'foo'"}, {"type": "int", "value": "42"}],
+                                    [
+                                        {"type": "str", "value": "'self'"},
+                                        {
+                                            "type": "dict",
+                                            "entries": [
+                                                [{"type": "str", "value": "'foo'"}, {"type": "int", "value": "42"}],
+                                                [
+                                                    {"type": "str", "value": "'self'"},
+                                                    {"type": "dict", "notCapturedReason": "depth", "size": 2},
+                                                ],
+                                            ],
+                                            "size": 2,
+                                        },
+                                    ],
+                                ],
+                                "size": 2,
+                            },
+                        ],
+                    ],
+                    "size": 2,
+                }
+            }
+        }
+
+
+def test_debugger_capture_expressions_function_probe(stuff):
+    with debugger() as d:
+        d.add_probes(
+            create_capture_expressions_function_probe(
+                probe_id="exit-probe",
+                module="tests.submod.stuff",
+                func_qname="mutator",
+                evaluate_at=ProbeEvalTiming.EXIT,
+                **compile_capture_expressions(
+                    [{"name": "retval", "expr": {"dsl": "@return", "json": {"ref": "@return"}}}]
+                ),
+            )
+        )
+
+        stuff.mutator(arg=[])
+
+        with d.assert_single_snapshot() as snapshot:
+            assert snapshot.return_capture["captureExpressions"]["retval"] == {"isNull": True, "type": "NoneType"}
+
+
 class SpanProbeTestCase(TracerTestCase):
     def setUp(self):
         super(SpanProbeTestCase, self).setUp()
@@ -1083,7 +1258,7 @@ def test_debugger_modified_probe(stuff):
 
         stuff.Stuff().instancestuff()
 
-        _, msg = d.uploader.wait_for_payloads(2)
+        (msg,) = d.uploader.wait_for_payloads(1)
         assert "hello brave new world" == msg["message"], msg
         assert msg["debugger"]["snapshot"]["probe"]["version"] == 2, msg
 

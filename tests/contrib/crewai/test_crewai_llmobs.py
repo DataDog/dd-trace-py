@@ -7,7 +7,6 @@ from ddtrace.internal.utils.version import parse_version
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.utils import TracerSpanContainer
 
 
 CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
@@ -305,187 +304,187 @@ def _assert_router_flow_links(llmobs_events):
     _assert_span_link(llmobs_events[3], llmobs_events[0], "output", "output")
 
 
-def test_basic_crew(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
+def test_basic_crew(crewai, basic_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff(inputs={"topic": "AI"})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_basic_crew_events(llmobs_events, spans)
     _assert_basic_crew_links(llmobs_events)
 
 
-def test_basic_crew_for_each(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
+def test_basic_crew_for_each(crewai, basic_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff_for_each(inputs=[{"topic": "AI"}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_basic_crew_events(llmobs_events, spans)
     _assert_basic_crew_links(llmobs_events)
 
 
-async def test_basic_crew_async(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_basic_crew_async(crewai, basic_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         await basic_crew.kickoff_async(inputs={"topic": "AI"})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_basic_crew_events(llmobs_events, spans)
     _assert_basic_crew_links(llmobs_events)
 
 
-async def test_basic_crew_async_for_each(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_basic_crew_async_for_each(crewai, basic_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         await basic_crew.kickoff_for_each_async(inputs=[{"topic": "AI"}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_basic_crew_events(llmobs_events, spans)
     _assert_basic_crew_links(llmobs_events)
 
 
-def test_crew_with_tool(crewai, tool_crew, request_vcr, mock_tracer, llmobs_events):
+def test_crew_with_tool(crewai, tool_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         tool_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_tool_crew_events(llmobs_events, spans)
     _assert_tool_crew_links(llmobs_events)
 
 
-def test_crew_with_tool_for_each(crewai, tool_crew, request_vcr, mock_tracer, llmobs_events):
+def test_crew_with_tool_for_each(crewai, tool_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         tool_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_tool_crew_events(llmobs_events, spans)
     _assert_tool_crew_links(llmobs_events)
 
 
-async def test_crew_with_tool_async(crewai, tool_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_crew_with_tool_async(crewai, tool_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         await tool_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_tool_crew_events(llmobs_events, spans)
     _assert_tool_crew_links(llmobs_events)
 
 
-async def test_crew_with_tool_async_for_each(crewai, tool_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_crew_with_tool_async_for_each(crewai, tool_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_tool.yaml"):
         await tool_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_tool_crew_events(llmobs_events, spans)
     _assert_tool_crew_links(llmobs_events)
 
 
-def test_async_crew(crewai, async_exec_crew, request_vcr, mock_tracer, llmobs_events):
+def test_async_crew(crewai, async_exec_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         async_exec_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_async_crew_events(llmobs_events, spans)
     _assert_async_crew_links(llmobs_events)
 
 
-def test_async_crew_for_each(crewai, async_exec_crew, request_vcr, mock_tracer, llmobs_events):
+def test_async_crew_for_each(crewai, async_exec_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         async_exec_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_async_crew_events(llmobs_events, spans)
     _assert_async_crew_links(llmobs_events)
 
 
-async def test_async_crew_async(crewai, async_exec_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_async_crew_async(crewai, async_exec_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await async_exec_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_async_crew_events(llmobs_events, spans)
     _assert_async_crew_links(llmobs_events)
 
 
-async def test_async_crew_async_for_each(crewai, async_exec_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_async_crew_async_for_each(crewai, async_exec_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await async_exec_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_async_crew_events(llmobs_events, spans)
     _assert_async_crew_links(llmobs_events)
 
 
-def test_conditional_crew(crewai, conditional_crew, request_vcr, mock_tracer, llmobs_events):
+def test_conditional_crew(crewai, conditional_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         conditional_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_async_crew_events(llmobs_events, spans)
     _assert_async_crew_links(llmobs_events)
 
 
-async def test_conditional_crew_async(crewai, conditional_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_conditional_crew_async(crewai, conditional_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_crew_with_async_tasks.yaml"):
         await conditional_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_async_crew_events(llmobs_events, spans)
     _assert_async_crew_links(llmobs_events)
 
 
-def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr, mock_tracer, llmobs_events):
+def test_hierarchical_crew(crewai, hierarchical_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_hierarchical_crew_events(llmobs_events, spans)
     _assert_hierarchical_crew_links(llmobs_events)
 
 
-def test_hierarchical_crew_for_each(crewai, hierarchical_crew, request_vcr, mock_tracer, llmobs_events):
+def test_hierarchical_crew_for_each(crewai, hierarchical_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         hierarchical_crew.kickoff_for_each(inputs=[{"ages": [10, 12, 14, 16, 18]}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_hierarchical_crew_events(llmobs_events, spans)
     _assert_hierarchical_crew_links(llmobs_events)
 
 
-async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_async(inputs={"ages": [10, 12, 14, 16, 18]})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_hierarchical_crew_events(llmobs_events, spans)
     _assert_hierarchical_crew_links(llmobs_events)
 
 
-async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, request_vcr, mock_tracer, llmobs_events):
+async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, request_vcr, test_spans, llmobs_events):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_hierarchical_crew_events(llmobs_events, spans)
     _assert_hierarchical_crew_links(llmobs_events)
 
 
-def test_simple_flow(crewai, simple_flow, mock_tracer, llmobs_events):
+def test_simple_flow(crewai, simple_flow, test_spans, llmobs_events):
     simple_flow.kickoff(inputs={"continent": "North America"})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_simple_flow_events(llmobs_events, spans)
     _assert_simple_flow_links(llmobs_events)
 
 
-async def test_simple_flow_async(crewai, simple_flow_async, mock_tracer, llmobs_events):
+async def test_simple_flow_async(crewai, simple_flow_async, test_spans, llmobs_events):
     await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_simple_flow_events(llmobs_events, spans)
     _assert_simple_flow_links(llmobs_events)
 
 
-def test_complex_flow(crewai, complex_flow, mock_tracer, llmobs_events):
+def test_complex_flow(crewai, complex_flow, test_spans, llmobs_events):
     complex_flow.kickoff(inputs={"continent": "North America"})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_complex_flow_events(llmobs_events, spans)
     _assert_complex_flow_links(llmobs_events)
 
 
-async def test_complex_flow_async(crewai, complex_flow_async, mock_tracer, llmobs_events):
+async def test_complex_flow_async(crewai, complex_flow_async, test_spans, llmobs_events):
     await complex_flow_async.kickoff_async(inputs={"continent": "North America"})
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_complex_flow_events(llmobs_events, spans)
     _assert_complex_flow_links(llmobs_events)
 
 
-def test_router_flow(crewai, router_flow, mock_tracer, llmobs_events):
+def test_router_flow(crewai, router_flow, test_spans, llmobs_events):
     router_flow.kickoff()
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_router_flow_events(llmobs_events, spans)
     _assert_router_flow_links(llmobs_events)
 
 
-async def test_router_flow_async(crewai, router_flow_async, mock_tracer, llmobs_events):
+async def test_router_flow_async(crewai, router_flow_async, test_spans, llmobs_events):
     await router_flow_async.kickoff_async()
-    spans = TracerSpanContainer(mock_tracer).pop_traces()[0]
+    spans = test_spans.pop_traces()[0]
     _assert_router_flow_events(llmobs_events, spans)
     _assert_router_flow_links(llmobs_events)

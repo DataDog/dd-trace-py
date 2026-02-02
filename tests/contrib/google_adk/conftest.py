@@ -13,7 +13,6 @@ from google.adk.tools.function_tool import FunctionTool
 from google.genai import types
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
 from ddtrace.llmobs import LLMObs
@@ -45,21 +44,13 @@ def adk(ddtrace_global_config):
         adk_unpatch()
 
 
-@pytest.fixture
-def mock_tracer(adk, tracer):
-    pin = Pin.get_from(adk)
-    if pin is not None:
-        pin._override(adk, tracer=tracer)
-    yield tracer
-
-
 @pytest.fixture(scope="session")
 def request_vcr():
     yield get_request_vcr()
 
 
 @pytest.fixture
-async def test_runner(adk, mock_tracer):
+async def test_runner(adk, test_spans):
     """Set up a test runner with agent."""
     runner = await setup_test_agent()
     return runner
@@ -84,7 +75,7 @@ def llmobs_span_writer():
 
 
 @pytest.fixture
-def adk_llmobs(mock_tracer, llmobs_span_writer):
+def adk_llmobs(tracer, llmobs_span_writer):
     LLMObs.disable()
     with override_global_config(
         {
@@ -93,7 +84,7 @@ def adk_llmobs(mock_tracer, llmobs_span_writer):
             "service": "tests.contrib.google_adk",
         }
     ):
-        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
         LLMObs._instance._llmobs_span_writer = llmobs_span_writer
         yield LLMObs
     LLMObs.disable()

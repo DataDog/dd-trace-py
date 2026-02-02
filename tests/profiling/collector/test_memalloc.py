@@ -12,6 +12,7 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Sequence
+from typing import Set
 from typing import Union
 
 import pytest
@@ -782,11 +783,18 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
     # Store reference to nested function for later qualname access
     deep_alloc_func = None
 
+    num_threads = 10
+    thread_ids: Set[int] = set()
+    thread_ids_lock = threading.Lock()
+
     with mc:
         threads: List[threading.Thread] = []
-        barrier = threading.Barrier(10)
+        barrier = threading.Barrier(num_threads)
 
-        def allocate_with_traceback():
+        def allocate_with_traceback() -> None:
+            # Record this thread's ID before waiting
+            with thread_ids_lock:
+                thread_ids.add(threading.current_thread().ident)  # type: ignore[arg-type]
             barrier.wait()
 
             def deep_alloc(depth: int) -> Union[tuple[None, ...], bytearray]:
@@ -797,10 +805,12 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
             # Capture reference to deep_alloc for later use
             nonlocal deep_alloc_func
             deep_alloc_func = deep_alloc
-            data = deep_alloc(50)
-            del data
+            # Multiple allocations per thread to make sampling more reliable
+            for _ in range(5):
+                data = deep_alloc(50)
+                del data
 
-        for _ in range(10):
+        for _ in range(num_threads):
             t = threading.Thread(target=allocate_with_traceback)
             threads.append(t)
             t.start()
@@ -816,6 +826,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
 
         deep_alloc_total_count = 0
         max_stack_depth = 0
+        sampled_thread_ids: Set[int] = set()
 
         for sample in profile.sample:
             # Buffer pool test: All samples should have stack frames
@@ -827,9 +838,20 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
                 # Samples with identical stack traces are merged in pprof profiles,
                 # so we need to sum the alloc-samples count value
                 deep_alloc_total_count += sample.value[alloc_count_idx]
+                # Track which threads got sampled
+                thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+                if thread_id_label is not None:
+                    sampled_thread_ids.add(thread_id_label.num)
 
         assert deep_alloc_total_count >= 10, (
             f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+        )
+
+        # Verify we got samples from all threads
+        assert sampled_thread_ids == thread_ids, (
+            f"Buffer pool test: Expected samples from all {num_threads} threads, "
+            f"but only got samples from {len(sampled_thread_ids)} threads. "
+            f"Missing: {thread_ids - sampled_thread_ids}"
         )
 
         assert max_stack_depth >= 50, (
@@ -991,3 +1013,59 @@ def test_memalloc_sample_size(
 
     for predicate, default in zip(predicates, (1024 * 1024, 1, 512, 512 * 1024 * 1024)):
         assert predicate(_derive_default_heap_sample_size(config.heap, default))
+
+
+def test_memory_collector_stack_order(tmp_path: Path) -> None:
+    """Test that stack frames are reported in leaf-to-root order (innermost to outermost).
+
+    This test verifies the fix for upside-down flamegraphs by ensuring that when we have
+    a call chain like outer() -> middle() -> inner() -> allocation, the frames are
+    reported in the order: inner, middle, outer (leaf-to-root).
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_stack_order")
+
+    # Define nested functions to create a known call stack
+    def outer_frame() -> Union[tuple[None, ...], bytearray]:
+        return middle_frame()
+
+    def middle_frame() -> Union[tuple[None, ...], bytearray]:
+        return inner_frame()
+
+    def inner_frame() -> Union[tuple[None, ...], bytearray]:
+        # This is the leaf frame where the actual allocation happens
+        return _create_allocation(256)
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    with mc:
+        # Create allocations with our known call stack
+        data = []
+        for _ in range(20):
+            data.append(outer_frame())
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    # Get samples with alloc-space > 0
+    alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
+    samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+
+    assert len(samples) > 0, "Should have captured allocation samples"
+
+    # Helper to create StackLocation with just function name
+    def loc(f_name: str) -> pprof_utils.StackLocation:
+        return pprof_utils.StackLocation(function_name=f_name, filename="", line_no=-1)
+
+    # Verify we have a sample with the expected stack order: inner, middle, outer (leaf-to-root)
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            locations=[
+                loc("inner_frame"),
+                loc("middle_frame"),
+                loc("outer_frame"),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )

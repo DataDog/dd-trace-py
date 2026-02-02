@@ -1,6 +1,7 @@
-use datadog_remote_config::{parse::RemoteConfigData, config::{agent_task::AgentTaskFile, agent_config::AgentConfigFile}};
+use datadog_remote_config::{RemoteConfigData, config::{agent_task::AgentTaskFile, agent_config::AgentConfigFile}};
 use datadog_remote_config::config::{agent_task::AgentTask, agent_config::AgentConfig};
 use datadog_tracer_flare::{error::FlareError, LogLevel, ReturnAction, TracerFlareManager};
+use std::num::NonZero;
 
 /// ERROR
 use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr, Bound, types::PyDict, PyAny};
@@ -96,18 +97,26 @@ pub struct AgentConfigFilePy {
     inner: AgentConfigFile,
 }
 
-impl<'py> FromPyObject<'py> for AgentTaskFilePy {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let dict = ob.downcast::<PyDict>()?;
+impl<'py> FromPyObject<'_, 'py> for AgentTaskFilePy {
+    type Error = PyErr;
+
+    fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
+        let dict = ob.cast::<PyDict>()?;
 
         let args_ob = dict.get_item("args")?.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("args".to_string())
         })?;
-        let args_dict = args_ob.downcast::<PyDict>()?;
+        let args_dict = args_ob.cast::<PyDict>()?;
 
-        let case_id: String = args_dict.get_item("case_id")?.ok_or_else(|| {
+        let case_id_str: String = args_dict.get_item("case_id")?.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("case_id".to_string())
         })?.extract()?;
+
+        let case_id: NonZero<u64> = case_id_str.parse::<u64>()
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(format!("Invalid case_id: {}", e)))?
+            .try_into()
+            .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("case_id cannot be zero"))?;
+
         let hostname: String = args_dict.get_item("hostname")?.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("hostname".to_string())
         })?.extract()?;
@@ -134,9 +143,11 @@ impl<'py> FromPyObject<'py> for AgentTaskFilePy {
     }
 }
 
-impl<'py> FromPyObject<'py> for AgentConfigFilePy {
-    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let dict = ob.downcast::<PyDict>()?;
+impl<'py> FromPyObject<'_, 'py> for AgentConfigFilePy {
+    type Error = PyErr;
+
+    fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
+        let dict = ob.cast::<PyDict>()?;
 
         let name : String = dict.get_item("name")?.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("name".to_string())
@@ -144,7 +155,7 @@ impl<'py> FromPyObject<'py> for AgentConfigFilePy {
         let config_ob = dict.get_item("config")?.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("config".to_string())
         })?;
-        let config_dict = config_ob.downcast::<PyDict>()?;
+        let config_dict = config_ob.cast::<PyDict>()?;
         let log_level: Option<String> = config_dict.get_item("log_level")?.ok_or_else(|| {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("log_level".to_string())
         })?.extract()?;
@@ -208,7 +219,7 @@ impl ReturnActionPy {
     #[getter]
     fn case_id(&self) -> PyResult<Option<String>> {
         match &self.inner {
-            ReturnAction::Send(task) => Ok(Some(task.args.case_id.clone())),
+            ReturnAction::Send(task) => Ok(Some(task.args.case_id.to_string())),
             _ => Ok(None),
         }
     }
@@ -301,36 +312,34 @@ impl TracerFlareManagerPy {
     ///     ZipError: If zipping fails or directory doesn't exist
     ///     SendError: If sending fails
     fn zip_and_send(&self, directory: &str, send_action: ReturnActionPy) -> PyResult<()> {
-        Python::with_gil(|_| {
-            let rust_action: ReturnAction = send_action.inner;
+        let rust_action: ReturnAction = send_action.inner;
 
-            let manager_arc = self.manager.clone();
+        let manager_arc = self.manager.clone();
 
-            // Create a new tokio runtime to run the async code.
-            // Use current_thread runtime to avoid multi-threaded I/O driver issues.
-            // Enable time for timeout support in libdatadog's HTTP operations.
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_time()
-                .enable_io()
-                .build()
-                .map_err(|e| {
-                    PyException::new_err(format!("Failed to create tokio runtime: {e}"))
-                })?;
+        // Create a new tokio runtime to run the async code.
+        // Use current_thread runtime to avoid multi-threaded I/O driver issues.
+        // Enable time for timeout support in libdatadog's HTTP operations.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .enable_io()
+            .build()
+            .map_err(|e| {
+                PyException::new_err(format!("Failed to create tokio runtime: {e}"))
+            })?;
 
-            #[allow(clippy::await_holding_lock)]
-            rt.block_on(async move {
-                let manager_guard = manager_arc.lock().map_err(|e| {
-                    PyException::new_err(format!("Failed to acquire manager lock: {e}"))
-                })?;
-                let manager = manager_guard
-                    .as_ref()
-                    .ok_or_else(|| PyException::new_err("Manager not initialized"))?;
+        #[allow(clippy::await_holding_lock)]
+        rt.block_on(async move {
+            let manager_guard = manager_arc.lock().map_err(|e| {
+                PyException::new_err(format!("Failed to acquire manager lock: {e}"))
+            })?;
+            let manager = manager_guard
+                .as_ref()
+                .ok_or_else(|| PyException::new_err("Manager not initialized"))?;
 
-                manager
-                    .zip_and_send(vec![directory.to_string()], rust_action)
-                    .await
-                    .map_err(|e| FlareErrorPy::from(e).into())
-            })
+            manager
+                .zip_and_send(vec![directory.to_string()], rust_action)
+                .await
+                .map_err(|e| FlareErrorPy::from(e).into())
         })
     }
 

@@ -244,27 +244,35 @@ class StringTemplate:
 
 
 @dataclass
+class CaptureExpression:
+    name: str
+    expr: DDExpression
+    limits: CaptureLimits = field(compare=False)
+
+
+@dataclass
 class LogProbeMixin(AbstractProbeMixIn):
     template: str
     segments: List[TemplateSegment]
     take_snapshot: bool
+    capture_expressions: List[CaptureExpression]
     limits: CaptureLimits = field(compare=False)
 
     @property
     def __budget__(self) -> int:
-        return 10 if self.take_snapshot else 100
+        return 10 if self.take_snapshot or self.capture_expressions else 100
 
 
 @dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     def is_global_rate_limited(self) -> bool:
-        return self.take_snapshot
+        return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     def is_global_rate_limited(self) -> bool:
-        return self.take_snapshot
+        return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass

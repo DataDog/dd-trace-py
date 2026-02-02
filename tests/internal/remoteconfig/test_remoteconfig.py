@@ -31,9 +31,9 @@ from tests.utils import override_global_config
 class RCMockPubSub(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
     __publisher_class__ = RemoteConfigPublisher
-    __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, _preprocess_results, callback):
+        self.__shared_data__ = PublisherSubscriberConnector()
         self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
         self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TESTS")
 
@@ -245,7 +245,7 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)
-            assert callback.features == [
+            assert (
                 Payload(
                     metadata=ConfigMetadata(
                         id="asm_features_activation",
@@ -259,7 +259,8 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
                     path="datadog/2/ASM_FEATURES/asm_features_activation/config",
                     content={"asm": {"enabled": True}},
                 )
-            ]
+                in callback.features
+            )
 
     class Callback:
         features = []
