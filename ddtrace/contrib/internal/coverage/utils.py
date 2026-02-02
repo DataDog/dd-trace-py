@@ -109,6 +109,7 @@ def _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func):
     if is_pytest_cov_enabled_func(config):
         # Try pytest-cov instance directly first
         pytest_cov_instance = _find_pytest_cov_instance(config)
+        data = None
         if pytest_cov_instance:
             log.debug("Using pytest-cov instance directly to generate LCOV report")
 
@@ -116,24 +117,36 @@ def _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func):
             has_data = False
             try:
                 data = pytest_cov_instance.get_data()
-                has_data = bool(data) and len(data) > 0
-                log.debug("pytest-cov has data in memory: %s", has_data)
+                # CoverageData doesn't support len(), use measured_files() instead
+                measured_files = data.measured_files() if data else set()
+                has_data = bool(measured_files)
+                log.debug("pytest-cov has data in memory: %s (measured %d files)", has_data, len(measured_files))
             except Exception as e:
                 log.debug("Could not check pytest-cov data: %s", e)
 
-            # If no data in memory, try loading from .coverage file
+            # If no data in memory, try loading from the configured data file
             if not has_data:
                 try:
-                    log.debug("No data in memory, attempting to load from .coverage file")
+                    # Get the actual data file path from the coverage instance
+                    data_file = None
+                    if hasattr(pytest_cov_instance, "config") and hasattr(pytest_cov_instance.config, "data_file"):
+                        data_file = pytest_cov_instance.config.data_file
+                    elif data and hasattr(data, "data_filename"):
+                        data_file = data.data_filename()
+
+                    if not data_file:
+                        data_file = ".coverage"  # fallback to default
+
+                    log.debug("No data in memory, attempting to load from data file: %s", data_file)
                     from coverage import Coverage
 
-                    fresh_cov = Coverage(data_file=".coverage")
+                    fresh_cov = Coverage(data_file=data_file)
                     fresh_cov.load()
                     # Use this instance instead
                     pytest_cov_instance = fresh_cov
-                    log.debug("Loaded data from .coverage file")
+                    log.debug("Loaded data from file: %s", data_file)
                 except Exception as load_error:
-                    log.debug("Could not load .coverage file: %s", load_error)
+                    log.debug("Could not load coverage data file: %s", load_error)
 
             try:
                 pct_covered = pytest_cov_instance.lcov_report(outfile=str(tmp_path))

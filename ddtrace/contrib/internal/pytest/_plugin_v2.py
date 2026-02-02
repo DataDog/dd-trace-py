@@ -1034,14 +1034,6 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     except Exception:  # noqa: E722
         log.debug("Encountered error during terminal summary post-yield", exc_info=True)
 
-    # Handle coverage report upload after pytest-cov has finalized
-    try:
-        if _is_coverage_report_upload_enabled() and _is_pytest_cov_enabled(config):
-            log.debug("Attempting coverage upload after terminal_summary (pytest-cov should be done)")
-            _handle_coverage_report_upload(config)
-    except Exception as e:
-        log.debug("Error handling coverage upload after terminal_summary: %s", e)
-
     return
 
 
@@ -1072,6 +1064,8 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
 
     # Handle coverage report upload if enabled
+    # This runs after pytest_terminal_summary, so pytest-cov data (if enabled) is already finalized
+    # and our own coverage (if we started it) has been stopped above
     if coverage_report_upload_enabled:
         _handle_coverage_report_upload(session.config)
 
