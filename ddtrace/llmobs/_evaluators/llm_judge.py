@@ -122,10 +122,13 @@ class CategoricalOutput:
 StructuredOutput = Union[BooleanOutput, ScoreOutput, CategoricalOutput, Dict[str, JSONType]]
 
 
-def _create_openai_client() -> LLMClient:
-    api_key = os.environ.get("OPENAI_API_KEY")
+def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    api_key = client_options.get("api_key") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
+        raise ValueError(
+            "OpenAI API key not provided. Pass 'api_key' in client_options or set OPENAI_API_KEY environment variable"
+        )
     try:
         from openai import OpenAI
     except ImportError:
@@ -154,10 +157,14 @@ def _create_openai_client() -> LLMClient:
     return call
 
 
-def _create_anthropic_client() -> LLMClient:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+        raise ValueError(
+            "Anthropic API key not provided. "
+            "Pass 'api_key' in client_options or set ANTHROPIC_API_KEY environment variable"
+        )
     try:
         import anthropic
     except ImportError:
@@ -227,6 +234,7 @@ class LLMJudge(BaseEvaluator):
         model_params: Optional[Dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
         name: Optional[str] = None,
+        client_options: Optional[Dict[str, Any]] = None,
     ):
         """Initialize an LLMJudge evaluator.
 
@@ -260,6 +268,10 @@ class LLMJudge(BaseEvaluator):
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
+            client_options: Provider-specific configuration options. Supported keys:
+
+                - ``api_key``: API key for OpenAI or Anthropic. Falls back to
+                  ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY`` environment variables.
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.
@@ -316,9 +328,9 @@ class LLMJudge(BaseEvaluator):
         if client:
             self._client = client
         elif provider == "openai":
-            self._client = _create_openai_client()
+            self._client = _create_openai_client(client_options=client_options)
         elif provider == "anthropic":
-            self._client = _create_anthropic_client()
+            self._client = _create_anthropic_client(client_options=client_options)
         else:
             raise ValueError("Provide either 'client' or 'provider' (openai/anthropic)")
 
