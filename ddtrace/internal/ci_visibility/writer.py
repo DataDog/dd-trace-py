@@ -180,35 +180,38 @@ class CIVisibilityWriter(HTTPWriter):
                 )
             )
 
-        # Always add coverage report upload client - we'll check at upload time if it should be used
-        # This simplifies the initialization and avoids timing issues with API settings
-        # For coverage reports, we need to use the special ci-intake URL (not citestcov-intake)
-        if use_evp:
-            # For EVP, use the same URL as events but with coverage subdomain header
-            coverage_report_url = intake_url
-        else:
-            # For agentless, use the ci-intake URL for coverage reports
-            coverage_report_url = "%s.%s" % (
-                AGENTLESS_COVERAGE_REPORT_BASE_URL,
-                os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
-            )
+        # Add coverage report upload client only if enabled
+        if coverage_report_upload_enabled:
+            # For coverage reports, we need to use the special ci-intake URL (not citestcov-intake)
+            if use_evp:
+                # For EVP, use the same URL as events but with coverage subdomain header
+                coverage_report_url = intake_url
+            elif intake_url:
+                # Use provided intake URL if specified
+                coverage_report_url = intake_url
+            else:
+                # For agentless, use the ci-intake URL for coverage reports
+                coverage_report_url = "%s.%s" % (
+                    AGENTLESS_COVERAGE_REPORT_BASE_URL,
+                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
+                )
 
-        # For coverage reports in EVP mode, we need the coverage subdomain
-        coverage_report_headers = headers.copy() if headers else {}
-        if use_evp:
-            coverage_report_headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
+            # For coverage reports in EVP mode, we need the coverage subdomain
+            coverage_report_headers = headers.copy() if headers else {}
+            if use_evp:
+                coverage_report_headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 
-        clients.append(
-            CIVisibilityProxiedCoverageReportClient(
-                intake_url=coverage_report_url,
-                headers=coverage_report_headers,
+            clients.append(
+                CIVisibilityProxiedCoverageReportClient(
+                    intake_url=coverage_report_url,
+                    headers=coverage_report_headers,
+                )
+                if use_evp
+                else CIVisibilityAgentlessCoverageReportClient(
+                    intake_url=coverage_report_url,
+                    headers=coverage_report_headers,
+                )
             )
-            if use_evp
-            else CIVisibilityAgentlessCoverageReportClient(
-                intake_url=coverage_report_url,
-                headers=coverage_report_headers,
-            )
-        )
 
         super(CIVisibilityWriter, self).__init__(
             intake_url=intake_url,
