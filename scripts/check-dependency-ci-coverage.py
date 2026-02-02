@@ -5,6 +5,7 @@
 # dependencies = [
 #     "packaging>=23.1,<24",
 #     "requests>=2.28,<3",
+#     "riot>=0.19.0",
 # ]
 # ///
 """
@@ -357,73 +358,68 @@ def analyze_version_spec(spec: str) -> Tuple[Set[int], bool]:
     return {max(satisfying_majors)}, False
 
 
-def extract_riotfile_tested_versions(riotfile_content: str, filename: str = "riotfile.py") -> Dict[str, DepInfo]:
+def extract_riotfile_tested_versions() -> Dict[str, DepInfo]:
     """
     Extract which major versions are tested for packages in riotfile.py.
-
-    Looks for patterns like:
-        "package": [latest, "~=1.0.0", "<2.0.0"]
-        "package": latest
-        "package": "~=1.0.0"
 
     Returns:
         Dict mapping package name to DepInfo
     """
+    # Add project root to path to import riotfile
+    project_root = Path(__file__).parent.parent.resolve()
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    import riotfile
+
     tested: Dict[str, DepInfo] = {}
 
-    # Pattern to match package entries in pkgs={...}
-    pkg_pattern = re.compile(
-        r'"([^"]+)":\s*'  # Package name in quotes
-        r"(\[([^\]]+)\]"  # List of specs
-        r'|"([^"]*)"'  # Single quoted spec
-        r"|latest"  # latest keyword
-        r")",
-        re.MULTILINE,
-    )
+    def add_latest_major(pkg: str, info: DepInfo) -> None:
+        """Resolve 'latest' to actual major version from PyPI and record it."""
+        info.has_latest = True
+        latest_version = get_pypi_latest_version(pkg)
+        if latest_version:
+            info.latest_major = latest_version.major
 
-    for match in pkg_pattern.finditer(riotfile_content):
-        pkg_name = match.group(1)
-        line_num = find_line_number(riotfile_content, "", match.start())
-        loc = Location(filename, line_num)
+    def process_version_spec(pkg_name: str, version_spec):
+        """Process a single version spec for a package."""
+        loc = Location("riotfile.py", 0)  # Line number not available with direct import
 
         if pkg_name not in tested:
             tested[pkg_name] = DepInfo()
 
         tested[pkg_name].locations.append(loc)
 
-        # Check for allow comment
-        if has_allow_comment(riotfile_content, match.start()):
-            tested[pkg_name].allowed_locations.append(loc)
-
-        full_match = match.group(2)
-
-        def add_latest_major(pkg: str, info: DepInfo) -> None:
-            """Resolve 'latest' to actual major version from PyPI and record it."""
-            info.has_latest = True
-            latest_version = get_pypi_latest_version(pkg)
-            if latest_version:
-                info.latest_major = latest_version.major
-
-        if full_match == "latest":
+        # Empty string means 'latest' in riot
+        if not version_spec or version_spec == "latest":
             add_latest_major(pkg_name, tested[pkg_name])
-        elif match.group(3):  # List of specs
-            specs_str = match.group(3)
-            for item in re.findall(r'"([^"]+)"|latest', specs_str):
-                if item == "":
-                    add_latest_major(pkg_name, tested[pkg_name])
-                else:
-                    majors, is_latest = analyze_version_spec(item)
-                    if is_latest:
-                        add_latest_major(pkg_name, tested[pkg_name])
-                    else:
-                        tested[pkg_name].majors = tested[pkg_name].majors.union(majors)
-        elif match.group(4) is not None:  # Single quoted spec
-            spec = match.group(4)
-            majors, is_latest = analyze_version_spec(spec)
+        else:
+            majors, is_latest = analyze_version_spec(version_spec)
             if is_latest:
                 add_latest_major(pkg_name, tested[pkg_name])
             else:
                 tested[pkg_name].majors = tested[pkg_name].majors.union(majors)
+
+    def traverse_venv(venv):
+        """Recursively traverse the Venv tree and collect package information."""
+        # Process packages at this level
+        if hasattr(venv, "pkgs") and venv.pkgs:
+            for pkg_name, version_spec in venv.pkgs.items():
+                # version_spec can be a string or a list of strings
+                if isinstance(version_spec, list):
+                    # Process each spec in the list
+                    for spec in version_spec:
+                        process_version_spec(pkg_name, spec)
+                else:
+                    process_version_spec(pkg_name, version_spec)
+
+        # Recursively traverse child venvs
+        if hasattr(venv, "venvs") and venv.venvs:
+            for child_venv in venv.venvs:
+                traverse_venv(child_venv)
+
+    # Start traversal from the root venv
+    traverse_venv(riotfile.venv)
 
     return tested
 
@@ -657,9 +653,8 @@ def main() -> int:
     pyproject_data, pyproject_content = load_pyproject()
     pyproject_deps = extract_pyproject_dependencies(pyproject_data, pyproject_content)
 
-    # Load riotfile.py
-    riotfile_content = load_file(Path("riotfile.py"))
-    riotfile_tested = extract_riotfile_tested_versions(riotfile_content, "riotfile.py")
+    # Load riotfile.py by importing it directly
+    riotfile_tested = extract_riotfile_tested_versions()
 
     # Load GitLab and GitHub CI files
     ci_files = load_all_ci_files()
