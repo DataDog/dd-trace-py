@@ -27,6 +27,7 @@ include(FindInfer)
 include(CheckSymbolExists)
 
 find_package(LibNative)
+find_package(Python3 COMPONENTS Development)
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -65,7 +66,7 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
+target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
 

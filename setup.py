@@ -1230,11 +1230,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
                 language="c",
             ),
             Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._traceback",
-                sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
                 "ddtrace.profiling._threading",
                 sources=["ddtrace/profiling/_threading.pyx"],
                 language="c",

@@ -9,6 +9,7 @@
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
+#include "python_helpers.hpp"
 
 // Cached reference to threading module and current_thread function
 static PyObject* threading_module = NULL;
@@ -64,52 +65,6 @@ traceback_t::init_invokes_cpython()
     }
     return true;
 }
-
-/* RAII helper to save and restore Python error state */
-class PythonErrorRestorer
-{
-  public:
-    PythonErrorRestorer()
-    {
-#ifdef _PY312_AND_LATER
-        // Python 3.12+: Use the new API that returns a single exception object
-        saved_exception = PyErr_GetRaisedException();
-#else
-        // Python < 3.12: Use the old API with separate type, value, traceback
-        PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
-#endif
-    }
-
-    ~PythonErrorRestorer()
-    {
-#ifdef _PY312_AND_LATER
-        // Python 3.12+: Restore using the new API if there was an exception
-        if (saved_exception != NULL) {
-            PyErr_SetRaisedException(saved_exception);
-        }
-#else
-        // Python < 3.12: Restore using the old API if there was an exception
-        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
-            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
-        }
-#endif
-    }
-
-    // Non-copyable, non-movable
-    PythonErrorRestorer(const PythonErrorRestorer&) = delete;
-    PythonErrorRestorer& operator=(const PythonErrorRestorer&) = delete;
-    PythonErrorRestorer(PythonErrorRestorer&&) = delete;
-    PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
-
-  private:
-#ifdef _PY312_AND_LATER
-    PyObject* saved_exception;
-#else
-    PyObject* saved_exc_type;
-    PyObject* saved_exc_value;
-    PyObject* saved_exc_traceback;
-#endif
-};
 
 void
 traceback_t::deinit_invokes_cpython()
@@ -243,44 +198,8 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     // Error will be restored automatically by error_restorer destructor
 }
 
-/* Helper function to extract frame info from PyFrameObject and push to sample */
-static void
-push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
-{
-    int lineno_val = PyFrame_GetLineNumber(frame);
-    if (lineno_val < 0)
-        lineno_val = 0;
-
-#ifdef _PY39_AND_LATER
-    PyCodeObject* code = PyFrame_GetCode(frame);
-#else
-    PyCodeObject* code = frame->f_code;
-#endif
-
-    std::string_view name_sv = "<unknown>";
-    std::string_view filename_sv = "<unknown>";
-
-    if (code != NULL) {
-        // Extract function name (use co_qualname for Python 3.11+ for better context)
-#if defined(_PY311_AND_LATER)
-        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
-#else
-        PyObject* name_obj = code->co_name;
-#endif
-        name_sv = unicode_to_string_view(name_obj);
-        filename_sv = unicode_to_string_view(code->co_filename);
-    }
-
-    // Push frame to Sample (leaf to root order)
-    // push_frame copies the strings immediately into its StringArena
-    sample.push_frame(name_sv, filename_sv, 0, lineno_val);
-
-#ifdef _PY39_AND_LATER
-    Py_XDECREF(code);
-#endif
-}
-
-/* Helper function to collect frames from PyFrameObject chain and push to sample */
+/* Helper function to collect frames from PyFrameObject chain and push to sample
+ * Uses Sample::push_pyframes for the actual frame unwinding */
 static void
 push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 {
@@ -291,11 +210,8 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
-#ifdef _PY39_AND_LATER
+    // Python 3.9+: PyThreadState_GetFrame() returns a new reference
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
-#else
-    PyFrameObject* pyframe = tstate->frame;
-#endif
 
     if (pyframe == NULL) {
         // No Python frames available (e.g., during thread initialization/cleanup in "Dummy" threads).
@@ -311,19 +227,10 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
-    for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        push_pyframe_to_sample(sample, frame);
-
-#ifdef _PY39_AND_LATER
-        PyFrameObject* back = PyFrame_GetBack(frame);
-        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
-                          // from GetBack are also new references
-        frame = back;
-#else
-        frame = frame->f_back;
-#endif
-        memalloc_debug_gil_release();
-    }
+    // Use the unified frame unwinding API
+    // Note: push_pyframes does not take ownership of the initial frame, so we must DECREF it here
+    sample.push_pyframes(pyframe);
+    Py_DECREF(pyframe);
 }
 
 void

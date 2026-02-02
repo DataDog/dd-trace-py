@@ -14,6 +14,10 @@ extern "C"
 #include "datadog/profiling.h"
 }
 
+// Forward declaration of Python types
+struct _frame;
+typedef struct _frame PyFrameObject;
+
 namespace Datadog {
 
 namespace internal {
@@ -134,6 +138,10 @@ class Sample
                     uint64_t address,          // for ddog_prof_Location
                     int64_t line               // for ddog_prof_Location
     );
+
+    // Push an entire PyFrameObject chain to the sample
+    // This walks the frame chain and pushes each frame in leaf-to-root order
+    void push_pyframes(PyFrameObject* frame);
 
     // Set whether to reverse locations when exporting/flushing
     void set_reverse_locations(bool reverse) { reverse_locations = reverse; }

@@ -12,7 +12,6 @@ from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Type
@@ -22,8 +21,6 @@ from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
-from ddtrace.profiling.collector import _traceback
-from ddtrace.profiling.event import DDFrame
 from ddtrace.trace import Tracer
 
 
@@ -275,9 +272,7 @@ class _ProfiledLock:
             # If we can't get the task frame, we use the caller frame.
             # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
             frame: FrameType = task_frame or sys._getframe(CALLER_FRAME_INDEX)
-            frames: List[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
-            for ddframe in frames:
-                handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
+            handle.push_pyframes(frame)
 
             handle.flush_sample()
         except AssertionError:
