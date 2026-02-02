@@ -801,6 +801,7 @@ class CustomBuildExt(build_ext):
             f"-S{source_dir}",
             f"-B{build_dir}",
             f"-DPython3_ROOT_DIR={sys.base_prefix}",
+            f"-DPython3_EXECUTABLE={sys.executable}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={build_type or COMPILE_MODE}",
             f"-DLIB_INSTALL_DIR={output_dir}",
