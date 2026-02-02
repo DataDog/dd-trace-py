@@ -91,7 +91,20 @@ def _safelog(level: int, msg: str, *args, **kwargs) -> None:
         **kwargs: Keyword arguments passed to the logger (e.g., exc_info, extra)
     """
     try:
-        log.log(level, msg, *args, **kwargs)
+        # We dispatch to specific log methods instead of using log.log(level, ...)
+        # to maintain compatibility with tests that mock log.warning, log.error, etc.
+        if level == logging.DEBUG:
+            log.debug(msg, *args, **kwargs)
+        elif level == logging.INFO:
+            log.info(msg, *args, **kwargs)
+        elif level == logging.WARNING:
+            log.warning(msg, *args, **kwargs)
+        elif level == logging.ERROR:
+            log.error(msg, *args, **kwargs)
+        elif level == logging.CRITICAL:
+            log.critical(msg, *args, **kwargs)
+        else:
+            log.log(level, msg, *args, **kwargs)
     except ValueError:
         try:
             formatted_msg = msg % args if args else msg
