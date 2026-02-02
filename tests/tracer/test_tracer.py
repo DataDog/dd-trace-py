@@ -1067,7 +1067,7 @@ def test_enable():
 @pytest.mark.subprocess(
     err=b"Shutting down tracer with 2 spans. "
     b"These spans will not be sent to Datadog: "
-    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
+    b"trace_id=123 parent_id=None span_id=456 name=unfinished_span1 "
     b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
     b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
@@ -1082,7 +1082,7 @@ def test_unfinished_span_warning_log():
     span2 = tracer.trace("unfinished_span2", service="my_service", resource="my_resource1")
     # hardcode the trace_id, parent_id, span_id, sampling decision and start time to make the test deterministic
     span1.trace_id = 123
-    span1.parent_id = 0
+    span1.parent_id = None
     span1.span_id = 456
     span1.start = 46121775360
     span1.set_tag(MANUAL_KEEP_KEY)
