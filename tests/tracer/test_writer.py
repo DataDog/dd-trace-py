@@ -1364,7 +1364,6 @@ class TestSafelog:
 
     def test_safelog_normal_operation(self):
         """Test that _safelog works correctly when streams are open."""
-        import logging
 
         from ddtrace.internal.writer.writer import _safelog
 
@@ -1377,7 +1376,6 @@ class TestSafelog:
 
     def test_safelog_with_extra_kwargs(self):
         """Test that _safelog passes through extra kwargs correctly."""
-        import logging
 
         from ddtrace.internal.writer.writer import _safelog
 
