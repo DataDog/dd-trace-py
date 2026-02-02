@@ -12,4 +12,4 @@ deprecations:
     * sqlalchemy: ``trace_engine``
     * wsgi: ``WSGIMiddleware.__init__``
 
-    The global tracer is always used.
+    The ``ddtrace.trace.tracer`` singleton is always used.
