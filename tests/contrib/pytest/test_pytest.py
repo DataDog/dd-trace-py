@@ -5098,7 +5098,7 @@ def test_pytest_coverage_data_format_handling_invalid_type():
     ):
         _pytest_sessionfinish(mock_session, 0)
 
-        mock_log.warning.assert_called_with(
+        mock_log.debug.assert_called_with(
             "Unexpected format for total covered percentage: type=%s.%s, value=%r",
             "builtins",
             "str",

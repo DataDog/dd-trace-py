@@ -150,7 +150,7 @@ class TestPytestV2CoverageUpload:
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=False
             ),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report") as mock_handle_coverage,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report") as mock_handle_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=85.0),
         ):
             _pytest_sessionfinish(mock_session, 0)
@@ -259,7 +259,7 @@ class TestPytestV2CoverageUpload:
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=False
             ),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report") as mock_handle_coverage,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report") as mock_handle_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=90.0),
         ):
             _pytest_sessionfinish(mock_session, 0)
@@ -280,7 +280,7 @@ class TestPytestV2CoverageUpload:
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=True),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report") as mock_handle_coverage,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report") as mock_handle_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report") as mock_run_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=88.0),
         ):

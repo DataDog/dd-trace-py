@@ -185,7 +185,7 @@ class TestPytestCoverageReportUpload:
         assert len(coverage_uploads) == 0
 
     def test_coverage_report_upload_without_pytest_cov(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
-        """Test coverage report upload uses ModuleCodeCollector when pytest-cov is not enabled."""
+        """Test coverage report upload uses coverage.py when pytest-cov is not enabled."""
         pytester.makepyfile(
             test_sample="""
             def multiply(a, b):
@@ -216,7 +216,7 @@ class TestPytestCoverageReportUpload:
 
                 m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
 
-                # Run WITHOUT --cov flag (will use ModuleCodeCollector)
+                # Run WITHOUT --cov flag (will start coverage.py via start_coverage())
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
             # Verify test passed
@@ -224,7 +224,7 @@ class TestPytestCoverageReportUpload:
 
             # Find coverage report uploads
             coverage_uploads = upload_capture.get_coverage_report_uploads()
-            assert len(coverage_uploads) == 1, "Expected coverage report upload when using ModuleCodeCollector"
+            assert len(coverage_uploads) == 1, "Expected coverage report upload when using coverage.py"
 
             # Verify the LCOV report contains data
             lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
