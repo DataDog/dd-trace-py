@@ -3,7 +3,6 @@ import binascii
 from collections import defaultdict
 import functools
 import gzip
-import logging
 import os
 import sys
 import threading
