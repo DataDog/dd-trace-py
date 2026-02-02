@@ -38,7 +38,7 @@ Patch Release
 
 2. Set / Validate version strings on branches
 
-    * The version string on the release branch is set to a patch version on the relevant minor release line (for example, ``1.2.3``)
+    * The version string on the release branch is currently set to a patch version on the relevant minor release line (for example, ``1.2.3``)
     * Pull request a change to the version string on the release branch that sets it to the patch version you're releasing.
 
 3. Make a GitHub release
@@ -56,7 +56,7 @@ Minor or Major Release Candidate
 
 2. Set / Validate version strings on branches
 
-    * main's version string is a release candidate ``rc`` version.
+    * main's version string is currently a release candidate ``rc`` version.
     * Pull request a change to the version string on the main branch that sets it to the next release candidate on the current minor release line.
         In practice this means incrementing the ``rcX`` number by one.
 
@@ -82,10 +82,10 @@ Minor or Major Release
 
 2. Set / Validate version strings on branches
 
-    * main's version string is a release candidate ``rc`` version.
+    * main's version string is currently a release candidate ``rc`` version.
     * Pull request a change to the version string on the main branch that sets it to ``rc1`` on the next release line.
         For example: in step 1 we created branch ``1.3``, and we will change the version string on main to ``1.4.0rc1``.
-    * The version string on the release branch is set to a patch version on the previous minor release line.
+    * The version string on the release branch is currently set to a patch version on the previous minor release line.
         For example: in step 1 we created branch ``1.3``, and it has a version string of ``1.2.9``
     * Pull request a change to the version string on the release branch that sets it to the minor version you're releasing.
 
