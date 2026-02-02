@@ -1029,7 +1029,7 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
     calls snapshot twice in a row, and checks that no sample has duplicate
     "<N frame(s) omitted>" frames.
     """
-    from ddtrace.settings.profiling import config
+    from ddtrace.internal.settings.profiling import config
 
     output_filename = _setup_profiling_prelude(tmp_path, "test_no_duplicate_dropped_frames_indicator")
 
