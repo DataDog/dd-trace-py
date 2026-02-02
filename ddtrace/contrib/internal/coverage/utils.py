@@ -54,9 +54,9 @@ def _is_coverage_invoked_by_coverage_run() -> bool:
     return _command_invokes_coverage_run(_original_sys_argv_command)
 
 
-def _find_pytest_cov_instance(session):
-    """Find and return pytest-cov coverage instance if available."""
-    for plugin in session.config.pluginmanager.list_name_plugin():
+def _find_pytest_cov_instance(config):
+    """Find and return pytest-cov coverage instance if available from config.pluginmanager."""
+    for plugin in config.pluginmanager.list_name_plugin():
         _, plugin_instance = plugin
         if hasattr(plugin_instance, "cov_controller") and plugin_instance.cov_controller:
             if hasattr(plugin_instance.cov_controller, "cov") and plugin_instance.cov_controller.cov:
@@ -64,11 +64,11 @@ def _find_pytest_cov_instance(session):
     return None
 
 
-def _register_pytest_cov_instance(session):
+def _register_pytest_cov_instance(config):
     """Register pytest-cov instance with ddtrace if available."""
     from ddtrace.contrib.internal.coverage.patch import set_coverage_instance
 
-    cov_instance = _find_pytest_cov_instance(session)
+    cov_instance = _find_pytest_cov_instance(config)
     if cov_instance:
         set_coverage_instance(cov_instance)
         log.debug("Registered pytest-cov coverage instance with ddtrace: %s", type(cov_instance))
@@ -78,9 +78,9 @@ def _register_pytest_cov_instance(session):
     return False
 
 
-def _save_pytest_cov_data(session):
+def _save_pytest_cov_data(config):
     """Save pytest-cov data before report generation."""
-    cov_instance = _find_pytest_cov_instance(session)
+    cov_instance = _find_pytest_cov_instance(config)
     if not cov_instance:
         return
 
@@ -100,15 +100,15 @@ def _save_pytest_cov_data(session):
         log.debug("Could not save pytest-cov data: %s", save_error)
 
 
-def _generate_lcov_report(session, tmp_path, is_pytest_cov_enabled_func):
+def _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func):
     """Generate LCOV report using either pytest-cov or ddtrace."""
     from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
 
     log.debug("Generating LCOV report to file: %s", tmp_path)
 
-    if is_pytest_cov_enabled_func(session.config):
+    if is_pytest_cov_enabled_func(config):
         # Try pytest-cov instance directly first
-        pytest_cov_instance = _find_pytest_cov_instance(session)
+        pytest_cov_instance = _find_pytest_cov_instance(config)
         if pytest_cov_instance:
             log.debug("Using pytest-cov instance directly to generate LCOV report")
 
@@ -172,15 +172,15 @@ def _cleanup_temp_file(tmp_path):
         log.debug("Failed to clean up temporary coverage report file: %s", e)
 
 
-def _stop_coverage_if_needed(stop_coverage_func, session, is_pytest_cov_enabled_func):
+def _stop_coverage_if_needed(stop_coverage_func, config, is_pytest_cov_enabled_func):
     """Stop coverage collection if we started it ourselves (not pytest-cov)."""
-    if stop_coverage_func and not is_pytest_cov_enabled_func(session.config):
+    if stop_coverage_func and not is_pytest_cov_enabled_func(config):
         log.debug("Stopping coverage.py collection")
         stop_coverage_func(save=True)
 
 
 def handle_coverage_report(
-    session,
+    config,
     upload_func: Callable[[bytes, str], bool],
     is_pytest_cov_enabled_func: Callable,
     stop_coverage_func: Optional[Callable] = None,
@@ -189,7 +189,7 @@ def handle_coverage_report(
     Shared coverage report upload handling for pytest plugins.
 
     Args:
-        session: pytest session object
+        config: pytest config object (to access pluginmanager for pytest-cov)
         upload_func: Function to call for uploading (signature: upload_func(bytes, format) -> bool)
         is_pytest_cov_enabled_func: Function to check if pytest-cov is enabled
         stop_coverage_func: Optional function to stop coverage collection
@@ -198,9 +198,9 @@ def handle_coverage_report(
         log.debug("Coverage report upload is enabled, checking for coverage data")
 
         # Register pytest-cov instance if needed
-        if is_pytest_cov_enabled_func(session.config) and not is_coverage_running():
+        if is_pytest_cov_enabled_func(config) and not is_coverage_running():
             log.debug("pytest-cov is enabled but coverage not running, trying to register pytest-cov instance")
-            _register_pytest_cov_instance(session)
+            _register_pytest_cov_instance(config)
 
         # Check if coverage is available
         if not is_coverage_running():
@@ -210,8 +210,8 @@ def handle_coverage_report(
         log.debug("Coverage is running, attempting to generate coverage report")
 
         # Save pytest-cov data if using pytest-cov
-        if is_pytest_cov_enabled_func(session.config):
-            _save_pytest_cov_data(session)
+        if is_pytest_cov_enabled_func(config):
+            _save_pytest_cov_data(config)
 
         # Generate and upload report
         coverage_format = "lcov"
@@ -220,7 +220,7 @@ def handle_coverage_report(
 
         try:
             # Generate LCOV report
-            pct_covered = _generate_lcov_report(session, tmp_path, is_pytest_cov_enabled_func)
+            pct_covered = _generate_lcov_report(config, tmp_path, is_pytest_cov_enabled_func)
             if pct_covered is not None:
                 log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
             else:
@@ -253,12 +253,12 @@ def handle_coverage_report(
             # Always clean up temp file
             _cleanup_temp_file(tmp_path)
             # Stop coverage after upload (if we started it)
-            _stop_coverage_if_needed(stop_coverage_func, session, is_pytest_cov_enabled_func)
+            _stop_coverage_if_needed(stop_coverage_func, config, is_pytest_cov_enabled_func)
 
     except Exception as e:
         log.debug("Error in coverage report upload handling: %s", e)
         # Still try to stop coverage even if report generation failed
-        if stop_coverage_func and not is_pytest_cov_enabled_func(session.config):
+        if stop_coverage_func and not is_pytest_cov_enabled_func(config):
             try:
                 stop_coverage_func(save=True)
             except Exception:

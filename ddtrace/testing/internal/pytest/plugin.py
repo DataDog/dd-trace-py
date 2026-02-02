@@ -281,7 +281,7 @@ class TestOptPlugin:
                 )
 
             handle_coverage_report(
-                session=session,
+                config=session.config,
                 upload_func=upload_func,
                 is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
                 stop_coverage_func=stop_coverage,

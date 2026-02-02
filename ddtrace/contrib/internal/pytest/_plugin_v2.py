@@ -810,7 +810,7 @@ def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
 
-def _handle_coverage_report_upload(session: pytest.Session) -> None:
+def _handle_coverage_report_upload(config: pytest_Config) -> None:
     """Handle coverage report upload if enabled using shared implementation."""
     from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 
@@ -828,7 +828,7 @@ def _handle_coverage_report_upload(session: pytest.Session) -> None:
             return False
 
     handle_coverage_report(
-        session=session,
+        config=config,
         upload_func=upload_func,
         is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
         stop_coverage_func=None,  # V2 plugin doesn't need to stop coverage manually
@@ -1038,13 +1038,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
     try:
         if _is_coverage_report_upload_enabled() and _is_pytest_cov_enabled(config):
             log.debug("Attempting coverage upload after terminal_summary (pytest-cov should be done)")
-
-            # Create a mock session object with config
-            class MockSession:
-                def __init__(self, config):
-                    self.config = config
-
-            _handle_coverage_report_upload(MockSession(config))
+            _handle_coverage_report_upload(config)
     except Exception as e:
         log.debug("Error handling coverage upload after terminal_summary: %s", e)
 
@@ -1079,7 +1073,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
 
     # Handle coverage report upload if enabled
     if coverage_report_upload_enabled:
-        _handle_coverage_report_upload(session)
+        _handle_coverage_report_upload(session.config)
 
     # No callbacks to clean up in simplified version
 
