@@ -92,14 +92,17 @@ class TestCIVisibilityCoverageReportEncoder:
         coverage_part = None
         for part in parts:
             if b'name="coverage"' in part:
+                # Skip leading CRLF (part of boundary delimiter)
+                if part.startswith(b"\r\n"):
+                    part = part[2:]
+
                 # Extract binary data after the headers
                 headers_end = part.find(b"\r\n\r\n")
                 if headers_end != -1:
                     coverage_part = part[headers_end + 4 :]
-                    # Remove everything after the next boundary marker
-                    next_boundary = coverage_part.find(b"\r\n--")
-                    if next_boundary != -1:
-                        coverage_part = coverage_part[:next_boundary]
+                    # After splitting by boundary, part ends with CRLF before next boundary
+                    # Strip trailing CRLF
+                    coverage_part = coverage_part.rstrip(b"\r\n")
                 break
 
         assert coverage_part is not None
