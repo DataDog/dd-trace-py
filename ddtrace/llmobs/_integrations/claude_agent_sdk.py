@@ -4,13 +4,13 @@ from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -106,9 +106,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 SPAN_KIND: "agent",
                 MODEL_NAME: model or "",
                 MODEL_PROVIDER: "claude_agent_sdk",
-                INPUT_MESSAGES: input_messages,
+                INPUT_VALUE: input_messages,
                 METADATA: parameters,
-                OUTPUT_MESSAGES: output_messages,
+                OUTPUT_VALUE: output_messages,
                 METRICS: metrics,
             }
         )

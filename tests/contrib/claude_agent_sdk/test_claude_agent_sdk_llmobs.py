@@ -15,6 +15,7 @@ These tests verify that LLMObs events are properly emitted with:
 
 import pytest
 
+from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_INPUT_TOKENS
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_MULTI_TURN_INPUT_TOKENS
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_MULTI_TURN_OUTPUT_TOKENS
@@ -28,7 +29,7 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
 from tests.contrib.claude_agent_sdk.utils import MOCK_MULTI_TURN_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 @pytest.mark.parametrize(
@@ -81,12 +82,11 @@ class TestLLMObsClaudeAgentSdk:
         # Verify LLMObs writer was called with correct extracted data
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=MOCK_MODEL,  # Extracted from AssistantMessage.model
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],  # From prompt kwarg
-                output_messages=[{"content": "4", "role": "assistant"}],  # From AssistantMessage.content
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),  # JSON-stringified
+                output_value=safe_json([{"content": "4", "role": "assistant"}]),  # JSON-stringified
                 metadata={},
                 token_metrics={
                     "input_tokens": EXPECTED_INPUT_TOKENS,  # 14599 (3 + 12742 + 1854)
@@ -115,12 +115,11 @@ class TestLLMObsClaudeAgentSdk:
 
         # Verify LLMObs captures options as metadata
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=MOCK_MODEL,
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],
-                output_messages=[{"content": "4", "role": "assistant"}],
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),
+                output_value=safe_json([{"content": "4", "role": "assistant"}]),
                 metadata={"max_turns": 3},  # Options captured in metadata
                 token_metrics={
                     "input_tokens": EXPECTED_INPUT_TOKENS,
@@ -163,12 +162,11 @@ class TestLLMObsClaudeAgentSdk:
 
         # Verify LLMObs still captures the input but output is empty, with error info
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name="",  # No response, so no model
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],
-                output_messages=[{"content": ""}],  # Empty due to error
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),
+                output_value=safe_json([{"content": ""}]),  # Empty message list due to error
                 metadata={},
                 token_metrics={},  # No usage data due to error
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.claude_agent_sdk"},
@@ -251,12 +249,11 @@ class TestLLMObsClaudeAgentSdk:
 
         # Verify LLMObs captures prompt and response
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=MOCK_MODEL,
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],
-                output_messages=[{"content": "4", "role": "assistant"}],
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),
+                output_value=safe_json([{"content": "4", "role": "assistant"}]),
                 metadata={},
                 token_metrics={"input_tokens": 14599, "output_tokens": 5, "total_tokens": 14604},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.claude_agent_sdk"},
@@ -289,25 +286,26 @@ class TestLLMObsClaudeAgentSdk:
         # Verify LLMObs captures tool use with full ToolCall structure (name, arguments, tool_id, type)
         # This matches the Anthropic pattern for tool_calls
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=MOCK_MODEL,
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],
-                output_messages=[
-                    {
-                        "content": "",
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "name": "Read",
-                                "arguments": {"file_path": "/etc/hostname"},
-                                "tool_id": MOCK_READ_TOOL_ID,
-                                "type": "tool_use",
-                            }
-                        ],
-                    }
-                ],
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),
+                output_value=safe_json(
+                    [
+                        {
+                            "content": "",
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "name": "Read",
+                                    "arguments": {"file_path": "/etc/hostname"},
+                                    "tool_id": MOCK_READ_TOOL_ID,
+                                    "type": "tool_use",
+                                }
+                            ],
+                        }
+                    ]
+                ),
                 metadata={},
                 token_metrics={
                     "input_tokens": EXPECTED_INPUT_TOKENS,
@@ -339,25 +337,26 @@ class TestLLMObsClaudeAgentSdk:
 
         # Verify Bash tool captured with full arguments including command and description
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=MOCK_MODEL,
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],
-                output_messages=[
-                    {
-                        "content": "",
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "name": "Bash",
-                                "arguments": MOCK_BASH_TOOL_INPUT,
-                                "tool_id": MOCK_BASH_TOOL_ID,
-                                "type": "tool_use",
-                            }
-                        ],
-                    }
-                ],
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),
+                output_value=safe_json(
+                    [
+                        {
+                            "content": "",
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "name": "Bash",
+                                    "arguments": MOCK_BASH_TOOL_INPUT,
+                                    "tool_id": MOCK_BASH_TOOL_ID,
+                                    "type": "tool_use",
+                                }
+                            ],
+                        }
+                    ]
+                ),
                 metadata={},
                 token_metrics={
                     "input_tokens": EXPECTED_INPUT_TOKENS,
@@ -389,25 +388,26 @@ class TestLLMObsClaudeAgentSdk:
 
         # Verify Grep tool captured with full arguments including pattern, path, output_mode, head_limit
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=MOCK_MODEL,
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],
-                output_messages=[
-                    {
-                        "content": "",
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "name": "Grep",
-                                "arguments": MOCK_GREP_TOOL_INPUT,
-                                "tool_id": MOCK_GREP_TOOL_ID,
-                                "type": "tool_use",
-                            }
-                        ],
-                    }
-                ],
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),
+                output_value=safe_json(
+                    [
+                        {
+                            "content": "",
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "name": "Grep",
+                                    "arguments": MOCK_GREP_TOOL_INPUT,
+                                    "tool_id": MOCK_GREP_TOOL_ID,
+                                    "type": "tool_use",
+                                }
+                            ],
+                        }
+                    ]
+                ),
                 metadata={},
                 token_metrics={
                     "input_tokens": EXPECTED_INPUT_TOKENS,
@@ -455,33 +455,34 @@ class TestLLMObsClaudeAgentSdk:
         # 2. Tool use (Read tool with arguments)
         # 3. Final response text
         mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
+            _expected_llmobs_non_llm_span_event(
                 span,
-                model_name=MOCK_MODEL,
-                model_provider="claude_agent_sdk",
-                input_messages=[{"content": prompt, "role": "user"}],
-                output_messages=[
-                    # First AssistantMessage - explanation text
-                    {"content": "I'll read the file at /tmp/test.txt for you.", "role": "assistant"},
-                    # Second AssistantMessage - tool use with full arguments
-                    {
-                        "content": "",
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "name": "Read",
-                                "arguments": {"file_path": "/tmp/test.txt"},
-                                "tool_id": MOCK_MULTI_TURN_TOOL_ID,
-                                "type": "tool_use",
-                            }
-                        ],
-                    },
-                    # Third AssistantMessage - final response after tool result
-                    {
-                        "content": "The file at `/tmp/test.txt` does not exist. Would you like me to create it?",
-                        "role": "assistant",
-                    },
-                ],
+                span_kind="agent",
+                input_value=safe_json([{"content": prompt, "role": "user"}]),
+                output_value=safe_json(
+                    [
+                        # First AssistantMessage - explanation text
+                        {"content": "I'll read the file at /tmp/test.txt for you.", "role": "assistant"},
+                        # Second AssistantMessage - tool use with full arguments
+                        {
+                            "content": "",
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "name": "Read",
+                                    "arguments": {"file_path": "/tmp/test.txt"},
+                                    "tool_id": MOCK_MULTI_TURN_TOOL_ID,
+                                    "type": "tool_use",
+                                }
+                            ],
+                        },
+                        # Third AssistantMessage - final response after tool result
+                        {
+                            "content": "The file at `/tmp/test.txt` does not exist. Would you like me to create it?",
+                            "role": "assistant",
+                        },
+                    ]
+                ),
                 metadata={},
                 token_metrics={
                     # Real captured usage: input=10, cache_creation=443, cache_read=28863
