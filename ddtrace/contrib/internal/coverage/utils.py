@@ -6,6 +6,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
+from ddtrace.contrib.internal.coverage.patch import is_coverage_running
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
@@ -92,6 +93,30 @@ def _generate_lcov_report(session, tmp_path, is_pytest_cov_enabled_func):
         pytest_cov_instance = _find_pytest_cov_instance(session)
         if pytest_cov_instance:
             log.debug("Using pytest-cov instance directly to generate LCOV report")
+
+            # Check if coverage has data in memory
+            has_data = False
+            try:
+                data = pytest_cov_instance.get_data()
+                has_data = bool(data) and len(data) > 0
+                log.debug("pytest-cov has data in memory: %s", has_data)
+            except Exception as e:
+                log.debug("Could not check pytest-cov data: %s", e)
+
+            # If no data in memory, try loading from .coverage file
+            if not has_data:
+                try:
+                    log.debug("No data in memory, attempting to load from .coverage file")
+                    from coverage import Coverage
+
+                    fresh_cov = Coverage(data_file=".coverage")
+                    fresh_cov.load()
+                    # Use this instance instead
+                    pytest_cov_instance = fresh_cov
+                    log.debug("Loaded data from .coverage file")
+                except Exception as load_error:
+                    log.debug("Could not load .coverage file: %s", load_error)
+
             try:
                 pct_covered = pytest_cov_instance.lcov_report(outfile=str(tmp_path))
                 log.debug("Generated LCOV report directly from pytest-cov instance")
@@ -155,8 +180,6 @@ def handle_coverage_report(
         stop_coverage_func: Optional function to stop coverage collection
     """
     try:
-        from ddtrace.contrib.internal.coverage.patch import is_coverage_running
-
         log.debug("Coverage report upload is enabled, checking for coverage data")
 
         # Register pytest-cov instance if needed
@@ -207,9 +230,9 @@ def handle_coverage_report(
             # Upload the report
             upload_success = upload_func(coverage_report_bytes, coverage_format)
             if upload_success:
-                log.info("Successfully uploaded coverage report")
+                log.debug("Successfully uploaded coverage report")
             else:
-                log.warning("Failed to upload coverage report")
+                log.debug("Failed to upload coverage report")
 
         finally:
             # Always clean up temp file
@@ -218,7 +241,7 @@ def handle_coverage_report(
             _stop_coverage_if_needed(stop_coverage_func, session, is_pytest_cov_enabled_func)
 
     except Exception as e:
-        log.exception("Error in coverage report upload handling: %s", e)
+        log.debug("Error in coverage report upload handling: %s", e)
         # Still try to stop coverage even if report generation failed
         if stop_coverage_func and not is_pytest_cov_enabled_func(session.config):
             try:
