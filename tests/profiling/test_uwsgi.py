@@ -17,16 +17,28 @@ The tests spawn actual uwsgi processes and verify:
 
 from importlib.metadata import version
 import os
+import pathlib
 import re
 import signal
+import subprocess
 from subprocess import TimeoutExpired
 import sys
 import time
+from typing import IO
+from typing import TYPE_CHECKING
+from typing import Callable
+from typing import Generator
+from typing import List
+from typing import Optional
 
 import pytest
 
 from tests.contrib.uwsgi import run_uwsgi
 from tests.profiling.collector import pprof_utils
+
+
+if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 
 
 # uwsgi is not available on Windows
@@ -43,12 +55,13 @@ uwsgi_app = os.path.join(os.path.dirname(__file__), "uwsgi-app.py")
 
 
 @pytest.fixture
-def uwsgi(monkeypatch, tmp_path):
+def uwsgi(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> Generator[Callable[..., subprocess.Popen[bytes]], None, None]:
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
-    import os
 
     cmd = [
         "uwsgi",
@@ -66,7 +79,7 @@ def uwsgi(monkeypatch, tmp_path):
         os.unlink(socket_name)
 
 
-def test_uwsgi_threads_disabled(uwsgi):
+def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
     """Test that profiler fails when uwsgi threads are not enabled.
 
     The profiler requires threading support to run its background sampling thread.
@@ -81,7 +94,7 @@ def test_uwsgi_threads_disabled(uwsgi):
     assert THREADS_MSG in stdout
 
 
-def test_uwsgi_threads_number_set(uwsgi):
+def test_uwsgi_threads_number_set(uwsgi: Callable[..., subprocess.Popen[bytes]]) -> None:
     """Test that profiler accepts --threads N as an alternative to --enable-threads.
 
     uwsgi supports two ways to enable threading:
@@ -101,7 +114,9 @@ def test_uwsgi_threads_number_set(uwsgi):
     assert THREADS_MSG not in stdout
 
 
-def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_enabled(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that profiler works correctly with a single uwsgi worker.
 
     This is the simplest valid configuration:
@@ -116,7 +131,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads")
-    worker_pids = _get_worker_pids(proc.stdout, 1)
+    worker_pids: List[int] = _get_worker_pids(proc.stdout, 1)
     # Give some time to the process to actually startup
     time.sleep(3)
     proc.terminate()
@@ -127,7 +142,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
+def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Popen[bytes]]) -> None:
     """Test that profiler fails when using multiple processes without --master.
 
     When uwsgi runs with --processes N (N > 1), it forks worker processes.
@@ -146,7 +161,7 @@ def test_uwsgi_threads_processes_no_primary(uwsgi, monkeypatch):
     )
 
 
-def _get_worker_pids(stdout, num_worker, num_app_started=1):
+def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> List[int]:
     """Parse uwsgi stdout to extract worker PIDs.
 
     Reads lines from uwsgi stdout looking for:
@@ -162,9 +177,10 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
 
     Returns when both conditions are met or EOF is reached.
     """
-    worker_pids = []
+    worker_pids: List[int] = []
     started = 0
     while True:
+        assert stdout is not None
         line = stdout.readline()
         if line == b"":
             break
@@ -181,7 +197,9 @@ def _get_worker_pids(stdout, num_worker, num_app_started=1):
     return worker_pids
 
 
-def _wait_for_profile_samples(filename_prefix, pid, value_type, timeout=10.0, interval=0.1):
+def _wait_for_profile_samples(
+    filename_prefix: str, pid: int, value_type: str, timeout: float = 10.0, interval: float = 0.1
+) -> List["pprof_pb2.Sample"]:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -202,7 +220,9 @@ def _wait_for_profile_samples(filename_prefix, pid, value_type, timeout=10.0, in
     assert False, "Timed out waiting for %s samples for pid %d" % (value_type, pid)
 
 
-def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test that profiler works correctly with multiple workers and master process.
 
     This is the standard production configuration for multi-worker uwsgi:
@@ -231,7 +251,9 @@ def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_primary_lazy_apps(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test profiler with --lazy-apps mode (app loaded independently in each worker).
 
     With --lazy-apps, each worker loads the application independently after fork,
@@ -262,7 +284,9 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
         assert len(samples) > 0
 
 
-def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
+def test_uwsgi_threads_processes_no_primary_lazy_apps(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test profiler with --lazy-apps but WITHOUT --master.
 
     This is a special case: --lazy-apps without --master. Unlike the non-lazy case,
@@ -321,7 +345,9 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
+def test_uwsgi_require_skip_atexit_when_lazy_with_master(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], lazy_flag: str
+) -> None:
     """Test that --skip-atexit warning is shown for lazy mode on uwsgi<2.0.30.
 
     For uwsgi versions before 2.0.30, using --lazy-apps or --lazy without
@@ -351,7 +377,9 @@ def test_uwsgi_require_skip_atexit_when_lazy_with_master(uwsgi, lazy_flag):
     tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
     reason="uwsgi>=2.0.30 does not require --skip-atexit",
 )
-def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
+def test_uwsgi_require_skip_atexit_when_lazy_without_master(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], lazy_flag: str
+) -> None:
     """Test that --skip-atexit warning is shown for lazy mode WITHOUT --master.
 
     Similar to test_uwsgi_require_skip_atexit_when_lazy_with_master, but tests
@@ -369,9 +397,10 @@ def test_uwsgi_require_skip_atexit_when_lazy_without_master(uwsgi, lazy_flag):
     num_workers = 2
     proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
 
-    worker_pids = []
-    logged_warning = 0
+    worker_pids: List[int] = []
+    logged_warning: int = 0
     while True:
+        assert proc.stdout is not None
         line = proc.stdout.readline()
         if line == b"":
             break
