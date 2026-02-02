@@ -62,6 +62,7 @@ def uwsgi(
 ) -> Generator[Callable[..., subprocess.Popen[bytes]], None, None]:
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
 
@@ -73,6 +74,8 @@ def uwsgi(
         socket_name,
         "--wsgi-file",
         uwsgi_app,
+        "--import",
+        "ddtrace.auto",
     ]
 
     try:
@@ -145,8 +148,13 @@ def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
     - The error message clearly indicates the threading requirement
     """
     proc = uwsgi()
-    stdout, _ = proc.communicate()
-    assert proc.wait() != 0
+    try:
+        stdout, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        # With --import, the error is printed but uwsgi keeps running.
+        # Force-kill the entire process group since we only need to check stdout.
+        os.killpg(proc.pid, signal.SIGKILL)
+        stdout, _ = proc.communicate()
     assert THREADS_MSG in stdout
 
 
@@ -210,7 +218,14 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Pope
     unsupported. The test verifies the profiler rejects this with a clear error.
     """
     proc = uwsgi("--enable-threads", "--processes", "2")
-    stdout, _ = proc.communicate()
+    try:
+        stdout, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        # With --import, the error is printed but uwsgi keeps running with
+        # child processes. Without --master, SIGTERM may not propagate cleanly
+        # to children, so use SIGKILL to force-kill the entire process group.
+        os.killpg(proc.pid, signal.SIGKILL)
+        stdout, _ = proc.communicate()
     assert (
         b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout
@@ -285,8 +300,8 @@ def test_uwsgi_threads_processes_primary(
     This is the standard production configuration for multi-worker uwsgi:
     - --enable-threads: satisfies the threading requirement
     - --master: enables the master process that manages workers
-    - --py-call-uwsgi-fork-hooks: ensures Python fork hooks are called after fork
     - --processes 2: spawns 2 worker processes
+    - --py-call-uwsgi-fork-hooks: ensures uwsgidecorators.postfork hooks fire in workers
 
     With --master, the profiler can register postfork hooks via uwsgidecorators.postfork()
     to restart the profiler in each worker after fork. The test verifies that:
@@ -296,16 +311,17 @@ def test_uwsgi_threads_processes_primary(
     """
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
-    worker_pids = _get_worker_pids(proc.stdout, 2)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--py-call-uwsgi-fork-hooks")
+    worker_pids: list[int] = _get_worker_pids(proc.stdout, 2)
     # Give some time to child to actually startup
     time.sleep(3)
+    # Use proc.terminate() (not os.killpg) so the master can gracefully shut down workers,
+    # allowing them to flush profiles via uwsgi.atexit before exiting.
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        assert len(samples) > 0
+        _wait_for_profile_samples(filename, pid, "wall-time")
 
 
 def test_uwsgi_threads_processes_primary_lazy_apps(
@@ -333,7 +349,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     # Give some time to child to actually startup and output a profile
     time.sleep(3)
-    proc.terminate()
+    os.killpg(proc.pid, signal.SIGTERM)
     assert proc.wait() == 0
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
@@ -422,7 +438,7 @@ def test_uwsgi_require_skip_atexit_when_lazy_with_master(
 
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
     time.sleep(1)
-    proc.terminate()
+    os.killpg(proc.pid, signal.SIGTERM)
     stdout, _ = proc.communicate()
     assert expected_warning in stdout
 
