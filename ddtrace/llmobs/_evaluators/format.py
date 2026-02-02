@@ -21,7 +21,7 @@ class LengthValidator(BaseEvaluator):
         # Ensure response is between 50-200 characters
         evaluator = LengthValidator(min_length=50, max_length=200, count_type="characters")
         result = evaluator.evaluate(context)
-        # Returns: 1.0 if within bounds, 0.0 otherwise
+        # Returns: True if within bounds, False otherwise
 
         # Validate length of extracted field
         evaluator = LengthValidator(
@@ -90,11 +90,11 @@ class LengthValidator(BaseEvaluator):
         else:
             return len(text.splitlines())
 
-    def evaluate(self, context: EvaluatorContext) -> float:
+    def evaluate(self, context: EvaluatorContext) -> bool:
         """Perform length validation.
 
         :param context: The evaluation context
-        :return: 1.0 if length is within bounds, 0.0 otherwise
+        :return: True if length is within bounds, False otherwise
         """
         output = context.output_data
 
@@ -103,18 +103,18 @@ class LengthValidator(BaseEvaluator):
             output = self.output_extractor(output)
 
         if output is None:
-            return 0.0
+            return False
 
         output_str = str(output)
         length = self._calculate_length(output_str)
 
         if self.min_length is not None and length < self.min_length:
-            return 0.0
+            return False
 
         if self.max_length is not None and length > self.max_length:
-            return 0.0
+            return False
 
-        return 1.0
+        return True
 
 
 class JSONValidator(BaseEvaluator):
@@ -128,12 +128,12 @@ class JSONValidator(BaseEvaluator):
         # Just validate JSON syntax
         evaluator = JSONValidator()
         result = evaluator.evaluate(context)
-        # Returns: 1.0 if valid JSON, 0.0 otherwise
+        # Returns: True if valid JSON, False otherwise
 
         # Validate required keys
         evaluator = JSONValidator(required_keys=["name", "age"])
         result = evaluator.evaluate(context)
-        # Returns: 1.0 if valid with all required keys, 0.0 otherwise
+        # Returns: True if valid JSON with all required keys, False otherwise
 
         # Validate JSON in extracted field
         evaluator = JSONValidator(
@@ -163,11 +163,11 @@ class JSONValidator(BaseEvaluator):
         self.required_keys = required_keys or []
         self.output_extractor = output_extractor
 
-    def evaluate(self, context: EvaluatorContext) -> float:
+    def evaluate(self, context: EvaluatorContext) -> bool:
         """Perform JSON validation.
 
         :param context: The evaluation context
-        :return: 1.0 if valid JSON with required keys, 0.0 otherwise
+        :return: True if valid JSON with required keys, False otherwise
         """
         output = context.output_data
 
@@ -176,7 +176,7 @@ class JSONValidator(BaseEvaluator):
             output = self.output_extractor(output)
 
         if output is None:
-            return 0.0
+            return False
 
         if isinstance(output, (dict, list)):
             parsed_data = output
@@ -185,11 +185,11 @@ class JSONValidator(BaseEvaluator):
             try:
                 parsed_data = json.loads(output_str)
             except (json.JSONDecodeError, ValueError):
-                return 0.0
+                return False
 
         if self.required_keys and isinstance(parsed_data, dict):
             for key in self.required_keys:
                 if key not in parsed_data:
-                    return 0.0
+                    return False
 
-        return 1.0
+        return True

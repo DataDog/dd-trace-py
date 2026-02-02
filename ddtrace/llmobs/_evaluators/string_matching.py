@@ -27,19 +27,19 @@ class StringCheck(BaseEvaluator):
         # Exact match (default)
         evaluator = StringCheck(operation="eq", case_sensitive=True)
         result = evaluator.evaluate(context)
-        # Returns: 1.0 if output == expected_output
+        # Returns: True if output == expected_output
 
         # Not equals
         evaluator = StringCheck(operation="ne")
-        # Returns: 1.0 if output != expected_output
+        # Returns: True if output != expected_output
 
         # Contains (case-sensitive)
         evaluator = StringCheck(operation="contains")
-        # Returns: 1.0 if expected_output is in output
+        # Returns: True if expected_output is in output
 
         # Contains (case-insensitive)
         evaluator = StringCheck(operation="icontains")
-        # Returns: 1.0 if expected_output is in output (ignoring case)
+        # Returns: True if expected_output is in output (ignoring case)
 
         # Extract field from dict output
         evaluator = StringCheck(
@@ -90,11 +90,11 @@ class StringCheck(BaseEvaluator):
         self.output_extractor = output_extractor
         self.expected_output_extractor = expected_output_extractor
 
-    def evaluate(self, context: EvaluatorContext) -> float:
+    def evaluate(self, context: EvaluatorContext) -> bool:
         """Perform string comparison evaluation.
 
         :param context: The evaluation context
-        :return: 1.0 if condition passes, 0.0 otherwise
+        :return: True if condition passes, False otherwise
         """
         output = context.output_data
         expected = context.expected_output
@@ -109,20 +109,20 @@ class StringCheck(BaseEvaluator):
         if output is None and expected is None:
             # Both None
             if self.operation == "eq":
-                return 1.0  # None == None
+                return True  # None == None
             elif self.operation == "ne":
-                return 0.0  # Not (None != None)
+                return False  # Not (None != None)
             else:  # contains, icontains
-                return 0.0  # Can't check containment with None
+                return False  # Can't check containment with None
 
         if output is None or expected is None:
             # One is None
             if self.operation == "eq":
-                return 0.0  # None != value
+                return False  # None != value
             elif self.operation == "ne":
-                return 1.0  # None != value
+                return True  # None != value
             else:  # contains, icontains
-                return 0.0  # Can't check containment with None
+                return False  # Can't check containment with None
 
         output_str = str(output)
         expected_str = str(expected)
@@ -131,24 +131,20 @@ class StringCheck(BaseEvaluator):
             output_str = output_str.strip()
             expected_str = expected_str.strip()
 
-        # Apply case sensitivity
-        if self.operation == "icontains":
-            # icontains is always case-insensitive
-            output_str = output_str.lower()
-            expected_str = expected_str.lower()
-        elif not self.case_sensitive:
+        # Apply case sensitivity (icontains is always case-insensitive)
+        if self.operation == "icontains" or not self.case_sensitive:
             output_str = output_str.lower()
             expected_str = expected_str.lower()
 
         # Perform operation
         if self.operation == "eq":
-            return 1.0 if output_str == expected_str else 0.0
+            return output_str == expected_str
         elif self.operation == "ne":
-            return 1.0 if output_str != expected_str else 0.0
+            return output_str != expected_str
         elif self.operation in ("contains", "icontains"):
-            return 1.0 if expected_str in output_str else 0.0
+            return expected_str in output_str
 
-        return 0.0  # Should never reach here
+        return False  # Should never reach here
 
 
 class RegexMatch(BaseEvaluator):
@@ -163,7 +159,7 @@ class RegexMatch(BaseEvaluator):
         # Validate email format
         evaluator = RegexMatch(pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
         result = evaluator.evaluate(context)
-        # Returns: 1.0 if pattern matches, 0.0 otherwise
+        # Returns: True if pattern matches, False otherwise
 
         # Extract field from dict output before regex matching
         evaluator = RegexMatch(
@@ -211,11 +207,11 @@ class RegexMatch(BaseEvaluator):
         self.flags = flags
         self.output_extractor = output_extractor
 
-    def evaluate(self, context: EvaluatorContext) -> float:
+    def evaluate(self, context: EvaluatorContext) -> bool:
         """Perform regex match evaluation.
 
         :param context: The evaluation context
-        :return: 1.0 if pattern matches, 0.0 otherwise
+        :return: True if pattern matches, False otherwise
         """
         output = context.output_data
 
@@ -224,7 +220,7 @@ class RegexMatch(BaseEvaluator):
             output = self.output_extractor(output)
 
         if output is None:
-            return 0.0
+            return False
 
         output_str = str(output)
 
@@ -235,4 +231,4 @@ class RegexMatch(BaseEvaluator):
         else:
             match = self.pattern.fullmatch(output_str)
 
-        return 1.0 if match is not None else 0.0
+        return match is not None
