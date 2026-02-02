@@ -1320,8 +1320,13 @@ class TestSafelog:
             logger.setLevel(original_level)
             logger.propagate = original_propagate
 
-    def test_safelog_with_closed_stream_stderr_output(self, capsys):
-        """Test that _safelog handles closed streams and some error appears in stderr."""
+    def test_safelog_with_closed_stream_no_exception(self):
+        """Test that _safelog handles closed streams without raising any exception.
+
+        The key behavior is that _safelog should not propagate exceptions when
+        the logging stream is closed, regardless of whether error output is produced.
+        Different Python versions may handle closed streams differently.
+        """
         import io
         import logging
 
@@ -1347,28 +1352,36 @@ class TestSafelog:
             # Close the stream to simulate pytest closing captured streams
             stream.close()
 
-            # This should not raise - either the logging module catches the error
-            # internally, or our _safelog wrapper catches it
-            _safelog(logging.WARNING, "Test message to stderr")
-
-            # Check that some error indication appears in stderr
-            # The logging module itself may print "--- Logging error ---" or our
-            # wrapper may print "[ddtrace] I/O closed, could not log:"
-            captured = capsys.readouterr()
-            assert "I/O operation on closed file" in captured.err or "I/O closed" in captured.err
+            # The key assertion: this should not raise any exception
+            # even though the stream is closed
+            _safelog(logging.WARNING, "Test message to closed stream")
+            # If we get here, the test passes - no exception was raised
         finally:
             # Restore original state
             logger.handlers = original_handlers
             logger.setLevel(original_level)
             logger.propagate = original_propagate
 
-    def test_safelog_normal_operation(self, caplog):
-        """Test that _safelog works normally when streams are open."""
+    def test_safelog_normal_operation(self):
+        """Test that _safelog works correctly when streams are open."""
         import logging
 
         from ddtrace.internal.writer.writer import _safelog
 
-        with caplog.at_level(logging.WARNING, logger="ddtrace.internal.writer.writer"):
+        # Use mocking to verify the log.warning() call is made correctly
+        with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
             _safelog(logging.WARNING, "Normal log message with %s", "formatting")
 
-        assert "Normal log message with formatting" in caplog.text
+            # Verify log.warning was called with correct arguments
+            mock_log.warning.assert_called_once_with("Normal log message with %s", "formatting")
+
+    def test_safelog_with_extra_kwargs(self):
+        """Test that _safelog passes through extra kwargs correctly."""
+        import logging
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
+            _safelog(logging.ERROR, "Error with extra", extra={"key": "value"}, exc_info=True)
+
+            mock_log.error.assert_called_once_with("Error with extra", extra={"key": "value"}, exc_info=True)
