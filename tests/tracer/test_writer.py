@@ -1311,9 +1311,9 @@ class TestSafelog:
             stream.close()
 
             # This should not raise even though the stream is closed
-            _safelog(logging.WARNING, "Test message with %s", "args")
-            _safelog(logging.ERROR, "Another test message")
-            _safelog(logging.DEBUG, "Debug message with extra", extra={"key": "value"})
+            _safelog(logger.warning, "Test message with %s", "args")
+            _safelog(logger.error, "Another test message")
+            _safelog(logger.debug, "Debug message with extra", extra={"key": "value"})
         finally:
             # Restore original state
             logger.handlers = original_handlers
@@ -1354,7 +1354,7 @@ class TestSafelog:
 
             # The key assertion: this should not raise any exception
             # even though the stream is closed
-            _safelog(logging.WARNING, "Test message to closed stream")
+            _safelog(logger.warning, "Test message to closed stream")
             # If we get here, the test passes - no exception was raised
         finally:
             # Restore original state
@@ -1368,9 +1368,9 @@ class TestSafelog:
 
         from ddtrace.internal.writer.writer import _safelog
 
-        # Use mocking to verify the log.warning() call is made correctly
+        # Use mocking to verify the log function call is made correctly
         with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
-            _safelog(logging.WARNING, "Normal log message with %s", "formatting")
+            _safelog(mock_log.warning, "Normal log message with %s", "formatting")
 
             # Verify log.warning was called with correct arguments
             mock_log.warning.assert_called_once_with("Normal log message with %s", "formatting")
@@ -1382,6 +1382,6 @@ class TestSafelog:
         from ddtrace.internal.writer.writer import _safelog
 
         with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
-            _safelog(logging.ERROR, "Error with extra", extra={"key": "value"}, exc_info=True)
+            _safelog(mock_log.error, "Error with extra", extra={"key": "value"}, exc_info=True)
 
             mock_log.error.assert_called_once_with("Error with extra", extra={"key": "value"}, exc_info=True)
