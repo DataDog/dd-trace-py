@@ -10,57 +10,22 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
-// Cached reference to threading module and current_thread function
-static PyObject* threading_module = NULL;
-static PyObject* threading_current_thread = NULL;
+// Define the static member variable
+PyObject* traceback_t::threading_current_thread = NULL;
 
 bool
-traceback_t::init_invokes_cpython()
+traceback_t::init_invokes_cpython(PyObject* current_thread_func)
 {
-    // Initialize threading module structure references
-    // Note: MemoryCollector.start() ensures _threading is imported before calling
-    // _memalloc.start(), so this should normally succeed. If it fails, we return false
-    // and the error will be handled up the stack.
-    if (threading_module == NULL) {
-        // Import the threading module (or use ddtrace's unpatched version)
-        PyObject* sys_modules = PyImport_GetModuleDict();
-        if (sys_modules == NULL) {
-            PyErr_SetString(PyExc_RuntimeError, "Failed to get sys.modules");
+    // Initialize threading.current_thread function reference
+    // Note: MemoryCollector.start() passes threading.current_thread from Python side
+    if (threading_current_thread == NULL) {
+        if (current_thread_func == NULL || !PyCallable_Check(current_thread_func)) {
+            PyErr_SetString(PyExc_RuntimeError, "Invalid threading.current_thread function");
             return false;
         }
-
-        // Try to get threading module from sys.modules (don't force import)
-        PyObject* threading_mod_name = PyUnicode_FromString("threading");
-        if (threading_mod_name == NULL) {
-            return false;
-        }
-        threading_module = PyDict_GetItem(sys_modules, threading_mod_name);
-        Py_DECREF(threading_mod_name);
-
-        // If threading not in sys.modules, try ddtrace.internal._unpatched._threading
-        if (threading_module == NULL) {
-            PyObject* mod_path = PyUnicode_DecodeFSDefault("ddtrace.internal._unpatched._threading");
-            threading_module = PyImport_Import(mod_path);
-            Py_XDECREF(mod_path);
-            if (threading_module == NULL) {
-                // Error is already set by PyImport_Import
-                return false;
-            }
-        } else {
-            Py_INCREF(threading_module); // PyDict_GetItem returns borrowed reference
-        }
-
-        // Get threading.current_thread function
-        threading_current_thread = PyObject_GetAttrString(threading_module, "current_thread");
-        if (threading_current_thread == NULL || !PyCallable_Check(threading_current_thread)) {
-            Py_XDECREF(threading_module);
-            threading_module = NULL;
-            Py_XDECREF(threading_current_thread);
-            threading_current_thread = NULL;
-            PyErr_SetString(PyExc_RuntimeError, "Failed to get threading.current_thread");
-            return false;
-        }
-        // PyObject_GetAttrString returns new reference, keep it
+        // PyArg_ParseTuple returns borrowed reference, so we need to increment
+        Py_INCREF(current_thread_func);
+        threading_current_thread = current_thread_func;
     }
     return true;
 }
@@ -121,9 +86,8 @@ traceback_t::deinit_invokes_cpython()
 #else
     if (_Py_IsFinalizing()) {
 #endif
-        // Just clear the pointers without decrementing references
+        // Just clear the pointer without decrementing reference
         threading_current_thread = NULL;
-        threading_module = NULL;
         return;
     }
 
@@ -134,15 +98,11 @@ traceback_t::deinit_invokes_cpython()
     // We temporarily clear it during cleanup to avoid issues with Py_DECREF().
     PythonErrorRestorer error_restorer;
 
-    // Use Py_XDECREF for all cleanup to safely handle NULL pointers.
+    // Use Py_XDECREF for cleanup to safely handle NULL pointers.
     // During exception handling, objects may have been invalidated or set to NULL.
     PyObject* old_threading_current_thread = threading_current_thread;
     threading_current_thread = NULL;
     Py_XDECREF(old_threading_current_thread);
-
-    PyObject* old_threading_module = threading_module;
-    threading_module = NULL;
-    Py_XDECREF(old_threading_module);
 
     // Error will be restored automatically by error_restorer destructor
 }
@@ -179,14 +139,14 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     PythonErrorRestorer error_restorer;
 
     // Use threading.current_thread() to get the current thread object
-    if (threading_current_thread == NULL) {
+    if (traceback_t::threading_current_thread == NULL) {
         // threading.current_thread not available, don't push anything
         // Error will be restored automatically by error_restorer destructor
         return;
     }
 
     // Call threading.current_thread() - equivalent to threading.current_thread()
-    PyObject* thread = PyObject_CallObject(threading_current_thread, NULL);
+    PyObject* thread = PyObject_CallObject(traceback_t::threading_current_thread, NULL);
     if (thread == NULL) {
         PyErr_Clear();
         // Failed to get thread, don't push anything

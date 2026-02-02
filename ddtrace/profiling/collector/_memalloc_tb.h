@@ -25,10 +25,10 @@ class traceback_t
      * _invokes_cpython suffix: calls CPython APIs which may release the GIL during frame collection */
     void init_sample_invokes_cpython(size_t size, size_t weighted_size);
 
-    /* Initialize traceback module (creates interned strings)
+    /* Initialize traceback module with threading.current_thread function
      * Returns true on success, false otherwise
      * NOTE: Invokes CPython APIs */
-    [[nodiscard]] static bool init_invokes_cpython();
+    [[nodiscard]] static bool init_invokes_cpython(PyObject* current_thread_func);
     /* Deinitialize traceback module
      * NOTE: Invokes CPython APIs */
     static void deinit_invokes_cpython();
@@ -38,6 +38,10 @@ class traceback_t
     traceback_t& operator=(const traceback_t&) = delete;
     traceback_t(traceback_t&&) = delete;
     traceback_t& operator=(traceback_t&&) = delete;
+
+    // Cached reference to threading.current_thread function
+    // Made static for access by helper functions
+    static PyObject* threading_current_thread;
 };
 
 /* The maximum number of frames we can collect for a traceback

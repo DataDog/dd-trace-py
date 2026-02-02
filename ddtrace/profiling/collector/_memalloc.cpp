@@ -92,7 +92,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
-             "start($module, max_nframe, heap_sample_interval)\n"
+             "start($module, max_nframe, heap_sample_interval, current_thread_func)\n"
              "--\n"
              "\n"
              "Start tracing Python memory allocations.\n"
@@ -101,7 +101,8 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "trace to max_nframe.\n"
              "Sets the average number of bytes allocated between samples to\n"
              "heap_sample_interval.\n"
-             "If heap_sample_interval is set to 0, it is disabled entirely.\n");
+             "If heap_sample_interval is set to 0, it is disabled entirely.\n"
+             "current_thread_func should be threading.current_thread function.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
@@ -124,9 +125,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     long max_nframe;
     long long int heap_sample_size;
+    PyObject* current_thread_func;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size))
+    if (!PyArg_ParseTuple(args, "lLO", &max_nframe, &heap_sample_size, &current_thread_func))
         return NULL;
 
     if (max_nframe < 1 || max_nframe > TRACEBACK_MAX_NFRAME) {
@@ -141,7 +143,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    if (!traceback_t::init_invokes_cpython())
+    if (!traceback_t::init_invokes_cpython(current_thread_func))
         return NULL;
 
     if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))

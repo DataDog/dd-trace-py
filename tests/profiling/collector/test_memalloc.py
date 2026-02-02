@@ -744,9 +744,10 @@ def test_memory_collector_allocation_during_shutdown() -> None:
     """
     import time
 
+    from ddtrace.internal._unpatched import _threading
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(32, 512)
+    _memalloc.start(32, 512, _threading.current_thread)
 
     shutdown_event = threading.Event()
     allocation_thread = None
@@ -914,51 +915,55 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
 
 
 def test_start_twice() -> None:
+    from ddtrace.internal._unpatched import _threading
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(64, 512)
+    _memalloc.start(64, 512, _threading.current_thread)
     with pytest.raises(RuntimeError):
-        _memalloc.start(64, 512)
+        _memalloc.start(64, 512, _threading.current_thread)
     _memalloc.stop()
 
 
 def test_start_wrong_arg() -> None:
+    from ddtrace.internal._unpatched import _threading
     from ddtrace.profiling.collector import _memalloc
 
-    with pytest.raises(TypeError, match="function takes exactly 2 arguments \\(1 given\\)"):
+    with pytest.raises(TypeError, match="function takes exactly 3 arguments \\(1 given\\)"):
         _memalloc.start(2)  # pyright: ignore[reportCallIssue]
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(429496, 1)
+        _memalloc.start(429496, 1, _threading.current_thread)
 
     with pytest.raises(ValueError, match="the number of frames must be in range \\[1; 600\\]"):
-        _memalloc.start(-1, 1)
+        _memalloc.start(-1, 1, _threading.current_thread)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, -1)
+        _memalloc.start(64, -1, _threading.current_thread)
 
     with pytest.raises(
         ValueError,
         match="the heap sample size must be in range \\[0; 4294967295\\]",
     ):
-        _memalloc.start(64, 345678909876)
+        _memalloc.start(64, 345678909876, _threading.current_thread)
 
 
 def test_start_stop() -> None:
+    from ddtrace.internal._unpatched import _threading
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(1, 1)
+    _memalloc.start(1, 1, _threading.current_thread)
     _memalloc.stop()
 
 
 def test_heap_stress() -> None:
+    from ddtrace.internal._unpatched import _threading
     from ddtrace.profiling.collector import _memalloc
 
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    _memalloc.start(64, 1024)
+    _memalloc.start(64, 1024, _threading.current_thread)
     try:
         x: List[object] = []
 
