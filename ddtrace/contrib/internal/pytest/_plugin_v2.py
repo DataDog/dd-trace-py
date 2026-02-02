@@ -7,8 +7,7 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import get_coverage_percentage
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
@@ -364,8 +363,14 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
+def _is_pytest_cov_available(config) -> bool:
+    """Check if pytest-cov plugin is available (installed)."""
+    return config.pluginmanager.get_plugin("pytest_cov") is not None
+
+
 def _is_pytest_cov_enabled(config) -> bool:
-    if not config.pluginmanager.get_plugin("pytest_cov"):
+    """Check if pytest-cov plugin is both available and enabled via command-line options."""
+    if not _is_pytest_cov_available(config):
         return False
     cov_option = config.getoption("--cov", default=False)
     nocov_option = config.getoption("--no-cov", default=False)
@@ -962,7 +967,7 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         if invoked_by_coverage_run_status and not pytest_cov_status:
             run_coverage_report()
 
-        lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
+        lines_pct_value = get_coverage_percentage()
         if lines_pct_value is None:
             log.debug("Unable to retrieve coverage data for the session span")
         elif not isinstance(lines_pct_value, (float, int)):
