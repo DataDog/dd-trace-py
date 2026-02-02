@@ -166,7 +166,8 @@ Include an estimated end-of-life block at the top of the new release notes:
     Estimated end-of-life date, accurate to within three months: MM-YYYY
     See [the support level definitions](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/#releases) for more information.
 
-Where the EOL month is calculated thus: <this major release line's start month> + <18 months>
+Where the EOL month is calculated thus: <this major release line's start month> + <18 months>. In most cases you can simply
+copy-paste this block from the previous release on the same major line.
 
 
 Making a New Github Release
