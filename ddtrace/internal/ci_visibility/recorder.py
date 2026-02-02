@@ -1008,30 +1008,31 @@ class CIVisibility(Service):
                 log.debug("No coverage report client available in writer")
                 return False
 
-            # Create event data with git and service information
-            import time
+            # Create event data with git and service information using shared utility
+            from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
 
-            event_data = {
-                "type": "coverage_report",
-                "format": coverage_format,
-                "timestamp": int(time.time() * 1000),
-            }
-
-            # Add git data if available
+            # Convert GitData object to dict format for the shared function (filter out None values)
+            git_data_dict = None
             if hasattr(self, "_git_data") and self._git_data:
-                event_data.update(
-                    {
-                        "git.repository_url": self._git_data.repository_url,
-                        "git.commit.sha": self._git_data.commit_sha,
-                        "git.branch": self._git_data.branch,
-                    }
-                )
+                git_data_dict = {
+                    key: value
+                    for key, value in {
+                        "repository_url": self._git_data.repository_url,
+                        "commit_sha": self._git_data.commit_sha,
+                        "branch": self._git_data.branch,
+                    }.items()
+                    if value is not None
+                }
+                # Only use git_data_dict if it's not empty
+                if not git_data_dict:
+                    git_data_dict = None
 
-            # Add service/env info
-            if hasattr(self, "_service") and self._service:
-                event_data["service"] = self._service
-            if hasattr(self, "_dd_env") and self._dd_env:
-                event_data["env"] = self._dd_env
+            event_data = create_coverage_report_event(
+                coverage_format=coverage_format,
+                git_data=git_data_dict,
+                service=self._service if hasattr(self, "_service") else None,
+                env=self._dd_env if hasattr(self, "_dd_env") else None,
+            )
 
             # Use the encoder to format the data
             encoded_data = coverage_report_client.coverage_encoder.encode_coverage_report(

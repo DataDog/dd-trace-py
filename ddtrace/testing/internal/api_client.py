@@ -4,7 +4,6 @@ import gzip
 import json
 import logging
 from pathlib import Path
-import time
 import typing as t
 import uuid
 
@@ -389,17 +388,13 @@ class APIClient:
         Returns:
             Event dictionary with type, format, and all available git/CI tags
         """
-        event: t.Dict[str, t.Any] = {
-            "type": "coverage_report",
-            "format": coverage_format,
-            "timestamp": int(time.time() * 1000),  # FIXME: Is this needed?
-        }
+        from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
 
-        # Add any custom tags provided
-        if tags:
-            event.update(tags)
+        # Warn if Git repository URL is missing
+        if GitTag.REPOSITORY_URL not in self.env_tags:
+            log.warning("Git repository URL not available for coverage report upload")
 
-        # Add git tags from env_tags
+        # Prepare git data from env_tags (includes all git fields)
         git_tags = [
             GitTag.REPOSITORY_URL,
             GitTag.COMMIT_SHA,
@@ -412,17 +407,11 @@ class APIClient:
             GitTag.COMMIT_COMMITTER_NAME,
             GitTag.COMMIT_COMMITTER_EMAIL,
             GitTag.COMMIT_COMMITTER_DATE,
+            "git.pull_request.number",
         ]
+        git_data = {tag: self.env_tags[tag] for tag in git_tags if tag in self.env_tags}
 
-        for git_tag in git_tags:
-            if git_tag in self.env_tags:
-                event[git_tag] = self.env_tags[git_tag]
-
-        # Warn if Git repository URL is missing
-        if GitTag.REPOSITORY_URL not in self.env_tags:
-            log.warning("Git repository URL not available for coverage report upload")
-
-        # Add CI tags from env_tags
+        # Prepare CI tags to add as custom tags
         ci_tags = [
             CITag.PROVIDER_NAME,
             CITag.PIPELINE_ID,
@@ -436,16 +425,22 @@ class APIClient:
             CITag.NODE_NAME,
             CITag.NODE_LABELS,
         ]
+        ci_tags_dict = {tag: self.env_tags[tag] for tag in ci_tags if tag in self.env_tags}
 
-        for ci_tag in ci_tags:
-            if ci_tag in self.env_tags:
-                event[ci_tag] = self.env_tags[ci_tag]
+        # Merge custom tags and CI tags
+        all_custom_tags = {}
+        if tags:
+            all_custom_tags.update(tags)
+        all_custom_tags.update(ci_tags_dict)
 
-        # Add PR number if available
-        if "git.pull_request.number" in self.env_tags:
-            event["pr.number"] = self.env_tags["git.pull_request.number"]
-
-        return event
+        # Use shared utility to create event
+        return create_coverage_report_event(
+            coverage_format=coverage_format,
+            git_data=git_data,
+            service=None,  # V3 doesn't set service in the event
+            env=None,  # V3 doesn't set env in the event
+            custom_tags=all_custom_tags if all_custom_tags else None,
+        )
 
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
