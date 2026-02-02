@@ -65,26 +65,25 @@ remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 
 from abc import ABC
 from abc import abstractmethod
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import TYPE_CHECKING
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import PayloadType
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase  # noqa:F401
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber  # noqa:F401
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
-    from ddtrace.trace import Tracer  # noqa:F401
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 
 log = get_logger(__name__)
 
 
 class PubSub(ABC):
-    _shared_data = None  # type: PublisherSubscriberConnector
-    _publisher = None  # type: RemoteConfigPublisherBase
-    _subscriber = None  # type: RemoteConfigSubscriber
+    _shared_data: "PublisherSubscriberConnector"
+    _publisher: RemoteConfigPublisherBase
+    _subscriber: RemoteConfigSubscriber
 
     @abstractmethod
     def __init__(self, *args, **kwargs) -> None:
@@ -96,19 +95,11 @@ class PubSub(ABC):
     def restart_subscriber(self, join=False):
         self._subscriber.force_restart(join)
 
-    def _poll_data(self) -> None:
-        self._subscriber._get_data_from_connector_and_exec()
-
     def stop(self, join: bool = False) -> None:
         self._subscriber.stop(join=join)
 
     def publish(self) -> None:
         self._publisher.dispatch(self)
-
-    def append_and_publish(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
-        """Append data to publisher and send the data to subscriber. It's a shortcut for testing purposes"""
-        self.append(config_content, target, config_metadata)
-        self.publish()
 
     def append(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
         self._publisher.append(config_content, target, config_metadata)
