@@ -60,6 +60,7 @@ def uwsgi(
 ) -> Generator[Callable[..., subprocess.Popen[bytes]], None, None]:
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
 
@@ -71,6 +72,8 @@ def uwsgi(
         socket_name,
         "--wsgi-file",
         uwsgi_app,
+        "--import",
+        "ddtrace.auto",
     ]
 
     try:
