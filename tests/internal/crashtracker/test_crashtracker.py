@@ -485,7 +485,6 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
 
     with utils.with_test_agent() as client:
         env = os.environ.copy()
-        env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
