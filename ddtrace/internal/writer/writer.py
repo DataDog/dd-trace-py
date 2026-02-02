@@ -69,7 +69,7 @@ log = get_logger(__name__)
 LOG_ERR_INTERVAL = 60
 
 
-def _safelog(level: int, msg: str, *args, **kwargs) -> None:
+def _safelog(log_func: Callable[...], msg: str, *args, **kwargs) -> None:
     """
     Safely log a message, handling closed I/O streams gracefully.
 
@@ -85,26 +85,13 @@ def _safelog(level: int, msg: str, *args, **kwargs) -> None:
     fallback. If stderr is also closed, the message is silently dropped.
 
     Args:
-        level: The logging level (e.g., logging.DEBUG, logging.WARNING)
+        log_func: ...
         msg: The log message format string
         *args: Arguments for the format string
         **kwargs: Keyword arguments passed to the logger (e.g., exc_info, extra)
     """
     try:
-        # We dispatch to specific log methods instead of using log.log(level, ...)
-        # to maintain compatibility with tests that mock log.warning, log.error, etc.
-        if level == logging.DEBUG:
-            log.debug(msg, *args, **kwargs)
-        elif level == logging.INFO:
-            log.info(msg, *args, **kwargs)
-        elif level == logging.WARNING:
-            log.warning(msg, *args, **kwargs)
-        elif level == logging.ERROR:
-            log.error(msg, *args, **kwargs)
-        elif level == logging.CRITICAL:
-            log.critical(msg, *args, **kwargs)
-        else:
-            log.log(level, msg, *args, **kwargs)
+        log_func(msg, *args, **kwargs)
     except ValueError:
         try:
             formatted_msg = msg % args if args else msg
