@@ -159,9 +159,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    if (!traceback_t::init_invokes_cpython(current_thread_func))
+    if (!traceback_t::init_invokes_cpython(current_thread_func)) {
         PyErr_SetString(PyExc_RuntimeError, "failed to initialize traceback module");
         return NULL;
+    }
 
     if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
         PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");

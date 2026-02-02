@@ -57,6 +57,15 @@ class MemoryCollector:
         import ddtrace.internal._threads  # noqa: F401
         from ddtrace.internal._unpatched import _threading
 
+        # Pass threading.current_thread function to C extension
+        # Why pass from Python instead of looking it up in C?
+        # - CPython C API provides only thread primitives (PyThread_get_thread_ident, PyThreadState_Get)
+        # - There is NO C API to get Python threading.Thread objects directly
+        # - threading.current_thread() is implemented in pure Python: looks up thread ID in the
+        #   module-level _active dictionary, which is not exposed to C
+        # - Passing the function from Python is simpler and more maintainable than reimplementing
+        #   the lookup logic in C or accessing Python internal dictionaries from C
+        # - We use ddtrace.internal._unpatched._threading to avoid interference from monkey-patching
         try:
             _memalloc.start(self.max_nframe, self.heap_sample_size, _threading.current_thread)
         except RuntimeError:
