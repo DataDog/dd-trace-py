@@ -1154,3 +1154,693 @@ def _get_base_url() -> str:
         subdomain = "app."
 
     return f"https://{subdomain}{config._dd_site}"
+
+
+# =============================================================================
+# Distributed Experiment Support - Helper Classes and Utilities
+# =============================================================================
+
+
+def run_evaluator(
+    evaluator: Union[
+        Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+        BaseEvaluator,
+    ],
+    input_data: DatasetRecordInputType,
+    output_data: JSONType,
+    expected_output: Optional[JSONType] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    span_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Run a single evaluator and return the result.
+
+    :param evaluator: The evaluator (BaseEvaluator instance or callable function)
+    :param input_data: The input data for the evaluation
+    :param output_data: The output data to evaluate
+    :param expected_output: Optional expected output for comparison
+    :param metadata: Optional metadata dict
+    :param span_id: Optional span ID for context
+    :param trace_id: Optional trace ID for context
+    :return: Dict with name, value, error, and optional reasoning/assessment/metadata/tags
+    """
+    eval_result_value: JSONType = None
+    eval_err: JSONType = None
+    evaluator_name = ""
+    extra_return_values: Dict[str, JSONType] = {}
+
+    try:
+        if _is_class_evaluator(evaluator):
+            evaluator_name = evaluator.name  # type: ignore[union-attr]
+            context = EvaluatorContext(
+                input_data=input_data,
+                output_data=output_data,
+                expected_output=expected_output,
+                metadata=metadata or {},
+                span_id=span_id,
+                trace_id=trace_id,
+            )
+            eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
+        elif _is_function_evaluator(evaluator):
+            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+            eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
+        else:
+            logger.warning("Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator)
+            evaluator_name = str(evaluator)
+            eval_result = None
+
+        if isinstance(eval_result, EvaluatorResult):
+            if eval_result.reasoning:
+                extra_return_values["reasoning"] = eval_result.reasoning
+            if eval_result.assessment:
+                extra_return_values["assessment"] = eval_result.assessment
+            if eval_result.metadata:
+                extra_return_values["metadata"] = eval_result.metadata
+            if eval_result.tags:
+                extra_return_values["tags"] = eval_result.tags
+            eval_result_value = eval_result.value
+        else:
+            eval_result_value = eval_result
+
+    except Exception as e:
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
+        exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        eval_err = {
+            "message": str(exc_value),
+            "type": exc_type_name,
+            "stack": exc_stack,
+        }
+
+    return {
+        "name": evaluator_name,
+        "value": eval_result_value,
+        "error": eval_err,
+        **extra_return_values,
+    }
+
+
+def run_summary_evaluator(
+    summary_evaluator: Union[
+        Callable[
+            [List[DatasetRecordInputType], List[JSONType], List[JSONType], Dict[str, List[JSONType]]],
+            JSONType,
+        ],
+        BaseSummaryEvaluator,
+    ],
+    inputs: List[DatasetRecordInputType],
+    outputs: List[JSONType],
+    expected_outputs: List[JSONType],
+    evaluation_results: Dict[str, List[JSONType]],
+    metadata_list: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Run a single summary evaluator and return the result.
+
+    :param summary_evaluator: The summary evaluator (BaseSummaryEvaluator instance or callable)
+    :param inputs: List of all input data
+    :param outputs: List of all outputs
+    :param expected_outputs: List of all expected outputs
+    :param evaluation_results: Dict mapping evaluator names to their results
+    :param metadata_list: Optional list of metadata dicts for each record
+    :return: Dict with name, value, and error
+    """
+    eval_result_value: JSONType = None
+    eval_err: JSONType = None
+    evaluator_name = ""
+
+    try:
+        if _is_class_summary_evaluator(summary_evaluator):
+            evaluator_name = summary_evaluator.name  # type: ignore[union-attr]
+            context = SummaryEvaluatorContext(
+                inputs=inputs,
+                outputs=outputs,
+                expected_outputs=expected_outputs,
+                evaluation_results=evaluation_results,
+                metadata=metadata_list or [],
+            )
+            eval_result = summary_evaluator.evaluate(context)  # type: ignore[union-attr]
+        else:
+            evaluator_name = summary_evaluator.__name__  # type: ignore[union-attr]
+            eval_result = summary_evaluator(inputs, outputs, expected_outputs, evaluation_results)  # type: ignore[operator]
+        eval_result_value = eval_result
+    except Exception as e:
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
+        exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        eval_err = {
+            "message": str(exc_value),
+            "type": exc_type_name,
+            "stack": exc_stack,
+        }
+
+    return {
+        "name": evaluator_name,
+        "value": eval_result_value,
+        "error": eval_err,
+    }
+
+
+def build_evaluation_metric(
+    evaluator_name: str,
+    eval_value: JSONType,
+    experiment_id: str,
+    span_id: str,
+    trace_id: str,
+    timestamp_ms: int,
+    source: str = "custom",
+    error: Optional[JSONType] = None,
+    reasoning: Optional[str] = None,
+    assessment: Optional[str] = None,
+    metadata: Optional[Dict[str, JSONType]] = None,
+    tags: Optional[Dict[str, str]] = None,
+) -> "LLMObsExperimentEvalMetricEvent":
+    """Build an evaluation metric event for submission to Datadog.
+
+    :param evaluator_name: Name of the evaluator
+    :param eval_value: The evaluation result value
+    :param experiment_id: The experiment ID
+    :param span_id: The span ID
+    :param trace_id: The trace ID
+    :param timestamp_ms: Timestamp in milliseconds
+    :param source: Metric source (default: "custom")
+    :param error: Optional error dict
+    :param reasoning: Optional reasoning string
+    :param assessment: Optional assessment string
+    :param metadata: Optional metadata dict
+    :param tags: Optional tags dict
+    :return: LLMObsExperimentEvalMetricEvent dict
+    """
+    if eval_value is None:
+        metric_type = "categorical"
+    elif isinstance(eval_value, bool):
+        metric_type = "boolean"
+    elif isinstance(eval_value, (int, float)):
+        metric_type = "score"
+    else:
+        metric_type = "categorical"
+        eval_value = str(eval_value).lower()
+
+    eval_metric: LLMObsExperimentEvalMetricEvent = {
+        "metric_source": source,
+        "span_id": span_id,
+        "trace_id": trace_id,
+        "timestamp_ms": timestamp_ms,
+        "metric_type": metric_type,
+        "label": evaluator_name,
+        f"{metric_type}_value": eval_value,  # type: ignore
+        "error": error,
+        "tags": convert_tags_dict_to_list(tags),
+        "experiment_id": experiment_id,
+    }
+    if reasoning:
+        eval_metric["reasoning"] = reasoning
+    if assessment:
+        eval_metric["assessment"] = assessment
+    if metadata:
+        eval_metric["metadata"] = metadata
+    return eval_metric
+
+
+def submit_evaluation_metrics(
+    experiment_id: str,
+    metrics: List["LLMObsExperimentEvalMetricEvent"],
+    tags: Optional[Dict[str, str]] = None,
+) -> None:
+    """Submit evaluation metrics to Datadog.
+
+    :param experiment_id: The experiment ID
+    :param metrics: List of metric events to submit
+    :param tags: Optional tags to include
+    """
+    from ddtrace.llmobs import LLMObs
+
+    if not LLMObs._instance or not LLMObs._instance.enabled:
+        logger.warning("LLMObs is not enabled, cannot submit metrics")
+        return
+
+    client = LLMObs._instance._dne_client
+    if not client:
+        logger.warning("Experiments client not available")
+        return
+
+    # Convert tags dict to list format (e.g., ["key1:value1", "key2:value2"])
+    tags_list = convert_tags_dict_to_list(tags) if tags else []
+    client.experiment_eval_post(experiment_id, metrics, tags_list)
+
+
+def run_summary_evaluations(
+    experiment_id: str,
+    summary_evaluators: List[Union[Callable, BaseSummaryEvaluator]],
+    results: List[Dict[str, Any]],
+    tags: Optional[Dict[str, str]] = None,
+) -> List[Dict[str, Any]]:
+    """Run summary evaluators on aggregated results and submit metrics.
+
+    :param experiment_id: The experiment ID
+    :param summary_evaluators: List of summary evaluators to run
+    :param results: List of result dicts from all workers (each with idx, input, output, expected_output, evaluations)
+    :param tags: Optional tags dict
+    :return: List of summary evaluation results
+    """
+    from ddtrace.llmobs import LLMObs
+
+    # Extract data from results
+    inputs = [r.get("input", {}) for r in results]
+    outputs = [r.get("output") for r in results]
+    expected_outputs = [r.get("expected_output") for r in results]
+
+    # Build evaluation results by name
+    eval_results_by_name: Dict[str, List[JSONType]] = {}
+    for r in results:
+        evaluations = r.get("evaluations", {})
+        for name, eval_data in evaluations.items():
+            if name not in eval_results_by_name:
+                eval_results_by_name[name] = []
+            eval_results_by_name[name].append(eval_data.get("value") if isinstance(eval_data, dict) else eval_data)
+
+    # Run summary evaluators
+    import time
+    summary_results = []
+    metrics: List["LLMObsExperimentEvalMetricEvent"] = []
+    timestamp_ms = int(time.time() * 1000)
+
+    for summary_evaluator in summary_evaluators:
+        result = run_summary_evaluator(
+            summary_evaluator=summary_evaluator,
+            inputs=inputs,
+            outputs=outputs,
+            expected_outputs=expected_outputs,
+            evaluation_results=eval_results_by_name,
+        )
+        summary_results.append(result)
+
+        # Build metric
+        metric = build_evaluation_metric(
+            evaluator_name=result["name"],
+            eval_value=result.get("value"),
+            experiment_id=experiment_id,
+            span_id="",
+            trace_id="",
+            timestamp_ms=timestamp_ms,
+            source="summary",
+            error=result.get("error"),
+        )
+        metrics.append(metric)
+
+    # Submit metrics
+    submit_evaluation_metrics(experiment_id, metrics, tags)
+
+    return summary_results
+
+
+@dataclass
+class ExperimentInfo:
+    """Information about an experiment for distributed execution.
+
+    This dataclass contains all the metadata needed to run experiment records
+    in distributed workers without needing access to the full Experiment object.
+    """
+
+    experiment_id: str
+    experiment_name: str
+    dataset_id: str
+    dataset_name: str
+    project_name: str
+    project_id: str
+    tags: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class PartitionInfo:
+    """Information about a partition of dataset records.
+
+    Used by DistributedExperiment to pass partition details to the scheduler.
+    """
+
+    partition_id: int
+    start_idx: int
+    end_idx: int
+    experiment_info: ExperimentInfo
+
+
+class DistributedExperimentWorker:
+    """Worker for running experiment tasks on a partition of a dataset.
+
+    This class handles running a task and evaluators on a range of dataset records,
+    submitting metrics to Datadog, and returning results.
+
+    Example::
+
+        from ddtrace.llmobs import LLMObs, DistributedExperimentWorker
+
+        # Initialize LLMObs
+        LLMObs.enable(api_key=api_key, site="datadoghq.com")
+
+        # Pull dataset and create worker
+        dataset = LLMObs.pull_dataset(dataset_name="my-dataset", project_name="my-project")
+
+        worker = DistributedExperimentWorker(
+            experiment_info=experiment_info,
+            dataset=dataset,
+            task=my_task_function,
+            evaluators=[MyEvaluator()],
+            start_idx=0,
+            end_idx=10,
+        )
+
+        # Run and get results
+        results = worker.run()
+    """
+
+    def __init__(
+        self,
+        experiment_info: ExperimentInfo,
+        dataset: Dataset,
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        evaluators: Sequence[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                BaseEvaluator,
+            ]
+        ],
+        start_idx: int,
+        end_idx: int,
+        config: Optional[ConfigType] = None,
+    ):
+        """Initialize experiment worker.
+
+        :param experiment_info: ExperimentInfo from DistributedExperiment
+        :param dataset: The dataset to process
+        :param task: The task function to execute for each record
+        :param evaluators: List of evaluators to run on each record
+        :param start_idx: Start index (inclusive) of records to process
+        :param end_idx: End index (exclusive) of records to process
+        :param config: Optional config dict passed to task function
+        """
+        self.experiment_info = experiment_info
+        self.dataset = dataset
+        self.task = task
+        self.evaluators = list(evaluators)
+        self.start_idx = start_idx
+        self.end_idx = end_idx
+        self.config = config
+
+    def run(self) -> List[Dict[str, Any]]:
+        """Run the task and evaluators on the dataset partition.
+
+        Processes records from start_idx to end_idx, runs evaluators,
+        submits metrics to Datadog, and returns results.
+
+        :return: List of result dicts with idx, input, output, expected_output, evaluations
+        """
+        from ddtrace.llmobs import LLMObs
+
+        results: List[Dict[str, Any]] = []
+        metrics: List[LLMObsExperimentEvalMetricEvent] = []
+
+        for idx in range(self.start_idx, self.end_idx):
+            record = self.dataset[idx]
+            input_data = record["input_data"]
+            expected_output = record.get("expected_output")
+
+            # Execute task with LLMObs experiment span
+            with LLMObs._instance._experiment(
+                name=self.task.__name__,
+                experiment_id=self.experiment_info.experiment_id,
+                project_name=self.experiment_info.project_name,
+                project_id=self.experiment_info.project_id,
+                experiment_name=self.experiment_info.experiment_name,
+                dataset_name=self.experiment_info.dataset_name,
+            ) as span:
+                span_context = LLMObs.export_span(span=span)
+                span_id = span_context.get("span_id", "") if span_context else ""
+                trace_id = span_context.get("trace_id", "") if span_context else ""
+
+                # Execute task
+                output = None
+                try:
+                    output = self.task(input_data, self.config)
+                except Exception:
+                    span.set_exc_info(*sys.exc_info())
+
+                LLMObs.annotate(span, input_data=input_data, output_data=output)
+
+                # Set expected_output and metadata on the span
+                if expected_output is not None:
+                    span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, expected_output)
+                metadata = record.get("metadata")
+                if metadata is not None:
+                    span._set_ctx_item(EXPERIMENT_RECORD_METADATA, metadata)
+
+                timestamp_ms = int(span.start_ns / 1e6)
+
+            # Run evaluators and build metrics
+            evaluations: Dict[str, Dict[str, Any]] = {}
+            for evaluator in self.evaluators:
+                eval_result = run_evaluator(
+                    evaluator=evaluator,
+                    input_data=input_data,
+                    output_data=output,
+                    expected_output=expected_output,
+                    span_id=span_id,
+                    trace_id=trace_id,
+                )
+                eval_name = str(eval_result.pop("name"))
+                evaluations[eval_name] = eval_result
+
+                # Build metric
+                metric = build_evaluation_metric(
+                    evaluator_name=eval_name,
+                    eval_value=eval_result.get("value"),
+                    experiment_id=self.experiment_info.experiment_id,
+                    span_id=span_id,
+                    trace_id=trace_id,
+                    timestamp_ms=timestamp_ms,
+                    source="custom",
+                    error=eval_result.get("error"),
+                    reasoning=eval_result.get("reasoning"),
+                    assessment=eval_result.get("assessment"),
+                    metadata=eval_result.get("metadata"),
+                    tags=eval_result.get("tags"),
+                )
+                metrics.append(metric)
+
+            # Store result
+            results.append({
+                "idx": idx,
+                "input": input_data,
+                "output": output,
+                "expected_output": expected_output,
+                "evaluations": evaluations,
+            })
+
+        # Submit all metrics to Datadog
+        submit_evaluation_metrics(
+            self.experiment_info.experiment_id,
+            metrics,
+            self.experiment_info.tags,
+        )
+
+        return results
+
+
+class DistributedExperiment:
+    """Experiment that can be run across distributed workers.
+
+    This class provides the orchestration layer for running experiments
+    across multiple workers (e.g., Celery, Ray, etc.). It handles:
+    - Creating the experiment and generating an ID
+    - Partitioning the dataset
+    - Providing experiment info to workers
+    - Coordinating completion
+
+    Example::
+
+        from ddtrace.llmobs import DistributedExperiment
+
+        experiment = DistributedExperiment(
+            name="my-distributed-exp",
+            dataset=dataset,
+            project_name="my-project",
+            num_partitions=4,
+        )
+
+        # Custom scheduler and waiter for your distributed system
+        def my_scheduler(partition_info: PartitionInfo):
+            # Send partition to worker queue
+            my_queue.send(partition_info)
+
+        def my_waiter(experiment_info: ExperimentInfo, num_partitions: int) -> bool:
+            # Wait for all workers to complete
+            return wait_for_completion(experiment_info.experiment_id)
+
+        result = experiment.run(
+            schedule_fn=my_scheduler,
+            wait_fn=my_waiter,
+        )
+    """
+
+    def __init__(
+        self,
+        name: str,
+        dataset: Dataset,
+        project_name: str,
+        num_partitions: int = 4,
+        tags: Optional[Dict[str, str]] = None,
+        config: Optional[Dict[str, Any]] = None,
+        description: Optional[str] = None,
+        summary_evaluators: Optional[
+            List[
+                Union[
+                    Callable[
+                        [
+                            List[DatasetRecordInputType],
+                            List[JSONType],
+                            List[JSONType],
+                            Dict[str, List[JSONType]],
+                        ],
+                        JSONType,
+                    ],
+                    BaseSummaryEvaluator,
+                ]
+            ]
+        ] = None,
+    ):
+        """Initialize a distributed experiment.
+
+        :param name: Name of the experiment
+        :param dataset: The dataset to process
+        :param project_name: Datadog project name
+        :param num_partitions: Number of partitions to split the dataset into
+        :param tags: Optional tags for the experiment
+        :param config: Optional experiment configuration
+        :param description: Optional experiment description
+        :param summary_evaluators: Optional list of summary evaluators to run after all workers complete
+        """
+        from ddtrace.llmobs import LLMObs
+
+        self.name = name
+        self.dataset = dataset
+        self.project_name = project_name
+        self.num_partitions = num_partitions
+        self.tags = tags or {}
+        self._config = config or {}
+        self._description = description or ""
+        self._summary_evaluators = summary_evaluators or []
+
+        # Verify LLMObs is enabled
+        if not LLMObs._instance or not LLMObs._instance.enabled:
+            raise ValueError(
+                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+                "before creating a distributed experiment."
+            )
+
+        # Get or create project
+        project = LLMObs._instance._dne_client.project_create_or_get(project_name)
+        self._project_id = project.get("_id", "")
+        self.tags["project_id"] = self._project_id
+
+        # Create experiment via Datadog API to get real experiment ID
+        experiment_id, run_name = LLMObs._instance._dne_client.experiment_create(
+            self.name,
+            self.dataset._id,
+            self._project_id,
+            self.dataset._version,
+            self._config,
+            convert_tags_dict_to_list(self.tags),
+            self._description,
+            1,  # runs=1 for distributed experiment
+        )
+        self._id = experiment_id
+        self._run_name = run_name
+        self.tags["experiment_id"] = str(experiment_id)
+
+    def get_experiment_info(self) -> ExperimentInfo:
+        """Get experiment info for passing to workers.
+
+        :return: ExperimentInfo dataclass with all metadata needed by workers
+        """
+        return ExperimentInfo(
+            experiment_id=self._id,
+            experiment_name=self.name,
+            dataset_id=str(self.dataset._id) if self.dataset._id else "",
+            dataset_name=self.dataset.name,
+            project_name=self.project_name,
+            project_id=self._project_id,
+            tags=self.tags.copy(),
+        )
+
+    def get_partitions(self) -> List[PartitionInfo]:
+        """Get partition information for distributing work.
+
+        :return: List of PartitionInfo objects, one per partition
+        """
+        dataset_size = len(self.dataset)
+        partition_size = dataset_size // self.num_partitions
+        remainder = dataset_size % self.num_partitions
+
+        partitions = []
+        exp_info = self.get_experiment_info()
+        start_idx = 0
+
+        for i in range(self.num_partitions):
+            # Distribute remainder across first partitions
+            end_idx = start_idx + partition_size + (1 if i < remainder else 0)
+            partitions.append(
+                PartitionInfo(
+                    partition_id=i,
+                    start_idx=start_idx,
+                    end_idx=end_idx,
+                    experiment_info=exp_info,
+                )
+            )
+            start_idx = end_idx
+
+        return partitions
+
+    def run(
+        self,
+        schedule_fn: Callable[[PartitionInfo], None],
+        wait_fn: Callable[[ExperimentInfo, int], bool],
+        collect_results_fn: Optional[Callable[[ExperimentInfo, int], List[Dict[str, Any]]]] = None,
+    ) -> Dict[str, Any]:
+        """Run the distributed experiment.
+
+        :param schedule_fn: Function to schedule a partition on a worker.
+                           Called once per partition with PartitionInfo.
+        :param wait_fn: Function to wait for all workers to complete.
+                       Called with ExperimentInfo and num_partitions.
+                       Should return True if successful, False on timeout.
+        :param collect_results_fn: Optional function to collect results from all workers.
+                                  Required if summary_evaluators are provided.
+                                  Called with ExperimentInfo and num_partitions.
+                                  Should return list of result dicts from all workers.
+        :return: Dict with experiment_id, status, and records_processed
+        """
+        partitions = self.get_partitions()
+        exp_info = self.get_experiment_info()
+
+        # Schedule all partitions
+        for partition in partitions:
+            schedule_fn(partition)
+
+        # Wait for completion
+        success = wait_fn(exp_info, len(partitions))
+
+        # Run summary evaluators if provided
+        summary_results = []
+        if success and self._summary_evaluators and collect_results_fn:
+            all_results = collect_results_fn(exp_info, len(partitions))
+            summary_results = run_summary_evaluations(
+                experiment_id=self._id,
+                summary_evaluators=self._summary_evaluators,
+                results=all_results,
+                tags=self.tags,
+            )
+
+        return {
+            "experiment_id": self._id,
+            "status": "complete" if success else "timeout",
+            "records_processed": len(self.dataset),
+            "summary_evaluations": summary_results,
+        }
