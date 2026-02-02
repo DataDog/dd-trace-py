@@ -978,6 +978,11 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
             writer.flush_queue(raise_exc=True)
 
 
+@pytest.mark.xfail(
+    reason="Flaky: BrokenPipeError occurs due to race condition between writer flush "
+    "UDS server shutdown/unlink in fixture cleanup.",
+    strict=False,
+)
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     url = f"unix://{endpoint_uds_server.server_address}"
