@@ -10,6 +10,7 @@ and must have the test agent (>=1.27.0) running locally and configured to use th
 eg. VCR_CASSETTES_DIRECTORY=tests/cassettes ddapm-test-agent ...
 """
 
+import asyncio
 import os
 import re
 import tempfile
@@ -45,6 +46,18 @@ def dummy_task(input_data, config):
 
 def faulty_task(input_data, config):
     raise ValueError("This is a test error")
+
+
+async def async_dummy_task(input_data, config):
+    """Async task that returns input_data after a small delay."""
+    await asyncio.sleep(0.001)
+    return input_data
+
+
+async def async_faulty_task(input_data, config):
+    """Async task that raises an error."""
+    await asyncio.sleep(0.001)
+    raise ValueError("This is an async test error")
 
 
 def dummy_evaluator(input_data, output_data, expected_output):
@@ -2076,3 +2089,53 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
     # Successful evaluator completed
     assert summary_evals_dict["successful_summary_evaluator"]["value"] == 100
     assert summary_evals_dict["successful_summary_evaluator"]["error"] is None
+
+
+def test_experiment_run_async_task(llmobs, test_dataset_one_record):
+    """Test that an async task executes correctly in an experiment."""
+    exp = llmobs.experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+    )
+    task_results = asyncio.run(exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=False))
+    assert len(task_results) == 1
+    assert task_results[0]["output"] == {"prompt": "What is the capital of France?"}
+    assert task_results[0]["error"]["message"] is None
+
+
+def test_experiment_run_async_task_error(llmobs, test_dataset_one_record):
+    """Test that errors in async tasks are captured correctly."""
+    exp = llmobs.experiment(
+        "test_async_experiment",
+        async_faulty_task,
+        test_dataset_one_record,
+        [dummy_evaluator],
+    )
+    task_results = asyncio.run(exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=False))
+    assert len(task_results) == 1
+    assert task_results[0]["output"] is None
+    assert task_results[0]["error"]["message"] == "This is an async test error"
+    assert task_results[0]["error"]["type"] == "builtins.ValueError"
+
+
+def test_experiment_run_async_task_with_config(llmobs, test_dataset_one_record):
+    """Test that config is passed correctly to async tasks."""
+    received_config = None
+
+    async def async_task_with_config(input_data, config):
+        nonlocal received_config
+        received_config = config
+        await asyncio.sleep(0.001)
+        return input_data
+
+    exp = llmobs.experiment(
+        "test_async_config",
+        async_task_with_config,
+        test_dataset_one_record,
+        [dummy_evaluator],
+        config={"model": "gpt-4", "temperature": 0.7},
+    )
+    asyncio.run(exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=False))
+    assert received_config == {"model": "gpt-4", "temperature": 0.7}
