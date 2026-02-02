@@ -16,6 +16,8 @@ import pytest
 
 from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import stop_coverage
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -1014,7 +1016,8 @@ def pytest_configure(config: pytest.Config) -> None:
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
     # AIDEV-NOTE: Coverage.py integration when report upload is enabled
-    # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
+    # If pytest-cov is NOT enabled and coverage_report_upload_enabled is True, start our own coverage
+    # If pytest-cov IS enabled, we respect the user's configuration and don't modify it
     if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
         # Start coverage.py ourselves for report generation
         from ddtrace.contrib.internal.coverage.patch import start_coverage
@@ -1120,24 +1123,6 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
             tags[key] = str(value)
 
     return tags
-
-
-def _is_pytest_cov_available(config) -> bool:
-    """Check if pytest-cov plugin is available (installed)."""
-    return config.pluginmanager.get_plugin("pytest_cov") is not None
-
-
-def _is_pytest_cov_enabled(config) -> bool:
-    """Check if pytest-cov plugin is both available and enabled via command-line options."""
-    if not _is_pytest_cov_available(config):
-        return False
-    cov_option = config.getoption("--cov", default=False)
-    nocov_option = config.getoption("--no-cov", default=False)
-    if nocov_option is True:
-        return False
-    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
-        return True
-    return cov_option
 
 
 @pytest.fixture(scope="session")

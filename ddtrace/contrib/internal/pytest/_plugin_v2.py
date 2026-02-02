@@ -14,6 +14,7 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import start_coverage
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
@@ -389,24 +390,6 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
-def _is_pytest_cov_available(config) -> bool:
-    """Check if pytest-cov plugin is available (installed)."""
-    return config.pluginmanager.get_plugin("pytest_cov") is not None
-
-
-def _is_pytest_cov_enabled(config) -> bool:
-    """Check if pytest-cov plugin is both available and enabled via command-line options."""
-    if not _is_pytest_cov_available(config):
-        return False
-    cov_option = config.getoption("--cov", default=False)
-    nocov_option = config.getoption("--no-cov", default=False)
-    if nocov_option is True:
-        return False
-    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
-        return True
-    return cov_option
-
-
 def _handle_coverage_patch_early(config):
     """
     Handle coverage patching in pytest_configure (must be early for pytest-cov).
@@ -534,55 +517,9 @@ def pytest_sessionstart(session: pytest.Session) -> None:
         # Handle coverage configuration
         workspace_path = InternalTestSession.get_workspace_path()
 
-        # If pytest-cov is enabled but not properly configured, fix it
-        if _is_pytest_cov_enabled(session.config) and _is_coverage_report_upload_enabled():
-            log.debug("pytest-cov is enabled, ensuring proper configuration for upload")
-            try:
-                # Find the pytest-cov plugin and check its configuration
-                for plugin_name, plugin_instance in session.config.pluginmanager.list_name_plugin():
-                    if plugin_name == "_cov" and hasattr(plugin_instance, "cov_controller"):
-                        cov_controller = plugin_instance.cov_controller
-                        if cov_controller and hasattr(cov_controller, "cov"):
-                            cov_instance = cov_controller.cov
-                            log.debug("Found pytest-cov instance, current source: %s", cov_instance.config.source)
-
-                            # Check if source needs to be updated
-                            current_source = cov_instance.config.source
-                            if current_source and all("test" in str(s) for s in current_source):
-                                # Source is only test files, we need to add the actual source code
-                                log.debug("pytest-cov source only includes test files, expanding coverage")
-                                # Find the source directory (parent of tests)
-                                if workspace_path:
-                                    src_paths = []
-                                    # Look for common source directories
-                                    for src_dir in ["src", "lib", "app", str(workspace_path)]:
-                                        src_path = (
-                                            workspace_path / src_dir
-                                            if src_dir != str(workspace_path)
-                                            else workspace_path
-                                        )
-                                        if src_path.exists() and src_path.is_dir():
-                                            src_paths.append(str(src_path))
-                                            break
-
-                                    if src_paths:
-                                        log.debug("Adding source paths to coverage: %s", src_paths)
-                                        # We can't reconfigure a running instance, but we can patch the config
-                                        cov_instance.config.source = current_source + src_paths
-                                        cov_instance.config.source_pkgs = []  # Clear source packages
-                                        # If not started, the new config will be used when it starts
-                                        # If already started, we need to restart
-                                        if getattr(cov_instance, "_started", False):
-                                            log.debug("Restarting coverage with expanded source")
-                                            cov_instance.stop()
-                                            cov_instance.erase()  # Clear any partial data
-                                            cov_instance.start()
-                            break
-            except Exception as e:
-                log.debug("Error configuring pytest-cov: %s", e)
-
         # Start our own coverage if pytest-cov is NOT enabled but coverage upload is needed
-        elif (
+        # If pytest-cov IS enabled, we respect the user's configuration and don't modify it
+        if (
             not _is_pytest_cov_enabled(session.config)
             and _is_coverage_available()
             and _is_coverage_report_upload_enabled()

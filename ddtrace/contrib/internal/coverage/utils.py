@@ -19,6 +19,24 @@ def is_coverage_loaded() -> bool:
     return "coverage" in sys.modules
 
 
+def _is_pytest_cov_available(config) -> bool:
+    """Check if pytest-cov plugin is available (installed)."""
+    return config.pluginmanager.get_plugin("pytest_cov") is not None
+
+
+def _is_pytest_cov_enabled(config) -> bool:
+    """Check if pytest-cov plugin is both available and enabled via command-line options."""
+    if not _is_pytest_cov_available(config):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
+
+
 def _is_coverage_patched():
     if not is_coverage_loaded():
         return False
