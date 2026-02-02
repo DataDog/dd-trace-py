@@ -153,8 +153,8 @@ Generate release notes from the relevant branch, usually the x.y release branch.
 
 .. code-block:: bash
 
-    $ git pull
     $ git checkout <branch>
+    $ git fetch
     $ reno report --branch=origin/<branch> | pandoc -f rst -t gfm --wrap=none | less
 
 The relevant portion of these notes is at the top under the "unreleased" section.
