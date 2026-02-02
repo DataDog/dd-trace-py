@@ -528,7 +528,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                 start_coverage(source=[str(workspace_path)])
                 log.debug("Started coverage.py for report upload")
             else:
-                log.warning("Coverage report upload enabled but workspace path not available")
+                log.debug("Coverage report upload enabled but workspace path not available")
 
         extracted_context = None
         distributed_children = False

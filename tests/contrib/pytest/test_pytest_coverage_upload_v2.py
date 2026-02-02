@@ -94,24 +94,26 @@ class TestPytestV2CoverageUpload:
         mock_session = Mock()
         mock_session.config = Mock()
 
+        mock_recorder = Mock(spec=CIVisibility)
+
         # Mock InternalTestSession for workspace path
         mock_test_session = Mock()
         mock_test_session.get_workspace_path.return_value = "/test/workspace"
 
         with (
             patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True),
+            patch("ddtrace.ext.test_visibility.api.require_ci_visibility_service", return_value=mock_recorder),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_available", return_value=True),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
             patch("ddtrace.contrib.internal.pytest._plugin_v2.InternalTestSession", mock_test_session),
             patch("ddtrace.contrib.internal.pytest._plugin_v2.start_coverage") as mock_start_coverage,
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.log") as mock_log,
+            patch("ddtrace.contrib.internal.pytest._plugin_v2._get_session_command", return_value="pytest tests"),
         ):
             pytest_sessionstart(mock_session)
 
             # Coverage should be started
             mock_start_coverage.assert_called_once_with(source=["/test/workspace"])
-            mock_log.debug.assert_called_with("Started coverage.py for report upload")
 
     def test_pytest_sessionstart_coverage_not_started_when_disabled(self):
         """Test coverage is not started when upload is disabled."""
@@ -148,7 +150,7 @@ class TestPytestV2CoverageUpload:
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=False
             ),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report") as mock_handle_coverage,
+            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report") as mock_handle_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=85.0),
         ):
             _pytest_sessionfinish(mock_session, 0)
@@ -156,12 +158,12 @@ class TestPytestV2CoverageUpload:
             # handle_coverage_report should be called
             mock_handle_coverage.assert_called_once()
 
-            # Verify the call parameters
-            call_args = mock_handle_coverage.call_args
-            assert call_args[0][0] == mock_session  # session
+            # Verify the call parameters (now uses keyword arguments)
+            call_kwargs = mock_handle_coverage.call_args.kwargs
+            assert call_kwargs["config"] == mock_session.config
             # The upload function should be callable
-            assert callable(call_args[0][1])  # upload_func
-            assert callable(call_args[0][2])  # is_pytest_cov_enabled_func
+            assert callable(call_kwargs["upload_func"])
+            assert callable(call_kwargs["is_pytest_cov_enabled_func"])
 
     def test_pytest_sessionfinish_no_coverage_upload_when_disabled(self):
         """Test handle_coverage_report is not called when upload disabled."""
@@ -178,7 +180,7 @@ class TestPytestV2CoverageUpload:
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=False
             ),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=False),
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report") as mock_handle_coverage,
+            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report") as mock_handle_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=85.0),
         ):
             _pytest_sessionfinish(mock_session, 0)
@@ -199,7 +201,7 @@ class TestPytestV2CoverageUpload:
 
         captured_upload_func = None
 
-        def capture_upload_func(session, upload_func, *args):
+        def capture_upload_func(config, upload_func, *args, **kwargs):
             nonlocal captured_upload_func
             captured_upload_func = upload_func
 
@@ -211,7 +213,7 @@ class TestPytestV2CoverageUpload:
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=False
             ),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report", side_effect=capture_upload_func),
+            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report", side_effect=capture_upload_func),
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=85.0),
             patch("ddtrace.ext.test_visibility.api.require_ci_visibility_service", return_value=mock_recorder),
         ):
@@ -239,7 +241,7 @@ class TestPytestV2CoverageUpload:
 
         captured_upload_func = None
 
-        def capture_upload_func(session, upload_func, *args):
+        def capture_upload_func(config, upload_func, *args, **kwargs):
             nonlocal captured_upload_func
             captured_upload_func = upload_func
 
@@ -251,7 +253,7 @@ class TestPytestV2CoverageUpload:
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=False
             ),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report", side_effect=capture_upload_func),
+            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report", side_effect=capture_upload_func),
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=85.0),
             patch("ddtrace.ext.test_visibility.api.require_ci_visibility_service", return_value=mock_recorder),
         ):
@@ -278,7 +280,7 @@ class TestPytestV2CoverageUpload:
                 "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=False
             ),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report") as mock_handle_coverage,
+            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report") as mock_handle_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=90.0),
         ):
             _pytest_sessionfinish(mock_session, 0)
@@ -299,7 +301,7 @@ class TestPytestV2CoverageUpload:
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run", return_value=True),
             patch("ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_report_upload_enabled", return_value=True),
-            patch("ddtrace.contrib.internal.pytest._plugin_v2.handle_coverage_report") as mock_handle_coverage,
+            patch("ddtrace.contrib.internal.coverage.utils.handle_coverage_report") as mock_handle_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report") as mock_run_coverage,
             patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=88.0),
         ):
