@@ -1278,3 +1278,97 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id())
             else:
                 mock_builder.enable_telemetry.assert_not_called()
+
+
+class TestSafelog:
+    """Tests for the _safelog function that handles closed I/O streams gracefully."""
+
+    def test_safelog_with_closed_stream(self):
+        """Test that _safelog handles closed logging streams without raising."""
+        import io
+        import logging
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        # Create a stream that we can close
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(logging.DEBUG)
+
+        # Get the writer logger and temporarily replace ALL handlers
+        logger = logging.getLogger("ddtrace.internal.writer.writer")
+        original_handlers = logger.handlers[:]
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        # Disable propagation to parent loggers and set only our handler
+        logger.propagate = False
+        logger.handlers = [handler]
+        logger.setLevel(logging.DEBUG)
+
+        try:
+            # Close the stream to simulate pytest closing captured streams
+            stream.close()
+
+            # This should not raise even though the stream is closed
+            _safelog(logging.WARNING, "Test message with %s", "args")
+            _safelog(logging.ERROR, "Another test message")
+            _safelog(logging.DEBUG, "Debug message with extra", extra={"key": "value"})
+        finally:
+            # Restore original state
+            logger.handlers = original_handlers
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
+
+    def test_safelog_with_closed_stream_stderr_output(self, capsys):
+        """Test that _safelog handles closed streams and some error appears in stderr."""
+        import io
+        import logging
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        # Create a stream that we can close
+        stream = io.StringIO()
+        handler = logging.StreamHandler(stream)
+        handler.setLevel(logging.DEBUG)
+
+        # Get the writer logger and temporarily replace ALL handlers
+        logger = logging.getLogger("ddtrace.internal.writer.writer")
+        original_handlers = logger.handlers[:]
+        original_level = logger.level
+        original_propagate = logger.propagate
+
+        # Disable propagation to parent loggers and set only our handler
+        logger.propagate = False
+        logger.handlers = [handler]
+        logger.setLevel(logging.DEBUG)
+
+        try:
+            # Close the stream to simulate pytest closing captured streams
+            stream.close()
+
+            # This should not raise - either the logging module catches the error
+            # internally, or our _safelog wrapper catches it
+            _safelog(logging.WARNING, "Test message to stderr")
+
+            # Check that some error indication appears in stderr
+            # The logging module itself may print "--- Logging error ---" or our
+            # wrapper may print "[ddtrace] I/O closed, could not log:"
+            captured = capsys.readouterr()
+            assert "I/O operation on closed file" in captured.err or "I/O closed" in captured.err
+        finally:
+            # Restore original state
+            logger.handlers = original_handlers
+            logger.setLevel(original_level)
+            logger.propagate = original_propagate
+
+    def test_safelog_normal_operation(self, caplog):
+        """Test that _safelog works normally when streams are open."""
+        import logging
+
+        from ddtrace.internal.writer.writer import _safelog
+
+        with caplog.at_level(logging.WARNING, logger="ddtrace.internal.writer.writer"):
+            _safelog(logging.WARNING, "Normal log message with %s", "formatting")
+
+        assert "Normal log message with formatting" in caplog.text

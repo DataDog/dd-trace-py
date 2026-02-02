@@ -69,6 +69,37 @@ log = get_logger(__name__)
 LOG_ERR_INTERVAL = 60
 
 
+def _safelog(level: int, msg: str, *args, **kwargs) -> None:
+    """
+    Safely log a message, handling closed I/O streams gracefully.
+
+    During interpreter shutdown or when test frameworks (like pytest) close
+    captured stdout/stderr streams, logging calls may fail with:
+        ValueError: I/O operation on closed file
+
+    This can happen when a background thread (e.g., the periodic writer thread)
+    attempts to log after the main process has started shutting down but before
+    the Python interpreter has begun finalization (Py_IsFinalizing()).
+
+    This wrapper catches such errors and attempts to print to stderr as a
+    fallback. If stderr is also closed, the message is silently dropped.
+
+    Args:
+        level: The logging level (e.g., logging.DEBUG, logging.WARNING)
+        msg: The log message format string
+        *args: Arguments for the format string
+        **kwargs: Keyword arguments passed to the logger (e.g., exc_info, extra)
+    """
+    try:
+        log.log(level, msg, *args, **kwargs)
+    except ValueError:
+        try:
+            formatted_msg = msg % args if args else msg
+            print(f"[ddtrace] I/O closed, could not log: {formatted_msg}", file=sys.stderr)
+        except ValueError:
+            pass
+
+
 class NoEncodableSpansError(Exception):
     pass
 
@@ -277,11 +308,17 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         sw.start()
         with self._conn_lck:
             if self._conn is None:
-                log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
+                _safelog(
+                    logging.DEBUG,
+                    "creating new intake connection to %s with timeout %d",
+                    self.intake_url,
+                    self._timeout,
+                )
                 self._conn = get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
-                log.debug(
+                _safelog(
+                    logging.DEBUG,
                     "Sending request: Method=%s Endpoint=%s Headers=%s PayloadSize=%s",
                     self.HTTP_METHOD,
                     client.ENDPOINT,
@@ -300,7 +337,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(
+                _safelog(
                     log_level,
                     "Got response: %d %s sent %s in %.5fs to %s",
                     resp.status,
@@ -358,7 +395,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 else:
                     log_args += (payload,)
 
-            log.error(msg, *log_args, extra={"send_to_telemetry": False})
+            _safelog(logging.ERROR, msg, *log_args, extra={"send_to_telemetry": False})
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
         return response
@@ -391,7 +428,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             client.encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                logging.WARNING,
                 "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
                 client.encoder.max_item_size,
@@ -400,7 +438,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
         except BufferFull as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                logging.WARNING,
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 len(client.encoder),
                 client.encoder.size,
@@ -431,7 +470,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            _safelog(logging.ERROR, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
@@ -451,12 +490,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 original_size = len(encoded)
                 # Replace the value to send with the gzipped the value
                 encoded = gzip.compress(encoded, compresslevel=6)
-                log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
+                _safelog(logging.DEBUG, "Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
 
                 # And add the header
                 self._headers["Content-Encoding"] = "gzip"
             except Exception:
-                log.error("failed to compress traces with encoder %r", client.encoder, exc_info=True)
+                _safelog(logging.ERROR, "failed to compress traces with encoder %r", client.encoder, exc_info=True)
                 self._metrics_dist("encoder.dropped.traces", n_traces)
                 return
 
@@ -469,7 +508,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             if raise_exc:
                 raise
             else:
-                log.error(
+                _safelog(
+                    logging.ERROR,
                     "failed to send, dropping %d traces to intake at %s after %d retries",
                     n_traces,
                     self._intake_endpoint(client),
@@ -662,7 +702,8 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
-            log.warning(
+            _safelog(
+                logging.WARNING,
                 "Calling endpoint '%s' but received %s; downgrading API. "
                 "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
@@ -671,7 +712,8 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
                 response.status,
             )
         else:
-            log.error(
+            _safelog(
+                logging.ERROR,
                 "unsupported endpoint '%s': received response %s from intake (%s)",
                 client.ENDPOINT,
                 response.status,
@@ -932,7 +974,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
             # sending it, but we chuck it away instead.
-            log.warning(
+            _safelog(
+                logging.WARNING,
                 "Calling endpoint '%s' but received %s; downgrading API. "
                 "Dropping trace payload due to the downgrade to an incompatible API version (from v0.5 to v0.4). To "
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
@@ -941,7 +984,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 status,
             )
         else:
-            log.error(
+            _safelog(
+                logging.ERROR,
                 "unsupported endpoint '%s': received response %s from intake (%s)",
                 client.ENDPOINT,
                 status,
@@ -1034,7 +1078,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     self.start()
 
             except service.ServiceStatusError:
-                log.warning("failed to start writer service")
+                _safelog(logging.WARNING, "failed to start writer service")
 
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
@@ -1044,7 +1088,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             client.encoder.put(spans)
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                logging.WARNING,
                 "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
                 client.encoder.max_item_size,
@@ -1053,7 +1098,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
         except BufferFull as e:
             payload_size = e.args[0]
-            log.warning(
+            _safelog(
+                logging.WARNING,
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 len(client.encoder),
                 client.encoder.size,
@@ -1083,7 +1129,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 return
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            _safelog(logging.ERROR, "failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
@@ -1113,7 +1159,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-            log.error(msg, *log_args, extra={"send_to_telemetry": False})
+            _safelog(logging.ERROR, msg, *log_args, extra={"send_to_telemetry": False})
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
