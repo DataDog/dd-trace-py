@@ -2,6 +2,8 @@
 
 #include <Python.h>
 
+#include "pymacro.hpp"
+
 /* RAII helper to save and restore Python error state
  *
  * This is useful when calling Python C API functions that may set errors

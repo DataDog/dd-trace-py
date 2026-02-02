@@ -10,12 +10,8 @@
 #include <frameobject.h>
 #pragma GCC diagnostic pop
 
+#include "pymacro.hpp"
 #include "python_helpers.hpp"
-
-// Python version macros
-#if PY_VERSION_HEX >= 0x030b0000
-#define _PY311_AND_LATER
-#endif
 
 #include <algorithm>
 #include <chrono>
