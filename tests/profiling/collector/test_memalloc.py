@@ -1025,11 +1025,22 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
     3. export_sample() was called again before clear_buffers()
     4. Another indicator frame was incorrectly added
 
-    This test creates allocations from a very deep stack (100+ frames) to trigger
-    frame dropping, calls snapshot twice in a row, and checks that no sample has
-    duplicate "<N frame(s) omitted>" frames.
+    This test creates allocations from a very deep stack to trigger frame dropping,
+    calls snapshot twice in a row, and checks that no sample has duplicate
+    "<N frame(s) omitted>" frames.
     """
+    from ddtrace.settings.profiling import config
+
     output_filename = _setup_profiling_prelude(tmp_path, "test_no_duplicate_dropped_frames_indicator")
+
+    # Stack depth that should exceed max_nframes to trigger frame dropping
+    DEEP_STACK_DEPTH = 100
+
+    # Verify that max_nframes is less than our deep stack depth
+    # config.max_frames corresponds to DD_PROFILING_MAX_FRAMES (default 64)
+    assert config.max_frames < DEEP_STACK_DEPTH, (
+        f"Test requires DD_PROFILING_MAX_FRAMES ({config.max_frames}) < {DEEP_STACK_DEPTH} to trigger frame dropping"
+    )
 
     # Create a very deep call stack to trigger frame dropping
     def make_deep_stack(depth: int):
@@ -1045,10 +1056,9 @@ def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
     junk = []
 
     with mc:
-        # Create allocations from a 100-frame deep stack
-        # This should exceed max_nframes and trigger frame dropping
+        # Create allocations from a deep stack to trigger frame dropping
         for _ in range(10):
-            junk.append(make_deep_stack(100))
+            junk.append(make_deep_stack(DEEP_STACK_DEPTH))
 
         # Call snapshot twice in a row to potentially export the same sample multiple times
         # The objects in junk remain alive, so the samples persist across both exports
