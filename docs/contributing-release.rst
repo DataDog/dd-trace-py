@@ -170,7 +170,7 @@ Where the EOL month is calculated thus: <this major release line's start month> 
 copy-paste this block from the previous release on the same major line.
 
 
-Making a New Github Release
+Making a New GitHub Release
 ---------------------------
 
 1. Draft a new GitHub release https://github.com/DataDog/dd-trace-py/releases/new
