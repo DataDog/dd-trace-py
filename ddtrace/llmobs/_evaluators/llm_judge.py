@@ -392,6 +392,9 @@ class LLMJudge(BaseEvaluator):
         if isinstance(structured_output, dict):
             return EvaluatorResult(value=data, reasoning=data.get("reasoning"))
 
+        if structured_output is None:
+            return EvaluatorResult(value=data, reasoning=data.get("reasoning"))
+
         label = structured_output.label
         result = data.get(label, data)
 
