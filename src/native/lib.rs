@@ -48,7 +48,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(logger_module)?;
 
     // Add tracer_flare submodule
-    m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::register_tracer_flare))?;
+    m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
 
     Ok(())
 }

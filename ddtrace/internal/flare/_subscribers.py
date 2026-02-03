@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace.internal import flare
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
@@ -43,7 +42,8 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 self.current_request_start,
             )
             self.current_request_start = None
-            self._callback(self.flare, {}, True)
+            self.flare.revert_configs()
+            self.flare.clean_up_files()
             return
 
         data = self._data_connector.read()
@@ -53,44 +53,41 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
 
         for md in data:
             product_type = md.metadata.product_name
-            # Handle both list (unit tests) and dict (system tests) data structures
-            data = md.content if isinstance(md.content, list) else [md.content]
-            for item in data:
-                if not isinstance(item, dict):
-                    log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(item)))
+            item = md.content
+            if not isinstance(item, dict):
+                log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(item)))
+                continue
+            return_action = self.flare.native_manager.handle_remote_config_data(item, product_type)
+
+            if return_action.is_set():
+                # We will only process one tracer flare request at a time
+                if self.current_request_start is not None:
+                    log.warning(
+                        "There is already a tracer flare job started at %s. Skipping new request.",
+                        str(self.current_request_start),
+                    )
                     continue
-                return_action = self.flare._native_manager.handle_remote_config_data(item, product_type)
+                log.info("Preparing tracer flare")
 
-                if return_action.is_set():
-                    # We will only process one tracer flare request at a time
-                    if self.current_request_start is not None:
-                        log.warning(
-                            "There is already a tracer flare job started at %s. Skipping new request.",
-                            str(self.current_request_start),
-                        )
-                        continue
-                    log.info("Preparing tracer flare")
-
-                    log_level = return_action.level
-                    if self.flare.prepare(log_level):
+                log_level = return_action.level
+                if self.flare.prepare(log_level):
+                    self.current_request_start = datetime.now()
+            elif return_action.is_send():
+                # Edge case: AGENT_TASK received without prior AGENT_CONFIG
+                # Start the flare job now with default settings before sending
+                if self.current_request_start is None:
+                    log.info("Starting tracer flare job for AGENT_TASK without prior AGENT_CONFIG")
+                    # Prepare with default log level (similar to how .NET handles this)
+                    if self.flare.prepare("DEBUG"):
                         self.current_request_start = datetime.now()
-                elif return_action.is_send():
-                    # Possible edge case where we don't have an existing flare request
-                    # In this case we won't have anything to send, so we log and do nothing
-                    if self.current_request_start is None:
-                        # If no AGENT_CONFIG was received, start the flare job now with default settings
-                        log.info("Starting tracer flare job for AGENT_TASK without prior AGENT_CONFIG")
-                        # Prepare with default log level (similar to how .NET handles this)
-                        if self.flare.prepare("DEBUG"):
-                            self.current_request_start = datetime.now()
-                        else:
-                            log.warning("Failed to prepare tracer flare. Skipping new request.")
-                            continue
+                    else:
+                        log.warning("Failed to prepare tracer flare. Skipping new request.")
+                        continue
 
-                    log.info("Generating and sending tracer flare")
+                log.info("Generating and sending tracer flare")
 
-                    self.flare.revert_configs()
-                    self.flare.send(return_action)
-                    self.current_request_start = None
-                else:
-                    log.warning("Received unexpected product type for tracer flare: {}", product_type)
+                self.flare.revert_configs()
+                self.flare.send(return_action)
+                self.current_request_start = None
+            else:
+                log.warning("Received unexpected product type for tracer flare: {}", product_type)

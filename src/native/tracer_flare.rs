@@ -85,67 +85,10 @@ impl LogLevelPy {
     }
 }
 
-/// Python wrapper for AgentTaskFile
-#[pyclass(name = "AgentTaskFile")]
-pub struct AgentTaskFilePy {
-    inner: AgentTaskFile,
-}
+/// Internal wrapper for AgentTaskFile (not exposed to Python, only for conversion)
+struct AgentTaskFileWrapper(AgentTaskFile);
 
-#[pymethods]
-impl AgentTaskFilePy {
-    #[new]
-    #[pyo3(signature = (case_id, hostname, user_handle, task_type, uuid))]
-    fn new(case_id: u64, hostname: String, user_handle: String, task_type: String, uuid: String) -> PyResult<Self> {
-        let case_id_nonzero: NonZero<u64> = case_id
-            .try_into()
-            .map_err(|_| PyErr::new::<pyo3::exceptions::PyValueError, _>("case_id cannot be zero"))?;
-
-        Ok(Self {
-            inner: AgentTaskFile {
-                args: AgentTask {
-                    case_id: case_id_nonzero,
-                    hostname,
-                    user_handle,
-                },
-                task_type,
-                uuid,
-            }
-        })
-    }
-
-    #[getter]
-    fn case_id(&self) -> u64 {
-        self.inner.args.case_id.get()
-    }
-
-    #[getter]
-    fn hostname(&self) -> String {
-        self.inner.args.hostname.clone()
-    }
-
-    #[getter]
-    fn user_handle(&self) -> String {
-        self.inner.args.user_handle.clone()
-    }
-
-    #[getter]
-    fn task_type(&self) -> String {
-        self.inner.task_type.clone()
-    }
-
-    #[getter]
-    fn uuid(&self) -> String {
-        self.inner.uuid.clone()
-    }
-}
-
-/// Python wrapper for AgentConfigFile
-#[pyclass(name = "AgentConfigFile")]
-pub struct AgentConfigFilePy {
-    inner: AgentConfigFile,
-}
-
-impl<'py> FromPyObject<'_, 'py> for AgentTaskFilePy {
+impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
     type Error = PyErr;
 
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
@@ -187,7 +130,7 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFilePy {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("uuid".to_string())
         })?.extract()?;
 
-        Ok(Self { inner: AgentTaskFile {
+        Ok(AgentTaskFileWrapper(AgentTaskFile {
             args: AgentTask {
                 case_id,
                 hostname,
@@ -195,11 +138,14 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFilePy {
             },
             task_type,
             uuid,
-        } })
+        }))
     }
 }
 
-impl<'py> FromPyObject<'_, 'py> for AgentConfigFilePy {
+/// Internal wrapper for AgentConfigFile (not exposed to Python, only for conversion)
+struct AgentConfigFileWrapper(AgentConfigFile);
+
+impl<'py> FromPyObject<'_, 'py> for AgentConfigFileWrapper {
     type Error = PyErr;
 
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
@@ -216,12 +162,12 @@ impl<'py> FromPyObject<'_, 'py> for AgentConfigFilePy {
             PyErr::new::<pyo3::exceptions::PyKeyError, _>("log_level".to_string())
         })?.extract()?;
 
-        Ok(Self { inner: AgentConfigFile {
+        Ok(AgentConfigFileWrapper(AgentConfigFile {
             name,
             config: AgentConfig {
                 log_level,
             },
-        } })
+        }))
     }
 }
 
@@ -250,14 +196,6 @@ impl ReturnActionPy {
         }
     }
 
-    /// Create a ReturnAction.Send variant
-    #[staticmethod]
-    fn send(task: Bound<'_, AgentTaskFilePy>) -> PyResult<Self> {
-        let task_ref = task.borrow();
-        Ok(ReturnActionPy {
-            inner: ReturnAction::Send(task_ref.inner.clone()),
-        })
-    }
 
     /// Create a ReturnAction.Set variant
     #[staticmethod]
@@ -341,7 +279,7 @@ impl From<ReturnActionPy> for ReturnAction {
 
 #[pyclass(name = "TracerFlareManager")]
 pub struct TracerFlareManagerPy {
-    manager: std::sync::Arc<std::sync::Mutex<Option<TracerFlareManager>>>,
+    manager: std::sync::Arc<TracerFlareManager>,
 }
 
 #[pymethods]
@@ -357,9 +295,7 @@ impl TracerFlareManagerPy {
     #[new]
     fn new(agent_url: &str, language: &str) -> Self {
         TracerFlareManagerPy {
-            manager: std::sync::Arc::new(std::sync::Mutex::new(Some(TracerFlareManager::new(
-                agent_url, language,
-            )))),
+            manager: std::sync::Arc::new(TracerFlareManager::new(agent_url, language)),
         }
     }
 
@@ -374,18 +310,13 @@ impl TracerFlareManagerPy {
     //     "uuid": "unique-identifier"
     // }
     fn handle_remote_config_data(&self, data: &Bound<PyAny>, product: &str) -> PyResult<ReturnActionPy> {
-        let manager_guard = self.manager.lock().map_err(|e| {
-            PyException::new_err(format!("Failed to acquire manager lock: {e}"))
-        })?;
-        let manager = manager_guard.as_ref().ok_or_else(|| {
-            PyException::new_err("TracerFlareManager not initialized")
-        })?;
+        let manager = self.manager.as_ref();
 
         if product == "AGENT_CONFIG" {
-            let agent_config : AgentConfigFilePy = data.extract() // Need to extract the config in data only
+            let agent_config: AgentConfigFileWrapper = data.extract()
                 .map_err(|e| ParsingError::new_err(format!("Failed to extract AgentConfigFile: {}, data: {}", e, data)))?;
 
-            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.inner))
+            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.0))
                 .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e)))?.into());
         } else if product == "AGENT_TASK" {
             // Pre-validate case_id before extraction to handle invalid case_ids gracefully
@@ -418,10 +349,10 @@ impl TracerFlareManagerPy {
                 }
             }
 
-            let agent_task : AgentTaskFilePy = data.extract() // Need to extract the config in data only
+            let agent_task: AgentTaskFileWrapper = data.extract()
                 .map_err(|e| ParsingError::new_err(format!("Failed to extract AgentTaskFile: {}, data: {}", e, data)))?;
 
-            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareTask(agent_task.inner))
+            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareTask(agent_task.0))
                 .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_TASK: {}", e)))?.into());
         } else {
             return Err(ParsingError::new_err(format!(
@@ -459,14 +390,8 @@ impl TracerFlareManagerPy {
                 PyException::new_err(format!("Failed to create tokio runtime: {e}"))
             })?;
 
-        #[allow(clippy::await_holding_lock)]
         rt.block_on(async move {
-            let manager_guard = manager_arc.lock().map_err(|e| {
-                PyException::new_err(format!("Failed to acquire manager lock: {e}"))
-            })?;
-            let manager = manager_guard
-                .as_ref()
-                .ok_or_else(|| PyException::new_err("Manager not initialized"))?;
+            let manager = manager_arc.as_ref();
 
             manager
                 .zip_and_send(vec![directory.to_string()], rust_action)
@@ -484,12 +409,10 @@ impl TracerFlareManagerPy {
 /// END
 
 #[pymodule]
-pub fn register_tracer_flare(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn native_flare(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TracerFlareManagerPy>()?;
     m.add_class::<ReturnActionPy>()?;
     m.add_class::<LogLevelPy>()?;
-    m.add_class::<AgentTaskFilePy>()?;
-    m.add_class::<AgentConfigFilePy>()?;
     register_exceptions(m)?;
 
     Ok(())

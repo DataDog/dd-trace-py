@@ -4,9 +4,7 @@ from logging import Logger
 import multiprocessing
 import os
 import pathlib
-import re
 import shutil
-from datetime import datetime
 from typing import Dict
 from typing import Optional
 from typing import Union
@@ -22,10 +20,10 @@ from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import native_flare  # type: ignore
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import remote_config_build_payload as build_payload
-from ddtrace.internal.native._native import register_tracer_flare as native_flare  # type: ignore
 
 
 DEBUG_LEVEL_INT = logging.DEBUG
@@ -126,17 +124,17 @@ def _multiproc_do_tracer_flare(
     except Exception as e:
         errors.put(e)
 
-def setup_task_request(manager: native_flare.TracerFlareManager, case_id: str, hostname: str, email: str, uuid: str) -> native_flare.ReturnAction:
+
+def setup_task_request(
+    manager: native_flare.TracerFlareManager, case_id: str, hostname: str, email: str, uuid: str
+) -> native_flare.ReturnAction:
     config = {
-        "args": {
-            "case_id": case_id,
-            "hostname": hostname,
-            "user_handle": email
-        },
+        "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
         "task_type": "tracer_flare",
-        "uuid": uuid
+        "uuid": uuid,
     }
     return manager.handle_remote_config_data(config, "AGENT_TASK")
+
 
 class TracerFlareTests(TestCase):
     mock_config_dict = {}
@@ -563,8 +561,7 @@ class TracerFlareTests(TestCase):
 
         # Test with empty uuid
         empty_uuid_request = setup_task_request(
-            self.data_manager,
-            case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=""
+            self.data_manager, case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=""
         )
 
         self.mock_native_manager.zip_and_send.reset_mock()
@@ -615,6 +612,7 @@ class TracerFlareTests(TestCase):
         # Clean up original flare
         self.flare.clean_up_files()
         self.flare.revert_configs()
+
 
 class TracerFlareMultiprocessTests(unittest.TestCase):
     @pytest.fixture(autouse=True)
@@ -720,19 +718,16 @@ class MockPubSubConnector(PublisherSubscriberConnector):
 
 
 class TracerFlareSubscriberTests(unittest.TestCase):
-    agent_config = [False, {"name": "flare-log-level.test", "config": {"log_level": "DEBUG"}}]
-    agent_task = [
-        False,
-        {
-            "args": {
-                "case_id": "1111111",
-                "hostname": "myhostname",
-                "user_handle": "user.name@datadoghq.com",
-            },
-            "task_type": "tracer_flare",
-            "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
+    agent_config = {"name": "flare-log-level.test", "config": {"log_level": "DEBUG"}}
+    agent_task = {
+        "args": {
+            "case_id": "1111111",
+            "hostname": "myhostname",
+            "user_handle": "user.name@datadoghq.com",
         },
-    ]
+        "task_type": "tracer_flare",
+        "uuid": "d53fc8a4-8820-47a2-aa7d-d565582feb81",
+    }
 
     @pytest.fixture(autouse=True)
     def inject_fixtures(self, tmp_path):

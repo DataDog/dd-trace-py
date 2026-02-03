@@ -140,14 +140,6 @@ def main():
         print("      - Form fields: source, case_id, hostname, email, flare_file")
         print(f"      - Zip filename: tracer-python-{case_id}-{int(time.time() * 1000)}-debug.zip")
 
-        # # Print the actual payload (headers and body summary)
-        # print("\n   📨 Flare HTTP payload preview:")
-        # headers, body = flare._generate_payload(flare_request)
-        # print(f"      Debug: case_id = '{case_id}'")
-        # for k, v in headers.items():
-        #     print(f"      Header: {k}: {v}")
-        # print(f"      [binary zip content: {body.count(b'PK')}] bytes, total body size: {len(body)} bytes")
-
         send_request = native_flare.ReturnAction.get_send_action_from(case_id, hostname, email, uuid_str)
         # Send the flare
         try:

@@ -1,8 +1,7 @@
-from typing import Any
 from typing import Callable
-from typing import List
 
 from ddtrace.internal.flare.flare import Flare
+
 # from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.logger import get_logger
 
@@ -28,13 +27,7 @@ def _tracerFlarePubSub():
     return _TracerFlarePubSub
 
 
-def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
-    if cleanup:
-        log.info("Reverting tracer flare configurations and cleaning up any generated files")
-        flare.revert_configs()
-        flare.clean_up_files()
-        return
-
+def _handle_tracer_flare(flare: Flare, data: dict):
     if "config" not in data:
         log.warning("Unexpected tracer flare RC payload %r", data)
         return
@@ -50,11 +43,9 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
             continue
         config_data = c.get("config", {})
-        return_action = flare._native_manager.handle_remote_config_data(config_data, product_type)
+        return_action = flare.native_manager.handle_remote_config_data(config_data, product_type)
 
         if return_action.is_send():
-            # case_id, hostname, email, uuid = return_action.task_info()
-            # flare_request = FlareSendRequest(case_id, hostname, email, uuid)
             flare.revert_configs()
             flare.send(return_action)
 
@@ -63,5 +54,6 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
             flare.prepare(log_level)
 
         elif return_action.is_unset():
-            _handle_tracer_flare(flare, config_data, True) # Cleanup the tracer flare configurations
-
+            log.info("Reverting tracer flare configurations and cleaning up any generated files")
+            flare.revert_configs()
+            flare.clean_up_files()
