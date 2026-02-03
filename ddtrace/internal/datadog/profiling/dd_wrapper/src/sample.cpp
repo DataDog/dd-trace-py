@@ -2,13 +2,8 @@
 
 #define PY_SSIZE_T_CLEAN
 
-// Disable old-style-cast warning for Python C API headers
-// Python headers use C-style casts which trigger -Wold-style-cast
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
 #include <Python.h>
 #include <frameobject.h>
-#pragma GCC diagnostic pop
 
 #include "pymacro.hpp"
 #include "python_helpers.hpp"
@@ -107,12 +102,8 @@ unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unkn
         return fallback;
     }
 
-    // Python C API functions may use old-style casts internally
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
     Py_ssize_t len;
     const char* ptr = PyUnicode_AsUTF8AndSize(unicode_obj, &len);
-#pragma GCC diagnostic pop
 
     if (ptr) {
         return std::string_view(ptr, len);
@@ -128,10 +119,6 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
      *
      * Note: The caller retains ownership of the initial frame. We only take ownership
      * of subsequent frames obtained from PyFrame_GetBack(). */
-
-    // Python C API macros use old-style casts, disable the warning for this function
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wold-style-cast"
 
     // Save and restore Python error state
     // PyFrame_GetBack() in Python 3.14+ may set a spurious "TypeError: bad argument type"
@@ -180,8 +167,6 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         f = back;
     }
     // Error state is automatically restored by error_restorer destructor
-
-#pragma GCC diagnostic pop
 }
 
 bool

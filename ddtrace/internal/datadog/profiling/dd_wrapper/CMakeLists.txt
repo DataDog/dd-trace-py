@@ -66,6 +66,9 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
+# Disable -Wold-style-cast for sample.cpp because Python C API headers use old-style casts
+set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
+
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
