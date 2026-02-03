@@ -389,6 +389,8 @@ suites:
       - tests/snapshots/tests.contrib.azure_durable_functions.*
     runner: riot
     snapshot: true
+    services:
+      - azurite
   azure_functions:
     parallelism: 4
     paths:
