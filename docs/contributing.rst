@@ -16,6 +16,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Library design documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-design.rst>`_.
 
+`Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
+
 Thanks for working with us!
 
 .. _change_process:
@@ -161,6 +163,7 @@ about Instrumentation Telemetry.
     contributing-design
     contributing-integrations
     contributing-testing
+    contributing-fuzzing
     contributing-tracing
     contributing-release
     releasenotes

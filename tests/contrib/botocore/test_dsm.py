@@ -11,7 +11,6 @@ from moto import mock_sns
 from moto import mock_sqs
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore import span_tags
 from ddtrace.contrib.internal.botocore.patch import patch
 from ddtrace.contrib.internal.botocore.patch import patch_submodules
@@ -29,8 +28,6 @@ BOTOCORE_VERSION = parse_version(botocore.__version__)
 @pytest.mark.skipif(BOTOCORE_VERSION >= (1, 34, 131), reason="Test is incompatible with botocore>=1.34.131")
 class BotocoreDSMTest(TracerTestCase):
     """Botocore DSM (Data Streams Monitoring) integration tests"""
-
-    TEST_SERVICE = "test-botocore-tracing"
 
     @mock_sqs
     def setUp(self):
@@ -51,9 +48,6 @@ class BotocoreDSMTest(TracerTestCase):
 
         super(BotocoreDSMTest, self).setUp()
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(botocore.parsers.ResponseParser)
         # Setting the validated flag to False ensures the redaction paths configurations are re-validated
         # FIXME: Ensure AWSPayloadTagging._REQUEST_REDACTION_PATHS_DEFAULTS is always in sync with
         # config.botocore.payload_tagging_request
@@ -131,9 +125,6 @@ class BotocoreDSMTest(TracerTestCase):
                     AttributeValue="true",
                 )
 
-            Pin.get_from(sns)._clone(tracer=self.tracer).onto(sns)
-            Pin.get_from(self.sqs_client)._clone(tracer=self.tracer).onto(self.sqs_client)
-
             sns.publish(TopicArn=topic_arn, Message="test")
 
             self.get_spans()
@@ -208,9 +199,6 @@ class BotocoreDSMTest(TracerTestCase):
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -233,7 +221,6 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
             buckets = processor._buckets
@@ -271,9 +258,6 @@ class BotocoreDSMTest(TracerTestCase):
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -301,7 +285,6 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
             buckets = processor._buckets
@@ -353,9 +336,6 @@ class BotocoreDSMTest(TracerTestCase):
         ):
             mt.return_value = 1642544540
 
-            pin = Pin(service=self.TEST_SERVICE)
-            pin._tracer = self.tracer
-            pin.onto(self.sqs_client)
             message_attributes = {
                 "one": {"DataType": "String", "StringValue": "one"},
                 "two": {"DataType": "String", "StringValue": "two"},
@@ -379,7 +359,6 @@ class BotocoreDSMTest(TracerTestCase):
                 WaitTimeSeconds=2,
             )
 
-            pin = Pin.get_from(self.sqs_client)
             processor = data_streams_processor()
             assert processor is not None, "Datastream Monitoring is not enabled"
             buckets = processor._buckets
@@ -406,15 +385,11 @@ class BotocoreDSMTest(TracerTestCase):
         stream_name = "kinesis_put_records_data_streams"
         shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
         client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
 
-        pin = Pin.get_from(client)
         processor = data_streams_processor()
         assert processor is not None, "Datastream Monitoring is not enabled"
         buckets = processor._buckets
@@ -509,15 +484,11 @@ class BotocoreDSMTest(TracerTestCase):
         shard_id, stream_arn = self._kinesis_create_stream(client, stream_name)
 
         partition_key = "1234"
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_record(StreamName=stream_name, Data=data, PartitionKey=partition_key, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
         client.get_records(ShardIterator=shard_iterator, StreamARN=stream_arn)
 
-        pin = Pin.get_from(client)
         processor = data_streams_processor()
         assert processor is not None, "Datastream Monitoring is not enabled"
         buckets = processor._buckets
@@ -615,9 +586,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -646,9 +614,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -677,9 +642,6 @@ class BotocoreDSMTest(TracerTestCase):
         data = json.dumps({"json": "string"})
         records = self._kinesis_generate_records(data, 5)
 
-        pin = Pin(service=self.TEST_SERVICE)
-        pin._tracer = self.tracer
-        pin.onto(client)
         client.put_records(StreamName=stream_name, Records=records, StreamARN=stream_arn)
 
         shard_iterator = self._kinesis_get_shard_iterator(client, stream_name, shard_id)
@@ -689,3 +651,35 @@ class BotocoreDSMTest(TracerTestCase):
         for record in response["Records"]:
             data = json.loads(record["Data"])
             assert "_datadog" not in data
+
+
+@pytest.mark.snapshot(ignores=["meta.aws.requestid"])
+@pytest.mark.subprocess(
+    env={"DD_DATA_STREAMS_ENABLED": "true", "DD_TRACE_JINJA2_ENABLED": "false"}, ddtrace_run=True, err=None
+)
+def test_data_streams_botocore_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to SQS messages."""
+    import json
+
+    import botocore.session
+    from moto import mock_sqs
+
+    with mock_sqs():
+        session = botocore.session.get_session()
+        session.set_credentials(access_key="access-key", secret_key="secret-key")
+
+        sqs_client = session.create_client("sqs", region_name="us-east-1")
+        queue_url = sqs_client.create_queue(QueueName="test_queue")["QueueUrl"]
+
+        try:
+            sqs_client.send_message(QueueUrl=queue_url, MessageBody="test")
+
+            response = sqs_client.receive_message(
+                QueueUrl=queue_url, MessageAttributeNames=["_datadog"], WaitTimeSeconds=2
+            )
+            message = response["Messages"][0]
+            context_data = json.loads(message["MessageAttributes"]["_datadog"]["StringValue"])
+            assert "dd-pathway-ctx-base64" in context_data
+
+        finally:
+            sqs_client.delete_queue(QueueUrl=queue_url)

@@ -24,6 +24,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.trace import tracer
 
 
 aiobotocore_version_str = getattr(aiobotocore, "__version__", "")
@@ -75,14 +76,13 @@ def unpatch():
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
     def __init__(self, body, pin, parent_span):
         super(WrappedClientResponseContentProxy, self).__init__(body)
-        self._self_pin = pin
         self._self_parent_span = parent_span
 
     async def read(self, *args, **kwargs):
         # async read that must be child of the parent span operation
         operation_name = "{}.read".format(self._self_parent_span.name)
 
-        with self._self_pin.tracer.start_span(operation_name, child_of=self._self_parent_span) as span:
+        with tracer.start_span(name=operation_name, child_of=self._self_parent_span) as span:
             span._set_tag_str(COMPONENT, config.aiobotocore.integration_name)
 
             # set span.kind tag equal to type of request
@@ -119,7 +119,7 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
     fallback_service = config._get_service(default="aws.{}".format(endpoint_name))
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),

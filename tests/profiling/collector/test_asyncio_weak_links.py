@@ -78,6 +78,7 @@ def test_asyncio_weak_links_wall_time() -> None:
                 # loc("Task-1"),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # We should see a stack for Task-1 / parent / Task-awaited / awaited / sleep
@@ -96,4 +97,5 @@ def test_asyncio_weak_links_wall_time() -> None:
                 # loc("Task-1"),
             ],
         ),
+        print_samples_on_failure=True,
     )

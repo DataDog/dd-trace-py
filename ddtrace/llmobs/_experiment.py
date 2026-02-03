@@ -1,6 +1,11 @@
+from abc import ABC
+from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from dataclasses import dataclass
+from dataclasses import field
 import itertools
+import re
 import sys
 import traceback
 from typing import TYPE_CHECKING
@@ -10,6 +15,7 @@ from typing import Dict
 from typing import Iterator
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
@@ -40,8 +46,267 @@ logger = get_logger(__name__)
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
-ExperimentConfigType = Dict[str, JSONType]
+ConfigType = Dict[str, JSONType]
 DatasetRecordInputType = Dict[str, NonNoneJSONType]
+
+
+class EvaluatorResult:
+    """Container for evaluator results with additional metadata.
+
+    This class allows evaluators to return not just a value, but also
+    reasoning, assessment, metadata, and tags alongside the evaluation result.
+
+    Example::
+
+        def my_evaluator(input_data, output_data, expected_output):
+            score = calculate_score(output_data, expected_output)
+            return EvaluatorResult(
+                value=score,
+                reasoning="The output matches the expected format",
+                assessment="pass" if score > 0.8 else "fail",
+                metadata={"confidence": 0.95},
+                tags={"category": "accuracy"}
+            )
+    """
+
+    def __init__(
+        self,
+        value: JSONType,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, JSONType]] = None,
+    ) -> None:
+        """Initialize an EvaluatorResult.
+
+        :param value: The primary evaluation result (numeric, boolean, string, etc.)
+        :param reasoning: Optional explanation of why this evaluation result was produced
+        :param assessment: Optional categorical assessment (e.g., "pass", "fail", "good", "bad")
+        :param metadata: Optional dictionary of additional metadata about the evaluation
+        :param tags: Optional dictionary of tags to categorize or label the evaluation
+        """
+        self.value = value
+        self.reasoning = reasoning
+        self.assessment = assessment
+        self.metadata = metadata
+        self.tags = tags
+
+
+def _validate_evaluator_name(name: str) -> None:
+    """Validate that evaluator name is valid.
+
+    :param name: The evaluator name to validate
+    :raises TypeError: If the name is not a string
+    :raises ValueError: If the name is empty or contains invalid characters
+    """
+    if not isinstance(name, str):
+        raise TypeError("Evaluator name must be a string")
+    if not name:
+        raise ValueError("Evaluator name cannot be empty")
+    if not re.match(r"^[a-zA-Z0-9_]+$", name):
+        raise ValueError(
+            f"Evaluator name '{name}' is invalid. Name must contain only alphanumeric characters and underscores."
+        )
+
+
+@dataclass(frozen=True)
+class EvaluatorContext:
+    """Context object containing all data needed for evaluation.
+
+    This frozen dataclass wraps all metadata needed to run an evaluation,
+    providing better state management and extensibility compared to individual parameters.
+
+    :param input_data: The input data that was provided to the task (read-only).
+                       Dictionary with string keys mapping to JSON-serializable values.
+    :param output_data: The output data produced by the task (read-only).
+                        Any JSON-serializable type.
+    :param expected_output: The expected output for comparison, if available (read-only).
+                            Optional JSON-serializable type.
+    :param metadata: Additional metadata including dataset record metadata and experiment configuration (read-only).
+                     Dictionary with string keys mapping to JSON-serializable values.
+    :param span_id: The span ID associated with the task execution, if available (read-only).
+                    Optional string.
+    :param trace_id: The trace ID associated with the task execution, if available (read-only).
+                     Optional string.
+    """
+
+    input_data: Dict[str, Any]
+    output_data: Any
+    expected_output: Optional[JSONType] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    span_id: Optional[str] = None
+    trace_id: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class SummaryEvaluatorContext:
+    """Context object containing all data needed for summary evaluation.
+
+    :param inputs: List of all input data from the dataset records (read-only).
+    :param outputs: List of all outputs produced by the task (read-only).
+    :param expected_outputs: List of all expected outputs (read-only).
+    :param evaluation_results: Dictionary mapping evaluator names to their results (read-only).
+    :param metadata: List of metadata for each dataset record, each combined with experiment configuration (read-only).
+                     Each element contains the record's metadata merged with {"experiment_config": ...}.
+    """
+
+    inputs: List[DatasetRecordInputType]
+    outputs: List[JSONType]
+    expected_outputs: List[JSONType]
+    evaluation_results: Dict[str, List[JSONType]]
+    metadata: List[Dict[str, Any]] = field(default_factory=list)
+
+
+class BaseEvaluator(ABC):
+    """This class provides a unified interface for evaluators.
+
+    Subclasses must implement the `evaluate` method.
+
+    **Evaluator Return Values**
+    LLM Observability supports storing and representing the following evaluator return value types:
+    - **Numeric**: int/float values
+    - **Boolean**: pass/fail boolean values
+    - **Null**: None values
+    - **JSON serializable**: string/dict/list values, which will be serialized into strings
+    - **EvaluatorResult**: Any of the above values plus optional associated reasoning, assessment, metadata, and tags
+
+    Example (simple return)::
+
+        class SemanticSimilarity(BaseEvaluator):
+            def __init__(self, threshold=0.8):
+                super().__init__(name="semantic_similarity")
+                self.threshold = threshold
+                self.model = load_embedding_model()
+
+            def evaluate(self, context: EvaluatorContext):
+                score = self.model.compare(context.output_data, context.expected_output)
+                return score
+
+    Example (with EvaluatorResult)::
+
+        class SemanticSimilarity(BaseEvaluator):
+            def __init__(self, threshold=0.8):
+                super().__init__(name="semantic_similarity")
+                self.threshold = threshold
+                self.model = load_embedding_model()
+
+            def evaluate(self, context: EvaluatorContext):
+                score = self.model.compare(context.output_data, context.expected_output)
+                return EvaluatorResult(
+                    value=score,
+                    reasoning=f"Similarity score: {score:.2f}",
+                    assessment="pass" if score >= self.threshold else "fail",
+                    metadata={"threshold": self.threshold},
+                    tags={"type": "semantic"}
+                )
+
+    Note: The ``evaluate`` method may be called concurrently from multiple threads.
+    Avoid modifying instance attributes inside ``evaluate()``; use local variables instead.
+    """
+
+    def __init__(self, name: Optional[str] = None):
+        """Initialize the evaluator.
+
+        :param name: Optional custom name for the evaluator. If not provided,
+                     the class name will be used.
+                     Name must contain only alphanumeric characters and underscores.
+        """
+        if name is not None:
+            name = name.strip()
+        else:
+            name = self.__class__.__name__
+
+        _validate_evaluator_name(name)
+        self.name = name
+
+    @abstractmethod
+    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
+        """Perform evaluation.
+
+        This method must be implemented by all subclasses.
+
+        :param context: The evaluation context containing input, output, and metadata
+        :return: Evaluation results - can be a JSONType value (dict, primitive, list, None)
+                 or an EvaluatorResult object containing the value plus additional metadata
+        """
+        raise NotImplementedError("Subclasses must implement the evaluate method")
+
+
+class BaseSummaryEvaluator(ABC):
+    """Base class for summary evaluators that operate on aggregated experiment results.
+
+    Summary evaluators receive all inputs, outputs, expected outputs, and per-row
+    evaluation results at once, allowing them to compute aggregate metrics.
+
+    Subclasses must implement the `evaluate` method.
+
+    Example::
+
+        class AverageScoreEvaluator(BaseSummaryEvaluator):
+            def __init__(self, target_evaluator: str):
+                super().__init__(name="average_score")
+                self.target_evaluator = target_evaluator
+
+            def evaluate(self, context: SummaryEvaluatorContext):
+                scores = context.evaluation_results.get(self.target_evaluator, [])
+                if not scores:
+                    return None
+                return sum(scores) / len(scores)
+    """
+
+    def __init__(self, name: Optional[str] = None):
+        """Initialize the summary evaluator.
+
+        :param name: Optional custom name for the evaluator. If not provided,
+                     the class name will be used.
+                     Name must contain only alphanumeric characters and underscores.
+        """
+        if name is not None:
+            name = name.strip()
+        else:
+            name = self.__class__.__name__
+
+        _validate_evaluator_name(name)
+        self.name = name
+
+    @abstractmethod
+    def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
+        """Perform summary evaluation on aggregated experiment results.
+
+        This method must be implemented by all subclasses.
+
+        :param context: The summary evaluation context containing all inputs, outputs,
+                        expected outputs, and per-row evaluation results
+        :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None)
+        """
+        raise NotImplementedError("Subclasses must implement the evaluate method")
+
+
+def _is_class_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a class-based evaluator (inherits from BaseEvaluator).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a class-based evaluator, False otherwise
+    """
+    return isinstance(evaluator, BaseEvaluator)
+
+
+def _is_class_summary_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a class-based summary evaluator, False otherwise
+    """
+    return isinstance(evaluator, BaseSummaryEvaluator)
+
+
+def _is_function_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a function-based evaluator.
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a function evaluator, False otherwise
+    """
+    return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator)
 
 
 class Project(TypedDict):
@@ -77,22 +342,6 @@ class TaskResult(TypedDict):
     output: JSONType
     metadata: Dict[str, JSONType]
     error: Dict[str, Optional[str]]
-
-
-class EvaluatorResult:
-    def __init__(
-        self,
-        value: JSONType,
-        reasoning: Optional[str] = None,
-        assessment: Optional[str] = None,
-        metadata: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[Dict[str, JSONType]] = None,
-    ) -> None:
-        self.value = value
-        self.reasoning = reasoning
-        self.assessment = assessment
-        self.metadata = metadata
-        self.tags = tags
 
 
 class EvaluationResult(TypedDict):
@@ -360,24 +609,32 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]]],
+        evaluators: Sequence[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                BaseEvaluator,
+            ]
+        ],
         project_name: str,
         description: str = "",
         tags: Optional[Dict[str, str]] = None,
-        config: Optional[ExperimentConfigType] = None,
+        config: Optional[ConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[
             List[
-                Callable[
-                    [
-                        List[DatasetRecordInputType],
-                        List[JSONType],
-                        List[JSONType],
-                        Dict[str, List[JSONType]],
+                Union[
+                    Callable[
+                        [
+                            List[DatasetRecordInputType],
+                            List[JSONType],
+                            List[JSONType],
+                            Dict[str, List[JSONType]],
+                        ],
+                        JSONType,
                     ],
-                    JSONType,
+                    BaseSummaryEvaluator,
                 ]
             ]
         ] = None,
@@ -416,6 +673,17 @@ class Experiment:
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
     ) -> ExperimentResult:
+        """Run the experiment by executing the task on all dataset records and evaluating the results.
+
+        :param jobs: Maximum number of concurrent task and evaluator executions (default: 1)
+        :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
+        :param sample_size: Optional number of dataset records to sample for testing
+                            (default: None, uses full dataset)
+        :return: ExperimentResult containing evaluation results and metadata
+        """
+        if jobs < 1:
+            raise ValueError("jobs must be at least 1")
+
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -449,8 +717,8 @@ class Experiment:
             self._tags["run_id"] = str(run._id)
             self._tags["run_iteration"] = str(run._run_iteration)
             task_results = self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
+            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
             experiment_evals = self._generate_metrics_from_exp_results(run_result)
             self._llmobs_instance._dne_client.experiment_eval_post(
@@ -574,20 +842,55 @@ class Experiment:
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
-    def _run_evaluators(self, task_results: List[TaskResult], raise_errors: bool = False) -> List[EvaluationResult]:
-        evaluations: List[EvaluationResult] = []
-        for idx, task_result in enumerate(task_results):
-            output_data = task_result["output"]
+    def _run_evaluators(
+        self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 1
+    ) -> List[EvaluationResult]:
+        """Run evaluators on task results with concurrent execution using ThreadPoolExecutor.
+
+        Supports both class-based (BaseEvaluator) and literal function evaluators.
+
+        :param task_results: List of task results to evaluate
+        :param raise_errors: Whether to raise exceptions on evaluation errors
+        :param jobs: Maximum number of concurrent evaluator executions (default: 1)
+        """
+
+        def _evaluate_row(idx: int, task_result: TaskResult) -> Dict[str, Dict[str, JSONType]]:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
+            output_data = task_result["output"]
             expected_output = record["expected_output"]
-            evals_dict: Dict[str, Dict[str, JSONType]] = {}
+            metadata = record.get("metadata", {})
+
+            row_results: Dict[str, Dict[str, JSONType]] = {}
+
             for evaluator in self._evaluators:
                 eval_result_value: JSONType = None
                 eval_err: JSONType = None
+                evaluator_name = ""
                 extra_return_values: Dict[str, JSONType] = {}
+
                 try:
-                    eval_result = evaluator(input_data, output_data, expected_output)
+                    if _is_class_evaluator(evaluator):
+                        evaluator_name = evaluator.name  # type: ignore[union-attr]
+                        combined_metadata = {**metadata, "experiment_config": self._config}
+                        context = EvaluatorContext(
+                            input_data=input_data,
+                            output_data=output_data,
+                            expected_output=expected_output,
+                            metadata=combined_metadata,
+                            span_id=task_result.get("span_id"),
+                            trace_id=task_result.get("trace_id"),
+                        )
+                        eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
+                    elif _is_function_evaluator(evaluator):
+                        evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                        eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
+                    else:
+                        logger.warning(
+                            "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
+                        )
+                        evaluator_name = str(evaluator)
+                        eval_result = None
 
                     if isinstance(eval_result, EvaluatorResult):
                         if eval_result.reasoning:
@@ -601,6 +904,7 @@ class Experiment:
                         eval_result_value = eval_result.value
                     else:
                         eval_result_value = eval_result
+
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -611,14 +915,22 @@ class Experiment:
                         "stack": exc_stack,
                     }
                     if raise_errors:
-                        raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
-                evals_dict[evaluator.__name__] = {
+                        raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
+
+                row_results[evaluator_name] = {
                     "value": eval_result_value,
                     "error": eval_err,
                     **extra_return_values,
                 }
-            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
-            evaluations.append(evaluation)
+
+            return row_results
+
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
+            results = list(executor.map(_evaluate_row, range(len(task_results)), task_results))
+
+        evaluations: List[EvaluationResult] = [
+            {"idx": idx, "evaluations": row_results} for idx, row_results in enumerate(results)
+        ]
         return evaluations
 
     def _run_summary_evaluators(
@@ -626,12 +938,12 @@ class Experiment:
         task_results: List[TaskResult],
         eval_results: List[EvaluationResult],
         raise_errors: bool = False,
+        jobs: int = 1,
     ) -> List[EvaluationResult]:
-        evaluations: List[EvaluationResult] = []
         inputs: List[DatasetRecordInputType] = []
         outputs: List[JSONType] = []
         expected_outputs: List[JSONType] = []
-        evals_dict = {}
+        metadata_list: List[Dict[str, Any]] = []
 
         # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
         # this is being computed so that the user can use the evaluation results in its original form
@@ -641,6 +953,8 @@ class Experiment:
             record: DatasetRecord = self._dataset[idx]
             inputs.append(record["input_data"])
             expected_outputs.append(record["expected_output"])
+            record_metadata = record.get("metadata", {})
+            metadata_list.append({**record_metadata, "experiment_config": self._config})
 
             eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
             for name, eval_value in eval_result_at_idx_by_name.items():
@@ -649,12 +963,26 @@ class Experiment:
 
                 eval_results_by_name[name].append(eval_value.get("value"))
 
-        for idx, summary_evaluator in enumerate(self._summary_evaluators):
-            eval_result: JSONType = None
+        def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, Dict[str, JSONType]]:
+            eval_result_value: JSONType = None
             eval_err: JSONType = None
+            evaluator_name = ""
 
             try:
-                eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                if _is_class_summary_evaluator(summary_evaluator):
+                    evaluator_name = summary_evaluator.name
+                    context = SummaryEvaluatorContext(
+                        inputs=inputs,
+                        outputs=outputs,
+                        expected_outputs=expected_outputs,
+                        evaluation_results=eval_results_by_name,
+                        metadata=metadata_list,
+                    )
+                    eval_result = summary_evaluator.evaluate(context)
+                else:
+                    evaluator_name = summary_evaluator.__name__
+                    eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                eval_result_value = eval_result
             except Exception as e:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -665,13 +993,25 @@ class Experiment:
                     "stack": exc_stack,
                 }
                 if raise_errors:
-                    raise RuntimeError(f"Summary evaluator {summary_evaluator.__name__} failed") from e
-            evals_dict[summary_evaluator.__name__] = {
-                "value": eval_result,
-                "error": eval_err,
-            }
-            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
-            evaluations.append(evaluation)
+                    raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
+
+            return (
+                evaluator_name,
+                {
+                    "value": eval_result_value,
+                    "error": eval_err,
+                },
+            )
+
+        evaluations: List[EvaluationResult] = []
+        evals_dict: Dict[str, Dict[str, JSONType]] = {}
+
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
+            results = list(executor.map(_evaluate_summary_single, self._summary_evaluators))
+
+        for idx, (evaluator_name, eval_data) in enumerate(results):
+            evals_dict[evaluator_name] = eval_data
+            evaluations.append({"idx": idx, "evaluations": evals_dict})
 
         return evaluations
 

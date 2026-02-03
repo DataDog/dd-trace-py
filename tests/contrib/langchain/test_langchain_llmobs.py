@@ -413,6 +413,7 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
         metadata={"max_tokens": 256, "temperature": 0.7},
         prompt={
             "id": "test_langchain_llmobs.prompt",
+            "ml_app": "langchain_test",
             "chat_template": [
                 {"content": "You are world class technical documentation writer.", "role": "system"},
                 {"content": "{input}", "role": "user"},
@@ -465,6 +466,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         span_links=True,
         prompt={
             "id": "langchain.unknown_prompt_template",
+            "ml_app": "langchain_test",
             "chat_template": [{"content": "what is the city {person} is from?", "role": "user"}],
             "variables": {"person": "Spongebob Squarepants", "language": "Spanish"},
             "_dd_context_variable_keys": ["context"],
@@ -477,6 +479,7 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
         span_links=True,
         prompt={
             "id": "test_langchain_llmobs.prompt2",
+            "ml_app": "langchain_test",
             "chat_template": [{"content": "what country is the city {city} in? respond in {language}", "role": "user"}],
             "variables": {"city": mock.ANY, "language": "Spanish"},
             "_dd_context_variable_keys": ["context"],
@@ -512,6 +515,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
                 "_dd_context_variable_keys": ["context"],
@@ -525,6 +529,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
                 "_dd_context_variable_keys": ["context"],
@@ -539,6 +544,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "chickens"},
                 "_dd_context_variable_keys": ["context"],
@@ -552,6 +558,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
             span_links=True,
             prompt={
                 "id": "langchain.unknown_prompt_template",
+                "ml_app": "langchain_test",
                 "chat_template": [{"content": "Tell me a short joke about {topic}", "role": "user"}],
                 "variables": {"topic": "pigs"},
                 "_dd_context_variable_keys": ["context"],

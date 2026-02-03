@@ -33,7 +33,6 @@ class SampleManager
 
     // Handles state management after forks
     static void postfork_child();
-    static void cleanup();
 
     // Initialization
     static void init();

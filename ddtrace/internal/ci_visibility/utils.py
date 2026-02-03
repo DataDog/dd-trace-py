@@ -9,7 +9,7 @@ import typing as t
 
 import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+from ddtrace.contrib.internal.coverage.patch import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
@@ -43,6 +43,12 @@ def get_source_file_path_for_test_method(test_method_object, repo_directory: str
 def get_source_lines_for_test_method(
     test_method_object,
 ) -> t.Union[t.Tuple[int, int], t.Tuple[None, None]]:
+    """
+    Get the start and end line numbers for a test method.
+
+    Returns:
+        Tuple of (start_line, end_line), with None indicating unavailable information
+    """
     try:
         source_lines_tuple = inspect.getsourcelines(test_method_object)
     except (TypeError, OSError):
