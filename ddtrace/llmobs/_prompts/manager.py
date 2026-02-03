@@ -37,7 +37,7 @@ class PromptManager:
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
     ) -> None:
-        self._endpoint_override = endpoint_override.rstrip("/") if endpoint_override else None
+        self._endpoint_override = endpoint_override.removeprefix("https://").rstrip("/") if endpoint_override else None
         self._timeout = timeout
 
         # Pre-build headers since they don't change
@@ -167,7 +167,7 @@ class PromptManager:
         """Fetch from registry. Returns (prompt, not_found)."""
         conn = None
         try:
-            conn = get_connection(self._endpoint_override or PROMPTS_BASE_URL, timeout=timeout)
+            conn = get_connection("https://" + (self._endpoint_override or PROMPTS_BASE_URL), timeout=timeout)
             conn.request("GET", self._build_path(prompt_id, label), headers=self._headers)
             response = conn.getresponse()
 
