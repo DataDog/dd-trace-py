@@ -384,7 +384,7 @@ jobs:
       - name: Build datadog_lambda layer
         run: |
           wheel_path=$(find ./artifacts -name "*.whl" | head -n 1)
-          sed -i 's|^ddtrace =.*$|ddtrace = { file = "'"$wheel_path"'" }|' pyproject.toml
+          sed -zEi 's|(ddtrace = )\[[^]]*]|\1{ file = "'"$wheel_path"'" }|g' pyproject.toml
           ARCH=amd64 PYTHON_VERSION=3.13 ./scripts/build_layers.sh
 
       - name: Upload layer artifact
