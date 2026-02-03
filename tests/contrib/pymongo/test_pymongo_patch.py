@@ -24,6 +24,13 @@ else:
     from pymongo.server import Server
     from pymongo.topology import Topology
 
+# Import async classes if available (pymongo >= 4.12)
+if _VERSION >= (4, 12):
+    from pymongo.asynchronous.mongo_client import AsyncMongoClient
+    from pymongo.asynchronous.pool import AsyncConnection
+    from pymongo.asynchronous.server import Server as AsyncServer
+    from pymongo.asynchronous.topology import Topology as AsyncTopology
+
 
 class TestPymongoPatch(PatchTestCase.Base):
     __integration_name__ = "pymongo"
@@ -50,6 +57,15 @@ class TestPymongoPatch(PatchTestCase.Base):
         self.assert_wrapped(Connection.command)
         self.assert_wrapped(Connection.write_command)
 
+        # Test async methods if available (pymongo >= 4.12)
+        if _VERSION >= (4, 12):
+            self.assert_wrapped(AsyncMongoClient.__init__)  # type: ignore[name-defined]
+            self.assert_wrapped(AsyncTopology.select_server)  # type: ignore[name-defined]
+            self.assert_wrapped(AsyncServer.run_operation)  # type: ignore[name-defined]
+            self.assert_wrapped(AsyncServer.checkout)  # type: ignore[name-defined]
+            self.assert_wrapped(AsyncConnection.command)  # type: ignore[name-defined]
+            self.assert_wrapped(AsyncConnection.write_command)  # type: ignore[name-defined]
+
     def assert_not_module_patched(self, pymongo):
         self.assert_not_wrapped(pymongo.MongoClient.__init__)
         self.assert_not_wrapped(Topology.select_server)
@@ -68,6 +84,15 @@ class TestPymongoPatch(PatchTestCase.Base):
         self.assert_not_wrapped(Connection.command)
         self.assert_not_wrapped(Connection.write_command)
 
+        # Test async methods if available (pymongo >= 4.12)
+        if _VERSION >= (4, 12):
+            self.assert_not_wrapped(AsyncMongoClient.__init__)  # type: ignore[name-defined]
+            self.assert_not_wrapped(AsyncTopology.select_server)  # type: ignore[name-defined]
+            self.assert_not_wrapped(AsyncServer.run_operation)  # type: ignore[name-defined]
+            self.assert_not_wrapped(AsyncServer.checkout)  # type: ignore[name-defined]
+            self.assert_not_wrapped(AsyncConnection.command)  # type: ignore[name-defined]
+            self.assert_not_wrapped(AsyncConnection.write_command)  # type: ignore[name-defined]
+
     def assert_not_module_double_patched(self, pymongo):
         self.assert_not_double_wrapped(pymongo.MongoClient.__init__)
         self.assert_not_double_wrapped(Topology.select_server)
@@ -85,3 +110,12 @@ class TestPymongoPatch(PatchTestCase.Base):
             self.assert_not_double_wrapped(Server.checkout)
         else:
             self.assert_not_double_wrapped(Server.get_socket)
+
+        # Test async methods if available (pymongo >= 4.12)
+        if _VERSION >= (4, 12):
+            self.assert_not_double_wrapped(AsyncMongoClient.__init__)  # type: ignore[name-defined]
+            self.assert_not_double_wrapped(AsyncTopology.select_server)  # type: ignore[name-defined]
+            self.assert_not_double_wrapped(AsyncServer.run_operation)  # type: ignore[name-defined]
+            self.assert_not_double_wrapped(AsyncServer.checkout)  # type: ignore[name-defined]
+            self.assert_not_double_wrapped(AsyncConnection.command)  # type: ignore[name-defined]
+            self.assert_not_double_wrapped(AsyncConnection.write_command)  # type: ignore[name-defined]
