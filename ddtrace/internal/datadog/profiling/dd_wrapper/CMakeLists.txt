@@ -27,7 +27,7 @@ include(FindInfer)
 include(CheckSymbolExists)
 
 find_package(LibNative)
-find_package(Python3 COMPONENTS Development)
+find_package(Python3 COMPONENTS Interpreter Development.Module)
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
