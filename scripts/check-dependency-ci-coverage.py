@@ -52,6 +52,7 @@ from typing import Optional
 from typing import Set
 from typing import Tuple
 
+from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 import requests
@@ -133,7 +134,7 @@ def load_file(path: Path) -> str:
 
 
 def find_line_number(content: str, search_text: str, start_pos: int = 0) -> int:
-    """Find the line number for a position in content.
+    r"""Find the line number for a position in content.
 
     >>> find_line_number("first\nsecond\nthird", "", 0)
     1
@@ -144,7 +145,7 @@ def find_line_number(content: str, search_text: str, start_pos: int = 0) -> int:
 
 
 def get_line_at_position(content: str, pos: int) -> str:
-    """Get the full line containing the given position.
+    r"""Get the full line containing the given position.
 
     >>> get_line_at_position("alpha\nbeta\ngamma", 7)
     'beta'
@@ -161,7 +162,7 @@ def get_line_at_position(content: str, pos: int) -> str:
 
 
 def has_allow_comment(content: str, pos: int) -> bool:
-    """Check if the line at the given position has '# ci-deps: allow' comment.
+    r"""Check if the line at the given position has '# ci-deps: allow' comment.
 
     >>> has_allow_comment("pkg==1  # ci-deps: allow\n", 0)
     True
@@ -182,35 +183,21 @@ def parse_dependency(dep_line: str) -> Tuple[str, str]:
     Returns:
         Tuple of (package_name, version_specifier)
 
+    Note: The packaging library normalizes specifier order, so >=1,<3 becomes <3,>=1.
+
     >>> parse_dependency("wrapt>=1,<3")
-    ('wrapt', '>=1,<3')
+    ('wrapt', '<3,>=1')
     >>> parse_dependency("importlib-metadata; python_version < '3.10'")
     ('importlib-metadata', '')
     >>> parse_dependency("requests[socks]>=2")
     ('requests', '>=2')
     """
-    # Split on environment marker
-    parts = dep_line.split(";", 1)
-    dep_spec = parts[0].strip()
-
-    # Find where the version specifier starts
-    package_name = ""
-    version_spec = ""
-
-    for i, char in enumerate(dep_spec):
-        if char in (">", "<", "=", "~", "!"):
-            package_name = dep_spec[:i].strip()
-            version_spec = dep_spec[i:].strip()
-            break
-    else:
-        package_name = dep_spec.strip()
-        version_spec = ""
-
-    # Remove extras from package name
-    if "[" in package_name:
-        package_name = package_name.split("[")[0]
-
-    return package_name, version_spec
+    try:
+        req = Requirement(dep_line)
+        return req.name, str(req.specifier)
+    except Exception:
+        # Fallback to returning the line as-is if parsing fails
+        return dep_line.strip(), ""
 
 
 def get_major_versions_from_specifier(spec_string: str) -> Set[int]:
@@ -419,8 +406,9 @@ def extract_riotfile_tested_versions() -> Dict[str, DepInfo]:
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-    import riotfile
     from riot import latest
+
+    import riotfile
 
     tested: Dict[str, DepInfo] = {}
 
