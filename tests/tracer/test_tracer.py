@@ -734,7 +734,8 @@ def test_tracer_shutdown_timeout():
 
 
 @pytest.mark.subprocess(
-    err=b"Spans started after the tracer has been shut down will not be sent to the Datadog Agent.\n",
+    err=b"Spans started after the tracer has been shut down will not be sent to the Datadog Agent: "
+    b"<Span(id=1,trace_id=2,parent_id=None,name=span_created_after_shutdown)>.\n",
 )
 def test_tracer_shutdown():
     import mock
@@ -744,8 +745,11 @@ def test_tracer_shutdown():
     t.shutdown()
 
     with mock.patch.object(t._span_aggregator.writer, "write") as mock_write:
-        with t.trace("something"):
-            pass
+        with (
+            mock.patch("ddtrace._trace.span._rand64bits", return_value=1),
+            mock.patch("ddtrace._trace.span._rand128bits", return_value=2),
+        ):
+            t.trace("span_created_after_shutdown").finish()
 
     mock_write.assert_not_called()
 
