@@ -200,15 +200,33 @@ def test_tracer_trace_across_multiple_popens():
 @snapshot()
 @pytest.mark.subprocess()
 def test_wrong_span_name_type_not_sent():
-    """Span names should be a text type."""
-    import mock
+    """Span names should be a text type.
 
+    When an invalid type is passed, the span is created with an empty name
+    instead of raising an error (graceful degradation).
+    """
     from ddtrace.trace import tracer
 
-    with mock.patch("ddtrace._trace.span.log") as log:
-        with tracer.trace(123):
-            pass
-        log.exception.assert_called_once_with("error closing trace")
+    # Should not raise - instead creates span with empty name
+    with tracer.trace(123) as span:
+        # Invalid type gets coerced to empty string
+        assert span.name == ""
+
+
+@snapshot()
+@pytest.mark.subprocess()
+def test_wrong_service_type_not_sent():
+    """Span service should be a text type.
+
+    When an invalid type is passed, the span is created with an empty service
+    instead of raising an error (graceful degradation).
+    """
+    from ddtrace.trace import tracer
+
+    # Should not raise - instead creates span with empty service
+    with tracer.trace("test.span", service=456) as span:
+        # Invalid type gets coerced to empty string
+        assert span.service is None
 
 
 @pytest.mark.parametrize(

@@ -40,7 +40,8 @@ from ddtrace.internal.utils.http import parse_form_multipart
 import ddtrace.vendor.xmltodict as xmltodict
 
 
-log = get_logger(__name__)
+logger = get_logger(__name__)
+
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
@@ -272,7 +273,7 @@ def _on_request_span_modifier(
                 # no raw body
                 req_body = None
         except Exception:
-            log.debug("Failed to parse request body", exc_info=True)
+            logger.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
             if wsgi_input:
@@ -337,7 +338,7 @@ def _wsgi_make_block_content(ctx, construct_url) -> Tuple[int, List[Tuple[str, s
         if user_agent:
             req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
@@ -378,7 +379,7 @@ def _asgi_make_block_content(ctx, url) -> Tuple[int, List[Tuple[bytes, bytes]], 
         if user_agent:
             req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
     return status, resp_headers, content
 
@@ -399,7 +400,7 @@ def _on_flask_blocked_request(span):
         if user_agent:
             span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
 
 
 def _on_start_response_blocked(ctx, flask_config, response_headers, status):
@@ -418,7 +419,7 @@ def _on_telemetry_periodic():
             ]
         )
     except Exception:
-        log.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
+        logger.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
 
 
 # Stripe
@@ -460,7 +461,6 @@ def _on_checkout_session_create(session):
             "amount_total": session.amount_total,
             "client_reference_id": session.client_reference_id,
             "currency": session.currency,
-            "customer_email": session.customer_email,
             "discounts.coupon": discounts_coupon,
             "discounts.promotion_code": discounts_promotion_code,
             "livemode": session.livemode,
@@ -470,7 +470,7 @@ def _on_checkout_session_create(session):
 
         call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
     except AttributeError:
-        log.debug("can't extract payment creation data from Session object", exc_info=True)
+        logger.debug("can't extract payment creation data from Session object", exc_info=True)
 
 
 def _on_payment_intent_create(payment_intent):
@@ -486,12 +486,11 @@ def _on_payment_intent_create(payment_intent):
             "currency": payment_intent.currency,
             "livemode": payment_intent.livemode,
             "payment_method": payment_method,
-            "receipt_email": payment_intent.receipt_email,
         }
 
         call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
     except AttributeError:
-        log.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
+        logger.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
 
 
 def _on_payment_intent_event(event):
@@ -510,9 +509,6 @@ def _on_payment_intent_event(event):
                 "last_payment_error.code": event.data.object.last_payment_error.code,
                 "last_payment_error.decline_code": event.data.object.last_payment_error.decline_code,
                 "last_payment_error.payment_method.id": event.data.object.last_payment_error.payment_method.id,
-                "last_payment_error.payment_method.billing_details.email": (
-                    event.data.object.last_payment_error.payment_method.billing_details.email
-                ),
                 "last_payment_error.payment_method.type": event.data.object.last_payment_error.payment_method.type,
             }
         elif event.type == "payment_intent.canceled":
@@ -520,7 +516,6 @@ def _on_payment_intent_event(event):
 
             payment_intent_webhook_data = {
                 "cancellation_reason": event.data.object.cancellation_reason,
-                "receipt_email": event.data.object.receipt_email,
             }
         else:
             return
@@ -535,7 +530,7 @@ def _on_payment_intent_event(event):
 
         call_waf_callback({waf_data_name: payment_intent_webhook_data})
     except AttributeError:
-        log.debug("can't extract payment_intent event data from Event object", exc_info=True)
+        logger.debug("can't extract payment_intent event data from Event object", exc_info=True)
 
 
 # HTTPX

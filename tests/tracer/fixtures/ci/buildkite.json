@@ -30,7 +30,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -64,7 +65,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -98,7 +100,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -132,7 +135,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -168,7 +172,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -204,7 +209,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -240,7 +246,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -274,7 +281,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -308,7 +316,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -342,7 +351,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -376,7 +386,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "git@hostname.com:org/repo.git"
+      "git.repository_url": "git@hostname.com:org/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -410,7 +421,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -444,7 +456,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -478,7 +491,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "http://hostname.com/repo.git"
+      "git.repository_url": "http://hostname.com/repo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -512,7 +526,8 @@
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
       "git.repository_url": "http://hostname.com/repo.git",
-      "git.tag": "0.1.0"
+      "git.tag": "0.1.0",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -546,7 +561,8 @@
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
       "git.repository_url": "http://hostname.com/repo.git",
-      "git.tag": "0.1.0"
+      "git.tag": "0.1.0",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -580,7 +596,8 @@
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
       "git.repository_url": "http://hostname.com/repo.git",
-      "git.tag": "0.1.0"
+      "git.tag": "0.1.0",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -625,7 +642,8 @@
       "git.commit.committer.name": "usersupplied-comittername",
       "git.commit.message": "usersupplied-message",
       "git.commit.sha": "b9f0fb3fdbb94c9d24b2c75b49663122a529e123",
-      "git.repository_url": "git@github.com:DataDog/userrepo.git"
+      "git.repository_url": "git@github.com:DataDog/userrepo.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -670,7 +688,8 @@
       "git.commit.message": "usersupplied-message",
       "git.commit.sha": "b9f0fb3fdbb94c9d24b2c75b49663122a529e123",
       "git.repository_url": "git@github.com:DataDog/userrepo.git",
-      "git.tag": "0.0.2"
+      "git.tag": "0.0.2",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -701,7 +720,8 @@
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
       "git.commit.sha": "buildkite-git-commit",
-      "git.repository_url": "https://github.com/DataDog/dogweb.git"
+      "git.repository_url": "https://github.com/DataDog/dogweb.git",
+      "ci.job.id": "buildkite-job-id"
     }
   ],
   [
@@ -735,7 +755,8 @@
       "git.commit.author.email": "buildkite-git-commit-author-email@datadoghq.com",
       "git.commit.author.name": "buildkite-git-commit-author-name",
       "git.commit.message": "buildkite-git-commit-message",
-      "git.commit.sha": "buildkite-git-commit"
+      "git.commit.sha": "buildkite-git-commit",
+      "ci.job.id": "buildkite-job-id"
     }
   ]
 ]
