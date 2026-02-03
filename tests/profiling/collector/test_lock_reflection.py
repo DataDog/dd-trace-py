@@ -1,24 +1,24 @@
-"""Reflection-based tests for Lock Profiler wrapper compatibility.
+"""Reflection-based tests for Lock Profiler wrapper interface completeness.
 
-This module uses Python's introspection capabilities to automatically verify that
-wrapped lock types are fully compatible with their originals. This catches interface
-mismatches that are hard to predict manually, such as:
+This module uses Python's introspection capabilities to verify that wrapped lock
+types expose the same methods and dunders as their originals. It catches cases where
+we forget to proxy a method that the original explicitly defines.
 
-- PR #15604: Missing __mro_entries__ broke subclassing wrapped lock types
-- PR #15899: Missing __reduce__ broke serialization of wrapped lock objects
+WHAT THESE TESTS CATCH:
+- Missing public methods (acquire, release, locked, etc.)
+- Missing dunders that originals explicitly define in __dict__ (__enter__, __exit__,
+  __repr__, __init__, etc.)
+- Interface drift if CPython changes lock APIs
 
-The key insight is that when we wrap/replace standard library types, we must maintain
-FULL protocol compliance - not just the obvious methods like acquire/release, but also:
-- PEP 560 hooks (__mro_entries__, __class_getitem__)
-- Pickling protocol (__reduce__, __reduce_ex__, __getstate__, __setstate__)
-- Context manager protocol (__enter__, __exit__, __aenter__, __aexit__)
-- Comparison protocol (__eq__, __hash__, __ne__)
-- And any other dunder methods the original type supports
+WHAT THESE TESTS CANNOT CATCH:
+- PR #15604 (__mro_entries__) and PR #15899 (__reduce__) - these involve methods
+  that the ORIGINAL also inherits from object, so comparing __dict__ finds no gap.
+  Such bugs require behavioral tests (actually pickle, actually subclass) which
+  belong in test_threading.py.
 
-AIDEV-NOTE: This is a meta-test module that uses reflection to catch wrapper
-compatibility bugs automatically. Behavioral tests (acquire/release, pickle
-roundtrips, subclassing) are in test_threading.py - this module focuses on
-interface completeness via introspection.
+AIDEV-NOTE: Pure reflection can only detect missing methods that the original
+explicitly defines. It cannot detect when an inherited method (from object) is
+semantically broken for our wrapper.
 """
 
 from __future__ import annotations
@@ -88,33 +88,16 @@ EXCLUDED_DUNDERS: Set[str] = {
 }
 
 # Dunders that the original has but we intentionally don't support (yet).
+# AIDEV-NOTE: When fixing a gap, remove it from here and add proper support.
 KNOWN_GAPS: Set[str] = {
     "__weakref__",  # TODO: Add to __slots__ to support weak references
 }
 
-# Dunders that MUST be explicitly defined in __dict__ (not inherited from object).
-# Python looks up special methods on the class, and inherited defaults are broken.
-# AIDEV-NOTE: These are critical - if removed, the wrapper breaks in subtle ways.
-MUST_OVERRIDE_WRAPPER_DUNDERS: Set[str] = {
-    "__call__",  # To create instances
-    "__get__",  # Prevent method binding when used as class attribute
-    "__mro_entries__",  # PEP 560 subclassing support
-    "__reduce__",  # Pickling - object's default is broken for wrappers
-    "__init__",  # Initialization
-    "__getattr__",  # Delegate attribute access to original
-}
-
-MUST_OVERRIDE_LOCK_DUNDERS: Set[str] = {
-    "__enter__",  # Context manager - must be on class for 'with' to work
-    "__exit__",  # Context manager
-    "__aenter__",  # Async context manager
-    "__aexit__",  # Async context manager
-    "__eq__",  # Comparison - special method lookup
-    "__hash__",  # For sets/dicts - special method lookup
-    "__repr__",  # String representation
-    "__reduce__",  # Pickling - object's default is broken
-    "__getattr__",  # Delegate attribute access to wrapped lock
-    "__init__",  # Initialization
+# Dunders we intentionally don't mirror from originals (wrapper-specific behavior).
+# These are dunders that originals might define but we handle differently.
+WRAPPER_SPECIFIC_EXCLUSIONS: Set[str] = {
+    "__new__",  # We use standard object.__new__
+    "__slots__",  # Not a method
 }
 
 
@@ -167,6 +150,41 @@ def check_method_accessible(obj: object, method_name: str) -> bool:
         return callable(method)
     except AttributeError:
         return False
+
+
+def get_explicitly_defined_dunders(cls_or_factory: object) -> Set[str]:
+    """Get dunders that a class EXPLICITLY defines (not inherited).
+
+    Uses class.__dict__ to find methods defined directly on the class,
+    filtering out inherited methods from object or parent classes.
+
+    For factory functions (like threading.Lock), creates an instance
+    and introspects the resulting type instead.
+    """
+    # If it's a factory function (like threading.Lock), get the type it produces
+    if callable(cls_or_factory) and not isinstance(cls_or_factory, type):
+        try:
+            instance: object = cls_or_factory()  # type: ignore[operator]
+            target_class: type = type(instance)
+        except Exception:
+            return set()
+    else:
+        target_class = cls_or_factory  # type: ignore[assignment]
+
+    # Get __dict__ from the class
+    try:
+        class_dict: Set[str] = set(target_class.__dict__.keys())
+    except (TypeError, AttributeError):
+        return set()
+
+    return {
+        name
+        for name in class_dict
+        if name.startswith("__")
+        and name.endswith("__")
+        and name not in EXCLUDED_DUNDERS
+        and name not in WRAPPER_SPECIFIC_EXCLUSIONS
+    }
 
 
 # =============================================================================
@@ -260,49 +278,58 @@ class TestClassLevelDunders:
 
 
 class TestGapDiscovery:
-    """Discover potential gaps in wrapper compatibility.
+    """Discover potential gaps in wrapper compatibility via dynamic reflection.
 
-    These tests:
-    1. Verify critical dunders are EXPLICITLY defined (in __dict__, not inherited)
-    2. Compare ALL dunders between original and wrapped to find gaps
+    These tests automatically detect missing dunders by comparing what originals
+    EXPLICITLY define vs what our wrappers define. No hardcoded lists needed.
 
     AIDEV-NOTE: When these tests find a new gap, either:
     1. Add support for it in _lock.py, OR
     2. Add it to KNOWN_GAPS with a comment explaining why it's deferred
     """
 
-    def test_wrapper_classes_override_critical_dunders(self) -> None:
-        """Verify wrapper classes explicitly define critical dunders.
+    @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
+    def test_wrapper_mirrors_original_explicit_dunders(
+        self, lock_class: Type[object], collector_class: Type[object], name: str
+    ) -> None:
+        """Verify wrapper explicitly defines dunders that original explicitly defines.
 
-        Uses class.__dict__ to ensure methods are DEFINED, not inherited from object.
-        This is critical because inherited defaults (like object.__reduce__) are broken.
+        If the original lock class explicitly overrides a dunder (in its __dict__),
+        our wrapper should too.
+
+        NOTE: This would NOT have caught PR #15604 or #15899, since the originals
+        also inherit __mro_entries__ and __reduce__ from object (not in their __dict__).
+        Those bugs require behavioral tests.
         """
-        # Check _LockAllocatorWrapper
-        wrapper_dict: Set[str] = set(_LockAllocatorWrapper.__dict__.keys())
-        missing_wrapper: Set[str] = MUST_OVERRIDE_WRAPPER_DUNDERS - wrapper_dict
-        assert not missing_wrapper, (
-            f"_LockAllocatorWrapper missing critical dunders: {missing_wrapper}. "
-            f"These must be explicitly defined, not inherited from object."
-        )
+        init_ddup(f"test_mirror_dunders_{name}")
 
-        # Check _ProfiledLock
-        lock_dict: Set[str] = set(_ProfiledLock.__dict__.keys())
-        missing_lock: Set[str] = MUST_OVERRIDE_LOCK_DUNDERS - lock_dict
-        assert not missing_lock, (
-            f"_ProfiledLock missing critical dunders: {missing_lock}. "
-            f"These must be explicitly defined, not inherited from object."
-        )
+        # Get dunders that the ORIGINAL class explicitly defines
+        original_explicit: Set[str] = get_explicitly_defined_dunders(lock_class)
+
+        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+            # Get dunders that _ProfiledLock explicitly defines
+            wrapper_explicit: Set[str] = get_explicitly_defined_dunders(_ProfiledLock)
+
+            # Find dunders that original defines but wrapper doesn't
+            missing: Set[str] = original_explicit - wrapper_explicit - KNOWN_GAPS
+
+            assert not missing, (
+                f"Original {name} explicitly defines {missing}, but _ProfiledLock doesn't. "
+                f"If original overrides a dunder, we probably should too. "
+                f"Either add to _ProfiledLock, or add to KNOWN_GAPS if intentionally skipped."
+            )
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_discover_missing_dunders(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
-        """Find dunders that original has but wrapped doesn't.
+    def test_wrapped_instance_has_all_original_dunders(
+        self, lock_class: Type[object], collector_class: Type[object], name: str
+    ) -> None:
+        """Find dunders that original instance has but wrapped instance doesn't.
 
-        This is a discovery test - it finds gaps we might not be aware of.
-        Known gaps are tracked in KNOWN_GAPS and won't cause test failure.
+        This catches non-callable dunders like __weakref__ that might be missing.
         """
-        init_ddup(f"test_discover_{name}")
+        init_ddup(f"test_instance_dunders_{name}")
 
-        # Get ALL dunders from original (including non-callable like __weakref__)
+        # Get ALL dunders from original instance
         original_instance: object = lock_class()  # type: ignore[operator]
         original_dunders: Set[str] = get_methods(original_instance, kind="dunder", callable_only=False)
 
@@ -311,16 +338,12 @@ class TestGapDiscovery:
             wrapped_instance: _ProfiledLock = wrapped_class()
             wrapped_dunders: Set[str] = get_methods(wrapped_instance, kind="dunder", callable_only=False)
 
-            # Find gaps: dunders on original but missing from wrapped
-            all_missing: Set[str] = original_dunders - wrapped_dunders
+            # Find gaps
+            missing: Set[str] = original_dunders - wrapped_dunders - KNOWN_GAPS
 
-            # Separate known gaps from unexpected gaps
-            unexpected_gaps: Set[str] = all_missing - KNOWN_GAPS
-
-            # Fail on unexpected gaps - these need to be addressed
-            assert not unexpected_gaps, (
-                f"Wrapped {name} missing unexpected dunders: {unexpected_gaps}. "
-                f"Either add support in _lock.py, or add to KNOWN_GAPS if intentionally deferred."
+            assert not missing, (
+                f"Wrapped {name} instance missing dunders: {missing}. "
+                f"Either add support in _lock.py, or add to KNOWN_GAPS."
             )
 
     def test_known_gaps_are_documented(self) -> None:
