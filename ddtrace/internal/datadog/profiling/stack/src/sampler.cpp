@@ -184,7 +184,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         });
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
-        Sample::profile_borrow().stats().set_string_table_count(string_table.size());
+        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -280,10 +280,6 @@ _stack_atfork_child()
 
     // Clear renderer caches to avoid using stale interned IDs
     Sampler::get().postfork_child();
-
-    // Reset the string_table mutex to avoid deadlock if fork happened while it was held
-    // Note: task_link_map_lock and greenlet_info_map_lock are handled in EchionSampler::postfork_child
-    string_table.postfork_child();
 }
 
 __attribute__((constructor)) void

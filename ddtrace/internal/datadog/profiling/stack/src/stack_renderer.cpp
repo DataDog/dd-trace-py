@@ -1,10 +1,11 @@
 #include "stack_renderer.hpp"
 
+#include "sampler.hpp"
 #include "thread_span_links.hpp"
 
 #include "dd_wrapper/include/sample_manager.hpp"
 
-#include "echion/strings.h"
+#include "echion/echion_sampler.h"
 
 using namespace Datadog;
 
@@ -138,7 +139,7 @@ StackRenderer::render_frame(Frame& frame)
     auto line = frame.location.line;
 
     std::string_view name_str;
-    auto maybe_name_str = string_table.lookup(frame.name);
+    auto maybe_name_str = Sampler::get().get_echion().string_table().lookup(frame.name);
     if (maybe_name_str) {
         name_str = maybe_name_str->get();
     } else {
@@ -158,7 +159,7 @@ StackRenderer::render_frame(Frame& frame)
     }
 
     std::string_view filename_str;
-    auto maybe_filename_str = string_table.lookup(frame.filename);
+    auto maybe_filename_str = Sampler::get().get_echion().string_table().lookup(frame.filename);
     if (maybe_filename_str) {
         filename_str = maybe_filename_str->get();
     } else {
