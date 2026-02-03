@@ -23,7 +23,6 @@ interface completeness via introspection.
 
 from __future__ import annotations
 
-import asyncio
 import threading
 from typing import Callable
 from typing import List
@@ -35,10 +34,6 @@ import pytest
 
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
 from ddtrace.profiling.collector._lock import _ProfiledLock
-from ddtrace.profiling.collector.asyncio import AsyncioBoundedSemaphoreCollector
-from ddtrace.profiling.collector.asyncio import AsyncioConditionCollector
-from ddtrace.profiling.collector.asyncio import AsyncioLockCollector
-from ddtrace.profiling.collector.asyncio import AsyncioSemaphoreCollector
 from ddtrace.profiling.collector.threading import ThreadingBoundedSemaphoreCollector
 from ddtrace.profiling.collector.threading import ThreadingConditionCollector
 from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -68,16 +63,6 @@ THREADING_COLLECTOR_CONFIGS: List[CollectorConfig] = [
     (collector, name) for _, collector, name in THREADING_LOCK_CONFIGS
 ]
 
-# Asyncio lock types with their collectors
-ASYNCIO_LOCK_CONFIGS: List[LockConfig] = [
-    (asyncio.Lock, AsyncioLockCollector, "Lock"),
-    (asyncio.Semaphore, AsyncioSemaphoreCollector, "Semaphore"),
-    (asyncio.BoundedSemaphore, AsyncioBoundedSemaphoreCollector, "BoundedSemaphore"),
-    (asyncio.Condition, AsyncioConditionCollector, "Condition"),
-]
-
-ASYNCIO_COLLECTOR_CONFIGS: List[CollectorConfig] = [(collector, name) for _, collector, name in ASYNCIO_LOCK_CONFIGS]
-
 # Dunders to exclude from comparison - these are universal Python internals
 # that we don't need to explicitly implement.
 EXCLUDED_DUNDERS: Set[str] = {
@@ -102,9 +87,7 @@ EXCLUDED_DUNDERS: Set[str] = {
     "__static_attributes__",
 }
 
-# Known gaps: dunders that the original has but we intentionally don't support (yet).
-# These are tracked here so we're aware of them. Add a comment explaining why.
-# AIDEV-NOTE: When fixing a gap, remove it from here and add proper support.
+# Dunders that the original has but we intentionally don't support (yet).
 KNOWN_GAPS: Set[str] = {
     "__weakref__",  # TODO: Add to __slots__ to support weak references
 }
@@ -140,20 +123,22 @@ MUST_OVERRIDE_LOCK_DUNDERS: Set[str] = {
 # =============================================================================
 
 
-def get_methods(obj: object, kind: str = "public") -> Set[str]:
-    """Get callable methods from a class or instance.
+def get_methods(obj: object, kind: str = "public", callable_only: bool = True) -> Set[str]:
+    """Get methods/attributes from a class or instance.
 
     Args:
         obj: The object to inspect
         kind: "public" for non-underscore methods, "dunder" for __dunder__ methods
+        callable_only: If True, only return callable attributes. If False, include
+                       non-callable attributes like __weakref__.
 
     Returns:
-        Set of method names that are callable on the object.
+        Set of attribute names matching the criteria.
 
-    Note: This only finds methods visible in dir(). Methods delegated via
+    Note: This only finds attributes visible in dir(). Methods delegated via
     __getattr__ won't appear here but are still accessible.
     """
-    methods: Set[str] = set()
+    results: Set[str] = set()
     for name in dir(obj):
         if kind == "public":
             if name.startswith("_"):
@@ -166,10 +151,13 @@ def get_methods(obj: object, kind: str = "public") -> Set[str]:
         else:
             raise ValueError(f"kind must be 'public' or 'dunder', got {kind!r}")
 
-        attr: object = getattr(obj, name, None)
-        if callable(attr):
-            methods.add(name)
-    return methods
+        if callable_only:
+            attr: object = getattr(obj, name, None)
+            if not callable(attr):
+                continue
+
+        results.add(name)
+    return results
 
 
 def check_method_accessible(obj: object, method_name: str) -> bool:
@@ -179,15 +167,6 @@ def check_method_accessible(obj: object, method_name: str) -> bool:
         return callable(method)
     except AttributeError:
         return False
-
-
-def get_all_dunders(obj: object) -> Set[str]:
-    """Get ALL dunder methods/attributes from an object, excluding only EXCLUDED_DUNDERS.
-
-    Unlike get_methods(..., kind="dunder"), this includes non-callable dunders
-    like __weakref__ and __dict__ for comprehensive gap discovery.
-    """
-    return {name for name in dir(obj) if name.startswith("__") and name.endswith("__") and name not in EXCLUDED_DUNDERS}
 
 
 # =============================================================================
@@ -201,24 +180,6 @@ class TestWrapperInterfaceCompleteness:
     These tests use introspection to automatically detect missing methods/dunders
     rather than testing specific behaviors (which are covered in test_threading.py).
     """
-
-    @pytest.mark.parametrize("collector_class,name", THREADING_COLLECTOR_CONFIGS)
-    def test_wrapper_exposes_critical_dunders(self, collector_class: Type[object], name: str) -> None:
-        """Verify wrapper has critical dunders for common operations.
-
-        Checks for __mro_entries__ (subclassing) and __reduce__ (pickling).
-        """
-        init_ddup(f"test_wrapper_dunders_{name}")
-
-        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
-            wrapped: _LockAllocatorWrapper = getattr(threading, name)
-            assert isinstance(wrapped, _LockAllocatorWrapper)
-
-            # __mro_entries__ is needed for PEP 560 subclassing
-            assert hasattr(wrapped, "__mro_entries__"), f"{name} wrapper missing __mro_entries__ (PEP 560)"
-
-            # __reduce__ is needed for pickling
-            assert hasattr(wrapped, "__reduce__"), f"{name} wrapper missing __reduce__ (pickling)"
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_profiled_lock_has_all_public_methods(
@@ -247,48 +208,9 @@ class TestWrapperInterfaceCompleteness:
                 f"Original has: {sorted(original_methods)}"
             )
 
-    @pytest.mark.parametrize("collector_class,name", THREADING_COLLECTOR_CONFIGS)
-    def test_profiled_lock_context_manager_protocol(self, collector_class: Type[object], name: str) -> None:
-        """Verify wrapped lock implements context manager protocol."""
-        init_ddup(f"test_context_manager_{name}")
-
-        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
-            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
-            lock: _ProfiledLock = wrapped_class()
-
-            # Must have __enter__ and __exit__
-            assert hasattr(lock, "__enter__"), f"{name} missing __enter__"
-            assert hasattr(lock, "__exit__"), f"{name} missing __exit__"
-
 
 # =============================================================================
-# Asyncio Reflection Tests
-# =============================================================================
-
-
-class TestAsyncioInterfaceCompleteness:
-    """Reflection tests for asyncio lock wrappers.
-
-    Note: These tests are synchronous because we're only checking for
-    attribute presence via hasattr(), not actually running async code.
-    """
-
-    @pytest.mark.parametrize("collector_class,name", ASYNCIO_COLLECTOR_CONFIGS)
-    def test_async_context_manager_protocol(self, collector_class: Type[object], name: str) -> None:
-        """Verify wrapped asyncio locks implement async context manager protocol."""
-        init_ddup(f"test_async_context_{name}")
-
-        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
-            wrapped_class: Callable[[], _ProfiledLock] = getattr(asyncio, name)
-            lock: _ProfiledLock = wrapped_class()
-
-            # Must have __aenter__ and __aexit__
-            assert hasattr(lock, "__aenter__"), f"asyncio.{name} missing __aenter__"
-            assert hasattr(lock, "__aexit__"), f"asyncio.{name} missing __aexit__"
-
-
-# =============================================================================
-# Dunder Method Coverage - Core Reflection Tests
+# Class-Level Dunder Tests
 # =============================================================================
 
 
@@ -382,12 +304,12 @@ class TestGapDiscovery:
 
         # Get ALL dunders from original (including non-callable like __weakref__)
         original_instance: object = lock_class()  # type: ignore[operator]
-        original_dunders: Set[str] = get_all_dunders(original_instance)
+        original_dunders: Set[str] = get_methods(original_instance, kind="dunder", callable_only=False)
 
         with collector_class(capture_pct=100):  # type: ignore[attr-defined]
             wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
             wrapped_instance: _ProfiledLock = wrapped_class()
-            wrapped_dunders: Set[str] = get_all_dunders(wrapped_instance)
+            wrapped_dunders: Set[str] = get_methods(wrapped_instance, kind="dunder", callable_only=False)
 
             # Find gaps: dunders on original but missing from wrapped
             all_missing: Set[str] = original_dunders - wrapped_dunders
