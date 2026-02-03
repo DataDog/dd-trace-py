@@ -7,7 +7,6 @@ from pathlib import Path
 import typing as t
 import uuid
 
-from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -375,73 +374,6 @@ class APIClient:
 
         return skippable_items, correlation_id
 
-    def _create_coverage_report_event(
-        self, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
-    ) -> t.Dict[str, t.Any]:
-        """
-        Create the event JSON for the coverage report upload with git and CI tags.
-
-        Args:
-            coverage_format: The format of the coverage report
-            tags: Optional additional tags to include
-
-        Returns:
-            Event dictionary with type, format, and all available git/CI tags
-        """
-        from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
-
-        # Warn if Git repository URL is missing
-        if GitTag.REPOSITORY_URL not in self.env_tags:
-            log.warning("Git repository URL not available for coverage report upload")
-
-        # Prepare git data from env_tags (includes all git fields)
-        git_tags = [
-            GitTag.REPOSITORY_URL,
-            GitTag.COMMIT_SHA,
-            GitTag.BRANCH,
-            GitTag.TAG,
-            GitTag.COMMIT_MESSAGE,
-            GitTag.COMMIT_AUTHOR_NAME,
-            GitTag.COMMIT_AUTHOR_EMAIL,
-            GitTag.COMMIT_AUTHOR_DATE,
-            GitTag.COMMIT_COMMITTER_NAME,
-            GitTag.COMMIT_COMMITTER_EMAIL,
-            GitTag.COMMIT_COMMITTER_DATE,
-            "git.pull_request.number",
-        ]
-        git_data = {tag: self.env_tags[tag] for tag in git_tags if tag in self.env_tags}
-
-        # Prepare CI tags to add as custom tags
-        ci_tags = [
-            CITag.PROVIDER_NAME,
-            CITag.PIPELINE_ID,
-            CITag.PIPELINE_NAME,
-            CITag.PIPELINE_NUMBER,
-            CITag.PIPELINE_URL,
-            CITag.JOB_NAME,
-            CITag.JOB_URL,
-            CITag.STAGE_NAME,
-            CITag.WORKSPACE_PATH,
-            CITag.NODE_NAME,
-            CITag.NODE_LABELS,
-        ]
-        ci_tags_dict = {tag: self.env_tags[tag] for tag in ci_tags if tag in self.env_tags}
-
-        # Merge custom tags and CI tags
-        all_custom_tags = {}
-        if tags:
-            all_custom_tags.update(tags)
-        all_custom_tags.update(ci_tags_dict)
-
-        # Use shared utility to create event
-        return create_coverage_report_event(
-            coverage_format=coverage_format,
-            git_data=git_data,
-            service=None,  # V3 doesn't set service in the event
-            env=None,  # V3 doesn't set env in the event
-            custom_tags=all_custom_tags if all_custom_tags else None,
-        )
-
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
     ) -> bool:
@@ -475,8 +407,21 @@ class APIClient:
                 "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
             )
 
+            # Warn if Git repository URL is missing
+            if GitTag.REPOSITORY_URL not in self.env_tags:
+                log.warning("Git repository URL not available for coverage report upload")
+
             # Create the event payload with git and CI tags
-            event_data = self._create_coverage_report_event(coverage_format, tags)
+            from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
+
+            all_tags = dict(self.env_tags)
+            if tags:
+                all_tags.update(tags)
+
+            event_data = create_coverage_report_event(
+                coverage_format=coverage_format,
+                tags=all_tags,
+            )
 
             # Debug log the event payload to diagnose 400 errors
             log.debug("Coverage report event payload: %s", json.dumps(event_data, indent=2))
