@@ -588,13 +588,26 @@ def check_coverage(
                     add_issue("warning", pkg_name, reason, ci_info)
                 else:
                     # Latest is outside declared range or couldn't be resolved - error
-                    reason = (
-                        f"{pkg_name}: CI only uses 'latest' with no explicit version bounds. "
-                        f"Replace 'latest' with {suggested_bounds} to explicitly cover "
-                        f"the declared range {sorted(required_majors)}.\n"
-                        f"    pyproject.toml: {pyproject_loc}\n"
-                        f"    CI: {ci_locs}"
-                    )
+                    if latest_major is None:
+                        # PyPI query failed - could be network issue, package not found, etc.
+                        reason = (
+                            f"{pkg_name}: CI only uses 'latest' but could not resolve latest version from PyPI "
+                            f"(network error or package not found). "
+                            f"Replace 'latest' with {suggested_bounds} to explicitly cover "
+                            f"the declared range {sorted(required_majors)}.\n"
+                            f"    pyproject.toml: {pyproject_loc}\n"
+                            f"    CI: {ci_locs}"
+                        )
+                    else:
+                        # Latest is outside declared range
+                        reason = (
+                            f"{pkg_name}: CI only uses 'latest' with no explicit version bounds, "
+                            f"but latest ({latest_major}) is outside declared range {sorted(required_majors)}. "
+                            f"Replace 'latest' with {suggested_bounds} to explicitly cover "
+                            f"the declared range.\n"
+                            f"    pyproject.toml: {pyproject_loc}\n"
+                            f"    CI: {ci_locs}"
+                        )
                     add_issue("error", pkg_name, reason, ci_info)
             elif all_tested_majors:
                 # Check coverage using all tested majors (including latest)
