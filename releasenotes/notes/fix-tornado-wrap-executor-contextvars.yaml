@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    tornado: Fixed ``tracer.wrap()`` to correctly measure span durations for Tornado coroutines and
+    functions that return Futures, ensuring spans complete only after the asynchronous operation finishes.
+    ``tornado.gen.sleep`` is no longer supported for Tornado >=6.1; a warning will be logged if used.
+    Users should migrate to ``asyncio.sleep``.
+
