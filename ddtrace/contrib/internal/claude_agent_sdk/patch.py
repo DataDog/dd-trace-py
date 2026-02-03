@@ -58,6 +58,10 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
 @with_traced_module
 async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwargs):
     """Trace ClaudeSDKClient.query() - starts span, finished by receive_messages()."""
+    # skip tracing for internal /context queries to avoid trace loop
+    if getattr(instance, "_dd_internal_context_query", False):
+        return await func(*args, **kwargs)
+
     integration = claude_agent_sdk._datadog_integration
 
     span = integration.trace(
@@ -72,10 +76,24 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span._set_tag_str(net.TARGET_HOST, "api.anthropic.com")
 
-    # Store span on instance for receive_messages to finish
+    # set flag to skip tracing during internal context retrieval
+    before_context = None
+    try:
+        instance._dd_internal_context_query = True
+        await instance.query("/context")
+        context_messages = []
+        async for msg in instance.receive_response():
+            context_messages.append(msg)
+        before_context = context_messages
+    except Exception:
+        log.warning("Error retrieving before context", exc_info=True)
+    finally:
+        instance._dd_internal_context_query = False
+
     instance._datadog_span = span
     instance._datadog_query_args = args
     instance._datadog_query_kwargs = kwargs
+    instance._datadog_before_context = before_context
 
     try:
         return await func(*args, **kwargs)
@@ -84,20 +102,30 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="request")
         span.finish()
         instance._datadog_span = None
+        instance._datadog_before_context = None
         raise
 
 
 @with_traced_module
 def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs):
     """Trace ClaudeSDKClient.receive_messages() - finishes span started by query()."""
+    if getattr(instance, "_dd_internal_context_query", False):
+        return func(*args, **kwargs)
+
     integration = claude_agent_sdk._datadog_integration
     span = getattr(instance, "_datadog_span", None)
     query_args = getattr(instance, "_datadog_query_args", ())
     query_kwargs = getattr(instance, "_datadog_query_kwargs", {})
+    before_context = getattr(instance, "_datadog_before_context", None)
 
-    # Clear reference now that we're taking ownership
+    if before_context is not None:
+        query_kwargs["_dd_before_context"] = before_context
+
+    # Clear references now that we're taking ownership
     if span:
         instance._datadog_span = None
+    if before_context:
+        instance._datadog_before_context = None
 
     # If no span exists, create one (shouldn't normally happen)
     if span is None:
@@ -115,7 +143,8 @@ def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs)
     try:
         resp = func(*args, **kwargs)
         # Use query_args/query_kwargs for tagging since they contain the actual request parameters
-        return handle_streamed_response(integration, resp, query_args, query_kwargs, span, operation="request")
+        # Pass instance to enable context retrieval
+        return handle_streamed_response(integration, resp, query_args, query_kwargs, span, operation="request", instance=instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=query_args, kwargs=query_kwargs, response=None, operation="request")

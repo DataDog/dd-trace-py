@@ -89,6 +89,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 parameters["max_turns"] = options.max_turns
             if hasattr(options, "temperature") and options.temperature:
                 parameters["temperature"] = options.temperature
+        self._format_context(parameters, kwargs)
 
         # Build input messages from prompt
         input_messages = self._extract_input_messages(prompt)
@@ -112,6 +113,76 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 METRICS: metrics,
             }
         )
+    
+    def _parse_context_categories(self, context_messages: List[Any]) -> Dict[str, str]:
+        """Parse category percentages from context UserMessage.
+
+        Args:
+            context_messages: List of messages from /context query
+
+        Returns:
+            Dictionary mapping category names to percentage strings (e.g., {"Free space": "73.6%"})
+        """
+        categories = {}
+
+        if not context_messages or not isinstance(context_messages, list):
+            return categories
+
+        # Find the UserMessage containing the context table
+        for msg in context_messages:
+            msg_type = type(msg).__name__
+            if msg_type == "UserMessage":
+                content = _get_attr(msg, "content", "")
+                if not content or not isinstance(content, str):
+                    continue
+
+                # Find the "Estimated usage by category" section
+                lines = content.split('\n')
+                in_category_table = False
+
+                for i, line in enumerate(lines):
+                    # Start parsing when we find the category section
+                    if "### Estimated usage by category" in line:
+                        in_category_table = True
+                        continue
+
+                    # Stop when we hit the next section
+                    if in_category_table and line.startswith("###"):
+                        break
+
+                    # Parse table rows only in the category section
+                    if in_category_table and '|' in line:
+                        # Skip separator lines (contain only dashes and pipes)
+                        if line.strip().replace('|', '').replace('-', '').strip() == '':
+                            continue
+
+                        parts = [p.strip() for p in line.split('|')]
+                        # parts[0] is empty (before first |), parts[1] is category, parts[3] is percentage
+                        if len(parts) >= 4 and parts[1] and parts[3]:
+                            category = parts[1]
+                            percentage = parts[3]
+                            # Skip header row
+                            if category != "Category" and percentage != "Percentage":
+                                categories[category] = percentage
+
+                break  # Only process the first UserMessage
+
+        return categories
+
+    def _format_context(self, parameters: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
+        """Format context from kwargs.
+
+        Extracts category usage percentages from before and after context messages
+        and stores them as dictionaries in the parameters.
+        """
+        after_context = kwargs.get("_dd_context")
+        before_context = kwargs.get("_dd_before_context")
+
+        if after_context:
+            parameters["after_context"] = self._parse_context_categories(after_context)
+
+        if before_context:
+            parameters["before_context"] = self._parse_context_categories(before_context)
 
     def _extract_model_from_response(self, response: Any) -> str:
         """Extract model name from response messages.
