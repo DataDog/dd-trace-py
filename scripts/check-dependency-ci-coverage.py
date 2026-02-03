@@ -133,12 +133,24 @@ def load_file(path: Path) -> str:
 
 
 def find_line_number(content: str, search_text: str, start_pos: int = 0) -> int:
-    """Find the line number for a position in content."""
+    """Find the line number for a position in content.
+
+    >>> find_line_number("first\nsecond\nthird", "", 0)
+    1
+    >>> find_line_number("first\nsecond\nthird", "", 8)
+    2
+    """
     return content[:start_pos].count("\n") + 1
 
 
 def get_line_at_position(content: str, pos: int) -> str:
-    """Get the full line containing the given position."""
+    """Get the full line containing the given position.
+
+    >>> get_line_at_position("alpha\nbeta\ngamma", 7)
+    'beta'
+    >>> get_line_at_position("alpha\nbeta\ngamma", 0)
+    'alpha'
+    """
     # Find start of line
     line_start = content.rfind("\n", 0, pos) + 1
     # Find end of line
@@ -149,7 +161,15 @@ def get_line_at_position(content: str, pos: int) -> str:
 
 
 def has_allow_comment(content: str, pos: int) -> bool:
-    """Check if the line at the given position has '# ci-deps: allow' comment."""
+    """Check if the line at the given position has '# ci-deps: allow' comment.
+
+    >>> has_allow_comment("pkg==1  # ci-deps: allow\n", 0)
+    True
+    >>> has_allow_comment("pkg==1  # ci-deps: allow\nnext", 5)
+    True
+    >>> has_allow_comment("pkg==1  # no allow\n", 0)
+    False
+    """
     line = get_line_at_position(content, pos)
     # Allow flexible whitespace: #ci-deps:allow, # ci-deps: allow, #  ci-deps:  allow, etc.
     return bool(re.search(r"#\s*ci-deps:\s*allow", line))
@@ -161,6 +181,13 @@ def parse_dependency(dep_line: str) -> Tuple[str, str]:
 
     Returns:
         Tuple of (package_name, version_specifier)
+
+    >>> parse_dependency("wrapt>=1,<3")
+    ('wrapt', '>=1,<3')
+    >>> parse_dependency("importlib-metadata; python_version < '3.10'")
+    ('importlib-metadata', '')
+    >>> parse_dependency("requests[socks]>=2")
+    ('requests', '>=2')
     """
     # Split on environment marker
     parts = dep_line.split(";", 1)
@@ -192,6 +219,13 @@ def get_major_versions_from_specifier(spec_string: str) -> Set[int]:
 
     Returns the set of major versions that satisfy the specifier.
     We check majors 0-10 as a reasonable range for Python packages.
+
+    >>> sorted(get_major_versions_from_specifier(">=1,<3"))
+    [1, 2]
+    >>> get_major_versions_from_specifier("")
+    set()
+    >>> get_major_versions_from_specifier("not-a-spec")
+    set()
     """
     if not spec_string.strip():
         return set()
@@ -219,7 +253,13 @@ def get_major_versions_from_specifier(spec_string: str) -> Set[int]:
 
 
 def get_major_from_exact_version(version_str: str) -> int:
-    """Extract major version from an exact version string like '1.16.0'."""
+    """Extract major version from an exact version string like '1.16.0'.
+
+    >>> get_major_from_exact_version("1.16.0")
+    1
+    >>> get_major_from_exact_version("invalid")
+    -1
+    """
     try:
         v = Version(version_str)
         return v.major
@@ -311,6 +351,15 @@ def analyze_version_spec(spec: str) -> Tuple[Set[int], bool]:
     - Lower-bound only (e.g., ">=1"): tests the lowest major at or above the bound
     - Range (e.g., ">=1,<3"): tests the highest major within the range
     - Compatible release (e.g., "~=1.5"): tests that major
+
+    >>> analyze_version_spec("latest")
+    (set(), True)
+    >>> analyze_version_spec("==1.16.0")
+    ({1}, False)
+    >>> analyze_version_spec("~=2.5")
+    ({2}, False)
+    >>> analyze_version_spec(">=1,<3")
+    ({2}, False)
     """
     spec = spec.strip().strip('"').strip("'")
 
@@ -371,6 +420,7 @@ def extract_riotfile_tested_versions() -> Dict[str, DepInfo]:
         sys.path.insert(0, str(project_root))
 
     import riotfile
+    from riot import latest
 
     tested: Dict[str, DepInfo] = {}
 
@@ -390,8 +440,8 @@ def extract_riotfile_tested_versions() -> Dict[str, DepInfo]:
 
         tested[pkg_name].locations.append(loc)
 
-        # Empty string means 'latest' in riot
-        if not version_spec or version_spec == "latest":
+        # Empty string or riot.latest means 'latest' in riot
+        if not version_spec or version_spec == latest:
             add_latest_major(pkg_name, tested[pkg_name])
         else:
             majors, is_latest = analyze_version_spec(version_spec)
@@ -510,7 +560,11 @@ def merge_tested_versions(*sources: Dict[str, DepInfo]) -> Dict[str, DepInfo]:
 
 
 def format_locations(locations: List[Location]) -> str:
-    """Format a list of locations for display."""
+    """Format a list of locations for display.
+
+    >>> format_locations([Location("file.py", 2), Location("file.py", 2), Location("a.py", 1)])
+    'a.py:1, file.py:2'
+    """
     # Deduplicate and sort
     unique = sorted(set(str(loc) for loc in locations))
     return ", ".join(unique)
