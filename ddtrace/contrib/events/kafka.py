@@ -1,6 +1,5 @@
 from enum import Enum
 
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.events.messaging import MessagingConsumeEvent
 from ddtrace.contrib.events.messaging import MessagingProduceEvent
 from ddtrace.ext.kafka import CLUSTER_ID
@@ -15,7 +14,6 @@ from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
-from ddtrace.propagation.http import HTTPPropagator
 
 
 class KafkaMessagingEvents(Enum):
@@ -39,12 +37,10 @@ class KafkaMessagingProduceEvent(MessagingProduceEvent):
         partition,
         tombstone,
         headers,
-        cluster_id = None,
+        cluster_id=None,
         tags=None,
     ):
-        print(f"HERE - Creating event, event_name will be: {cls.event_name}")
         event_data = super().__new__(cls, config, operation, provider, tags)
-        print(f"Event data created: {event_data.get('event_name')}")
 
         instance_tags = {
             TOPIC: topic,
@@ -59,23 +55,9 @@ class KafkaMessagingProduceEvent(MessagingProduceEvent):
         if topic:
             instance_tags[MESSAGING_DESTINATION_NAME] = topic
 
-        event_data["config"] = config
         event_data["headers"] = headers
         event_data["tags"].update(instance_tags)
         return event_data
-
-    @classmethod
-    def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
-        print(f"HERE2 - _on_context_started called for {cls.__name__}")
-        span = ctx.span
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-        config = ctx.get_item("config")
-        headers = ctx.get_item("headers")
-
-        if config.distributed_tracing_enabled:
-            # inject headers with Datadog tags:
-            HTTPPropagator.inject(span.context, headers)
 
 
 class KafkaMessagingConsumeEvent(MessagingConsumeEvent):
@@ -97,6 +79,7 @@ class KafkaMessagingConsumeEvent(MessagingConsumeEvent):
         partition,
         start_ns,
         error,
+        bootstrap_servers=None,
         cluster_id=None,
         tags=None,
     ):
@@ -119,6 +102,8 @@ class KafkaMessagingConsumeEvent(MessagingConsumeEvent):
             instance_tags[CLUSTER_ID] = cluster_id
         if message_key:
             instance_tags[MESSAGE_KEY] = message_key
+        if bootstrap_servers:
+            instance_tags[HOST_LIST] = bootstrap_servers
 
         event_data["start_ns"] = start_ns
         event_data["error"] = error
@@ -128,10 +113,9 @@ class KafkaMessagingConsumeEvent(MessagingConsumeEvent):
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
         span = ctx.span
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
         span.start_ns = ctx.get_item("start_ns")
 
         error = ctx.get_item("error")
 
         if error is not None:
-            span.set_exc_info(error)
+            span.set_exc_info(type(error), error, error.__traceback__)

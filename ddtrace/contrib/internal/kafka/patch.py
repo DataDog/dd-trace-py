@@ -22,7 +22,6 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTPPropagator as Propagator
-from ddtrace.trace import tracer
 
 from .utils import _get_cluster_id
 

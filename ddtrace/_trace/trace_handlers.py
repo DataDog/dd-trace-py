@@ -41,12 +41,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
-from ddtrace.ext.kafka import MESSAGE_KEY
-from ddtrace.ext.kafka import MESSAGE_OFFSET
-from ddtrace.ext.kafka import PARTITION
-from ddtrace.ext.kafka import RECEIVED_MESSAGE
-from ddtrace.ext.kafka import TOMBSTONE
-from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
@@ -1239,48 +1233,6 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         _init_websocket_message_counters(scope)
 
 
-def _on_aiokafka_getmany_message(
-    _instance: Any,
-    ctx: core.ExecutionContext,
-    messages: Optional[Dict[Any, List[Any]]],
-) -> None:
-    span = ctx.span
-
-    span._set_tag_str(RECEIVED_MESSAGE, str(messages is not None))
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-    if messages is not None:
-        first_topic = next(iter(messages)).topic
-        span._set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
-
-        topics_partitions: Dict[str, List[int]] = {}
-        for topic_partition in messages.keys():
-            topic = topic_partition.topic
-            partition = topic_partition.partition
-            if topic not in topics_partitions:
-                topics_partitions[topic] = []
-            topics_partitions[topic].append(partition)
-
-        all_topics = list(topics_partitions.keys())
-        span.set_tag(TOPIC, ",".join(all_topics))
-
-        for topic, partitions in topics_partitions.items():
-            partition_list = ",".join(map(str, sorted(partitions)))
-            span._set_tag_str(f"kafka.partitions.{topic}", partition_list)
-
-        for topic_partition, records in messages.items():
-            for record in records:
-                if config.aiokafka.distributed_tracing_enabled and record.headers:
-                    dd_headers = {
-                        key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-                        for key, val in record.headers
-                        if val is not None
-                    }
-                    context = HTTPPropagator.extract(dd_headers)
-
-                    span.link_span(context)
-
-
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1342,7 +1294,6 @@ def listen():
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
-    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)

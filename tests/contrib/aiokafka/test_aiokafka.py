@@ -1,3 +1,5 @@
+import ast
+
 from aiokafka.errors import MessageSizeTooLargeError
 from aiokafka.structs import TopicPartition
 import pytest
@@ -109,8 +111,8 @@ async def test_getmany_single_message():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.messaging.destination.name", "meta.kafka.topic"])
-async def test_getmany_multiple_messages_multiple_topics():
+@pytest.mark.snapshot(ignores=["meta.messaging.destination.name", "meta.kafka.topic", "meta.kafka.partition"])
+async def test_getmany_multiple_messages_multiple_topics(tracer, test_spans):
     topic = await create_topic("getmany_multiple_messages_multiple_topics")
     topic_2 = await create_topic("getmany_multiple_messages_multiple_topics_2")
 
@@ -122,6 +124,19 @@ async def test_getmany_multiple_messages_multiple_topics():
     async with consumer_ctx([topic, topic_2]) as consumer:
         await consumer.getmany(timeout_ms=1000)
         await consumer.commit()
+
+    spans = test_spans.pop()
+    consumer_span = find_span_by_name(spans, "kafka.consume")
+    assert consumer_span is not None, "Consumer span not found"
+
+    partition_meta = consumer_span.get_tag("kafka.partition")
+    assert partition_meta is not None, "kafka.partition tag should be present"
+
+    partition_dict = ast.literal_eval(partition_meta)
+    assert topic in partition_dict
+    assert topic_2 in partition_dict
+    assert partition_dict[topic] == [0]
+    assert partition_dict[topic_2] == [0]
 
 
 @pytest.mark.asyncio
@@ -144,7 +159,9 @@ async def test_send_and_wait_with_distributed_tracing():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta._dd.span_links", "meta.messaging.destination.name", "meta.kafka.topic"])
+@pytest.mark.snapshot(
+    ignores=["meta._dd.span_links", "meta.messaging.destination.name", "meta.kafka.topic", "meta.kafka.partition"]
+)
 async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracing(tracer, test_spans):
     topic = await create_topic("getmany_distributed_tracing")
     topic_2 = await create_topic("getmany_distributed_tracing_2")
@@ -171,3 +188,13 @@ async def test_getmany_multiple_messages_multiple_topics_with_distributed_tracin
     span_links = consumer_span._links
     assert span_links is not None, "Consumer span should have span links"
     assert len(span_links) == 3, "Consumer span should have at least one span link"
+
+    # Manually check kafka.partition contains both topics with partition 0
+    partition_meta = consumer_span.get_tag("kafka.partition")
+    assert partition_meta is not None, "kafka.partition tag should be present"
+
+    partition_dict = ast.literal_eval(partition_meta)
+    assert topic in partition_dict
+    assert topic_2 in partition_dict
+    assert partition_dict[topic] == [0]
+    assert partition_dict[topic_2] == [0]

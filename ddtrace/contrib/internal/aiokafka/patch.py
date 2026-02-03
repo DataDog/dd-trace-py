@@ -8,9 +8,10 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.events.aiokafka import AioKafkaGetMany
 from ddtrace.contrib.events.aiokafka import AioKafkaProduceCompleted
-from ddtrace.contrib.events.kafka import KafkaMessagingProduceEvent
 from ddtrace.contrib.events.kafka import KafkaMessagingConsumeEvent
+from ddtrace.contrib.events.kafka import KafkaMessagingProduceEvent
 from ddtrace.ext.kafka import CONSUME
 from ddtrace.ext.kafka import PRODUCE
 from ddtrace.ext.kafka import SERVICE
@@ -40,6 +41,7 @@ def get_version() -> str:
 def _supported_versions() -> Dict[str, str]:
     return {"aiokafka": ">=0.9.0"}
 
+
 async def traced_send(func, instance, args, kwargs):
     topic = get_argument_value(args, kwargs, 0, "topic")
     value = get_argument_value(args, kwargs, 1, "value", True)
@@ -49,18 +51,18 @@ async def traced_send(func, instance, args, kwargs):
     bootstrap_servers = instance.client._bootstrap_servers
 
     event = KafkaMessagingProduceEvent(
-            config=config.aiokafka,
-            operation=PRODUCE,
-            provider="kafka",
-            topic=topic,
-            bootstrap_servers=bootstrap_servers,
-            messaging_system=SERVICE,
-            message_key=message_key,
-            tombstone=str(value is None),
-            value=value,
-            partition=kwargs.get("partition", -1),
-            headers=headers,
-        )
+        config=config.aiokafka,
+        operation=PRODUCE,
+        provider="kafka",
+        topic=topic,
+        bootstrap_servers=bootstrap_servers,
+        messaging_system=SERVICE,
+        message_key=ensure_text(message_key) if message_key else None,
+        tombstone=str(value is None),
+        value=value,
+        partition=kwargs.get("partition", -1),
+        headers=headers,
+    )
     event["_end_span"] = False
 
     with core.context_with_event(
@@ -96,6 +98,7 @@ async def traced_getone(func, instance, args, kwargs):
     parent_ctx = None
 
     group_id = instance._group_id
+    bootstrap_servers = instance._client._bootstrap_servers
     topic = None
     message_key = None
     message_offset = None
@@ -108,7 +111,7 @@ async def traced_getone(func, instance, args, kwargs):
         if message is not None:
             topic = str(getattr(message, "topic", None))
             message_key = ensure_text(message.key) if message.key else None
-            message_offset = message.offset or - 1
+            message_offset = message.offset or -1
             is_tombstone = str(message.value is None)
             message_partition = message_partition or -1
 
@@ -132,13 +135,14 @@ async def traced_getone(func, instance, args, kwargs):
                 group_id=group_id,
                 destination_name=topic,
                 topic=topic,
+                bootstrap_servers=bootstrap_servers,
                 is_tombstone=is_tombstone,
                 message_offset=message_offset,
                 message_key=message_key,
                 received_message=str(message is not None),
                 partition=message_partition,
                 start_ns=start_ns,
-                error=err
+                error=err,
             ),
             service=trace_utils.ext_service(None, config.aiokafka),
             call_trace=False,
@@ -155,11 +159,10 @@ async def traced_getmany(func, instance, args, kwargs):
     start_ns = time_ns()
     err = None
     messages = None
-    parent_ctx = None
 
     first_topic = None
     all_topics = None
-    message_partition = None
+    message_partitions = None
 
     try:
         messages = await func(*args, **kwargs)
@@ -174,25 +177,8 @@ async def traced_getmany(func, instance, args, kwargs):
                 if topic not in topics_partitions:
                     topics_partitions[topic] = []
                 topics_partitions[topic].append(partition)
-
-            print("COUCOU")
-            print(topics_partitions)
             all_topics = list[str](topics_partitions.keys())
-
-            for topic, partitions in topics_partitions.items():
-                partition_list = ",".join(map(str, sorted(partitions)))
-
-            # for topic_partition, records in messages.items():
-            #     for record in records:
-            #         if config.aiokafka.distributed_tracing_enabled and record.headers:
-            #             dd_headers = {
-            #                 key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-            #                 for key, val in record.headers
-            #                 if val is not None
-            #             }
-            #             context = HTTPPropagator.extract(dd_headers)
-
-            #             span.link_span(context)
+            message_partitions = topics_partitions
     except Exception as e:
         err = e
         raise err
@@ -206,18 +192,19 @@ async def traced_getmany(func, instance, args, kwargs):
                 group_id=group_id,
                 destination_name=first_topic,
                 topic=all_topics,
+                bootstrap_servers=bootstrap_servers,
                 is_tombstone=None,
                 message_offset=None,
                 message_key=None,
                 received_message=str(messages is not None),
-                partition=message_partition,
+                partition=message_partitions,
                 start_ns=start_ns,
-                error=err
+                error=err,
             ),
             service=trace_utils.ext_service(None, config.aiokafka),
             call_trace=False,
         ) as ctx:
-            core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
+            core.dispatch_event(AioKafkaGetMany(ctx, messages, config.aiokafka))
 
             return messages
 
