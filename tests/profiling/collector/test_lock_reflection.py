@@ -139,6 +139,31 @@ KNOWN_GAPS: Set[str] = {
     "__weakref__",  # TODO: Add to __slots__ to support weak references
 }
 
+# Dunders that MUST be explicitly defined in __dict__ (not inherited from object).
+# Python looks up special methods on the class, and inherited defaults are broken.
+# AIDEV-NOTE: These are critical - if removed, the wrapper breaks in subtle ways.
+MUST_OVERRIDE_WRAPPER_DUNDERS: Set[str] = {
+    "__call__",  # To create instances
+    "__get__",  # Prevent method binding when used as class attribute
+    "__mro_entries__",  # PEP 560 subclassing support
+    "__reduce__",  # Pickling - object's default is broken for wrappers
+    "__init__",  # Initialization
+    "__getattr__",  # Delegate attribute access to original
+}
+
+MUST_OVERRIDE_LOCK_DUNDERS: Set[str] = {
+    "__enter__",  # Context manager - must be on class for 'with' to work
+    "__exit__",  # Context manager
+    "__aenter__",  # Async context manager
+    "__aexit__",  # Async context manager
+    "__eq__",  # Comparison - special method lookup
+    "__hash__",  # For sets/dicts - special method lookup
+    "__repr__",  # String representation
+    "__reduce__",  # Pickling - object's default is broken
+    "__getattr__",  # Delegate attribute access to wrapped lock
+    "__init__",  # Initialization
+}
+
 
 # =============================================================================
 # Helper Functions
@@ -300,111 +325,17 @@ class TestAsyncioInterfaceCompleteness:
 # =============================================================================
 
 
-class TestDunderMethodCoverage:
-    """Ensure all relevant dunder methods are implemented.
+class TestClassLevelDunders:
+    """Test class-level dunder accessibility on wrapper classes.
 
-    This is the core meta-test that uses reflection to automatically detect
-    missing dunders rather than relying solely on hardcoded lists.
-
-    IMPORTANT: We check class.__dict__ (not hasattr/dir) to verify methods are
-    EXPLICITLY defined, not just inherited from object. This catches bugs like
-    missing __reduce__ which would otherwise inherit a broken default.
+    This checks that wrapper classes expose the same dunders as original classes
+    when accessed at the class level (e.g., threading.Semaphore.__mro_entries__).
     """
-
-    # Dunders that wrappers MUST explicitly override, and not inherit from `object`
-    REQUIRED_WRAPPER_DUNDERS: Set[str] = {
-        "__call__",  # To create instances
-        "__get__",  # Prevent method binding
-        "__mro_entries__",  # PEP 560 subclassing
-        "__reduce__",  # Pickling
-        "__init__",  # Initialization
-        "__getattr__",  # Delegate to original
-    }
-
-    # Dunders that profiled locks MUST explicitly define
-    REQUIRED_PROFILED_LOCK_DUNDERS: Set[str] = {
-        "__enter__",  # Context manager
-        "__exit__",  # Context manager
-        "__eq__",  # Comparison
-        "__hash__",  # For sets/dicts
-        "__repr__",  # Debugging
-        "__reduce__",  # Pickling - MUST override, object's default won't work
-        "__getattr__",  # Delegate to wrapped
-        "__init__",  # Initialization
-    }
-
-    # Dunders that profiled asyncio locks MUST additionally implement
-    REQUIRED_ASYNC_DUNDERS: Set[str] = {
-        "__aenter__",  # Async context manager
-        "__aexit__",  # Async context manager
-    }
-
-    def test_lock_allocator_wrapper_has_required_dunders(self) -> None:
-        """Verify _LockAllocatorWrapper explicitly defines all required dunder methods.
-
-        Uses class.__dict__ to check for explicit definitions, not inherited methods.
-        """
-        # Check class.__dict__ to ensure methods are explicitly defined
-        class_dict: Set[str] = set(_LockAllocatorWrapper.__dict__.keys())
-
-        missing: Set[str] = self.REQUIRED_WRAPPER_DUNDERS - class_dict
-        assert not missing, (
-            f"_LockAllocatorWrapper missing explicitly defined dunders: {missing}. "
-            f"These must be overriden by the class, not inherited from `object`."
-        )
-
-    def test_profiled_lock_has_required_dunders(self) -> None:
-        """Verify _ProfiledLock explicitly defines all required dunder methods.
-
-        Uses class.__dict__ to check for explicit definitions, not inherited methods.
-        """
-        # Check class.__dict__ to ensure methods are explicitly defined
-        class_dict: Set[str] = set(_ProfiledLock.__dict__.keys())
-
-        missing: Set[str] = self.REQUIRED_PROFILED_LOCK_DUNDERS - class_dict
-        assert not missing, (
-            f"_ProfiledLock missing explicitly defined dunders: {missing}. "
-            f"These must be overriden by the class, not inherited from `object`."
-        )
-
-        # Also check async dunders
-        missing_async: Set[str] = self.REQUIRED_ASYNC_DUNDERS - class_dict
-        assert not missing_async, (
-            f"_ProfiledLock missing explicitly defined async dunders: {missing_async}. "
-            f"These must be overriden by the class, not inherited from `object`."
-        )
-
-    @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_wrapped_lock_has_original_dunders(
-        self, lock_class: Type[object], collector_class: Type[object], name: str
-    ) -> None:
-        """Automatically detect missing dunders by comparing with original.
-
-        Uses reflection to find dunders on the original lock type and
-        verify they're accessible on the wrapped version.
-        """
-        init_ddup(f"test_dunders_{name}")
-
-        # Get dunders from original
-        original_instance: object = lock_class()  # type: ignore[operator]
-        original_dunders: Set[str] = get_methods(original_instance, kind="dunder")
-
-        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
-            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
-            wrapped_instance: _ProfiledLock = wrapped_class()
-            wrapped_dunders: Set[str] = get_methods(wrapped_instance, kind="dunder")
-
-            # Find dunders that are on original but missing from wrapped
-            missing: Set[str] = original_dunders - wrapped_dunders
-
-            assert not missing, (
-                f"Wrapped {name} missing dunders from original: {missing}. If intentional, add to EXCLUDED_DUNDERS."
-            )
 
     @pytest.mark.parametrize(
         "lock_class,collector_class,name",
         [
-            # Only test pure Python classes that have meaningful dunders
+            # Only test pure Python classes that have meaningful class-level dunders
             (threading.Semaphore, ThreadingSemaphoreCollector, "Semaphore"),
             (threading.BoundedSemaphore, ThreadingBoundedSemaphoreCollector, "BoundedSemaphore"),
             (threading.Condition, ThreadingConditionCollector, "Condition"),
@@ -442,14 +373,36 @@ class TestDunderMethodCoverage:
 class TestGapDiscovery:
     """Discover potential gaps in wrapper compatibility.
 
-    These tests compare ALL dunders between original and wrapped locks to find
-    features that users might expect but we don't support. Discovered gaps are
-    tracked in KNOWN_GAPS until fixed.
+    These tests:
+    1. Verify critical dunders are EXPLICITLY defined (in __dict__, not inherited)
+    2. Compare ALL dunders between original and wrapped to find gaps
 
     AIDEV-NOTE: When these tests find a new gap, either:
     1. Add support for it in _lock.py, OR
     2. Add it to KNOWN_GAPS with a comment explaining why it's deferred
     """
+
+    def test_wrapper_classes_override_critical_dunders(self) -> None:
+        """Verify wrapper classes explicitly define critical dunders.
+
+        Uses class.__dict__ to ensure methods are DEFINED, not inherited from object.
+        This is critical because inherited defaults (like object.__reduce__) are broken.
+        """
+        # Check _LockAllocatorWrapper
+        wrapper_dict: Set[str] = set(_LockAllocatorWrapper.__dict__.keys())
+        missing_wrapper: Set[str] = MUST_OVERRIDE_WRAPPER_DUNDERS - wrapper_dict
+        assert not missing_wrapper, (
+            f"_LockAllocatorWrapper missing critical dunders: {missing_wrapper}. "
+            f"These must be explicitly defined, not inherited from object."
+        )
+
+        # Check _ProfiledLock
+        lock_dict: Set[str] = set(_ProfiledLock.__dict__.keys())
+        missing_lock: Set[str] = MUST_OVERRIDE_LOCK_DUNDERS - lock_dict
+        assert not missing_lock, (
+            f"_ProfiledLock missing critical dunders: {missing_lock}. "
+            f"These must be explicitly defined, not inherited from object."
+        )
 
     @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
     def test_discover_missing_dunders(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
@@ -474,12 +427,6 @@ class TestGapDiscovery:
 
             # Separate known gaps from unexpected gaps
             unexpected_gaps: Set[str] = all_missing - KNOWN_GAPS
-            found_known_gaps: Set[str] = all_missing & KNOWN_GAPS
-
-            # Log known gaps for visibility (not a failure)
-            if found_known_gaps:
-                # These are tracked - just informational
-                pass
 
             # Fail on unexpected gaps - these need to be addressed
             assert not unexpected_gaps, (
@@ -488,9 +435,8 @@ class TestGapDiscovery:
             )
 
     def test_known_gaps_are_documented(self) -> None:
-        """Verify all KNOWN_GAPS have explanatory comments in the source.
+        """Verify KNOWN_GAPS doesn't grow too large.
 
-        This is a meta-test to ensure we don't just add gaps without documenting why.
+        This is a meta-test to prevent accumulating too many deferred gaps.
         """
-        # KNOWN_GAPS should be small and intentional
         assert len(KNOWN_GAPS) < 10, f"Too many known gaps ({len(KNOWN_GAPS)}). Consider fixing some: {KNOWN_GAPS}"
