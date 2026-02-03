@@ -110,6 +110,7 @@ from typing import Optional  # noqa:F401
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
+from .event_hub import dispatch_event  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
@@ -285,6 +286,15 @@ def _reset_context():
 
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def context_with_event(event, parent=None, **kwargs):
+    event_name = event.pop("event_name", None)
+    if event_name is None:
+        raise ValueError("Event must have a name")
+    event.update(kwargs)
+
+    return _CONTEXT_CLASS(event_name, parent=(parent or _CURRENT_CONTEXT.get()), **event)
 
 
 def add_suppress_exception(exc_type: type) -> None:
