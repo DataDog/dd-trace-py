@@ -290,8 +290,6 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 def context_with_event(event, parent=None, **kwargs):
     event_name = event.pop("event_name", None)
-    if event_name is None:
-        raise ValueError("Event must have a name")
     event.update(kwargs)
 
     return _CONTEXT_CLASS(event_name, parent=(parent or _CURRENT_CONTEXT.get()), **event)
