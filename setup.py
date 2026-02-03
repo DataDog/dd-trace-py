@@ -797,9 +797,8 @@ class CustomBuildExt(build_ext):
 
     def _get_common_cmake_args(self, source_dir, build_dir, output_dir, extension_name, build_type=None):
         """Get common CMake arguments used by both libdd_wrapper and extensions."""
-        # Resolve symlinks in base_prefix for manylinux compatibility
-        # In manylinux, /opt/python/cp314-cp314 is a symlink to /opt/_internal/cpython-3.14.0
-        # CMake needs the actual path to find include/lib directories
+        # Use base_prefix (not prefix) to get the actual Python installation path even when in a venv
+        # Resolve symlinks so CMake can find include/lib directories relative to the real installation
         python_root = Path(sys.base_prefix).resolve()
 
         cmake_args = [
