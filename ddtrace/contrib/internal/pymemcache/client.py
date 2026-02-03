@@ -29,6 +29,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -306,7 +307,7 @@ def _trace(func, p, method_name, *args, **kwargs):
 
     Relevant tags are set in the span.
     """
-    with p.tracer.trace(
+    with tracer.trace(
         schematize_cache_operation(memcachedx.CMD, cache_provider="memcached"),
         service=p.service,
         resource=method_name,

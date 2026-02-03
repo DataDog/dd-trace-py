@@ -6,25 +6,25 @@
 #include <optional>
 
 void
-ThreadInfo::unwind(PyThreadState* tstate)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
     unwind_python_stack(tstate, python_stack);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(tstate);
+        (void)unwind_tasks(echion, tstate);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(tstate, native_id);
+        unwind_greenlets(echion, tstate, native_id);
     }
 }
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(PyThreadState* tstate)
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
     // Defaults to the full Python stack size (and updated if we find the "_run" Frame)
@@ -33,7 +33,7 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     // Check if the Python stack contains "_run".
     // To avoid having to do string comparisons every time we unwind Tasks, we keep track
     // of the cache key of the "_run" Frame.
-    static std::optional<Frame::Key> frame_cache_key;
+    auto& frame_cache_key = echion.frame_cache_key();
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
@@ -77,16 +77,19 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
     std::unordered_set<PyObject*> parent_tasks;
     std::unordered_map<PyObject*, TaskInfo::Ref> waitee_map; // Indexed by task origin
     std::unordered_map<PyObject*, TaskInfo::Ref> origin_map; // Indexed by task origin
-    static std::unordered_set<PyObject*> previous_task_objects;
 
-    auto maybe_all_tasks = get_all_tasks(tstate);
+    auto maybe_all_tasks = get_all_tasks(echion, tstate);
     if (!maybe_all_tasks) {
         return ErrorKind::TaskInfoError;
     }
 
     auto all_tasks = std::move(*maybe_all_tasks);
     {
-        std::lock_guard<std::mutex> lock(task_link_map_lock);
+        auto& previous_task_objects = echion.previous_task_objects();
+        std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+
+        auto& task_link_map = echion.task_link_map();
+        auto& weak_task_link_map = echion.weak_task_link_map();
 
         // Clean up the task_link_map. Remove entries associated to tasks that
         // no longer exist.
@@ -213,7 +216,9 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
 
             {
                 // Check for, e.g., gather links
-                std::lock_guard<std::mutex> lock(task_link_map_lock);
+                std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+                auto& task_link_map = echion.task_link_map();
+                auto& weak_task_link_map = echion.weak_task_link_map();
 
                 if (auto maybe_parent = task_link_map.find(task_origin); maybe_parent != task_link_map.end()) {
                     if (auto maybe_origin = origin_map.find(maybe_parent->second); maybe_origin != origin_map.end()) {
@@ -221,13 +226,13 @@ ThreadInfo::unwind_tasks(PyThreadState* tstate)
                         continue;
                     }
                 }
-            }
 
-            // Check for weak links
-            if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
-                origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
-                current_task = origin_map.find(weak_task_link_map[task_origin])->second;
-                continue;
+                // Check for weak links
+                if (weak_task_link_map.find(task_origin) != weak_task_link_map.end() &&
+                    origin_map.find(weak_task_link_map[task_origin]) != origin_map.end()) {
+                    current_task = origin_map.find(weak_task_link_map[task_origin])->second;
+                    continue;
+                }
             }
 
             break;
@@ -354,7 +359,7 @@ ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo
 }
 
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState* tstate)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
@@ -378,6 +383,7 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
     // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
     // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
     // This is typically empty in practice, but we handle it for completeness.
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     if (asyncio_scheduled_tasks != nullptr) {
         if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
             auto scheduled_tasks_set = std::move(*maybe_scheduled_tasks_set);
@@ -395,7 +401,8 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
@@ -424,12 +431,13 @@ ThreadInfo::get_all_tasks(PyThreadState* tstate)
 #else
 // Pre-Python 3.14: get_all_tasks uses WeakSet approach
 Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(PyThreadState*)
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 {
     std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
         return tasks;
 
+    auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
     if (!maybe_scheduled_tasks_set) {
         return ErrorKind::TaskInfoError;
@@ -455,7 +463,8 @@ ThreadInfo::get_all_tasks(PyThreadState*)
         }
     }
 
-    if (asyncio_eager_tasks != NULL) {
+    auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
+    if (asyncio_eager_tasks != nullptr) {
         auto maybe_eager_tasks_set = MirrorSet::create(asyncio_eager_tasks);
         if (!maybe_eager_tasks_set) {
             return ErrorKind::TaskInfoError;
@@ -485,9 +494,13 @@ ThreadInfo::get_all_tasks(PyThreadState*)
 
 // ----------------------------------------------------------------------------
 void
-ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
+ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
+
+    auto& greenlet_info_map = echion.greenlet_info_map();
+    auto& greenlet_parent_map = echion.greenlet_parent_map();
+    auto& greenlet_thread_map = echion.greenlet_thread_map();
 
     if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
         return;
@@ -561,7 +574,7 @@ ThreadInfo::unwind_greenlets(PyThreadState* tstate, unsigned long cur_native_id)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, microsecond_t delta)
 {
     Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
 
@@ -571,9 +584,9 @@ ThreadInfo::sample(int64_t iid, PyThreadState* tstate, microsecond_t delta)
         return ErrorKind::CpuTimeError;
     }
 
-    Renderer::get().render_cpu_time(is_running() ? cpu_time - previous_cpu_time : 0);
+    Renderer::get().render_cpu_time(cpu_time - previous_cpu_time);
 
-    this->unwind(tstate);
+    this->unwind(echion, tstate);
 
     // Render in this order of priority
     // 1. asyncio Tasks stacks (if any)
@@ -627,29 +640,18 @@ Result<void>
 ThreadInfo::update_cpu_time()
 {
 #if defined PL_LINUX
-    struct timespec ts1;
-    if (clock_gettime(cpu_clock_id, &ts1)) {
+    struct timespec ts;
+    if (clock_gettime(cpu_clock_id, &ts)) {
         // If the clock is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (errno == EINVAL) {
-            this->running_ = false;
             return Result<void>::ok();
         }
 
         return ErrorKind::CpuTimeError;
     }
 
-    this->cpu_time = TS_TO_MICROSECOND(ts1);
-
-    // Determine if running by checking if CPU time advances between two back-to-back
-    // measurements. This is done here to avoid a separate is_running() call with
-    // its own syscalls (reduces 3 syscalls per thread to 2).
-    struct timespec ts2;
-    if (clock_gettime(cpu_clock_id, &ts2) != 0) {
-        this->running_ = false;
-    } else {
-        this->running_ = (ts1.tv_sec != ts2.tv_sec || ts1.tv_nsec != ts2.tv_nsec);
-    }
+    this->cpu_time = TS_TO_MICROSECOND(ts);
 #elif defined PL_DARWIN
     thread_basic_info_data_t info;
     mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -660,7 +662,6 @@ ThreadInfo::update_cpu_time()
         // If the thread is invalid, we skip updating the CPU time.
         // This can happen if we try to compute CPU time for a thread that has exited.
         if (kr == KERN_INVALID_ARGUMENT) {
-            this->running_ = false;
             return Result<void>::ok();
         }
 
@@ -668,23 +669,13 @@ ThreadInfo::update_cpu_time()
     }
 
     if (info.flags & TH_FLAGS_IDLE) {
-        this->running_ = false;
         return Result<void>::ok();
     }
 
     this->cpu_time = TV_TO_MICROSECOND(info.user_time) + TV_TO_MICROSECOND(info.system_time);
-    // On macOS, thread_info already gives us run_state, so no need to check if the clock is advancing
-    this->running_ = (info.run_state == TH_STATE_RUNNING);
 #endif
 
     return Result<void>::ok();
-}
-
-bool
-ThreadInfo::is_running()
-{
-    // Running state is computed in update_cpu_time by taking two back-to-back measurements of the CPU time.
-    return this->running_;
 }
 
 void

@@ -15,6 +15,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import tracer
 
 
 def create_server_interceptor(pin):
@@ -70,7 +71,6 @@ class _TracedRpcMethodHandler(wrapt.ObjectProxy):
         self._handler_call_details = handler_call_details
 
     def _fn(self, method_kind, behavior, args, kwargs):
-        tracer = self._pin.tracer
         headers = dict(self._handler_call_details.invocation_metadata)
         request_message = None
         if len(args):

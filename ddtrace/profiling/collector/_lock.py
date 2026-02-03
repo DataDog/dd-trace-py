@@ -8,6 +8,7 @@ import time
 from types import CodeType
 from types import FrameType
 from types import ModuleType
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -30,6 +31,8 @@ ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
 ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
     ["acquire", "release", "__enter__", "__exit__", "__aenter__", "__aexit__"]
 )
+
+CALLER_FRAME_INDEX: int = 3
 
 
 def _current_thread() -> Tuple[int, str]:
@@ -94,16 +97,23 @@ class _ProfiledLock:
         self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
-        frame: FrameType = sys._getframe(3)
-        code: CodeType = frame.f_code
-        self.init_location: str = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+        try:
+            frame: FrameType = sys._getframe(CALLER_FRAME_INDEX)
+        except ValueError:
+            # Shallow call stacks can happen in edge cases (e.g., interpreter bootstrap).
+            if config.enable_asserts:
+                raise
+            self.init_location = "unknown:0"
+        else:
+            code: CodeType = frame.f_code
+            self.init_location = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
         # and should not generate profile samples to avoid double-counting
         self.is_internal: bool = is_internal
 
-    ### DUNDER methods ###
+    # DUNDER methods
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, _ProfiledLock):
@@ -132,7 +142,7 @@ class _ProfiledLock:
             (wrapped_type.__module__, wrapped_type.__qualname__),
         )
 
-    ### Regular methods ###
+    # Regular methods
 
     def locked(self) -> bool:
         """Return True if lock is currently held."""
@@ -159,21 +169,32 @@ class _ProfiledLock:
             return inner_func(*args, **kwargs)
 
         start: int = time.monotonic_ns()
+        result: Any = None
+        error_info: Optional[Tuple[BaseException, Optional[TracebackType]]] = None
         try:
-            return inner_func(*args, **kwargs)
-        finally:
-            end: int = time.monotonic_ns()
-            self.acquired_time = end
+            result = inner_func(*args, **kwargs)
+        except BaseException as exc:
+            error_info = (exc, exc.__traceback__)
+
+        end: int = time.monotonic_ns()
+        self.acquired_time = end
+        if not self.is_internal:
             try:
                 self._update_name()
                 self._flush_sample(start, end, is_acquire=True)
             except AssertionError:
                 if config.enable_asserts:
-                    # AssertionError exceptions need to propagate
                     raise
             except Exception:
                 # Instrumentation must never crash user code
                 pass  # nosec
+        if error_info is not None:
+            err: BaseException
+            tb: Optional[TracebackType]
+            err, tb = error_info
+            raise err.with_traceback(tb)
+
+        return result
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
@@ -188,64 +209,83 @@ class _ProfiledLock:
         start: Optional[int] = getattr(self, "acquired_time", None)
         self.acquired_time = None
 
+        result: Any = None
+        error_info: Optional[Tuple[BaseException, Optional[TracebackType]]] = None
         try:
-            return inner_func(*args, **kwargs)
-        finally:
-            if start:
+            result = inner_func(*args, **kwargs)
+        except BaseException as exc:
+            error_info = (exc, exc.__traceback__)
+
+        if start and not self.is_internal:
+            try:
                 self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
+            except AssertionError:
+                if config.enable_asserts:
+                    raise
+            except Exception:
+                # Instrumentation must never crash user code
+                pass  # nosec
+        if error_info is not None:
+            err: BaseException
+            tb: Optional[TracebackType]
+            err, tb = error_info
+            raise err.with_traceback(tb)
+
+        return result
 
     def _flush_sample(self, start: int, end: int, is_acquire: bool) -> None:
-        """Helper method to push lock profiling data to ddup.
-
-        Args:
-            start: Start timestamp in nanoseconds
-            end: End timestamp in nanoseconds
-            is_acquire: True for acquire operations, False for release operations
-        """
+        """Push lock profiling data to ddup."""
         # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
         # to avoid double-counting when multiple collectors are active
         if self.is_internal:
             return
 
-        handle: ddup.SampleHandle = ddup.SampleHandle()
+        try:
+            handle: ddup.SampleHandle = ddup.SampleHandle()
 
-        handle.push_monotonic_ns(end)
+            handle.push_monotonic_ns(end)
 
-        lock_name: str = f"{self.init_location}:{self.name}" if self.name else self.init_location
-        handle.push_lock_name(lock_name)
+            lock_name: str = f"{self.init_location}:{self.name}" if self.name else self.init_location
+            handle.push_lock_name(lock_name)
 
-        duration_ns: int = end - start
-        if is_acquire:
-            handle.push_acquire(duration_ns, 1)
-        else:
-            handle.push_release(duration_ns, 1)
+            duration_ns: int = end - start
+            if is_acquire:
+                handle.push_acquire(duration_ns, 1)
+            else:
+                handle.push_release(duration_ns, 1)
 
-        thread_id: int
-        thread_name: str
-        thread_id, thread_name = _current_thread()
+            thread_id: int
+            thread_name: str
+            thread_id, thread_name = _current_thread()
 
-        task_id: Optional[int]
-        task_name: Optional[str]
-        task_frame: Optional[FrameType]
-        task_id, task_name, task_frame = _task.get_task(thread_id)
+            task_id: Optional[int]
+            task_name: Optional[str]
+            task_frame: Optional[FrameType]
+            task_id, task_name, task_frame = _task.get_task(thread_id)
 
-        handle.push_task_id(task_id)
-        handle.push_task_name(task_name)
+            handle.push_task_id(task_id)
+            handle.push_task_name(task_name)
 
-        thread_native_id: int = _threading.get_thread_native_id(thread_id)
-        handle.push_threadinfo(thread_id, thread_native_id, thread_name)
+            thread_native_id: int = _threading.get_thread_native_id(thread_id)
+            handle.push_threadinfo(thread_id, thread_native_id, thread_name)
 
-        if self.tracer is not None:
-            handle.push_span(self.tracer.current_span())
+            if self.tracer is not None:
+                handle.push_span(self.tracer.current_span())
 
-        # If we can't get the task frame, we use the caller frame.
-        # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
-        frame: FrameType = task_frame or sys._getframe(3)
-        frames: List[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
-        for ddframe in frames:
-            handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
+            # If we can't get the task frame, we use the caller frame.
+            # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
+            frame: FrameType = task_frame or sys._getframe(CALLER_FRAME_INDEX)
+            frames: List[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
+            for ddframe in frames:
+                handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
 
-        handle.flush_sample()
+            handle.flush_sample()
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            # Instrumentation must never crash user code
+            pass  # nosec
 
     def _find_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
@@ -263,28 +303,35 @@ class _ProfiledLock:
                         pass
         return None
 
-    # Get lock acquire/release call location and variable name the lock is assigned to
-    # This function propagates ValueError if the frame depth is <= 3.
     def _update_name(self) -> None:
+        """Get lock variable name from the caller's frame."""
         if self.name is not None:
             return
-        # We expect the call stack to be like this:
-        # 0: this
-        # 1: _acquire/_release
-        # 2: acquire/release (or __enter__/__exit__)
-        # 3: caller frame
-        if config.enable_asserts:
-            frame: FrameType = sys._getframe(1)
-            if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
-                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
-            frame = sys._getframe(2)
-            if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
-                raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+        try:
+            # We expect the call stack to be like this:
+            # 0: this
+            # 1: _acquire/_release
+            # 2: acquire/release (or __enter__/__exit__)
+            # 3: caller frame
+            if config.enable_asserts:
+                frame: FrameType = sys._getframe(1)
+                if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
+                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
 
-        # First, look at the local variables of the caller frame, and then the global variables
-        frame = sys._getframe(3)
-        self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
+                frame = sys._getframe(2)
+                if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
+                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+
+            # First, look at the local variables of the caller frame, and then the global variables
+            frame = sys._getframe(CALLER_FRAME_INDEX)
+            self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
+        except AssertionError:
+            if config.enable_asserts:
+                raise
+        except Exception:
+            # Instrumentation must never crash user code
+            pass  # nosec
 
 
 class _LockAllocatorWrapper:
