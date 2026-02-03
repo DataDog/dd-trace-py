@@ -2,6 +2,7 @@
 # cython: language_level=3
 
 import platform
+import types
 from typing import Mapping
 from typing import Optional
 from typing import Union
@@ -479,6 +480,10 @@ cdef class SampleHandle:
         cdef PyFrameObject* frame_ptr
 
         if self.ptr is not NULL and frame is not None:
+            # Validate that frame is actually a frame object to avoid crashes
+            # from invalid casts (e.g., if frame contains a non-frame object)
+            if not isinstance(frame, types.FrameType):
+                return
             # In Cython, 'frame' is already a PyObject*. Get the raw pointer.
             frame_obj = <PyObject*>frame
             # Cast to PyFrameObject* - both are just pointers to the same memory
