@@ -354,6 +354,9 @@ def test_long_strings_setter_handled(prop, length):
 # Interning Tests
 # =============================================================================
 
+    span.resource = invalid_bytes
+    assert span.resource == ""
+
 
 def test_string_interning():
     """Verify that PyBackedString uses Python string interning for static strings."""

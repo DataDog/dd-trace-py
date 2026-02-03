@@ -51,6 +51,7 @@ class EntrySpanProbe(LogFunctionProbe):
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
+            capture_expressions=[],
             limits=DEFAULT_CAPTURE_LIMITS,
             condition=None,
             condition_error_rate=0.0,
@@ -178,7 +179,7 @@ class SpanCodeOriginProcessorEntry:
         if isinstance(f, MethodType):
             f = t.cast(FunctionType, f.__func__)
         if not _isinstance(f, FunctionType):
-            log.warning("Cannot instrument view %r: not a function", f)
+            log.debug("Cannot instrument view %r: not a function", f)
             return
 
         with cls._lock:
