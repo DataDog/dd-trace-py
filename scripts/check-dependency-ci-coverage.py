@@ -46,11 +46,6 @@ from functools import lru_cache
 from pathlib import Path
 import re
 import sys
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Set
-from typing import Tuple
 
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -74,14 +69,14 @@ class Location:
 class DepInfo:
     """Information about a dependency's test coverage."""
 
-    majors: Set[int] = field(default_factory=set)  # Majors from explicit bounds only
+    majors: set[int] = field(default_factory=set)  # Majors from explicit bounds only
     has_latest: bool = False
-    latest_major: Optional[int] = None  # Major version that 'latest' resolves to
-    locations: List[Location] = field(default_factory=list)
-    allowed_locations: List[Location] = field(default_factory=list)  # Lines with # ci-deps: allow
+    latest_major: int | None = None  # Major version that 'latest' resolves to
+    locations: list[Location] = field(default_factory=list)
+    allowed_locations: list[Location] = field(default_factory=list)  # Lines with # ci-deps: allow
 
     @property
-    def all_tested_majors(self) -> Set[int]:
+    def all_tested_majors(self) -> set[int]:
         """All majors tested, including both explicit bounds and latest."""
         result = self.majors.copy()
         if self.latest_major is not None:
@@ -100,7 +95,7 @@ class SilencedItem:
 
 
 @lru_cache(maxsize=100)
-def get_pypi_latest_version(package: str) -> Optional[Version]:
+def get_pypi_latest_version(package: str) -> Version | None:
     """Query PyPI for the latest version of a package."""
     try:
         url = f"https://pypi.org/pypi/{package}/json"
@@ -113,7 +108,7 @@ def get_pypi_latest_version(package: str) -> Optional[Version]:
     return None
 
 
-def load_pyproject() -> Tuple[Dict, str]:
+def load_pyproject() -> tuple[dict, str]:
     """Load and parse pyproject.toml from the current directory."""
     pyproject_path = Path("pyproject.toml")
     if not pyproject_path.exists():
@@ -176,7 +171,7 @@ def has_allow_comment(content: str, pos: int) -> bool:
     return bool(re.search(r"#\s*ci-deps:\s*allow", line))
 
 
-def parse_dependency(dep_line: str) -> Tuple[str, str]:
+def parse_dependency(dep_line: str) -> tuple[str, str]:
     """
     Parse a dependency line into package name and version specifier.
 
@@ -200,7 +195,7 @@ def parse_dependency(dep_line: str) -> Tuple[str, str]:
         return dep_line.strip(), ""
 
 
-def get_major_versions_from_specifier(spec_string: str) -> Set[int]:
+def get_major_versions_from_specifier(spec_string: str) -> set[int]:
     """
     Calculate which major versions are allowed by a specifier.
 
@@ -258,12 +253,12 @@ def get_major_from_exact_version(version_str: str) -> int:
 class PyprojectDep:
     """A dependency from pyproject.toml with its location."""
 
-    majors: Set[int]
+    majors: set[int]
     specifier: str
     location: Location
 
 
-def extract_pyproject_dependencies(data: Dict, content: str) -> Dict[str, PyprojectDep]:
+def extract_pyproject_dependencies(data: dict, content: str) -> dict[str, PyprojectDep]:
     """
     Extract all dependencies and their required major versions from pyproject.toml.
 
@@ -315,7 +310,7 @@ def extract_pyproject_dependencies(data: Dict, content: str) -> Dict[str, Pyproj
     return deps
 
 
-def analyze_version_spec(spec: str) -> Tuple[Set[int], bool]:
+def analyze_version_spec(spec: str) -> tuple[set[int], bool]:
     """
     Analyze a version specifier to determine which major versions it tests.
 
@@ -394,7 +389,7 @@ def analyze_version_spec(spec: str) -> Tuple[Set[int], bool]:
     return {max(satisfying_majors)}, False
 
 
-def extract_riotfile_tested_versions() -> Dict[str, DepInfo]:
+def extract_riotfile_tested_versions() -> dict[str, DepInfo]:
     """
     Extract which major versions are tested for packages in riotfile.py.
 
@@ -410,7 +405,7 @@ def extract_riotfile_tested_versions() -> Dict[str, DepInfo]:
 
     import riotfile
 
-    tested: Dict[str, DepInfo] = {}
+    tested: dict[str, DepInfo] = {}
 
     def add_latest_major(pkg: str, info: DepInfo) -> None:
         """Resolve 'latest' to actual major version from PyPI and record it."""
@@ -462,7 +457,7 @@ def extract_riotfile_tested_versions() -> Dict[str, DepInfo]:
     return tested
 
 
-def extract_ci_file_tested_versions(content: str, filename: str) -> Dict[str, DepInfo]:
+def extract_ci_file_tested_versions(content: str, filename: str) -> dict[str, DepInfo]:
     """
     Extract dependency versions from CI configuration files (GitLab/GitHub YAML).
 
@@ -474,7 +469,7 @@ def extract_ci_file_tested_versions(content: str, filename: str) -> Dict[str, De
     Returns:
         Dict mapping package name to DepInfo
     """
-    tested: Dict[str, DepInfo] = {}
+    tested: dict[str, DepInfo] = {}
 
     # Pattern to match pip install commands with version specs
     pip_pattern = re.compile(
@@ -508,7 +503,7 @@ def extract_ci_file_tested_versions(content: str, filename: str) -> Dict[str, De
     return tested
 
 
-def load_all_ci_files() -> List[Tuple[str, str]]:
+def load_all_ci_files() -> list[tuple[str, str]]:
     """Load all CI configuration files and return list of (filename, content) tuples."""
     files = []
 
@@ -531,9 +526,9 @@ def load_all_ci_files() -> List[Tuple[str, str]]:
     return files
 
 
-def merge_tested_versions(*sources: Dict[str, DepInfo]) -> Dict[str, DepInfo]:
+def merge_tested_versions(*sources: dict[str, DepInfo]) -> dict[str, DepInfo]:
     """Merge tested versions from multiple sources."""
-    merged: Dict[str, DepInfo] = {}
+    merged: dict[str, DepInfo] = {}
     for source in sources:
         for pkg_name, info in source.items():
             if pkg_name not in merged:
@@ -547,7 +542,7 @@ def merge_tested_versions(*sources: Dict[str, DepInfo]) -> Dict[str, DepInfo]:
     return merged
 
 
-def format_locations(locations: List[Location]) -> str:
+def format_locations(locations: list[Location]) -> str:
     """Format a list of locations for display.
 
     >>> format_locations([Location("file.py", 2), Location("file.py", 2), Location("a.py", 1)])
@@ -568,9 +563,9 @@ def is_version_in_specifier(version: Version, specifier: str) -> bool:
 
 
 def check_coverage(
-    pyproject_deps: Dict[str, PyprojectDep],
-    ci_tested: Dict[str, DepInfo],
-) -> Tuple[List[str], List[str], List[SilencedItem]]:
+    pyproject_deps: dict[str, PyprojectDep],
+    ci_tested: dict[str, DepInfo],
+) -> tuple[list[str], list[str], list[SilencedItem]]:
     """
     Check if tested major versions cover all required major versions.
 
