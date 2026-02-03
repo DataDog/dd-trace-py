@@ -49,7 +49,6 @@ def create_checkout_span(pin, checkout_fn_name):
     )
     span._set_tag_str(COMPONENT, config.pymongo.integration_name)
     span._set_tag_str(db.SYSTEM, mongox.SERVICE)
-    # set span.kind tag equal to type of operation being performed
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     return span
 
