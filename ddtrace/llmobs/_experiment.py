@@ -683,58 +683,16 @@ class Experiment:
                             (default: None, uses full dataset)
         :return: ExperimentResult containing evaluation results and metadata
         """
-        if jobs < 1:
-            raise ValueError("jobs must be at least 1")
-
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            raise ValueError(
-                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
-                "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
-            )
-
-        project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
-        self._project_id = project.get("_id", "")
-        self._tags["project_id"] = self._project_id
-
-        (
-            experiment_id,
-            experiment_run_name,
-        ) = self._llmobs_instance._dne_client.experiment_create(
-            self.name,
-            self._dataset._id,
-            self._project_id,
-            self._dataset._version,
-            self._config,
-            convert_tags_dict_to_list(self._tags),
-            self._description,
-            self._runs,
-        )
-        self._id = experiment_id
-        self._tags["experiment_id"] = str(experiment_id)
-        self._run_name = experiment_run_name
+        self._setup_experiment(jobs)
         run_results = []
-        # for backwards compatibility
         for run_iteration in range(self._runs):
             run = _ExperimentRunInfo(run_iteration)
             self._tags["run_id"] = str(run._id)
             self._tags["run_iteration"] = str(run._run_iteration)
             task_results = self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
-            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
-            experiment_evals = self._generate_metrics_from_exp_results(run_result)
-            self._llmobs_instance._dne_client.experiment_eval_post(
-                self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
-            )
+            run_result = self._process_run_results(task_results, run, raise_errors, jobs)
             run_results.append(run_result)
-
-        experiment_result: ExperimentResult = {
-            # for backwards compatibility, the first result fills the old fields of rows and summary evals
-            "summary_evaluations": run_results[0].summary_evaluations if len(run_results) > 0 else {},
-            "rows": run_results[0].rows if len(run_results) > 0 else [],
-            "runs": run_results,
-        }
-        return experiment_result
+        return self._build_experiment_result(run_results)
 
     async def arun(
         self,
@@ -744,8 +702,7 @@ class Experiment:
     ) -> ExperimentResult:
         """Async version of run() for use with async task functions.
 
-        Use this method when calling from an async context. For sync contexts,
-        run() will automatically detect async tasks and handle them.
+        Use this method when calling from an async context.
 
         :param jobs: Maximum number of concurrent task executions (default: 1)
         :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
@@ -753,6 +710,19 @@ class Experiment:
                             (default: None, uses full dataset)
         :return: ExperimentResult containing evaluation results and metadata
         """
+        self._setup_experiment(jobs)
+        run_results = []
+        for run_iteration in range(self._runs):
+            run = _ExperimentRunInfo(run_iteration)
+            self._tags["run_id"] = str(run._id)
+            self._tags["run_iteration"] = str(run._run_iteration)
+            task_results = await self._run_task_async(jobs, run, raise_errors, sample_size)
+            run_result = self._process_run_results(task_results, run, raise_errors, jobs)
+            run_results.append(run_result)
+        return self._build_experiment_result(run_results)
+
+    def _setup_experiment(self, jobs: int) -> None:
+        """Validate inputs and set up experiment state."""
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
 
@@ -782,32 +752,33 @@ class Experiment:
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
-        run_results = []
 
-        for run_iteration in range(self._runs):
-            run = _ExperimentRunInfo(run_iteration)
-            self._tags["run_id"] = str(run._id)
-            self._tags["run_iteration"] = str(run._run_iteration)
-
-            # Run async tasks
-            task_results = await self._run_task_async(jobs, run, raise_errors, sample_size)
-
-            # Evaluators remain sync
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
-            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
-            experiment_evals = self._generate_metrics_from_exp_results(run_result)
+    def _process_run_results(
+        self,
+        task_results: List[TaskResult],
+        run: _ExperimentRunInfo,
+        raise_errors: bool,
+        jobs: int,
+    ) -> ExperimentRun:
+        """Run evaluators, merge results, and post metrics."""
+        evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+        summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
+        run_result = self._merge_results(run, task_results, evaluations, summary_evals)
+        experiment_evals = self._generate_metrics_from_exp_results(run_result)
+        if self._llmobs_instance:
             self._llmobs_instance._dne_client.experiment_eval_post(
                 self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
             )
-            run_results.append(run_result)
+        return run_result
 
-        experiment_result: ExperimentResult = {
+    def _build_experiment_result(self, run_results: List[ExperimentRun]) -> ExperimentResult:
+        """Build the final experiment result from run results."""
+        return {
+            # for backwards compatibility, the first result fills the old fields of rows and summary evals
             "summary_evaluations": run_results[0].summary_evaluations if len(run_results) > 0 else {},
             "rows": run_results[0].rows if len(run_results) > 0 else [],
             "runs": run_results,
         }
-        return experiment_result
 
     @property
     def url(self) -> str:
@@ -931,19 +902,12 @@ class Experiment:
                 },
             }
 
-    def _run_task(
-        self,
-        jobs: int,
-        run: _ExperimentRunInfo,
-        raise_errors: bool = False,
-        sample_size: Optional[int] = None,
-    ) -> List[TaskResult]:
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            return []
+    def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
+        """Get dataset or a subset for sampling."""
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
-            subset_dataset = Dataset(
+            return Dataset(
                 name=subset_name,
                 project=self._dataset.project,
                 dataset_id=self._dataset._id,
@@ -953,8 +917,28 @@ class Experiment:
                 version=self._dataset._version,
                 _dne_client=self._dataset._dne_client,
             )
-        else:
-            subset_dataset = self._dataset
+        return self._dataset
+
+    def _check_task_error(self, result: TaskResult, raise_errors: bool) -> None:
+        """Check for task errors and raise if configured."""
+        err_dict = result.get("error") or {}
+        if isinstance(err_dict, dict):
+            err_msg = err_dict.get("message")
+            err_stack = err_dict.get("stack")
+            err_type = err_dict.get("type")
+            if raise_errors and err_msg:
+                raise RuntimeError("Error on record {}: {}\n{}\n{}".format(result["idx"], err_msg, err_type, err_stack))
+
+    def _run_task(
+        self,
+        jobs: int,
+        run: _ExperimentRunInfo,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> List[TaskResult]:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            return []
+        subset_dataset = self._get_subset_dataset(sample_size)
         task_results = []
         with ThreadPoolExecutor(max_workers=jobs) as executor:
             for result in executor.map(
@@ -965,15 +949,7 @@ class Experiment:
                 if not result:
                     continue
                 task_results.append(result)
-                err_dict = result.get("error") or {}
-                if isinstance(err_dict, dict):
-                    err_msg = err_dict.get("message")
-                    err_stack = err_dict.get("stack")
-                    err_type = err_dict.get("type")
-                if raise_errors and err_msg:
-                    raise RuntimeError(
-                        "Error on record {}: {}\n{}\n{}".format(result["idx"], err_msg, err_type, err_stack)
-                    )
+                self._check_task_error(result, raise_errors)
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
@@ -987,36 +963,16 @@ class Experiment:
         """Async version of _run_task for async task functions."""
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
-        if sample_size is not None and sample_size < len(self._dataset):
-            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
-            subset_dataset = Dataset(
-                name=subset_name,
-                project=self._dataset.project,
-                dataset_id=self._dataset._id,
-                records=subset_records,
-                description=self._dataset.description,
-                latest_version=self._dataset._latest_version,
-                version=self._dataset._version,
-                _dne_client=self._dataset._dne_client,
-            )
-        else:
-            subset_dataset = self._dataset
-
+        subset_dataset = self._get_subset_dataset(sample_size)
         task_results: List[TaskResult] = []
         for idx, record in enumerate(subset_dataset):
             result = await self._process_record_async((idx, record), run)
             if not result:
                 continue
             task_results.append(result)
-            err_dict = result.get("error") or {}
-            if isinstance(err_dict, dict):
-                err_msg = err_dict.get("message")
-                err_stack = err_dict.get("stack")
-                err_type = err_dict.get("type")
-            if raise_errors and err_msg:
-                raise RuntimeError("Error on record {}: {}\n{}\n{}".format(result["idx"], err_msg, err_type, err_stack))
-        self._llmobs_instance.flush()
+            self._check_task_error(result, raise_errors)
+        if self._llmobs_instance:
+            self._llmobs_instance.flush()
         return task_results
 
     def _run_evaluators(
