@@ -21,3 +21,6 @@ void
 memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
 void
 memalloc_heap_untrack_no_cpython(void* ptr);
+
+void
+memalloc_heap_postfork_child(void);

@@ -828,10 +828,13 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
     ddup.upload()
 
     with stack.StackCollector(tracer=tracer):
+        # Give the Profiler some time to start
+        time.sleep(0.1)
+
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
-            _fib(28)
+            _fib(35)
 
     ddup.upload(tracer=tracer)
 
@@ -847,7 +850,7 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
                 pprof_utils.StackLocation(
                     filename=os.path.basename(__file__),
                     function_name=test_name,
-                    line_no=test_resource_not_collected.__code__.co_firstlineno + 14,
+                    line_no=test_resource_not_collected.__code__.co_firstlineno + 17,
                 )
             ],
         ),
