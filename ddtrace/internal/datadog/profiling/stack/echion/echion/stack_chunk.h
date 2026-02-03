@@ -35,6 +35,9 @@ class StackChunk
     bool is_valid() const;
 
   private:
+    [[nodiscard]] Result<void> update_with_depth(_PyStackChunk* chunk_addr, size_t depth);
+
+    static constexpr size_t kMaxChunkDepth = 64;
     void* origin = NULL;
     std::vector<char> data;
     size_t data_capacity = 0;
