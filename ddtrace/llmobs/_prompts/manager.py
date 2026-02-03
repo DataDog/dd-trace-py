@@ -1,8 +1,8 @@
+import atexit
 import json
 import threading
 from typing import Dict
 from typing import Optional
-from typing import Set
 from typing import Tuple
 from urllib.parse import urlencode
 
@@ -46,8 +46,9 @@ class PromptManager:
         self._hot_cache = HotCache(max_size=cache_max_size, ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
 
-        self._refresh_in_progress: Set[str] = set()
+        self._refresh_threads: Dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
+        atexit.register(self._wait_for_refreshes)
 
     def get_prompt(
         self,
@@ -137,29 +138,34 @@ class PromptManager:
     def _trigger_background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Trigger a background refresh if not already in progress."""
         with self._refresh_lock:
-            if key in self._refresh_in_progress:
+            if key in self._refresh_threads:
                 return
-            self._refresh_in_progress.add(key)
 
-        thread = threading.Thread(
-            target=self._background_refresh,
-            args=(key, prompt_id, label),
-            daemon=True,
-        )
+        def run_refresh():
+            try:
+                self._background_refresh(key, prompt_id, label)
+            finally:
+                with self._refresh_lock:
+                    self._refresh_threads.pop(key, None)
+
+        thread = threading.Thread(target=run_refresh, daemon=True)
         try:
             thread.start()
-        except RuntimeError:
-            # Thread creation can fail in resource-constrained environments.
-            # Remove the key so future refresh attempts can retry.
             with self._refresh_lock:
-                self._refresh_in_progress.discard(key)
+                self._refresh_threads[key] = thread
+        except RuntimeError:
             log.debug("Failed to start background refresh thread for prompt %s", prompt_id)
 
     def _background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Refresh a prompt in the background."""
         self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
+
+    def _wait_for_refreshes(self) -> None:
+        """Wait for background refreshes to complete on exit."""
         with self._refresh_lock:
-            self._refresh_in_progress.discard(key)
+            threads = list(self._refresh_threads.values())
+        for thread in threads:
+            thread.join(timeout=self._timeout)
 
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float
