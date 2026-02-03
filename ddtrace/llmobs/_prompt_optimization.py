@@ -22,6 +22,8 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._optimizers import CandidateSelector
 from ddtrace.llmobs._optimizers import Metaprompting
 from ddtrace.llmobs._optimizers import MetapromptingSelector
+from ddtrace.llmobs._optimizers import MIPRO
+from ddtrace.llmobs._optimizers import MIPROSelector
 from ddtrace.llmobs._optimizers import OptimizationIteration
 
 
@@ -36,6 +38,7 @@ log = get_logger(__name__)
 # Maps optimizer name to (OptimizationIteration class, CandidateSelector class)
 OPTIMIZER_REGISTRY: Dict[str, Tuple[type[OptimizationIteration], type[CandidateSelector]]] = {
     "metaprompting": (Metaprompting, MetapromptingSelector),
+    "mipro": (MIPRO, MIPROSelector),
 }
 
 
@@ -249,8 +252,9 @@ class PromptOptimization:
                                    Takes summary_evaluations dict from the experiment result
                                    and returns True if should stop.
         :param optimizer_class: Name of the optimizer implementation to use. Defaults to "metaprompting".
-                               Available optimizers: "metaprompting", "dspy_bootstrap_fewshot",
-                               "fewshot_bootstrap", "mipro", "gepa"
+                               Available optimizers:
+                               - "metaprompting": Single-candidate prompt optimization using LLM-as-a-judge
+                               - "mipro": Multi-candidate optimization with Bayesian search (requires optuna)
         :raises ValueError: If required config parameters, compute_score are missing, or optimizer_class is invalid.
         """
         self.name = name
@@ -305,7 +309,7 @@ class PromptOptimization:
                 "and create the optimization via `LLMObs.prompt_optimization(...)` before running."
             )
 
-        log.info("Starting prompt optimization: %s", self.name)
+        print("Starting prompt optimization: %s", self.name)
 
         # Track all iteration results
         all_iterations: List[IterationData] = []
@@ -353,24 +357,33 @@ class PromptOptimization:
         best_prompt = current_prompt
         best_results = current_results
 
-        log.info("Baseline score: %.3f", best_score)
+        print("Baseline score: %.3f", best_score)
 
         # Run optimization iterations
         for i in range(1, self._max_iterations + 1):
             # Always optimize from the best prompt so far
-            optimization_iteration = self._optimizer_class(
-                iteration=i,
-                current_prompt=best_prompt,
-                current_results=best_results,
-                optimization_task=self._optimization_task,
-                config=self._config,
-                labelization_function=self._labelization_function,
-            )
+            # Prepare kwargs for optimizer initialization
+            optimizer_kwargs = {
+                "iteration": i,
+                "current_prompt": best_prompt,
+                "current_results": best_results,
+                "optimization_task": self._optimization_task,
+                "config": self._config,
+                "labelization_function": self._labelization_function,
+            }
+
+            # Add dataset for MIPRO (supports few-shot example optimization)
+            from ddtrace.llmobs._optimizers import MIPRO
+
+            if self._optimizer_class == MIPRO:
+                optimizer_kwargs["dataset"] = self._dataset
+
+            optimization_iteration = self._optimizer_class(**optimizer_kwargs)
 
             # Generate candidate prompts (list)
             candidate_prompts = optimization_iteration.run()
 
-            log.info("Iteration %d: Generated %d candidate(s)", i, len(candidate_prompts))
+            print("Iteration %d: Generated %d candidate(s)", i, len(candidate_prompts))
 
             # Use selector to evaluate candidates and pick the best
             iteration_name = f"iteration_{i}"
@@ -393,8 +406,8 @@ class PromptOptimization:
             }
             all_iterations.append(iteration_data)
 
-            log.info("Iteration %s", i)
-            log.info("%s", summary_evals)
+            print("Iteration %s", i)
+            print("%s", summary_evals)
 
             # Update best iteration if score improved
             if new_score is not None and (best_score is None or new_score > best_score):
@@ -405,7 +418,7 @@ class PromptOptimization:
 
             # Check stopping condition
             if self._stopping_condition and self._stopping_condition(summary_evals):
-                log.info("Stopping condition met after iteration %s", i)
+                print("Stopping condition met after iteration %s", i)
                 break
 
         # Create result object with full history

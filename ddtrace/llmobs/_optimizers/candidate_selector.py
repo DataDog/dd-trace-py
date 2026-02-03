@@ -133,7 +133,7 @@ class CandidateSelector(ABC):
         experiment_name: str,
         model_name: Optional[str],
         jobs: int,
-        runs: Optional[int] = None,
+        runs: Optional[int] = 1,
     ) -> Tuple[ExperimentResult, str]:
         """Run an experiment for a given prompt.
 
@@ -208,10 +208,7 @@ class MetapromptingSelector(CandidateSelector):
 
         # Get model name and runs from config
         model_name = self._config.get("model_name")
-        runs_value = self._config.get("runs")
-        runs_int: Optional[int] = None
-        if runs_value is not None and isinstance(runs_value, int):
-            runs_int = runs_value
+        runs = self._config.get("runs", 1)
 
         # Run experiment on the single candidate
         log.info("Running experiment for iteration %d with single candidate", iteration)
@@ -220,7 +217,7 @@ class MetapromptingSelector(CandidateSelector):
             experiment_name=experiment_name,
             model_name=model_name,
             jobs=jobs,
-            runs=runs_int,
+            runs=runs,
         )
 
         return prompt, results, url
