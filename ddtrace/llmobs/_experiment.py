@@ -765,7 +765,7 @@ class Experiment:
         summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
         run_result = self._merge_results(run, task_results, evaluations, summary_evals)
         experiment_evals = self._generate_metrics_from_exp_results(run_result)
-        if self._llmobs_instance:
+        if self._llmobs_instance and self._id is not None:
             self._llmobs_instance._dne_client.experiment_eval_post(
                 self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
             )
