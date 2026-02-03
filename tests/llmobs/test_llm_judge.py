@@ -172,9 +172,7 @@ class TestLLMJudge:
             )
         )
 
-        assert "What?" in captured["prompt"]
-        assert "Answer" in captured["prompt"]
-        assert "search" in captured["prompt"]
+        assert captured["prompt"] == "Q: What? A: Answer Tool: search"
 
     def test_invalid_json_raises(self):
         def mock_client(provider, messages, json_schema, model, model_params):

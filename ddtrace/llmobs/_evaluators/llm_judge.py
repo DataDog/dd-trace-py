@@ -10,9 +10,8 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Protocol
 from typing import Union
-
-from typing_extensions import Protocol
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
@@ -258,7 +257,8 @@ class LLMJudge(BaseEvaluator):
         Args:
             user_prompt: The prompt template sent to the judge LLM. Use ``{{field}}`` syntax
                 to inject span context.
-            system_prompt: Optional system prompt to set judge behavior/persona.
+            system_prompt: Optional system prompt to set judge behavior/persona. Does not
+                support template variables.
             structured_output: Output format specification (BooleanOutput, ScoreOutput,
                 CategoricalOutput, or a custom JSON schema dict).
             provider: LLM provider to use (``"openai"`` or ``"anthropic"``). Required if
@@ -281,7 +281,7 @@ class LLMJudge(BaseEvaluator):
 
                 judge = LLMJudge(
                     provider="openai",
-                    model="gpt-4o",
+                    model="gpt-5-mini",
                     user_prompt="Is this response factually accurate? Response: {{output_data}}",
                     structured_output=BooleanOutput(
                         description="Whether the response is factually accurate",
@@ -294,7 +294,7 @@ class LLMJudge(BaseEvaluator):
 
                 judge = LLMJudge(
                     provider="anthropic",
-                    model="claude-sonnet-4-20250514",
+                    model="claude-haiku-4-5-20250514",
                     user_prompt="Rate the helpfulness of this response (1-10): {{output_data}}",
                     structured_output=ScoreOutput(
                         description="Helpfulness score",
@@ -308,7 +308,7 @@ class LLMJudge(BaseEvaluator):
 
                 judge = LLMJudge(
                     provider="openai",
-                    model="gpt-4o",
+                    model="gpt-5-mini",
                     user_prompt="Classify the sentiment: {{output_data}}",
                     structured_output=CategoricalOutput(
                         description="Sentiment classification",
@@ -389,9 +389,6 @@ class LLMJudge(BaseEvaluator):
             raise ValueError(f"Invalid JSON response: {e}") from e
 
         structured_output = self._structured_output
-        if structured_output is None:
-            return EvaluatorResult(value=data)
-
         if isinstance(structured_output, dict):
             return EvaluatorResult(value=data, reasoning=data.get("reasoning"))
 
