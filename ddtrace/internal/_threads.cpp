@@ -138,6 +138,8 @@ class GILGuard
 {
   public:
     inline GILGuard()
+      : _state(PyGILState_UNLOCKED)
+      , _acquired(false)
     {
 #if PY_VERSION_HEX >= 0x030d0000
         if (!Py_IsFinalizing()) {
@@ -145,16 +147,19 @@ class GILGuard
         if (!_Py_IsFinalizing()) {
 #endif
             _state = PyGILState_Ensure();
+            _acquired = true;
         }
     }
     inline ~GILGuard()
     {
-        if (PyGILState_Check())
+        if (_acquired && PyGILState_Check()) {
             PyGILState_Release(_state);
+        }
     }
 
   private:
     PyGILState_STATE _state;
+    bool _acquired;
 };
 
 // ----------------------------------------------------------------------------
@@ -165,6 +170,8 @@ class AllowThreads
 {
   public:
     inline AllowThreads()
+      : _state(nullptr)
+      , _saved(false)
     {
 #if PY_VERSION_HEX >= 0x30d0000
         if (!Py_IsFinalizing()) {
@@ -172,21 +179,22 @@ class AllowThreads
         if (!_Py_IsFinalizing()) {
 #endif
             _state = PyEval_SaveThread();
+            _saved = true;
         }
     }
     inline ~AllowThreads()
     {
-#if PY_VERSION_HEX >= 0x30d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        // Always restore thread state if we saved it. Skipping restore would
+        // leave the thread running without the GIL, causing crashes if any
+        // Python code executes afterward (even during finalization).
+        if (_saved) {
             PyEval_RestoreThread(_state);
         }
     }
 
   private:
     PyThreadState* _state;
+    bool _saved;
 };
 
 // ----------------------------------------------------------------------------
