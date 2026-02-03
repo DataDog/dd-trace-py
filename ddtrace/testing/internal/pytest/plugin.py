@@ -209,6 +209,22 @@ _ReportGroup = t.Dict[str, pytest.TestReport]
 class TestOptPlugin:
     """
     pytest plugin for test optimization.
+
+    This plugin uses lazy test creation to minimize memory usage:
+
+    1. Collection Phase (pytest_collection_finish):
+       - Store pytest.Item objects by nodeid (lightweight)
+       - Register TestRef with SessionManager (for ITR/EFD calculations)
+       - Do NOT create full Test/TestSuite/TestModule objects yet
+
+    2. Execution Phase (pytest_runtest_protocol_wrapper):
+       - Create Test object on-demand when about to execute
+       - Track active modules/suites in dictionaries for finish hooks
+       - Skipped tests (ITR) never get Test objects created
+
+    3. Cleanup (after test finishes):
+       - Clear test data immediately after sending to backend
+       - Remove from tracking dicts to allow garbage collection
     """
 
     __test__ = False
@@ -229,6 +245,8 @@ class TestOptPlugin:
         self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
         self.benchmark_data_by_nodeid: t.Dict[str, BenchmarkData] = {}
         self.tests_by_nodeid: t.Dict[str, Test] = {}
+        # Lazy creation: store items during collection, create Test objects on-demand
+        self.items_by_nodeid: t.Dict[str, pytest.Item] = {}
         self.is_xdist_worker = False
 
         self.manager = session_manager
@@ -360,14 +378,21 @@ class TestOptPlugin:
 
     def pytest_collection_finish(self, session: pytest.Session) -> None:
         """
-        Discover modules, suites, and tests that have been selected by pytest.
+        Collect test items for lazy creation.
+
+        We only store test items here, not creating full Test objects.
+        Test objects are created on-demand during execution to save memory.
 
         NOTE: Using pytest_collection_finish instead of pytest_collection_modifyitems allows us to capture only the
         tests that pytest has selection for run (eg: with the use of -k as an argument).
         """
         for item in session.items:
+            # Store item for lazy creation during execution
+            self.items_by_nodeid[item.nodeid] = item
+
+            # Register test_ref with session manager for ITR/EFD calculations
             test_ref = item_to_test_ref(item)
-            test_module, test_suite, test = self._discover_test(item, test_ref)
+            self.manager.register_collected_test(test_ref)
 
         self.manager.finish_collection()
 
@@ -474,6 +499,7 @@ class TestOptPlugin:
             test.last_test_run, coverage_data.get_coverage_bitmaps(relative_to=self.manager.workspace_path)
         )
 
+        # Finish suite/module when moving to a different one
         if not next_test_ref or test_ref.suite != next_test_ref.suite:
             test_suite.finish()
             self.manager.writer.put_item(test_suite)
@@ -534,6 +560,9 @@ class TestOptPlugin:
 
         for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)
+
+        # Clear test data after sending to reduce memory usage
+        self._clear_test_data(item.nodeid, test)
 
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
         status, tags = self._get_test_outcome(item.nodeid)
@@ -765,6 +794,22 @@ class TestOptPlugin:
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
+
+    def _clear_test_data(self, nodeid: str, test: Test) -> None:
+        """Clear test data after it's been sent to reduce memory usage."""
+        # Clear test runs - keep only the last one for reference (in case needed later)
+        # This saves memory especially with many retries
+        if test.test_runs and len(test.test_runs) > 1:
+            test.test_runs = [test.test_runs[-1]]
+
+        # Remove test from the nodeid lookup dict
+        if nodeid in self.tests_by_nodeid:
+            del self.tests_by_nodeid[nodeid]
+
+        # Remove test from the hierarchy to break references
+        # This allows the Test object and all its data to be garbage collected
+        if test.parent and test.name in test.parent.children:
+            del test.parent.children[test.name]
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
     def pytest_terminal_summary(
