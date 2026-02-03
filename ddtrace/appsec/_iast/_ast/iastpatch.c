@@ -533,17 +533,11 @@ build_list_from_env(const char* env_var_name)
     if (result_list == NULL) {
         return 0;
     }
-    char** old_list = NULL;
-    size_t old_count = 0;
 
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-        old_list = user_allowlist;
-        old_count = user_allowlist_count;
         user_allowlist = result_list;
         user_allowlist_count = count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        old_list = user_denylist;
-        old_count = user_denylist_count;
         user_denylist = result_list;
         user_denylist_count = count;
     } else {
