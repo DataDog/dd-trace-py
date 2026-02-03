@@ -35,11 +35,11 @@ class PythonErrorRestorer
     {
 #ifdef _PY312_AND_LATER
         // Python 3.12+: Restore using the new API
-        // Pass NULL to clear the error indicator if there was no error before
+        // Pass nullptr to clear the error indicator if there was no error before
         PyErr_SetRaisedException(saved_exception);
 #else
         // Python < 3.12: Restore using the old API
-        // If type is NULL, the error indicator is cleared
+        // If type is nullptr, the error indicator is cleared
         PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
 #endif
     }

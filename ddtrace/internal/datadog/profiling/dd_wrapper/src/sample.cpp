@@ -103,7 +103,7 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
 static std::string_view
 unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unknown>")
 {
-    if (unicode_obj == NULL) {
+    if (unicode_obj == nullptr) {
         return fallback;
     }
 
@@ -140,7 +140,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
     PythonErrorRestorer error_restorer;
 
     bool is_initial_frame = true;
-    for (PyFrameObject* f = frame; f != NULL;) {
+    for (PyFrameObject* f = frame; f != nullptr;) {
         // Extract frame info
         int lineno_val = PyFrame_GetLineNumber(f);
         if (lineno_val < 0) {
@@ -153,7 +153,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         std::string_view name_sv = "<unknown>";
         std::string_view filename_sv = "<unknown>";
 
-        if (code != NULL) {
+        if (code != nullptr) {
             // Extract function name (use co_qualname for Python 3.11+ for better context)
 #if defined(_PY311_AND_LATER)
             PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
