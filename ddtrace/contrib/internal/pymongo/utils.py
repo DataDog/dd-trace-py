@@ -56,12 +56,9 @@ def create_checkout_span(pin, checkout_fn_name):
 def setup_checkout_span_tags(span, sock_info, instance):
     """Set up tags and metrics for checkout span. Shared between sync and async."""
     set_address_tags(span, sock_info.address)
-    # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
-    # Ensure the pin used on the traced mongo client is passed down to the socket instance
-    # (via the server instance)
     pin = Pin.get_from(instance)
-    if pin is not None:
+    if pin:
         pin.onto(sock_info)
 
 
@@ -101,34 +98,23 @@ def normalize_filter(f=None):
     """Normalize filter queries. Shared between sync and async."""
     if f is None:
         return {}
-    elif isinstance(f, list):
-        # normalize lists of filters
-        # e.g. {$or: [ { age: { $lt: 30 } }, { type: 1 } ]}
+    if isinstance(f, list):
         return [normalize_filter(s) for s in f]
-    elif isinstance(f, dict):
-        # normalize dicts of filters
-        #   {$or: [ { age: { $lt: 30 } }, { type: 1 } ]})
+    if isinstance(f, dict):
         out = {}
         for k, v in f.items():
             if k == "$in" or k == "$nin":
-                # special case $in queries so we don't loop over lists.
                 out[k] = "?"
-            elif isinstance(v, list) or isinstance(v, dict):
-                # RECURSION ALERT: needs to move to the agent
+            elif isinstance(v, (list, dict)):
                 out[k] = normalize_filter(v)
             else:
-                # NOTE: this shouldn't happen, but let's have a safeguard.
                 out[k] = "?"
         return out
-    else:
-        # FIXME[matt] unexpected type. not sure this should ever happen, but at
-        # least it won't crash.
-        return {}
+    return {}
 
 
 def set_address_tags(span, address):
     """Set address tags on span. Shared between sync and async."""
-    # the address is only set after the cursor is done.
     if address:
         span._set_tag_str(netx.TARGET_HOST, address[0])
         span._set_tag_str(netx.SERVER_ADDRESS, address[0])
@@ -136,11 +122,9 @@ def set_address_tags(span, address):
 
 
 def set_query_metadata(span, cmd):
-    """Sets span `mongodb.query` tag and resource given command query. Shared between sync and async."""
+    """Set span `mongodb.query` tag and resource given command query. Shared between sync and async."""
     if cmd.query:
         nq = normalize_filter(cmd.query)
-        # needed to dump json so we don't get unicode
-        # dict keys like {u'foo':'bar'}
         q = json.dumps(nq)
         span.set_tag("mongodb.query", q)
         span.resource = "{} {} {}".format(cmd.name, cmd.coll, q)
@@ -167,7 +151,6 @@ def set_query_rowcount(docs, span):
 
 def dbm_dispatch(span, args, kwargs):
     """Dispatch DBM (Database Monitoring). Shared between sync and async."""
-    # dispatch DBM
     result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
         "pymongo.execute", (config.pymongo, span, args, kwargs)
     ).result
@@ -204,9 +187,8 @@ def dbm_comment_injector(dbm_comment, command):
         return command
     except (TypeError, ValueError):
         log.warning(
-            "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "
-            "To disable this feature please set the following environment variable: "
-            "DD_DBM_PROPAGATION_MODE=disabled",
+            "Linking Database Monitoring profiles to spans is not supported for query type: %s. "
+            "To disable this feature, set DD_DBM_PROPAGATION_MODE=disabled",
             type(command),
         )
     return command
@@ -218,9 +200,7 @@ def dbm_merge_comment(existing_comment, dbm_comment):
         return dbm_comment
     if isinstance(existing_comment, str):
         return existing_comment + "," + dbm_comment
-    elif isinstance(existing_comment, list):
+    if isinstance(existing_comment, list):
         existing_comment.append(dbm_comment)
         return existing_comment
-    # if existing_comment is not a string or list
-    # do not inject dbm comment
     return existing_comment

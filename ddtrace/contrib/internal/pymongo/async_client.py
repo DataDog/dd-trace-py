@@ -47,23 +47,14 @@ def trace_async_mongo_client_init(func: FunctionType, args: Tuple[Any, ...], kwa
 
 async def trace_async_topology_select_server(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     """Wrapper for AsyncTopology.select_server to propagate pin to selected server."""
-    # AsyncTopology.select_server is async, so we need to await it
     server = await func(*args, **kwargs)
-    # Ensure the pin used on the traced mongo client is passed down to the topology instance
-    # This allows us to pass the same pin in traced server objects.
     topology_instance = get_argument_value(args, kwargs, 0, "self")
     propagate_pin_to_server(server, topology_instance)
     return server
 
 
-async def trace_async_server_run_operation_and_with_response(
-    func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]
-) -> Any:
-    """
-    Wrapper for AsyncServer.run_operation to trace operations.
-
-    Extracts operation from args[2] (pattern: run_operation(self, sock_info, operation, ...)).
-    """
+async def trace_async_server_run_operation(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+    """Wrapper for AsyncServer.run_operation to trace operations."""
     server_instance = get_argument_value(args, kwargs, 0, "self")
     operation = get_argument_value(args, kwargs, 2, "operation")
 
@@ -76,24 +67,18 @@ async def trace_async_server_run_operation_and_with_response(
         return process_server_operation_result(span, operation, result)
 
 
-async def traced_async_get_socket(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
-    """
-    Async wrapper for AsyncServer.checkout to trace socket checkout.
+async def trace_async_server_checkout(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+    """Wrapper for AsyncServer.checkout to trace socket checkout.
 
-    checkout() is an async function that returns an async context manager.
-    We wrap the returned context manager to add tracing.
+    AsyncServer.checkout() returns an async context manager. We wrap it to add tracing.
     """
     instance = get_argument_value(args, kwargs, 0, "self")
     pin = Pin.get_from(instance)
-
-    # Call the original async function which returns an async context manager
     cm = await func(*args, **kwargs)
 
     if not pin or not pin.enabled():
-        # Return the original context manager unchanged
         return cm
 
-    # Wrap the context manager to add tracing
     @contextlib.asynccontextmanager
     async def traced_cm():
         with create_checkout_span(pin, _CHECKOUT_FN_NAME) as span:
@@ -105,29 +90,19 @@ async def traced_async_get_socket(func: FunctionType, args: Tuple[Any, ...], kwa
 
 
 async def trace_async_socket_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
-    """
-    Wrapper for AsyncConnection.command to trace command operations.
-
-    Uses parse_socket_command_spec to extract dbname (args[1]) and spec (args[2]).
-    """
+    """Wrapper for AsyncConnection.command to trace command operations."""
     parsed = parse_socket_command_spec(args, kwargs)
     if parsed is None:
         return await func(*args, **kwargs)
 
     socket_instance, dbname, cmd, pin = parsed
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
-        # dispatch DBM
         s, args, kwargs = dbm_dispatch(s, args, kwargs)
         return await func(*args, **kwargs)
 
 
 async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
-    """
-    Wrapper for AsyncConnection.write_command to trace write command operations.
-
-    Uses parse_socket_write_command_msg to extract msg (args[2]).
-    Signature: write_command(self, request_id, msg, codec_options)
-    """
+    """Wrapper for AsyncConnection.write_command to trace write command operations."""
     parsed = parse_socket_write_command_msg(args, kwargs)
     if parsed is None:
         return await func(*args, **kwargs)
@@ -140,28 +115,36 @@ async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, 
         return result
 
 
+_ASYNC_MIN_VERSION = (4, 12)
+
+
+def _check_async_support():
+    """Check if async pymongo support is available."""
+    if VERSION < _ASYNC_MIN_VERSION:
+        log.warning("Async pymongo support requires pymongo >= %s", ".".join(map(str, _ASYNC_MIN_VERSION)))
+        return False
+    return True
+
+
 def patch_pymongo_async_modules():
     """Patch asynchronous pymongo modules."""
-    if VERSION < (4, 12):
-        log.warning("Async pymongo support requires pymongo >= 4.12")
+    if not _check_async_support():
         return
-    # All wrappers verified to match sync equivalents - see ASYNC_WRAPPER_REVIEW.md
     _w(AsyncMongoClient.__init__, trace_async_mongo_client_init)
     _w(AsyncTopology.select_server, trace_async_topology_select_server)
-    _w(AsyncServer.run_operation, trace_async_server_run_operation_and_with_response)
-    _w(AsyncServer.checkout, traced_async_get_socket)
+    _w(AsyncServer.run_operation, trace_async_server_run_operation)
+    _w(AsyncServer.checkout, trace_async_server_checkout)
     _w(AsyncConnection.command, trace_async_socket_command)
     _w(AsyncConnection.write_command, trace_async_socket_write_command)
 
 
 def unpatch_pymongo_async_modules():
     """Unpatch asynchronous pymongo modules."""
-    if VERSION < (4, 12):
-        log.warning("Async pymongo support requires pymongo >= 4.12")
+    if not _check_async_support():
         return
     _u(AsyncMongoClient.__init__, trace_async_mongo_client_init)
     _u(AsyncTopology.select_server, trace_async_topology_select_server)
-    _u(AsyncServer.run_operation, trace_async_server_run_operation_and_with_response)
-    _u(AsyncServer.checkout, traced_async_get_socket)
+    _u(AsyncServer.run_operation, trace_async_server_run_operation)
+    _u(AsyncServer.checkout, trace_async_server_checkout)
     _u(AsyncConnection.command, trace_async_socket_command)
     _u(AsyncConnection.write_command, trace_async_socket_write_command)

@@ -116,12 +116,8 @@ def setup_mongo_client_pin(client):
     def __getddpin__(client):
         return Pin.get_from(client._topology)
 
-    # Set a pin on the mongoclient pin on the topology object
-    # This allows us to pass the same pin to the server objects
     client.__setddpin__ = functools.partial(__setddpin__, client)
     client.__getddpin__ = functools.partial(__getddpin__, client)
-
-    # Set a pin on the traced mongo client
     Pin(service=None).onto(client)
 
 
@@ -134,14 +130,13 @@ def _trace_mongo_client_init(func, args, kwargs):
 def propagate_pin_to_server(server, topology_instance):
     """Propagate pin from topology to server. Shared between sync and async."""
     pin = Pin.get_from(topology_instance)
-    if pin is not None:
+    if pin:
         pin.onto(server)
 
 
 def _trace_topology_select_server(func, args, kwargs):
+    """Wrapper for Topology.select_server to propagate pin to selected server."""
     server = func(*args, **kwargs)
-    # Ensure the pin used on the traced mongo client is passed down to the topology instance
-    # This allows us to pass the same pin in traced server objects.
     topology_instance = get_argument_value(args, kwargs, 0, "self")
     propagate_pin_to_server(server, topology_instance)
     return server
@@ -249,7 +244,6 @@ def _trace_socket_command(func, args, kwargs):
 
     socket_instance, dbname, cmd, pin = parsed
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
-        # dispatch DBM
         s, args, kwargs = dbm_dispatch(s, args, kwargs)
         return func(*args, **kwargs)
 
@@ -301,11 +295,7 @@ def trace_cmd(cmd, socket_instance, address):
 
     s._set_tag_str(COMPONENT, config.pymongo.integration_name)
     s._set_tag_str(db.SYSTEM, mongox.SERVICE)
-
-    # set span.kind to the type of operation being performed
     s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-    # PERF: avoid setting via Span.set_tag
     s.set_metric(_SPAN_MEASURED_KEY, 1)
     if cmd.db:
         s._set_tag_str(mongox.DB, cmd.db)
@@ -314,7 +304,6 @@ def trace_cmd(cmd, socket_instance, address):
         s.set_tags(cmd.tags)
         s.set_metrics(cmd.metrics)
 
-    # set `mongodb.query` tag and resource for span
     set_query_metadata(s, cmd)
 
     if address:
