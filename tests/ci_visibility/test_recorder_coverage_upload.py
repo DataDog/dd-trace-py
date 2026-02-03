@@ -163,7 +163,7 @@ class TestCIVisibilityRecorderCoverageUpload:
         assert '"type": "coverage_report"' in encoded_str
         assert '"format": "lcov"' in encoded_str
         assert '"timestamp": 1234567890123' in encoded_str  # milliseconds
-        assert '"service": "test-service"' in encoded_str
+        assert '"service": "test-service"' not in encoded_str
         assert '"env": "test-env"' not in encoded_str
 
         # Git data
