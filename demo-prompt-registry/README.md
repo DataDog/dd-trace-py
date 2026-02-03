@@ -52,7 +52,7 @@ cd demo-prompt-registry
 |----------|---------|-------------|
 | `DD_API_KEY` | (from dd-auth) | Datadog API key |
 | `DD_LLMOBS_ML_APP` | varies by script | ML application name |
-| `DD_LLMOBS_PROMPTS_ENDPOINT` | `https://api.datad0g.com` | Override for local dev |
+| `DD_LLMOBS_PROMPTS_ENDPOINT` | `api.datad0g.com` | Override for local dev |
 
 ## Troubleshooting
 
