@@ -28,7 +28,6 @@
 #include <echion/errors.h>
 #include <echion/greenlets.h>
 #include <echion/interp.h>
-#include <echion/render.h>
 #include <echion/stacks.h>
 #include <echion/tasks.h>
 #include <echion/timing.h>

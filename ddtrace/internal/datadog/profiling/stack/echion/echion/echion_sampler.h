@@ -8,6 +8,8 @@
 #include <echion/strings.h>
 #include <echion/threads.h>
 
+#include "stack_renderer.hpp"
+
 class EchionSampler
 {
     // Thread Info map (Thread ID -> ThreadInfo)
@@ -36,9 +38,14 @@ class EchionSampler
     // Caches
     StringTable string_table_;
 
+    // Stack renderer for outputting samples
+    Datadog::StackRenderer renderer_;
+
   public:
     EchionSampler() = default;
     ~EchionSampler() = default;
+
+    Datadog::StackRenderer& renderer() { return renderer_; }
 
     std::unordered_map<uintptr_t, ThreadInfo::Ptr>& thread_info_map() { return thread_info_map_; }
     std::mutex& thread_info_map_lock() { return thread_info_map_lock_; }
