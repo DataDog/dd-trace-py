@@ -10,6 +10,16 @@
  * but we want to preserve any existing error state. The error state is
  * automatically restored when the object goes out of scope.
  *
+ * Common Python C API functions used with this guard that can set errors:
+ * - Frame operations: PyFrame_GetBack() (can set spurious TypeError in Python 3.14+),
+ *   PyFrame_GetCode(), PyFrame_GetLineNumber()
+ * - Object operations: PyObject_CallObject() (TypeError for bad args, or exceptions from callable),
+ *   PyObject_GetAttrString() (AttributeError for missing attributes, or exceptions from getters)
+ * - Unicode operations: PyUnicode_AsUTF8AndSize() (TypeError for non-Unicode objects,
+ *   or errors during UTF-8 conversion)
+ * - Numeric operations: PyLong_AsLongLong() (OverflowError, ValueError, TypeError)
+ * - Reference counting: Py_XDECREF()/Py_DECREF() (can trigger exceptions from custom __del__ methods)
+ *
  * Example usage:
  *   {
  *       PythonErrorRestorer error_restorer;
