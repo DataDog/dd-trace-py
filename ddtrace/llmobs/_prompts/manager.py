@@ -4,6 +4,7 @@ import threading
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import Union
 from urllib.parse import urlencode
 
 from ddtrace.internal.logger import get_logger
@@ -44,7 +45,7 @@ class PromptManager:
         self._headers: Dict[str, str] = {"DD-API-KEY": api_key, "Content-Type": "application/json"}
 
         self._hot_cache = HotCache(max_size=cache_max_size, ttl_seconds=cache_ttl)
-        self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir)
+        self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
 
         self._refresh_threads: Dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
@@ -60,21 +61,14 @@ class PromptManager:
         key = self._cache_key(prompt_id, label)
 
         # Try hot cache (in-memory)
-        result = self._hot_cache.get(key)
-        if result is not None:
-            cached_prompt, is_stale = result
-            if is_stale:
-                self._trigger_background_refresh(key, prompt_id, label)
-            telemetry.record_prompt_source("hot_cache", prompt_id)
-            return cached_prompt
+        prompt = self._try_cache(self._hot_cache, key, prompt_id, label, "hot_cache")
+        if prompt is not None:
+            return prompt
 
         # Try warm cache (file-based)
-        warm_prompt = self._warm_cache.get(key)
-        if warm_prompt is not None:
-            self._hot_cache.set(key, warm_prompt)
-            self._trigger_background_refresh(key, prompt_id, label)
-            telemetry.record_prompt_source("warm_cache", prompt_id)
-            return warm_prompt
+        prompt = self._try_cache(self._warm_cache, key, prompt_id, label, "warm_cache", populate_hot=True)
+        if prompt is not None:
+            return prompt
 
         # Try sync fetch from registry
         fetched_prompt = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
@@ -85,6 +79,27 @@ class PromptManager:
         # Fall back to user-provided or empty prompt
         telemetry.record_prompt_source("fallback", prompt_id)
         return self._create_fallback_prompt(prompt_id, fallback)
+
+    def _try_cache(
+        self,
+        cache: Union[HotCache, WarmCache],
+        key: str,
+        prompt_id: str,
+        label: Optional[str],
+        source_name: str,
+        populate_hot: bool = False,
+    ) -> Optional[ManagedPrompt]:
+        """Try to get prompt from cache, trigger refresh if stale."""
+        result = cache.get(key)
+        if result is None:
+            return None
+        prompt, is_stale = result
+        if populate_hot:
+            self._hot_cache.set(key, prompt)
+        if is_stale:
+            self._trigger_background_refresh(key, prompt_id, label)
+        telemetry.record_prompt_source(source_name, prompt_id)
+        return prompt
 
     def clear_cache(self, hot: bool = True, warm: bool = True) -> None:
         """Clear the prompt cache."""
