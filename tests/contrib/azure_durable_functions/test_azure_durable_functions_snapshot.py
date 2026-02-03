@@ -1,41 +1,159 @@
+import os
+import signal
+import subprocess
+import time
+
 import pytest
 
+from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER
 from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_TRIGGER_DEFS
 from ddtrace.contrib.internal.azure_durable_functions.patch import _wrap_durable_trigger
+from ddtrace.contrib.internal.trace_utils import int_service
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
+from ddtrace.internal.schema import schematize_cloud_faas_operation
+from tests.utils import TracerSpanContainer
+from tests.utils import scoped_tracer
+from tests.webclient import Client
 
 
-SNAPSHOT_IGNORES = [
-    "duration",
-    "start",
-    "error",
-    "service",
-    "meta._dd.p.dm",
-    "meta._dd.p.tid",
-    "meta._dd.base_service",
-    "meta.runtime-id",
-    "metrics.process_id",
-]
+DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
+SNAPSHOT_IGNORES = ["meta.http.url", "meta.test.deployment_verification"]
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.fixture
+def azure_functions_client(request):
+    env_vars = getattr(request, "param", {})
+
+    # Copy the env to get the correct PYTHONPATH and such
+    # from the virtualenv.
+    env = os.environ.copy()
+    env.update(env_vars)
+
+    port = 7072
+    env["AZURE_FUNCTIONS_TEST_PORT"] = str(port)
+    env["DD_TRACE_STATS_COMPUTATION_ENABLED"] = "False"  # disable stats computation to avoid potential flakes in tests
+
+    # webservers might exec or fork into another process, so we need to os.setsid() to create a process group
+    # (all of which will listen to signals sent to the parent) so that we can kill the whole application.
+    proc = subprocess.Popen(
+        ["func", "start", "--port", str(port)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+        env=env,
+        preexec_fn=os.setsid,
+        cwd=os.path.join(os.path.dirname(__file__), "azure_function_app"),
+    )
+    try:
+        client = Client(f"http://0.0.0.0:{port}")
+        # Wait for the server to start up
+        try:
+            client.wait(delay=0.5)
+            yield client
+            client.get_ignored("/shutdown")
+        except Exception:
+            pass
+        # At this point the traces have been sent to the test agent
+        # but the test agent hasn't necessarily finished processing
+        # the traces (race condition) so wait just a bit for that
+        # processing to complete.
+        time.sleep(1)
+    finally:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+
+
+def _wait_for_durable_completion(client: Client, response) -> None:
+    if response.status_code == 200:
+        return
+
+    assert response.status_code == 202
+    payload = response.json()
+    status_url = payload.get("statusQueryGetUri")
+    assert status_url
+
+    for _ in range(20):
+        status_response = client.get(status_url, timeout=5)
+        if status_response.status_code == 200:
+            status_payload = status_response.json()
+            if status_payload.get("runtimeStatus") == "Completed":
+                return
+        time.sleep(0.5)
+
+    pytest.fail("Durable orchestration did not complete before timeout")
+
+
 def test_activity_trigger():
-    def activity():
-        return "ok"
+    with scoped_tracer() as tracer:
+        pin = Pin()
+        pin._tracer = tracer
 
-    trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ACTIVITY_TRIGGER]
-    wrapped = _wrap_durable_trigger(Pin(), activity, "sample_activity", trigger_name, context_name)
-    assert wrapped() == "ok"
+        def activity():
+            return "ok"
+
+        trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ACTIVITY_TRIGGER]
+        wrapped = _wrap_durable_trigger(pin, activity, "sample_activity", trigger_name, context_name)
+        assert wrapped() == "ok"
+
+        spans = TracerSpanContainer(tracer).pop()
+        assert len(spans) == 1
+        span = spans[0]
+
+        expected_name = schematize_cloud_faas_operation(
+            "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
+        )
+        assert span.name == expected_name
+        assert span.service == int_service(pin, config.azure_functions)
+        assert span.resource == "Activity sample_activity"
+        assert span.span_type == SpanTypes.SERVERLESS
+        assert span.get_tag("aas.function.name") == "sample_activity"
+        assert span.get_tag("aas.function.trigger") == "Activity"
+        assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
+
+
+def test_entity_trigger():
+    with scoped_tracer() as tracer:
+        pin = Pin()
+        pin._tracer = tracer
+
+        def entity():
+            return "ok"
+
+        trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ENTITY_TRIGGER]
+        wrapped = _wrap_durable_trigger(pin, entity, "sample_entity", trigger_name, context_name)
+        assert wrapped() == "ok"
+
+        spans = TracerSpanContainer(tracer).pop()
+        assert len(spans) == 1
+        span = spans[0]
+
+        expected_name = schematize_cloud_faas_operation(
+            "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
+        )
+        assert span.name == expected_name
+        assert span.service == int_service(pin, config.azure_functions)
+        assert span.resource == "Entity sample_entity"
+        assert span.span_type == SpanTypes.SERVERLESS
+        assert span.get_tag("aas.function.name") == "sample_entity"
+        assert span.get_tag("aas.function.trigger") == "Entity"
+        assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_entity_trigger():
-    def entity():
-        return "ok"
+def test_activity_trigger_end_to_end(azure_functions_client: Client) -> None:
+    response = azure_functions_client.get("/api/startactivity", headers=DEFAULT_HEADERS)
+    _wait_for_durable_completion(azure_functions_client, response)
+    assert response.status_code in (200, 202)
 
-    trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ENTITY_TRIGGER]
-    wrapped = _wrap_durable_trigger(Pin(), entity, "sample_entity", trigger_name, context_name)
-    assert wrapped() == "ok"
+
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_entity_trigger_end_to_end(azure_functions_client: Client) -> None:
+    response = azure_functions_client.get("/api/startentity", headers=DEFAULT_HEADERS)
+    _wait_for_durable_completion(azure_functions_client, response)
+    assert response.status_code in (200, 202)
