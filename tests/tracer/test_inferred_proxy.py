@@ -33,7 +33,7 @@ def test_create_inferred_proxy_span_for_apigateway(
     if not missing_resource_path:
         headers["x-dd-proxy-resource-path"] = "/{Path}"
 
-    create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of=None)
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
 
     span: Span = ctx.get_item("inferred_proxy_span")
     assert span is not None

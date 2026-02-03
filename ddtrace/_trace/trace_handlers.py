@@ -272,7 +272,7 @@ def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
 
     # Inferred Proxy Spans
     if integration_config and headers is not None:
-        create_inferred_proxy_span_if_headers_exist(ctx, headers=headers, child_of=tracer.current_trace_context())
+        create_inferred_proxy_span_if_headers_exist(ctx, headers=headers)
         inferred_proxy_span = ctx.get_item("inferred_proxy_span")
 
         # use the inferred proxy span as the new parent span

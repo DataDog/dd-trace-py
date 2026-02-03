@@ -77,7 +77,7 @@ POSSIBLE_PROXY_HEADER_USER = _possible_header("x-dd-proxy-user")
 HEADER_USERAGENT = _possible_header("user-agent")
 
 
-def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of) -> None:
+def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
     if not headers:
         return None
 
@@ -94,13 +94,13 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of) -> None:
     route_or_path = proxy_context.resource_path or proxy_context.path
     resource = f"{method or ''} {route_or_path or ''}"
 
-    span = tracer.start_span(
+    span = tracer._start_span(
         proxy_info.span_name,
         service=proxy_context.domain_name or config._get_service(),
         resource=resource,
         span_type=SpanTypes.WEB,
         activate=True,
-        child_of=child_of,
+        child_of=tracer.current_trace_context(),
     )
     span.start_ns = int(proxy_context.request_time) * 1000000
 
