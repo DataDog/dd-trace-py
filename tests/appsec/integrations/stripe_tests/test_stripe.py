@@ -151,7 +151,6 @@ def test_stripe_checkout_session_create(
         "appsec.events.payments.create.id": session.id,
         "appsec.events.payments.create.currency": session.currency,
         "appsec.events.payments.create.client_reference_id": "order_123",
-        "appsec.events.payments.create.customer_email": "customer@example.com",
     }
 
     for tag, expected_value in expected_tags.items():
@@ -282,7 +281,6 @@ def test_stripe_payment_intent_create(
         "appsec.events.payments.create.id": session.id,
         "appsec.events.payments.create.currency": session.currency,
         "appsec.events.payments.create.payment_method": stripe_payment_method.id,
-        "appsec.events.payments.create.receipt_email": "customer@example.com",
     }
 
     for tag, expected_value in expected_tags.items():
@@ -340,9 +338,6 @@ def include_webhook(path: str) -> Dict[str, Any]:
                 "appsec.events.payments.failure.last_payment_error.payment_method.id": (
                     payment_intent["last_payment_error"]["payment_method"]["id"]
                 ),
-                "appsec.events.payments.failure.last_payment_error.payment_method.billing_details.email": (
-                    payment_intent["last_payment_error"]["payment_method"]["billing_details"]["email"]
-                ),
                 "appsec.events.payments.failure.last_payment_error.payment_method.type": (
                     payment_intent["last_payment_error"]["payment_method"]["type"]
                 ),
@@ -359,7 +354,6 @@ def include_webhook(path: str) -> Dict[str, Any]:
                 "appsec.events.payments.cancellation.id": payment_intent["id"],
                 "appsec.events.payments.cancellation.currency": payment_intent["currency"],
                 "appsec.events.payments.cancellation.cancellation_reason": payment_intent["cancellation_reason"],
-                "appsec.events.payments.cancellation.receipt_email": payment_intent["receipt_email"],
             },
             lambda payment_intent: {
                 "appsec.events.payments.cancellation.amount": payment_intent["amount"],

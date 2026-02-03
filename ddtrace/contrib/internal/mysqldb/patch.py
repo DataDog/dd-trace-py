@@ -22,6 +22,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import tracer
 
 
 config._add(
@@ -99,7 +100,7 @@ def _connect(func, instance, args, kwargs):
     if not pin or not pin.enabled() or not config.mysqldb.trace_connect:
         conn = func(*args, **kwargs)
     else:
-        with pin.tracer.trace(
+        with tracer.trace(
             "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
         ) as span:
             span._set_tag_str(COMPONENT, config.mysqldb.integration_name)

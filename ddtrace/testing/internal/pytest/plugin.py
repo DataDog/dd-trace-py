@@ -7,6 +7,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import tempfile
 import traceback
 import typing as t
 
@@ -14,6 +15,13 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
+from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
+from ddtrace.contrib.internal.coverage.patch import is_coverage_running
+from ddtrace.contrib.internal.coverage.patch import set_coverage_instance
+from ddtrace.contrib.internal.coverage.patch import stop_coverage
+from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
+from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
@@ -57,7 +65,12 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 SKIPPED_BY_ITR_REASON = "Skipped by Datadog Intelligent Test Runner"
 ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
-SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+try:
+    SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+except AttributeError:
+    # Fallback for pytest < 7.0 - use a simple key
+    # (older pytest versions don't have StashKey)
+    SESSION_MANAGER_STASH_KEY = "session_manager_key"
 
 TEST_FRAMEWORK = "pytest"
 
@@ -113,6 +126,74 @@ def _get_module_path_from_item(item: pytest.Item) -> Path:
         return Path(item.module.__file__).absolute().parent
     except Exception:  # noqa: E722
         return Path.cwd()
+
+
+def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path) -> Path:
+    """Get module path from pytest item, converted to relative path."""
+    abs_path = _get_module_path_from_item(item)
+
+    try:
+        return abs_path.relative_to(workspace_path)
+    except ValueError:
+        # If not within workspace, return as-is (fallback)
+        return abs_path
+
+
+def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[t.Optional[str], int, int]:
+    """
+    Extract test location information (file path, start line, end line) from a pytest item.
+
+    Returns:
+        Tuple of (relative_path, start_line, end_line)
+        - relative_path: path relative to workspace, or None on failure
+        - start_line: starting line number, or 0 if unavailable
+        - end_line: ending line number, or 0 if unavailable
+    """
+    try:
+        # Get absolute path from item
+        item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "unknown")).absolute()
+        relative_path = str(item_path.relative_to(workspace_path))
+
+        # Try to get precise source line information
+        start_line, end_line = _get_source_lines(item, item_path)
+
+        return relative_path, start_line, end_line
+
+    except (ValueError, OSError, Exception):
+        # Fallback to pytest's reportinfo
+        try:
+            path, start_line, _test_name = item.reportinfo()
+            return path, start_line or 0, 0
+        except Exception:
+            return None, 0, 0
+
+
+def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[int, int]:
+    """
+    Get start and end line numbers for a test item.
+
+    Returns:
+        Tuple of (start_line, end_line), with 0 indicating unavailable information
+    """
+    if not hasattr(item, "_obj"):
+        # No test object available, fallback to reportinfo
+        try:
+            return item.reportinfo()[1] or 0, 0
+        except Exception:
+            return 0, 0
+
+    try:
+        # Get undecorated test object and extract source lines
+        test_method_object = undecorated(item._obj, item.name, item_path)
+        source_lines = get_source_lines_for_test_method(test_method_object)
+        # Convert None to 0 (our plugin uses 0 as sentinel, but shared util uses None)
+        return source_lines[0] or 0, source_lines[1] or 0
+    except Exception:
+        # Fallback to reportinfo
+        try:
+            return item.reportinfo()[1] or 0, 0
+        except Exception:
+            return 0, 0
 
 
 class TestPhase:
@@ -191,10 +272,76 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
+        # If coverage report upload is enabled, generate and upload the report
+        if self.manager.settings.coverage_report_upload_enabled:
+            # If pytest-cov is enabled but coverage detection fails, register the pytest-cov instance
+            if _is_pytest_cov_enabled(session.config) and not is_coverage_running():
+                # Try to get coverage from pytest-cov plugin and register it
+                for plugin in session.config.pluginmanager.list_name_plugin():
+                    _, plugin_instance = plugin
+                    if hasattr(plugin_instance, "cov_controller") and plugin_instance.cov_controller:
+                        set_coverage_instance(plugin_instance.cov_controller.cov)
+                        log.debug("Registered pytest-cov coverage instance with ddtrace")
+                        break
+
+            # Now check if coverage is available (either ddtrace started or pytest-cov registered)
+            if is_coverage_running():
+                try:
+                    coverage_format = "lcov"  # Default to LCOV
+
+                    # Generate the report in a temporary file
+                    with tempfile.NamedTemporaryFile(mode="wb", suffix=".lcov", delete=False) as tmp_file:
+                        tmp_path = Path(tmp_file.name)
+
+                    # Generate LCOV report. This returns the percentage and also stores it
+                    # in _coverage_data, so we don't need to generate a second report just for the percentage.
+                    pct_covered = generate_lcov_report(outfile=str(tmp_path))
+                    log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
+
+                    # Read the report file
+                    coverage_report_bytes = tmp_path.read_bytes()
+                    log.debug("Read coverage report: %d bytes", len(coverage_report_bytes))
+
+                    # Upload the report (tags are populated from env_tags in the API client)
+                    upload_success = self.manager.upload_coverage_report(
+                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
+                    )
+
+                    if upload_success:
+                        log.debug("Successfully uploaded coverage report")
+                    else:
+                        log.debug("Failed to upload coverage report")
+
+                    # Clean up temporary file
+                    try:
+                        tmp_path.unlink()
+                    except Exception:
+                        log.debug("Could not delete temporary coverage report file: %s", tmp_path)
+
+                    # Stop coverage AFTER generating and uploading the report
+                    # (if we started it ourselves)
+                    if not _is_pytest_cov_enabled(session.config):
+                        log.debug("Stopping coverage.py collection")
+                        stop_coverage(save=True)
+
+                except Exception as e:
+                    log.debug("Error generating or uploading coverage report: %s", e)
+                    # Still try to stop coverage even if report generation failed
+                    if not _is_pytest_cov_enabled(session.config):
+                        try:
+                            stop_coverage(save=True)
+                        except Exception:
+                            log.debug("Could not stop coverage after error", exc_info=True)
+            else:
+                log.debug("Coverage instance not available for report generation")
+
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
             self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
             uninstall_coverage_percentage()
+
+            # Clean up external coverage instance registration
+            clear_coverage_instance()
 
         self.session.finish()
 
@@ -230,21 +377,32 @@ class TestOptPlugin:
         """
 
         def _on_new_module(module: TestModule) -> None:
-            module.set_location(module_path=_get_module_path_from_item(item))
+            module.set_location(module_path=_get_relative_module_path_from_item(item, self.manager.workspace_path))
 
         def _on_new_suite(suite: TestSuite) -> None:
             pass
 
         def _on_new_test(test: Test) -> None:
-            path, start_line, _test_name = item.reportinfo()
-            test.set_location(path=path, start_line=start_line or 0)
+            """Initialize test with location, parameters, and custom attributes."""
+            # Get test location information (path and line numbers)
+            relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
+            # Set test location (use "unknown" path if none found, 0 is default for missing line info)
+            test.set_location(path=relative_path or "unknown", start_line=start_line)
+
+            # Add end line as a tag if available
+            if end_line:
+                test.tags[TestTag.SOURCE_END] = str(end_line)
+
+            # Set test parameters if available
             if parameters := _get_test_parameters_json(item):
                 test.set_parameters(parameters)
 
+            # Mark test as unskippable if needed
             if _is_test_unskippable(item):
                 test.mark_unskippable()
 
+            # Add custom tags if available
             if custom_tags := _get_test_custom_tags(item):
                 test.set_tags(custom_tags)
 
@@ -855,7 +1013,14 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    if session_manager.settings.coverage_enabled:
+    # AIDEV-NOTE: Coverage collection decision tree:
+    # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
+    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
+    # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
+    # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
+    # when we know if pytest-cov is available.
+    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
+        # Only use our own coverage collector if report upload is not enabled
         setup_coverage_collection()
 
     yield
@@ -898,8 +1063,20 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
-    if _is_pytest_cov_enabled(config):
-        install_coverage_percentage()
+    # AIDEV-NOTE: Coverage.py integration when report upload is enabled
+    # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
+    if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
+        # Start coverage.py ourselves for report generation
+        from ddtrace.contrib.internal.coverage.patch import start_coverage
+
+        workspace_path = get_workspace_path()
+        start_coverage(source=[str(workspace_path)])
+        log.debug("Started coverage.py collection for report upload (pytest-cov not enabled)")
+
+    # Patch coverage.py to capture percentage if it's available and (enabled OR needed for report upload)
+    if _is_pytest_cov_available(config):
+        if _is_pytest_cov_enabled(config) or session_manager.settings.coverage_report_upload_enabled:
+            install_coverage_percentage()
 
 
 def _get_test_command(config: pytest.Config) -> str:
@@ -995,8 +1172,14 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
     return tags
 
 
+def _is_pytest_cov_available(config) -> bool:
+    """Check if pytest-cov plugin is available (installed)."""
+    return config.pluginmanager.get_plugin("pytest_cov") is not None
+
+
 def _is_pytest_cov_enabled(config) -> bool:
-    if not config.pluginmanager.get_plugin("pytest_cov"):
+    """Check if pytest-cov plugin is both available and enabled via command-line options."""
+    if not _is_pytest_cov_available(config):
         return False
     cov_option = config.getoption("--cov", default=False)
     nocov_option = config.getoption("--no-cov", default=False)

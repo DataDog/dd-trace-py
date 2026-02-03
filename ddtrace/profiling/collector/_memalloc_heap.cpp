@@ -119,11 +119,20 @@ class heap_tracker_t
     static heap_tracker_t* instance;
 
     /* Traceback pool operations */
-    std::unique_ptr<traceback_t> pool_get_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe);
+    std::unique_ptr<traceback_t> pool_get_with_alloc_data_invokes_cpython(size_t size,
+                                                                          size_t weighted_size,
+                                                                          uint16_t max_nframe);
     void pool_put_no_cpython(std::unique_ptr<traceback_t> tb);
+
+    /* Reset the heap tracker state after fork in child process */
+    void postfork_child();
 
   private:
     static uint32_t next_sample_size_no_cpython(uint32_t sample_size);
+
+    /* This function is called from heap_tracker_t::postfork_child() as part of
+       the fork handler to reset the sampling state. */
+    void reset_sampling_state_no_cpython();
 
     /* Heap profiler sampling interval */
     uint64_t sample_size;
@@ -146,14 +155,14 @@ class heap_tracker_t
 // Pool implementation
 // _invokes_cpython suffix: calls traceback_t::reset() and constructor which invoke CPython APIs
 std::unique_ptr<traceback_t>
-heap_tracker_t::pool_get_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
+heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     /* Try to get a traceback from the pool */
     if (!pool.empty()) {
         auto tb = std::move(pool.back());
         pool.pop_back();
-        /* Reset it with the new allocation data */
-        tb->reset_invokes_cpython(size, weighted_size);
+        /* Initialize it with the new allocation data */
+        tb->init_sample_invokes_cpython(size, weighted_size);
         return tb;
     }
 
@@ -167,6 +176,9 @@ heap_tracker_t::pool_put_no_cpython(std::unique_ptr<traceback_t> tb)
     if (!tb) {
         return;
     }
+
+    /* Clear buffers before returning to pool to prevent memory leaks */
+    tb->sample.clear_buffers();
 
     /* Try to return the traceback to the pool */
     if (pool.size() < POOL_CAPACITY) {
@@ -186,8 +198,15 @@ heap_tracker_t::next_sample_size_no_cpython(uint32_t sample_size)
        the distribution we want to sample.
        See https://en.wikipedia.org/wiki/Inverse_transform_sampling. */
     /* Get a value between [0, 1[ */
+    /* TODO: change to use a fork safe alternative instead of rand(), as rand()
+       internally uses a lock and may cause deadlock after fork in child
+       processes. Deferring this to a follow up, as we're not making the
+       situation worse. */
     double q = (double)rand() / ((double)RAND_MAX + 1);
     /* Get a value between ]-inf, 0[, more likely close to 0 */
+    /* NOTE: technically log2 is not async signal safe per Linux man page,
+       but it doesn't seem to use locks internally. So we assume it's safe to
+       call it from heap_tracker_t::postfork_child() */
     double log_val = log2(q);
     return (uint32_t)(log_val * (-log(2) * (sample_size + 1)));
 }
@@ -207,18 +226,9 @@ heap_tracker_t::untrack_no_cpython(void* ptr)
     memalloc_gil_debug_guard_t guard(gil_guard);
 
     auto node = allocs_m.extract(ptr);
-    if (node.empty()) {
-        return;
+    if (!node.empty()) {
+        pool_put_no_cpython(std::move(node.mapped()));
     }
-
-    std::unique_ptr<traceback_t> tb = std::move(node.mapped());
-    if (tb && !tb->reported) {
-        /* If the sample hasn't been reported yet, set heap size to zero and export it */
-        tb->sample.reset_heap();
-        tb->sample.export_sample();
-        tb->reported = true;
-    }
-    pool_put_no_cpython(std::move(tb));
 }
 
 bool
@@ -257,8 +267,7 @@ heap_tracker_t::add_sample_no_cpython(void* ptr, std::unique_ptr<traceback_t> tb
     assert(inserted && "add_sample: found existing entry for key that should have been removed");
 
     // Get ready for the next sample
-    allocated_memory = 0;
-    current_sample_size = next_sample_size_no_cpython(sample_size);
+    reset_sampling_state_no_cpython();
 }
 
 void
@@ -266,14 +275,40 @@ heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
-    /* Iterate over live samples and mark them as reported */
+    /* Iterate over live samples and export them */
     for (const auto& [ptr, tb] : allocs_m) {
-        if (tb->reported) {
-            tb->sample.reset_alloc();
-        }
+        (void)ptr; // Suppress unused variable warning
         tb->sample.export_sample();
-        tb->reported = true;
     }
+}
+
+void
+heap_tracker_t::reset_sampling_state_no_cpython()
+{
+    allocated_memory = 0;
+    current_sample_size = next_sample_size_no_cpython(sample_size);
+}
+
+void
+heap_tracker_t::postfork_child()
+{
+    // As we're in the child process after fork, we want to make sure that the
+    // heap tracker state is consistent before running any Python code. If not,
+    // we may end up triggering memory profiler code with an inconsistent state,
+    // leading to undefined behaviors and/or crashes, ref: incident-48649.
+    // To avoid this, we clear the heap tracker state here.
+
+    // Sample pool contains traceback_t objects, which reference the global
+    // Profile state. Global Profile state is reset after fork in
+    // Profile::postfork_child()
+    pool.clear();
+
+    // Allocations map may contain data from the parent process, and also
+    // traceback_t objects may reference invalid Profile state.
+    allocs_m.clear();
+
+    // Reset the sampling state to start fresh after fork.
+    reset_sampling_state_no_cpython();
 }
 
 // Static member definition
@@ -364,7 +399,17 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    auto tb = heap_tracker_t::instance->pool_get_invokes_cpython(size, allocated_memory_val, max_nframe);
+    auto tb =
+      heap_tracker_t::instance->pool_get_with_alloc_data_invokes_cpython(size, allocated_memory_val, max_nframe);
+
+    // Export allocation sample right away to avoid holding it
+    tb->sample.export_sample();
+    // Reset the allocation data, keep heap data for tracking
+    tb->sample.reset_alloc();
+    // pool_get_with_alloc_data_invokes_cpython() creates sample with allocation data only (no heap data)
+    // to avoid double-pushing allocation data, we manually push heap data here
+    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
+    tb->sample.push_heap(size);
 
     // Check that instance is still valid after GIL release in constructor
     if (heap_tracker_t::instance) {
@@ -378,5 +423,13 @@ memalloc_heap_no_cpython(void)
 {
     if (heap_tracker_t::instance) {
         heap_tracker_t::instance->export_heap_no_cpython();
+    }
+}
+
+void
+memalloc_heap_postfork_child(void)
+{
+    if (heap_tracker_t::instance) {
+        heap_tracker_t::instance->postfork_child();
     }
 }

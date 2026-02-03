@@ -165,7 +165,7 @@ class DatadogSampler:
             # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
             sample_rate = matched_rule.sample_rate
-        else:
+        elif not self._rate_limit_always_on:
             key = self._key(span.service, span.get_tag(ENV_KEY))
             if key in self._agent_based_samplers:
                 # Agent service based sampling
