@@ -101,6 +101,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "azure_cosmos": True,
     "azure_eventhubs": True,
     "azure_functions": True,
     "azure_servicebus": True,
@@ -158,6 +159,7 @@ _MODULES_FOR_CONTRIB = {
     "futures": ("concurrent.futures.thread",),
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
+    "azure_cosmos": ("azure.cosmos",),
     "azure_eventhubs": ("azure.eventhub",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
