@@ -27,12 +27,9 @@ import asyncio
 import threading
 from typing import Callable
 from typing import List
-from typing import Optional
-from typing import Protocol
 from typing import Set
 from typing import Tuple
 from typing import Type
-from typing import runtime_checkable
 
 import pytest
 
@@ -48,33 +45,6 @@ from ddtrace.profiling.collector.threading import ThreadingLockCollector
 from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 from tests.profiling.collector.test_utils import init_ddup
-
-
-# =============================================================================
-# Protocol Definitions
-# =============================================================================
-
-
-@runtime_checkable
-class ContextManagerProtocol(Protocol):
-    """Context manager protocol for synchronous locks."""
-
-    def __enter__(self) -> bool: ...
-
-    def __exit__(
-        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: object
-    ) -> Optional[bool]: ...
-
-
-@runtime_checkable
-class AsyncContextManagerProtocol(Protocol):
-    """Async context manager protocol for asyncio locks."""
-
-    async def __aenter__(self) -> None: ...
-
-    async def __aexit__(
-        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: object
-    ) -> None: ...
 
 
 # =============================================================================
@@ -289,9 +259,6 @@ class TestWrapperInterfaceCompleteness:
             # Must have __enter__ and __exit__
             assert hasattr(lock, "__enter__"), f"{name} missing __enter__"
             assert hasattr(lock, "__exit__"), f"{name} missing __exit__"
-
-            # Verify protocol compliance
-            assert isinstance(lock, ContextManagerProtocol), f"{name} doesn't satisfy ContextManagerProtocol"
 
 
 # =============================================================================
