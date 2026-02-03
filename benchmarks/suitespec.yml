@@ -103,30 +103,35 @@ suites:
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   tracer:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   core_api:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   set_http_meta:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   telemetry_add_metric:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   otel_span:
     paths:
       - '@bootstrap'
@@ -134,6 +139,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - '@opentelemetry'
+    cpus_per_run: 1
   otel_sdk_span:
     paths:
       - '@bootstrap'
@@ -141,71 +147,84 @@ suites:
       - '@tracing'
       - '@vendor'
       - '@opentelemetry'
+    cpus_per_run: 1
   recursive_computation:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   sampling_rule_matches:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   http_propagation_extract:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   http_propagation_inject:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   rate_limiter:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@vendor'
+    cpus_per_run: 1
   appsec_iast_aspects:
     paths:
       - '@bootstrap'
       - '@core'
       - '@vendor'
+    cpus_per_run: 1
   appsec_iast_aspects_ospath:
     paths:
       - '@bootstrap'
       - '@core'
       - '@vendor'
       - '@appsec_iast'
+    cpus_per_run: 1
   appsec_iast_aspects_re_module:
     paths:
       - '@bootstrap'
       - '@core'
       - '@vendor'
       - '@appsec_iast'
+    cpus_per_run: 1
   appsec_iast_aspects_split:
     paths:
       - '@bootstrap'
       - '@core'
       - '@vendor'
       - '@appsec_iast'
+    cpus_per_run: 1
   appsec_iast_propagation:
     paths:
       - '@bootstrap'
       - '@core'
       - '@vendor'
       - '@appsec_iast'
+    cpus_per_run: 1
   packages_package_for_root_module_mapping:
     paths:
       - '@core'
+    cpus_per_run: 1
   packages_update_imported_dependencies:
     paths:
       - '@core'
+    cpus_per_run: 1
   django_simple:
     paths:
       - '@bootstrap'
@@ -213,6 +232,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - '@django'
+    cpus_per_run: 2
   flask_simple:
     paths:
       - '@bootstrap'
@@ -220,6 +240,7 @@ suites:
       - '@core'
       - '@vendor'
       - '@flask'
+    cpus_per_run: 2
   flask_sqli:
     paths:
       - '@bootstrap'
@@ -227,6 +248,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - '@flask'
+    cpus_per_run: 2
   errortracking_django_simple:
     paths:
       - '@bootstrap'
@@ -234,6 +256,7 @@ suites:
       - '@vendor'
       - '@tracing'
       - '@django'
+    cpus_per_run: 2
   errortracking_flask_sqli:
     paths:
       - '@bootstrap'
@@ -241,6 +264,7 @@ suites:
       - '@vendor'
       - '@tracing'
       - '@flask'
+    cpus_per_run: 2
   startup:
     paths:
       - '@bootstrap'
@@ -249,3 +273,4 @@ suites:
       - '@tracing'
       - '@flask'
       - '@django'
+    cpus_per_run: 2
