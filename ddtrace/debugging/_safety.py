@@ -16,11 +16,10 @@ GetSetDescriptor = type(type.__dict__["__dict__"])  # type: ignore[index]  # noq
 
 def get_args(frame: FrameType) -> Iterator[Tuple[str, Any]]:
     code = frame.f_code
+    _locals = frame.f_locals
     nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
     arg_names = code.co_varnames[:nargs]
-    arg_values = (frame.f_locals[name] for name in arg_names)
-
-    return zip(arg_names, arg_values)
+    return ((name, _locals.get(name)) for name in arg_names)
 
 
 def get_locals(frame: FrameType) -> Iterator[Tuple[str, Any]]:
