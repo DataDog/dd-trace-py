@@ -207,7 +207,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   aiohttp:
-    parallelism: 3
+    parallelism: 5
     paths:
       - '@bootstrap'
       - '@core'
@@ -242,7 +242,7 @@ suites:
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
-    parallelism: 2
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -580,7 +580,7 @@ suites:
     runner: riot
     snapshot: true
   django:djangorestframework:
-    parallelism: 2
+    parallelism: 4
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -839,7 +839,7 @@ suites:
       - rabbitmq
     snapshot: true
   logbook:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@core'
       - '@contrib'
@@ -849,7 +849,7 @@ suites:
     runner: riot
     snapshot: true
   loguru:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@core'
       - '@contrib'
@@ -859,7 +859,7 @@ suites:
     runner: riot
     snapshot: true
   mako:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -885,7 +885,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
   molten:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -965,7 +965,7 @@ suites:
       - memcached
     snapshot: true
   pymemcache:
-    parallelism: 2
+    parallelism: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -1042,7 +1042,7 @@ suites:
     runner: riot
     snapshot: true
   ray:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1196,7 +1196,7 @@ suites:
     runner: riot
     snapshot: true
   structlog:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@core'
       - '@contrib'
@@ -1240,7 +1240,7 @@ suites:
     runner: riot
     snapshot: true
   urllib3:
-    parallelism: 1
+    parallelism: 2
     env:
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
