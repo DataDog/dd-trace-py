@@ -226,8 +226,8 @@ download_dependency_wheels:
     .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}"
     .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}"
 
-    # Upload to branch path (only for main/release branches)
-    if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+    # Upload to branch path (all branches)
+    if [ -n "${CI_COMMIT_BRANCH:-}" ]; then
       .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}"
     fi
 
