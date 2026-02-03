@@ -34,25 +34,28 @@ class KafkaMessagingProduceEvent(MessagingProduceEvent):
         topic,
         bootstrap_servers,
         messaging_system,
-        cluster_id,
         message_key,
         value,
         partition,
         tombstone,
         headers,
+        cluster_id = None,
         tags=None,
     ):
+        print(f"HERE - Creating event, event_name will be: {cls.event_name}")
         event_data = super().__new__(cls, config, operation, provider, tags)
+        print(f"Event data created: {event_data.get('event_name')}")
 
         instance_tags = {
             TOPIC: topic,
             MESSAGING_SYSTEM: messaging_system,
             HOST_LIST: bootstrap_servers,
-            CLUSTER_ID: cluster_id,
             MESSAGE_KEY: message_key,
             PARTITION: partition,
             TOMBSTONE: tombstone,
         }
+        if cluster_id:
+            instance_tags[CLUSTER_ID] = cluster_id
         if topic:
             instance_tags[MESSAGING_DESTINATION_NAME] = topic
 
@@ -63,6 +66,7 @@ class KafkaMessagingProduceEvent(MessagingProduceEvent):
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        print(f"HERE2 - _on_context_started called for {cls.__name__}")
         span = ctx.span
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
@@ -83,8 +87,8 @@ class KafkaMessagingConsumeEvent(MessagingConsumeEvent):
         operation,
         provider,
         messaging_system,
-        cluster_id,
         group_id,
+        destination_name,
         topic,
         is_tombstone,
         message_offset,
@@ -93,6 +97,7 @@ class KafkaMessagingConsumeEvent(MessagingConsumeEvent):
         partition,
         start_ns,
         error,
+        cluster_id=None,
         tags=None,
     ):
         event_data = super().__new__(cls, config, operation, provider, tags)
@@ -104,7 +109,7 @@ class KafkaMessagingConsumeEvent(MessagingConsumeEvent):
             PARTITION: partition,
         }
         if topic:
-            instance_tags[MESSAGING_DESTINATION_NAME] = topic
+            instance_tags[MESSAGING_DESTINATION_NAME] = destination_name
             instance_tags[TOPIC] = topic
         if is_tombstone is not None:
             instance_tags[TOMBSTONE] = str(is_tombstone)

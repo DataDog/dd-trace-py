@@ -270,6 +270,7 @@ def _instrument_message(messages, start_ns, instance, err):
             cluster_id=cluster_id,
             group_id=instance._group_id,
             topic=topic,
+            destination_name=topic,
             is_tombstone=is_tombstone,
             message_offset=message_offset,
             message_key=ensure_text(message_key, errors="replace") if message_key is not None else None,

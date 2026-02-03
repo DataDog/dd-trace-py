@@ -85,7 +85,10 @@ def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
     for local_hook in _listeners[event_id].values():
         try:
             local_hook(*args)
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: Exception in event handler for {event_id}: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             if config._raise:
                 raise
 

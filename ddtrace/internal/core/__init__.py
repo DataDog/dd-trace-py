@@ -150,7 +150,12 @@ class ExecutionContext(object):
     def __enter__(self) -> "ExecutionContext":
         if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
-        dispatch("context.started.%s" % self.identifier, (self,))
+        event_name = "context.started.%s" % self.identifier
+        print(f"DEBUG: Dispatching event: {event_name}")
+        from ddtrace.internal.core import event_hub
+        print(f"DEBUG: Registered listeners: {list(event_hub._listeners.keys())}")
+        print(f"DEBUG: Has listeners for {event_name}: {event_hub.has_listeners(event_name)}")
+        dispatch(event_name, (self,))
         return self
 
     def __repr__(self) -> str:
