@@ -14,6 +14,8 @@
 #include <echion/stacks.h>
 #include <echion/strings.h>
 
+class EchionSampler;
+
 #define FRAME_NOT_SET Py_False // Sentinel for frame cell
 
 class GreenletInfo
@@ -34,9 +36,5 @@ class GreenletInfo
     {
     }
 
-    int unwind(PyObject*,
-               PyThreadState*,
-               FrameStack&,
-               StringTable& string_table,
-               LRUCache<uintptr_t, Frame>& frame_cache);
+    int unwind(PyObject*, PyThreadState*, FrameStack&, EchionSampler& echion);
 };

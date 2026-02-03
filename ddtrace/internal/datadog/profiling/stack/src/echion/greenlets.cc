@@ -1,11 +1,9 @@
 #include <echion/greenlets.h>
 
+#include <echion/echion_sampler.h>
+
 int
-GreenletInfo::unwind(PyObject* cur_frame,
-                     PyThreadState* tstate,
-                     FrameStack& stack,
-                     StringTable& string_table,
-                     LRUCache<uintptr_t, Frame>& frame_cache)
+GreenletInfo::unwind(PyObject* cur_frame, PyThreadState* tstate, FrameStack& stack, EchionSampler& echion)
 {
     PyObject* frame_addr = NULL;
 #if PY_VERSION_HEX >= 0x030d0000
@@ -28,9 +26,9 @@ GreenletInfo::unwind(PyObject* cur_frame,
 #else // Python < 3.11
     frame_addr = cur_frame == Py_None ? reinterpret_cast<PyObject*>(tstate->frame) : cur_frame;
 #endif
-    auto count = unwind_frame(frame_addr, stack, string_table, frame_cache);
+    auto count = unwind_frame(frame_addr, stack, echion);
 
-    stack.push_back(Frame::get(name, frame_cache));
+    stack.push_back(Frame::get(name, echion.frame_cache()));
 
     return count + 1; // We add an extra count for the frame with the greenlet
                       // name.

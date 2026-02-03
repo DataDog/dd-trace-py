@@ -34,6 +34,8 @@
 #include <echion/strings.h>
 #include <echion/vm.h>
 
+class EchionSampler;
+
 // ----------------------------------------------------------------------------
 class Frame
 {
@@ -72,19 +74,16 @@ class Frame
 #if PY_VERSION_HEX >= 0x030b0000
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(_PyInterpreterFrame* frame_addr,
                                                                     _PyInterpreterFrame** prev_addr,
-                                                                    StringTable& string_table,
-                                                                    LRUCache<uintptr_t, Frame>& frame_cache);
+                                                                    EchionSampler& echion);
 #else
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(PyObject* frame_addr,
                                                                     PyObject** prev_addr,
-                                                                    StringTable& string_table,
-                                                                    LRUCache<uintptr_t, Frame>& frame_cache);
+                                                                    EchionSampler& echion);
 #endif
 
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(PyCodeObject* code_addr,
                                                                    int lasti,
-                                                                   StringTable& string_table,
-                                                                   LRUCache<uintptr_t, Frame>& frame_cache);
+                                                                   EchionSampler& echion);
     static Frame& get(StringTable::Key name, LRUCache<uintptr_t, Frame>& frame_cache);
 
   private:

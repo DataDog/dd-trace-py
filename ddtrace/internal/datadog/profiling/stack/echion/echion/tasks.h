@@ -41,6 +41,8 @@
 #include <echion/strings.h>
 #include <echion/timing.h>
 
+class EchionSampler;
+
 #include <echion/cpython/tasks.h>
 
 // Max number of recursive calls GenInfo::GenInfo and TaskInfo::TaskInfo can do
@@ -137,5 +139,5 @@ class TaskInfo
     {
     }
 
-    size_t unwind(FrameStack&, StringTable& string_table, LRUCache<uintptr_t, Frame>& frame_cache);
+    size_t unwind(FrameStack&, EchionSampler& echion);
 };

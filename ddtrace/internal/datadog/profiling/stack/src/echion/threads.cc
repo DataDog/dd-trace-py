@@ -8,7 +8,7 @@
 void
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
 {
-    unwind_python_stack(tstate, python_stack, echion.string_table(), echion.frame_cache());
+    unwind_python_stack(tstate, python_stack, echion);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
@@ -35,7 +35,6 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
     // of the cache key of the "_run" Frame.
     auto& frame_cache_key = echion.frame_cache_key();
     auto& string_table = echion.string_table();
-    auto& frame_cache = echion.frame_cache();
     if (!frame_cache_key) {
         for (size_t i = 0; i < python_stack.size(); i++) {
             const auto& frame = python_stack[i].get();
@@ -185,7 +184,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         for (auto current_task = leaf_task;;) {
             auto& task = current_task.get();
 
-            auto task_stack_size = task.unwind(stack, string_table, frame_cache);
+            auto task_stack_size = task.unwind(stack, echion);
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
@@ -207,7 +206,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             }
 
             // Add the task name frame
-            stack.push_back(Frame::get(task.name, frame_cache));
+            stack.push_back(Frame::get(task.name, echion.frame_cache()));
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
@@ -539,7 +538,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
         auto stack_info = std::make_unique<StackInfo>(greenlet->name, on_cpu);
         auto& stack = stack_info->stack;
 
-        greenlet->unwind(frame, tstate, stack, echion.string_table(), echion.frame_cache());
+        greenlet->unwind(frame, tstate, stack, echion);
 
         std::unordered_set<GreenletInfo::ID> visited;
 
@@ -569,7 +568,7 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
             if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
                 break;
 
-            parent_greenlet->second->unwind(parent_frame, tstate, stack, echion.string_table(), echion.frame_cache());
+            parent_greenlet->second->unwind(parent_frame, tstate, stack, echion);
 
             // Move up the greenlet chain
             greenlet_id = parent_greenlet_id;

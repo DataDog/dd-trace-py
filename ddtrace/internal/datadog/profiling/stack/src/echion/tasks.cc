@@ -1,5 +1,7 @@
 #include <echion/tasks.h>
 
+#include <echion/echion_sampler.h>
+
 #include <stack>
 
 Result<GenInfo::Ptr>
@@ -131,7 +133,7 @@ TaskInfo::create(TaskObj* task_addr, StringTable& string_table)
 }
 
 size_t
-TaskInfo::unwind(FrameStack& stack, StringTable& string_table, LRUCache<uintptr_t, Frame>& frame_cache)
+TaskInfo::unwind(FrameStack& stack, EchionSampler& echion)
 {
     // TODO: Check for running task.
 
@@ -157,7 +159,7 @@ TaskInfo::unwind(FrameStack& stack, StringTable& string_table, LRUCache<uintptr_
         // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
         // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
         // the Frame chain unnecessarily.
-        auto new_frames = unwind_frame(frame, stack, string_table, frame_cache, 1);
+        auto new_frames = unwind_frame(frame, stack, echion, 1);
         assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could

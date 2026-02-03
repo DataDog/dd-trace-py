@@ -1,16 +1,14 @@
 #include <echion/stacks.h>
 
+#include <echion/echion_sampler.h>
+
 #include <unordered_set>
 
 // Unwind Python frames starting from frame_addr and push them onto stack.
 // @param max_depth: Maximum number of frames to unwind. Defaults to max_frames.
 // @return: Number of frames added to the stack.
 size_t
-unwind_frame(PyObject* frame_addr,
-             FrameStack& stack,
-             StringTable& string_table,
-             LRUCache<uintptr_t, Frame>& frame_cache,
-             size_t max_depth)
+unwind_frame(PyObject* frame_addr, FrameStack& stack, EchionSampler& echion, size_t max_depth)
 {
     std::unordered_set<PyObject*> seen_frames; // Used to detect cycles in the stack
     size_t count = 0;
@@ -25,10 +23,9 @@ unwind_frame(PyObject* frame_addr,
 #if PY_VERSION_HEX >= 0x030b0000
         auto maybe_frame = Frame::read(reinterpret_cast<_PyInterpreterFrame*>(current_frame_addr),
                                        reinterpret_cast<_PyInterpreterFrame**>(&current_frame_addr),
-                                       string_table,
-                                       frame_cache);
+                                       echion);
 #else
-        auto maybe_frame = Frame::read(current_frame_addr, &current_frame_addr, string_table, frame_cache);
+        auto maybe_frame = Frame::read(current_frame_addr, &current_frame_addr, echion);
 #endif
         if (!maybe_frame) {
             break;
@@ -50,10 +47,7 @@ unwind_frame(PyObject* frame_addr,
 }
 
 void
-unwind_python_stack(PyThreadState* tstate,
-                    FrameStack& stack,
-                    StringTable& string_table,
-                    LRUCache<uintptr_t, Frame>& frame_cache)
+unwind_python_stack(PyThreadState* tstate, FrameStack& stack, EchionSampler& echion)
 {
     stack.clear();
 #if PY_VERSION_HEX >= 0x030b0000
@@ -79,5 +73,5 @@ unwind_python_stack(PyThreadState* tstate,
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    unwind_frame(frame_addr, stack, string_table, frame_cache);
+    unwind_frame(frame_addr, stack, echion);
 }

@@ -1,5 +1,6 @@
 #include <echion/frame.h>
 
+#include <echion/echion_sampler.h>
 #include <echion/errors.h>
 #include <echion/render.h>
 
@@ -206,18 +207,14 @@ Frame::key(PyCodeObject* code, int lasti)
 // ------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 Result<std::reference_wrapper<Frame>>
-Frame::read(_PyInterpreterFrame* frame_addr,
-            _PyInterpreterFrame** prev_addr,
-            StringTable& string_table,
-            LRUCache<uintptr_t, Frame>& frame_cache)
+Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr, EchionSampler& echion)
 #else
 Result<std::reference_wrapper<Frame>>
-Frame::read(PyObject* frame_addr,
-            PyObject** prev_addr,
-            StringTable& string_table,
-            LRUCache<uintptr_t, Frame>& frame_cache)
+Frame::read(PyObject* frame_addr, PyObject** prev_addr, EchionSampler& echion)
 #endif
 {
+    auto& string_table = echion.string_table();
+    auto& frame_cache = echion.frame_cache();
 #if PY_VERSION_HEX >= 0x030b0000
     _PyInterpreterFrame iframe;
     auto resolved_addr =
@@ -264,7 +261,7 @@ Frame::read(PyObject* frame_addr,
     int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
     const int lasti = instr_offset - code_offset;
-    auto maybe_frame = Frame::get(code_obj, lasti, string_table, frame_cache);
+    auto maybe_frame = Frame::get(code_obj, lasti, echion);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -276,8 +273,7 @@ Frame::read(PyObject* frame_addr,
         (frame_addr->instr_ptr - 1 -
          reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    auto maybe_frame =
-      Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti, string_table, frame_cache);
+    auto maybe_frame = Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti, echion);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -287,7 +283,7 @@ Frame::read(PyObject* frame_addr,
     const int lasti =
       (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    auto maybe_frame = Frame::get(frame_addr->f_code, lasti, string_table, frame_cache);
+    auto maybe_frame = Frame::get(frame_addr->f_code, lasti, echion);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -312,7 +308,7 @@ Frame::read(PyObject* frame_addr,
         return ErrorKind::FrameError;
     }
 
-    auto maybe_frame = Frame::get(py_frame.f_code, py_frame.f_lasti, string_table, frame_cache);
+    auto maybe_frame = Frame::get(py_frame.f_code, py_frame.f_lasti, echion);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -326,8 +322,11 @@ Frame::read(PyObject* frame_addr,
 
 // ----------------------------------------------------------------------------
 Result<std::reference_wrapper<Frame>>
-Frame::get(PyCodeObject* code_addr, int lasti, StringTable& string_table, LRUCache<uintptr_t, Frame>& frame_cache)
+Frame::get(PyCodeObject* code_addr, int lasti, EchionSampler& echion)
 {
+    auto& string_table = echion.string_table();
+    auto& frame_cache = echion.frame_cache();
+
     auto frame_key = Frame::key(code_addr, lasti);
 
     auto maybe_frame = frame_cache.lookup(frame_key);
