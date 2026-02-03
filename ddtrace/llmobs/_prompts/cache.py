@@ -5,6 +5,8 @@ from pathlib import Path
 import tempfile
 from threading import RLock
 from time import time
+from typing import Any
+from typing import Dict
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -27,6 +29,13 @@ class CacheEntry:
 
     def is_stale(self, ttl: float) -> bool:
         return (time() - self.timestamp) > ttl
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"prompt": self.prompt.to_dict(), "timestamp": self.timestamp}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CacheEntry":
+        return cls(prompt=ManagedPrompt.from_dict(data["prompt"]), timestamp=data["timestamp"])
 
 
 class HotCache:
@@ -107,12 +116,14 @@ class WarmCache:
         self,
         cache_dir: Optional[Union[Path, str]] = None,
         enabled: bool = True,
+        ttl_seconds: float = DEFAULT_PROMPTS_CACHE_TTL,
     ) -> None:
         if cache_dir is None:
             self._cache_dir = self._get_default_cache_dir()
         else:
             self._cache_dir = Path(cache_dir).expanduser()
         self._enabled = enabled
+        self._ttl = ttl_seconds
         self._lock = RLock()
 
         if self._enabled:
@@ -129,8 +140,12 @@ class WarmCache:
         safe_key = key.replace(":", "_").replace("/", "_").replace("\\", "_")
         return self._cache_dir / f"{safe_key}.json"
 
-    def get(self, key: str) -> Optional[ManagedPrompt]:
-        """Load a prompt from file cache."""
+    def get(self, key: str) -> Optional[Tuple[ManagedPrompt, bool]]:
+        """Load a prompt from file cache.
+
+        Returns:
+            Tuple of (prompt, is_stale) if found, None otherwise.
+        """
         if not self._enabled:
             return None
 
@@ -141,7 +156,8 @@ class WarmCache:
                     return None
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            return ManagedPrompt.from_dict(data)
+            entry = CacheEntry.from_dict(data)
+            return entry.prompt, entry.is_stale(self._ttl)
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
             log.debug("Failed to read prompt from cache: %s", e)
             return None
@@ -152,7 +168,8 @@ class WarmCache:
             return
 
         path = self._key_to_path(key)
-        data = prompt.to_dict()
+        entry = CacheEntry(prompt=prompt, timestamp=time())
+        data = entry.to_dict()
         try:
             with self._lock:
                 with open(path, "w", encoding="utf-8") as f:
