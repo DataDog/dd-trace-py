@@ -576,9 +576,8 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
-    (void)iid;
     auto& renderer = echion.renderer();
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 

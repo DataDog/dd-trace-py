@@ -59,7 +59,7 @@ class ThreadInfo
 
     [[nodiscard]] Result<void> update_cpu_time();
 
-    [[nodiscard]] Result<void> sample(EchionSampler&, int64_t, PyThreadState*, microsecond_t);
+    [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
     void unwind(EchionSampler&, PyThreadState*);
 
     // ------------------------------------------------------------------------
