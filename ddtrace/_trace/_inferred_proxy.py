@@ -94,7 +94,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
     route_or_path = proxy_context.resource_path or proxy_context.path
     resource = f"{method or ''} {route_or_path or ''}"
 
-    span = tracer._start_span(
+    span = tracer.start_span(
         proxy_info.span_name,
         service=proxy_context.domain_name or config._get_service(),
         resource=resource,
