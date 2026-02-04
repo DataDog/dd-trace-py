@@ -206,6 +206,8 @@ def get_major_versions_from_specifier(spec_string: str) -> set[int]:
     [1, 2]
     >>> get_major_versions_from_specifier("")
     set()
+    >>> get_major_versions_from_specifier("    ")
+    set()
     >>> get_major_versions_from_specifier("not-a-spec")
     set()
     """
