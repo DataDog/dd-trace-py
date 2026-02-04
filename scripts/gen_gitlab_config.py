@@ -234,7 +234,7 @@ def gen_required_suites() -> None:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
 
-    # _gen_tests(suites, required_suites)
+    _gen_tests(suites, required_suites)
     _gen_benchmarks(suites, required_suites)
 
 
