@@ -16,7 +16,6 @@ from ddtrace import config
 from ddtrace.internal import atexit
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
-from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config as profiling_config
@@ -49,20 +48,7 @@ class Profiler(object):
     def start(self) -> None:
         """Start the profiler."""
 
-        try:
-            uwsgi.check_uwsgi(atexit=self.stop)
-        except uwsgi.uWSGIMasterProcess:
-            # Do nothing, the start() method will be called in each worker subprocess
-            return
-        except uwsgi.uWSGIConfigDeprecationWarning:
-            LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
-            # Turn off profiling in this case, this is mostly for
-            # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
-            # or --lazy. See uwsgi.check_uwsgi() for details.
-            return
-
         self._profiler.start()
-
         atexit.register(self.stop)
 
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
