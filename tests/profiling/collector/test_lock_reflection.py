@@ -152,5 +152,6 @@ def test_dunders_accessible(lock_class: Type[object], collector_class: Type[obje
 def test_known_gaps_limit() -> None:
     """Meta-test: ensure KNOWN_COVERAGE_GAPS doesn't grow too large."""
     assert len(KNOWN_COVERAGE_GAPS) <= MAX_ALLOWED_GAPS, (
-        f"Too many known gaps: {len(KNOWN_COVERAGE_GAPS)} (max is {MAX_ALLOWED_GAPS}). Consider fixing some: {KNOWN_COVERAGE_GAPS}"
+        f"Too many known gaps: {len(KNOWN_COVERAGE_GAPS)} (max is {MAX_ALLOWED_GAPS}). "
+        f"Consider fixing some: {KNOWN_COVERAGE_GAPS}"
     )
