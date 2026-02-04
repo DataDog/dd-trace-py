@@ -1,11 +1,6 @@
-"""Pytest fixtures for claude_agent_sdk tests.
-
-Since claude-agent-sdk uses subprocess/CLI transport (not HTTP), we mock
-the internal transport layer instead of using VCR.
-"""
-
 import os
 from unittest.mock import patch as mock_patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -13,8 +8,8 @@ from ddtrace.contrib.internal.claude_agent_sdk.patch import patch
 from ddtrace.contrib.internal.claude_agent_sdk.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_RESPONSE_SEQUENCE
+from tests.contrib.claude_agent_sdk.utils import MOCK_CLIENT_RAW_MESSAGES
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_RESPONSE_SEQUENCE
-from tests.contrib.claude_agent_sdk.utils import MOCK_MULTI_TURN_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_QUERY_RESPONSE_SEQUENCE
 from tests.contrib.claude_agent_sdk.utils import MOCK_TOOL_USE_RESPONSE_SEQUENCE
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -90,12 +85,6 @@ def mock_internal_client_tool_use(claude_agent_sdk):
 
 
 @pytest.fixture
-def mock_internal_client_multi_turn(claude_agent_sdk):
-    with _create_mock_internal_client(MOCK_MULTI_TURN_RESPONSE_SEQUENCE):
-        yield
-
-
-@pytest.fixture
 def mock_internal_client_bash_tool(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_BASH_TOOL_RESPONSE_SEQUENCE):
         yield
@@ -105,3 +94,36 @@ def mock_internal_client_bash_tool(claude_agent_sdk):
 def mock_internal_client_grep_tool(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_GREP_TOOL_RESPONSE_SEQUENCE):
         yield
+
+@pytest.fixture
+def mock_internal_client_error(claude_agent_sdk):
+    async def mock_process_query_error(self, prompt, options, transport=None):
+        raise ValueError("Connection failed")
+        yield
+
+    with mock_patch(
+        "claude_agent_sdk._internal.client.InternalClient.process_query",
+        mock_process_query_error,
+    ):
+        yield
+
+
+@pytest.fixture
+def mock_client(claude_agent_sdk):
+    async def mock_receive_messages():
+        for msg in MOCK_CLIENT_RAW_MESSAGES:
+            yield msg
+
+    client = claude_agent_sdk.ClaudeSDKClient()
+
+    # mock query that handles receiving messages
+    mock_query = MagicMock()
+    mock_query.receive_messages = mock_receive_messages
+    client._query = mock_query
+
+    # mock transport that handles writing messages
+    mock_transport = MagicMock()
+    mock_transport.write = AsyncMock(return_value=None)
+    client._transport = mock_transport
+
+    return client

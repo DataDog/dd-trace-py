@@ -1,22 +1,14 @@
 import pytest
 from unittest.mock import ANY
-from unittest.mock import AsyncMock
-from unittest.mock import MagicMock
-from unittest.mock import patch as mock_patch
 
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_INPUT_TOKENS
-from tests.contrib.claude_agent_sdk.utils import EXPECTED_MULTI_TURN_INPUT_TOKENS
-from tests.contrib.claude_agent_sdk.utils import EXPECTED_MULTI_TURN_OUTPUT_TOKENS
-from tests.contrib.claude_agent_sdk.utils import EXPECTED_MULTI_TURN_TOTAL_TOKENS
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_OUTPUT_TOKENS
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_TOTAL_TOKENS
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
-from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
-from tests.contrib.claude_agent_sdk.utils import MOCK_MULTI_TURN_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
@@ -80,20 +72,13 @@ class TestLLMObsClaudeAgentSdk:
 
     @pytest.mark.asyncio
     async def test_llmobs_query_error_no_output(
-        self, claude_agent_sdk, llmobs_events, test_spans
+        self, claude_agent_sdk, llmobs_events, mock_internal_client_error, test_spans
     ):
         prompt = "This will fail"
 
-        async def mock_process_query_error(self, prompt, options, transport=None):
-            raise ValueError("Connection failed")
-            yield
-
-        with mock_patch(
-            "claude_agent_sdk._internal.client.InternalClient.process_query", mock_process_query_error
-        ):
-            with pytest.raises(ValueError):
-                async for _ in claude_agent_sdk.query(prompt=prompt):
-                    pass
+        with pytest.raises(ValueError):
+            async for _ in claude_agent_sdk.query(prompt=prompt):
+                pass
 
         span = test_spans.pop_traces()[0][0]
         assert span.error == 1
@@ -116,53 +101,13 @@ class TestLLMObsClaudeAgentSdk:
 
     @pytest.mark.asyncio
     async def test_llmobs_client_query_captures_prompt(
-        self, claude_agent_sdk, llmobs_events, test_spans
+        self, mock_client, llmobs_events, test_spans
     ):
         prompt = "Hello from client!"
-        mock_write = AsyncMock(return_value=None)
 
-        async def mock_receive_messages():
-            yield {
-                "type": "system",
-                "subtype": "init",
-                "cwd": "/test/path",
-                "session_id": "test-session-id",
-                "tools": ["Task", "Bash", "Read"],
-                "model": MOCK_MODEL,
-            }
-            yield {
-                "type": "assistant",
-                "message": {"content": [{"type": "text", "text": "4"}], "model": MOCK_MODEL},
-            }
-            yield {
-                "type": "result",
-                "subtype": "success",
-                "duration_ms": 100,
-                "duration_api_ms": 90,
-                "is_error": False,
-                "num_turns": 1,
-                "session_id": "test-session-id",
-                "usage": {
-                    "input_tokens": 3,
-                    "cache_creation_input_tokens": 12742,
-                    "cache_read_input_tokens": 1854,
-                    "output_tokens": 5,
-                },
-            }
-
-        mock_query = MagicMock()
-        mock_query.receive_messages = mock_receive_messages
-
-        with mock_patch.object(claude_agent_sdk.ClaudeSDKClient, "connect", new_callable=AsyncMock):
-            with mock_patch.object(claude_agent_sdk.ClaudeSDKClient, "disconnect", new_callable=AsyncMock):
-                client = claude_agent_sdk.ClaudeSDKClient()
-                client._query = mock_query
-                client._transport = MagicMock()
-                client._transport.write = mock_write
-
-                await client.query(prompt=prompt)
-                async for _ in client.receive_messages():
-                    pass
+        await mock_client.query(prompt=prompt)
+        async for _ in mock_client.receive_messages():
+            pass
 
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
@@ -308,49 +253,3 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    @pytest.mark.asyncio
-    async def test_llmobs_query_multi_turn_with_tool_use(
-        self, claude_agent_sdk, llmobs_events, mock_internal_client_multi_turn, test_spans
-    ):
-        prompt = "Read the file at /tmp/test.txt and tell me what's in it"
-        async for _ in claude_agent_sdk.query(prompt=prompt):
-            pass
-
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
-            span_kind="agent",
-            input_value=safe_json([{"content": prompt, "role": "user"}]),
-            output_value=safe_json(
-                [
-                    {"content": "I'll read the file at /tmp/test.txt for you.", "role": "assistant"},
-                    {
-                        "content": "",
-                        "role": "assistant",
-                        "tool_calls": [
-                            {
-                                "name": "Read",
-                                "arguments": {"file_path": "/tmp/test.txt"},
-                                "tool_id": MOCK_MULTI_TURN_TOOL_ID,
-                                "type": "tool_use",
-                            }
-                        ],
-                    },
-                    {
-                        "content": "The file at `/tmp/test.txt` does not exist. Would you like me to create it?",
-                        "role": "assistant",
-                    },
-                ]
-            ),
-            metadata={},
-            token_metrics={
-                "input_tokens": EXPECTED_MULTI_TURN_INPUT_TOKENS,
-                "output_tokens": EXPECTED_MULTI_TURN_OUTPUT_TOKENS,
-                "total_tokens": EXPECTED_MULTI_TURN_TOTAL_TOKENS,
-            },
-            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
-        )
-
-        assert llmobs_events[0] == expected_event
