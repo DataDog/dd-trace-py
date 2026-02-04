@@ -134,7 +134,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         if (locations.size() > max_nframes) {
             ++dropped_frames;
             if (!is_initial_frame) {
-                Py_DECREF(f);  // Clean up frame reference obtained from PyFrame_GetBack
+                Py_DECREF(f); // Clean up frame reference obtained from PyFrame_GetBack
             }
             break;
         }
