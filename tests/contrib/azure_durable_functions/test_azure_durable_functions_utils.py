@@ -45,15 +45,13 @@ class _StubFunction:
         return self._func
 
 
-def _make_pin(tracer):
-    pin = Pin()
-    pin._tracer = tracer
-    return pin
+def _make_pin():
+    return Pin()
 
 
 def test_activity_trigger_wrapper_sync():
     with scoped_tracer() as tracer:
-        pin = _make_pin(tracer)
+        pin = _make_pin()
 
         def activity(name):
             return f"activity:{name}"
@@ -82,7 +80,7 @@ def test_activity_trigger_wrapper_sync():
 
 def test_entity_trigger_wrapper_async():
     with scoped_tracer() as tracer:
-        pin = _make_pin(tracer)
+        pin = _make_pin()
 
         async def entity():
             return "ok"
@@ -103,8 +101,8 @@ def test_entity_trigger_wrapper_async():
 
 def test_wrap_durable_functions_wraps_activity_and_entity_only():
     """Test that wrap_durable_functions wraps activity and entity triggers but not orchestration."""
-    with scoped_tracer() as tracer:
-        pin = _make_pin(tracer)
+    with scoped_tracer():
+        pin = _make_pin()
 
         def user_func():
             return "ok"
