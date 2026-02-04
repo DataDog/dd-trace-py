@@ -349,6 +349,11 @@ class CIVisibilityCoverageReportEncoder:
 
     This encoder handles a single coverage report upload per session,
     creating multipart form data with the compressed report and metadata.
+
+    Note: This encoder is called directly via encode_coverage_report() by the recorder,
+    not through the put()/encode() BufferedEncoder pattern. However, it still needs
+    to implement the encoder interface methods for compatibility with the writer's
+    generic code paths.
     """
 
     content_type = "multipart/form-data"
@@ -357,6 +362,43 @@ class CIVisibilityCoverageReportEncoder:
     def __init__(self):
         self.boundary = uuid4().hex
         self.content_type = f"multipart/form-data; boundary={self.boundary}"
+
+    def __len__(self) -> int:
+        """Return 0 as this encoder doesn't use a buffer.
+
+        This encoder handles coverage reports differently from standard encoders:
+        - Standard encoders: buffer spans via put(), then encode() on periodic flush
+        - Coverage encoder: direct upload via encode_coverage_report() for immediate synchronous delivery
+
+        The no-op implementation satisfies the writer's generic interface (which iterates
+        over all clients and checks len(encoder)), while the actual upload happens through
+        the custom encode_coverage_report() method called directly by the recorder.
+        """
+        return 0
+
+    def put(self, item) -> None:
+        """No-op: Coverage reports are uploaded directly, not buffered.
+
+        This method exists for interface compatibility but is not used. Coverage reports
+        require immediate synchronous upload at session finish (before process exit),
+        so they bypass the standard put()/encode() buffering pattern.
+
+        Args:
+            item: Unused - coverage reports are uploaded via encode_coverage_report()
+        """
+        pass
+
+    def encode(self) -> list:
+        """Return empty list as this encoder doesn't buffer items.
+
+        Coverage reports are uploaded immediately via encode_coverage_report() rather than
+        being buffered and flushed periodically. This ensures synchronous delivery before
+        the test session ends.
+
+        Returns:
+            Empty list - no buffered payloads to encode
+        """
+        return []
 
     def encode_coverage_report(self, report_bytes: bytes, coverage_format: str, event_data: dict) -> bytes:
         """Encode coverage report as multipart form data.

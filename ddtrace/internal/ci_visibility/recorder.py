@@ -311,6 +311,9 @@ class CIVisibility(Service):
         self._api_settings = self._check_enabled_features()
 
         self._collect_coverage_enabled = self._should_collect_coverage(self._api_settings.coverage_enabled)
+        self._coverage_report_upload_enabled = self._should_upload_coverage_report(
+            self._api_settings.coverage_report_upload_enabled
+        )
 
         self._configure_writer(coverage_enabled=self._collect_coverage_enabled, url=self.tracer._agent_url)
 
@@ -318,6 +321,7 @@ class CIVisibility(Service):
         log.info("Requests mode: %s", requests_mode_str)
         log.info("Git metadata upload enabled: %s", self._should_upload_git_metadata)
         log.info("API-provided settings: coverage collection: %s", self._api_settings.coverage_enabled)
+        log.info("API-provided settings: coverage report upload: %s", self._api_settings.coverage_report_upload_enabled)
         log.info(
             "API-provided settings: Intelligent Test Runner: %s, test skipping: %s",
             self._api_settings.itr_enabled,
@@ -348,6 +352,16 @@ class CIVisibility(Service):
         ):
             return False
         return True
+
+    @staticmethod
+    def _should_upload_coverage_report(coverage_report_upload_enabled_by_api):
+        """Check if coverage report upload is enabled via API settings or environment variable.
+
+        Environment variable takes precedence over API settings.
+        """
+        return asbool(os.getenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")) or (
+            coverage_report_upload_enabled_by_api or False
+        )
 
     def _check_enabled_features(self) -> TestVisibilityAPISettings:
         _error_return_value = TestVisibilityAPISettings()
@@ -404,9 +418,7 @@ class CIVisibility(Service):
             requests_mode = self._requests_mode
 
         # Check if coverage report upload is enabled
-        coverage_report_upload_enabled = (
-            self._api_settings.coverage_report_upload_enabled if self._api_settings else False
-        )
+        coverage_report_upload_enabled = self._coverage_report_upload_enabled
 
         if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             headers = {"dd-api-key": self._api_key or ""}
@@ -522,6 +534,16 @@ class CIVisibility(Service):
         return cls._instance._api_settings.coverage_enabled or asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         )
+
+    @classmethod
+    def should_upload_coverage_report(cls) -> bool:
+        """Check if coverage report upload is enabled.
+
+        Returns True if enabled via API settings or DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED env var.
+        """
+        if cls._instance is None:
+            return False
+        return cls._instance._coverage_report_upload_enabled
 
     def _fetch_tests_to_skip(self) -> None:
         # Make sure git uploading has finished
@@ -985,8 +1007,8 @@ class CIVisibility(Service):
         """
         try:
             # Check if coverage upload is enabled
-            if not self._api_settings or not self._api_settings.coverage_report_upload_enabled:
-                log.debug("Coverage report upload not enabled in settings")
+            if not self._coverage_report_upload_enabled:
+                log.debug("Coverage report upload not enabled in settings or environment variable")
                 return False
 
             # Get the writer from the tracer
