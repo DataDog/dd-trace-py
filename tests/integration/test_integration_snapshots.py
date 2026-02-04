@@ -463,17 +463,32 @@ except KeyboardInterrupt:
         "stats": compute_stats == "true",
     }
 
+    # DEBUG: Print test parameters
+    print(
+        f"\n=== DEBUG test_signal_shutdown_flushes_traces ===",
+        f"use_ddtrace_run={use_ddtrace_run}",
+        f"signum={signum}",
+        f"writer_class={writer_class}",
+        f"api_version={api_version}",
+        f"compute_stats={compute_stats}",
+        f"base_token={token}",
+        f"variants={variants}",
+        f"applicable_variants={[k for k, v in variants.items() if v]}",
+        sep="\n",
+        flush=True,
+    )
+
     with snapshot_context(
         token=token,
         ignores=["meta._dd.base_service"],
         variants=variants,
     ):
-        # Start subprocess
+        # Start subprocess - capture stderr to see what it's sending
         proc = subprocess.Popen(
             cmd,
             env=env,
             stdout=subprocess.PIPE,
-            stderr=sys.stderr,
+            stderr=subprocess.PIPE,  # Capture stderr instead of passing through
         )
 
         try:
