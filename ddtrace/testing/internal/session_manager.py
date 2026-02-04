@@ -88,7 +88,11 @@ class SessionManager:
         )
 
         self.upload_git_data()
-        self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        if self.settings.itr_enabled:
+            self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        else:
+            self.skippable_items = set()
+            self.itr_correlation_id = None
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
