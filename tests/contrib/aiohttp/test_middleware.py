@@ -78,7 +78,6 @@ def test(app, loop, aiohttp_client, test_spans):
     async def async_test(app, aiohttp_client, test_spans):
         if asyncio.iscoroutine(app):
             app = await app
-            app = app
         client = await aiohttp_client(app)
         request = await client.request("GET", "/")
         assert 200 == request.status
