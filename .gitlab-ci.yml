@@ -78,6 +78,7 @@ tests-gen:
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
+      - .gitlab/benchmarks/microbenchmarks-gen.yml
 
 run-tests-trigger:
  stage: tests
@@ -146,9 +147,11 @@ microbenchmarks:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
     - allow_failure: false
-  trigger:
-    include: .gitlab/benchmarks/microbenchmarks-gen.yml
-    strategy: depend
+ trigger:
+   include:
+     - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
+       job: tests-gen
+   strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
