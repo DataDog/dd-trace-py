@@ -208,6 +208,4 @@ check-slo-breaches:
 microbenchmarks:
   extends: .benchmarks
   parallel:
-    # DEV: The organization into these groups is mostly arbitrary, based on observed runtimes and
-    #      trying to keep total runtime per job <10 minutes
     matrix:
