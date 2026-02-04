@@ -127,3 +127,17 @@ def mock_client(claude_agent_sdk):
     client._transport = mock_transport
 
     return client
+
+@pytest.fixture
+def mock_client_error(claude_agent_sdk):
+    client = claude_agent_sdk.ClaudeSDKClient()
+
+    # mock query that handles receiving messages
+    client._query = MagicMock()
+
+    # mock transport that handles writing messages
+    mock_transport = MagicMock()
+    mock_transport.write = AsyncMock(side_effect=ValueError("Mocked transport error for testing"))
+    client._transport = mock_transport
+
+    return client

@@ -172,6 +172,7 @@ EXPECTED_OUTPUT_TOKENS = 5
 EXPECTED_TOTAL_TOKENS = EXPECTED_INPUT_TOKENS + EXPECTED_OUTPUT_TOKENS
 
 
+# mocked client messages are in a raw format compared to normal query responses
 MOCK_CLIENT_RAW_MESSAGES = [
     {
         "type": "system",
