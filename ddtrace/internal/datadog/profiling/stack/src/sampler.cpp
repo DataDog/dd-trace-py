@@ -271,10 +271,18 @@ Sampler::postfork_child()
 }
 
 void
-_stack_atfork_child()
+Sampler::restart_after_fork()
 {
-    // The only thing we need to do at fork is to propagate the PID to echion
-    // so we don't even reveal this function to the user
+    // Restart the sampler if it was running before fork.
+    // Odd thread_seq_num means the sampler was started and not stopped.
+    if (thread_seq_num.load() & 1) {
+        start();
+    }
+}
+
+static void
+_stack_postfork_cleanup()
+{
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
 
@@ -282,10 +290,21 @@ _stack_atfork_child()
     Sampler::get().postfork_child();
 }
 
+void
+_stack_atfork_child()
+{
+    // Clean up Sampler state, do not start the Sampler yet.
+    _stack_postfork_cleanup();
+
+    // Restart the sampler if it was running before fork.
+    Sampler::get().restart_after_fork();
+}
+
 __attribute__((constructor)) void
 _stack_init()
 {
-    _stack_atfork_child();
+    // At just do start-of-process cleanup (e.g., set PID)
+    _stack_postfork_cleanup();
 }
 
 void
@@ -294,11 +313,11 @@ Sampler::one_time_setup()
     init_frame_cache(echion_frame_cache_size);
 
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
-    // Run the atfork handler to ensure that we're tracking the correct process
-    _stack_atfork_child();
+    // Run the cleanup to ensure that we're tracking the correct process.
+    _stack_postfork_cleanup();
     pthread_atfork(nullptr, nullptr, _stack_atfork_child);
 
-    // Register our rendering callbacks with echion's Renderer singleton
+    // Register our rendering callbacks with echion's Renderer singleton.
     Renderer::get().set_renderer(renderer_ptr);
 }
 

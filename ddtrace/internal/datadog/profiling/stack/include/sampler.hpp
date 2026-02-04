@@ -78,6 +78,9 @@ class Sampler
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
+
+    // Restart the sampler after fork if it was running
+    void restart_after_fork();
 };
 
 } // namespace Datadog

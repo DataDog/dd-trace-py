@@ -50,9 +50,9 @@ class Profiler(object):
         """Start the profiler."""
 
         try:
-            uwsgi.check_uwsgi(atexit=self.stop)
+            uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
         except uwsgi.uWSGIMasterProcess:
-            # Do nothing, the start() method will be called in each worker subprocess
+            # Do nothing in master, the profiler will be started in each worker via _start_on_fork
             return
         except uwsgi.uWSGIConfigDeprecationWarning:
             LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
@@ -64,6 +64,10 @@ class Profiler(object):
         self._profiler.start()
 
         atexit.register(self.stop)
+
+        # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
+        # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
+        # For uWSGI, _start_on_fork is registered via uwsgidecorators.postfork() in check_uwsgi().
 
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
@@ -79,6 +83,20 @@ class Profiler(object):
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    def _start_on_fork(self) -> None:
+        """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
+
+        # Stop the parent profiler if it was running.
+        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
+        try:
+            self._profiler.stop(flush=False, join=False)
+        except service.ServiceStatusError:
+            # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
+            pass
+
+        self._profiler = self._profiler.copy()
+        self._profiler.start()
 
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
