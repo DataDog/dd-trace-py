@@ -93,7 +93,7 @@ MAX_ALLOWED_GAPS: int = 2
 
 def get_public_methods(obj: object) -> Set[str]:
     """Get all public (non-underscore) callable methods from an object."""
-    return {name for name in dir(obj) if not name.startswith("_") and callable(getattr(obj, name, None))}
+    return {name for name in dir(obj) if not name.startswith("_") and callable(getattr(obj, name))}
 
 
 def get_dunders(obj: object) -> Set[str]:
