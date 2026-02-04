@@ -518,6 +518,14 @@ def assert_profile_has_sample(
     expected_sample: StackEvent,
     print_samples_on_failure: bool = False,
 ) -> None:
+    """
+    Assert that at least one of the Samples passed matches the expected Sample.
+
+    - The expected Sample matches if its locations are a (not necessarily contiguous) subsequence of the locations in
+      any of the Samples passed.
+    - The innermost/deepest function in the stack should be the first location
+    """
+
     found = False
     for sample in samples:
         try:
@@ -543,6 +551,41 @@ def assert_profile_has_sample(
             print_all_samples(profile)
 
     assert found, error_description
+
+
+def assert_profile_does_not_have_sample(
+    profile: pprof_pb2.Profile,
+    samples: Sequence[pprof_pb2.Sample],
+    expected_sample: StackEvent,
+    print_samples_on_failure: bool = False,
+) -> None:
+    """
+    Assert that no Sample passed matches the expected Sample.
+
+    - The expected Sample matches if its locations are a (not necessarily contiguous) subsequence of the locations in
+      any of the Samples passed.
+    - The innermost/deepest function in the stack should be the first location
+    """
+    try:
+        assert_profile_has_sample(profile, samples, expected_sample, print_samples_on_failure=False)
+    except AssertionError:
+        return
+
+    if print_samples_on_failure:
+        print_all_samples(profile)
+
+    error_description = "Expected sample found in profile: "
+    error_description += str(expected_sample.locations)
+    if expected_sample.task_name:
+        error_description += ", task name " + expected_sample.task_name
+
+    if expected_sample.thread_name:
+        error_description += ", thread name " + expected_sample.thread_name
+
+    if print_samples_on_failure:
+        print_all_samples(profile)
+
+    raise AssertionError(error_description)
 
 
 def print_all_samples(profile: pprof_pb2.Profile) -> None:

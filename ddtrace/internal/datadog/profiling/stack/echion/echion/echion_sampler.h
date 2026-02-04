@@ -29,7 +29,8 @@ class EchionSampler
     PyObject* asyncio_eager_tasks_ = nullptr;
 
     // Task unwinding state
-    std::optional<Frame::Key> frame_cache_key_;
+    std::optional<Frame::Key> asyncio_frame_cache_key_;
+    std::optional<Frame::Key> uvloop_frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
   public:
@@ -57,7 +58,8 @@ class EchionSampler
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
     }
 
-    std::optional<Frame::Key>& frame_cache_key() { return frame_cache_key_; }
+    std::optional<Frame::Key>& asyncio_frame_cache_key() { return asyncio_frame_cache_key_; }
+    std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     void postfork_child()
