@@ -55,10 +55,12 @@ This example shows how ``core.context_with_data()`` can be replaced by `core.con
 
 """
 
+from dataclasses import MISSING
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import fields
 from types import TracebackType
+from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
@@ -68,6 +70,35 @@ from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+
+
+def event_field(
+    default: Any = MISSING,
+    default_factory: Any = MISSING,
+    in_context: bool = False,
+) -> Any:
+    if default is not MISSING and default_factory is not MISSING:
+        raise ValueError("Cannot specify both default and default_factory")
+
+    kwargs: Dict[str, Any] = {"repr": in_context}
+    if default is not MISSING:
+        kwargs["default"] = default
+    elif default_factory is not MISSING:
+        kwargs["default_factory"] = default_factory
+
+    return field(**kwargs)
+
+
+def span_context_event(cls: Any) -> Any:
+    # Get annotations before dataclass processes them
+    annotations = getattr(cls, "__annotations__", {})
+
+    # For each annotated field without a default, set it to event_field()
+    for name, _ in annotations.items():
+        if not hasattr(cls, name):
+            setattr(cls, name, event_field())
+
+    return dataclass(cls)
 
 
 class BaseEvent:
