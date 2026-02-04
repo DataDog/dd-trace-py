@@ -10,6 +10,7 @@ import uuid
 import pytest
 
 from ddtrace.testing.internal.api_client import APIClient
+from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import FileAttachment
@@ -1227,3 +1228,230 @@ class TestAPIClientSendGitPackfile:
         assert mock_telemetry.with_request_metric_names.return_value.record_error.call_args_list == [
             call(ErrorType.UNKNOWN)
         ]
+
+
+# Mock post_files to trigger telemetry recording like the real implementation does
+def mock_post_files_with_telemetry(*args, **kwargs):
+    telemetry = kwargs.get("telemetry")
+    if telemetry:
+        telemetry.record_request(
+            seconds=0.1,
+            response_bytes=100,
+            compressed_response=False,
+            error=None,
+        )
+    return BackendResult(response=Mock(status=200), response_length=100)
+
+
+# Mock post_files to trigger telemetry recording with error
+def mock_post_files_with_error(*args, **kwargs):
+    telemetry = kwargs.get("telemetry")
+    if telemetry:
+        telemetry.record_request(
+            seconds=0.1,
+            response_bytes=0,
+            compressed_response=False,
+            error=ErrorType.UNKNOWN,
+        )
+    return BackendResult(error_type=ErrorType.UNKNOWN, error_description="Connection timeout")
+
+
+class TestAPIClientUploadCoverageReport:
+    """Tests for coverage report upload functionality."""
+
+    def test_upload_coverage_report_success(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
+        """Test successful coverage report upload."""
+        mock_connector = Mock()
+
+        mock_connector.post_files.side_effect = mock_post_files_with_telemetry
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                GitTag.BRANCH: "some-branch",
+                GitTag.COMMIT_MESSAGE: "I am a commit",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={
+                "os.platform": "Linux",
+            },
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        # Create a simple LCOV report
+        coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
+
+        with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+            api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
+
+        # Verify post_files was called
+        assert mock_connector.post_files.call_count == 1
+        call_args = mock_connector.post_files.call_args
+
+        # Verify endpoint
+        assert call_args[0][0] == "/api/v2/cicovreprt"
+
+        # Verify files structure
+        files = call_args[1]["files"]
+        assert len(files) == 2
+
+        # Verify coverage file
+        coverage_file = files[0]
+        assert coverage_file.name == "coverage"
+        assert coverage_file.filename == "coverage.lcov.gz"
+        assert coverage_file.content_type == "application/gzip"
+        # Data should be gzipped
+        assert coverage_file.data[:2] == b"\x1f\x8b"  # Gzip magic number
+
+        # Verify event file
+        event_file = files[1]
+        assert event_file.name == "event"
+        assert event_file.filename == "event.json"
+        assert event_file.content_type == "application/json"
+
+        # Parse event JSON
+        event_data = json.loads(event_file.data.decode("utf-8"))
+        assert event_data["type"] == "coverage_report"
+        assert event_data["format"] == "lcov"
+        assert "timestamp" in event_data
+        assert event_data["git.repository_url"] == "http://github.com/DataDog/some-repo.git"
+        assert event_data["git.commit.sha"] == "abcd1234"
+        assert event_data["git.branch"] == "some-branch"
+
+        # Verify success message was logged
+        assert "Successfully uploaded coverage report" in caplog.text
+
+        # Verify telemetry was recorded
+        assert mock_telemetry.with_request_metric_names.return_value.record_request.called
+
+    def test_upload_coverage_report_with_ci_tags(self, mock_telemetry: Mock) -> None:
+        """Test coverage report upload includes CI tags."""
+
+        mock_connector = Mock()
+        mock_connector.post_files.return_value = BackendResult(response=Mock(status=200))
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+                CITag.PROVIDER_NAME: "github",
+                CITag.PIPELINE_ID: "123456",
+                CITag.WORKSPACE_PATH: "/workspace",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
+        api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
+
+        # Verify CI tags were included in event
+        files = mock_connector.post_files.call_args[1]["files"]
+        event_file = files[1]
+        event_data = json.loads(event_file.data.decode("utf-8"))
+
+        assert event_data["ci.provider.name"] == "github"
+        assert event_data["ci.pipeline.id"] == "123456"
+        assert event_data["ci.workspace_path"] == "/workspace"
+
+    def test_upload_coverage_report_empty_report(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
+        """Test uploading an empty coverage report."""
+        mock_connector = Mock()
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
+            api_client.upload_coverage_report(b"", coverage_format="lcov")
+
+        # Should not attempt to upload empty report
+        assert "Coverage report is empty, skipping upload" in caplog.text
+        assert mock_connector.post_files.call_count == 0
+
+    def test_upload_coverage_report_fail_http_request(
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test coverage report upload with HTTP error."""
+        mock_connector = Mock()
+
+        mock_connector.post_files.side_effect = mock_post_files_with_error
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/DataDog/some-repo.git",
+                GitTag.COMMIT_SHA: "abcd1234",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
+
+        with caplog.at_level(level=logging.ERROR, logger="ddtrace.testing"):
+            api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
+
+        assert "Failed to upload coverage report" in caplog.text
+        assert "Connection timeout" in caplog.text
+
+    def test_upload_coverage_report_missing_git_data(
+        self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test coverage report upload without git data."""
+        mock_connector = Mock()
+        mock_connector.post_files.side_effect = mock_post_files_with_telemetry
+
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="some-service",
+            env="some-env",
+            env_tags={},  # No git data
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
+
+        with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
+            api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
+
+        # Should warn but still attempt upload
+        assert "Git repository URL not available" in caplog.text
+        # Connector should still be called
+        assert mock_connector.post_files.call_count == 1

@@ -20,7 +20,7 @@ from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
 log = get_logger(__name__)
@@ -51,6 +51,7 @@ class EntrySpanProbe(LogFunctionProbe):
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
+            capture_expressions=[],
             limits=DEFAULT_CAPTURE_LIMITS,
             condition=None,
             condition_error_rate=0.0,
@@ -67,7 +68,14 @@ class EntrySpanLocation:
     probe: EntrySpanProbe
 
 
-class EntrySpanWrappingContext(WrappingContext):
+class EntrySpanWrappingContext(LazyWrappingContext):
+    """Entry span wrapping context.
+
+    This context is lazy to avoid paid any upfront instrumentation costs for
+    large functions that might not get invoked. Instead, the actual wrapping
+    will be performed on the first invocation.
+    """
+
     __enabled__ = False
     __priority__ = 199
 
@@ -171,7 +179,7 @@ class SpanCodeOriginProcessorEntry:
         if isinstance(f, MethodType):
             f = t.cast(FunctionType, f.__func__)
         if not _isinstance(f, FunctionType):
-            log.warning("Cannot instrument view %r: not a function", f)
+            log.debug("Cannot instrument view %r: not a function", f)
             return
 
         with cls._lock:
@@ -183,7 +191,7 @@ class SpanCodeOriginProcessorEntry:
 
         _f = t.cast(FunctionType, f)
         if not EntrySpanWrappingContext.is_wrapped(_f):
-            log.debug("Patching entrypoint %r for code origin", f)
+            log.debug("Lazy wrapping entrypoint %r for code origin", f)
             EntrySpanWrappingContext(cls.__uploader__, _f).wrap()
 
     @classmethod

@@ -14,6 +14,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.trace import tracer
 
 from .constants import DEFAULT_TEMPLATE_NAME
 
@@ -64,7 +65,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
         template_name = getattr(instance, "filename", None)
     template_name = template_name or DEFAULT_TEMPLATE_NAME
 
-    with pin.tracer.trace(
+    with tracer.trace(
         func_name(wrapped), int_service(pin, config.mako, schematize_service_name("mako")), span_type=SpanTypes.TEMPLATE
     ) as span:
         span._set_tag_str(COMPONENT, "mako")

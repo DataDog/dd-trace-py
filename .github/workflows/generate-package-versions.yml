@@ -1,13 +1,13 @@
-name: Generate Package Versions
+name: Update riot lockfiles
 
 on:
   workflow_dispatch: # can be triggered manually
   schedule:
-    - cron: "0 0 * * 0" # weekly on Sunday at midnight
+    - cron: "0 0 * * *" # daily at midnight
 
 jobs:
-  generate-package-versions:
-    name: Generate package versions
+  update-riot-lockfiles:
+    name: Update riot lockfiles
     runs-on: ubuntu-22.04
     permissions:
       actions: read

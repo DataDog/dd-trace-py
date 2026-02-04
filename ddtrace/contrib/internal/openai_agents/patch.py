@@ -12,6 +12,7 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -44,7 +45,7 @@ async def patched_run_single_turn_streamed(agents, pin, func, instance, args, kw
 
 
 async def _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=0):
-    current_span = pin.tracer.current_span()
+    current_span = tracer.current_span()
     result = await func(*args, **kwargs)
 
     if current_span is None:

@@ -17,6 +17,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import tracer
 
 from ..utils import extract_DD_json
 from ..utils import get_kinesis_data_object
@@ -142,7 +143,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 args=args,
                 params=params,
                 endpoint_name=endpoint_name,
-                child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
+                child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 operation=operation,
                 service=schematize_service_name(
                     "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)

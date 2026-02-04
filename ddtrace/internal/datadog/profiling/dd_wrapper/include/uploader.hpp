@@ -18,7 +18,7 @@ class Uploader
   private:
     static inline std::mutex upload_lock{};
     std::string errmsg;
-    static inline ddog_CancellationToken cancel{ .inner = nullptr };
+    static inline std::atomic<ddog_CancellationToken> cancel{ { .inner = nullptr } };
     static inline std::atomic<uint64_t> upload_seq{ 0 };
     std::string output_filename;
     ddog_prof_ProfileExporter ddog_exporter{ .inner = nullptr };
@@ -30,6 +30,7 @@ class Uploader
 
   public:
     bool upload();
+    bool upload_unlocked(); // Version that assumes lock is already held
     static void cancel_inflight();
     static void lock();
     static void unlock();
@@ -48,9 +49,14 @@ class Uploader
         // as their inner pointers are allocated on the Rust side. And since
         // there could be a request in flight, we first need to cancel it. Then,
         // we drop the exporter and the cancellation token.
-        ddog_CancellationToken_cancel(&cancel);
+        auto current_cancel = cancel.exchange({ .inner = nullptr });
+
+        if (current_cancel.inner != nullptr) {
+            ddog_CancellationToken_cancel(&current_cancel);
+            ddog_CancellationToken_drop(&current_cancel);
+        }
+
         ddog_prof_Exporter_drop(&ddog_exporter);
-        ddog_CancellationToken_drop(&cancel);
         ddog_prof_EncodedProfile_drop(&encoded_profile);
     }
 

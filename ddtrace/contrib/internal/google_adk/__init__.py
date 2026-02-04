@@ -14,16 +14,13 @@ Enabling
 The Google ADK integration is enabled automatically when you use
 :ref:`ddtrace-run<ddtracerun>` or :ref:`import ddtrace.auto<ddtraceauto>`.
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.google_adk["service"]
 
    The service name reported by default for Google ADK requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_GOOGLE_ADK_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
+   Set this option with the ``DD_GOOGLE_ADK_SERVICE`` environment variable.
 
 """

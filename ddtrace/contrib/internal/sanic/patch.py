@@ -15,6 +15,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -38,7 +39,7 @@ def _get_current_span(request):
     if not pin or not pin.enabled():
         return None
 
-    return pin.tracer.current_span()
+    return tracer.current_span()
 
 
 def update_span(span, response):

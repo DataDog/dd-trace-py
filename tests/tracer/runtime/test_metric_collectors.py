@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 
 from ddtrace.internal.runtime.constants import CPU_PERCENT
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0

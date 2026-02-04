@@ -1,39 +1,38 @@
 interactions:
 - request:
-    body: '{"model": "claude-3-5-sonnet-20240620", "messages": [{"role": "user", "content":
+    body: '{"model": "claude-sonnet-4-5-20250929", "messages": [{"role": "user", "content":
       [{"type": "text", "text": "Hey, what is up?"}]}], "max_tokens": 4096}'
     headers:
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '150'
+      Host:
+      - api.anthropic.com
+      User-Agent:
+      - litellm/1.65.4
       accept:
       - application/json
-      accept-encoding:
-      - gzip, deflate
       anthropic-version:
       - '2023-06-01'
-      connection:
-      - keep-alive
-      content-length:
-      - '150'
       content-type:
       - application/json
-      host:
-      - api.anthropic.com
-      user-agent:
-      - litellm/1.63.12
     method: POST
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
       string: !!binary |
-        H4sIAAAAAAAAA2RQTW/UQAz9K8aXvcyibNoCygWVU5dyQagnhCJ3xiSjztpp7Gm7Wu1/RwlUAnGy
-        9L70nk+YE3Z4sKFvdrd37Xhf33+gT5+/yXT7ZUdPX9s7DOjHiRcVm9HAGHDWsgBkls1JHAMeNHHB
-        DmOhmnh7sb3amoqwb9umvWzetQ0GjCrO4th9P72GOr8s9vV0eMOl6Bu4NiCB6z0UkqHSwLDGB9hD
-        Utk4jPTEMPFsKlSAXyaeM0tkA53hJ3PJMliA++qw3xxg5JnBFUYuExy1wnP2EUiO8FjZPKusRtcp
-        R1sEmwQlP6yelC1Ws7dwo88QSWAPv3evQa6Jjh/x/COguU79zGQq2CFL6r3Ogn8I48e6NMROaikB
-        6/rK7oRZpuq96wOLYbe7CBgpjtzHmWlp1v8raF75mSn9z2n1v5HLq/P5FwAAAP//AwAsXlFX5AEA
-        AA==
+        H4sIAAAAAAAA/3WQzU7EIBSFXwXZuGlNW+1iujHpbCYu3EwmJhpDEG4GxhYqXNRm0nf3dmLjX9wA
+        Oefjcg5H3nsNHW+46mTSkEfvHGB+ldd5VVR1sapWPONWE9HHvSjKXXgaWqzW27W53222NwdZt21L
+        DI4DzBTEKPdAQvDdLMgYbUTpkCTlHQKdmofjwiO8z85pa/gGxjN265H1SZmMHVJEZiAAk06zAFKP
+        DD1TRuIFu6P1PLI0sDeLho0+XfPpMeMR/SCIpSo0EZwWmILjn0aElwRO0dMudV3G0yltc+TWDQkF
+        +mdwkTflJaWVyoBQNAqtd+InUCz+nOo/b7k7z4fBQA9BdqLu//Jfbml+u1PGfcLvUlVSGwivVoFA
+        C4F6zl+sZdB8mj4AW7X2WtUBAAA=
     headers:
       CF-RAY:
-      - 923fd79c4a4a7cfc-EWR
+      - 9c13ef8b8f837c17-BOS
       Connection:
       - keep-alive
       Content-Encoding:
@@ -41,45 +40,39 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 21 Mar 2025 19:26:40 GMT
+      - Wed, 21 Jan 2026 04:05:54 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
       - chunked
       X-Robots-Tag:
       - none
-      anthropic-organization-id:
-      - 0280e0cf-573a-4392-b276-1b73319958fb
       anthropic-ratelimit-input-tokens-limit:
-      - '20000'
+      - '20000000'
       anthropic-ratelimit-input-tokens-remaining:
-      - '20000'
+      - '20000000'
       anthropic-ratelimit-input-tokens-reset:
-      - '2025-03-21T19:26:40Z'
+      - '2026-01-21T04:05:53Z'
       anthropic-ratelimit-output-tokens-limit:
-      - '4000'
+      - '2500000'
       anthropic-ratelimit-output-tokens-remaining:
-      - '4000'
+      - '2500000'
       anthropic-ratelimit-output-tokens-reset:
-      - '2025-03-21T19:26:40Z'
-      anthropic-ratelimit-requests-limit:
-      - '5'
-      anthropic-ratelimit-requests-remaining:
-      - '4'
-      anthropic-ratelimit-requests-reset:
-      - '2025-03-21T19:26:52Z'
+      - '2026-01-21T04:05:54Z'
       anthropic-ratelimit-tokens-limit:
-      - '24000'
+      - '22500000'
       anthropic-ratelimit-tokens-remaining:
-      - '24000'
+      - '22500000'
       anthropic-ratelimit-tokens-reset:
-      - '2025-03-21T19:26:40Z'
+      - '2026-01-21T04:05:53Z'
       cf-cache-status:
       - DYNAMIC
       request-id:
-      - req_01RRDNDcX3wjQFEMkLiTep47
-      via:
-      - 1.1 google
+      - req_011CXKrywDmBQp6dUJy8utgK
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '1956'
     status:
       code: 200
       message: OK

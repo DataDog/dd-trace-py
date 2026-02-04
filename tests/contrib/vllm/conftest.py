@@ -4,7 +4,6 @@ import weakref
 import pytest
 import torch
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.vllm.patch import patch
 from ddtrace.contrib.internal.vllm.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
@@ -46,22 +45,15 @@ def vllm():
 
 
 @pytest.fixture
-def mock_tracer(vllm, tracer):
-    pin = Pin.get_from(vllm)
-    pin._override(vllm, tracer=tracer)
-    yield tracer
-
-
-@pytest.fixture
 def llmobs_span_writer():
     yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com")
 
 
 @pytest.fixture
-def vllm_llmobs(mock_tracer, llmobs_span_writer):
+def vllm_llmobs(tracer, llmobs_span_writer):
     llmobs_service.disable()
     with override_global_config({"_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"}):
-        llmobs_service.enable(_tracer=mock_tracer, integrations_enabled=False)
+        llmobs_service.enable(_tracer=tracer, integrations_enabled=False)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         yield llmobs_service
     llmobs_service.disable()

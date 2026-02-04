@@ -63,12 +63,24 @@ class TestTestOptWriter:
 
         # Check test capabilities
         assert "_dd.library_capabilities.early_flake_detection" in writer.metadata["test"]
+        assert "_dd.library_capabilities.coverage_report_upload" in writer.metadata["test"]
 
         # Check serializers
         assert TestRun in writer.serializers
         assert TestSuite in writer.serializers
         assert TestModule in writer.serializers
         assert TestSession in writer.serializers
+
+    @patch("ddtrace.testing.internal.http.BackendConnector")
+    def test_coverage_report_upload_capability_declared(self, mock_backend_connector: Mock) -> None:
+        """Test that coverage report upload capability is declared in metadata."""
+        mock_connector = Mock()
+        mock_backend_connector.return_value = mock_connector
+
+        writer = TestOptWriter(BackendConnectorAgentlessSetup(site="datadoghq.com", api_key="test_key"))
+
+        # Verify the capability is declared with the correct version
+        assert writer.metadata["test"]["_dd.library_capabilities.coverage_report_upload"] == "1"
 
     @patch("ddtrace.testing.internal.http.BackendConnector")
     @patch("ddtrace.testing.internal.writer.msgpack_packb")

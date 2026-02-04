@@ -108,6 +108,9 @@ class LoggerTestCase(BaseTestCase):
         log.setLevel(logging.INFO)
         ddtrace.internal.logger._rate_limit = 0
 
+        # Clear buckets in case any were created during logger setup
+        ddtrace.internal.logger._buckets.clear()
+
         # Log a bunch of times very quickly (this is fast)
         for _ in range(1000):
             log.info("test")
@@ -115,7 +118,7 @@ class LoggerTestCase(BaseTestCase):
         # Assert that we did not perform any rate limiting
         self.assertEqual(call_handlers.call_count, 1000)
 
-        # Our buckets are empty
+        # Our buckets are empty (no rate limit means no buckets should be created)
         self.assertEqual(ddtrace.internal.logger._buckets, dict())
 
     @mock.patch("logging.Logger.callHandlers")
@@ -125,14 +128,14 @@ class LoggerTestCase(BaseTestCase):
             When effective level is DEBUG
                 Always calls the base `Logger.handle`
         """
-        # Our buckets are empty
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
-
         # Configure an INFO logger with no rate limit
         log = get_logger("test.logger")
         log.setLevel(logging.DEBUG)
         assert log.getEffectiveLevel() == logging.DEBUG
         assert ddtrace.internal.logger._rate_limit > 0
+
+        # Clear buckets in case any were created during logger setup
+        ddtrace.internal.logger._buckets.clear()
 
         # Log a bunch of times very quickly (this is fast)
         for level in ALL_LEVEL_NAMES:
@@ -141,11 +144,8 @@ class LoggerTestCase(BaseTestCase):
                 log_fn("test")
 
         # Assert that we did not perform any rate limiting
-        total = 1000 * len(ALL_LEVEL_NAMES)
-        self.assertTrue(total <= call_handlers.call_count <= total + 1)
-
-        # Our buckets are empty
-        self.assertEqual(ddtrace.internal.logger._buckets, dict())
+        # DEV: We may have more calls due to asyncrnous tasks (ex: periodic trace writer)
+        self.assertGreaterEqual(call_handlers.call_count, 1000 * len(ALL_LEVEL_NAMES))
 
     @mock.patch("logging.Logger.callHandlers")
     def test_logger_handle_bucket(self, call_handlers):

@@ -41,6 +41,9 @@ class TracerFlareTests(TestCase):
     mock_config_dict = {}
 
     def setUp(self):
+        # Defensive cleanup: remove any pre-existing tracer flare handlers
+        self._remove_handlers()
+
         self.setUpPyfakefs()
         self.shared_dir = self.fs.create_dir("tracer_flare_test")
         self.flare = Flare(
@@ -69,6 +72,13 @@ class TracerFlareTests(TestCase):
             if handler.name == TRACER_FLARE_FILE_HANDLER_NAME:
                 return handler
         return None
+
+    def _remove_handlers(self):
+        """Remove all tracer flare file handlers from the ddtrace logger."""
+        ddlogger = get_logger("ddtrace")
+        for handler in ddlogger.handlers[:]:  # Copy list to avoid modification during iteration
+            if handler.name == TRACER_FLARE_FILE_HANDLER_NAME:
+                ddlogger.removeHandler(handler)
 
     def test_single_process_success(self):
         """
@@ -190,29 +200,29 @@ class TracerFlareTests(TestCase):
                 )
                 logs.append(data)
 
-        assert len(logs) == 5, f"Expected 4 log lines, got {len(logs)}"
+        # Verify the routing message exists
+        routing_logs = [log for log in logs if log["message"].startswith("ddtrace logs will be routed to")]
+        assert len(routing_logs) == 1, "Expected exactly one routing message log"
+        assert routing_logs[0]["logger"] == "ddtrace"
+        assert routing_logs[0]["level"] == "DEBUG"
 
-        assert logs[0]["logger"] == "ddtrace"
-        assert logs[0]["level"] == "DEBUG"
-        assert logs[0]["message"].startswith("ddtrace logs will be routed to")
+        # Filter to only logs from our test logger
+        test_logs = [log for log in logs if log["logger"] == "ddtrace.flare.test.module"]
+        assert len(test_logs) == 4, f"Expected 4 test logs, got {len(test_logs)}"
 
-        assert logs[1]["logger"] == "ddtrace.flare.test.module"
-        assert logs[1]["level"] == "DEBUG"
-        assert logs[1]["message"] == "this is a test log"
+        assert test_logs[0]["level"] == "DEBUG"
+        assert test_logs[0]["message"] == "this is a test log"
 
-        assert logs[2]["logger"] == "ddtrace.flare.test.module"
-        assert logs[2]["level"] == "INFO"
-        assert logs[2]["message"] == "this is another test log with a number: 1234"
+        assert test_logs[1]["level"] == "INFO"
+        assert test_logs[1]["message"] == "this is another test log with a number: 1234"
 
-        assert logs[3]["logger"] == "ddtrace.flare.test.module"
-        assert logs[3]["level"] == "WARNING"
-        assert logs[3]["message"] == "this is a warning with a float: 12.34"
+        assert test_logs[2]["level"] == "WARNING"
+        assert test_logs[2]["message"] == "this is a warning with a float: 12.34"
 
-        assert logs[4]["logger"] == "ddtrace.flare.test.module"
-        assert logs[4]["level"] == "ERROR"
-        assert logs[4]["message"] == "this is an exception log"
-        assert logs[4]["exception"].startswith("Traceback (most recent call last):")
-        assert "ZeroDivisionError" in logs[4]["exception"]
+        assert test_logs[3]["level"] == "ERROR"
+        assert test_logs[3]["message"] == "this is an exception log"
+        assert test_logs[3]["exception"].startswith("Traceback (most recent call last):")
+        assert "ZeroDivisionError" in test_logs[3]["exception"]
 
         self.flare.clean_up_files()
         self.flare.revert_configs()
@@ -221,9 +231,8 @@ class TracerFlareTests(TestCase):
     def confirm_cleanup(self):
         assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
         # Only check for file handler cleanup if prepare() was called
-        # XXX this fails quite often in CI for unknown reason
-        # if self.prepare_called:
-        #    assert self._get_handler() is None, "File handler was not removed"
+        if self.prepare_called:
+            assert self._get_handler() is None, "File handler was not removed"
 
     def test_case_id_must_be_numeric(self):
         """
@@ -865,23 +874,31 @@ def test_native_logs(tmp_path):
     from ddtrace import config
     from ddtrace.internal.native._native import logger as native_logger
 
-    config._trace_writer_native = True
-    flare = Flare(
-        trace_agent_url=TRACE_AGENT_URL,
-        flare_dir=tmp_path,
-        ddconfig={"config": "testconfig"},
-    )
+    original_trace_writer_native = config._trace_writer_native
+    flare = None
+    try:
+        config._trace_writer_native = True
+        flare = Flare(
+            trace_agent_url=TRACE_AGENT_URL,
+            flare_dir=tmp_path,
+            ddconfig={"config": "testconfig"},
+        )
 
-    flare.prepare("DEBUG")
+        flare.prepare("DEBUG")
 
-    native_logger.log("debug", "debug log")
+        native_logger.log("debug", "debug log")
+        native_logger.disable("file")  # Flush the non-blocking writer
 
-    native_flare_file_path = tmp_path / f"tracer_native_{os.getpid()}.log"
-    assert os.path.exists(native_flare_file_path)
+        native_flare_file_path = tmp_path / f"tracer_native_{os.getpid()}.log"
+        assert os.path.exists(native_flare_file_path)
 
-    with open(native_flare_file_path, "r") as file:
-        assert "debug log" in file.readline()
+        with open(native_flare_file_path, "r") as file:
+            assert "debug log" in file.readline()
 
-    # Sends request to testagent
-    # This just validates the request params
-    flare.send(MOCK_FLARE_SEND_REQUEST)
+        # Sends request to testagent
+        # This just validates the request params
+        flare.send(MOCK_FLARE_SEND_REQUEST)
+    finally:
+        config._trace_writer_native = original_trace_writer_native
+        if flare is not None:
+            flare.revert_configs()

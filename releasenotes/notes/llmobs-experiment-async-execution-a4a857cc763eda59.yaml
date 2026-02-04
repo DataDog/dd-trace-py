@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for running synchronous evaluators concurrently in experiments.
+    Async evaluators are not supported.

@@ -1,6 +1,5 @@
 import functools
 import os
-from typing import Generator  # noqa:F401
 
 import mock
 import pytest
@@ -10,7 +9,6 @@ from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import skip_if_native_writer
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
 
@@ -18,11 +16,13 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
 
 
 @pytest.fixture
-def stats_tracer():
-    with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = DummyTracer()
+def stats_tracer(tracer):
+    # _recreate() checks config._trace_compute_stats AND config._trace_writer_native
+    # to decide whether to add stats processor. Stats processor is only added if
+    # _trace_writer_native is False and _trace_compute_stats is True.
+    with override_global_config(dict(_trace_compute_stats=True, _trace_writer_native=False)):
+        tracer._recreate()
         yield tracer
-        tracer.shutdown()
 
 
 class consistent_end_trace(object):
@@ -49,21 +49,14 @@ def send_once_stats_tracer(stats_tracer):
     """
     This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
     """
-
+    # Save the original trace method so we can restore it after the test
+    original_trace = stats_tracer.trace
     stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
 
-    # Stop the stats processor while running the function, to prevent flushing
-    stats_processor = None
-    for processor in stats_tracer._span_processors:
-        if isinstance(processor, SpanStatsProcessorV06):
-            stats_processor = processor
-            stats_processor.stop()
-            break
     yield stats_tracer
 
-    # Restart the stats processor; it will be flushed during shutdown
-    if stats_processor:
-        stats_processor.start()
+    # Restore the original trace method
+    stats_tracer.trace = original_trace
 
 
 @skip_if_native_writer

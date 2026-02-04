@@ -61,7 +61,7 @@ def test_rand128bit():
     assert t1 <= unix_time2 <= t2
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_no_pid_check():
     import os
 
@@ -93,7 +93,7 @@ def test_fork_no_pid_check():
             os._exit(0)
 
 
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_fork_pid_check():
     import os
 
@@ -203,7 +203,7 @@ def test_threadsafe():
     assert len(ids) > 0
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_tracer_usage_fork():
     from itertools import chain
     import os
@@ -280,7 +280,7 @@ def test_tracer_usage_multiprocess():
         ids = ids | child_ids  # accumulate the ids
 
 
-@pytest.mark.subprocess
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_span_api_fork():
     from itertools import chain
     import os

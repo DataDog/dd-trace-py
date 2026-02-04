@@ -4,7 +4,6 @@ from fastapi.testclient import TestClient
 import pytest
 
 from ddtrace import tracer as ddtracer
-from ddtrace._trace.pin import Pin
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_global_config
@@ -25,11 +24,6 @@ IGNORE_FIELDS = [
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
 def test_rag_parent_child(vllm, llmobs_span_writer):
     """Test RAG endpoint with parent-child span relationships and LLMObs event capture."""
-    # Ensure snapshot writer receives traces: use global tracer for vLLM Pin
-    pin = Pin.get_from(vllm)
-    if pin is not None:
-        pin._override(vllm, tracer=ddtracer)
-
     # Enable LLMObs on ddtracer with integrations enabled and use test writer
     llmobs_service.disable()
     with override_global_config({"_llmobs_ml_app": "<ml-app-name>", "service": "tests.contrib.vllm"}):

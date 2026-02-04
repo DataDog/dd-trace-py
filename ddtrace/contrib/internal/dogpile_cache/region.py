@@ -8,6 +8,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.trace import tracer
 
 
 def _wrap_get_create(func, instance, args, kwargs):
@@ -16,7 +17,7 @@ def _wrap_get_create(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     key = get_argument_value(args, kwargs, 0, "key")
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cache_operation("dogpile.cache", cache_provider="dogpile"),
         service=schematize_service_name(None),
         resource="get_or_create",
@@ -39,7 +40,7 @@ def _wrap_get_create_multi(func, instance, args, kwargs):
         return func(*args, **kwargs)
 
     keys = get_argument_value(args, kwargs, 0, "keys")
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cache_operation("dogpile.cache", cache_provider="dogpile"),
         service=schematize_service_name(None),
         resource="get_or_create_multi",

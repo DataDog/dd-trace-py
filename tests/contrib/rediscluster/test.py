@@ -2,7 +2,6 @@
 import pytest
 import rediscluster
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.rediscluster.patch import REDISCLUSTER_VERSION
 from ddtrace.contrib.internal.rediscluster.patch import patch
 from ddtrace.contrib.internal.rediscluster.patch import unpatch
@@ -44,7 +43,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         patch()
         r = _get_test_client()
         r.flushall()
-        Pin._override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -110,7 +108,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         patch()
 
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.pop_spans()
@@ -130,7 +127,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         patch()
 
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         spans = self.pop_spans()
@@ -149,7 +145,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
@@ -167,7 +162,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
@@ -180,7 +174,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
             the default span service name
         """
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
@@ -209,7 +202,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
             the default span service name
         """
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")
@@ -222,7 +214,6 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
             the default span service name
         """
         r = _get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(self.get_spans(), resource="GET", component="rediscluster")

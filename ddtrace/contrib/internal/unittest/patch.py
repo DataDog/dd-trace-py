@@ -10,7 +10,7 @@ import wrapt
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.coverage.data import _coverage_data
+from ddtrace.contrib.internal.coverage.patch import get_coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
 from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.patch import unpatch as unpatch_coverage
@@ -829,7 +829,7 @@ def _finish_test_session_span():
         _stop_coverage(unittest)
     if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
         run_coverage_report()
-        _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
+        _add_pct_covered_to_span(get_coverage_data(), _CIVisibility._datadog_session_span)
         unpatch_coverage()
     _finish_span(_CIVisibility._datadog_session_span)
 

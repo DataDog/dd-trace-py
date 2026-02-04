@@ -348,7 +348,7 @@ def capture_value(
             if not redact(n)
             else redacted_value(v)
         )
-        for n, v in takewhile(lambda _: not cond(_), islice(fields.items(), maxfields))
+        for n, v in takewhile(lambda _: not cond(_), islice(fields.copy().items(), maxfields))
     }
     data = {
         "type": qualname(_type),

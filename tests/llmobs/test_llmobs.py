@@ -466,6 +466,7 @@ def test_structured_prompt_data(llmobs, llmobs_backend):
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["input"]["prompt"] == {
         "id": "unnamed-ml-app_unnamed-prompt",
+        "ml_app": "unnamed-ml-app",
         "template": "test {{value}}",
         "_dd_context_variable_keys": ["context"],
         "_dd_query_variable_keys": ["question"],
@@ -491,6 +492,7 @@ def test_structured_prompt_data_v2(llmobs, llmobs_backend):
     assert events[0][0]["spans"][0]["meta"]["input"] == {
         "prompt": {
             "id": "test",
+            "ml_app": "unnamed-ml-app",
             "chat_template": [{"role": "user", "content": "test {{value}}"}],
             "variables": {"value": "test", "context": "test", "question": "test"},
             "tags": {"env": "prod", "llm": "openai"},

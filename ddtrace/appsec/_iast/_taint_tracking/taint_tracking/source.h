@@ -1,6 +1,8 @@
 #pragma once
 #include <sstream>
 
+#include <pybind11/pybind11.h>
+
 #include "../constants.h"
 
 // #define PY_MODULE_NAME_SOURCE PY_MODULE_NAME "." "Source"

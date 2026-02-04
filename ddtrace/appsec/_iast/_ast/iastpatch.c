@@ -346,7 +346,7 @@ get_list_from_env(const char* env_var_name, size_t* count)
         free(env_copy);
 
         if (count_tmp > 0) {
-            modules_list = malloc(count_tmp * sizeof(char*));
+            modules_list = (char**)malloc(count_tmp * sizeof(char*));
             if (!modules_list) {
                 PyErr_SetString(PyExc_MemoryError, "Failed to allocate memory for user allowlist");
                 return NULL;
@@ -411,7 +411,7 @@ init_globals(void)
     builtin_count = (size_t)PyTuple_Size(builtin_names);
     builtins_denylist_count = static_stdlib_denylist_count + builtin_count;
 
-    builtins_denylist = malloc(builtins_denylist_count * sizeof(char*));
+    builtins_denylist = (char**)malloc(builtins_denylist_count * sizeof(char*));
     if (!builtins_denylist) {
         PyErr_NoMemory();
         return -1;
@@ -453,7 +453,7 @@ init_globals(void)
    and uses mostly pure C comparisons.
 */
 static PyObject*
-py_should_iast_patch(PyObject* self, PyObject* args)
+py_should_iast_patch(PyObject* Py_UNUSED(self), PyObject* args)
 {
     const char* module_name;
 
@@ -533,17 +533,11 @@ build_list_from_env(const char* env_var_name)
     if (result_list == NULL) {
         return 0;
     }
-    char** old_list = NULL;
-    size_t old_count = 0;
 
     if (strcmp(env_var_name, "_DD_IAST_PATCH_MODULES") == 0) {
-        old_list = user_allowlist;
-        old_count = user_allowlist_count;
         user_allowlist = result_list;
         user_allowlist_count = count;
     } else if (strcmp(env_var_name, "_DD_IAST_DENY_MODULES") == 0) {
-        old_list = user_denylist;
-        old_count = user_denylist_count;
         user_denylist = result_list;
         user_denylist_count = count;
     } else {
@@ -555,7 +549,7 @@ build_list_from_env(const char* env_var_name)
 }
 /* --- Exported function to build a list from an environment variable and update globals --- */
 static PyObject*
-py_build_list_from_env(PyObject* self, PyObject* args)
+py_build_list_from_env(PyObject* Py_UNUSED(self), PyObject* args)
 {
     const char* env_var_name;
     if (!PyArg_ParseTuple(args, "s", &env_var_name)) {
@@ -570,7 +564,7 @@ py_build_list_from_env(PyObject* self, PyObject* args)
 
 /* --- Exported Function:  to return the user_allowlist as a Python list --- */
 static PyObject*
-py_get_user_allowlist(PyObject* self, PyObject* args)
+py_get_user_allowlist(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
     /* Convert the C list (user_allowlist) to a Python list */
     PyObject* py_list = PyList_New(user_allowlist_count);
@@ -591,7 +585,7 @@ py_get_user_allowlist(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-py_set_packages_distributions(PyObject* self, PyObject* args)
+py_set_packages_distributions(PyObject* Py_UNUSED(self), PyObject* args)
 {
     PyObject* packages_set;
     if (!PyArg_ParseTuple(args, "O", &packages_set)) {
@@ -611,7 +605,7 @@ py_set_packages_distributions(PyObject* self, PyObject* args)
         return NULL;
 
     Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
-    cached_packages = malloc(n * sizeof(char*));
+    cached_packages = (char**)malloc(n * sizeof(char*));
     if (!cached_packages) {
         Py_DECREF(fast);
         return NULL;

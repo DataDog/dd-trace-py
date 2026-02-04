@@ -1,17 +1,14 @@
 import time
 
 from confluent_kafka import TopicPartition
-import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
-import ddtrace.internal.datastreams  # noqa: F401 - used as part of mock patching
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.native import DDSketch
-from tests.datastreams.test_public_api import MockedTracer
 
 
 DSM_TEST_PATH_HEADER_SIZE = 28
@@ -22,12 +19,12 @@ class CustomError(Exception):
 
 
 @pytest.fixture
-def dsm_processor(tracer):
-    processor = tracer.data_streams_processor
-    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        yield processor
-        # Processor should be recreated by the tracer fixture
-        processor.shutdown(timeout=5)
+def dsm_processor():
+    processor = data_streams_processor(reset=True)
+    assert processor is not None, "Datastream Monitoring is not enabled"
+    yield processor
+    # Processor should be recreated by the tracer fixture
+    processor.shutdown(timeout=5)
 
 
 @pytest.mark.parametrize("payload_and_length", [("test", 4), ("你".encode("utf-8"), 3), (b"test2", 5)])
@@ -80,7 +77,7 @@ def test_data_streams_kafka(dsm_processor, consumer, producer, kafka_topic):
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
     first = list(buckets.values())[0].pathway_stats
-    ctx = DataStreamsCtx(MockedTracer().data_streams_processor, 0, 0, 0)
+    ctx = DataStreamsCtx(dsm_processor, 0, 0, 0)
     parent_hash = ctx._compute_hash(
         sorted(
             ["direction:out", "kafka_cluster_id:5L6g3nShT-eMCtK--X86sw", "type:kafka", "topic:{}".format(kafka_topic)]
@@ -260,9 +257,6 @@ def test_data_streams_default_context_propagation(consumer, producer, kafka_topi
 
 
 def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer, kafka_topic):
-    Pin._override(producer, tracer=kafka_tracer)
-    Pin._override(consumer, tracer=kafka_tracer)
-
     test_string = "payload hash test"
     PAYLOAD = bytes(test_string, encoding="utf-8")
 
@@ -287,5 +281,42 @@ def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer,
     assert consume_span.name == "kafka.consume"
     assert consume_span.get_tag("pathway.hash") is not None
 
-    Pin._override(consumer, tracer=None)
-    Pin._override(producer, tracer=None)
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.messaging.kafka.bootstrap.servers"])
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_data_streams_kafka_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to Kafka messages."""
+    import confluent_kafka
+    from confluent_kafka import admin as kafka_admin
+
+    from tests.contrib.config import KAFKA_CONFIG
+
+    BOOTSTRAP_SERVERS = "{}:{}".format(KAFKA_CONFIG["host"], KAFKA_CONFIG["port"])
+    topic_name = "test_data_streams_kafka_enabled"
+
+    try:
+        client = kafka_admin.AdminClient({"bootstrap.servers": BOOTSTRAP_SERVERS})
+        list(client.create_topics([kafka_admin.NewTopic(topic_name, 1, 1)]).values())[0].result()
+    except Exception:
+        pass
+
+    producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
+    consumer = confluent_kafka.Consumer(
+        {"bootstrap.servers": BOOTSTRAP_SERVERS, "group.id": "test_group", "auto.offset.reset": "earliest"}
+    )
+
+    try:
+        consumer.subscribe([topic_name])
+        producer.produce(topic_name, b"test")
+        producer.flush()
+
+        import time
+
+        time.sleep(0.5)
+        message = consumer.poll(timeout=5.0)
+        assert message is not None
+        assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers()]
+
+    finally:
+        consumer.close()
+        producer.flush()

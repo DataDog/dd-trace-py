@@ -1,0 +1,477 @@
+# -*- coding: utf-8 -*-
+"""
+Unit tests for the native SpanData class.
+
+These tests focus on edge cases specific to the native/Rust implementation
+that wouldn't be caught by testing the higher-level Span class.
+"""
+
+import pytest
+
+from ddtrace.internal.native._native import SpanData
+
+
+# =============================================================================
+# Test Data Constants
+# =============================================================================
+
+# Values that are not valid string types - should trigger fallback behavior
+INVALID_TYPE_VALUES = [
+    pytest.param(42, id="integer"),
+    pytest.param(3.14, id="float"),
+    pytest.param(True, id="boolean"),
+    pytest.param(["list"], id="list"),
+    pytest.param({"key": "value"}, id="dict"),
+    pytest.param((1, 2, 3), id="tuple"),
+    pytest.param(object(), id="object"),
+]
+
+# Bytes that are not valid UTF-8 - should trigger fallback behavior
+INVALID_UTF8_BYTES = [
+    pytest.param(b"\xff\xfe", id="invalid_utf8_fffe"),
+    pytest.param(b"\x80\x81", id="invalid_utf8_8081"),
+    pytest.param(b"\xc0\xc1", id="invalid_utf8_c0c1"),
+]
+
+# Unicode strings that should be preserved exactly
+UNICODE_STRINGS = [
+    pytest.param("test-🔥-span", id="emoji"),
+    pytest.param("日本語", id="japanese"),
+    pytest.param("中文", id="chinese"),
+    pytest.param("한글", id="korean"),
+    pytest.param("العربية", id="arabic"),
+    pytest.param("Ελληνικά", id="greek"),
+    pytest.param("emoji-🚀-🎉-✨", id="multi_emoji"),
+    pytest.param("mixed-日本語-🔥-test", id="mixed"),
+]
+
+# Valid UTF-8 bytes - should be preserved (zero-copy semantics)
+UTF8_BYTES = [
+    pytest.param(b"test-bytes", id="ascii_bytes"),
+    pytest.param(b"hello-world", id="hello_bytes"),
+    pytest.param("test-🔥".encode("utf-8"), id="emoji_bytes"),
+    pytest.param("日本語".encode("utf-8"), id="japanese_bytes"),
+]
+
+# Strings with special characters that should be preserved
+SPECIAL_CHARACTER_STRINGS = [
+    pytest.param("test\nwith\nnewlines", id="newlines"),
+    pytest.param("test\twith\ttabs", id="tabs"),
+    pytest.param("test\x00null", id="null_byte"),
+    pytest.param("test\rwith\rcarriage\rreturns", id="carriage_returns"),
+    pytest.param("test\r\nwith\r\nwindows\r\nnewlines", id="windows_newlines"),
+    pytest.param("test with    spaces", id="spaces"),
+    pytest.param("test\u200bwith\u200bzero\u200bwidth", id="zero_width"),
+]
+
+# Property categories for parameterized tests
+REQUIRED_STRING_PROPERTIES = ["name", "resource"]
+OPTIONAL_STRING_PROPERTIES = ["service"]
+ALL_STRING_PROPERTIES = REQUIRED_STRING_PROPERTIES + OPTIONAL_STRING_PROPERTIES
+
+
+# =============================================================================
+# Basic Creation Tests
+# =============================================================================
+
+
+def test_basic_creation():
+    """SpanData can be created with just a name."""
+    span = SpanData(name="test.span")
+    assert span.name == "test.span"
+    assert span.service is None
+    # resource defaults to name when not provided
+    assert span.resource == "test.span"
+
+
+def test_creation_accepts_extra_kwargs():
+    """SpanData accepts extra kwargs without error (for subclass compatibility).
+
+    Since SpanData.__new__ accepts *args/**kwargs, subclasses (like Span) can pass
+    additional parameters without needing to override __new__. SpanData only uses
+    'name', 'service', and 'resource'; other parameters are ignored but don't raise errors.
+    """
+    span = SpanData(
+        name="test.span",
+        service="test-service",
+        resource="test-resource",
+        span_type="web",
+        trace_id=123,
+        span_id=456,
+        parent_id=789,
+        start=1234567890.0,
+        span_api="datadog",
+        links=None,
+    )
+    assert span.name == "test.span"
+    assert span.service == "test-service"
+    assert span.resource == "test-resource"
+
+
+# =============================================================================
+# Property Behavior Tests
+# =============================================================================
+
+
+def test_property_getters_setters():
+    """Properties can be read and written."""
+    span = SpanData(name="original", service="svc", resource="res")
+    assert span.name == "original"
+    assert span.service == "svc"
+    assert span.resource == "res"
+
+    span.name = "updated"
+    span.service = "new-svc"
+    span.resource = "new-res"
+    assert span.name == "updated"
+    assert span.service == "new-svc"
+    assert span.resource == "new-res"
+
+
+def test_service_none_handling():
+    """service can be None and is distinct from empty string."""
+    # Default to None
+    span = SpanData(name="test")
+    assert span.service is None
+
+    # Explicit None
+    span = SpanData(name="test", service=None)
+    assert span.service is None
+
+    # Can be set to None
+    span.service = "service"
+    assert span.service == "service"
+    span.service = None
+    assert span.service is None
+
+    # Empty string is distinct from None
+    span.service = ""
+    assert span.service == ""
+    assert span.service is not None
+
+
+def test_resource_defaults_to_name():
+    """resource defaults to name when not provided."""
+    span = SpanData(name="test-name")
+    assert span.resource == "test-name"
+
+    # Resource and name should be the same object (zero-copy via clone_ref)
+    # This verifies we're using PyBackedString.clone_ref instead of creating a new string
+    assert span.name is span.resource
+
+    # Explicitly provided resource overrides the default
+    span = SpanData(name="test-name", resource="custom-resource")
+    assert span.resource == "custom-resource"
+    assert span.name == "test-name"
+    # When explicitly provided, they should be different objects
+    assert span.name is not span.resource
+
+
+def test_property_independence():
+    """Setting name to same value as service doesn't create shared reference."""
+    span = SpanData(name="test-name")
+    span.service = span.name
+
+    assert span.service == "test-name"
+    assert span.name == "test-name"
+    assert span.resource == "test-name"  # resource defaults to name
+
+    # Changing one shouldn't affect the others
+    span.service = "different"
+    assert span.service == "different"
+    assert span.name == "test-name"
+    assert span.resource == "test-name"
+
+    # Changing resource doesn't affect name
+    span.resource = "different-resource"
+    assert span.resource == "different-resource"
+    assert span.name == "test-name"
+
+
+# =============================================================================
+# Generic Invalid Type Tests
+# =============================================================================
+
+
+@pytest.mark.parametrize("prop", REQUIRED_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_value", INVALID_TYPE_VALUES)
+def test_required_string_constructor_falls_back_to_empty_string(prop, invalid_value):
+    """Required string properties fall back to empty string for invalid types in constructor."""
+    props = {"name": "test"}
+    props[prop] = invalid_value
+    span = SpanData(**props)
+    assert getattr(span, prop) == ""
+
+
+@pytest.mark.parametrize("prop", REQUIRED_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_value", INVALID_TYPE_VALUES)
+def test_required_string_setter_falls_back_to_empty_string(prop, invalid_value):
+    """Required string property setters fall back to empty string for invalid types."""
+    span = SpanData(name="test", resource="res")
+    setattr(span, prop, invalid_value)
+    assert getattr(span, prop) == ""
+
+
+@pytest.mark.parametrize("prop", REQUIRED_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_bytes", INVALID_UTF8_BYTES)
+def test_required_string_constructor_invalid_utf8_falls_back_to_empty_string(prop, invalid_bytes):
+    """Required string properties fall back to empty string for invalid UTF-8 bytes."""
+    props = {"name": "test"}
+    props[prop] = invalid_bytes
+    span = SpanData(**props)
+    assert getattr(span, prop) == ""
+
+
+@pytest.mark.parametrize("prop", REQUIRED_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_bytes", INVALID_UTF8_BYTES)
+def test_required_string_setter_invalid_utf8_falls_back_to_empty_string(prop, invalid_bytes):
+    """Required string property setters fall back to empty string for invalid UTF-8."""
+    span = SpanData(name="test", resource="res")
+    setattr(span, prop, invalid_bytes)
+    assert getattr(span, prop) == ""
+
+
+@pytest.mark.parametrize("prop", OPTIONAL_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_value", INVALID_TYPE_VALUES)
+def test_optional_string_constructor_falls_back_to_none(prop, invalid_value):
+    """Optional string properties fall back to None for invalid types in constructor."""
+    span = SpanData(name="test", **{prop: invalid_value})
+    assert getattr(span, prop) is None
+
+
+@pytest.mark.parametrize("prop", OPTIONAL_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_value", INVALID_TYPE_VALUES)
+def test_optional_string_setter_falls_back_to_none(prop, invalid_value):
+    """Optional string property setters fall back to None for invalid types."""
+    span = SpanData(name="test", **{prop: "valid"})
+    setattr(span, prop, invalid_value)
+    assert getattr(span, prop) is None
+
+
+@pytest.mark.parametrize("prop", OPTIONAL_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_bytes", INVALID_UTF8_BYTES)
+def test_optional_string_constructor_invalid_utf8_falls_back_to_none(prop, invalid_bytes):
+    """Optional string properties fall back to None for invalid UTF-8 bytes."""
+    span = SpanData(name="test", **{prop: invalid_bytes})
+    assert getattr(span, prop) is None
+
+
+@pytest.mark.parametrize("prop", OPTIONAL_STRING_PROPERTIES)
+@pytest.mark.parametrize("invalid_bytes", INVALID_UTF8_BYTES)
+def test_optional_string_setter_invalid_utf8_falls_back_to_none(prop, invalid_bytes):
+    """Optional string property setters fall back to None for invalid UTF-8."""
+    span = SpanData(name="test", **{prop: "valid"})
+    setattr(span, prop, invalid_bytes)
+    assert getattr(span, prop) is None
+
+
+# =============================================================================
+# Generic Valid String Tests
+# =============================================================================
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("unicode_string", UNICODE_STRINGS)
+def test_unicode_string_constructor_preserves_value(prop, unicode_string):
+    """Unicode strings are preserved correctly in constructor."""
+    props = {"name": "test"}
+    props[prop] = unicode_string
+    span = SpanData(**props)
+    assert getattr(span, prop) == unicode_string
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("unicode_string", UNICODE_STRINGS)
+def test_unicode_string_setter_preserves_value(prop, unicode_string):
+    """Unicode strings are preserved correctly via setters."""
+    span = SpanData(name="test", service="svc", resource="res")
+    setattr(span, prop, unicode_string)
+    assert getattr(span, prop) == unicode_string
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("bytes_value", UTF8_BYTES)
+def test_utf8_bytes_constructor_preserves_value(prop, bytes_value):
+    """Valid UTF-8 bytes values are preserved in constructor."""
+    props = {"name": "test"}
+    props[prop] = bytes_value
+    span = SpanData(**props)
+    assert getattr(span, prop) == bytes_value
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("bytes_value", UTF8_BYTES)
+def test_utf8_bytes_setter_preserves_value(prop, bytes_value):
+    """Valid UTF-8 bytes values are preserved via setters."""
+    span = SpanData(name="test", service="svc", resource="res")
+    setattr(span, prop, bytes_value)
+    assert getattr(span, prop) == bytes_value
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("special_string", SPECIAL_CHARACTER_STRINGS)
+def test_special_characters_constructor_preserves_value(prop, special_string):
+    """Special characters (newlines, tabs, null bytes, etc.) are preserved in constructor."""
+    props = {"name": "test"}
+    props[prop] = special_string
+    span = SpanData(**props)
+    assert getattr(span, prop) == special_string
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("special_string", SPECIAL_CHARACTER_STRINGS)
+def test_special_characters_setter_preserves_value(prop, special_string):
+    """Special characters are preserved via setters."""
+    span = SpanData(name="test", service="svc", resource="res")
+    setattr(span, prop, special_string)
+    assert getattr(span, prop) == special_string
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("length", [100, 1000, 10000, 100000])
+def test_long_strings_constructor_handled(prop, length):
+    """Very long strings are handled correctly in constructor."""
+    long_string = "x" * length
+    props = {"name": "test"}
+    props[prop] = long_string
+    span = SpanData(**props)
+    assert getattr(span, prop) == long_string
+    assert len(getattr(span, prop)) == length
+
+
+@pytest.mark.parametrize("prop", ALL_STRING_PROPERTIES)
+@pytest.mark.parametrize("length", [100, 1000, 10000, 100000])
+def test_long_strings_setter_handled(prop, length):
+    """Very long strings are handled correctly via setters."""
+    long_string = "x" * length
+    span = SpanData(name="test", service="svc", resource="res")
+    setattr(span, prop, long_string)
+    assert getattr(span, prop) == long_string
+    assert len(getattr(span, prop)) == length
+
+
+# =============================================================================
+# Interning Tests
+# =============================================================================
+
+
+def test_string_interning():
+    """Verify that PyBackedString uses Python string interning for static strings."""
+    # When we set a property, then read it back, we should get the same object
+    # (for interned strings) or at least the same value
+    span = SpanData(name="test")
+
+    # Get the name twice - should be the same object if interned
+    name1 = span.name
+    name2 = span.name
+
+    # At minimum they should be equal
+    assert name1 == name2
+
+    # For small identifier-like strings, Python typically interns them
+    # so they should be the same object
+    assert name1 is name2
+
+    # Setting different fields to the same string value should also use the same interned string
+    span.service = "test"
+    assert span.name is span.service
+
+
+def test_rust_static_string_interning():
+    """Verify that Rust-created static strings (e.g., defaults) use PyString::intern.
+
+    When PyBackedString has no Python storage (storage: None), as_py() calls
+    PyString::intern(py, self.deref()) to create an interned Python string.
+    This happens for default/fallback values created by Rust code.
+    """
+    # Create two spans with invalid name values that fall back to default (empty string)
+    # The fallback uses PyBackedString::default() which has storage: None
+    span1 = SpanData(name=42)  # Invalid, falls back to ""
+    span2 = SpanData(name=["invalid"])  # Invalid, falls back to ""
+
+    # Both should return the same interned empty string object
+    name1 = span1.name
+    name2 = span2.name
+
+    assert name1 == ""
+    assert name2 == ""
+    # The key test: both should be the same interned object since they're both
+    # Rust static strings returned via PyString::intern
+    assert name1 is name2
+
+    # Similarly for multiple reads from the same span
+    name3 = span1.name
+    assert name1 is name3
+
+
+# =============================================================================
+# Subclassing Tests
+# =============================================================================
+
+
+def test_subclass_override_new():
+    """Subclass can override __new__ and call super().__new__()."""
+
+    class CustomSpanData(SpanData):
+        def __new__(cls, name, service=None, custom_field=None):
+            return super().__new__(cls, name=name, service=service)
+
+    span = CustomSpanData(name="test", service="my-service", custom_field="custom")
+    assert span.name == "test"
+    assert span.service == "my-service"
+
+
+def test_subclass_add_slots():
+    """Subclass can add __slots__ for additional attributes."""
+
+    class CustomSpanData(SpanData):
+        __slots__ = ["custom_attribute"]
+
+    span = CustomSpanData(name="test", service="my-service")
+    span.custom_attribute = "custom-value"
+
+    assert span.name == "test"
+    assert span.service == "my-service"
+    assert span.custom_attribute == "custom-value"
+
+
+def test_subclass_inherits_properties():
+    """Subclass inherits name/service properties correctly."""
+
+    class CustomSpanData(SpanData):
+        pass
+
+    span = CustomSpanData(name="test", service="my-service")
+    assert span.name == "test"
+    assert span.service == "my-service"
+
+    span.name = "updated"
+    span.service = "updated-service"
+    assert span.name == "updated"
+    assert span.service == "updated-service"
+
+
+# =============================================================================
+# Edge Case Tests
+# =============================================================================
+
+
+def test_empty_string_name():
+    """Empty string is a valid name."""
+    span = SpanData(name="")
+    assert span.name == ""
+
+
+def test_service_none_to_string_transitions():
+    """Service can transition between None and string values."""
+    span = SpanData(name="test")
+    assert span.service is None
+
+    span.service = "service-1"
+    assert span.service == "service-1"
+
+    span.service = None
+    assert span.service is None
+
+    span.service = "service-2"
+    assert span.service == "service-2"

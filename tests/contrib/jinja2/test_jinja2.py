@@ -4,7 +4,6 @@ import os.path
 # 3rd party
 import jinja2
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.jinja2.patch import patch
 from ddtrace.contrib.internal.jinja2.patch import unpatch
 from tests.utils import TracerTestCase
@@ -25,7 +24,6 @@ class Jinja2Test(TracerTestCase):
             jinja2.environment._spontaneous_environments.clear()
         except AttributeError:
             jinja2.utils.clear_caches()
-        Pin._override(jinja2.environment.Environment, tracer=self.tracer)
 
     def tearDown(self):
         super(Jinja2Test, self).tearDown()
@@ -135,12 +133,6 @@ class Jinja2Test(TracerTestCase):
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
         env = jinja2.Environment(loader=loader)
 
-        cfg = {}
-        pin = Pin.get_from(env)
-        if pin:
-            cfg = pin._config
-        cfg["service_name"] = "renderer"
-
         t = env.get_template("template.html")
         assert t.render(name="Jinja") == "Message: Hello Jinja!"
 
@@ -149,7 +141,7 @@ class Jinja2Test(TracerTestCase):
         assert len(spans) == 5
 
         for span in spans:
-            assert span.service == "renderer"
+            assert span.service == "tests.contrib.jinja2"
 
     def test_inherit_service(self):
         # When there is a parent span and no custom service_name, the service name is inherited

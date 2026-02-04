@@ -4,6 +4,10 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Type
+from typing import TypeVar
+
+_SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
 class DDSketch:
     def __init__(self): ...
@@ -99,8 +103,6 @@ def crashtracker_init(
     config: CrashtrackerConfiguration,
     receiver_config: CrashtrackerReceiverConfig,
     metadata: CrashtrackerMetadata,
-    # TODO: Add this back in post Code Freeze (need to update config registry)
-    # emit_runtime_stacks: bool,
 ) -> None: ...
 def crashtracker_on_fork(
     config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
@@ -511,3 +513,29 @@ class ffe:
     class Configuration:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
+
+class SpanData:
+    name: str
+    service: Optional[str]
+    resource: str
+
+    def __new__(
+        cls: Type[_SpanDataT],
+        name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+    ) -> _SpanDataT: ...
+
+class SpanEventData:
+    def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...
+
+class SpanLinkData:
+    def __init__(
+        self,
+        trace_id: int,
+        span_id: int,
+        tracestate: Optional[str] = None,
+        flags: Optional[int] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        _dropped_attributes: int = 0,
+    ): ...

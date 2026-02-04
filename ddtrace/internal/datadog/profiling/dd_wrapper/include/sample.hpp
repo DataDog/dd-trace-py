@@ -73,6 +73,7 @@ class Sample
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location> locations;
     size_t dropped_frames = 0;
+    bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
     // Storage for labels

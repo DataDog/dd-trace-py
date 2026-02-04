@@ -4,7 +4,6 @@ from typing import Tuple  # noqa:F401
 import mariadb
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mariadb.patch import patch
 from ddtrace.contrib.internal.mariadb.patch import unpatch
 from tests.contrib.config import MARIADB_CONFIG
@@ -27,7 +26,6 @@ SNAPSHOT_VARIANTS = {
 
 def get_connection(tracer):
     connection = mariadb.connect(**MARIADB_CONFIG)
-    Pin._override(connection, tracer=tracer)
 
     return connection
 

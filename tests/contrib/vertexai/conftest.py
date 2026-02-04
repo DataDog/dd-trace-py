@@ -2,7 +2,6 @@ import mock
 from mock import PropertyMock
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.vertexai.patch import patch
 from ddtrace.contrib.internal.vertexai.patch import unpatch
 from ddtrace.llmobs import LLMObs
@@ -37,16 +36,13 @@ def mock_async_client():
 
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, vertexai, tracer):
+def test_spans(ddtrace_global_config, vertexai, test_spans):
     try:
-        pin = Pin.get_from(vertexai)
-        pin._override(vertexai, tracer=tracer)
-        pin.tracer.configure()
         if ddtrace_global_config.get("_llmobs_enabled", False):
             # Have to disable and re-enable LLMObs to use the mock tracer.
             LLMObs.disable()
-            LLMObs.enable(_tracer=tracer, integrations_enabled=False, agentless_enabled=False)
-        yield tracer
+            LLMObs.enable(integrations_enabled=False, agentless_enabled=False)
+        yield test_spans
     except Exception:
         yield
 

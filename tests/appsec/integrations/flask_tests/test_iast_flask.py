@@ -1168,6 +1168,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 _asm_enabled=True,
                 _api_security_enabled=True,
                 _iast_deduplication_enabled=False,
+                _iast_max_vulnerabilities_per_requests=1000,
                 _iast_request_sampling=100.0,
             )
         ):

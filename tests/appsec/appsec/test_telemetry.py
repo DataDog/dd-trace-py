@@ -31,7 +31,7 @@ invalid_rule_update = [("ASM_DD", "Datadog/0/ASM/rules", {"rules": {"test": "inv
 invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', obtained 'map'"""
 
 
-def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, is_updated=0):
+def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, expected_name=[]):
     metric_update = 0
     # Since the appsec.enabled metric is emitted on each telemetry worker interval, it can cause random errors in
     # this function and make the tests flaky. That's why we exclude the "enabled" metric from this assert
@@ -40,9 +40,9 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
         for m in metrics_result[TELEMETRY_EVENT_TYPE.METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
         if m["metric"] != "enabled"
     ]
-    assert len(generate_metrics) == 3 + is_updated, (
-        f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
-    )
+    names = sorted([m["metric"] for m in generate_metrics])
+    expected = sorted(expected_name)
+    assert names == expected, f"Expected metrics names {expected}, got {names}"
     for metric in generate_metrics:
         metric_name = metric["metric"]
         if metric_name == "waf.requests":
@@ -71,7 +71,6 @@ def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked
             assert len(metric["tags"]) == 1
         else:
             pytest.fail("Unexpected generate_metrics {}".format(metric_name))
-    assert metric_update == is_updated
 
 
 def _assert_distributions_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False):
@@ -111,21 +110,32 @@ def test_metrics_when_appsec_runs(telemetry_writer, tracer):
             span,
             rules.Config(),
         )
-    _assert_generate_metrics(telemetry_writer._namespace.flush())
+    _assert_generate_metrics(
+        telemetry_writer._namespace.flush(), expected_name=["api_security.missing_route", "waf.init", "waf.requests"]
+    )
 
 
 def test_metrics_when_appsec_attack(telemetry_writer, tracer):
     telemetry_writer._namespace.flush()
     with asm_context(tracer=tracer, span_name="test", config=config_good_rules) as span:
         set_http_meta(span, rules.Config(), request_cookies={"attack": "1' or '1' = '1'"})
-    _assert_generate_metrics(telemetry_writer._namespace.flush(), is_rule_triggered=True)
+    _assert_generate_metrics(
+        telemetry_writer._namespace.flush(),
+        is_rule_triggered=True,
+        expected_name=["api_security.missing_route", "waf.init", "waf.requests"],
+    )
 
 
 def test_metrics_when_appsec_block(telemetry_writer, tracer):
     telemetry_writer._namespace.flush()
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, span_name="test", config=config_good_rules) as span:
         set_http_meta(span, rules.Config())
-    _assert_generate_metrics(telemetry_writer._namespace.flush(), is_rule_triggered=True, is_blocked_request=True)
+    _assert_generate_metrics(
+        telemetry_writer._namespace.flush(),
+        is_rule_triggered=True,
+        is_blocked_request=True,
+        expected_name=["waf.init", "waf.requests"],
+    )
 
 
 def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
@@ -142,9 +152,13 @@ def test_metrics_when_appsec_block_custom(telemetry_writer, tracer):
             ],
             tracer,
         )
-        set_http_meta(span, rules.Config(), request_headers={"User-Agent": "Arachni/v1.5.1"})
+        # using a header to trigger the block of default rules
+        set_http_meta(span, rules.Config(), request_headers={"User-Agent": "dd-test-scanner-log-block"})
     _assert_generate_metrics(
-        telemetry_writer._namespace.flush(), is_rule_triggered=True, is_blocked_request=False, is_updated=1
+        telemetry_writer._namespace.flush(),
+        is_rule_triggered=True,
+        is_blocked_request=True,
+        expected_name=["waf.init", "waf.requests", "waf.updates"],
     )
 
 

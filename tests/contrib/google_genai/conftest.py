@@ -6,7 +6,6 @@ from unittest.mock import patch as mock_patch
 
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
 from ddtrace.llmobs import LLMObs
@@ -48,17 +47,7 @@ def genai_client_vcr(genai):
 
 
 @pytest.fixture
-def mock_tracer(ddtrace_global_config, genai, tracer):
-    try:
-        pin = Pin.get_from(genai)
-        pin._override(genai, tracer=tracer)
-        yield tracer
-    except Exception:
-        yield
-
-
-@pytest.fixture
-def genai_llmobs(mock_tracer, llmobs_span_writer):
+def genai_llmobs(tracer, llmobs_span_writer):
     LLMObs.disable()
     with override_global_config(
         {
@@ -67,7 +56,7 @@ def genai_llmobs(mock_tracer, llmobs_span_writer):
             "service": "tests.contrib.google_genai",
         }
     ):
-        LLMObs.enable(_tracer=mock_tracer, integrations_enabled=False)
+        LLMObs.enable(_tracer=tracer, integrations_enabled=False)
         LLMObs._instance._llmobs_span_writer = llmobs_span_writer
         yield LLMObs
     LLMObs.disable()

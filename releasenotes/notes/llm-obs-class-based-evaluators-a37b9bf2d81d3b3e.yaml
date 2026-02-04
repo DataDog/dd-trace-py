@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for class-based evaluators in LLM Observability. Users can now define custom evaluators by subclassing the ``BaseEvaluator`` class, providing more flexibility and structure for implementing evaluation logic. The ``EvaluatorContext`` stores the context of the evaluation, including the dataset record and span information. Additionally, class-based summary evaluators are supported via ``BaseSummaryEvaluator``, which receives a ``SummaryEvaluatorContext`` containing aggregated inputs, outputs, expected outputs, and per-row evaluation results.

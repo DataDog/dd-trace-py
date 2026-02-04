@@ -8,7 +8,6 @@ from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -24,9 +23,6 @@ TEST_PORT = POSTGRES_CONFIG["port"]
 
 
 class PsycopgCore(TracerTestCase):
-    # default service
-    TEST_SERVICE = "postgres"
-
     def setUp(self):
         super(PsycopgCore, self).setUp()
 
@@ -37,12 +33,8 @@ class PsycopgCore(TracerTestCase):
 
         unpatch()
 
-    def _get_conn(self, service=None):
+    def _get_conn(self):
         conn = psycopg.connect(**POSTGRES_CONFIG)
-        pin = Pin.get_from(conn)
-        if pin:
-            pin._clone(service=service, tracer=self.tracer).onto(conn)
-
         return conn
 
     def test_patch_unpatch(self):
@@ -50,11 +42,9 @@ class PsycopgCore(TracerTestCase):
         patch()
         patch()
 
-        service = "fo"
-
-        conn = self._get_conn(service=service)
+        conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
         self.reset()
 
         # Test unpatch
@@ -67,9 +57,9 @@ class PsycopgCore(TracerTestCase):
         # Test patch again
         patch()
 
-        conn = self._get_conn(service=service)
+        conn = self._get_conn()
         conn.cursor().execute("""select 'blah'""")
-        self.assert_structure(dict(name="postgres.query", service=service))
+        self.assert_structure(dict(name="postgres.query"))
 
     def assert_conn_is_traced(self, db, service):
         # ensure the trace pscyopg client doesn't add non-standard
@@ -138,7 +128,6 @@ class PsycopgCore(TracerTestCase):
         configs_arr.append("options='-c statement_timeout=1000 -c lock_timeout=250'")
         conn = psycopg.connect(" ".join(configs_arr))
 
-        Pin.get_from(conn)._clone(service="postgres", tracer=self.tracer).onto(conn)
         self.assert_conn_is_traced(conn, "postgres")
 
     def test_cursor_ctx_manager(self):
@@ -185,23 +174,17 @@ class PsycopgCore(TracerTestCase):
         conn.cursor().execute("""select 'blah'""")
         self.assert_has_no_spans()
 
-    def test_connect_factory(self):
-        services = ["db", "another"]
-        for service in services:
-            conn = self._get_conn(service=service)
-            self.assert_conn_is_traced(conn, service)
-
     def test_commit(self):
         conn = self._get_conn()
         conn.commit()
 
-        self.assert_structure(dict(name="psycopg.connection.commit", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="psycopg.connection.commit"))
 
     def test_rollback(self):
         conn = self._get_conn()
         conn.rollback()
 
-        self.assert_structure(dict(name="psycopg.connection.rollback", service=self.TEST_SERVICE))
+        self.assert_structure(dict(name="psycopg.connection.rollback"))
 
     def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""
@@ -390,10 +373,9 @@ class PsycopgCore(TracerTestCase):
         assert spans[0].name == "postgresql.query"
 
     def test_contextmanager_connection(self):
-        service = "fo"
-        with self._get_conn(service=service) as conn:
+        with self._get_conn() as conn:
             conn.cursor().execute("""select 'blah'""")
-            self.assert_structure(dict(name="postgres.query", service=service))
+            self.assert_structure(dict(name="postgres.query"))
 
     @snapshot()
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
@@ -495,10 +477,6 @@ class PsycopgCore(TracerTestCase):
         other_conn = self._get_conn()
         conn = psycopg.Connection(other_conn.pgconn)
         connection = conn.connect(**POSTGRES_CONFIG)
-
-        pin = Pin.get_from(connection)
-        if pin:
-            pin._clone(service="postgres", tracer=self.tracer).onto(connection)
 
         query = SQL("""select 'one' as x""")
         cur = connection.execute(query)

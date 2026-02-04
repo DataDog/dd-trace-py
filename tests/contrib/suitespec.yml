@@ -105,6 +105,7 @@ components:
   kombu:
     - ddtrace/contrib/internal/kombu/*
     - ddtrace/ext/kombu.py
+    - tests/snapshots/tests.contrib.kombu.*
   logbook:
     - ddtrace/contrib/internal/logbook/*
   logging:

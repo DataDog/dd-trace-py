@@ -353,6 +353,7 @@ import opentelemetry
         {"name": "DD_TRACE_LOG_FILE", "origin": "default", "value": None},
         {"name": "DD_TRACE_LOG_FILE_LEVEL", "origin": "default", "value": "DEBUG"},
         {"name": "DD_TRACE_LOG_FILE_SIZE_BYTES", "origin": "default", "value": 15728640},
+        {"name": "DD_TRACE_LOG_LEVEL", "origin": "default", "value": None},
         {"name": "DD_TRACE_LOG_STREAM_HANDLER", "origin": "default", "value": True},
         {"name": "DD_TRACE_METHODS", "origin": "default", "value": None},
         {"name": "DD_TRACE_NATIVE_SPAN_EVENTS", "origin": "default", "value": False},

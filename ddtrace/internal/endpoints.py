@@ -101,28 +101,18 @@ class HttpEndPointsCollection(metaclass=Singleton):
                     response_code=response_code,
                 )
             )
+            self.last_modification_time = current_time
 
     def flush(self, max_length: int) -> dict:
         """
         Flush the endpoints to a payload, returning the first `max` endpoints.
         """
-        endpoints_snapshot = tuple(self.endpoints)
-        if max_length >= len(self.endpoints):
-            res = {
-                "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in endpoints_snapshot],
-            }
-            self.reset()
-            return res
-        else:
-            batch = tuple(self.endpoints.pop() for _ in range(max_length))
-            res = {
-                "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in batch],
-            }
-            self.is_first = False
-            self.last_modification_time = monotonic()
-            return res
+        endpoints_res: List[dict] = []
+        while self.endpoints and len(endpoints_res) < max_length:
+            endpoints_res.append(dataclasses.asdict(self.endpoints.pop(), dict_factory=_dict_factory))
+        res = {"is_first": self.is_first, "endpoints": endpoints_res}
+        self.is_first = False
+        return res
 
 
 endpoint_collection = HttpEndPointsCollection()

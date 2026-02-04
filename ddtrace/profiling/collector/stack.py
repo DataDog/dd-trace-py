@@ -42,12 +42,16 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             core.on("ddtrace.context_provider.activate", stack.link_span)
 
-        # stack requires us to patch the Threading module.  It's possible to do this from the stack code
-        # itself, but it's a little bit fiddly and it's easier to make it correct here.
-        # TODO take the `threading` import out of here and just handle it in v2 startup
-        threading.init_stack()
+        # Start the native stack sampler first. This ensures one_time_setup() runs
+        # (which handles any fork that happened since library load) before we
+        # register threads and asyncio loops - otherwise those registrations would
+        # be wiped out by _stack_atfork_child() in one_time_setup().
         stack.set_adaptive_sampling(config.stack.adaptive_sampling)
         stack.start()
+
+        # Now patch the Threading module and register existing threads/asyncio loops.
+        # TODO take the `threading` import out of here and just handle it in v2 startup
+        threading.init_stack()
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing

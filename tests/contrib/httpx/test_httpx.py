@@ -2,7 +2,6 @@ import httpx
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
@@ -52,24 +51,17 @@ def test_patching():
     assert not is_wrapted(httpx.AsyncClient.send)
 
 
-def test_httpx_service_name(tracer, test_spans):
+@pytest.mark.snapshot(ignores=["meta.http.useragent"])
+def test_httpx_service_name():
     """
     When using split_by_domain
         We set the span service name as a text type and not binary
     """
     client = httpx.Client()
-    Pin._override(client, tracer=tracer)
 
     with override_config("httpx", {"split_by_domain": True}):
         resp = client.get(get_url("/status/200"))
     assert resp.status_code == 200
-
-    traces = test_spans.pop_traces()
-    assert len(traces) == 1
-
-    spans = traces[0]
-    assert len(spans) == 1
-    assert isinstance(spans[0].service, str)
 
 
 @pytest.mark.asyncio
@@ -103,46 +95,6 @@ async def test_configure_service_name(snapshot_context):
             async with httpx.AsyncClient() as client:
                 resp = await client.get(url, headers=DEFAULT_HEADERS)
                 assert resp.status_code == 200
-
-
-@pytest.mark.asyncio
-async def test_configure_service_name_pin(tracer, test_spans):
-    """
-    When setting service name via a Pin
-        We use the value from the Pin
-    """
-    url = get_url("/status/200")
-
-    def assert_spans(test_spans, service):
-        test_spans.assert_trace_count(1)
-        test_spans.assert_span_count(1)
-        assert test_spans.spans[0].service == service
-        test_spans.reset()
-
-    # override the tracer on the default sync client
-    # DEV: `httpx.get` will call `with Client() as client: client.get()`
-    Pin._override(httpx.Client, tracer=tracer)
-
-    # sync client
-    client = httpx.Client()
-    Pin._override(client, service="sync-client", tracer=tracer)
-
-    # async client
-    async_client = httpx.AsyncClient()
-    Pin._override(async_client, service="async-client", tracer=tracer)
-
-    resp = httpx.get(url, headers=DEFAULT_HEADERS)
-    assert resp.status_code == 200
-    assert_spans(test_spans, service="tests.contrib.httpx")
-
-    resp = client.get(url, headers=DEFAULT_HEADERS)
-    assert resp.status_code == 200
-    assert_spans(test_spans, service="sync-client")
-
-    async with httpx.AsyncClient() as client:
-        resp = await async_client.get(url, headers=DEFAULT_HEADERS)
-        assert resp.status_code == 200
-    assert_spans(test_spans, service="async-client")
 
 
 @pytest.mark.subprocess(

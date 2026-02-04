@@ -5,12 +5,10 @@ import grpc
 from grpc.framework.foundation import logging_pool
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
@@ -222,48 +220,6 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         spans = self.get_spans_with_sync_and_assert()
         assert len(spans) == 0
-
-    def test_pin_tags_are_put_in_span(self):
-        # DEV: stop and restart server to catch overridden pin
-        self._stop_server()
-        Pin._override(constants.GRPC_PIN_MODULE_SERVER, service="server1")
-        Pin._override(constants.GRPC_PIN_MODULE_SERVER, tags={"tag1": "server"})
-        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, tags={"tag2": "client"})
-        self._start_server()
-        with grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT)) as channel:
-            stub = HelloStub(channel)
-            stub.SayHello(HelloRequest(name="test"))
-
-        spans = self.get_spans_with_sync_and_assert(size=2)
-        assert spans[1].service == "server1"
-        assert spans[1].get_tag("tag1") == "server"
-        assert spans[0].get_tag("tag2") == "client"
-
-    def test_pin_can_be_defined_per_channel(self):
-        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc1")
-        channel1 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
-
-        Pin._override(constants.GRPC_PIN_MODULE_CLIENT, service="grpc2")
-        channel2 = grpc.insecure_channel("127.0.0.1:%d" % (_GRPC_PORT))
-
-        stub1 = HelloStub(channel1)
-        stub1.SayHello(HelloRequest(name="test"))
-        channel1.close()
-
-        # DEV: make sure we have two spans before proceeding
-        spans = self.get_spans_with_sync_and_assert(size=2)
-
-        stub2 = HelloStub(channel2)
-        stub2.SayHello(HelloRequest(name="test"))
-        channel2.close()
-
-        spans = self.get_spans_with_sync_and_assert(size=4)
-
-        # DEV: Server service default, client services override
-        self._check_server_span(spans[1], "grpc-server", "SayHello", "unary")
-        self._check_client_span(spans[0], "grpc1", "SayHello", "unary")
-        self._check_server_span(spans[3], "grpc-server", "SayHello", "unary")
-        self._check_client_span(spans[2], "grpc2", "SayHello", "unary")
 
     def test_server_stream(self):
         # use an event to signal when the callbacks have been called from the response
@@ -629,9 +585,18 @@ class GrpcTestCase(GrpcBaseTestCase):
         with grpc.insecure_channel("localhost:%d" % (_GRPC_PORT)) as channel:
             stub = HelloStub(channel)
             future = stub.SayHello.future(HelloRequest(name="test"))
+
+            callback_completed = threading.Event()
+
+            def _wait_callback(_future):
+                callback_completed.set()
+
+            future.add_done_callback(_wait_callback)
             assert self.tracer.current_span() is None
+
             # wait so that we don't cancel the request
             future.result()
+            assert callback_completed.wait(timeout=10)
 
         self.get_spans_with_sync_and_assert(size=2)
 

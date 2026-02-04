@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where stack profiler could loop
+    infinitely while holding a lock. This could have led to stopping greenlets
+    from starting and/or exiting.

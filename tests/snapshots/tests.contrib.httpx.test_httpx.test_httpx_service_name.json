@@ -1,0 +1,34 @@
+[[
+  {
+    "name": "http.request",
+    "service": "localhost:8001",
+    "resource": "http.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.httpx",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69305f5b00000000",
+      "component": "httpx",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx/0.28.1",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "0a6cef25c7034e74b5b943bf6846b3ac",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 6692917,
+    "start": 1764777819145128088
+  }]]

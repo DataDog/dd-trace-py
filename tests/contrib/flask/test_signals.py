@@ -1,7 +1,6 @@
 import flask
 import mock
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch
 
@@ -164,23 +163,3 @@ class FlaskSignalsTestCase(BaseFlaskTestCase):
             set(["flask.signal", "runtime-id", "_dd.p.tid", "_dd.p.dm", "component", "language", "_dd.base_service"]),
         )
         self.assertEqual(span_b.get_tag("flask.signal"), "request_started")
-
-    def test_signals_pin_disabled(self):
-        """
-        When a signal is connected
-            When the app pin is disabled
-                We do not create any spans when the signal is sent
-        """
-        # Disable the pin on the app
-        pin = Pin.get_from(self.app)
-        pin.tracer.enabled = False
-
-        for signal_name in self.signals():
-            func = self.call_signal(signal_name, self.app)
-
-            # Ensure our function was called by the signal
-            func.assert_called_once_with(self.app)
-
-            # Assert number of spans created
-            spans = self.get_spans()
-            self.assertEqual(len(spans), 0)

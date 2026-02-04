@@ -951,15 +951,20 @@ def _value():
         {"trace_id": "trace_id"},
         {"span_id": "span_id"},
         {"parent_id": "parent_id"},
-        {"service": True},
-        {"resource": 50},
-        {"name": [1, 2, 3]},
+        # {"service": True},  # Now handled gracefully by Rust (converts to None)
+        # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
+        # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
         {"start_ns": []},
         {"duration_ns": {}},
         {"span_type": 100},
     ],
 )
 def test_encoding_invalid_data_raises(data):
+    """Test that invalid data types for certain fields raise during encoding.
+
+    Note: name, service, and resource are now validated at the Rust layer and convert
+    invalid types gracefully, so they no longer raise during encoding.
+    """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
     span = Span(name="test")
@@ -973,6 +978,48 @@ def test_encoding_invalid_data_raises(data):
     assert e.match(r"failed to pack span: Span\(name="), e
     encoded_traces = encoder.encode()
     assert (not encoded_traces) or (encoded_traces[0][0] is None)
+
+
+@pytest.mark.parametrize(
+    "field,invalid_value,expected_value,span_name",
+    [
+        ("service", True, None, "test"),  # Invalid service type -> None
+        ("name", [1, 2, 3], "", "test"),  # Invalid name type -> "" (default)
+        ("service", {"dict": "value"}, None, "test"),  # Invalid service type -> None
+        ("name", 123, "", "test"),  # Invalid name type -> ""
+        ("resource", 50, "", "test"),  # Invalid resource type -> "" (empty string)
+        ("resource", [1, 2, 3], "", "test"),  # Invalid resource type -> "" (empty string)
+        ("resource", {"dict": "value"}, "", "my-name"),  # Invalid resource type -> "" (empty string)
+    ],
+)
+def test_encoding_invalid_name_service_handled_gracefully(field, invalid_value, expected_value, span_name):
+    """Test that invalid data types for name/service/resource are handled gracefully.
+
+    Since name, service, and resource are now backed by Rust PyBackedString, invalid types
+    are converted at setter time rather than raising during encoding.
+
+    - Invalid name types -> "" (empty string)
+    - Invalid service types -> None (allows inheritance from parent/config)
+    - Invalid resource types -> "" (empty string)
+      Note: fallback to name only happens when resource=None in __new__, not on setter
+    """
+    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
+
+    span = Span(name=span_name)
+    setattr(span, field, invalid_value)
+
+    # Ensure name is never None (must always be a string)
+    assert span.name is not None
+    assert isinstance(span.name, str)
+
+    # Should not raise - invalid types are converted gracefully
+    trace = [span]
+    encoder.put(trace)
+
+    encoded_traces = encoder.encode()
+    assert encoded_traces is not None
+    # Verify the span field was converted to the expected value
+    assert getattr(span, field) == expected_value
 
 
 @pytest.mark.parametrize(
@@ -1049,7 +1096,10 @@ def test_json_encoder_traces_bytes():
     """
     Regression test for: https://github.com/DataDog/dd-trace-py/issues/3115
 
-    Ensure we properly decode `bytes` objects when encoding with the JSONEncoder
+    Ensure we properly handle `bytes` objects when encoding with the JSONEncoder.
+
+    Note: Invalid UTF-8 bytes are converted to empty string at the Rust layer,
+    as we only accept valid str/bytes/None types for span names.
     """
     import json
     import os
@@ -1063,7 +1113,7 @@ def test_json_encoder_traces_bytes():
     data = encoder.encode_traces(
         [
             [
-                Span(name=b"\x80span.a"),
+                Span(name=b"\x80span.a"),  # Invalid UTF-8 bytes -> empty string
                 Span(name="\x80span.b"),
                 Span(name="\x80span.b"),
             ]
@@ -1076,6 +1126,7 @@ def test_json_encoder_traces_bytes():
     assert len(traces) == 1
     span_a, span_b, span_c = traces[0]
 
-    assert "\\x80span.a" == span_a["name"]
+    # Invalid UTF-8 bytes are converted to empty string
+    assert "" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]

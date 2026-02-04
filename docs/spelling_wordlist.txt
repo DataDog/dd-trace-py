@@ -4,8 +4,8 @@ adk
 agentless
 aiobotocore
 aiohttp
-aiomysql
 aiokafka
+aiomysql
 aiopg
 aioredis
 algolia
@@ -20,6 +20,8 @@ appsec
 AppSec
 aredis
 args
+ARN
+ASAN
 ascii
 asgi
 asm
@@ -38,7 +40,6 @@ avro
 Avro
 aws
 AWS
-ARN
 backend
 backends
 backoff
@@ -68,13 +69,13 @@ composable
 config
 contextvar
 contextvars
+contrib
 coroutine
 coroutines
 CPU
 CPython
 CUPTI
 Cython
-contrib
 datadog
 datadoghq
 dataset
@@ -83,8 +84,10 @@ datastores
 dbapi
 ddtrace
 deallocating
+debuggability
 decompiling
 deprecations
+dereferences
 DES
 deserializing
 django
@@ -120,6 +123,9 @@ flamegraph
 fnmatch
 formatter
 freezegun
+fuzzer
+fuzzers
+fuzzing
 gdb
 genai
 generativeai
@@ -135,6 +141,8 @@ grpc
 gRPC
 gunicorn
 Gunicorn
+harness
+harnesses
 hostname
 hostnames
 hotspot
@@ -168,8 +176,10 @@ kwarg
 kwargs
 langchain
 langchain_community
+libclang
 libdatadog
 libddwaf
+libFuzzer
 lifecycle
 linters
 litellm
@@ -199,6 +209,7 @@ mysql
 MySQL
 mysqlclient
 mysqldb
+onboarding
 # tests/contrib/openai/test_openai_v1.py
 Nam
 namespace
@@ -313,6 +324,7 @@ tokenizer
 tracecontext
 tracestate
 tweens
+UBSAN
 # docs/configuration.rst
 uest
 unbuffered

@@ -14,6 +14,7 @@ import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.utils.inspection import link_function_to_code
 from ddtrace.internal.wrapping.asyncs import wrap_async
 from ddtrace.internal.wrapping.generators import wrap_generator
 
@@ -301,6 +302,9 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     wf = cast(WrappedFunction, f)
     wf.__dd_wrapped__ = wrapped
 
+    # Link the original code object to the original function
+    link_function_to_code(code, f)
+
     return wf
 
 
@@ -348,30 +352,36 @@ def unwrap(wf: WrappedFunction, wrapper: Wrapper) -> FunctionType:
     # update the link at the deletion site if there is a non-empty tail.
     try:
         inner = cast(FunctionType, wf.__dd_wrapped__)
-
-        # Sanity check
-        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
-
-        if wrapper not in cast(FunctionType, wf).__code__.co_consts:
-            # This is not the correct wrapping layer. Try with the next one.
-            inner_wf = cast(WrappedFunction, inner)
-            return unwrap(inner_wf, wrapper)
-
-        # Remove the current wrapping layer by moving the next one over the
-        # current one.
-        f = cast(FunctionType, wf)
-        f.__code__ = inner.__code__
-        try:
-            # Update the link to the next layer.
-            inner_wf = cast(WrappedFunction, inner)
-            wf.__dd_wrapped__ = inner_wf.__dd_wrapped__  # type: ignore[assignment]
-        except AttributeError:
-            # No more wrapping layers. Restore the original function by removing
-            # this extra attribute.
-            del wf.__dd_wrapped__
-
-        return f
-
     except AttributeError:
         # The function is not wrapped so we return it as is.
         return cast(FunctionType, wf)
+
+    # Sanity check
+    assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+
+    if wrapper not in cast(FunctionType, wf).__code__.co_consts:
+        # This is not the correct wrapping layer. Try with the next one.
+        return unwrap(cast(WrappedFunction, inner), wrapper)
+
+    # Remove the current wrapping layer by moving the next one over the
+    # current one.
+    f = cast(FunctionType, wf)
+    f.__code__ = inner.__code__
+
+    try:
+        # Update the link to the next layer.
+        wf.__dd_wrapped__ = cast(WrappedFunction, inner).__dd_wrapped__  # type: ignore[assignment]
+    except AttributeError:
+        # No more wrapping layers. Restore the original function by removing
+        # this extra attribute.
+        del wf.__dd_wrapped__
+
+    return f
+
+
+def get_function_code(f: FunctionType) -> CodeType:
+    return (cast(WrappedFunction, f).__dd_wrapped__ or f if is_wrapped(f) else f).__code__
+
+
+def set_function_code(f: FunctionType, code: CodeType) -> None:
+    (cast(WrappedFunction, f).__dd_wrapped__ or f if is_wrapped(f) else f).__code__ = code  # type: ignore[misc]

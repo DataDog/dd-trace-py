@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: A bug where non-pushed samples could leak data to subsequent samples has been fixed.

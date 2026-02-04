@@ -443,7 +443,10 @@ def test_iast_unvalidated_redirect(server, iast_test_token):
     # IAST treats the path "sqlalchemy_pytest-randomly_flask~22/bin/gunicorn" as a client folder and
     # reports a second vulnerability
     assert len(vulnerabilities) >= 1
-    assert len(vulnerabilities[0]) == 1
+    # There’s one vulnerability, but it depends on the config/CI execution.
+    # IAST treats the path "randomly_flask~22/lib/python3.10/site-packages/werkzeug/" as a client folder and
+    # reports a second vulnerability
+    assert len(vulnerabilities[0]) >= 1
     vulnerability = vulnerabilities[0][0]
     assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
     assert vulnerability["evidence"]["valueParts"] == [{"source": 0, "value": "malicious_url"}]

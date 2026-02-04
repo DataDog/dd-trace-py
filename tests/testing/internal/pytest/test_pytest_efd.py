@@ -31,7 +31,7 @@ class TestEFD:
         )
 
         known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
         with (
@@ -88,7 +88,7 @@ class TestEFD:
         )
 
         known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
         with (
@@ -133,7 +133,7 @@ class TestEFD:
         )
 
         known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
         with (
@@ -215,7 +215,7 @@ class TestEFD:
         pytester.makepyfile(test_foo=lots_of_new_tests)
 
         known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
         with (
@@ -252,7 +252,7 @@ class TestEFD:
         )
 
         known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
         with (
@@ -318,7 +318,7 @@ class TestEFD:
         )
 
         known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
         with (
@@ -386,7 +386,7 @@ class TestEFD:
         )
 
         known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_known"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
         with (

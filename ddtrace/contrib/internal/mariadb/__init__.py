@@ -15,8 +15,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(mariadb=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.mariadb["service"]
 
@@ -26,29 +26,5 @@ Global Configuration
    variable.
 
    Default: ``"mariadb"``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the mariadb integration on an per-connection basis use the
-``Pin`` API::
-
-    from ddtrace._trace.pin import Pin
-    from ddtrace import patch
-
-    # Make sure to patch before importing mariadb
-    patch(mariadb=True)
-
-    import mariadb.connector
-
-    # This will report a span with the default settings
-    conn = mariadb.connector.connect(user="alice", password="b0b", host="localhost", port=3306, database="test")
-
-    # Use a pin to override the service name for this connection.
-    Pin.override(conn, service="mariadb-users")
-
-    cursor = conn.cursor()
-    cursor.execute("SELECT 6*7 AS the_answer;")
 
 """

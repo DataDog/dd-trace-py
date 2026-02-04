@@ -155,23 +155,23 @@ def test_service_enable_already_enabled(tracer, mock_llmobs_logs):
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_patches_llmobs_integrations(mock_tracer_patch):
+def test_service_enable_patches_llmobs_integrations(llmobs_patch):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             assert kwargs[module] is True if module != "botocore" else ["bedrock-runtime"]
         llmobs_service.disable()
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_does_not_override_global_patch_modules(mock_tracer_patch, monkeypatch):
+def test_service_enable_does_not_override_global_patch_modules(llmobs_patch, monkeypatch):
     monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             if module == "openai":
                 assert kwargs[module] is False
@@ -181,12 +181,12 @@ def test_service_enable_does_not_override_global_patch_modules(mock_tracer_patch
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_does_not_override_integration_enabled_env_vars(mock_tracer_patch, monkeypatch):
+def test_service_enable_does_not_override_integration_enabled_env_vars(llmobs_patch, monkeypatch):
     monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             if module == "openai":
                 assert kwargs[module] is False
@@ -196,7 +196,7 @@ def test_service_enable_does_not_override_integration_enabled_env_vars(mock_trac
 
 
 @mock.patch("ddtrace.llmobs._llmobs.patch")
-def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch, monkeypatch):
+def test_service_enable_does_not_override_global_patch_config(llmobs_patch, monkeypatch):
     """Test that _patch_integrations() ensures `DD_PATCH_MODULES` overrides `DD_TRACE_<MODULE>_ENABLED`."""
     monkeypatch.setenv("DD_TRACE_OPENAI_ENABLED", "true")
     monkeypatch.setenv("DD_TRACE_ANTHROPIC_ENABLED", "false")
@@ -204,8 +204,8 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
     monkeypatch.setenv("DD_PATCH_MODULES", "openai:false")
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         llmobs_service.enable()
-        mock_tracer_patch.assert_called_once()
-        kwargs = mock_tracer_patch.call_args[1]
+        llmobs_patch.assert_called_once()
+        kwargs = llmobs_patch.call_args[1]
         for module in SUPPORTED_LLMOBS_INTEGRATIONS.values():
             if module in ("openai", "anthropic", "botocore"):
                 assert kwargs[module] is False
@@ -421,7 +421,11 @@ def test_embedding_span(llmobs, llmobs_events):
 def test_annotate_no_active_span_logs_warning(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.annotate(metadata={"test": "test"})
-    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+    assert str(excinfo.value) == (
+        "No span provided and no active LLMObs-generated span found. "
+        "Ensure you pass the span explicitly using LLMObs.annotate(span=<your_span>, ...) "
+        "when annotating from a different thread or async task than where the span was created."
+    )
 
 
 def test_annotate_non_llm_span_logs_warning(tracer, llmobs):
@@ -780,6 +784,7 @@ def test_annotate_prompt_dict(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
@@ -804,6 +809,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -828,6 +834,7 @@ def test_annotate_prompt_typed_dict(llmobs):
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
             "id": "test_prompt",
+            "ml_app": "unnamed-ml-app",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
@@ -948,14 +955,22 @@ def test_export_span_specified_span_returns_span_context(llmobs):
 def test_export_span_no_specified_span_no_active_span_raises(llmobs):
     with pytest.raises(Exception) as excinfo:
         llmobs.export_span()
-    assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+    assert str(excinfo.value) == (
+        "No span provided and no active LLMObs-generated span found. "
+        "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+        "when exporting from a different thread or async task than where the span was created."
+    )
 
 
 def test_export_span_active_span_not_llmobs_span_raises(llmobs):
     with llmobs._instance.tracer.trace("non_llmobs_span"):
         with pytest.raises(Exception) as excinfo:
             llmobs.export_span()
-        assert str(excinfo.value) == "No span provided and no active LLMObs-generated span found."
+        assert str(excinfo.value) == (
+            "No span provided and no active LLMObs-generated span found. "
+            "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+            "when exporting from a different thread or async task than where the span was created."
+        )
 
 
 def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
@@ -1337,11 +1352,19 @@ def test_annotation_context_modifies_prompt(llmobs):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
+                "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
             assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+
+
+def test_annotation_context_prompt_includes_ml_app(llmobs):
+    prompt = {"template": "test_template"}
+    with llmobs.annotation_context(prompt=prompt):
+        with llmobs.llm(name="test_agent", model_name="test") as span:
+            assert span._get_ctx_item(INPUT_PROMPT).get("ml_app") == "unnamed-ml-app"
 
 
 def test_annotation_context_modifies_name(llmobs):
@@ -1574,6 +1597,7 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
+                "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],

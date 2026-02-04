@@ -153,6 +153,7 @@ pip_cache_shared_venvs/
 
 # Claude
 CLAUDE.local.md
+.claude/settings.local.json
 
 # Riot
 .riot/venv*
@@ -208,3 +209,6 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 # Rust build artifacts
 src/native/target*
+
+# Fuzzing corpus, output and artifacts
+.fuzz/

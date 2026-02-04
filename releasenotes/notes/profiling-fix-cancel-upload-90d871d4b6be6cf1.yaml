@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: A bug that would cause the process to temporarily hang upon fork in very rare cases has been fixed.

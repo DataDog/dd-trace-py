@@ -22,6 +22,9 @@ CI_APP_TEST_ORIGIN = "ciapp-test"
 # Stage Name
 STAGE_NAME = "ci.stage.name"
 
+# Job ID
+JOB_ID = "ci.job.id"
+
 # Job Name
 JOB_NAME = "ci.job.name"
 
@@ -134,6 +137,10 @@ def tags(env=None, cwd=None):
     # Tags provided by the user take precedence over everything
     tags.update({k: v for k, v in user_specified_git_info.items() if v})
 
+    # Allow JOB_ID environment variable to override job ID from any provider
+    if env.get("JOB_ID"):
+        tags[JOB_ID] = env.get("JOB_ID")
+
     # if git.BRANCH is a tag, we associate its value to TAG instead of BRANCH
     if git.is_ref_a_tag(tags.get(git.BRANCH)):
         if not tags.get(git.TAG):
@@ -165,7 +172,7 @@ def extract_appveyor(env):
     if env.get("APPVEYOR_REPO_PROVIDER") == "github":
         repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))  # type: Optional[str]
         commit = env.get("APPVEYOR_REPO_COMMIT")  # type: Optional[str]
-        branch = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH") or env.get("APPVEYOR_REPO_BRANCH")  # type: Optional[str]
+        branch: Optional[str] = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH", env.get("APPVEYOR_REPO_BRANCH"))
         tag = env.get("APPVEYOR_REPO_TAG_NAME")  # type: Optional[str]
     else:
         repository = commit = branch = tag = None
@@ -202,7 +209,9 @@ def extract_azure_pipelines(env):
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
         pipeline_url = base_url  # type: Optional[str]
-        job_url = base_url + "&view=logs&j={0}&t={1}".format(env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID"))  # type: Optional[str]
+        job_url: Optional[str] = base_url + "&view=logs&j={0}&t={1}".format(
+            env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
+        )
     else:
         pipeline_url = job_url = None
 
@@ -223,6 +232,7 @@ def extract_azure_pipelines(env):
         git.COMMIT_AUTHOR_NAME: env.get("BUILD_REQUESTEDFORID"),
         git.COMMIT_AUTHOR_EMAIL: env.get("BUILD_REQUESTEDFOREMAIL"),
         STAGE_NAME: env.get("SYSTEM_STAGEDISPLAYNAME"),
+        JOB_ID: env.get("SYSTEM_JOBID"),
         JOB_NAME: env.get("SYSTEM_JOBDISPLAYNAME"),
         _CI_ENV_VARS: json.dumps(
             {
@@ -276,6 +286,7 @@ def extract_buildkite(env):
         PIPELINE_NAME: env.get("BUILDKITE_PIPELINE_SLUG"),
         PIPELINE_NUMBER: env.get("BUILDKITE_BUILD_NUMBER"),
         PIPELINE_URL: env.get("BUILDKITE_BUILD_URL"),
+        JOB_ID: env.get("BUILDKITE_JOB_ID"),
         JOB_URL: "{0}#{1}".format(env.get("BUILDKITE_BUILD_URL"), env.get("BUILDKITE_JOB_ID")),
         PROVIDER_NAME: "buildkite",
         WORKSPACE_PATH: env.get("BUILDKITE_BUILD_CHECKOUT_PATH"),
@@ -348,6 +359,7 @@ def extract_github_actions(env):
     github_repository = env.get("GITHUB_REPOSITORY")
     git_commit_sha = env.get("GITHUB_SHA")
     github_run_id = env.get("GITHUB_RUN_ID")
+    github_job_id = env.get("JOB_CHECK_RUN_ID")
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
@@ -380,6 +392,7 @@ def extract_github_actions(env):
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
         git.COMMIT_HEAD_SHA: git_commit_head_sha,
         JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
+        JOB_ID: github_job_id,
         PIPELINE_ID: github_run_id,
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
@@ -407,6 +420,7 @@ def extract_gitlab(env):
         git.REPOSITORY_URL: env.get("CI_REPOSITORY_URL"),
         git.TAG: env.get("CI_COMMIT_TAG"),
         STAGE_NAME: env.get("CI_JOB_STAGE"),
+        JOB_ID: env.get("CI_JOB_ID"),
         JOB_NAME: env.get("CI_JOB_NAME"),
         JOB_URL: env.get("CI_JOB_URL"),
         PIPELINE_ID: env.get("CI_PIPELINE_ID"),

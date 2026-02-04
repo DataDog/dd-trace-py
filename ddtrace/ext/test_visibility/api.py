@@ -179,7 +179,8 @@ class TestSession(_TestVisibilityAPIBase):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
         session = require_ci_visibility_service().get_session()
-        session.finish(force=force_finish_children, override_status=override_status)
+        session.prepare_for_finish(override_status=override_status)
+        session.finish(force=force_finish_children)
 
     @staticmethod
     def get_tag(tag_name: str) -> Any:
@@ -241,9 +242,9 @@ class TestModule(TestBase):
             force_finish_children,
         )
 
-        require_ci_visibility_service().get_module_by_id(item_id).finish(
-            force=force_finish_children, override_status=override_status
-        )
+        test_obj = require_ci_visibility_service().get_module_by_id(item_id)
+        test_obj.prepare_for_finish(override_status=override_status)
+        test_obj.finish(force=force_finish_children)
 
 
 class TestSuite(TestBase):
@@ -291,9 +292,9 @@ class TestSuite(TestBase):
             override_status,
         )
 
-        require_ci_visibility_service().get_suite_by_id(item_id).finish(
-            force=force_finish_children, override_status=override_status
-        )
+        test_suite_obj = require_ci_visibility_service().get_suite_by_id(item_id)
+        test_suite_obj.prepare_for_finish(override_status=override_status)
+        test_suite_obj.finish(force=force_finish_children)
 
 
 class Test(TestBase):
@@ -366,18 +367,27 @@ class Test(TestBase):
         status: TestStatus,
         skip_reason: Optional[str] = None,
         exc_info: Optional[TestExcInfo] = None,
+        final: bool = True,
     ):
         log.debug(
-            "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s",
+            "Finishing test %s, status: %s, skip_reason: %s, exc_info: %s, final: %s",
             item_id,
             status,
             skip_reason,
             exc_info,
+            final,
         )
 
-        require_ci_visibility_service().get_test_by_id(item_id).finish_test(
-            status=status, skip_reason=skip_reason, exc_info=exc_info
-        )
+        test_obj = require_ci_visibility_service().get_test_by_id(item_id)
+        test_obj.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
+
+        # Only set final_status if this is the final execution (no retries will follow)
+        # For external API users, final=True by default (backward compatible)
+        # For internal API with retries, pass final=False to avoid duplicate final_status tags
+        if final:
+            test_obj.set_final_status(status)
+
+        test_obj.finish()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -388,18 +398,18 @@ class Test(TestBase):
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_pass(item_id: TestId):
-        log.debug("Marking test %s as passed", item_id)
-        Test.finish(item_id, TestStatus.PASS)
+    def mark_pass(item_id: TestId, final: bool = True):
+        log.debug("Marking test %s as passed, final: %s", item_id, final)
+        Test.finish(item_id, TestStatus.PASS, final=final)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_fail(item_id: TestId, exc_info: Optional[TestExcInfo] = None):
-        log.debug("Marking test %s as failed, exc_info: %s", item_id, exc_info)
-        Test.finish(item_id, TestStatus.FAIL, exc_info=exc_info)
+    def mark_fail(item_id: TestId, exc_info: Optional[TestExcInfo] = None, final: bool = True):
+        log.debug("Marking test %s as failed, exc_info: %s, final: %s", item_id, exc_info, final)
+        Test.finish(item_id, TestStatus.FAIL, exc_info=exc_info, final=final)
 
     @staticmethod
     @_catch_and_log_exceptions
-    def mark_skip(item_id: TestId, skip_reason: Optional[str] = None):
-        log.debug("Marking test %s as skipped, skip reason: %s", item_id, skip_reason)
-        Test.finish(item_id, TestStatus.SKIP, skip_reason=skip_reason)
+    def mark_skip(item_id: TestId, skip_reason: Optional[str] = None, final: bool = True):
+        log.debug("Marking test %s as skipped, skip reason: %s, final: %s", item_id, skip_reason, final)
+        Test.finish(item_id, TestStatus.SKIP, skip_reason=skip_reason, final=final)

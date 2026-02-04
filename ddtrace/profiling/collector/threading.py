@@ -1,7 +1,9 @@
 from __future__ import absolute_import
 
 import threading
+from types import ModuleType
 import typing
+from typing import Type
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
@@ -26,36 +28,48 @@ class _ProfiledThreadingBoundedSemaphore(_lock._ProfiledLock):
     pass
 
 
+class _ProfiledThreadingCondition(_lock._ProfiledLock):
+    pass
+
+
 class ThreadingLockCollector(_lock.LockCollector):
     """Record threading.Lock usage."""
 
-    PROFILED_LOCK_CLASS = _ProfiledThreadingLock
-    MODULE = threading
-    PATCHED_LOCK_NAME = "Lock"
+    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingLock] = _ProfiledThreadingLock
+    MODULE: ModuleType = threading
+    PATCHED_LOCK_NAME: str = "Lock"
 
 
 class ThreadingRLockCollector(_lock.LockCollector):
     """Record threading.RLock usage."""
 
-    PROFILED_LOCK_CLASS = _ProfiledThreadingRLock
-    MODULE = threading
-    PATCHED_LOCK_NAME = "RLock"
+    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingRLock] = _ProfiledThreadingRLock
+    MODULE: ModuleType = threading
+    PATCHED_LOCK_NAME: str = "RLock"
 
 
 class ThreadingSemaphoreCollector(_lock.LockCollector):
     """Record threading.Semaphore usage."""
 
-    PROFILED_LOCK_CLASS = _ProfiledThreadingSemaphore
-    MODULE = threading
-    PATCHED_LOCK_NAME = "Semaphore"
+    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingSemaphore] = _ProfiledThreadingSemaphore
+    MODULE: ModuleType = threading
+    PATCHED_LOCK_NAME: str = "Semaphore"
 
 
 class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
     """Record threading.BoundedSemaphore usage."""
 
-    PROFILED_LOCK_CLASS = _ProfiledThreadingBoundedSemaphore
-    MODULE = threading
-    PATCHED_LOCK_NAME = "BoundedSemaphore"
+    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingBoundedSemaphore] = _ProfiledThreadingBoundedSemaphore
+    MODULE: ModuleType = threading
+    PATCHED_LOCK_NAME: str = "BoundedSemaphore"
+
+
+class ThreadingConditionCollector(_lock.LockCollector):
+    """Record threading.Condition usage."""
+
+    PROFILED_LOCK_CLASS: Type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition
+    MODULE: ModuleType = threading
+    PATCHED_LOCK_NAME: str = "Condition"
 
 
 # Also patch threading.Thread so echion can track thread lifetimes

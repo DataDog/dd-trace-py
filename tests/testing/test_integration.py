@@ -263,7 +263,7 @@ class TestFeaturesWithMocking:
         )
 
         # Set up known tests - only include the "known" test
-        known_suite = SuiteRef(ModuleRef("."), "test_efd.py")
+        known_suite = SuiteRef(ModuleRef(""), "test_efd.py")
         known_test_ref = TestRef(known_suite, "test_known_test")
 
         # Use unified mock setup with EFD enabled
@@ -319,7 +319,7 @@ class TestFeaturesWithMocking:
         )
 
         # Set up skippable tests - mark one test as skippable
-        skippable_suite = SuiteRef(ModuleRef("."), "test_itr.py")
+        skippable_suite = SuiteRef(ModuleRef(""), "test_itr.py")
         skippable_test_ref = TestRef(skippable_suite, "test_should_be_skipped")
 
         # Use unified mock setup with ITR enabled

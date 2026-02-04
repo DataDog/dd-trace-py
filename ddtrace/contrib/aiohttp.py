@@ -18,8 +18,8 @@ Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
     patch(aiohttp=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.aiohttp_client['distributed_tracing']
 

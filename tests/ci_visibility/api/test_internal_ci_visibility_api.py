@@ -10,17 +10,17 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettin
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
-from tests.utils import DummyTracer
 
 
-def _get_default_civisibility_settings():
+@pytest.fixture
+def civisibility_settings(tracer):
     return TestVisibilitySessionSettings(
-        tracer=DummyTracer(),
+        tracer=tracer,
         test_service="test_service",
         test_command="test_command",
         test_framework="test_framework",
-        test_framework_version="1.2.3",
         test_framework_metric_name=TEST_FRAMEWORKS.MANUAL,
+        test_framework_version="1.2.3",
         session_operation_name="session_operation_name",
         module_operation_name="module_operation_name",
         suite_operation_name="suite_operation_name",
@@ -62,20 +62,20 @@ def _get_bad_suite_source_file_info():
 
 
 class TestCIVisibilityItems:
-    def test_civisibilityitem_enforces_sourcefile_info_on_tests(self):
+    def test_civisibilityitem_enforces_sourcefile_info_on_tests(self, civisibility_settings):
         ci_test = TestVisibilityTest(
             _get_default_test_id().name,
-            _get_default_civisibility_settings(),
+            civisibility_settings,
             source_file_info=_get_good_test_source_file_info(),
         )
         assert ci_test._source_file_info.path == Path("/absolute/path/to/my_file_name")
         assert ci_test._source_file_info.start_line == 1
         assert ci_test._source_file_info.end_line == 2
 
-    def test_civiisibilityitem_enforces_sourcefile_info_on_suites(self):
+    def test_civiisibilityitem_enforces_sourcefile_info_on_suites(self, civisibility_settings):
         ci_suite = TestVisibilitySuite(
             _get_default_suite_id().name,
-            _get_default_civisibility_settings(),
+            civisibility_settings,
             source_file_info=_get_good_suite_source_file_info(),
         )
         assert ci_suite._source_file_info.path == Path("/absolute/path/to/my_file_name")
@@ -84,14 +84,13 @@ class TestCIVisibilityItems:
 
 
 class TestCIVisibilitySessionSettings:
-    def test_civisibility_sessionsettings_root_dir_accepts_absolute_path(self):
-        settings = _get_default_civisibility_settings()
-        assert settings.workspace_path.is_absolute()
+    def test_civisibility_sessionsettings_root_dir_accepts_absolute_path(self, civisibility_settings):
+        assert civisibility_settings.workspace_path.is_absolute()
 
-    def test_civisibility_sessionsettings_root_dir_rejects_relative_path(self):
+    def test_civisibility_sessionsettings_root_dir_rejects_relative_path(self, tracer):
         with pytest.raises(ValueError):
             _ = TestVisibilitySessionSettings(
-                tracer=DummyTracer(),
+                tracer=tracer,
                 test_service="test_service",
                 test_command="test_command",
                 test_framework="test_framework",
@@ -104,10 +103,10 @@ class TestCIVisibilitySessionSettings:
                 workspace_path=Path("relative/path/to/root_dir"),
             )
 
-    def test_civisibility_sessionsettings_root_dir_rejects_non_path(self):
+    def test_civisibility_sessionsettings_root_dir_rejects_non_path(self, tracer):
         with pytest.raises(TypeError):
             _ = TestVisibilitySessionSettings(
-                tracer=DummyTracer(),
+                tracer=tracer,
                 test_service="test_service",
                 test_command="test_command",
                 test_framework="test_framework",

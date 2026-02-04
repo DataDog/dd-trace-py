@@ -70,6 +70,8 @@ def test_periodic_payload_process_tags():
         assert decoded["Lang"] == "python"
         assert decoded["Hostname"] == processor._hostname
         assert "ProcessTags" in decoded
+        assert isinstance(decoded["ProcessTags"], list)
+        assert all(isinstance(x, str) and ":" in x for x in decoded["ProcessTags"])
     finally:
         processor.stop()
         processor.join()

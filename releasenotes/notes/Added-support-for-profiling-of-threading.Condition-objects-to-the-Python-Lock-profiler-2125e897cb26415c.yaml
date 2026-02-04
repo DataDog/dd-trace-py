@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    profiling: Add support for ``threading.Condition`` locking type profiling in Python.
+    The Lock profiler now provides visibility into ``threading.Condition`` usage, helping
+    identify contention in multi-threaded applications using condition variables.
+

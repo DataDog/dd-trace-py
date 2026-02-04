@@ -1,11 +1,11 @@
 import argparse
 from collections import defaultdict
 import datetime as dt
+from functools import lru_cache
 from http.client import HTTPSConnection
 from io import StringIO
 import json
 from operator import itemgetter
-import os
 import pathlib
 import sys
 import typing
@@ -58,14 +58,13 @@ def _get_contrib_modules() -> typing.Set[str]:
     """Get all integrations by checking modules that have contribs implemented for them"""
     all_integration_names = set()
     for item in CONTRIB_ROOT.iterdir():
-        if not os.path.isdir(item):
+        if not item.is_dir():
             continue
 
         patch_filepath = item / "patch.py"
 
-        if os.path.isfile(patch_filepath):
-            module_name = item.name
-            all_integration_names.add(module_name)
+        if patch_filepath.is_file():
+            all_integration_names.add(item.name)
 
     return all_integration_names
 
@@ -73,16 +72,16 @@ def _get_contrib_modules() -> typing.Set[str]:
 def _get_riot_envs_including_any(contrib_modules: typing.Set[str]) -> typing.Set[str]:
     """Return the set of riot env hashes where each env uses at least one of the given modules"""
     envs = set()
-    for item in os.listdir(".riot/requirements"):
-        if item.endswith(".txt"):
-            with open(f".riot/requirements/{item}", "r") as lockfile:
-                lockfile_content = lockfile.read()
-                for contrib_module in contrib_modules:
-                    if contrib_module in lockfile_content or (
-                        _integration_to_dependency_mapping_contains(contrib_module, lockfile_content)
-                    ):
-                        envs |= {item.split(".")[0]}
-                        break
+    riot_requirements_dir = pathlib.Path(".riot/requirements")
+    for item in riot_requirements_dir.iterdir():
+        if item.suffix == ".txt":
+            lockfile_content = item.read_text()
+            for contrib_module in contrib_modules:
+                if contrib_module in lockfile_content or (
+                    _integration_to_dependency_mapping_contains(contrib_module, lockfile_content)
+                ):
+                    envs.add(item.stem)
+                    break
     return envs
 
 
@@ -144,31 +143,50 @@ def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) 
     return all_venvs
 
 
+@lru_cache(maxsize=256)
 def _get_version_extremes(contrib_module: str) -> typing.Tuple[Optional[str], Optional[str]]:
     """Return the (earliest, latest) supported versions of a given package"""
     with Capturing() as output:
         _internal.main(["index", "versions", contrib_module])
     if not output:
         return (None, None)
-    version_list = [a for a in output if "available versions" in a.lower()][0]
-    output_parts = version_list.split()
+
+    version_list = [a for a in output if "available versions" in a.lower()]
+    if not version_list:
+        return (None, None)
+
+    output_parts = version_list[0].split()
     versions = [p.strip(",") for p in output_parts[2:]]
+    if not versions:
+        return (None, None)
+
     earliest_within_window = versions[-1]
 
-    conn = HTTPSConnection("pypi.org", 443)
-    conn.request("GET", f"pypi/{contrib_module}/json")
-    response = conn.getresponse()
+    conn = None
+    try:
+        conn = HTTPSConnection("pypi.org", 443, timeout=30)
+        conn.request("GET", f"/pypi/{contrib_module}/json")
+        response = conn.getresponse()
 
-    if response.status != 200:
-        raise ValueError(f"Failed to connect to PyPI: HTTP {response.status}")
+        if response.status != 200:
+            raise ValueError(f"Failed to connect to PyPI: HTTP {response.status}")
 
-    version_infos = json.loads(response.readlines()[0])["releases"]
+        version_infos = json.loads(response.read().decode("utf-8"))["releases"]
+    except (OSError, json.JSONDecodeError, KeyError) as e:
+        raise ValueError(f"Failed to fetch version info for {contrib_module}: {e}")
+    finally:
+        if conn is not None:
+            conn.close()
+
     for version in versions:
         version_info = version_infos.get(version, [])
         if not version_info:
             continue
 
         upload_timestamp = version_info[0].get("upload_time_iso_8601")
+        if not upload_timestamp:
+            continue
+
         upload_time = dt.datetime.strptime(upload_timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
         upload_time = upload_time.replace(tzinfo=dt.timezone.utc)
         current_time = dt.datetime.now(dt.timezone.utc)
@@ -181,7 +199,6 @@ def _get_version_extremes(contrib_module: str) -> typing.Tuple[Optional[str], Op
 
 def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
     """Get a mapping of riot hash to venv name."""
-    from io import StringIO
     import re
 
     import riot

@@ -23,6 +23,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -139,7 +140,7 @@ def _get_perform_request_coro(transport):
             yield func(*args, **kwargs)
             return
 
-        with pin.tracer.trace(
+        with tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
             if pin.tags:

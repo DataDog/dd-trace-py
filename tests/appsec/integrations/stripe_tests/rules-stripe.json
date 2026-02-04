@@ -61,12 +61,6 @@
               "currency"
             ]
           },
-          "appsec.events.payments.create.customer_email": {
-            "address": "server.business_logic.payment.creation",
-            "key_path": [
-              "customer_email"
-            ]
-          },
           "appsec.events.payments.create.discounts.coupon": {
             "address": "server.business_logic.payment.creation",
             "key_path": [
@@ -107,12 +101,6 @@
             "address": "server.business_logic.payment.creation",
             "key_path": [
               "payment_method"
-            ]
-          },
-          "appsec.events.payments.create.receipt_email": {
-            "address": "server.business_logic.payment.creation",
-            "key_path": [
-              "receipt_email"
             ]
           }
         }
@@ -229,12 +217,6 @@
               "last_payment_error.payment_method.id"
             ]
           },
-          "appsec.events.payments.failure.last_payment_error.payment_method.billing_details.email": {
-            "address": "server.business_logic.payment.failure",
-            "key_path": [
-              "last_payment_error.payment_method.billing_details.email"
-            ]
-          },
           "appsec.events.payments.failure.last_payment_error.payment_method.type": {
             "address": "server.business_logic.payment.failure",
             "key_path": [
@@ -275,12 +257,6 @@
             "address": "server.business_logic.payment.cancellation",
             "key_path": [
               "livemode"
-            ]
-          },
-          "appsec.events.payments.cancellation.receipt_email": {
-            "address": "server.business_logic.payment.cancellation",
-            "key_path": [
-              "receipt_email"
             ]
           }
         }

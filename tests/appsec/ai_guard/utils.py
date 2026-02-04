@@ -14,7 +14,6 @@ from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.internal.settings.asm import ai_guard_config
-from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
 
 
@@ -22,8 +21,8 @@ def random_string(length: int) -> str:
     return "".join(random.choice(string.ascii_letters) for _ in range(length))
 
 
-def find_ai_guard_span(tracer: DummyTracer) -> Span:
-    spans = TracerSpanContainer(tracer).spans
+def find_ai_guard_span(test_spans: TracerSpanContainer) -> Span:
+    spans = test_spans.spans
     assert len(spans) == 1
     span = spans[0]
     assert span.name == AI_GUARD.RESOURCE_TYPE
@@ -31,11 +30,11 @@ def find_ai_guard_span(tracer: DummyTracer) -> Span:
 
 
 def assert_ai_guard_span(
-    tracer: DummyTracer,
+    test_spans: TracerSpanContainer,
     tags: Dict[str, Any],
     meta_struct: Dict[str, Any],
 ) -> None:
-    span = find_ai_guard_span(tracer)
+    span = find_ai_guard_span(test_spans)
     for tag, value in tags.items():
         assert tag in span.get_tags(), f"Missing {tag} from spans tags"
         assert span.get_tag(tag) == value, f"Wrong value {span.get_tag(tag)}, expected {value}"

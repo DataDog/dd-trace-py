@@ -24,6 +24,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -109,9 +110,9 @@ def traced_receive(func, instance, args, kwargs):
     # Signature only takes 2 args: (body, message)
     message = get_argument_value(args, kwargs, 1, "message")
 
-    trace_utils.activate_distributed_headers(pin.tracer, request_headers=message.headers, int_config=config.kombu)
+    trace_utils.activate_distributed_headers(tracer, request_headers=message.headers, int_config=config.kombu)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
         service=pin.service,
         span_type=SpanTypes.WORKER,
@@ -140,7 +141,7 @@ def traced_publish(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND),
         service=pin.service,
         span_type=SpanTypes.WORKER,

@@ -21,28 +21,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Vertex
     patch(vertexai=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.vertexai["service"]
 
    The service name reported by default for Vertex AI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_VERTEXAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the Vertex AI integration on a per-instance basis use the
-``Pin`` API::
-
-    import vertexai
-    from ddtrace import config
-    from ddtrace._trace.pin import Pin
-
-    Pin.override(vertexai, service="my-vertexai-service")
+   Alternatively, set this option with the ``DD_VERTEXAI_SERVICE`` environment variable.
 """  # noqa: E501

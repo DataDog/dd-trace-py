@@ -2,7 +2,6 @@ import contextlib
 import http.client as httplib
 import socket
 import sys
-from urllib import parse
 import urllib.error
 from urllib.request import Request
 from urllib.request import build_opener
@@ -12,9 +11,7 @@ import pytest
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.httplib.patch import patch
-from ddtrace.contrib.internal.httplib.patch import should_skip_request
 from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
@@ -41,7 +38,6 @@ class HTTPLibBaseMixin(object):
         super(HTTPLibBaseMixin, self).setUp()
 
         patch()
-        Pin._override(httplib, tracer=self.tracer)
 
     def tearDown(self):
         unpatch()
@@ -59,12 +55,10 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
 
     def get_http_connection(self, *args, **kwargs):
         conn = httplib.HTTPConnection(*args, **kwargs)
-        Pin._override(conn, tracer=self.tracer)
         return conn
 
     def get_https_connection(self, *args, **kwargs):
         conn = httplib.HTTPSConnection(*args, **kwargs)
-        Pin._override(conn, tracer=self.tracer)
         return conn
 
     def test_patch(self):
@@ -89,43 +83,6 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(httplib.HTTPConnection.__init__, original_init)
         self.assertEqual(httplib.HTTPConnection.request, original_request)
         self.assertEqual(httplib.HTTPConnection.getresponse, original_getresponse)
-
-    def test_should_skip_request(self):
-        """
-        When calling should_skip_request
-            with an enabled Pin and non-internal request
-                returns False
-            with a disabled Pin and non-internal request
-                returns True
-            with an enabled Pin and internal request
-                returns True
-            with a disabled Pin and internal request
-                returns True
-        """
-        # Enabled Pin and non-internal request
-        self.tracer.enabled = True
-        request = self.get_http_connection(SOCKET)
-        pin = Pin.get_from(request)
-        self.assertFalse(should_skip_request(pin, request))
-
-        # Disabled Pin and non-internal request
-        self.tracer.enabled = False
-        request = self.get_http_connection(SOCKET)
-        pin = Pin.get_from(request)
-        self.assertTrue(should_skip_request(pin, request))
-
-        # Enabled Pin and internal request
-        self.tracer.enabled = True
-        parsed = parse.urlparse(self.tracer._agent_url)
-        request = self.get_http_connection(parsed.hostname, parsed.port)
-        pin = Pin.get_from(request)
-        self.assertTrue(should_skip_request(pin, request))
-
-        # Disabled Pin and internal request
-        self.tracer.enabled = False
-        request = self.get_http_connection(parsed.hostname, parsed.port)
-        pin = Pin.get_from(request)
-        self.assertTrue(should_skip_request(pin, request))
 
     def test_httplib_request_get_request_no_ddtrace(self):
         """

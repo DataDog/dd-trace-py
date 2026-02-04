@@ -1,0 +1,69 @@
+[[
+  {
+    "name": "kombu.publish",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "dsm_test_exchange",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "697bad5100000000",
+      "component": "kombu",
+      "kombu.exchange": "dsm_test_exchange",
+      "kombu.routing_key": "dsm_test",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "out.vhost": "/",
+      "pathway.hash": "14241834167477407193",
+      "runtime-id": "aea8d840512c49d785fe2848c222fc76",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "kombu.body_length": 16.0,
+      "network.destination.port": 5672.0,
+      "process_id": 45049.0
+    },
+    "duration": 3139000,
+    "start": 1769712977201497000
+  },
+     {
+       "name": "kombu.receive",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "dsm_test_exchange",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "697bad5100000000",
+         "component": "kombu",
+         "kombu.exchange": "dsm_test_exchange",
+         "kombu.routing_key": "dsm_test",
+         "language": "python",
+         "out.host": "127.0.0.1",
+         "out.vhost": "/",
+         "pathway.hash": "10302394269421895618",
+         "runtime-id": "aea8d840512c49d785fe2848c222fc76",
+         "span.kind": "consumer",
+         "tracestate": "dd=p:e89d9c8a1f58ba15;s:1;t.dm:-0;t.tid:697bad5100000000"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1.0,
+         "network.destination.port": 5672.0,
+         "process_id": 45049.0
+       },
+       "duration": 91000,
+       "start": 1769712977206529000
+     }]]

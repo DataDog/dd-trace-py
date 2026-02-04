@@ -26,6 +26,7 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -53,7 +54,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
-            pin.tracer.context_provider.activate(tracer_ctx)
+            tracer.context_provider.activate(tracer_ctx)  # type: ignore[arg-type]
             if self.llmobs_enabled and llmobs_ctx:
                 core.dispatch("threading.execution", (llmobs_ctx,))
 
@@ -85,7 +86,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _get_current_ctx(self, pin):
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
-        curr_trace_ctx = pin.tracer.current_trace_context()
+        curr_trace_ctx = tracer.current_trace_context()
         if self.llmobs_enabled:
             curr_llmobs_ctx = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "threading.submit", ()

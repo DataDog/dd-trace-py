@@ -1,9 +1,9 @@
 from aiokafka.structs import TopicPartition
-import mock
 import pytest
 
 from ddtrace.contrib.internal.aiokafka.patch import patch
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
+from ddtrace.internal.datastreams import data_streams_processor
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
@@ -27,12 +27,12 @@ def patch_aiokafka():
 
 
 @pytest.fixture
-def dsm_processor(tracer):
-    processor = tracer.data_streams_processor
-    with mock.patch("ddtrace.internal.datastreams.data_streams_processor", return_value=processor):
-        yield processor
-        # Processor should be recreated by the tracer fixture
-        processor.shutdown(timeout=5)
+def dsm_processor():
+    processor = data_streams_processor(reset=True)
+    assert processor is not None, "Datastream Monitoring is not enabled"
+    yield processor
+    # Processor should be recreated by the tracer fixture
+    processor.shutdown(timeout=5)
 
 
 @pytest.mark.asyncio
@@ -284,6 +284,56 @@ async def test_data_streams_multiple_topics(dsm_processor):
     # Both topics should be tracked
     assert topic1 in checkpoint_topics, f"Topic {topic1} should be tracked"
     assert topic2 in checkpoint_topics, f"Topic {topic2} should be tracked"
+
+
+@pytest.mark.snapshot(ignores=["metrics.kafka.message_offset"])
+@pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"}, ddtrace_run=True, err=None)
+def test_data_streams_aiokafka_enabled():
+    """Test that verifies DSM is enabled and adds dd-pathway-ctx-base64 header to aiokafka messages."""
+    import asyncio
+
+    from aiokafka import AIOKafkaConsumer
+    from aiokafka import AIOKafkaProducer
+    from aiokafka.admin import AIOKafkaAdminClient
+    from aiokafka.admin import NewTopic
+
+    from tests.contrib.config import KAFKA_CONFIG
+
+    BOOTSTRAP_SERVERS = f"127.0.0.1:{KAFKA_CONFIG['port']}"
+    topic_name = "test_data_streams_aiokafka_enabled"
+
+    async def _test():
+        admin = AIOKafkaAdminClient(bootstrap_servers=[BOOTSTRAP_SERVERS])
+        await admin.start()
+        try:
+            await admin.create_topics([NewTopic(topic_name, 1, 1)])
+        except Exception:
+            pass
+        finally:
+            await admin.close()
+
+        producer = AIOKafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS])
+        await producer.start()
+
+        consumer = AIOKafkaConsumer(
+            topic_name, bootstrap_servers=[BOOTSTRAP_SERVERS], group_id="test_group", auto_offset_reset="earliest"
+        )
+        await consumer.start()
+
+        try:
+            await producer.send_and_wait(topic_name, value=b"test")
+
+            import time
+
+            time.sleep(0.5)
+            message = await consumer.getone()
+            assert "dd-pathway-ctx-base64" in [h[0] for h in message.headers]
+
+        finally:
+            await consumer.stop()
+            await producer.stop()
+
+    asyncio.run(_test())
 
 
 @pytest.mark.asyncio

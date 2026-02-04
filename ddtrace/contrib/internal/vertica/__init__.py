@@ -22,19 +22,4 @@ To configure the Vertica integration globally you can use the ``Config`` API::
     patch(vertica=True)
 
     config.vertica['service_name'] = 'my-vertica-database'
-
-
-To configure the Vertica integration on an instance-per-instance basis use the
-``Pin`` API::
-
-    from ddtrace import patch
-    from ddtrace._trace.pin import Pin
-    patch(vertica=True)
-
-    import vertica_python
-
-    conn = vertica_python.connect(**YOUR_VERTICA_CONFIG)
-
-    # override the service
-    Pin.override(conn, service='myverticaservice')
 """

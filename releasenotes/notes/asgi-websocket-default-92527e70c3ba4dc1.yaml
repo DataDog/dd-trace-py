@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    asgi: WebSocket instrumentation is now enabled by default, automatically capturing traces for WebSocket connections without requiring additional configuration.

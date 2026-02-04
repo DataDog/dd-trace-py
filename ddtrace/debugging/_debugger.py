@@ -54,6 +54,7 @@ from ddtrace.internal.module import unregister_post_run_module_hook
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import Tracer
 
@@ -128,8 +129,8 @@ class DebuggerWrappingContext(WrappingContext):
 
                 try:
                     signal.do_enter()
-                except Exception:
-                    log.exception("Failed to enter signal %r", signal)
+                except Exception as e:
+                    telemetry_writer.add_error_log("Failed to enter signal", e)
                     continue
                 signals.append(signal)
         finally:
@@ -142,8 +143,8 @@ class DebuggerWrappingContext(WrappingContext):
 
         try:
             signals = cast(Deque[Signal], self.get("signals"))
-        except KeyError:
-            log.error("Signal contexts were not opened for function probe over %s", self.__wrapped__)
+        except KeyError as e:
+            telemetry_writer.add_error_log("Signal contexts were not opened for function probe", e)
             return
 
         while signals:
@@ -153,8 +154,8 @@ class DebuggerWrappingContext(WrappingContext):
             signal = signals.pop()
             try:
                 signal.do_exit(retval, exc_info, end_time - self.get("start_time"))
-            except Exception:
-                log.exception("Failed to exit signal %r", signal)
+            except Exception as e:
+                telemetry_writer.add_error_log("Failed to exit signal", e)
                 continue
 
             self._collector.push(signal)
@@ -238,7 +239,16 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
+        adapter = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
+
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
+
+        # Currently the product enablement and the callback registration are
+        # tied together within the RC client so here we have to pretend that
+        # once we have disabled the debugger we also get an empty configuration
+        # payload from RC.
+        if adapter is not None:
+            cast(ProbeRCAdapter, adapter).delete_all_probes()
 
         unregister_post_run_module_hook(cls._on_run_module)
 

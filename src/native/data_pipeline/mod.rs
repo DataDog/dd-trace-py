@@ -195,7 +195,7 @@ impl TraceExporterPy {
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
     /// sending the traces.
     fn send(&self, py: Python<'_>, data: PyBackedBytes, trace_count: usize) -> PyResult<String> {
-        py.allow_threads(move || {
+        py.detach(move || {
             match self
                 .inner
                 .as_ref()

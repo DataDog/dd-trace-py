@@ -13,6 +13,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
+from ddtrace.trace import tracer
 
 
 def get_version():
@@ -211,7 +212,7 @@ async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance,
     output = await func(*args, **kwargs)
 
     if integration.llmobs_enabled:
-        span = pin.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return output
 

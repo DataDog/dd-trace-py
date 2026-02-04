@@ -99,14 +99,20 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
         std::exit(1);
     }
 
+    // Detach the upload thread so TSan doesn't expect it to be joined.
+    // After fork(), threads don't survive in the child, but TSan metadata does,
+    // causing false "thread leak" reports if we don't detach.
+    pthread_detach(thread);
+
+    // Give the upload thread time to start
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
     // Fork, wait in the parent for child to finish
     pid_t pid = fork();
     if (pid == 0) {
-        // Child
-        profile_in_child(num_threads, 500e3, done); // Child profiles for 500ms
+        // Child profiles for 500ms
+        profile_in_child(num_threads, 500e3, done);
     }
-
-    pthread_join(thread, nullptr);
 
     // Parent
     int status;

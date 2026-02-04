@@ -2,7 +2,6 @@
 import pytest
 import redis
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -28,7 +27,6 @@ class TestRedisClusterPatch(TracerTestCase):
         patch()
         r = self._get_test_client()
         r.flushall()
-        Pin._override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -100,7 +98,6 @@ class TestRedisClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Filter to only GET spans (ignore cluster discovery spans)
@@ -121,7 +118,6 @@ class TestRedisClusterPatch(TracerTestCase):
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         # Filter to only GET spans (ignore cluster discovery spans)
@@ -141,7 +137,6 @@ class TestRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(self.get_spans(), resource="GET")
@@ -159,7 +154,6 @@ class TestRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
         span = find_redis_span(self.get_spans(), resource="GET")

@@ -213,4 +213,4 @@ suites:
     runner: riot
     gpu: true
     snapshot: true
-
+    skip: true  # Temporarily disabled

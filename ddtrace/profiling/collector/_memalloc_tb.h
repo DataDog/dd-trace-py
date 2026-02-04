@@ -11,8 +11,6 @@
 class traceback_t
 {
   public:
-    /* True if this sample has been reported previously */
-    bool reported;
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
@@ -22,10 +20,10 @@ class traceback_t
 
     ~traceback_t() = default;
 
-    /* Reset/clear this traceback for reuse with a new allocation
-     * Clears all sample data and re-collects frames from the current Python frame chain
-     * NOTE: Invokes CPython APIs which may release the GIL during frame collection */
-    void reset_invokes_cpython(size_t size, size_t weighted_size);
+    /* Initialize/populate this traceback with allocation data and collect frames
+     * Assumes sample buffers are already clean (cleared when returned to pool)
+     * _invokes_cpython suffix: calls CPython APIs which may release the GIL during frame collection */
+    void init_sample_invokes_cpython(size_t size, size_t weighted_size);
 
     /* Initialize traceback module (creates interned strings)
      * Returns true on success, false otherwise
@@ -40,11 +38,6 @@ class traceback_t
     traceback_t& operator=(const traceback_t&) = delete;
     traceback_t(traceback_t&&) = delete;
     traceback_t& operator=(traceback_t&&) = delete;
-
-  private:
-    /* Common initialization logic shared by constructor and reset
-     * _invokes_cpython suffix: calls CPython APIs which may release the GIL during frame collection */
-    void init_sample_invokes_cpython(size_t size, size_t weighted_size);
 };
 
 /* The maximum number of frames we can collect for a traceback

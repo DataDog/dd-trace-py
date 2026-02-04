@@ -1,0 +1,78 @@
+[[
+  {
+    "name": "kafka.consume",
+    "service": "kafka",
+    "resource": "kafka.consume",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "697bac5200000000",
+      "component": "kafka",
+      "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
+      "kafka.group_id": "test_group",
+      "kafka.message_key": "",
+      "kafka.received_message": "True",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_data_streams_kafka_enabled",
+      "language": "python",
+      "messaging.destination.name": "test_data_streams_kafka_enabled",
+      "messaging.system": "kafka",
+      "pathway.hash": "7492890536049072272",
+      "runtime-id": "eaf99ed784cb407ca2fcc90711929a7e",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "kafka.message_offset": 31.0,
+      "kafka.partition": 0.0,
+      "process_id": 24092.0
+    },
+    "duration": 3031335000,
+    "start": 1769712719733684000
+  }],
+[
+  {
+    "name": "kafka.produce",
+    "service": "kafka",
+    "resource": "kafka.produce",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "697bac4f00000000",
+      "component": "kafka",
+      "kafka.cluster_id": "5L6g3nShT-eMCtK--X86sw",
+      "kafka.message_key": "",
+      "kafka.tombstone": "False",
+      "kafka.topic": "test_data_streams_kafka_enabled",
+      "language": "python",
+      "messaging.destination.name": "test_data_streams_kafka_enabled",
+      "messaging.kafka.bootstrap.servers": "127.0.0.1:29092",
+      "messaging.system": "kafka",
+      "pathway.hash": "17782613529472337329",
+      "runtime-id": "eaf99ed784cb407ca2fcc90711929a7e",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "kafka.partition": -1.0,
+      "process_id": 24092.0
+    },
+    "duration": 1850000,
+    "start": 1769712719226304000
+  }]]

@@ -987,3 +987,11 @@ def test_get_traceback_honors_config_traceback_max_size():
     split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
     assert len(split_result) < 8  # Value is 5 for Python 3.10
     assert len(result) < 410  # Value is 377 for Python 3.10
+
+
+def test_span_repr_metastruct():
+    span = Span("span_test")
+    assert "metastruct={}" in repr(span)
+    span._set_struct_tag("key1", {"a": 1, "b": 2})
+    span._set_struct_tag("key2", ["bad item"])  # type: ignore
+    assert "metastruct={'key1': dict_keys(['a', 'b']), 'key2': 'wrong type [list]'}" in repr(span)

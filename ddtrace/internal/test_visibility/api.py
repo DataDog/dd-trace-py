@@ -4,6 +4,7 @@ import typing as t
 from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
+from ddtrace.internal.ci_visibility.api._base import SPECIAL_STATUS
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.codeowners import Codeowners as _Codeowners
 from ddtrace.internal.logger import get_logger
@@ -163,7 +164,7 @@ class InternalTest(
 ):
     @staticmethod
     @_catch_and_log_exceptions
-    def finish(
+    def prepare_for_finish(
         item_id: ext_api.TestId,
         status: t.Optional[ext_api.TestStatus] = None,
         skip_reason: t.Optional[str] = None,
@@ -174,6 +175,23 @@ class InternalTest(
         require_ci_visibility_service().get_test_by_id(item_id).finish_test(
             status=status, skip_reason=skip_reason, exc_info=exc_info, override_finish_time=override_finish_time
         )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def finish(
+        item_id: ext_api.TestId,
+        status: t.Optional[ext_api.TestStatus] = None,
+        skip_reason: t.Optional[str] = None,
+        exc_info: t.Optional[ext_api.TestExcInfo] = None,
+        final: bool = True,
+    ) -> None:
+        log.debug("Finishing test %s", item_id)
+        test_obj = require_ci_visibility_service().get_test_by_id(item_id)
+        if status is not None:
+            test_obj.set_status(status)
+            if final:
+                test_obj.set_final_status(status)
+        test_obj.finish()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -217,3 +235,15 @@ class InternalTest(
         require_ci_visibility_service().get_test_by_id(item_id).overwrite_attributes(
             name, suite_name, parameters, codeowners
         )
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def get_status(test_id: ext_api.TestId) -> t.Union[ext_api.TestStatus, SPECIAL_STATUS]:
+        return require_ci_visibility_service().get_test_by_id(test_id).get_status()
+
+    @staticmethod
+    @_catch_and_log_exceptions
+    def set_final_status(test_id: ext_api.TestId, final_status: ext_api.TestStatus) -> None:
+        log.debug("Setting final_status to test %s as %s", test_id, final_status)
+
+        return require_ci_visibility_service().get_test_by_id(test_id).set_final_status(final_status)

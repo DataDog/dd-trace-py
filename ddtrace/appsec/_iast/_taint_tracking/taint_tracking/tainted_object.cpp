@@ -10,7 +10,6 @@ constexpr int DEFAULT_MAX_RANGE_COUNT = 30;
 // Static variables for caching the taint range limit
 namespace {
 int g_cached_limit = 0;
-bool g_limit_initialized = false;
 }
 
 // Get the max range count from environment variable

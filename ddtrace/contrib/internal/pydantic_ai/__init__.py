@@ -19,27 +19,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the Pydant
     patch(pydantic_ai=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.pydantic_ai["service"]
 
    The service name reported by default for PydanticAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_PYDANTIC_AI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the PydanticAI integration on a per-instance basis use the
-``Pin`` API::
-
-    import pydantic_ai
-    from ddtrace import Pin
-
-    Pin.override(pydantic_ai, service="my-pydantic-ai-service")
+   Alternatively, set this option with the ``DD_PYDANTIC_AI_SERVICE`` environment variable.
 """  # noqa: E501

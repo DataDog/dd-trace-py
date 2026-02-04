@@ -49,28 +49,12 @@ Alternatively, use :func:`patch() <ddtrace.patch>` to manually enable the OpenAI
     # patch(openai=True, aiohttp=True)
 
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.openai["service"]
 
    The service name reported by default for OpenAI requests.
 
-   Alternatively, you can set this option with the ``DD_SERVICE`` or ``DD_OPENAI_SERVICE`` environment
-   variables.
-
-   Default: ``DD_SERVICE``
-
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the OpenAI integration on a per-instance basis use the
-``Pin`` API::
-
-    import openai
-    from ddtrace import config
-    from ddtrace._trace.pin import Pin
-
-    Pin.override(openai, service="my-openai-service")
+   Alternatively, set this option with the ``DD_OPENAI_SERVICE`` environment variable.
 """  # noqa: E501
