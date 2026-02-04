@@ -17,6 +17,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 _KV_FUNCS = ["put", "get", "delete"]
@@ -65,7 +66,7 @@ def wrap_function(name):
         path = get_argument_value(args, kwargs, 0, "key")
         resource = name.upper()
 
-        with pin.tracer.trace(
+        with tracer.trace(
             schematize_url_operation(consulx.CMD, protocol="http", direction=SpanDirection.OUTBOUND),
             service=pin.service,
             resource=resource,

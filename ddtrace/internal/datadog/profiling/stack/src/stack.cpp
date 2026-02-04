@@ -3,6 +3,8 @@
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
 
+#include "echion/echion_sampler.h"
+
 using namespace Datadog;
 
 static PyObject*
@@ -156,15 +158,14 @@ static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
     (void)self;
-    PyObject* asyncio_current_tasks;
     PyObject* asyncio_scheduled_tasks;
     PyObject* asyncio_eager_tasks;
 
-    if (!PyArg_ParseTuple(args, "OOO", &asyncio_current_tasks, &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
+    if (!PyArg_ParseTuple(args, "OO", &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
         return NULL;
     }
 
-    Sampler::get().init_asyncio(asyncio_current_tasks, asyncio_scheduled_tasks, asyncio_eager_tasks);
+    Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
     Py_RETURN_NONE;
 }
@@ -227,7 +228,8 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    auto maybe_greenlet_name = string_table.key(name, StringTag::GreenletName);
+    auto& sampler = Sampler::get();
+    auto maybe_greenlet_name = sampler.get_echion().string_table().key(name, StringTag::GreenletName);
     if (!maybe_greenlet_name) {
         // We failed to get this task but we keep going
         PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
@@ -237,7 +239,7 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     auto greenlet_name = *maybe_greenlet_name;
 
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().track_greenlet(greenlet_id, greenlet_name, frame);
+    sampler.track_greenlet(greenlet_id, greenlet_name, frame);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;

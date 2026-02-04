@@ -1,66 +1,8 @@
 #include "sample.hpp"
 
-#include "libdatadog_helpers.hpp"
-
 #include <algorithm>
 #include <chrono>
-#include <datadog/common.h>
-#include <datadog/profiling.h>
 #include <string_view>
-
-Datadog::string_id
-Datadog::intern_string(std::string_view s)
-{
-    auto dict = internal::get_profiles_dictionary();
-
-    ddog_prof_StringId2 string_id;
-    auto insert_str_res = ddog_prof_ProfilesDictionary_insert_str(
-      &string_id, dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
-
-    if (insert_str_res.flags) {
-        std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
-        return nullptr;
-    }
-
-    return string_id;
-}
-
-// Static state for intern_function that needs to be reset after fork
-namespace {
-
-ddog_prof_StringId2 cached_empty_string_id = nullptr;
-
-} // namespace
-
-Datadog::function_id
-Datadog::intern_function(string_id name, string_id filename)
-{
-    auto dict = internal::get_profiles_dictionary();
-    ddog_prof_Function2 my_function = {
-        .name = name,
-        .system_name = cached_empty_string_id, // No support for system_name in Python
-        .file_name = filename,
-    };
-
-    ddog_prof_FunctionId2 function_id;
-    auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, dict, &my_function);
-    if (insert_function_res.flags) {
-        std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
-        return nullptr;
-    }
-
-    return function_id;
-}
-
-void
-Datadog::internal::init_interned_strings()
-{
-    // Initialize the cached empty string with the current Profiles Dictionary
-    cached_empty_string_id = intern_string("");
-
-    // Reset and re-initialize the tag and label key caches
-    reset_key_caches();
-}
 
 Datadog::internal::StringArena::StringArena()
 {
@@ -77,7 +19,7 @@ Datadog::internal::StringArena::reset()
     // TODO - we could consider keeping more around if it's not too costly.
     // The goal is to not retain more than we need _on average_. If we have
     // mostly small samples and then a rare huge one, we can end up with
-    // all samples in our pool using as much memory as the largest ones we've seen
+    // all samples in our pool using as much memory as the largets ones we've seen
     chunks.front().clear();
     chunks.erase(++chunks.begin(), chunks.end());
 }
@@ -110,23 +52,25 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    auto name_id = intern_string(name);
-    auto filename_id = intern_string(filename);
+    static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };
+    name = string_storage.insert(name);
+    filename = string_storage.insert(filename);
 
-    auto function_id = intern_function(name_id, filename_id);
+    const ddog_prof_Location loc = {
+        .mapping = null_mapping, // No support for mappings in Python
+        .function = {
+          .name = to_slice(name),
+          .name_id = { 0 },
+          .system_name = {}, // No support for system_name in Python
+          .system_name_id = { 0 },
+          .filename = to_slice(filename),
+          .filename_id = { 0 },
+        },
+        .address = address,
+        .line = line,
+    };
 
-    push_frame_impl(function_id, address, line);
-}
-
-void
-Datadog::Sample::push_frame_impl(function_id function_id, uint64_t address, int64_t line)
-{
-    locations.push_back({
-      .mapping = nullptr, // No support for mappings in Python
-      .function = function_id,
-      .address = address,
-      .line = line,
-    });
+    locations.emplace_back(loc);
 }
 
 void
@@ -140,62 +84,44 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
     }
 }
 
-void
-Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t line)
-{
-    if (locations.size() <= max_nframes) {
-        push_frame_impl(function_id, address, line);
-    } else {
-        ++dropped_frames;
-    }
-}
-
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 {
-    // Get the interned string for the key
-    const auto key_id = internal::to_interned_string(key);
+    // Get the sv for the key
+    const std::string_view key_sv = to_string(key);
 
     // If either the val or the key are empty, we don't add the label, but
     // we don't return error
     // TODO is this what we want?
-    if (val.empty() || key_id == nullptr) {
+    if (val.empty() || key_sv.empty()) {
         return true;
     }
 
-    std::string_view val_str = string_storage.insert(val);
-    const static std::string unit_str = "";
-
     // Otherwise, persist the val string and add the label
-    labels.push_back({
-      .key = key_id,
-      // do not intern this because it could be a memory leak if values are many-valued
-      .str = to_slice(val_str),
-      .num = 0,
-      // do not intern this because it could be a memory leak if values are many-valued
-      .num_unit = to_slice(unit_str.c_str()),
-    });
+    val = string_storage.insert(val);
+    auto& label = labels.emplace_back();
+    label.key = to_slice(key_sv);
+    label.str = to_slice(val);
     return true;
 }
 
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
 {
-    // Get the interned string for the key.  If there is no key, then there
+    // Get the sv for the key.  If there is no key, then there
     // is no label.  Right now this is OK.
     // TODO make this not OK
-    const auto key_id = internal::to_interned_string(key);
-    if (key_id == nullptr) {
+    const std::string_view key_sv = to_string(key);
+    if (key_sv.empty()) {
         return true;
     }
 
     auto empty_string = to_slice("");
-    labels.push_back({
-      .key = key_id,
-      .str = empty_string,
-      .num = val,
-      .num_unit = empty_string,
-    });
+    auto& label = labels.emplace_back();
+    label.key = to_slice(key_sv);
+    label.str = empty_string;
+    label.num = val;
+    label.num_unit = empty_string;
     return true;
 }
 
@@ -206,6 +132,7 @@ Datadog::Sample::clear_buffers()
     labels.clear();
     locations.clear();
     dropped_frames = 0;
+    has_dropped_frames_indicator = false;
     reverse_locations = false;
     string_storage.reset();
 }
@@ -225,10 +152,11 @@ bool
 Datadog::Sample::export_sample()
 {
     // Handle dropped frames by adding them to locations if needed
-    if (dropped_frames > 0) {
+    if (dropped_frames > 0 && !has_dropped_frames_indicator) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
+        has_dropped_frames_indicator = true;
     }
 
     if (reverse_locations) {
@@ -236,7 +164,7 @@ Datadog::Sample::export_sample()
         reverse_locations = false; // Reset after reversing
     }
 
-    const ddog_prof_Sample2 sample = {
+    const ddog_prof_Sample sample = {
         .locations = { locations.data(), locations.size() },
         .values = { values.data(), values.size() },
         .labels = { labels.data(), labels.size() },
@@ -644,10 +572,4 @@ void
 Datadog::Sample::postfork_child()
 {
     profile_state.postfork_child();
-}
-
-void
-Datadog::Sample::cleanup()
-{
-    profile_state.cleanup();
 }

@@ -212,3 +212,6 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 # Rust build artifacts
 src/native/target*
 profiles/
+
+# Fuzzing corpus, output and artifacts
+.fuzz/
