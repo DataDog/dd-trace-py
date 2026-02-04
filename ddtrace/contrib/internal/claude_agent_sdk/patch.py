@@ -84,6 +84,7 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
 @with_traced_module
 def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs):
     """Trace ClaudeSDKClient.receive_messages() - finishes span started by query()."""
+    # skip tracing for internal /context queries to avoid trace loop
     if getattr(instance, "_dd_internal_context_query", False):
         return func(*args, **kwargs)
 
@@ -112,7 +113,6 @@ def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs)
 
 
 def patch():
-    """Activate tracing for claude_agent_sdk."""
     if getattr(claude_agent_sdk, "_datadog_patch", False):
         return
 
@@ -128,7 +128,6 @@ def patch():
 
 
 def unpatch():
-    """Disable tracing for claude_agent_sdk."""
     if not getattr(claude_agent_sdk, "_datadog_patch", False):
         return
 

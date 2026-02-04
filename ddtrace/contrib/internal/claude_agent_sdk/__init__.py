@@ -23,7 +23,4 @@ Global Configuration
 
    This option can also be set with the ``DD_CLAUDE_AGENT_SDK_SERVICE`` environment
    variable.
-
-   Default: ``"claude_agent_sdk"``
-
 """
