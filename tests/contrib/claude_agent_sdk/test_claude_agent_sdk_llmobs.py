@@ -2,9 +2,7 @@ import pytest
 from unittest.mock import ANY
 
 from ddtrace.llmobs._utils import safe_json
-from tests.contrib.claude_agent_sdk.utils import EXPECTED_INPUT_TOKENS
-from tests.contrib.claude_agent_sdk.utils import EXPECTED_OUTPUT_TOKENS
-from tests.contrib.claude_agent_sdk.utils import EXPECTED_TOTAL_TOKENS
+from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
@@ -31,11 +29,7 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json([{"content": "4", "role": "assistant"}]),
             metadata={},
-            token_metrics={
-                "input_tokens": EXPECTED_INPUT_TOKENS,
-                "output_tokens": EXPECTED_OUTPUT_TOKENS,
-                "total_tokens": EXPECTED_TOTAL_TOKENS,
-            },
+            token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
 
@@ -60,11 +54,7 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json([{"content": "4", "role": "assistant"}]),
             metadata={"max_turns": 3},
-            token_metrics={
-                "input_tokens": EXPECTED_INPUT_TOKENS,
-                "output_tokens": EXPECTED_OUTPUT_TOKENS,
-                "total_tokens": EXPECTED_TOTAL_TOKENS,
-            },
+            token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
 
@@ -121,7 +111,13 @@ class TestLLMObsClaudeAgentSdk:
                 "after_context": {},
                 "before_context": {},
             },
-            token_metrics={"input_tokens": 14599, "output_tokens": 5, "total_tokens": 14604},
+            token_metrics={
+                "input_tokens": 14599,
+                "output_tokens": 5,
+                "total_tokens": 14604,
+                "cache_write_input_tokens": 12742,
+                "cache_read_input_tokens": 1854,
+            },
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
 
@@ -159,11 +155,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={},
-            token_metrics={
-                "input_tokens": EXPECTED_INPUT_TOKENS,
-                "output_tokens": EXPECTED_OUTPUT_TOKENS,
-                "total_tokens": EXPECTED_TOTAL_TOKENS,
-            },
+            token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
 
@@ -201,11 +193,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={},
-            token_metrics={
-                "input_tokens": EXPECTED_INPUT_TOKENS,
-                "output_tokens": EXPECTED_OUTPUT_TOKENS,
-                "total_tokens": EXPECTED_TOTAL_TOKENS,
-            },
+            token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
 
@@ -243,11 +231,7 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={},
-            token_metrics={
-                "input_tokens": EXPECTED_INPUT_TOKENS,
-                "output_tokens": EXPECTED_OUTPUT_TOKENS,
-                "total_tokens": EXPECTED_TOTAL_TOKENS,
-            },
+            token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
 

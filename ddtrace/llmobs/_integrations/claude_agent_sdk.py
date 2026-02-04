@@ -1,10 +1,11 @@
-from typing import Any
+from typing import Any, Tuple
 from typing import Dict
 from typing import List
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY, CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, INPUT_VALUE
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -23,31 +24,11 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
-
-MODEL_TAG = "claude_agent_sdk.request.model"
+CLAUDE_OPTIONS_KEYS = ("max_turns", "max_thinking_tokens", "max_budget_usd")
 
 
 class ClaudeAgentSdkIntegration(BaseLLMIntegration):
-    """LLMObs integration for claude_agent_sdk.
-
-    The claude-agent-sdk communicates with Claude Code via subprocess/CLI.
-    Response messages are yielded as a stream of typed objects:
-    - SystemMessage: initialization info (contains model, tools, session_id)
-    - AssistantMessage: assistant responses with content blocks (TextBlock, ToolUseBlock)
-    - ResultMessage: completion info with usage metrics (input_tokens, output_tokens, etc.)
-    """
-
     _integration_name = "claude_agent_sdk"
-
-    def _set_base_span_tags(
-        self,
-        span: Span,
-        model: Optional[str] = None,
-        **kwargs: Dict[str, Any],
-    ) -> None:
-        """Set base level tags that should be present on all claude_agent_sdk spans."""
-        if model is not None:
-            span._set_tag_str(MODEL_TAG, model)
 
     def _llmobs_set_tags(
         self,
@@ -57,50 +38,20 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        """Extract prompt/response tags from a query and set them as temporary "_ml_obs.*" tags.
+        prompt = get_argument_value(args, kwargs, 0, "prompt", optional=True) or ""
 
-        For standalone query():
-            args: ()
-            kwargs: {"prompt": str, "options": ClaudeAgentOptions}
-            response: List of messages [SystemMessage, AssistantMessage, ResultMessage, ...]
-
-        For ClaudeSDKClient.query():
-            args: (prompt,) or ()
-            kwargs: {"prompt": str, "session_id": str} or similar
-            response: None (client.query() just sends, doesn't receive)
-        """
-        # Extract prompt from args or kwargs
-        prompt = ""
-        if args:
-            prompt = str(args[0]) if args[0] else ""
-        if not prompt:
-            prompt = str(kwargs.get("prompt", ""))
-
-        # Extract model from response messages (SystemMessage has model info)
         model = self._extract_model_from_response(response)
-        if model:
-            span._set_tag_str(MODEL_TAG, model)
+        if model and isinstance(model, str):
+            span._set_tag_str("claude_agent_sdk.request.model", model)
 
-        # Extract options/parameters
-        parameters = {}
-        options = kwargs.get("options")
-        if options:
-            if hasattr(options, "max_turns") and options.max_turns:
-                parameters["max_turns"] = options.max_turns
-            if hasattr(options, "temperature") and options.temperature:
-                parameters["temperature"] = options.temperature
-        self._format_context(parameters, kwargs)
+        metadata = self._extract_metadata(kwargs)
 
-        # Build input messages from prompt
         input_messages = self._extract_input_messages(prompt)
 
-        # Extract output messages from response
         output_messages: List[Message] = [Message(content="")]
+        metrics: Dict[str, int] = {}
         if not span.error and response is not None:
-            output_messages = self._extract_output_messages(response)
-
-        # Extract usage metrics from ResultMessage
-        metrics = self._extract_usage(response) if response else {}
+            output_messages, metrics = self._extract_output_data(response)
 
         span._set_ctx_items(
             {
@@ -108,11 +59,20 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 MODEL_NAME: model or "",
                 MODEL_PROVIDER: "claude_agent_sdk",
                 INPUT_VALUE: input_messages,
-                METADATA: parameters,
+                METADATA: metadata,
                 OUTPUT_VALUE: output_messages,
                 METRICS: metrics,
             }
         )
+    
+    def _extract_metadata(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        metadata = {}
+        options = kwargs.get("options")
+        for key in CLAUDE_OPTIONS_KEYS:
+            if hasattr(options, key) and getattr(options, key):
+                metadata[key] = getattr(options, key)
+        self._format_context(metadata, kwargs)
+        return metadata
     
     def _parse_context_categories(self, context_messages: List[Any]) -> Dict[str, str]:
         """Parse category percentages from context UserMessage.
@@ -185,128 +145,79 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             parameters["before_context"] = self._parse_context_categories(before_context)
 
     def _extract_model_from_response(self, response: Any) -> str:
-        """Extract model name from response messages.
-
-        The model can be found in:
-        1. SystemMessage.data.model (init message)
-        2. AssistantMessage.model
-        """
         if not response or not isinstance(response, list):
             return ""
 
         for msg in response:
             msg_type = type(msg).__name__
 
-            # Check AssistantMessage.model
+            # check AssistantMessage.model
             if msg_type == "AssistantMessage":
-                model = _get_attr(msg, "model", None)
-                if model:
-                    return str(model)
+                return str(_get_attr(msg, "model", None) or "")
 
-            # Check SystemMessage.data.model
+            # check SystemMessage.data.model
             if msg_type == "SystemMessage":
                 data = _get_attr(msg, "data", None)
                 if data and isinstance(data, dict):
-                    model = data.get("model")
-                    if model:
-                        return str(model)
+                    return data.get("model") or ""
 
         return ""
 
-    def _extract_input_messages(self, prompt: Any) -> List[Message]:
-        """Extract input messages from the prompt.
+    def _extract_input_messages(self, prompt: str) -> List[Message]:
+        return [Message(content=prompt, role="user")]
 
-        The claude-agent-sdk takes a simple string prompt, not a message list.
-        """
-        if isinstance(prompt, str) and prompt:
-            return [Message(content=prompt, role="user")]
-        return []
-
-    def _extract_output_messages(self, response: Any) -> List[Message]:
-        """Extract output messages from response messages.
-
-        Response is a list of messages:
-        - AssistantMessage has content list with TextBlock, ToolUseBlock, etc.
-        - We extract text content from AssistantMessage.content[].text
-        """
+    def _extract_output_data(self, response: Any) -> Tuple[List[Message], Dict[str, int]]:
         output_messages: List[Message] = []
-
-        if not response or not isinstance(response, list):
-            return [Message(content="")]
-
-        for msg in response:
-            msg_type = type(msg).__name__
-
-            if msg_type == "AssistantMessage":
-                content_blocks = _get_attr(msg, "content", [])
-                if isinstance(content_blocks, list):
-                    for block in content_blocks:
-                        block_type = type(block).__name__
-
-                        if block_type == "TextBlock":
-                            text = _get_attr(block, "text", "")
-                            if text:
-                                output_messages.append(Message(content=str(text), role="assistant"))
-
-                        elif block_type == "ToolUseBlock":
-                            # Tool use block - capture tool name, id, and input arguments
-                            tool_name = _get_attr(block, "name", "unknown_tool")
-                            tool_id = _get_attr(block, "id", "")
-                            tool_input = _get_attr(block, "input", {})
-
-                            # Build tool call info following Anthropic pattern
-                            tool_call = ToolCall(
-                                name=str(tool_name),
-                                arguments=tool_input if isinstance(tool_input, dict) else {},
-                                tool_id=str(tool_id),
-                                type="tool_use",
-                            )
-
-                            output_messages.append(Message(content="", role="assistant", tool_calls=[tool_call]))
-
-        return output_messages if output_messages else [Message(content="")]
-
-    def _extract_usage(self, response: Any) -> Dict[str, int]:
-        """Extract token usage from ResultMessage.
-
-        ResultMessage contains usage dict with:
-        - input_tokens: number of input tokens
-        - output_tokens: number of output tokens
-        - cache_creation_input_tokens: tokens used to create cache
-        - cache_read_input_tokens: tokens read from cache
-        """
         metrics: Dict[str, int] = {}
 
         if not response or not isinstance(response, list):
-            return metrics
+            return [Message(content="")], metrics
 
         for msg in response:
             msg_type = type(msg).__name__
-
-            if msg_type == "ResultMessage":
-                usage = _get_attr(msg, "usage", None)
-                if usage and isinstance(usage, dict):
-                    input_tokens = usage.get("input_tokens")
-                    output_tokens = usage.get("output_tokens")
-
-                    # Include cache tokens in total input if available
-                    cache_creation = usage.get("cache_creation_input_tokens", 0)
-                    cache_read = usage.get("cache_read_input_tokens", 0)
-
-                    if input_tokens is not None:
-                        # Total input includes base + cache tokens
-                        total_input = input_tokens + cache_creation + cache_read
-                        metrics[INPUT_TOKENS_METRIC_KEY] = total_input
-
-                    if output_tokens is not None:
-                        metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-
-                    if INPUT_TOKENS_METRIC_KEY in metrics and OUTPUT_TOKENS_METRIC_KEY in metrics:
-                        metrics[TOTAL_TOKENS_METRIC_KEY] = (
-                            metrics[INPUT_TOKENS_METRIC_KEY] + metrics[OUTPUT_TOKENS_METRIC_KEY]
+            if msg_type == "AssistantMessage":
+                content_blocks = _get_attr(msg, "content", []) or []
+                if not isinstance(content_blocks, list):
+                    continue
+                for block in content_blocks:
+                    block_type = type(block).__name__
+                    if block_type == "TextBlock":
+                        text = _get_attr(block, "text", "")
+                        if text:
+                            output_messages.append(Message(content=str(text), role="assistant"))
+                    elif block_type == "ToolUseBlock":
+                        tool_name = _get_attr(block, "name", "unknown_tool")
+                        tool_id = _get_attr(block, "id", "")
+                        tool_input = _get_attr(block, "input", {})
+                        tool_call = ToolCall(
+                            name=str(tool_name),
+                            arguments=tool_input if isinstance(tool_input, dict) else {},
+                            tool_id=str(tool_id),
+                            type="tool_use",
                         )
+                        output_messages.append(Message(content="", role="assistant", tool_calls=[tool_call]))
+            elif msg_type == "ResultMessage" and not metrics:
+                metrics = self._extract_result_message(msg)
 
-                # Only need the first ResultMessage
-                break
+        return output_messages or [Message(content="")], metrics
 
+    def _extract_result_message(self, message: Any) -> Dict[str, int]:
+        metrics: Dict[str, int] = {}
+        usage = _get_attr(message, "usage", None) or {}
+        if usage and isinstance(usage, dict):
+            input_tokens = usage.get("input_tokens") or 0
+            output_tokens = usage.get("output_tokens") or 0
+            cache_creation = usage.get("cache_creation_input_tokens") or 0
+            cache_read = usage.get("cache_read_input_tokens") or 0
+
+            if input_tokens:
+                metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens + cache_creation + cache_read
+            if output_tokens:
+                metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+            if input_tokens and output_tokens:
+                metrics[TOTAL_TOKENS_METRIC_KEY] = metrics[INPUT_TOKENS_METRIC_KEY] + metrics[OUTPUT_TOKENS_METRIC_KEY]
+            if cache_creation:
+                metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation
+            if cache_read:
+                metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read
         return metrics

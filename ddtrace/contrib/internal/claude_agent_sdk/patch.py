@@ -40,7 +40,6 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
         "claude_agent_sdk.query",
         submit_to_llmobs=True,
         span_name="claude_agent_sdk.query",
-        model="",
     )
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span._set_tag_str(net.TARGET_HOST, "api.anthropic.com")
@@ -69,7 +68,6 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
         "claude_agent_sdk.request",
         submit_to_llmobs=True,
         span_name="claude_agent_sdk.request",
-        model="",
         instance=instance,
     )
 
@@ -134,7 +132,6 @@ def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs)
             "claude_agent_sdk.request",
             submit_to_llmobs=True,
             span_name="claude_agent_sdk.request",
-            model="",
             instance=instance,
         )
         span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
