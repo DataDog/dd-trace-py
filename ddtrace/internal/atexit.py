@@ -23,7 +23,7 @@ def register(func, *args, **kwargs):
     This wraps the standard library's atexit.register but respects uwsgi's
     --skip-atexit flag when running under uwsgi. When --skip-atexit is set,
     the registration is skipped to avoid running cleanup code during process
-    shutdown, which can cause crashes due to heap corruption.
+    shutdown, which can cause crashes.
     """
     from ddtrace.internal import uwsgi
 
