@@ -87,15 +87,6 @@ class Profiler(object):
     def _start_on_fork(self) -> None:
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
 
-        # Stop the parent profiler if it was running.
-        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
-        try:
-            self._profiler.stop(flush=False, join=False)
-        except service.ServiceStatusError:
-            # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
-            pass
-
-        self._profiler = self._profiler.copy()
         self._profiler.start()
 
     def __getattr__(self, key: str) -> Any:
