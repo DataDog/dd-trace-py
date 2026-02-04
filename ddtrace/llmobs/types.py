@@ -119,5 +119,4 @@ class _SpanLink(TypedDict):
     attributes: Dict[str, str]
 
 
-TemplateContent = Union[str, List[Dict[str, str]]]
-PromptFallback = Optional[Union[TemplateContent, Prompt, Callable[[], Union[TemplateContent, Prompt]]]]
+PromptFallback = Optional[Union[str, List[Message], Prompt, Callable[[], Union[str, List[Message], Prompt]]]]
