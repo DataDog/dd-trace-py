@@ -22,6 +22,9 @@ class TestCIVisibilityRecorderCoverageUpload:
         self.mock_api_settings.coverage_report_upload_enabled = True
         self.recorder._api_settings = self.mock_api_settings
 
+        # Set the computed property for coverage report upload
+        self.recorder._coverage_report_upload_enabled = True
+
         # Set up service and env
         self.recorder._service = "test-service"
         self.recorder._dd_env = "test-env"
@@ -94,6 +97,7 @@ class TestCIVisibilityRecorderCoverageUpload:
     def test_upload_coverage_report_disabled_in_api_settings(self):
         """Test that upload is skipped when disabled in API settings."""
         self.mock_api_settings.coverage_report_upload_enabled = False
+        self.recorder._coverage_report_upload_enabled = False
 
         test_report = b"SF:test_file.py\nDA:1,1\nend_of_record"
         result = self.recorder.upload_coverage_report(test_report, "lcov")
@@ -104,12 +108,30 @@ class TestCIVisibilityRecorderCoverageUpload:
     def test_upload_coverage_report_no_api_settings(self):
         """Test that upload is skipped when no API settings are available."""
         self.recorder._api_settings = None
+        self.recorder._coverage_report_upload_enabled = False
 
         test_report = b"SF:test_file.py\nDA:1,1\nend_of_record"
         result = self.recorder.upload_coverage_report(test_report, "lcov")
 
         assert result is False
         self.mock_writer._put.assert_not_called()
+
+    def test_upload_coverage_report_enabled_by_env_var(self):
+        """Test that environment variable can enable upload when API settings say no."""
+        # API settings say disabled
+        self.mock_api_settings.coverage_report_upload_enabled = False
+        # But env var overrides to enabled
+        self.recorder._coverage_report_upload_enabled = True
+
+        mock_response = Mock(status=200)
+        self.mock_writer._put.return_value = mock_response
+
+        test_report = b"SF:test_file.py\nDA:1,1\nend_of_record"
+        result = self.recorder.upload_coverage_report(test_report, "lcov")
+
+        # Should succeed because env var enabled it
+        assert result is True
+        self.mock_writer._put.assert_called_once()
 
     def test_upload_coverage_report_wrong_writer_type(self):
         """Test that upload is skipped when writer is not CIVisibilityWriter."""
