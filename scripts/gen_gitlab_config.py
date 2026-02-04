@@ -20,7 +20,6 @@ file. The function will be called automatically when this script is run.
 from collections import defaultdict
 from dataclasses import dataclass
 import datetime
-import itertools
 import os
 import re
 import subprocess

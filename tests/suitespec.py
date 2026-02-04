@@ -1,5 +1,4 @@
 from functools import cache
-from itertools import chain
 from pathlib import Path
 import typing as t
 
