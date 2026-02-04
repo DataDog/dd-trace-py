@@ -1,0 +1,29 @@
+[[
+  {
+    "name": "claude_agent_sdk.query",
+    "service": "tests.contrib.claude_agent_sdk",
+    "resource": "claude_agent_sdk.query",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6983c18400000000",
+      "error.message": "Connection failed",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/_integrations/base_stream_handler.py\", line 216, in __aiter__\n    async for chunk in self._self_async_stream_iter:\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31015_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_claude-agent-sdk_pytest-asyncio/lib/python3.10/site-packages/claude_agent_sdk/query.py\", line 123, in query\n    async for message in client.process_query(\n  File \"/Users/nicole.cybul/go/src/github.com/DataDog/dd-trace-py/tests/contrib/claude_agent_sdk/conftest.py\", line 101, in mock_process_query_error\n    raise ValueError(\"Connection failed\")\nValueError: Connection failed\n",
+      "error.type": "builtins.ValueError",
+      "language": "python",
+      "runtime-id": "6d8b44096ea1434e9a4bb9ea70ad6407"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 57618.0
+    },
+    "duration": 860000,
+    "start": 1770242436524228000
+  }]]
