@@ -12,68 +12,69 @@ import time
 import bm
 
 
-def _child_process(conn):
-    """Child process - must be module-level for pickling."""
-    start = time.perf_counter()
-    _ = sum(i * i for i in range(1000))
-    elapsed = time.perf_counter() - start
-    conn.send(elapsed)
+def _child_process(conn, parent_fork_time):
+    """Child process
+
+    Measures fork overhead by recording when the child starts executing
+    and comparing to when the parent initiated the fork.
+    """
+    child_start_time = time.time()
+    fork_overhead = child_start_time - parent_fork_time
+    conn.send(fork_overhead)
     conn.close()
 
 
 class ForkTime(bm.Scenario):
-    """Measure fork overhead with ddtrace in a realistic gunicorn scenario."""
+    """Measure fork overhead with ddtrace."""
 
     configure: bool
 
     cprofile_loops: int = 0  # Fork benchmarks don't work well with cprofile
 
-    def run(self):
-        # Import and optionally configure ddtrace before forking (like gunicorn preload)
+    def _pyperf(self, loops: int) -> float:
+        """Override _pyperf to accumulate fork overhead from each iteration."""
+        return sum(self.run(loops))
+
+    def run(self, loops: int = 1):
+        """Setup ddtrace/Flask, then yield fork overhead for each iteration."""
         if self.configure:
-            # Set environment variables that would be set in production
             os.environ["DD_TRACE_ENABLED"] = "true"
             os.environ["DD_SERVICE"] = "fork-benchmark"
             os.environ["DD_ENV"] = "benchmark"
 
-            # Import ddtrace first (happens early in gunicorn preload)
             from ddtrace import tracer
 
             tracer.configure()
 
-            # Import Flask and create app (like a real gunicorn app)
             try:
                 from flask import Flask
 
-                app = Flask(__name__)
+                app = Flask(__name__)  # noqa: F841
 
-                # Add a simple route (auto-instruments Flask)
                 @app.route("/")
                 def hello():
                     return "Hello"
 
-                # Import other common libraries that get auto-instrumented
                 try:
-                    import requests  # noqa: F401 - imported for auto-instrumentation side effects
+                    import requests  # noqa: F401
                 except ImportError:
                     pass
 
                 try:
-                    import pymongo  # noqa: F401 - imported for auto-instrumentation side effects
+                    import pymongo  # noqa: F401
                 except ImportError:
                     pass
 
             except ImportError:
-                # Flask not available, skip app creation
                 pass
 
-        def _(loops):
-            for _ in range(loops):
-                parent_conn, child_conn = multiprocessing.Pipe()
-                p = multiprocessing.Process(target=_child_process, args=(child_conn,))
-                p.start()
-                parent_conn.recv()
-                p.join()
-                parent_conn.close()
-
-        yield _
+        # Yield fork overhead for each iteration
+        for _ in range(loops):
+            parent_conn, child_conn = multiprocessing.Pipe()
+            fork_start = time.time()
+            p = multiprocessing.Process(target=_child_process, args=(child_conn, fork_start))
+            p.start()
+            fork_overhead = parent_conn.recv()
+            p.join()
+            parent_conn.close()
+            yield fork_overhead
