@@ -130,20 +130,8 @@ class SessionManager:
         except Exception:
             log.warning("Failed to load CODEOWNERS", exc_info=True)
 
-    def register_collected_test(self, test_ref: TestRef) -> None:
-        """
-        Register a collected test ref for lazy creation.
-
-        This is called during collection to track which tests were collected,
-        but does not create the full Test object yet (lazy creation).
-        """
-        self.collected_tests.add(test_ref)
-
     def finish_collection(self) -> None:
         self.setup_retry_handlers()
-        # Clear collection data to free memory - only needed during setup_retry_handlers()
-        # which has already been called above
-        # Note: skippable_items must NOT be cleared - it's used during test execution for ITR
         self.collected_tests.clear()
 
     def setup_retry_handlers(self) -> None:
