@@ -425,7 +425,11 @@ from ddtrace.trace import tracer
 with tracer.trace("signal-shutdown-test", service="signal-test-svc"):
     pass
 
+# Give NativeWriter time to fully initialize before signaling ready
+# NativeWriter has startup overhead (especially with stats enabled) that can cause
+# a race condition if the parent sends a signal before initialization completes
 try:
+    time.sleep(0.25)
     print("READY", flush=True)
 
     # Busy loop waiting to get killed by parent
@@ -436,16 +440,6 @@ except KeyboardInterrupt:
     # Don't crash on SIGINT
     pass
 """
-
-    env = os.environ.copy()
-    env.update(
-        {
-            "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
-            "DD_TRACE_API_VERSION": api_version,
-            "DD_TRACE_COMPUTE_STATS": compute_stats,
-            "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
-        }
-    )
 
     # Write code to temp file
     pyfile = tmpdir.join("test_signal_shutdown.py")
@@ -468,12 +462,23 @@ except KeyboardInterrupt:
         ignores=["meta._dd.base_service"],
         variants=variants,
     ):
-        # Start subprocess
+        # Copy environment INSIDE snapshot_context so it includes the test session token
+        env = os.environ.copy()
+        env.update(
+            {
+                "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
+                "DD_TRACE_API_VERSION": api_version,
+                "DD_TRACE_COMPUTE_STATS": compute_stats,
+                "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
+            }
+        )
+
+        # Start subprocess - capture stderr to see what it's sending
         proc = subprocess.Popen(
             cmd,
             env=env,
             stdout=subprocess.PIPE,
-            stderr=sys.stderr,
+            stderr=subprocess.PIPE,  # Capture stderr instead of passing through
         )
 
         try:
