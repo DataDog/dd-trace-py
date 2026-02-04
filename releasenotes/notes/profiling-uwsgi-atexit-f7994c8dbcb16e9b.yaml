@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    profiling: This fix resolves an issue where the profiler ignored the uwsgi
+    internal: This fix resolves an issue where ddtrace ignored the uwsgi
     ``--skip-atexit`` flag and registered Python atexit handlers regardless.
     This caused profiler cleanup code to run during process shutdown even when
     ``--skip-atexit`` was set, leading to crashes and hangs in uwsgi workers.
