@@ -535,8 +535,6 @@ class TestOptPlugin:
         for test_run in test.test_runs:
             self.manager.writer.put_item(test_run)
 
-        self._clear_test_data(item.nodeid, test)
-
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
         status, tags = self._get_test_outcome(item.nodeid)
         test_run.set_status(status)
@@ -767,18 +765,6 @@ class TestOptPlugin:
 
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))
         test.mark_skipped_by_itr()
-
-    def _clear_test_data(self, nodeid: str, test: Test) -> None:
-        """Clear test data after sending to reduce memory usage."""
-        if test.test_runs and len(test.test_runs) > 1:
-            # Needed later for coverage_writer.put_coverage(test.last_test_run, ...
-            test.test_runs = [test.test_runs[-1]]
-
-        if nodeid in self.tests_by_nodeid:
-            del self.tests_by_nodeid[nodeid]
-
-        if test.parent and test.name in test.parent.children:
-            del test.parent.children[test.name]
 
     @pytest.hookimpl(tryfirst=True, hookwrapper=True)
     def pytest_terminal_summary(
