@@ -13,7 +13,7 @@ import os
 
 # Point to an UNREACHABLE endpoint - simulating Datadog being down
 os.environ.setdefault("DD_API_KEY", "test-api-key")
-os.environ["DD_LLMOBS_PROMPTS_ENDPOINT"] = "https://localhost:9999"
+os.environ["DD_LLMOBS_OVERRIDE_ORIGIN"] = "https://localhost:9999"
 os.environ.setdefault("DD_LLMOBS_ML_APP", "session-summary-eval")
 
 from ddtrace.llmobs import LLMObs

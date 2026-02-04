@@ -12,7 +12,7 @@ import os
 # Configure environment for staging (DD_API_KEY should be set via dd-auth)
 os.environ.setdefault("DD_API_KEY", "test-api-key")
 os.environ.setdefault("DD_LLMOBS_ML_APP", "js-test-app")
-os.environ.setdefault("DD_LLMOBS_PROMPTS_ENDPOINT", "api.datad0g.com")
+os.environ.setdefault("DD_SITE", "datad0g.com")
 
 from ddtrace.llmobs import LLMObs
 
