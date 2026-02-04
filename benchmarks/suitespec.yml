@@ -95,95 +95,125 @@ components:
     - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
-.base_paths: &base_paths
-  - '@bootstrap'
-  - '@core'
-  - '@vendor'
 suites:
   span:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   tracer:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   core_api:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   set_http_meta:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   telemetry_add_metric:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   otel_span:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
       - '@opentelemetry'
     cpus_per_run: 1
   otel_sdk_span:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
       - '@opentelemetry'
     cpus_per_run: 1
   recursive_computation:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   sampling_rule_matches:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   http_propagation_extract:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   http_propagation_inject:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   rate_limiter:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
     cpus_per_run: 1
   appsec_iast_aspects:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
     cpus_per_run: 1
   appsec_iast_aspects_ospath:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
   appsec_iast_aspects_re_module:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
   appsec_iast_aspects_split:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
   appsec_iast_propagation:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
   packages_package_for_root_module_mapping:
@@ -196,37 +226,49 @@ suites:
     cpus_per_run: 1
   django_simple:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
       - '@django'
     cpus_per_run: 2
   flask_simple:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
       - '@tracing'
+      - '@core'
+      - '@vendor'
       - '@flask'
     cpus_per_run: 2
   flask_sqli:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
       - '@tracing'
+      - '@vendor'
       - '@flask'
     cpus_per_run: 2
   errortracking_django_simple:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
       - '@tracing'
       - '@django'
     cpus_per_run: 2
   errortracking_flask_sqli:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
       - '@tracing'
       - '@flask'
     cpus_per_run: 2
   startup:
     paths:
-      <<: *base_paths
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
       - '@tracing'
       - '@flask'
       - '@django'

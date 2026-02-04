@@ -134,6 +134,7 @@ serverless lambda tests:
 microbenchmarks:
   stage: benchmarks
   needs:
+    - job: tests-gen
     - job: "build linux"
       parallel:
         matrix:
@@ -146,7 +147,7 @@ microbenchmarks:
       allow_failure: true
     - allow_failure: false
   trigger:
-    include: .gitlab/benchmarks/microbenchmarks.yml
+    include: .gitlab/benchmarks/microbenchmarks-gen.yml
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
