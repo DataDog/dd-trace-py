@@ -128,6 +128,17 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
 
     bool is_initial_frame = true;
     for (PyFrameObject* f = frame; f != nullptr;) {
+        // Early exit optimization: once we've reached the frame limit, stop traversing
+        // to avoid expensive CPython API calls (PyFrame_GetCode, PyFrame_GetLineNumber, etc.)
+        // for frames that will be dropped anyway.
+        if (locations.size() > max_nframes) {
+            ++dropped_frames;
+            if (!is_initial_frame) {
+                Py_DECREF(f);  // Clean up frame reference obtained from PyFrame_GetBack
+            }
+            break;
+        }
+
         // Extract frame info
         int lineno_val = PyFrame_GetLineNumber(f);
         if (lineno_val < 0) {
