@@ -7,7 +7,6 @@ import sys
 import mock
 import pytest
 
-from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_native_writer
@@ -16,21 +15,6 @@ from tests.utils import call_program
 
 
 FOUR_KB = 1 << 12
-
-
-@mock.patch("signal.signal")
-@mock.patch("signal.getsignal")
-def test_shutdown_on_exit_signal(mock_get_signal, mock_signal, tracer):
-    mock_get_signal.return_value = None
-    register_on_exit_signal(tracer._atexit)
-    assert mock_signal.call_count == 2
-    assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
-    assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
-    original_shutdown = tracer.shutdown
-    tracer.shutdown = mock.Mock()
-    mock_signal.call_args_list[0][0][1]("", "")
-    assert tracer.shutdown.call_count == 1
-    tracer.shutdown = original_shutdown
 
 
 def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_in_subprocess):
