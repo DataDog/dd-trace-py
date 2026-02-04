@@ -437,16 +437,6 @@ except KeyboardInterrupt:
     pass
 """
 
-    env = os.environ.copy()
-    env.update(
-        {
-            "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
-            "DD_TRACE_API_VERSION": api_version,
-            "DD_TRACE_COMPUTE_STATS": compute_stats,
-            "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
-        }
-    )
-
     # Write code to temp file
     pyfile = tmpdir.join("test_signal_shutdown.py")
     pyfile.write(code)
@@ -483,6 +473,17 @@ except KeyboardInterrupt:
         ignores=["meta._dd.base_service"],
         variants=variants,
     ):
+        # Copy environment INSIDE snapshot_context so it includes the test session token
+        env = os.environ.copy()
+        env.update(
+            {
+                "DD_TRACE_WRITER_INTERVAL_SECONDS": "30",  # High interval to prevent auto-flush
+                "DD_TRACE_API_VERSION": api_version,
+                "DD_TRACE_COMPUTE_STATS": compute_stats,
+                "_DD_TRACE_WRITER_NATIVE": "true" if writer_class == "NativeWriter" else "false",
+            }
+        )
+
         # Start subprocess - capture stderr to see what it's sending
         proc = subprocess.Popen(
             cmd,
