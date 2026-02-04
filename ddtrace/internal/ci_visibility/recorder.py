@@ -405,9 +405,7 @@ class CIVisibility(Service):
 
         # Check if coverage report upload is enabled
         coverage_report_upload_enabled = (
-            (self._settings and self._settings.coverage_report_upload_enabled)
-            if hasattr(self, "_settings") and self._settings
-            else False
+            self._api_settings.coverage_report_upload_enabled if self._api_settings else False
         )
 
         if requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:

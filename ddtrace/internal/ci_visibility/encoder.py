@@ -357,40 +357,6 @@ class CIVisibilityCoverageReportEncoder:
     def __init__(self):
         self.boundary = uuid4().hex
         self.content_type = f"multipart/form-data; boundary={self.boundary}"
-        self._encoded_data = None  # Store the last encoded data for __len__
-        self.buffer = []  # Buffer for items to encode
-
-    def __len__(self):
-        """Return the number of items in the buffer.
-
-        This matches the interface expected by the writer.
-        """
-        return len(self.buffer)
-
-    def put(self, item):
-        """Add an item to the buffer for encoding.
-
-        For coverage reports, the item should be a tuple of (report_bytes, coverage_format, event_data).
-        """
-        self.buffer.append(item)
-
-    def encode(self):
-        """Encode all items in the buffer.
-
-        Returns a list of tuples (payload_bytes, item_count) for each encoded payload.
-        """
-        if not self.buffer:
-            return []
-
-        payloads = []
-        for item in self.buffer:
-            if isinstance(item, tuple) and len(item) == 3:
-                report_bytes, coverage_format, event_data = item
-                encoded_data = self.encode_coverage_report(report_bytes, coverage_format, event_data)
-                payloads.append((encoded_data, 1))
-
-        self.buffer.clear()
-        return payloads
 
     def encode_coverage_report(self, report_bytes: bytes, coverage_format: str, event_data: dict) -> bytes:
         """Encode coverage report as multipart form data.
@@ -436,5 +402,4 @@ class CIVisibilityCoverageReportEncoder:
         event_text = "\r\n".join(event_parts)
 
         # Combine all parts
-        self._encoded_data = parts_text.encode() + compressed_report + b"\r\n" + event_text.encode()
-        return self._encoded_data
+        return parts_text.encode() + compressed_report + b"\r\n" + event_text.encode()
