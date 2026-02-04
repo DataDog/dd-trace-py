@@ -54,6 +54,9 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
     
+    # circle back on whether span type should be SQL
+    # check for any additional info in Python that could be interesting as a tag
+    # start testing next week - discuss w Rachel, check if spans are structured like web requests
     with pin.tracer.trace(
         "cosmosdb.query",
         service=trace_utils.ext_service(pin, config.azure_cosmos),
@@ -68,6 +71,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
 
         client = get_argument_value(args, kwargs, 0, "client")
         request_params = get_argument_value(args, kwargs, 1, "request_params")
+        request = get_argument_value(args, kwargs, 5, "request")
 
         #out.host
         span._set_tag_str(net.TARGET_HOST, client.url_connection)
@@ -80,16 +84,29 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         else:
             span._set_tag_str("cosmosdb.connection.mode", "other")
     
+        resource_link = request.url
         #resource name
-        span.resource = request_params.operation_type + 
+        span.resource = request_params.operation_type + resource_link
+
+        if resource_link:
+            if resource_link.startswith("/") and len(resource_link) > 1:
+                resource_link = resource_link[1:]
+
+            # Splitting the link(separated by "/") into parts
+            parts = resource_link.split("/")
+
+            # First part should be "dbs"
+            if (parts and parts[0].lower() == "dbs" and len(parts) >= 2):
+                #db.name (database id)
+                span._set_tag_str(db.NAME, parts[1])
+                if len(parts) >= 4:
+                    if parts[2].lower() == "colls":
+                        #container id
+                        span._set_tag_str("cosmosdb.container", parts[3])
 
         result = wrapped(*args, **kwargs)
         (res, headers) = result
 
-        #db.name (database id)
-        span._set_tag_str(db.NAME)
-        #container id
-        span._set_tag_str("cosmosdb.container")
         #equivalent of db.response.status_code
         span._set_tag_str(http.STATUS_CODE, result["statusCode"])
         #self-explanatory
