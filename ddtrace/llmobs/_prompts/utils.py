@@ -7,6 +7,7 @@ from typing import Union
 
 from ddtrace.llmobs.types import Message
 
+
 _VARIABLE_PATTERN = re.compile(r"\{\{?\s*(\w+)\s*\}\}?")
 
 
