@@ -80,10 +80,10 @@ EXCLUDED_DUNDERS: Set[str] = {
 # Dunders the original has but we intentionally don't support (yet).
 # When fixing a gap, remove it from here and add proper support.
 KNOWN_COVERAGE_GAPS: Set[str] = {
-    "__weakref__",  # TODO: Add to __slots__ to support weak references
+    "__weakref__",
 }
 
-MAX_ALLOWED_GAPS: int = 2
+MAX_ALLOWED_GAPS: int = 1
 
 
 # =============================================================================
@@ -153,6 +153,6 @@ def test_dunders_accessible(lock_class: Type[object], collector_class: Type[obje
 
 def test_known_gaps_limit() -> None:
     """Meta-test: ensure KNOWN_COVERAGE_GAPS doesn't grow too large."""
-    assert len(KNOWN_COVERAGE_GAPS) < MAX_ALLOWED_GAPS, (
-        f"Too many known gaps ({len(KNOWN_COVERAGE_GAPS)}). Consider fixing some: {KNOWN_COVERAGE_GAPS}"
+    assert len(KNOWN_COVERAGE_GAPS) <= MAX_ALLOWED_GAPS, (
+        f"Too many known gaps: {len(KNOWN_COVERAGE_GAPS)} (max is {MAX_ALLOWED_GAPS}). Consider fixing some: {KNOWN_COVERAGE_GAPS}"
     )
