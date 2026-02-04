@@ -34,6 +34,21 @@ class TestCIVisibilityRecorderCoverageUpload:
             commit_message="Test commit",
         )
 
+        # Set up tags with git.* prefix (used for coverage upload)
+        # Include comprehensive git tags as would be collected by ci.tags()
+        self.recorder._tags = {
+            "git.repository_url": "https://github.com/DataDog/dd-trace-py",
+            "git.branch": "main",
+            "git.commit.sha": "abc123def456",
+            "git.commit.message": "Test commit",
+            "git.commit.author.name": "John Doe",
+            "git.commit.author.email": "john.doe@datadoghq.com",
+            "git.commit.author.date": "2026-02-03T18:39:34+0100",
+            "git.commit.committer.name": "John Doe",
+            "git.commit.committer.email": "john.doe@datadoghq.com",
+            "git.commit.committer.date": "2026-02-03T18:39:34+0100",
+        }
+
         # Set up mock writer and client
         self.mock_writer = Mock(spec=CIVisibilityWriter)
         self.mock_coverage_client = Mock(spec=CIVisibilityCoverageReportClient)
@@ -174,6 +189,7 @@ class TestCIVisibilityRecorderCoverageUpload:
     def test_upload_coverage_report_without_git_data(self):
         """Test upload works without git data."""
         self.recorder._git_data = None
+        self.recorder._tags = {}  # No tags available
 
         mock_response = Mock(status=200)
         self.mock_writer._put.return_value = mock_response
