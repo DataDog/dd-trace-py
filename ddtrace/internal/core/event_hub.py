@@ -90,8 +90,8 @@ def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
                 raise
 
 
-def dispatch_event(event, *args) -> None:
-    dispatch(getattr(event, "event_name", ""), (event,) + args)
+def dispatch_event(event) -> None:
+    dispatch(getattr(event, "event_name", ""), (event,))
 
 
 def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventResultDict:

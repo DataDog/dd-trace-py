@@ -86,6 +86,8 @@ def event_field(
     elif default_factory is not MISSING:
         kwargs["default_factory"] = default_factory
 
+    kwargs["kw_only"] = True
+
     return field(**kwargs)
 
 
@@ -120,12 +122,9 @@ class BaseEvent:
             core.on(cls.event_name, cls.on_event)
 
     @classmethod
-    def on_event(cls, event_instance, *additional_args) -> None:
+    def on_event(cls, event_instance) -> None:
         """To access args enforced by a BaseEvent, such as BaseEvent(foo="bar"),
         event_instance.foo must be used
-
-        An arbitrary number of args through additional_args can be accepted using
-        dispatch_event(BaseEvent(), "foo", 1) but it should be used only if necessary
         """
         pass
 
@@ -214,8 +213,11 @@ class SpanContextEvent(BaseContextEvent):
     component: str = field(init=False, repr=False)
     call_trace: bool = field(default=True, kw_only=True)
     service: Optional[str] = field(default=None, kw_only=True)
+    distributed_context: Optional[Any] = field(default=None, kw_only=True)
     resource: Optional[str] = field(default=None, kw_only=True)
     tags: Dict[str, str] = field(default_factory=dict, init=False)
+
+    _end_span: bool = field(default=True, init=False, repr=False)
 
     def create_event_context(self):
         """Convert this event instance into a dict that is used to create an ExecutionContext.
@@ -251,4 +253,5 @@ class SpanContextEvent(BaseContextEvent):
             if issubclass(base_cls, BaseContextEvent) and "_on_context_ended" in base_cls.__dict__:
                 base_cls._on_context_ended(ctx, exc_info)
 
-        _finish_span(ctx, exc_info)
+        if cls._end_span:
+            _finish_span(ctx, exc_info)
