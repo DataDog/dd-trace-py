@@ -76,7 +76,6 @@ components:
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
-    - ddtrace/internal/logger.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
@@ -96,125 +95,95 @@ components:
     - ddtrace/version.py
     - ddtrace/internal/settings/_config.py
     - src/native/*
+.base_paths: &base_paths
+  - '@bootstrap'
+  - '@core'
+  - '@vendor'
 suites:
   span:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   tracer:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   core_api:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   set_http_meta:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   telemetry_add_metric:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   otel_span:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
       - '@opentelemetry'
     cpus_per_run: 1
   otel_sdk_span:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
       - '@opentelemetry'
     cpus_per_run: 1
   recursive_computation:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   sampling_rule_matches:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   http_propagation_extract:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   http_propagation_inject:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   rate_limiter:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
     cpus_per_run: 1
   appsec_iast_aspects:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
     cpus_per_run: 1
   appsec_iast_aspects_ospath:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
       - '@appsec_iast'
     cpus_per_run: 1
   appsec_iast_aspects_re_module:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
       - '@appsec_iast'
     cpus_per_run: 1
   appsec_iast_aspects_split:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
       - '@appsec_iast'
     cpus_per_run: 1
   appsec_iast_propagation:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
       - '@appsec_iast'
     cpus_per_run: 1
   packages_package_for_root_module_mapping:
@@ -227,49 +196,37 @@ suites:
     cpus_per_run: 1
   django_simple:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
       - '@django'
     cpus_per_run: 2
   flask_simple:
     paths:
-      - '@bootstrap'
+      <<: *base_paths
       - '@tracing'
-      - '@core'
-      - '@vendor'
       - '@flask'
     cpus_per_run: 2
   flask_sqli:
     paths:
-      - '@bootstrap'
-      - '@core'
+      <<: *base_paths
       - '@tracing'
-      - '@vendor'
       - '@flask'
     cpus_per_run: 2
   errortracking_django_simple:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
       - '@tracing'
       - '@django'
     cpus_per_run: 2
   errortracking_flask_sqli:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
       - '@tracing'
       - '@flask'
     cpus_per_run: 2
   startup:
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@vendor'
+      <<: *base_paths
       - '@tracing'
       - '@flask'
       - '@django'
