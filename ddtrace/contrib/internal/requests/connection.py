@@ -5,7 +5,6 @@ from urllib import parse
 
 import requests
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -23,6 +22,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -71,12 +71,6 @@ def _extract_query_string(uri):
 
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
-    # TODO[manu]: we already offer a way to provide the Global Tracer
-    # and is ddtrace.tracer; it's used only inside our tests and can
-    # be easily changed by providing a TracingTestCase that sets common
-    # tracing functionalities.
-    tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
-
     # skip if tracing is not enabled
     if not tracer.enabled and not asm_config._apm_opt_out:
         return func(*args, **kwargs)
