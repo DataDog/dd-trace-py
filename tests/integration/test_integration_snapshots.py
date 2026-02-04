@@ -414,7 +414,6 @@ def test_signal_shutdown_flushes_traces(
     The subprocess creates a trace, signals it's ready, then waits. The parent sends
     the specified signal, and the tracer should flush traces before exiting.
     """
-    import signal
     import subprocess
     import sys
 
