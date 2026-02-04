@@ -465,7 +465,7 @@ except KeyboardInterrupt:
 
     # DEBUG: Print test parameters
     print(
-        f"\n=== DEBUG test_signal_shutdown_flushes_traces ===",
+        "\n=== DEBUG test_signal_shutdown_flushes_traces ===",
         f"use_ddtrace_run={use_ddtrace_run}",
         f"signum={signum}",
         f"writer_class={writer_class}",

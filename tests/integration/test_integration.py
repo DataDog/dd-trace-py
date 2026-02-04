@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 import itertools
 import os
-import signal
 import sys
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
