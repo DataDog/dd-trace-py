@@ -426,6 +426,7 @@ with tracer.trace("signal-shutdown-test", service="signal-test-svc"):
     pass
 
 try:
+    time.sleep(0.5)
     print("READY", flush=True)
 
     # Busy loop waiting to get killed by parent
