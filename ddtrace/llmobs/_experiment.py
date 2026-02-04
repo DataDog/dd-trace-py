@@ -1072,6 +1072,8 @@ class Experiment:
             metric_type = "boolean"
         elif isinstance(eval_value, (int, float)):
             metric_type = "score"
+        elif isinstance(eval_value, dict):
+            metric_type = "json"
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()

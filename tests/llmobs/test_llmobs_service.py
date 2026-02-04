@@ -1763,11 +1763,11 @@ def test_submit_evaluation_label_value_with_a_period_raises_error(llmobs, mock_l
 
 
 def test_submit_evaluation_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', 'boolean', or 'json'."):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
         )
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', 'boolean', or 'json'."):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
         )
@@ -2162,4 +2162,11 @@ def test_submit_evaluation_incorrect_categorical_value_type_raises_error(llmobs,
     with pytest.raises(TypeError, match="value must be a string for a categorical metric."):
         llmobs.submit_evaluation(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value=123
+        )
+
+
+def test_submit_evaluation_incorrect_json_value_type_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="value must be a dict for a json metric."):
+        llmobs.submit_evaluation(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="json", value="high"
         )
