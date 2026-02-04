@@ -117,8 +117,6 @@ def is_accessible(obj: object, method_name: str) -> bool:
 @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
 def test_public_methods_accessible(lock_class: Type[object], collector_class: Type[object], name: str) -> None:
     """Verify wrapped lock exposes all public methods of the original."""
-    init_ddup(f"test_public_{name}")
-
     original: object = lock_class()  # type: ignore[operator]
     original_methods: Set[str] = get_public_methods(original)
 
