@@ -246,6 +246,10 @@ def _(uvloop: ModuleType) -> None:
     We also hook EventLoopPolicy.set_event_loop for the deprecated uvloop.install()
     + asyncio.run() pattern.
     """
+    # Check if uvloop support is disabled via configuration
+    if not config.stack.uvloop:  # pyright: ignore[reportAttributeAccessIssue]
+        return
+
     import asyncio
 
     init_stack: bool = config.stack.enabled and stack.is_available
