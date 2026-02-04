@@ -6,24 +6,20 @@ from typing import Dict
 from typing import Tuple
 
 import pymongo
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
 from pymongo.asynchronous.pool import AsyncConnection
 from pymongo.asynchronous.server import Server as AsyncServer
-from pymongo.asynchronous.topology import Topology as AsyncTopology
 
 # project
-from ddtrace._trace.pin import Pin
 from ddtrace.ext import db
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
+from ddtrace.trace import tracer
 
 from .client import datadog_trace_operation
 from .client import parse_socket_command_spec
 from .client import parse_socket_write_command_msg
-from .client import propagate_pin_to_server
-from .client import setup_mongo_client_pin
 from .client import trace_cmd
 from .utils import create_checkout_span
 from .utils import dbm_dispatch
@@ -35,21 +31,6 @@ log = get_logger(__name__)
 
 
 VERSION = pymongo.version_tuple
-
-
-def trace_async_mongo_client_init(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
-    """Wrapper for AsyncMongoClient.__init__ to set up pin handling."""
-    func(*args, **kwargs)
-    client = get_argument_value(args, kwargs, 0, "self")
-    setup_mongo_client_pin(client)
-
-
-async def trace_async_topology_select_server(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
-    """Wrapper for AsyncTopology.select_server to propagate pin to selected server."""
-    server = await func(*args, **kwargs)
-    topology_instance = get_argument_value(args, kwargs, 0, "self")
-    propagate_pin_to_server(server, topology_instance)
-    return server
 
 
 async def trace_async_server_run_operation(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
@@ -72,15 +53,17 @@ async def trace_async_server_checkout(func: FunctionType, args: Tuple[Any, ...],
     AsyncServer.checkout() returns an async context manager. We wrap it to add tracing.
     """
     instance = get_argument_value(args, kwargs, 0, "self")
-    pin = Pin.get_from(instance)
+
+    # Call the original async function which returns an async context manager
     cm = await func(*args, **kwargs)
 
-    if not pin or not pin.enabled():
+    if not tracer.enabled:
+        # Return the original context manager unchanged
         return cm
 
     @contextlib.asynccontextmanager
     async def traced_cm():
-        with create_checkout_span(pin) as span:
+        with create_checkout_span() as span:
             async with cm as sock_info:
                 setup_checkout_span_tags(span, sock_info, instance)
                 yield sock_info
@@ -94,7 +77,7 @@ async def trace_async_socket_command(func: FunctionType, args: Tuple[Any, ...], 
     if parsed is None:
         return await func(*args, **kwargs)
 
-    socket_instance, dbname, cmd, pin = parsed
+    socket_instance, dbname, cmd = parsed
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         s, args, kwargs = dbm_dispatch(s, args, kwargs)
         return await func(*args, **kwargs)
@@ -106,7 +89,7 @@ async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, 
     if parsed is None:
         return await func(*args, **kwargs)
 
-    socket_instance, cmd, pin = parsed
+    socket_instance, cmd = parsed
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         result = await func(*args, **kwargs)
         if result:
@@ -129,8 +112,6 @@ def patch_pymongo_async_modules():
     """Patch asynchronous pymongo modules."""
     if not _check_async_support():
         return
-    _w(AsyncMongoClient.__init__, trace_async_mongo_client_init)
-    _w(AsyncTopology.select_server, trace_async_topology_select_server)
     _w(AsyncServer.run_operation, trace_async_server_run_operation)
     _w(AsyncServer.checkout, trace_async_server_checkout)
     _w(AsyncConnection.command, trace_async_socket_command)
@@ -141,8 +122,6 @@ def unpatch_pymongo_async_modules():
     """Unpatch asynchronous pymongo modules."""
     if not _check_async_support():
         return
-    _u(AsyncMongoClient.__init__, trace_async_mongo_client_init)
-    _u(AsyncTopology.select_server, trace_async_topology_select_server)
     _u(AsyncServer.run_operation, trace_async_server_run_operation)
     _u(AsyncServer.checkout, trace_async_server_checkout)
     _u(AsyncConnection.command, trace_async_socket_command)
