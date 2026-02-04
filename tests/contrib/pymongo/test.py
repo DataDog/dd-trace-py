@@ -74,9 +74,17 @@ class PymongoCore(object):
     TODO: merge to a single class when patching is the only way.
     """
 
+    # Internal MongoDB commands that are traced but should be filtered from user-facing tests
+    _INTERNAL_COMMANDS = {"ismaster", "isMaster", "hello"}
+
     def get_tracer_and_client(service):
         # implement me
         pass
+
+    def get_user_spans(self):
+        """Return spans filtered to exclude internal MongoDB commands."""
+        spans = self.pop_spans()
+        return [s for s in spans if not any(s.resource.startswith(cmd + " ") for cmd in self._INTERNAL_COMMANDS)]
 
     def test_update(self):
         # ensure we trace deletes
@@ -101,8 +109,7 @@ class PymongoCore(object):
         assert result.modified_count == 2
 
         # ensure all is traced.
-        spans = self.pop_spans()
-        assert len(spans) == 6
+        spans = self.get_user_spans()
         # remove pymongo.get_socket and pymongo.checkout spans
         spans = [s for s in spans if s.name == "pymongo.cmd"]
         assert len(spans) == 3
@@ -164,8 +171,7 @@ class PymongoCore(object):
         assert count(songs, af) == 0
 
         # ensure all is traced.
-        spans = self.pop_spans()
-        assert len(spans) == 16
+        spans = self.get_user_spans()
         # remove pymongo.get_socket and pymongo.checkout spans
         spans = [s for s in spans if s.name == "pymongo.cmd"]
         assert len(spans) == 8
@@ -248,8 +254,7 @@ class PymongoCore(object):
         assert queried[0]["name"] == "Toronto Maple Leafs"
         assert queried[0]["established"] == 1917
 
-        spans = self.pop_spans()
-        assert len(spans) == 10
+        spans = self.get_user_spans()
         # remove pymongo.get_socket and pymongo.checkout spans
         spans = [s for s in spans if s.name == "pymongo.cmd"]
         assert len(spans) == 5
@@ -331,8 +336,7 @@ class PymongoCore(object):
         assert queried[1]["name"] == "Harvest"
         assert queried[1]["artist"] == "Neil"
 
-        spans = self.pop_spans()
-        assert len(spans) == 8
+        spans = self.get_user_spans()
         # remove pymongo.get_socket and pymongo.checkout spans
         spans = [s for s in spans if s.name == "pymongo.cmd"]
         assert len(spans) == 4
@@ -365,11 +369,47 @@ class PymongoCore(object):
 
         # Ensure that the client is traced
         client.server_info()
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].name == "pymongo.cmd"
         assert spans[1].resource == "buildinfo 1"
         assert spans[1].get_tag("mongodb.query") is None
+
+    def test_internal_commands_traced(self):
+        """Verify that internal MongoDB commands (ismaster, hello) are being traced."""
+        tracer, client = self.get_tracer_and_client()
+
+        # Create a client and perform a simple operation to trigger internal commands
+        db = client["testdb"]
+        db.drop_collection("test_internal")
+
+        # Get all spans including internal commands
+        all_spans = self.pop_spans()
+        cmd_spans = [s for s in all_spans if s.name == "pymongo.cmd"]
+
+        # Verify that internal commands are present
+        internal_command_resources = [
+            s.resource for s in cmd_spans if any(s.resource.startswith(cmd + " ") for cmd in self._INTERNAL_COMMANDS)
+        ]
+        assert len(internal_command_resources) > 0, "Expected internal commands (ismaster/hello) to be traced"
+
+        # Verify that user commands are also present
+        user_command_resources = [
+            s.resource
+            for s in cmd_spans
+            if not any(s.resource.startswith(cmd + " ") for cmd in self._INTERNAL_COMMANDS)
+        ]
+        assert len(user_command_resources) > 0, "Expected user commands to be traced"
+
+        # Verify internal command spans have correct metadata
+        for span in cmd_spans:
+            if any(span.resource.startswith(cmd + " ") for cmd in self._INTERNAL_COMMANDS):
+                assert span.service == "pymongo"
+                assert span.span_type == "mongodb"
+                assert span.get_tag("component") == "pymongo"
+                assert span.get_tag("span.kind") == "client"
+                assert span.get_tag("db.system") == "mongodb"
+                assert_is_measured(span)
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
@@ -428,7 +468,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
         client["testdb"].drop_collection("whatever")
 
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert spans, spans
         assert len(spans) == 2
 
@@ -448,7 +488,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
         client["testdb"].drop_collection("whatever")
 
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert spans, spans
         assert len(spans) == 2
 
@@ -466,7 +506,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].service != "mysvc"
 
@@ -484,7 +524,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].service != "mysvc"
 
@@ -503,7 +543,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert spans
         assert spans[0].service == "new-mongo", f"service name is {spans[0].service}"
 
@@ -521,7 +561,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].service == "mysvc"
 
@@ -534,7 +574,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].service == "pymongo"
 
@@ -545,7 +585,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
 
     @TracerTestCase.run_in_subprocess(
@@ -555,7 +595,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
 
     @TracerTestCase.run_in_subprocess(
@@ -565,7 +605,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
 
     @TracerTestCase.run_in_subprocess(
@@ -575,7 +615,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
@@ -586,7 +626,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].name == "pymongo.cmd"
 
@@ -598,7 +638,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
 
         client["testdb"].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].name == "mongodb.query"
 
@@ -608,7 +648,7 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
         db_name = "testdb"
         client[db_name].drop_collection("whatever")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         assert len(spans) == 2
         assert spans[1].get_tag("mongodb.db") == db_name
         assert spans[1].get_tag("peer.service") == db_name
@@ -677,6 +717,9 @@ class TestPymongoSocketTracing(TracerTestCase):
     Test suite which checks that tcp socket creation/retrieval is correctly traced
     """
 
+    # Internal MongoDB commands that are traced but should be filtered from user-facing tests
+    _INTERNAL_COMMANDS = {"ismaster", "isMaster", "hello"}
+
     def setUp(self):
         super(TestPymongoSocketTracing, self).setUp()
         patch()
@@ -689,6 +732,11 @@ class TestPymongoSocketTracing(TracerTestCase):
         unpatch()
         self.client.close()
         super(TestPymongoSocketTracing, self).tearDown()
+
+    def get_user_spans(self):
+        """Return spans filtered to exclude internal MongoDB commands."""
+        spans = self.pop_spans()
+        return [s for s in spans if not any(s.resource.startswith(cmd + " ") for cmd in self._INTERNAL_COMMANDS)]
 
     @staticmethod
     def check_socket_metadata(span):
@@ -703,7 +751,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
@@ -723,7 +771,7 @@ class TestPymongoSocketTracing(TracerTestCase):
     def test_service_name_override(self):
         with TracerTestCase.override_config("pymongo", dict(service_name="testdb")):
             self.client["some_db"].drop_collection("some_collection")
-            spans = self.pop_spans()
+            spans = self.get_user_spans()
 
             assert len(spans) == 2
             assert all(span.service == "testdb" for span in spans)
@@ -741,7 +789,7 @@ class TestPymongoSocketTracing(TracerTestCase):
         # Ensure patched pymongo's insert/find behave normally
         assert input_movies == docs_in_collection
 
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
         # Check that we generated one get_socket span and one cmd span per cmd
         # drop(), insert_many(), find() drop_collection() -> four cmds
         count_commands_executed = 4
@@ -779,7 +827,7 @@ class TestPymongoSocketTracing(TracerTestCase):
 
     def test_server_info(self):
         self.client.server_info()
-        spans = self.pop_spans()
+        spans = self.get_user_spans()
 
         assert len(spans) == 2
         self.check_socket_metadata(spans[0])
