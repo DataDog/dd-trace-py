@@ -17,7 +17,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.trace import tracer
 
 from .wrappers import WrapperComponent
 from .wrappers import WrapperMiddleware
@@ -88,7 +87,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.molten),
             resource=resource,
             tags={},
-            tracer=tracer,
             distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
             integration_config=config.molten,
             allow_default_resource=True,
