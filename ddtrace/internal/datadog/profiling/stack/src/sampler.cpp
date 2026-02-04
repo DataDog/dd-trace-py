@@ -176,7 +176,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, interp.id, tstate, wall_time_us);
+                auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -217,7 +217,6 @@ Sampler::set_interval(double new_interval_s)
 
 Sampler::Sampler()
   : echion{ std::make_unique<EchionSampler>() }
-  , renderer_ptr{ std::make_shared<StackRenderer>() }
 {
 }
 
@@ -297,9 +296,6 @@ Sampler::one_time_setup()
     // Run the atfork handler to ensure that we're tracking the correct process
     _stack_atfork_child();
     pthread_atfork(nullptr, nullptr, _stack_atfork_child);
-
-    // Register our rendering callbacks with echion's Renderer singleton
-    Renderer::get().set_renderer(renderer_ptr);
 }
 
 void
