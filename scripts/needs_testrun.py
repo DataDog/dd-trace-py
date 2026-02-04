@@ -148,10 +148,10 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     ...   "scripts/vcr/needs_testrun.yaml",
     ...   filter_headers=["authorization", "user-agent"],
     ...   record_mode="none"):
-    ...     needs_testrun("debugger", 6485)
-    ...     needs_testrun("debugger", 6388)
-    ...     needs_testrun("foobar", 6412)
-    ...     needs_testrun("profiling::profile", 11690)
+    ...     needs_testrun("tests::debugger", 6485)
+    ...     needs_testrun("tests::debugger", 6388)
+    ...     needs_testrun("tests::foobar", 6412)
+    ...     needs_testrun("tests::profiling::profile", 11690)
     True
     True
     True

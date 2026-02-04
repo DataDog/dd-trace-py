@@ -266,6 +266,9 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
     with MICROBENCHMARKS_GEN.open("a") as f:
         for cpus_per_run, jobspecs in groups.items():
             print(f'      - CPUS_PER_RUN: "{cpus_per_run}"\n        SCENARIOS:', file=f)
+            jobspecs = sorted(jobspecs)
+            # DEV: The organization into these groups is mostly arbitrary, based on observed runtimes and
+            #      trying to keep total runtime per job <10 minutes
             for subgroup in [
                 jobspecs[i : i + MAX_BENCHMARKS_PER_GROUP] for i in range(0, len(jobspecs), MAX_BENCHMARKS_PER_GROUP)
             ]:
