@@ -28,6 +28,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.trace import Span  # noqa:F401
+from ddtrace.trace import tracer
 
 
 Continuation = Callable[[grpc.HandlerCallDetails], Awaitable[grpc.RpcMethodHandler]]
@@ -177,7 +178,6 @@ def _wrap_unary_response(
 
 def _create_span(pin, method, invocation_metadata, method_kind):
     # type: (Pin, str, grpc.HandlerCallDetails, str) -> Span
-    tracer = pin.tracer
     trace_utils.activate_distributed_headers(
         tracer, int_config=config.grpc_aio_server, request_headers=dict(invocation_metadata)
     )

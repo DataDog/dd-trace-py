@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: A bug where corrupted or circular stack chunk linked lists on Python 3.11+ could cause
+    infinite recursion during stack unwinding was fixed.

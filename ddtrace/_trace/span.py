@@ -107,9 +107,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "service",
-        "name",
-        "resource",
         "_span_api",
         "span_id",
         "trace_id",
@@ -185,11 +182,6 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
-
-        self.name = name
-        self.service = service
-        self.resource = resource or name
         self.span_type = span_type
         self._span_api = span_api
 
@@ -788,6 +780,10 @@ class Span(SpanData):
 
     def __repr__(self) -> str:
         """Return a detailed string representation of a span."""
+        meta = {
+            k: v.keys() if isinstance(v, dict) else f"wrong type [{type(v).__name__}]"
+            for k, v in self._meta_struct.items()
+        }
         return (
             f"Span(name='{self.name}', "
             f"span_id={self.span_id}, "
@@ -805,7 +801,8 @@ class Span(SpanData):
             f"links={self._links}, "
             f"events={self._events}, "
             f"context={self.context}, "
-            f"service_entry_span_name={self._service_entry_span.name})"
+            f"service_entry_span_name={self._service_entry_span.name}), "
+            f"metastruct={meta}"
         )
 
     def __str__(self) -> str:

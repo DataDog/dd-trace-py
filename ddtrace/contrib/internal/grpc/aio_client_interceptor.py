@@ -28,6 +28,7 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -139,7 +140,6 @@ class _ClientInterceptor:
 
     def _intercept_client_call(self, method_kind, client_call_details):
         # type: (str, aio.ClientCallDetails) -> Tuple[Span, aio.ClientCallDetails]
-        tracer = self._pin.tracer
 
         method_as_str = client_call_details.method.decode()
         span = tracer.trace(

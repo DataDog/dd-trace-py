@@ -54,14 +54,6 @@ struct StringArena
 
 } // namespace internal
 
-using string_id = ddog_prof_StringId2;
-using function_id = ddog_prof_FunctionId2;
-
-string_id
-intern_string(std::string_view s);
-function_id
-intern_function(string_id name, string_id filename);
-
 class SampleManager; // friend
 
 class Sample
@@ -79,12 +71,13 @@ class Sample
     static inline bool timeline_enabled = false;
 
     // Keeps temporary buffer of frames in the stack
-    std::vector<ddog_prof_Location2> locations;
+    std::vector<ddog_prof_Location> locations;
     size_t dropped_frames = 0;
+    bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
     // Storage for labels
-    std::vector<ddog_prof_Label2> labels{};
+    std::vector<ddog_prof_Label> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};
@@ -101,7 +94,6 @@ class Sample
     bool push_label(ExportLabelKey key, std::string_view val);
     bool push_label(ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
-    void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
     void clear_buffers();
 
     // Add values
@@ -138,10 +130,10 @@ class Sample
     bool push_gpu_device_name(std::string_view device_name);
 
     // Assumes frames are pushed in leaf-order
-    void push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
-    void push_frame(function_id function_id, // for ddog_prof_Location
-                    uint64_t address,        // for ddog_prof_Location
-                    int64_t line             // for ddog_prof_Location
+    void push_frame(std::string_view name,     // for ddog_prof_Function
+                    std::string_view filename, // for ddog_prof_Function
+                    uint64_t address,          // for ddog_prof_Location
+                    int64_t line               // for ddog_prof_Location
     );
 
     // Set whether to reverse locations when exporting/flushing
@@ -156,7 +148,6 @@ class Sample
 
     static ProfileBorrow profile_borrow();
     static void postfork_child();
-    static void cleanup();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
     // friend class SampleManager;
