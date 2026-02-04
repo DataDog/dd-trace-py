@@ -771,6 +771,7 @@ class TestOptPlugin:
     def _clear_test_data(self, nodeid: str, test: Test) -> None:
         """Clear test data after sending to reduce memory usage."""
         if test.test_runs and len(test.test_runs) > 1:
+            # Needed later for coverage_writer.put_coverage(test.last_test_run, ...
             test.test_runs = [test.test_runs[-1]]
 
         if nodeid in self.tests_by_nodeid:
