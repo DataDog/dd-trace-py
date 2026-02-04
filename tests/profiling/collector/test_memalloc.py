@@ -1012,6 +1012,83 @@ def test_memalloc_sample_size(
         assert predicate(_derive_default_heap_sample_size(config.heap, default))
 
 
+def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
+    """Regression test for duplicate dropped frames indicator bug.
+
+    This test verifies that when export_sample() is called multiple times on the same
+    sample with dropped frames, the "<N frame(s) omitted>" indicator frame is only
+    added once, not multiple times.
+
+    The bug occurred when:
+    1. A sample had dropped frames (deep stack > max_nframes)
+    2. export_sample() was called, adding the indicator frame
+    3. export_sample() was called again before clear_buffers()
+    4. Another indicator frame was incorrectly added
+
+    This test creates allocations from a very deep stack to trigger frame dropping,
+    calls snapshot twice in a row, and checks that no sample has duplicate
+    "<N frame(s) omitted>" frames.
+    """
+    from ddtrace.internal.settings.profiling import config
+
+    output_filename = _setup_profiling_prelude(tmp_path, "test_no_duplicate_dropped_frames_indicator")
+
+    # Stack depth that should exceed max_nframes to trigger frame dropping
+    DEEP_STACK_DEPTH = 100
+
+    # Verify that max_nframes is less than our deep stack depth
+    # config.max_frames corresponds to DD_PROFILING_MAX_FRAMES (default 64)
+    assert config.max_frames < DEEP_STACK_DEPTH, (
+        f"Test requires DD_PROFILING_MAX_FRAMES ({config.max_frames}) < {DEEP_STACK_DEPTH} to trigger frame dropping"
+    )
+
+    # Create a very deep call stack to trigger frame dropping
+    def make_deep_stack(depth: int):
+        """Recursively creates a call stack of given depth."""
+        if depth == 0:
+            # Allocate at the leaf to create a sample
+            return [object() for _ in range(100)]
+        return make_deep_stack(depth - 1)
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    # Keep allocated objects alive throughout both snapshots
+    junk = []
+
+    with mc:
+        # Create allocations from a deep stack to trigger frame dropping
+        for _ in range(10):
+            junk.append(make_deep_stack(DEEP_STACK_DEPTH))
+
+        # Call snapshot twice in a row to potentially export the same sample multiple times
+        # The objects in junk remain alive, so the samples persist across both exports
+        mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    # Check each sample for duplicate dropped frames indicators
+    for sample_idx, sample in enumerate(profile.sample):
+        omitted_frame_count = 0
+        omitted_frame_locations = []
+
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if location.line:
+                function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+                function_name = profile.string_table[function.name]
+
+                # Check if this is a dropped frames indicator
+                # The format is: "<N frame(s) omitted>" or "<N frames omitted>"
+                if "omitted>" in function_name and function_name.startswith("<"):
+                    omitted_frame_count += 1
+                    omitted_frame_locations.append(function_name)
+
+        # Assert that we don't have duplicate dropped frames indicators
+        assert omitted_frame_count <= 1, (
+            f"Sample {sample_idx} has {omitted_frame_count} dropped frames indicators "
+            f"(expected at most 1). Found: {omitted_frame_locations}"
+        )
+
+
 def test_memory_collector_stack_order(tmp_path: Path) -> None:
     """Test that stack frames are reported in leaf-to-root order (innermost to outermost).
 

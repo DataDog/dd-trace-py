@@ -251,11 +251,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
     if (lineno_val < 0)
         lineno_val = 0;
 
-#ifdef _PY39_AND_LATER
     PyCodeObject* code = PyFrame_GetCode(frame);
-#else
-    PyCodeObject* code = frame->f_code;
-#endif
 
     std::string_view name_sv = "<unknown>";
     std::string_view filename_sv = "<unknown>";
@@ -275,9 +271,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
     // push_frame copies the strings immediately into its StringArena
     sample.push_frame(name_sv, filename_sv, 0, lineno_val);
 
-#ifdef _PY39_AND_LATER
     Py_XDECREF(code);
-#endif
 }
 
 /* Helper function to collect frames from PyFrameObject chain and push to sample */
@@ -291,11 +285,7 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
-#ifdef _PY39_AND_LATER
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
-#else
-    PyFrameObject* pyframe = tstate->frame;
-#endif
 
     if (pyframe == NULL) {
         // No Python frames available (e.g., during thread initialization/cleanup in "Dummy" threads).
@@ -314,14 +304,10 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
     for (PyFrameObject* frame = pyframe; frame != NULL;) {
         push_pyframe_to_sample(sample, frame);
 
-#ifdef _PY39_AND_LATER
         PyFrameObject* back = PyFrame_GetBack(frame);
         Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
                           // from GetBack are also new references
         frame = back;
-#else
-        frame = frame->f_back;
-#endif
         memalloc_debug_gil_release();
     }
 }
