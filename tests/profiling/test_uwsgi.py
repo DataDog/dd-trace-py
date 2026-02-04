@@ -73,7 +73,7 @@ def uwsgi(
         "--wsgi-file",
         uwsgi_app,
         "--import",
-        "ddtrace.auto",
+        "ddtrace.profiling.auto",
     ]
 
     try:
@@ -244,9 +244,13 @@ def test_uwsgi_threads_processes_primary(
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
     worker_pids = _get_worker_pids(proc.stdout, 2)
+
     # Give some time to child to actually startup
     time.sleep(3)
-    proc.terminate()
+
+    # Forcefully terminate all processes
+    os.killpg(proc.pid, signal.SIGTERM)
+
     assert proc.wait() == 0
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
@@ -279,7 +283,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     worker_pids = _get_worker_pids(proc.stdout, 2, 2)
     # Give some time to child to actually startup and output a profile
     time.sleep(3)
-    proc.terminate()
+    os.killpg(proc.pid, signal.SIGTERM)
     assert proc.wait() == 0
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
@@ -370,7 +374,7 @@ def test_uwsgi_require_skip_atexit_when_lazy_with_master(
 
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
     time.sleep(1)
-    proc.terminate()
+    os.killpg(proc.pid, signal.SIGTERM)
     stdout, _ = proc.communicate()
     assert expected_warning in stdout
 
