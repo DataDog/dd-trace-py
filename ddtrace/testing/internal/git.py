@@ -127,6 +127,46 @@ class Git:
             elapsed_seconds=sw.elapsed(),
         )
 
+    def _call_git_with_list_input(self, args: t.List[str], input_lines: t.List[str]) -> _GitSubprocessDetails:
+        """
+        Call git with a list of input lines, streaming them instead of buffering all at once.
+        This is more memory-efficient than building a giant string and passing it to communicate(),
+        especially when input_lines contains lots of entries.
+        """
+        git_cmd = [self.git_command, *args]
+        log.debug("Running git command: %r", git_cmd)
+
+        with StopWatch() as sw:
+            process = subprocess.Popen(  # nosec: B603
+                git_cmd,
+                stdout=subprocess.DEVNULL,  # stdout not needed for pack-objects
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                cwd=self.cwd,
+                encoding="utf-8",
+                errors="surrogateescape",
+            )
+
+            if process.stdin is not None:
+                # Stream input line by line instead of buffering entire input
+                try:
+                    for line in input_lines:
+                        process.stdin.write(f"{line}\n")
+                finally:
+                    process.stdin.close()
+
+            stderr = ""
+            if process.stderr is not None:
+                # Only capture stderr for error messages
+                stderr = process.stderr.read()
+
+        return _GitSubprocessDetails(
+            stdout="",  # Not captured since we use DEVNULL
+            stderr=stderr.strip(),
+            return_code=process.wait(),
+            elapsed_seconds=sw.elapsed(),
+        )
+
     def _git_output(self, args: t.List[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
         result = self._call_git(args)
 
@@ -281,7 +321,6 @@ class Git:
 
     def pack_objects(self, revisions: t.List[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311
-        revisions_text = "\n".join(revisions)
 
         cwd = Path(self.cwd) if self.cwd is not None else Path.cwd()
         temp_dir_base = Path(tempfile.gettempdir())
@@ -292,7 +331,10 @@ class Git:
 
         with tempfile.TemporaryDirectory(dir=temp_dir_base) as output_dir:
             prefix = f"{output_dir}/{base_name}"
-            result = self._call_git(["pack-objects", "--compression=9", "--max-pack-size=3m", prefix], revisions_text)
+            # Use streaming input to avoid building a giant string in memory
+            result = self._call_git_with_list_input(
+                ["pack-objects", "--compression=9", "--max-pack-size=3m", prefix], revisions
+            )
 
             TelemetryAPI.get().record_git_command(GitTelemetry.PACK_OBJECTS, result.elapsed_seconds, result.return_code)
 
