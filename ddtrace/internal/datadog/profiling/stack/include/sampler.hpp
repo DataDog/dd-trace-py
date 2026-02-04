@@ -3,9 +3,9 @@
 #include <atomic>
 
 #include "constants.hpp"
-#include "stack_renderer.hpp"
 
 #include "echion/strings.h"
+#include "echion/timing.h"
 
 class EchionSampler;
 
@@ -17,9 +17,6 @@ class Sampler
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
     std::unique_ptr<EchionSampler> echion;
-
-  private:
-    std::shared_ptr<StackRenderer> renderer_ptr;
 
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
     std::atomic<microsecond_t> sample_interval_us{ g_default_sampling_period_us };

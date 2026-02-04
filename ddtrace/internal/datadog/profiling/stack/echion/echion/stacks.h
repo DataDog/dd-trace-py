@@ -16,24 +16,15 @@
 #endif // PY_VERSION_HEX >= 0x030b0000
 #include <echion/errors.h>
 
+class EchionSampler;
+
 // ----------------------------------------------------------------------------
 class FrameStack : public std::deque<Frame::Ref>
 {
   public:
     using Key = Frame::Key;
 
-    // ------------------------------------------------------------------------
-    void render()
-    {
-        for (auto it = this->rbegin(); it != this->rend(); ++it) {
-#if PY_VERSION_HEX >= 0x030c0000
-            if ((*it).get().is_entry)
-                // This is a shim frame so we skip it.
-                continue;
-#endif
-            Renderer::get().render_frame((*it).get());
-        }
-    }
+    void render(EchionSampler& echion);
 };
 
 // Forward declaration
