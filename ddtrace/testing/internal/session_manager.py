@@ -235,8 +235,6 @@ class SessionManager:
         test, created = test_suite.get_or_create_child(test_ref.name)
         if created:
             try:
-                self.collected_tests.add(test_ref)
-
                 is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
 
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
