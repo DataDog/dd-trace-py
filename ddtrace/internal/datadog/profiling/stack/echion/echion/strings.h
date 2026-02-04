@@ -15,7 +15,6 @@
 #include <unordered_map>
 
 #include <echion/long.h>
-#include <echion/render.h>
 #include <echion/vm.h>
 
 constexpr ssize_t MAX_STRING_SIZE = 1 << 20; // 1 MiB
@@ -94,8 +93,3 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
   private:
     mutable std::mutex table_lock;
 };
-
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline StringTable& string_table = *(new StringTable());
