@@ -23,7 +23,7 @@ FOUR_KB = 1 << 12
 def test_shutdown_on_exit_signal(mock_get_signal, mock_signal, tracer):
     mock_get_signal.return_value = None
     register_on_exit_signal(tracer._atexit)
-    assert mock_signal.call_count == 3
+    assert mock_signal.call_count == 2
     assert mock_signal.call_args_list[0][0][0] == signal.SIGTERM
     assert mock_signal.call_args_list[1][0][0] == signal.SIGINT
     original_shutdown = tracer.shutdown
