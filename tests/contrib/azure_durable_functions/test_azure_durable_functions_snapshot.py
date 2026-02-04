@@ -92,7 +92,6 @@ def _wait_for_durable_completion(client: Client, response) -> None:
 def test_activity_trigger():
     with scoped_tracer() as tracer:
         pin = Pin()
-        pin._tracer = tracer
 
         def activity():
             return "ok"
@@ -120,7 +119,6 @@ def test_activity_trigger():
 def test_entity_trigger():
     with scoped_tracer() as tracer:
         pin = Pin()
-        pin._tracer = tracer
 
         def entity():
             return "ok"
