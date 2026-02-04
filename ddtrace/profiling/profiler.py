@@ -69,7 +69,7 @@ class Profiler(object):
 
         self._profiler.start()
 
-        if stop_on_exit and uwsgi.should_register_atexit():
+        if stop_on_exit:
             atexit.register(self.stop)
 
         if profile_children:

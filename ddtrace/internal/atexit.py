@@ -17,7 +17,21 @@ from ddtrace.internal.utils import signals
 log = logging.getLogger(__name__)
 
 
-register = atexit.register
+def register(func, *args, **kwargs):
+    """Register a function to be executed upon normal program termination.
+
+    This wraps the standard library's atexit.register but respects uwsgi's
+    --skip-atexit flag when running under uwsgi. When --skip-atexit is set,
+    the registration is skipped to avoid running cleanup code during process
+    shutdown, which can cause crashes due to heap corruption.
+    """
+    from ddtrace.internal import uwsgi
+
+    if uwsgi.should_register_atexit():
+        return atexit.register(func, *args, **kwargs)
+    return func
+
+
 unregister = atexit.unregister
 
 
