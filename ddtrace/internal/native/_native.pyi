@@ -517,11 +517,13 @@ class ffe:
 class SpanData:
     name: str
     service: Optional[str]
+    resource: str
 
     def __new__(
         cls: Type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
+        resource: Optional[str] = None,
     ) -> _SpanDataT: ...
 
 class SpanEventData:
