@@ -242,9 +242,9 @@ def record_activate_distributed_headers(error: Optional[str]):
     )
 
 
-def record_prompt_source(source: str, prompt_id: str):
+def record_prompt_source(source: str):
     """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
-    tags = [("from", source), ("prompt_id", prompt_id)]
+    tags = [("from", source)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_SOURCE,
@@ -253,9 +253,9 @@ def record_prompt_source(source: str, prompt_id: str):
     )
 
 
-def record_prompt_fetch_error(prompt_id: str, error_type: str):
+def record_prompt_fetch_error(error_type: str):
     """Record a prompt fetch error."""
-    tags = [("prompt_id", prompt_id), ("error_type", error_type)]
+    tags = [("error_type", error_type)]
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,

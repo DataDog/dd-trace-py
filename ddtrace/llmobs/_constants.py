@@ -153,4 +153,3 @@ DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 
 # Managed Prompts API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
-PROMPTS_BASE_URL = "api.datadoghq.com"
