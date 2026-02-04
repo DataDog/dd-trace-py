@@ -15,7 +15,7 @@
     name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.36.0
     alias: testagent
     variables:
-      LOG_LEVEL: ERROR
+      LOG_LEVEL: DEBUG
       SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
       SNAPSHOT_CI: 1
       VCR_CI_MODE: true
