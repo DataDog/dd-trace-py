@@ -1,6 +1,7 @@
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
+from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 
 
 log = get_logger(__name__)
@@ -24,24 +25,8 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.chunks.append(chunk)
 
         if type(chunk).__name__ == "ResultMessage" and self.instance and self.context is None:
-            await self._retrieve_context()
+            self.context = await _retrieve_context(self.instance)
 
-    async def _retrieve_context(self):
-        if self.instance is None:
-            return
-        try:
-            # set flag to skip tracing during internal context retrieval
-            self.instance._dd_internal_context_query = True
-            await self.instance.query("/context")
-            context_messages = []
-            async for msg in self.instance.receive_response():
-                context_messages.append(msg)
-            self.context = context_messages
-        except Exception:
-            log.warning("Error retrieving after context from claude_agent_sdk", exc_info=True)
-        finally:
-            if self.instance is not None:
-                self.instance._dd_internal_context_query = False
 
     def finalize_stream(self, exception=None):
         try:
