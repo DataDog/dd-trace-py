@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import sqlite3
 import subprocess
 import tempfile
@@ -14,7 +15,6 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -88,8 +88,12 @@ def rasp(request, endpoint: str):
             if param.startswith("filename"):
                 filename = query_params[param]
             try:
-                with open(filename, "rb") as f:
-                    res.append(f"File: {f.read()}")
+                if param.startswith("filename_pathlib"):
+                    with Path(filename).open("rb") as f:
+                        res.append(f"File (pathlib): {f.read()}")
+                else:
+                    with open(filename, "rb") as f:
+                        res.append(f"File: {f.read()}")
             except Exception as e:
                 res.append(f"Error: {e}")
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
@@ -373,9 +377,11 @@ def login_user_sdk(request):
 
 @csrf_exempt
 def new_service(request, service_name: str):
-    import ddtrace
-
-    Pin._override(django, service=service_name, tracer=ddtrace.tracer)
+    ddtrace.config.django.service = service_name
+    with tracer.start_span("span_with_new_service", service=service_name):
+        # Generate a root span with the new service name. On span finish,
+        # the service name will be added to the extra services queue.
+        pass
     return HttpResponse(service_name, status=200)
 
 

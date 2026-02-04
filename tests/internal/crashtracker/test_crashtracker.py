@@ -129,7 +129,7 @@ def test_crashtracker_receiver_not_in_path():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_simple():
     # This test does the following
     # 1. Finds a random port in the range 10000-20000 it can bind to (5 retries)
@@ -402,6 +402,8 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
+    import json
+
     # Call the program
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -418,7 +420,12 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
 
         # Wait for the connection
         report = utils.get_crash_report(client)
-        assert b"string_at" not in report["body"]
+
+        # Check that we don't have stack in error; we might still have it in runtime_stacks
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"][0]["message"])
+        error = message["error"]
+        assert "string_at" not in error
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -485,7 +492,6 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
 
     with utils.with_test_agent() as client:
         env = os.environ.copy()
-        env["DD_CRASHTRACKING_EMIT_RUNTIME_STACKS"] = "true"
         stdout, stderr, exitcode, _ = run_python_code_in_subprocess(auto_code, env=env)
 
         # Check for expected exit condition
@@ -680,7 +686,7 @@ def test_crashtracker_process_tags():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore:.*fork.*:DeprecationWarning::"})
 def test_crashtracker_echild_hang():
     """
     It's possible for user code and services to harvest child processes by doing a `waitpid()` until errno is ECHILD.

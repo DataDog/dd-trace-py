@@ -153,6 +153,7 @@ def collect(tracer):
         git_repository_url=git_repository_url,
         git_commit_sha=git_commit_sha,
         git_main_package=git_main_package,
+        log_level_override=os.getenv("DD_TRACE_LOG_LEVEL"),
     )
 
 

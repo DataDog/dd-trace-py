@@ -31,7 +31,7 @@ try:
     assert ops
     assert len(log_messages) == 0
 except ImportError as e:
-    assert False, "Importing the native module failed, _native probably not compiled correctly: %s" % str(e)
+    assert False, f"Importing the native module failed, _native probably not compiled correctly: {str(e)}"
 """
 
 if __name__ == "__main__":
@@ -47,12 +47,16 @@ if __name__ == "__main__":
             print("Running native module load test with DD_IAST_ENABLED=False...")
             copied_env["DD_IAST_ENABLED"] = "False"
             result = subprocess.run(cmd, env=copied_env, capture_output=True, text=True)
-            assert result.returncode == 0, "Failed with DD_IAST_ENABLED=0: %s, %s" % (result.stdout, result.stderr)
+            assert result.returncode == 0, (
+                f"Failed with DD_IAST_ENABLED=0: {result.returncode}, {result.stdout}, {result.stderr}"
+            )
 
             print("Running native module load test with DD_IAST_ENABLED=True...")
             copied_env["DD_IAST_ENABLED"] = "True"
             result = subprocess.run(cmd, env=copied_env, capture_output=True, text=True)
-            assert result.returncode == 0, "Failed with DD_IAST_ENABLED=1: %s, %s" % (result.stdout, result.stderr)
+            assert result.returncode == 0, (
+                f"Failed with DD_IAST_ENABLED=1: {result.returncode}, {result.stdout}, {result.stderr}"
+            )
             print("IAST module load tests completed successfully")
         finally:
             os.environ = orig_env
@@ -77,5 +81,5 @@ if __name__ == "__main__":
         print("Running profiling smoke test...")
         profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
         result = subprocess.run(profiling_cmd, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
+        assert result.returncode == 0, f"Failed: {result.returncode}, {result.stdout}, {result.stderr}"
         print("Profiling smoke test completed successfully")

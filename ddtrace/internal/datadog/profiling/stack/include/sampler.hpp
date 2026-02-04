@@ -1,8 +1,13 @@
 #pragma once
-#include "constants.hpp"
-#include "stack_renderer.hpp"
 
 #include <atomic>
+
+#include "constants.hpp"
+
+#include "echion/strings.h"
+#include "echion/timing.h"
+
+class EchionSampler;
 
 namespace Datadog {
 
@@ -11,8 +16,7 @@ class Sampler
     // This class manages the initialization of echion as well as the sampling thread.
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
-  private:
-    std::shared_ptr<StackRenderer> renderer_ptr;
+    std::unique_ptr<EchionSampler> echion;
 
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
     std::atomic<microsecond_t> sample_interval_us{ g_default_sampling_period_us };
@@ -38,18 +42,24 @@ class Sampler
     bool do_adaptive_sampling = true;
     void adapt_sampling_interval();
 
+    void atfork_child();
+    friend void _stack_atfork_child();
+
   public:
     // Singleton instance
     static Sampler& get();
+
+    // Accessor for EchionSampler
+    EchionSampler& get_echion() { return *echion; }
+
     bool start();
     void stop();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
-    void init_asyncio(PyObject* _asyncio_current_tasks,
-                      PyObject* _asyncio_scheduled_tasks,
-                      PyObject* _asyncio_eager_tasks);
+    void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
+    void weak_link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
     void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);

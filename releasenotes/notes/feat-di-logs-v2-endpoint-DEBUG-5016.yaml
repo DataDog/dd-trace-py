@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    dynamic instrumentation: log probes now use the debugger intake track.
+    This requires Datadog agent version 7.49.0 or above.

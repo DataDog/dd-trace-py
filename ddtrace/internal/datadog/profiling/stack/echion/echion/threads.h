@@ -28,10 +28,11 @@
 #include <echion/errors.h>
 #include <echion/greenlets.h>
 #include <echion/interp.h>
-#include <echion/render.h>
 #include <echion/stacks.h>
 #include <echion/tasks.h>
 #include <echion/timing.h>
+
+class EchionSampler;
 
 class ThreadInfo
 {
@@ -57,10 +58,9 @@ class ThreadInfo
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
 
     [[nodiscard]] Result<void> update_cpu_time();
-    bool is_running();
 
-    [[nodiscard]] Result<void> sample(int64_t, PyThreadState*, microsecond_t);
-    void unwind(PyThreadState*);
+    [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
+    void unwind(EchionSampler&, PyThreadState*);
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -110,30 +110,24 @@ class ThreadInfo
     };
 
   private:
-    [[nodiscard]] Result<void> unwind_tasks(PyThreadState*);
-    void unwind_greenlets(PyThreadState*, unsigned long);
-    [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(PyThreadState* tstate);
+    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*);
+    void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long);
+    [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
 #if PY_VERSION_HEX >= 0x030e0000
-    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(std::vector<TaskInfo::Ptr>& tasks);
-    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(PyThreadState* tstate,
+    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(EchionSampler& echion,
+                                                                 std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(EchionSampler& echion,
+                                                                      PyThreadState* tstate,
                                                                       std::vector<TaskInfo::Ptr>& tasks);
-    [[nodiscard]] Result<void> get_tasks_from_linked_list(uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<void> get_tasks_from_linked_list(EchionSampler& echion,
+                                                          uintptr_t head_addr,
+                                                          std::vector<TaskInfo::Ptr>& tasks);
 #endif
 };
-
-// ----------------------------------------------------------------------------
-
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline std::unordered_map<uintptr_t, ThreadInfo::Ptr>& thread_info_map =
-  *(new std::unordered_map<uintptr_t, ThreadInfo::Ptr>()); // indexed by thread_id
-
-inline std::mutex thread_info_map_lock;
 
 // ----------------------------------------------------------------------------
 
 using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
 
 void
-for_each_thread(InterpreterInfo& interp, PyThreadStateCallback callback);
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback);

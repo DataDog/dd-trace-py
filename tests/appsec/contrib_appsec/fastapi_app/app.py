@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 import sqlite3
 import subprocess
 from typing import AsyncGenerator
@@ -14,7 +15,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ddtrace._trace.pin import Pin
+from ddtrace import config
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -140,9 +141,11 @@ def get_app():
     @app.get("/new_service/{service_name:str}")
     @app.post("/new_service/{service_name:str}")
     async def new_service(service_name: str, request: Request):  # noqa: B008
-        import ddtrace
-
-        Pin._override(app, service=service_name, tracer=ddtrace.tracer)
+        config.fastapi.service = service_name
+        with tracer.start_span("span_with_new_service", service=service_name):
+            # Generate a root span with the new service name. On span finish,
+            # the service name will be added to the extra services queue.
+            pass
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):
@@ -165,8 +168,12 @@ def get_app():
                 if param.startswith("filename"):
                     filename = query_params[param]
                 try:
-                    with open(filename, "rb") as f:
-                        res.append(f"File: {f.read()}")
+                    if param.startswith("filename_pathlib"):
+                        with Path(filename).open("rb") as f:
+                            res.append(f"File (pathlib): {f.read()}")
+                    else:
+                        with open(filename, "rb") as f:
+                            res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)

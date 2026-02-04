@@ -8,7 +8,6 @@ from celery.exceptions import Retry
 import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
@@ -679,7 +678,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
 
     def setUp(self):
         super(CeleryDistributedTracingIntegrationTask, self).setUp()
-        provider = Pin.get_from(self.app).tracer.context_provider
+        provider = self.tracer.context_provider
         provider.activate(Context(trace_id=12345, span_id=12345, sampling_priority=1))
 
     def tearDown(self):
@@ -702,8 +701,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         celery.signals.task_prerun.disconnect(self.inject_new_context)
 
     def inject_new_context(self, *args, **kwargs):
-        pin = Pin.get_from(self.app)
-        pin.tracer.context_provider.activate(Context(trace_id=99999, span_id=99999, sampling_priority=1))
+        self.tracer.context_provider.activate(Context(trace_id=99999, span_id=99999, sampling_priority=1))
 
     def test_distributed_tracing_disabled(self):
         """This test is just making sure our signal hackery in this test class
@@ -728,7 +726,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
 
         # This header manipulation is copying the work that should be done
         # by the before_publish signal. Rip it out if Celery ever fixes their bug.
-        current_context = Pin.get_from(self.app).tracer.context_provider.active()
+        current_context = self.tracer.context_provider.active()
         headers = {}
         HTTPPropagator.inject(current_context, headers)
 
@@ -746,7 +744,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
 
         # This header manipulation is copying the work that should be done
         # by the before_publish signal. Rip it out if Celery ever fixes their bug.
-        current_context = Pin.get_from(self.app).tracer.context_provider.active()
+        current_context = self.tracer.context_provider.active()
         headers = {}
         HTTPPropagator.inject(current_context, headers)
 
@@ -798,3 +796,28 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
                 if not err:
                     break
                 assert b"SIGSEGV" not in err
+
+    def test_celery_beat_no_panic(self):
+        """Test that celery worker with --beat option doesn't cause panics.
+
+        When celery starts the beat scheduler, it closes file descriptors which
+        can cause panics in the native writer if not properly handled. This test
+        ensures that the native runtime is properly shut down before FDs are closed.
+        """
+        with self.override_env(
+            dict(
+                DD_RUNTIME_METRICS_ENABLED="true",
+            )
+        ):
+            celery_proc = subprocess.Popen(
+                ["ddtrace-run", "celery", "--app=tests.contrib.celery.tasks", "worker", "--beat", "--loglevel=info"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            sleep(5)
+            celery_proc.terminate()
+            celery_proc.wait(timeout=10)
+
+            output = celery_proc.stdout.read()
+            # Check for panics in the output
+            assert b"panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
