@@ -1479,12 +1479,13 @@ class LLMObs(Service):
         cache_max_size = _get_config("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", DEFAULT_PROMPTS_CACHE_MAX_SIZE, int)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", True, asbool)
         cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
-        endpoint_override = _get_config("DD_LLMOBS_PROMPTS_ENDPOINT")
+        endpoint_override = _get_config("DD_LLMOBS_OVERRIDE_ORIGIN")
         timeout = _get_config("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT, float)
 
         return PromptManager(
             api_key=api_key,
             endpoint_override=endpoint_override,
+            base_url=f"https://api.{config._dd_site}",
             cache_ttl=cache_ttl,
             cache_max_size=cache_max_size,
             file_cache_enabled=file_cache_enabled,

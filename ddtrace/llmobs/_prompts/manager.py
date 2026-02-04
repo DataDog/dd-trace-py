@@ -12,13 +12,12 @@ from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
-from ddtrace.llmobs._constants import PROMPTS_BASE_URL
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
-from ddtrace.llmobs._prompts.prompt import _extract_template
+from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs.types import PromptFallback
 
 
@@ -31,6 +30,7 @@ class PromptManager:
     def __init__(
         self,
         api_key: str,
+        base_url: str,
         endpoint_override: Optional[str] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
         cache_max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
@@ -38,7 +38,7 @@ class PromptManager:
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
     ) -> None:
-        self._endpoint_override = endpoint_override.removeprefix("https://").rstrip("/") if endpoint_override else None
+        self._base_url = self._normalize_base_url(base_url, endpoint_override)
         self._timeout = timeout
 
         # Pre-build headers since they don't change
@@ -73,11 +73,11 @@ class PromptManager:
         # Try sync fetch from registry
         fetched_prompt = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
         if fetched_prompt is not None:
-            telemetry.record_prompt_source("registry", prompt_id)
+            telemetry.record_prompt_source("registry")
             return fetched_prompt
 
         # Fall back to user-provided or empty prompt
-        telemetry.record_prompt_source("fallback", prompt_id)
+        telemetry.record_prompt_source("fallback")
         return self._create_fallback_prompt(prompt_id, fallback)
 
     def _try_cache(
@@ -98,7 +98,7 @@ class PromptManager:
             self._hot_cache.set(key, prompt)
         if is_stale:
             self._trigger_background_refresh(key, prompt_id, label)
-        telemetry.record_prompt_source(source_name, prompt_id)
+        telemetry.record_prompt_source(source_name)
         return prompt
 
     def clear_cache(self, hot: bool = True, warm: bool = True) -> None:
@@ -142,11 +142,11 @@ class PromptManager:
             return prompt
 
         if not_found:
-            telemetry.record_prompt_fetch_error(prompt_id, "NotFound")
+            telemetry.record_prompt_fetch_error("NotFound")
             if evict_on_not_found:
                 self._evict_caches(key)
         else:
-            telemetry.record_prompt_fetch_error(prompt_id, "FetchError")
+            telemetry.record_prompt_fetch_error("FetchError")
 
         return None
 
@@ -188,7 +188,7 @@ class PromptManager:
         """Fetch from registry. Returns (prompt, not_found)."""
         conn = None
         try:
-            conn = get_connection("https://" + (self._endpoint_override or PROMPTS_BASE_URL), timeout=timeout)
+            conn = get_connection(self._base_url, timeout=timeout)
             conn.request("GET", self._build_path(prompt_id, label), headers=self._headers)
             response = conn.getresponse()
 
@@ -204,10 +204,18 @@ class PromptManager:
 
     def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
         """Build the request path for fetching a prompt."""
+        endpoint = PROMPTS_ENDPOINT.lstrip("/")
         if label:
             query_params = urlencode({"label": label})
-            return f"{PROMPTS_ENDPOINT}/{prompt_id}?{query_params}"
-        return f"{PROMPTS_ENDPOINT}/{prompt_id}"
+            return f"{endpoint}/{prompt_id}?{query_params}"
+        return f"{endpoint}/{prompt_id}"
+
+    @staticmethod
+    def _normalize_base_url(base_url: str, endpoint_override: Optional[str]) -> str:
+        url = endpoint_override or base_url
+        if "://" not in url:
+            url = "https://" + url
+        return url.rstrip("/")
 
     def _parse_response(self, body: str, prompt_id: str, label: Optional[str]) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""
@@ -218,7 +226,7 @@ class PromptManager:
                 version=data.get("version", "unknown"),
                 label=data.get("label", label),
                 source="registry",
-                template=_extract_template(data, default=[]),
+                template=extract_template(data, default=[]),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
