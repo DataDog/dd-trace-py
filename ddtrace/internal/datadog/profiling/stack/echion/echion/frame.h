@@ -34,6 +34,9 @@
 #include <echion/strings.h>
 #include <echion/vm.h>
 
+// Forward declaration
+class EchionSampler;
+
 // ----------------------------------------------------------------------------
 class Frame
 {
@@ -67,16 +70,21 @@ class Frame
     }
     Frame(StringTable::Key name)
       : name(name) {};
-    [[nodiscard]] static Result<Frame::Ptr> create(PyCodeObject* code, int lasti);
+    [[nodiscard]] static Result<Frame::Ptr> create(EchionSampler& echion, PyCodeObject* code, int lasti);
 
 #if PY_VERSION_HEX >= 0x030b0000
-    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(_PyInterpreterFrame* frame_addr,
+    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(EchionSampler& echion,
+                                                                    _PyInterpreterFrame* frame_addr,
                                                                     _PyInterpreterFrame** prev_addr);
 #else
-    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(PyObject* frame_addr, PyObject** prev_addr);
+    [[nodiscard]] static Result<std::reference_wrapper<Frame>> read(EchionSampler& echion,
+                                                                    PyObject* frame_addr,
+                                                                    PyObject** prev_addr);
 #endif
 
-    [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(PyCodeObject* code_addr, int lasti);
+    [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(EchionSampler& echion,
+                                                                   PyCodeObject* code_addr,
+                                                                   int lasti);
     static Frame& get(StringTable::Key name);
 
   private:

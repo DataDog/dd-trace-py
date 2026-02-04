@@ -1,5 +1,6 @@
 #include <echion/frame.h>
 
+#include <echion/echion_sampler.h>
 #include <echion/errors.h>
 #include <echion/render.h>
 
@@ -58,17 +59,17 @@ reset_frame_cache()
 
 // ------------------------------------------------------------------------
 Result<Frame::Ptr>
-Frame::create(PyCodeObject* code, int lasti)
+Frame::create(EchionSampler& echion, PyCodeObject* code, int lasti)
 {
-    auto maybe_filename = string_table.key(code->co_filename, StringTag::FileName);
+    auto maybe_filename = echion.string_table().key(code->co_filename, StringTag::FileName);
     if (!maybe_filename) {
         return ErrorKind::FrameError;
     }
 
 #if PY_VERSION_HEX >= 0x030b0000
-    auto maybe_name = string_table.key(code->co_qualname, StringTag::FuncName);
+    auto maybe_name = echion.string_table().key(code->co_qualname, StringTag::FuncName);
 #else
-    auto maybe_name = string_table.key(code->co_name, StringTag::FuncName);
+    auto maybe_name = echion.string_table().key(code->co_name, StringTag::FuncName);
 #endif
 
     if (!maybe_name) {
@@ -221,10 +222,10 @@ Frame::key(PyCodeObject* code, int lasti)
 // ------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 Result<std::reference_wrapper<Frame>>
-Frame::read(_PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
+Frame::read(EchionSampler& echion, _PyInterpreterFrame* frame_addr, _PyInterpreterFrame** prev_addr)
 #else
 Result<std::reference_wrapper<Frame>>
-Frame::read(PyObject* frame_addr, PyObject** prev_addr)
+Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #endif
 {
 #if PY_VERSION_HEX >= 0x030b0000
@@ -273,7 +274,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
     const int lasti = instr_offset - code_offset;
-    auto maybe_frame = Frame::get(code_obj, lasti);
+    auto maybe_frame = Frame::get(echion, code_obj, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -285,7 +286,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
         (frame_addr->instr_ptr - 1 -
          reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    auto maybe_frame = Frame::get(reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
+    auto maybe_frame = Frame::get(echion, reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -295,7 +296,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
     const int lasti =
       (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
-    auto maybe_frame = Frame::get(frame_addr->f_code, lasti);
+    auto maybe_frame = Frame::get(echion, frame_addr->f_code, lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -320,7 +321,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
         return ErrorKind::FrameError;
     }
 
-    auto maybe_frame = Frame::get(py_frame.f_code, py_frame.f_lasti);
+    auto maybe_frame = Frame::get(echion, py_frame.f_code, py_frame.f_lasti);
     if (!maybe_frame) {
         return ErrorKind::FrameError;
     }
@@ -334,7 +335,7 @@ Frame::read(PyObject* frame_addr, PyObject** prev_addr)
 
 // ----------------------------------------------------------------------------
 Result<std::reference_wrapper<Frame>>
-Frame::get(PyCodeObject* code_addr, int lasti)
+Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
 {
     auto frame_key = Frame::key(code_addr, lasti);
 
@@ -348,7 +349,7 @@ Frame::get(PyCodeObject* code_addr, int lasti)
         return std::ref(INVALID_FRAME);
     }
 
-    auto maybe_new_frame = Frame::create(&code, lasti);
+    auto maybe_new_frame = Frame::create(echion, &code, lasti);
     if (!maybe_new_frame) {
         return std::ref(INVALID_FRAME);
     }
