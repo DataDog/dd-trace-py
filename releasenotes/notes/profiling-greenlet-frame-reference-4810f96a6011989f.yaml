@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    profiling: This fix resolvecs an issue where stack profiler could hold
+    profiling: This fix resolves an issue where stack profiler could hold
     frame references to greenlets, which could have already completed. This
     could delay garbage collecting local variables from the greenlet.
