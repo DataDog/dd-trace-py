@@ -13,7 +13,7 @@ def fib(n: int) -> int:
 
 
 def app(environ: Dict[str, str], start_response: Callable[[str, List[Tuple[str, str]]], None]) -> List[bytes]:
-    response_body = f"fib(30) is {fib(30)} at pid {os.getpid()} tid {threading.get_ident()}"
+    response_body = f"fib(35) is {fib(35)} at pid {os.getpid()} tid {threading.get_ident()}"
 
     response_body = response_body.encode("utf-8")
 
