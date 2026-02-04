@@ -4,12 +4,9 @@ from typing import Callable
 from typing import List
 from typing import Optional
 
-from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
-
-
-logger = get_logger(__name__)
+from ddtrace.llmobs._experiment import EvaluatorResult
 
 
 def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
@@ -100,31 +97,28 @@ class SemanticSimilarity(BaseEvaluator):
         self.embedding_fn = embedding_fn
         self.threshold = threshold
 
-    def evaluate(self, context: EvaluatorContext) -> float:
+    def evaluate(self, context: EvaluatorContext) -> EvaluatorResult:
         """Perform semantic similarity evaluation.
 
         :param context: The evaluation context
-        :return: Similarity score between 0.0 and 1.0
+        :return: EvaluatorResult with similarity score and pass/fail assessment based on threshold
         """
         output = context.output_data
         expected = context.expected_output
 
         if output is None and expected is None:
-            return 1.0
+            return EvaluatorResult(value=1.0, assessment="pass")
         if output is None or expected is None:
-            return 0.0
+            return EvaluatorResult(value=0.0, assessment="fail")
 
         output_str = str(output)
         expected_str = str(expected)
 
-        try:
-            output_embedding = self.embedding_fn(output_str)
-            expected_embedding = self.embedding_fn(expected_str)
+        output_embedding = self.embedding_fn(output_str)
+        expected_embedding = self.embedding_fn(expected_str)
 
-            similarity = _cosine_similarity(output_embedding, expected_embedding)
-            normalized_similarity = (similarity + 1) / 2
+        similarity = _cosine_similarity(output_embedding, expected_embedding)
+        normalized_similarity = (similarity + 1) / 2
 
-            return normalized_similarity
-        except Exception as e:
-            logger.error("Error calculating semantic similarity: %s", str(e))
-            return 0.0
+        assessment = "pass" if normalized_similarity >= self.threshold else "fail"
+        return EvaluatorResult(value=normalized_similarity, assessment=assessment)

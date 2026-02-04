@@ -8,6 +8,7 @@ from typing import Pattern
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
+from ddtrace.llmobs._experiment import EvaluatorResult
 
 
 class StringCheck(BaseEvaluator):
@@ -90,61 +91,56 @@ class StringCheck(BaseEvaluator):
         self.output_extractor = output_extractor
         self.expected_output_extractor = expected_output_extractor
 
-    def evaluate(self, context: EvaluatorContext) -> bool:
+    def evaluate(self, context: EvaluatorContext) -> EvaluatorResult:
         """Perform string comparison evaluation.
 
         :param context: The evaluation context
-        :return: True if condition passes, False otherwise
+        :return: EvaluatorResult with boolean value and pass/fail assessment
         """
         output = context.output_data
         expected = context.expected_output
 
-        # Apply extraction functions if provided
         if self.output_extractor is not None:
             output = self.output_extractor(output)
         if self.expected_output_extractor is not None:
             expected = self.expected_output_extractor(expected)
 
-        # Handle None cases
+        result = False
+
         if output is None and expected is None:
-            # Both None
             if self.operation == "eq":
-                return True  # None == None
+                result = True
             elif self.operation == "ne":
-                return False  # Not (None != None)
-            else:  # contains, icontains
-                return False  # Can't check containment with None
-
-        if output is None or expected is None:
-            # One is None
+                result = False
+            else:
+                result = False
+        elif output is None or expected is None:
             if self.operation == "eq":
-                return False  # None != value
+                result = False
             elif self.operation == "ne":
-                return True  # None != value
-            else:  # contains, icontains
-                return False  # Can't check containment with None
+                result = True
+            else:
+                result = False
+        else:
+            output_str = str(output)
+            expected_str = str(expected)
 
-        output_str = str(output)
-        expected_str = str(expected)
+            if self.strip_whitespace:
+                output_str = output_str.strip()
+                expected_str = expected_str.strip()
 
-        if self.strip_whitespace:
-            output_str = output_str.strip()
-            expected_str = expected_str.strip()
+            if self.operation == "icontains" or not self.case_sensitive:
+                output_str = output_str.lower()
+                expected_str = expected_str.lower()
 
-        # Apply case sensitivity (icontains is always case-insensitive)
-        if self.operation == "icontains" or not self.case_sensitive:
-            output_str = output_str.lower()
-            expected_str = expected_str.lower()
+            if self.operation == "eq":
+                result = output_str == expected_str
+            elif self.operation == "ne":
+                result = output_str != expected_str
+            elif self.operation in ("contains", "icontains"):
+                result = expected_str in output_str
 
-        # Perform operation
-        if self.operation == "eq":
-            return output_str == expected_str
-        elif self.operation == "ne":
-            return output_str != expected_str
-        elif self.operation in ("contains", "icontains"):
-            return expected_str in output_str
-
-        return False  # Should never reach here
+        return EvaluatorResult(value=result, assessment="pass" if result else "fail")
 
 
 class RegexMatch(BaseEvaluator):
@@ -207,20 +203,19 @@ class RegexMatch(BaseEvaluator):
         self.flags = flags
         self.output_extractor = output_extractor
 
-    def evaluate(self, context: EvaluatorContext) -> bool:
+    def evaluate(self, context: EvaluatorContext) -> EvaluatorResult:
         """Perform regex match evaluation.
 
         :param context: The evaluation context
-        :return: True if pattern matches, False otherwise
+        :return: EvaluatorResult with boolean value and pass/fail assessment
         """
         output = context.output_data
 
-        # Apply extraction function if provided
         if self.output_extractor is not None:
             output = self.output_extractor(output)
 
         if output is None:
-            return False
+            return EvaluatorResult(value=False, assessment="fail")
 
         output_str = str(output)
 
@@ -231,4 +226,5 @@ class RegexMatch(BaseEvaluator):
         else:
             match = self.pattern.fullmatch(output_str)
 
-        return match is not None
+        result = match is not None
+        return EvaluatorResult(value=result, assessment="pass" if result else "fail")

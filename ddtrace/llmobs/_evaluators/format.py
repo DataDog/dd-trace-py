@@ -7,6 +7,7 @@ from typing import Optional
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
+from ddtrace.llmobs._experiment import EvaluatorResult
 
 
 class LengthValidator(BaseEvaluator):
@@ -90,31 +91,30 @@ class LengthValidator(BaseEvaluator):
         else:
             return len(text.splitlines())
 
-    def evaluate(self, context: EvaluatorContext) -> bool:
+    def evaluate(self, context: EvaluatorContext) -> EvaluatorResult:
         """Perform length validation.
 
         :param context: The evaluation context
-        :return: True if length is within bounds, False otherwise
+        :return: EvaluatorResult with boolean value and pass/fail assessment
         """
         output = context.output_data
 
-        # Apply extraction function if provided
         if self.output_extractor is not None:
             output = self.output_extractor(output)
 
         if output is None:
-            return False
+            return EvaluatorResult(value=False, assessment="fail")
 
         output_str = str(output)
         length = self._calculate_length(output_str)
 
         if self.min_length is not None and length < self.min_length:
-            return False
+            return EvaluatorResult(value=False, assessment="fail")
 
         if self.max_length is not None and length > self.max_length:
-            return False
+            return EvaluatorResult(value=False, assessment="fail")
 
-        return True
+        return EvaluatorResult(value=True, assessment="pass")
 
 
 class JSONValidator(BaseEvaluator):
@@ -163,20 +163,19 @@ class JSONValidator(BaseEvaluator):
         self.required_keys = required_keys or []
         self.output_extractor = output_extractor
 
-    def evaluate(self, context: EvaluatorContext) -> bool:
+    def evaluate(self, context: EvaluatorContext) -> EvaluatorResult:
         """Perform JSON validation.
 
         :param context: The evaluation context
-        :return: True if valid JSON with required keys, False otherwise
+        :return: EvaluatorResult with boolean value and pass/fail assessment
         """
         output = context.output_data
 
-        # Apply extraction function if provided
         if self.output_extractor is not None:
             output = self.output_extractor(output)
 
         if output is None:
-            return False
+            return EvaluatorResult(value=False, assessment="fail")
 
         if isinstance(output, (dict, list)):
             parsed_data = output
@@ -185,11 +184,11 @@ class JSONValidator(BaseEvaluator):
             try:
                 parsed_data = json.loads(output_str)
             except (json.JSONDecodeError, ValueError):
-                return False
+                return EvaluatorResult(value=False, assessment="fail")
 
         if self.required_keys and isinstance(parsed_data, dict):
             for key in self.required_keys:
                 if key not in parsed_data:
-                    return False
+                    return EvaluatorResult(value=False, assessment="fail")
 
-        return True
+        return EvaluatorResult(value=True, assessment="pass")
