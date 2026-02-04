@@ -19,7 +19,7 @@ _gevent_wait: t.Callable[..., t.Any] = gevent.wait
 _gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
 
 # Global package state
-_greenlet_frames: t.Dict[int, t.Union[FrameType, bool, None]] = {}
+_greenlet_frames: t.Set[int] = set()
 _original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
 _greenlet_parent_map: t.Dict[int, int] = {}
 _parent_greenlet_count: t.Dict[int, int] = {}
@@ -53,13 +53,13 @@ def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
     except Exception as e:
         raise GreenletTrackingError("Cannot link greenlet for untracking") from e
 
-    _greenlet_frames[greenlet_id] = frame
+    _greenlet_frames.add(greenlet_id)
 
     return greenlet
 
 
 def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None]) -> None:
-    _greenlet_frames[greenlet_id] = frame
+    _greenlet_frames.add(greenlet_id)
     stack.update_greenlet_frame(greenlet_id, frame)
 
 
@@ -107,7 +107,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
 def untrack_greenlet(greenlet: _Greenlet) -> None:
     greenlet_id: int = thread.get_ident(greenlet)
     stack.untrack_greenlet(greenlet_id)
-    _greenlet_frames.pop(greenlet_id, None)
+    _greenlet_frames.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
         _parent_greenlet_count[parent_id] -= 1
