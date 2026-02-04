@@ -2142,3 +2142,11 @@ async def test_experiment_run_async_task_with_config(llmobs, test_dataset_one_re
     )
     await exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=False)
     assert received_config == {"model": "gpt-4", "temperature": 0.7}
+
+
+@pytest.mark.asyncio
+async def test_experiment_run_async_task_raise_errors(llmobs, test_dataset_one_record):
+    """Test that raise_errors=True raises on async task error."""
+    exp = llmobs.experiment("test_async_raise", async_faulty_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(RuntimeError, match="Error on record 0"):
+        await exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=True)

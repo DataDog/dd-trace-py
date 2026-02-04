@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
@@ -964,13 +965,22 @@ class Experiment:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
+        semaphore = asyncio.Semaphore(jobs)
+
+        async def process_with_limit(idx: int, record: DatasetRecord) -> Optional[TaskResult]:
+            async with semaphore:
+                return await self._process_record_async((idx, record), run)
+
+        tasks = [process_with_limit(idx, record) for idx, record in enumerate(subset_dataset)]
+        results = await asyncio.gather(*tasks)
+
         task_results: List[TaskResult] = []
-        for idx, record in enumerate(subset_dataset):
-            result = await self._process_record_async((idx, record), run)
+        for result in results:
             if not result:
                 continue
             task_results.append(result)
             self._check_task_error(result, raise_errors)
+
         if self._llmobs_instance:
             self._llmobs_instance.flush()
         return task_results
