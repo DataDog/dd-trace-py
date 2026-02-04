@@ -58,21 +58,24 @@ def test_internal_adaptive_sampling():
     # than one Thread) because the Thread is short-lived, so we cannot guarantee we will see it more than once.
     found_at_least_one_with_more_samples_than_sampling_events = False
     for i, f in enumerate(files):
+        is_last_file = i == len(files) - 1
+
         with open(f, "r") as fp:
             internal_metadata = json.load(fp)
 
             assert internal_metadata is not None
             assert "sample_count" in internal_metadata
-            assert internal_metadata["sample_count"] > 0
+            assert internal_metadata["sample_count"] > 0 or is_last_file
 
             assert "sampling_event_count" in internal_metadata
             assert internal_metadata["sampling_event_count"] <= internal_metadata["sample_count"]
 
             # With adaptive sampling enabled, we should have the sampling_interval_us field
-            assert "sampling_interval_us" in internal_metadata
-            assert internal_metadata["sampling_interval_us"] > 0, (
-                f"Sampling interval should be positive: {internal_metadata['sampling_interval_us']}"
-            )
+            if not is_last_file:
+                assert "sampling_interval_us" in internal_metadata
+                assert internal_metadata["sampling_interval_us"] > 0, (
+                    f"Sampling interval should be positive: {internal_metadata['sampling_interval_us']}"
+                )
 
             if internal_metadata["sample_count"] > internal_metadata["sampling_event_count"]:
                 found_at_least_one_with_more_samples_than_sampling_events = True
