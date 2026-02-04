@@ -65,9 +65,6 @@ class TracedMongoClient(ObjectProxy):
     pass
 
 
-_CHECKOUT_FN_NAME = "get_socket" if pymongo.version_tuple < (4, 5) else "checkout"
-
-
 def patch_pymongo_sync_modules():
     """Patch synchronous pymongo modules."""
     _w(pymongo.MongoClient.__init__, _trace_mongo_client_init)
@@ -320,7 +317,7 @@ def traced_get_socket(func, args, kwargs):
             yield sock_info
             return
 
-    with create_checkout_span(pin, _CHECKOUT_FN_NAME) as span:
+    with create_checkout_span(pin) as span:
         with func(*args, **kwargs) as sock_info:
             setup_checkout_span_tags(span, sock_info, instance)
             yield sock_info

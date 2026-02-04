@@ -3,9 +3,9 @@ import time
 
 import pymongo
 
-from ddtrace.contrib.internal.pymongo.client import _CHECKOUT_FN_NAME
 from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.internal.pymongo.patch import unpatch
+from ddtrace.contrib.internal.pymongo.utils import _CHECKOUT_FN_NAME
 
 # project
 from ddtrace.contrib.internal.pymongo.utils import normalize_filter

@@ -28,6 +28,9 @@ BATCH_PARTIAL_KEY = "Batch"
 
 VERSION = pymongo.version_tuple
 
+_CHECKOUT_FN_NAME = "get_socket" if pymongo.version_tuple < (4, 5) else "checkout"
+
+
 if VERSION < (3, 6, 0):
     from pymongo.helpers import _unpack_response
 
@@ -40,10 +43,10 @@ def is_query(op):
     return hasattr(op, "spec")
 
 
-def create_checkout_span(pin, checkout_fn_name):
+def create_checkout_span(pin):
     """Create a span for socket checkout. Shared between sync and async."""
     span = tracer.trace(
-        "pymongo.%s" % checkout_fn_name,
+        f"pymongo.{_CHECKOUT_FN_NAME}",
         service=trace_utils.ext_service(pin, config.pymongo),
         span_type=SpanTypes.MONGODB,
     )

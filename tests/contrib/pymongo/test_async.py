@@ -142,7 +142,7 @@ class TestAsyncPymongo(AsyncioTestCase):
 
     @mark_asyncio
     async def test_async_span_parenting(self):
-        from ddtrace.contrib.internal.pymongo.client import _CHECKOUT_FN_NAME
+        from ddtrace.contrib.internal.pymongo.utils import _CHECKOUT_FN_NAME
 
         client = AsyncMongoClient(port=MONGO_CONFIG["port"])
         try:

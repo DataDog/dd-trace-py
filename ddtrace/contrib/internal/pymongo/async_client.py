@@ -19,7 +19,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 
-from .client import _CHECKOUT_FN_NAME
 from .client import datadog_trace_operation
 from .client import parse_socket_command_spec
 from .client import parse_socket_write_command_msg
@@ -81,7 +80,7 @@ async def trace_async_server_checkout(func: FunctionType, args: Tuple[Any, ...],
 
     @contextlib.asynccontextmanager
     async def traced_cm():
-        with create_checkout_span(pin, _CHECKOUT_FN_NAME) as span:
+        with create_checkout_span(pin) as span:
             async with cm as sock_info:
                 setup_checkout_span_tags(span, sock_info, instance)
                 yield sock_info
