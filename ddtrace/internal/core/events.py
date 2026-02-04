@@ -24,14 +24,15 @@ This example shows how ``core.dispatch()`` can be replaced by `core.dispatch_eve
 
 This example shows how ``core.context_with_data()`` can be replaced by `core.context_with_event()`::
 
+    @dataclass
     class TestContextEvent(ContextEvent):
         event_name = "test.event"
         span_kind = "kind"
         component = "component"
         span_type = "type"
 
-        def __new__(cls, foo, bar):
-            return cls.create(span_name="test", foo=foo, bar=bar)
+        foo: str
+        bar: str
 
         @classmethod
         def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
@@ -47,18 +48,26 @@ This example shows how ``core.context_with_data()`` can be replaced by `core.con
             span = ctx.span
             span._set_tag_str("bar", ctx.get_item("bar"))
 
-    with core.context_with_event(TestContextEvent(foo="toto", bar="tata")):
+    # Create an instance and call create_event_context() to get the dict
+    event = TestContextEvent(foo="toto", bar="tata")
+    with core.context_with_event(event.create_event_context()):
         pass
 
 """
 
+from dataclasses import dataclass
+from dataclasses import field
+from dataclasses import fields
 from types import TracebackType
+from typing import Dict
 from typing import Optional
 from typing import Tuple
 
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
+from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 
 
 class BaseEvent:
@@ -90,37 +99,16 @@ class BaseEvent:
         pass
 
 
-class ContextEvent:
-    """ContextEvent is an abstraction created to constrain the arguments that can be passed
-    during a call to core.context_with_data
-
-    It can used with core.context_with_data(MyBaseEvent()).
-    """
-
-    event_name: str
-    # if a ContextEvent is used to create a span the below fields are required
-    span_kind: Optional[str] = None
-    component: Optional[str] = None
-    span_type: Optional[str] = None
-    call_trace: bool = False
-
-    _start_span: bool = True
-    _end_span: bool = True
+@dataclass
+class BaseContextEvent:
+    event_name: str = field(init=False, repr=False)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
 
-        # Enforce that attributes have a value
-        # Note you can assign values during __new__ call
-        if cls._start_span:
-            required_attrs = [
-                attr
-                for attr in ContextEvent.__dict__
-                if not attr.startswith("_") and not callable(getattr(ContextEvent, attr, None))
-            ]
-            missing_attrs = [attr for attr in required_attrs if not hasattr(cls, attr)]
-            if missing_attrs:
-                raise TypeError(f"{cls.__name__} must define class attributes: {', '.join(missing_attrs)}")
+        # Prevent registering SpanContextEvent class
+        if "event_name" not in cls.__dict__:
+            return
 
         # Automatically register the event handlers
         core.on(
@@ -134,37 +122,15 @@ class ContextEvent:
             name=f"{cls.__name__}_ended",
         )
 
-    @classmethod
-    def get_default_tags(cls):
-        """
-        Returns the default tags for this event type.
-        Subclasses can override this method to provide their own default tags.
-        """
-        return {}
+    def create_event_context(self):
+        """Convert this event instance into a dict that is used to create an ExecutionContext.
 
-    @classmethod
-    def get_tags(cls, additional_tags=None):
-        """Merges default tags with additional instance-specific tags."""
-        tags = cls.get_default_tags()
-        if additional_tags:
-            tags.update(additional_tags)
-        return tags
+        If the event class is a dataclass, all fields are automatically extracted and added
+        to the context dict. Additional keyword arguments can be passed via **extra.
 
-    @classmethod
-    def create(cls, *, span_name=None, tags=None, **extra):
-        """To prevent useless allocation, ContextEvent is returning a dict that is used
-        to create a ContextClass
-
-        Every keys from this dict can be access during Context lifetime using ctx.get_item()
+        Every key from this dict can be accessed during Context lifetime using ctx.get_item()
         """
-        return {
-            "event_name": cls.event_name,
-            "span_type": cls.span_type,
-            "span_name": span_name,
-            "call_trace": cls.call_trace,
-            "tags": cls.get_tags(tags),
-            **extra,
-        }
+        return {f.name: getattr(self, f.name) for f in fields(self) if f.repr}
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
@@ -186,12 +152,9 @@ class ContextEvent:
 
     @classmethod
     def _registered_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
-        if cls._start_span:
-            _start_span(ctx, call_trace, **kwargs)
-
         # _on_context_started will be called in order from parent class to children classes.
         for base_cls in reversed(cls.__mro__[:-1]):
-            if issubclass(base_cls, ContextEvent) and "_on_context_started" in base_cls.__dict__:
+            if issubclass(base_cls, BaseContextEvent) and "_on_context_started" in base_cls.__dict__:
                 base_cls._on_context_started(ctx, call_trace, **kwargs)
 
     @classmethod
@@ -202,8 +165,59 @@ class ContextEvent:
     ) -> None:
         # _on_context_ended will be called in order from parent class to children classes.
         for base_cls in reversed(cls.__mro__[:-1]):
-            if issubclass(base_cls, ContextEvent) and "_on_context_ended" in base_cls.__dict__:
+            if issubclass(base_cls, BaseContextEvent) and "_on_context_ended" in base_cls.__dict__:
                 base_cls._on_context_ended(ctx, exc_info)
 
-        if cls._end_span:
-            _finish_span(ctx, exc_info)
+
+@dataclass
+class SpanContextEvent(BaseContextEvent):
+    """ContextEvent is an abstraction created to constrain the arguments that can be passed
+    during a call to core.context_with_data
+
+    It can used with core.context_with_data(MyBaseEvent()).
+    """
+
+    span_name: str = field(init=False)
+    span_type: str = field(init=False)
+    span_kind: str = field(init=False, repr=False)
+    component: str = field(init=False, repr=False)
+    call_trace: bool = field(default=True, kw_only=True)
+    service: Optional[str] = field(default=None, kw_only=True)
+    resource: Optional[str] = field(default=None, kw_only=True)
+    tags: Dict[str, str] = field(default_factory=dict, init=False)
+
+    def create_event_context(self):
+        """Convert this event instance into a dict that is used to create an ExecutionContext.
+
+        For SpanContextEvent, this automatically includes span_type, span_name, call_trace, and tags.
+        If the event class is a dataclass, all fields are automatically extracted and added
+        to the context dict.
+
+        Every key from this dict can be accessed during Context lifetime using ctx.get_item()
+        """
+        self.tags[COMPONENT] = self.component
+        self.tags[SPAN_KIND] = self.span_kind
+
+        return super().create_event_context()
+
+    @classmethod
+    def _registered_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        _start_span(ctx, call_trace, **kwargs)
+
+        # _on_context_started will be called in order from parent class to children classes.
+        for base_cls in reversed(cls.__mro__[:-1]):
+            if issubclass(base_cls, BaseContextEvent) and "_on_context_started" in base_cls.__dict__:
+                base_cls._on_context_started(ctx, call_trace, **kwargs)
+
+    @classmethod
+    def _registered_context_ended(
+        cls,
+        ctx: core.ExecutionContext,
+        exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ) -> None:
+        # _on_context_ended will be called in order from parent class to children classes.
+        for base_cls in reversed(cls.__mro__[:-1]):
+            if issubclass(base_cls, BaseContextEvent) and "_on_context_ended" in base_cls.__dict__:
+                base_cls._on_context_ended(ctx, exc_info)
+
+        _finish_span(ctx, exc_info)
