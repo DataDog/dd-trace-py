@@ -143,4 +143,4 @@ class TaskInfo
 // named "run.<locals>.wrapper" that just validates the loop type and awaits the user's main
 // coroutine. We skip this frame to keep the stack clean and consistent with regular asyncio.
 bool
-is_uvloop_wrapper_frame(bool using_uvloop, const Frame& frame);
+is_uvloop_wrapper_frame(EchionSampler& echion, bool using_uvloop, const Frame& frame);

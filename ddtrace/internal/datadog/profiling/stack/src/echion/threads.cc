@@ -233,7 +233,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
                     const auto& python_frame = python_stack[frames_to_push - i - 1];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
-                    if (using_uvloop && is_uvloop_wrapper_frame(using_uvloop, python_frame.get())) {
+                    if (using_uvloop && is_uvloop_wrapper_frame(echion, using_uvloop, python_frame.get())) {
                         continue;
                     }
                     stack.push_front(python_frame);
