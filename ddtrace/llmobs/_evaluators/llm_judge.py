@@ -1,5 +1,3 @@
-"""LLM Judge evaluator for LLM Observability."""
-
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
