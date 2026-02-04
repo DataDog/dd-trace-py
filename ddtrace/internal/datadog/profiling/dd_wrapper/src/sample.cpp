@@ -132,6 +132,7 @@ Datadog::Sample::clear_buffers()
     labels.clear();
     locations.clear();
     dropped_frames = 0;
+    has_dropped_frames_indicator = false;
     reverse_locations = false;
     string_storage.reset();
 }
@@ -151,10 +152,11 @@ bool
 Datadog::Sample::export_sample()
 {
     // Handle dropped frames by adding them to locations if needed
-    if (dropped_frames > 0) {
+    if (dropped_frames > 0 && !has_dropped_frames_indicator) {
         const std::string name =
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
+        has_dropped_frames_indicator = true;
     }
 
     if (reverse_locations) {

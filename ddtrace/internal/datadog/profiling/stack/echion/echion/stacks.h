@@ -36,13 +36,16 @@ class FrameStack : public std::deque<Frame::Ref>
     }
 };
 
+// Forward declaration
+class EchionSampler;
+
 // ----------------------------------------------------------------------------
 size_t
-unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
+unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth = max_frames);
 
 // ----------------------------------------------------------------------------
 void
-unwind_python_stack(PyThreadState* tstate, FrameStack& stack);
+unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack);
 
 // ----------------------------------------------------------------------------
 class StackInfo

@@ -51,6 +51,10 @@ class Sampler
   public:
     // Singleton instance
     static Sampler& get();
+
+    // Accessor for EchionSampler
+    EchionSampler& get_echion() { return *echion; }
+
     bool start();
     void stop();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);
