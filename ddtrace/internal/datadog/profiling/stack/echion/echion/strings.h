@@ -94,8 +94,3 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
   private:
     mutable std::mutex table_lock;
 };
-
-// We make this a reference to a heap-allocated object so that we can avoid
-// the destruction on exit. We are in charge of cleaning up the object. Note
-// that the object will leak, but this is not a problem.
-inline StringTable& string_table = *(new StringTable());
