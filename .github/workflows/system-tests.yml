@@ -80,7 +80,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'b6c1896bc673041dbaece437604f84278d88c0ed'
+          ref: '72aa528751120288e30c45f81c7f988935f984cf'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -133,7 +133,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'b6c1896bc673041dbaece437604f84278d88c0ed'
+          ref: '72aa528751120288e30c45f81c7f988935f984cf'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -338,7 +338,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'b6c1896bc673041dbaece437604f84278d88c0ed'
+          ref: '72aa528751120288e30c45f81c7f988935f984cf'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -396,7 +396,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@b6c1896bc673041dbaece437604f84278d88c0ed
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@72aa528751120288e30c45f81c7f988935f984cf
     secrets: inherit
     permissions:
       contents: read
@@ -427,7 +427,7 @@ jobs:
   integration-frameworks-system-tests:
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@b6c1896bc673041dbaece437604f84278d88c0ed
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@72aa528751120288e30c45f81c7f988935f984cf
     secrets: inherit
     permissions:
       contents: read
