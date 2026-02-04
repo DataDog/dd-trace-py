@@ -351,10 +351,15 @@ class EvaluationResult(TypedDict):
 
 
 class _ExperimentRunInfo:
-    def __init__(self, run_interation: int):
+    def __init__(self, run_iteration: int, base_tags: Dict[str, str]):
         self._id = uuid.uuid4()
         # always increment the representation of iteration by 1 for readability
-        self._run_iteration = run_interation + 1
+        self._run_iteration = run_iteration + 1
+        self.tags = {
+            **base_tags,
+            "run_id": str(self._id),
+            "run_iteration": str(self._run_iteration),
+        }
 
 
 class ExperimentRowResult(TypedDict):
@@ -687,9 +692,7 @@ class Experiment:
         self._setup_experiment(jobs)
         run_results = []
         for run_iteration in range(self._runs):
-            run = _ExperimentRunInfo(run_iteration)
-            self._tags["run_id"] = str(run._id)
-            self._tags["run_iteration"] = str(run._run_iteration)
+            run = _ExperimentRunInfo(run_iteration, self._tags)
             task_results = self._run_task(jobs, run, raise_errors, sample_size)
             run_result = self._process_run_results(task_results, run, raise_errors, jobs)
             run_results.append(run_result)
@@ -712,15 +715,19 @@ class Experiment:
         :return: ExperimentResult containing evaluation results and metadata
         """
         self._setup_experiment(jobs)
-        run_results = []
-        for run_iteration in range(self._runs):
-            run = _ExperimentRunInfo(run_iteration)
-            self._tags["run_id"] = str(run._id)
-            self._tags["run_iteration"] = str(run._run_iteration)
-            task_results = await self._run_task_async(jobs, run, raise_errors, sample_size)
-            run_result = self._process_run_results(task_results, run, raise_errors, jobs)
-            run_results.append(run_result)
-        return self._build_experiment_result(run_results)
+
+        # Single shared semaphore for all concurrent work across all runs
+        semaphore = asyncio.Semaphore(jobs)
+
+        async def _run_single_iteration(run_iteration: int) -> ExperimentRun:
+            run = _ExperimentRunInfo(run_iteration, self._tags)
+            task_results = await self._run_task_async(semaphore, run, raise_errors, sample_size)
+            return self._process_run_results(task_results, run, raise_errors, jobs)
+
+        # Launch all runs concurrently - the shared semaphore limits total parallelism
+        run_results = await asyncio.gather(*[_run_single_iteration(i) for i in range(self._runs)])
+
+        return self._build_experiment_result(list(run_results))
 
     def _setup_experiment(self, jobs: int) -> None:
         """Validate inputs and set up experiment state."""
@@ -768,7 +775,7 @@ class Experiment:
         experiment_evals = self._generate_metrics_from_exp_results(run_result)
         if self._llmobs_instance and self._id is not None:
             self._llmobs_instance._dne_client.experiment_eval_post(
-                self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+                self._id, experiment_evals, convert_tags_dict_to_list(run.tags)
             )
         return run_result
 
@@ -809,7 +816,7 @@ class Experiment:
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
             tags = {
-                **self._tags,
+                **run.tags,
                 "dataset_id": str(self._dataset._id),
                 "dataset_record_id": str(record_id),
                 "experiment_id": str(self._id),
@@ -869,7 +876,7 @@ class Experiment:
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
             tags = {
-                **self._tags,
+                **run.tags,
                 "dataset_id": str(self._dataset._id),
                 "dataset_record_id": str(record_id),
                 "experiment_id": str(self._id),
@@ -956,7 +963,7 @@ class Experiment:
 
     async def _run_task_async(
         self,
-        jobs: int,
+        semaphore: asyncio.Semaphore,
         run: _ExperimentRunInfo,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
@@ -965,7 +972,6 @@ class Experiment:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
-        semaphore = asyncio.Semaphore(jobs)
 
         async def process_with_limit(idx: int, record: DatasetRecord) -> Optional[TaskResult]:
             async with semaphore:
@@ -1168,7 +1174,7 @@ class Experiment:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], convert_tags_dict_to_list(self._tags))}
+            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], convert_tags_dict_to_list(run.tags))}
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
