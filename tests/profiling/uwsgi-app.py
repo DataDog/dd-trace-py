@@ -1,8 +1,4 @@
-import os
-
-
-if os.getenv("__DD_TEST_DONT_RAISE") is None:
-    raise RuntimeError()
+import ddtrace.profiling.auto  # noqa:F401
 
 
 def application():
