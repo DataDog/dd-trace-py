@@ -15,9 +15,9 @@ WHAT THESE TESTS CANNOT CATCH:
   Such bugs require behavioral tests (actually pickle, actually subclass) which
   are in test_threading.py.
 
-AIDEV-NOTE: Pure reflection can only detect missing methods that the original
-explicitly defines. It cannot detect when an inherited method (from object) is
-semantically broken for our wrapper.
+Pure reflection can only detect missing methods that the original explicitly
+defines. It cannot detect when an inherited method (from object) is semantically
+broken for our wrapper.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ THREADING_LOCK_CONFIGS: List[LockConfig] = [
     (threading.Condition, ThreadingConditionCollector, "Condition"),
 ]
 
-# Dunders to exclude from comparison - universal Python internals
+# Dunders to exclude - universal Python internals we don't need to implement
 EXCLUDED_DUNDERS: Set[str] = {
     "__class__",
     "__delattr__",
@@ -77,15 +77,17 @@ EXCLUDED_DUNDERS: Set[str] = {
     "__static_attributes__",
 }
 
-# Dunders that the original has but we intentionally don't support (yet).
-# AIDEV-NOTE: When fixing a gap, remove it from here and add proper support.
-KNOWN_GAPS: Set[str] = {
+# Dunders the original has but we intentionally don't support (yet).
+# When fixing a gap, remove it from here and add proper support.
+KNOWN_COVERAGE_GAPS: Set[str] = {
     "__weakref__",  # TODO: Add to __slots__ to support weak references
 }
 
+MAX_ALLOWED_GAPS: int = 2
+
 
 # =============================================================================
-# Helper Functions
+# Helpers
 # =============================================================================
 
 
@@ -100,7 +102,7 @@ def get_dunders(obj: object) -> Set[str]:
 
 
 def is_accessible(obj: object, method_name: str) -> bool:
-    """Check if a method is accessible on an object (even if via __getattr__)."""
+    """Check if a method is accessible on an object (even via __getattr__)."""
     try:
         return callable(getattr(obj, method_name))
     except AttributeError:
@@ -112,52 +114,45 @@ def is_accessible(obj: object, method_name: str) -> bool:
 # =============================================================================
 
 
-class TestWrapperInterfaceCompleteness:
-    """Verify wrapped locks expose the same interface as originals.
+@pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
+def test_public_methods_accessible(lock_class: Type[object], collector_class: Type[object], name: str) -> None:
+    """Verify wrapped lock exposes all public methods of the original."""
+    init_ddup(f"test_public_{name}")
 
-    Uses reflection to automatically detect missing methods/dunders.
-    Behavioral tests (pickle, subclass) are in test_threading.py.
-    """
+    original: object = lock_class()  # type: ignore[operator]
+    original_methods: Set[str] = get_public_methods(original)
 
-    @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_public_methods_accessible(
-        self, lock_class: Type[object], collector_class: Type[object], name: str
-    ) -> None:
-        """Verify wrapped lock exposes all public methods of the original."""
-        init_ddup(f"test_public_{name}")
+    with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+        wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+        wrapped: _ProfiledLock = wrapped_class()
+        missing: Set[str] = {m for m in original_methods if not is_accessible(wrapped, m)}
 
-        original: object = lock_class()  # type: ignore[operator]
-        original_methods: Set[str] = get_public_methods(original)
+        assert not missing, (
+            f"Wrapped {name} missing public methods: {missing}. Original has: {sorted(original_methods)}"
+        )
 
-        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
-            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
-            wrapped: _ProfiledLock = wrapped_class()
 
-            missing: Set[str] = {m for m in original_methods if not is_accessible(wrapped, m)}
+@pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
+def test_dunders_accessible(lock_class: Type[object], collector_class: Type[object], name: str) -> None:
+    """Verify wrapped lock exposes all dunders of the original."""
+    init_ddup(f"test_dunders_{name}")
 
-            assert not missing, (
-                f"Wrapped {name} missing public methods: {missing}. Original has: {sorted(original_methods)}"
-            )
+    original: object = lock_class()  # type: ignore[operator]
+    original_dunders: Set[str] = get_dunders(original)
 
-    @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-    def test_dunders_accessible(self, lock_class: Type[object], collector_class: Type[object], name: str) -> None:
-        """Verify wrapped lock exposes all dunders of the original."""
-        init_ddup(f"test_dunders_{name}")
+    with collector_class(capture_pct=100):  # type: ignore[attr-defined]
+        wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
+        wrapped: _ProfiledLock = wrapped_class()
+        wrapped_dunders: Set[str] = get_dunders(wrapped)
+        missing: Set[str] = original_dunders - wrapped_dunders - KNOWN_COVERAGE_GAPS
 
-        original: object = lock_class()  # type: ignore[operator]
-        original_dunders: Set[str] = get_dunders(original)
+        assert not missing, (
+            f"Wrapped {name} missing dunders: {missing}. Either add support in _lock.py, or add to KNOWN_COVERAGE_GAPS."
+        )
 
-        with collector_class(capture_pct=100):  # type: ignore[attr-defined]
-            wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
-            wrapped: _ProfiledLock = wrapped_class()
-            wrapped_dunders: Set[str] = get_dunders(wrapped)
 
-            missing: Set[str] = original_dunders - wrapped_dunders - KNOWN_GAPS
-
-            assert not missing, (
-                f"Wrapped {name} missing dunders: {missing}. Either add support in _lock.py, or add to KNOWN_GAPS."
-            )
-
-    def test_known_gaps_documented(self) -> None:
-        """Meta-test: ensure KNOWN_GAPS doesn't grow too large."""
-        assert len(KNOWN_GAPS) < 10, f"Too many known gaps ({len(KNOWN_GAPS)}). Consider fixing some: {KNOWN_GAPS}"
+def test_known_gaps_limit() -> None:
+    """Meta-test: ensure KNOWN_COVERAGE_GAPS doesn't grow too large."""
+    assert len(KNOWN_COVERAGE_GAPS) < MAX_ALLOWED_GAPS, (
+        f"Too many known gaps ({len(KNOWN_COVERAGE_GAPS)}). Consider fixing some: {KNOWN_COVERAGE_GAPS}"
+    )
