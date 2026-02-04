@@ -2,7 +2,6 @@
 
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
-#include <echion/render.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
@@ -357,13 +356,6 @@ Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
     auto new_frame = std::move(*maybe_new_frame);
     new_frame->cache_key = frame_key;
     auto& f = *new_frame;
-    Renderer::get().frame(frame_key,
-                          new_frame->filename,
-                          new_frame->name,
-                          new_frame->location.line,
-                          new_frame->location.line_end,
-                          new_frame->location.column,
-                          new_frame->location.column_end);
     frame_cache->store(frame_key, std::move(new_frame));
     return std::ref(f);
 }
@@ -382,13 +374,6 @@ Frame::get(StringTable::Key name)
     auto frame = std::make_unique<Frame>(name);
     frame->cache_key = frame_key;
     auto& f = *frame;
-    Renderer::get().frame(frame_key,
-                          frame->filename,
-                          frame->name,
-                          frame->location.line,
-                          frame->location.line_end,
-                          frame->location.column,
-                          frame->location.column_end);
     frame_cache->store(frame_key, std::move(frame));
     return f;
 }
