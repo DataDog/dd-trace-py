@@ -79,6 +79,8 @@ class Prompt(TypedDict, total=False):
             - List of tags to add to the prompt run.
         rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
         rag_query_variables: List[str] - a list of variable key names that contains query information
+        prompt_uuid: str - the uuid of the prompt
+        prompt_version_uuid: str - the uuid of the prompt version
     """
 
     version: str
@@ -89,6 +91,8 @@ class Prompt(TypedDict, total=False):
     tags: Dict[str, str]
     rag_context_variables: List[str]
     rag_query_variables: List[str]
+    prompt_uuid: str
+    prompt_version_uuid: str
 
 
 class _MetaIO(TypedDict, total=False):

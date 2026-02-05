@@ -61,6 +61,8 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
     query_variable_keys = prompt.get("rag_query_variables")
+    prompt_uuid = prompt.get("prompt_uuid")
+    version_uuid = prompt.get("prompt_version_uuid")
 
     if strict_validation:
         if prompt_id is None:
@@ -143,9 +145,6 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
     if final_query_variable_keys:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
-
-    prompt_uuid: Optional[str] = prompt.get("prompt_uuid")
-    version_uuid: Optional[str] = prompt.get("prompt_version_uuid")
     if prompt_uuid:
         validated_prompt["prompt_uuid"] = prompt_uuid
     if version_uuid:
