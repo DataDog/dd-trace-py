@@ -4,6 +4,7 @@ use pyo3::{
 };
 
 use crate::{
+    config_cache,
     py_string::PyBackedString,
     rand::{rand128bits, rand64bits},
 };
@@ -126,9 +127,13 @@ impl SpanData {
         let span_id: u64 = span_id
             .and_then(extract_or_default)
             .unwrap_or_else(rand64bits);
-        let trace_id: u128 = trace_id
-            .and_then(extract_or_default)
-            .unwrap_or_else(rand128bits);
+        let trace_id: u128 = trace_id.and_then(extract_or_default).unwrap_or_else(|| {
+            if config_cache::_128_bit_trace_id_enabled_cached(py) {
+                rand128bits()
+            } else {
+                rand64bits() as u128
+            }
+        });
         let parent_id: u64 = parent_id.and_then(extract_or_default).unwrap_or(0);
 
         span.set_name(name);

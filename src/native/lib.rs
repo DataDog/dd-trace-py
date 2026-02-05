@@ -2,6 +2,7 @@
 mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
+mod config_cache;
 mod data_pipeline;
 mod ddsketch;
 mod ffe;
