@@ -2100,7 +2100,7 @@ async def test_experiment_run_async_task(llmobs, test_dataset_one_record):
         test_dataset_one_record,
         [dummy_evaluator],
     )
-    task_results = await exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = await exp._run_task_async(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     assert task_results[0]["output"] == {"prompt": "What is the capital of France?"}
     assert task_results[0]["error"]["message"] is None
@@ -2115,7 +2115,7 @@ async def test_experiment_run_async_task_error(llmobs, test_dataset_one_record):
         test_dataset_one_record,
         [dummy_evaluator],
     )
-    task_results = await exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = await exp._run_task_async(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
     assert task_results[0]["output"] is None
     assert task_results[0]["error"]["message"] == "This is an async test error"
@@ -2140,7 +2140,7 @@ async def test_experiment_run_async_task_with_config(llmobs, test_dataset_one_re
         [dummy_evaluator],
         config={"model": "gpt-4", "temperature": 0.7},
     )
-    await exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=False)
+    await exp._run_task_async(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
     assert received_config == {"model": "gpt-4", "temperature": 0.7}
 
 
@@ -2149,4 +2149,4 @@ async def test_experiment_run_async_task_raise_errors(llmobs, test_dataset_one_r
     """Test that raise_errors=True raises on async task error."""
     exp = llmobs.experiment("test_async_raise", async_faulty_task, test_dataset_one_record, [dummy_evaluator])
     with pytest.raises(RuntimeError, match="Error on record 0"):
-        await exp._run_task_async(1, run=run_info_with_stable_id(0), raise_errors=True)
+        await exp._run_task_async(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=True)
