@@ -37,6 +37,7 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
         pin,
         "claude_agent_sdk.query",
         submit_to_llmobs=True,
+        span_name="claude_agent_sdk.request",
     )
 
     try:
@@ -60,8 +61,9 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
 
     span = integration.trace(
         pin,
-        "claude_agent_sdk.request",
+        "claude_agent_sdk.ClaudeSDKClient.query",
         submit_to_llmobs=True,
+        span_name="claude_agent_sdk.request",
         instance=instance,
     )
 

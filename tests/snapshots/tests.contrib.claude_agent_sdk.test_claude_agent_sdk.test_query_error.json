@@ -1,6 +1,6 @@
 [[
   {
-    "name": "claude_agent_sdk.query",
+    "name": "claude_agent_sdk.request",
     "service": "tests.contrib.claude_agent_sdk",
     "resource": "claude_agent_sdk.query",
     "trace_id": 0,

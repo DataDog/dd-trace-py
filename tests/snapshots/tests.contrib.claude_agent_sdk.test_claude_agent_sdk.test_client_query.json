@@ -2,7 +2,7 @@
   {
     "name": "claude_agent_sdk.request",
     "service": "tests.contrib.claude_agent_sdk",
-    "resource": "claude_agent_sdk.request",
+    "resource": "claude_agent_sdk.ClaudeSDKClient.query",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,

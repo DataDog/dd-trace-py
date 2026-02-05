@@ -32,7 +32,6 @@ SPAN_START_WHILE_DISABLED_WARNING = (
     " See https://docs.datadoghq.com/llm_observability/setup/sdk/python/#setup."
 )
 
-CLAUDE_AGENT_SDK_APM_SPAN_NAME = "claude_agent_sdk.request"
 CREWAI_APM_SPAN_NAME = "crewai.request"
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
