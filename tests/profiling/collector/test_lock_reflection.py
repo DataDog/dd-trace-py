@@ -23,7 +23,7 @@ broken for our wrapper.
 from __future__ import annotations
 
 import threading
-from typing import Any, Callable
+from typing import Callable
 from typing import List
 from typing import Set
 from typing import Tuple
@@ -165,21 +165,21 @@ def test_reflection_detects_broken_delegation() -> None:
     """
     # Create a real profiled lock
     with ThreadingLockCollector(capture_pct=100):
-        profiled_lock = threading.Lock()
+        profiled_lock: _ProfiledLock = threading.Lock()  # type: ignore[assignment]
 
     assert isinstance(profiled_lock, _ProfiledLock), "Should be a profiled lock"
 
     # Get the original lock to compare against
-    original_lock = profiled_lock.__wrapped__
+    original_lock: object = profiled_lock.__wrapped__
 
     # Verify normal delegation works (sanity check)
     # 'acquire_lock' is delegated via __getattr__ (not explicitly defined on _ProfiledLock)
-    original_methods = set[str]() #get_public_methods(original_lock)
+    original_methods: Set[str] = get_public_methods(original_lock)
     assert "acquire_lock" in original_methods, "Original lock should have acquire_lock"
     assert is_accessible(profiled_lock, "acquire_lock"), "Profiled lock should delegate acquire_lock"
 
     # Now patch __getattr__ to break delegation for 'acquire_lock' method
-    original_getattr = _ProfiledLock.__getattr__
+    original_getattr: Callable[[_ProfiledLock, str], object] = _ProfiledLock.__getattr__
 
     def broken_getattr(self: _ProfiledLock, name: str) -> object:
         if name == "acquire_lock":
