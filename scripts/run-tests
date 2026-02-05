@@ -35,9 +35,9 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import riotfile
-from tests.suitespec import get_patterns
-from tests.suitespec import get_suites
+import riotfile  # noqa: E402
+from tests.suitespec import get_patterns  # noqa: E402
+from tests.suitespec import get_suites  # noqa: E402
 
 
 # Constants
@@ -465,23 +465,47 @@ class TestRunner:
             print("ℹ️  No venvs selected for execution.")
             return True
 
-        # Group venvs by suite
+        # Group venvs by suite, then deduplicate by hash within each suite
+        # This prevents running the same hash multiple times when riot expands env var arrays
         venvs_by_suite: Dict[str, List[RiotVenv]] = {}
+        all_venvs_by_suite: Dict[str, List[RiotVenv]] = {}  # Track all variants for display
+
         for venv in selected_venvs:
             suite_name = venv.suite_name
+
+            # Track all venvs for display
+            if suite_name not in all_venvs_by_suite:
+                all_venvs_by_suite[suite_name] = []
+            all_venvs_by_suite[suite_name].append(venv)
+
+            # Deduplicate by hash for execution
             if suite_name not in venvs_by_suite:
                 venvs_by_suite[suite_name] = []
-            venvs_by_suite[suite_name].append(venv)
 
-        print(f"\n🧪 Running {len(selected_venvs)} venv(s) across {len(venvs_by_suite)} suite(s):")
+            # Only add if we haven't seen this hash in this suite yet
+            if not any(v.hash == venv.hash for v in venvs_by_suite[suite_name]):
+                venvs_by_suite[suite_name].append(venv)
+
+        # Count total unique hashes to execute
+        total_unique_hashes = sum(len(venvs) for venvs in venvs_by_suite.values())
+
+        print(f"\n🧪 Running {total_unique_hashes} unique venv hash(es) across {len(venvs_by_suite)} suite(s):")
         for suite_name, venvs in venvs_by_suite.items():
-            print(f"   • Suite '{suite_name}': {len(venvs)} venv(s)")
+            all_variants = all_venvs_by_suite[suite_name]
+            if len(all_variants) > len(venvs):
+                msg = (
+                    f"   • Suite '{suite_name}': {len(venvs)} hash(es) "
+                    f"({len(all_variants)} total instances including env var expansions)"
+                )
+                print(msg)
+            else:
+                print(f"   • Suite '{suite_name}': {len(venvs)} venv(s)")
 
         # Execute each suite with its own service lifecycle
         for suite_name, venvs in venvs_by_suite.items():
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print(f"🎯 Suite: {suite_name}")
-            print(f"{'='*80}")
+            print(f"{'=' * 80}")
 
             # Get suite config
             suite_config = matching_suites.get(suite_name, {})
@@ -515,9 +539,14 @@ class TestRunner:
                 env["DD_TRACE_AGENT_URL"] = TESTAGENT_URL
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={TESTAGENT_URL} for snapshot tests")
 
-            # Execute each venv in this suite
+            # Execute each unique venv hash in this suite
+            # Note: riot will run all env var variants for each hash automatically
             suite_success = True
             for venv in venvs:
+                # Count how many variants share this hash in this suite
+                variants_with_same_hash = [v for v in all_venvs_by_suite[suite_name] if v.hash == venv.hash]
+                num_variants = len(variants_with_same_hash)
+
                 # Execute using ddtest with the specific venv hash
                 cmd = [str(self.root / "scripts" / "ddtest"), "riot", "-v", "run", "--pass-env", venv.hash]
 
@@ -527,6 +556,8 @@ class TestRunner:
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
+                    if num_variants > 1:
+                        print(f"[DRY RUN] Note: This will run {num_variants} env var variant(s) for hash {venv.hash}")
                     env_vars_to_show = []
                     if suite_env:
                         for key, value in sorted(suite_env.items()):
@@ -536,7 +567,8 @@ class TestRunner:
                     if env_vars_to_show:
                         print(f"[DRY RUN] With env: {', '.join(env_vars_to_show)}")
                 else:
-                    print(f"\n▶️  Executing ({venv.display_name}): {' '.join(cmd)}")
+                    variant_info = f" [{num_variants} env variant(s)]" if num_variants > 1 else ""
+                    print(f"\n▶️  Executing ({venv.display_name}){variant_info}: {' '.join(cmd)}")
                     try:
                         result = subprocess.run(cmd, env=env, cwd=self.root)
                         if result.returncode != 0:
@@ -685,7 +717,10 @@ Examples:
     parser.add_argument(
         "--venv",
         action="append",
-        help="Run specific venvs (by hash) without interactive prompts. Can be used multiple times (e.g., --venv hash1 --venv hash2)",
+        help=(
+            "Run specific venvs (by hash) without interactive prompts. "
+            "Can be used multiple times (e.g., --venv hash1 --venv hash2)"
+        ),
     )
 
     # Parse args, but handle -- separator for riot args
