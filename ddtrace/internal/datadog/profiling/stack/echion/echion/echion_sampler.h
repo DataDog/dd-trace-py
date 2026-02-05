@@ -86,7 +86,6 @@ class EchionSampler
 
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
-    const LRUCache<uintptr_t, Frame>& frame_cache() const { return frame_cache_; }
 
     void postfork_child()
     {

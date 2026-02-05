@@ -1,5 +1,6 @@
 #include "sampler.hpp"
 
+#include "constants.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -216,7 +217,7 @@ Sampler::set_interval(double new_interval_s)
 }
 
 Sampler::Sampler()
-  : echion{ std::make_unique<EchionSampler>(echion_frame_cache_size) }
+  : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {
 }
 

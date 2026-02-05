@@ -13,9 +13,6 @@ namespace Datadog {
 
 class Sampler
 {
-    // Parameters - MUST be declared before echion since echion's initializer uses this
-    uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
-
     // This class manages the initialization of echion as well as the sampling thread.
     // The underlying echion instance it manages keeps much of its state globally, so this class is a singleton in order
     // to keep it aligned with the echion state.
