@@ -79,7 +79,6 @@ StringTable::key(PyObject* s, StringTag tag)
         std::string str = std::move(*maybe_unicode);
 #endif
         this->emplace(k, str);
-        Renderer::get().string(k, str);
     }
 
     return Result<Key>(k);
@@ -102,7 +101,6 @@ StringTable::key_unsafe(PyObject* s, StringTag tag)
         auto str = std::string(PyUnicode_AsUTF8(s));
 #endif
         this->emplace(k, str);
-        Renderer::get().string(k, str);
     }
 
     return k;

@@ -7,7 +7,6 @@ import wrapt
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import tracer
 
 from .middleware import TraceMiddleware
 
@@ -49,7 +48,7 @@ def patch():
 
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
-    mw.insert(0, TraceMiddleware(tracer))
+    mw.insert(0, TraceMiddleware())
     kwargs["middleware"] = mw
 
     wrapped(*args, **kwargs)

@@ -251,11 +251,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
     if (lineno_val < 0)
         lineno_val = 0;
 
-#ifdef _PY39_AND_LATER
     PyCodeObject* code = PyFrame_GetCode(frame);
-#else
-    PyCodeObject* code = frame->f_code;
-#endif
 
     std::string_view name_sv = "<unknown>";
     std::string_view filename_sv = "<unknown>";
@@ -275,9 +271,7 @@ push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
     // push_frame copies the strings immediately into its StringArena
     sample.push_frame(name_sv, filename_sv, 0, lineno_val);
 
-#ifdef _PY39_AND_LATER
     Py_XDECREF(code);
-#endif
 }
 
 /* Helper function to collect frames from PyFrameObject chain and push to sample */
@@ -291,11 +285,7 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
-#ifdef _PY39_AND_LATER
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
-#else
-    PyFrameObject* pyframe = tstate->frame;
-#endif
 
     if (pyframe == NULL) {
         // No Python frames available (e.g., during thread initialization/cleanup in "Dummy" threads).
@@ -314,14 +304,10 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
     for (PyFrameObject* frame = pyframe; frame != NULL;) {
         push_pyframe_to_sample(sample, frame);
 
-#ifdef _PY39_AND_LATER
         PyFrameObject* back = PyFrame_GetBack(frame);
         Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
                           // from GetBack are also new references
         frame = back;
-#else
-        frame = frame->f_back;
-#endif
         memalloc_debug_gil_release();
     }
 }
@@ -343,9 +329,6 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
     // Push allocation info to sample
     // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
-    // Push heap info - use actual size (not weighted) for heap tracking
-    // TODO(dsn): figure out if this actually makes sense, or if we should use the weighted size
-    sample.push_heap(size);
 
     // Get thread native_id and name from Python's threading module and push to sample
     push_threadinfo_to_sample(sample);
@@ -357,8 +340,7 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 
 // AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
-  : reported(false)
-  , sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
+  : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
     // Validate Sample object is in a valid state before use
     if (max_nframe == 0) {
@@ -366,13 +348,5 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
         return;
     }
 
-    init_sample_invokes_cpython(size, weighted_size);
-}
-
-void
-traceback_t::reset_invokes_cpython(size_t size, size_t weighted_size)
-{
-    sample.clear_buffers();
-    reported = false;
     init_sample_invokes_cpython(size, weighted_size);
 }

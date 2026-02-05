@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import logging
 from pathlib import Path
@@ -41,10 +42,12 @@ class APIClient:
         self.itr_skipping_level = itr_skipping_level
         self.configurations = configurations
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
+        self.coverage_connector = connector_setup.get_connector_for_subdomain(Subdomain.CICOVREPRT)
         self.telemetry_api = telemetry_api
 
     def close(self) -> None:
         self.connector.close()
+        self.coverage_connector.close()
 
     def get_settings(self) -> Settings:
         telemetry = self.telemetry_api.with_request_metric_names(
@@ -107,7 +110,7 @@ class APIClient:
         )
 
         try:
-            request_data = {
+            request_data: t.Dict[str, t.Any] = {
                 "data": {
                     "id": str(uuid.uuid4()),
                     "type": "ci_app_libraries_tests_request",
@@ -370,3 +373,101 @@ class APIClient:
         self.telemetry_api.record_skippable_count(count=len(skippable_items), level=self.itr_skipping_level)
 
         return skippable_items, correlation_id
+
+    def upload_coverage_report(
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+    ) -> bool:
+        """
+        Upload a coverage report to Datadog CI Intake.
+
+        Args:
+            coverage_report_bytes: The coverage report content (will be gzipped)
+            coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
+            tags: Optional additional tags to include in the event
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        # Skip empty reports
+        if not coverage_report_bytes:
+            log.warning("Coverage report is empty, skipping upload")
+            return False
+
+        telemetry = self.telemetry_api.with_request_metric_names(
+            count="coverage_upload.request",
+            duration="coverage_upload.request_ms",
+            response_bytes="coverage_upload.request_bytes",  # FIXME: Request bytes != response bytes
+            error="coverage_upload.request_errors",
+        )
+
+        try:
+            # Compress the coverage report with gzip
+            compressed_report = gzip.compress(coverage_report_bytes)
+            log.debug(
+                "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
+            )
+
+            # Warn if Git repository URL is missing
+            if GitTag.REPOSITORY_URL not in self.env_tags:
+                log.warning("Git repository URL not available for coverage report upload")
+
+            # Create the event payload with git and CI tags
+            from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
+
+            all_tags = dict(self.env_tags)
+            if tags:
+                all_tags.update(tags)
+
+            event_data = create_coverage_report_event(
+                coverage_format=coverage_format,
+                tags=all_tags,
+            )
+
+            # Debug log the event payload to diagnose 400 errors
+            log.debug("Coverage report event payload: %s", json.dumps(event_data, indent=2))
+
+            # Create multipart/form-data attachments
+            # Filename format: coverage.{format}.gz (e.g., coverage.lcov.gz)
+            files = [
+                FileAttachment(
+                    name="coverage",
+                    filename=f"coverage.{coverage_format}.gz",
+                    content_type="application/gzip",
+                    data=compressed_report,
+                ),
+                FileAttachment(
+                    name="event",
+                    filename="event.json",
+                    content_type="application/json",
+                    data=json.dumps(event_data).encode("utf-8"),
+                ),
+            ]
+
+            log.debug("Uploading coverage report: format=%s, size=%d bytes", coverage_format, len(compressed_report))
+
+        except Exception as e:
+            log.exception("Error preparing coverage report upload: %s", e)
+            telemetry.record_error(ErrorType.UNKNOWN)
+            return False
+
+        try:
+            result = self.coverage_connector.post_files(
+                "/api/v2/cicovreprt", files=files, send_gzip=False, telemetry=telemetry
+            )
+
+            # Log response details for debugging
+            if result.error_type:
+                log.error(
+                    "Coverage report upload failed: error=%s, description=%s, response_body=%s",
+                    result.error_type,
+                    result.error_description,
+                    result.response_body[:500] if result.response_body else None,
+                )
+
+            result.on_error_raise_exception()
+            log.info("Successfully uploaded coverage report")
+            return True
+
+        except Exception as e:
+            log.error("Failed to upload coverage report: %s", e)
+            return False

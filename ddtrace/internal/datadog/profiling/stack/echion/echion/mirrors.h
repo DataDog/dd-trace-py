@@ -68,23 +68,6 @@ class MirrorObject
 };
 
 // ----------------------------------------------------------------------------
-class MirrorDict : public MirrorObject
-{
-  public:
-    [[nodiscard]] static Result<MirrorDict> create(PyObject* dict_addr);
-
-    [[nodiscard]] PyObject* get_item(PyObject* key) { return PyDict_GetItem(reinterpret_cast<PyObject*>(&dict), key); }
-
-  private:
-    MirrorDict(PyDictObject dict, std::unique_ptr<char[]> data)
-      : MirrorObject(std::move(data))
-      , dict(dict)
-    {
-    }
-    PyDictObject dict;
-};
-
-// ----------------------------------------------------------------------------
 class MirrorSet : public MirrorObject
 {
   public:

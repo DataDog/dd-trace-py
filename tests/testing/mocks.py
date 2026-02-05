@@ -11,6 +11,8 @@ for testing the ddtrace.testing framework. The design emphasizes:
 from __future__ import annotations
 
 import contextlib
+import gzip
+import json
 import os
 from pathlib import Path
 import typing as t
@@ -23,6 +25,7 @@ from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.session_manager import get_env_tags
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
@@ -347,6 +350,7 @@ class APIClientMockBuilder:
         self._efd_enabled = False
         self._test_management_enabled = False
         self._known_tests_enabled = False
+        self._coverage_report_upload_enabled = False
         self._skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = set()
         self._known_tests: t.Set[TestRef] = set()
 
@@ -373,6 +377,11 @@ class APIClientMockBuilder:
     def with_test_management(self, enabled: bool = True) -> "APIClientMockBuilder":
         """Enable/disable test management."""
         self._test_management_enabled = enabled
+        return self
+
+    def with_coverage_report_upload_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
+        """Enable/disable coverage report upload."""
+        self._coverage_report_upload_enabled = enabled
         return self
 
     def with_known_tests(
@@ -402,6 +411,7 @@ class APIClientMockBuilder:
             auto_test_retries=AutoTestRetriesSettings(enabled=self._auto_retries_enabled),
             known_tests_enabled=self._known_tests_enabled,
             coverage_enabled=self._coverage_enabled,
+            coverage_report_upload_enabled=self._coverage_report_upload_enabled,
             skipping_enabled=self._skipping_enabled,
             require_git=False,
             itr_enabled=self._skipping_enabled,
@@ -415,6 +425,9 @@ class APIClientMockBuilder:
             self._skippable_items,
             "correlation-123" if self._skippable_items else None,
         )
+
+        # Always add upload_coverage_report method that returns True (mocked success)
+        mock_client.upload_coverage_report = Mock(return_value=True)
 
         return mock_client
 
@@ -530,8 +543,10 @@ def mock_api_client_settings(
     efd_enabled: bool = False,
     test_management_enabled: bool = False,
     known_tests_enabled: bool = False,
+    coverage_report_upload_enabled: bool = False,
     skippable_items: t.Optional[t.Set[t.Union[TestRef, SuiteRef]]] = None,
     known_tests: t.Optional[t.Set[TestRef]] = None,
+    coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
     builder: "APIClientMockBuilder" = APIClientMockBuilder()
@@ -546,12 +561,20 @@ def mock_api_client_settings(
         builder = builder.with_early_flake_detection()
     if test_management_enabled:
         builder = builder.with_test_management()
+    if coverage_report_upload_enabled:
+        builder = builder.with_coverage_report_upload_enabled()
     if known_tests_enabled:
         builder = builder.with_known_tests(enabled=True, tests=known_tests)
     if skippable_items:
         builder = builder.with_skippable_items(skippable_items)
 
-    return builder.build()
+    mock_client = builder.build()
+
+    # Override the upload_coverage_report method if a capture object is provided
+    if coverage_upload_capture is not None:
+        mock_client.upload_coverage_report = Mock(side_effect=coverage_upload_capture.create_upload_handler())
+
+    return mock_client
 
 
 def mock_backend_connector() -> "BackendConnectorMockBuilder":
@@ -562,6 +585,9 @@ def mock_backend_connector() -> "BackendConnectorMockBuilder":
 class BackendConnectorMockSetup:
     def get_connector_for_subdomain(self, subdomain: str) -> Mock:
         return mock_backend_connector().build()
+
+    def default_env(self) -> str:
+        return "none"
 
 
 @contextlib.contextmanager
@@ -668,6 +694,115 @@ class EventCapture:
             return next(self.events_by_test_name(test_name))
         except StopIteration:
             raise AssertionError(f"Expected event with test name {test_name!r}, found none")
+
+
+class CoverageReportUploadCapture:
+    """
+    Utilities for capturing coverage report uploads during a test run.
+
+    This works by being passed directly to mock_api_client_settings() for clean composition.
+    """
+
+    def __init__(self) -> None:
+        self.upload_calls: t.List[t.Dict[str, t.Any]] = []
+
+    def create_upload_handler(self) -> t.Callable:
+        """
+        Create an upload handler function that captures calls.
+
+        Used internally by mock_api_client_settings().
+        """
+
+        def capture_upload_coverage_report(
+            coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+        ):
+            # Create mock event data similar to what the real method would create
+            event_data = {
+                "type": "coverage_report",
+                "format": coverage_format,
+            }
+            if tags:
+                event_data.update(tags)
+
+            for k, v in get_env_tags().items():
+                if k.startswith("git"):
+                    event_data[k] = v
+
+            # Create mock file objects with the proper attributes
+            coverage_mock = Mock()
+            coverage_mock.name = "coverage"
+            coverage_mock.filename = f"coverage.{coverage_format}.gz"
+            coverage_mock.content_type = "application/gzip"
+            coverage_mock.data = gzip.compress(coverage_report_bytes)
+
+            event_mock = Mock()
+            event_mock.name = "event"
+            event_mock.filename = "event.json"
+            event_mock.content_type = "application/json"
+            event_mock.data = json.dumps(event_data).encode("utf-8")
+
+            # Store the call information in the format expected by the test
+            self.upload_calls.append({"endpoint": "/api/v2/cicovreprt", "files": [coverage_mock, event_mock]})
+            # Return True to indicate successful upload
+            return True
+
+        return capture_upload_coverage_report
+
+    @classmethod
+    @contextlib.contextmanager
+    def capture(cls) -> t.Generator["CoverageReportUploadCapture", None, None]:
+        """
+        Create a CoverageReportUploadCapture instance for use in tests.
+
+        Returns a context manager that provides an instance you can pass to mock_api_client_settings().
+
+        Example usage:
+            with CoverageReportUploadCapture.capture() as upload_capture:
+                mock_client = mock_api_client_settings(
+                    coverage_report_upload_enabled=True,
+                    coverage_upload_capture=upload_capture
+                )
+                with patch("ddtrace.testing.internal.session_manager.APIClient",
+                          return_value=mock_client):
+                    # Run test code...
+                    result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+            uploads = upload_capture.get_coverage_report_uploads()
+            assert len(uploads) == 1
+        """
+        instance = cls()
+        yield instance
+
+    def get_all_uploads(self) -> t.List[t.Dict[str, t.Any]]:
+        """Get all file uploads (all endpoints)."""
+        return self.upload_calls
+
+    def get_coverage_report_uploads(self) -> t.List[t.Dict[str, t.Any]]:
+        """Get only coverage report uploads (to /api/v2/cicovreprt)."""
+        all_uploads = self.get_all_uploads()
+        return [u for u in all_uploads if u["endpoint"] == "/api/v2/cicovreprt"]
+
+    def get_lcov_content(self, upload: t.Dict[str, t.Any]) -> str:
+        """Extract and decompress LCOV content from an upload."""
+        import gzip
+
+        files = upload["files"]
+        coverage_file = next((f for f in files if f.name == "coverage"), None)
+        if coverage_file is None:
+            raise AssertionError("No coverage file found in upload")
+
+        return gzip.decompress(coverage_file.data).decode("utf-8")
+
+    def get_event_data(self, upload: t.Dict[str, t.Any]) -> t.Dict[str, t.Any]:
+        """Extract and parse event JSON from an upload."""
+        import json
+
+        files = upload["files"]
+        event_file = next((f for f in files if f.name == "event"), None)
+        if event_file is None:
+            raise AssertionError("No event file found in upload")
+
+        return json.loads(event_file.data.decode("utf-8"))
 
 
 def test_report(

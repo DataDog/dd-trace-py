@@ -20,10 +20,6 @@ from ddtrace.version import __version__
 from .logger import get_logger
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Tracer  # noqa:F401
-
-
 logger = get_logger(__name__)
 
 # The architecture function spawns the file subprocess on the interpreter
@@ -48,14 +44,14 @@ def tags_to_str(tags):
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def collect(tracer):
-    # type: (Tracer) -> Dict[str, Any]
+def collect() -> Dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
     from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+    from ddtrace.trace import tracer
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
@@ -153,10 +149,11 @@ def collect(tracer):
         git_repository_url=git_repository_url,
         git_commit_sha=git_commit_sha,
         git_main_package=git_main_package,
+        log_level_override=os.getenv("DD_TRACE_LOG_LEVEL"),
     )
 
 
-def pretty_collect(tracer, color=True):
+def pretty_collect(color=True):
     class bcolors:
         HEADER = "\033[95m"
         OKBLUE = "\033[94m"
@@ -177,7 +174,7 @@ def pretty_collect(tracer, color=True):
         bcolors.ENDC = ""
         bcolors.BOLD = ""
 
-    info = collect(tracer)
+    info = collect()
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
     Tracer enabled: {tracer_enabled}
