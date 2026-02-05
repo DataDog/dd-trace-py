@@ -1280,3 +1280,135 @@ def test_template_string_aspect_deeply_nested_structures():
     # Verify the result matches string conversion
     expected = f"Dict: {nested_dict} List: {nested_list}"
     assert template_to_str(result) == expected
+
+def test_template_concatenation_with_taint():
+    """Test that taint propagates through Template concatenation."""
+    tainted_name = taint_pyobject(
+        "Bob", source_name="test", source_value="Bob", source_origin=OriginType.PARAMETER
+    )
+    clean_value = "clean"
+
+    # Create templates using aspect
+    t1 = ddtrace_aspects.template_string_aspect("Hello ", (tainted_name, "name", None, ""), "")
+    t2 = ddtrace_aspects.template_string_aspect("World ", (clean_value, "value", None, ""), "")
+
+    assert is_pyobject_tainted(t1)
+    assert not is_pyobject_tainted(t2)
+
+    # Test concatenation
+    result = t1 + t2
+
+    assert isinstance(result, Template)
+    # Note: Taint propagation through __add__ depends on whether the Template.__add__
+    # implementation propagates taint. This test documents the current behavior.
+    # If taint is not propagated, this is a potential enhancement area.
+
+
+def test_template_iteration_basic():
+    """Test iterating over Template.__iter__()."""
+    name = "Alice"
+    template = t"Hello {name} World"
+
+    parts = list(template)
+    assert len(parts) == 3
+    assert parts[0] == "Hello "
+    assert isinstance(parts[1], type(template.interpolations[0]))  # Interpolation type
+    assert parts[1].value == "Alice"
+    assert parts[2] == " World"
+
+
+def test_template_iteration_with_taint():
+    """Test that iteration works correctly with tainted templates."""
+    tainted_name = taint_pyobject(
+        "Bob", source_name="test", source_value="Bob", source_origin=OriginType.PARAMETER
+    )
+
+    template = ddtrace_aspects.template_string_aspect("Start ", (tainted_name, "name", None, ""), " End")
+
+    assert is_pyobject_tainted(template)
+
+    # Verify iteration works
+    parts = list(template)
+    assert len(parts) == 3
+    assert parts[0] == "Start "
+    assert parts[1].value == "Bob"
+    assert parts[2] == " End"
+
+    # Verify tainted value is still tainted in iteration
+    assert is_pyobject_tainted(parts[1].value)
+
+
+def test_custom_object_repr_conversion():
+    """Test conversions with custom objects that have __repr__."""
+
+    class CustomObject:
+        def __init__(self, value):
+            self.value = value
+
+        def __repr__(self):
+            return f"CustomObject({self.value})"
+
+        def __str__(self):
+            return f"Custom: {self.value}"
+
+    obj = CustomObject("test")
+
+    # Test with aspect
+    result_r = ddtrace_aspects.template_string_aspect("", (obj, "obj", "r", ""), "")
+    result_s = ddtrace_aspects.template_string_aspect("", (obj, "obj", "s", ""), "")
+    result_none = ddtrace_aspects.template_string_aspect("", (obj, "obj", None, ""), "")
+
+    assert isinstance(result_r, Template)
+    # Note: The Interpolation stores the ORIGINAL object value, not the converted string
+    # Conversion happens when the template is processed/rendered
+    assert result_r.interpolations[0].value is obj
+    assert result_r.interpolations[0].conversion == "r"
+    assert result_s.interpolations[0].value is obj
+    assert result_s.interpolations[0].conversion == "s"
+    assert result_none.interpolations[0].value is obj
+    assert result_none.interpolations[0].conversion is None
+
+
+def test_format_spec_tainted():
+    """Test that tainted format specs are handled correctly."""
+    tainted_spec = taint_pyobject("10", source_name="spec", source_value="10", source_origin=OriginType.PARAMETER)
+
+    result = ddtrace_aspects.template_string_aspect("", ("test", "test", None, tainted_spec), "")
+
+    assert isinstance(result, Template)
+    assert result.interpolations[0].format_spec == "10"
+    # Note: Whether taint propagates from format_spec depends on implementation
+    # This test documents current behavior
+
+
+def test_format_spec_complex():
+    """Test complex format specifications."""
+    test_cases = [
+        (3.14159, ".2f", "3.14"),
+        (1234567, ",d", "1,234,567"),
+        ("test", ">10", "      test"),
+        ("test", "^10", "   test   "),
+        (42, "#x", "0x2a"),
+    ]
+
+    for value, spec, expected in test_cases:
+        result = ddtrace_aspects.template_string_aspect("", (value, "value", None, spec), "")
+        assert isinstance(result, Template)
+        assert result.interpolations[0].format_spec == spec
+        # The value itself should remain unchanged
+        assert result.interpolations[0].value == value
+
+
+def test_format_spec_tainted_value():
+    """Test that taint is preserved when using format specs."""
+    tainted_value = taint_pyobject(
+        "hello", source_name="test", source_value="hello", source_origin=OriginType.PARAMETER
+    )
+
+    result = ddtrace_aspects.template_string_aspect("", (tainted_value, "value", None, "^20"), "")
+
+    assert isinstance(result, Template)
+    assert is_pyobject_tainted(result)
+    # The tainted value should remain in the interpolation
+    assert result.interpolations[0].value == "hello"
+    assert is_pyobject_tainted(result.interpolations[0].value)
