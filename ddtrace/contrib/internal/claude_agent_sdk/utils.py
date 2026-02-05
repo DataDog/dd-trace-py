@@ -1,4 +1,6 @@
+from typing import Any, List
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._utils import _get_attr
 
 
 log = get_logger(__name__)
@@ -20,3 +22,22 @@ async def _retrieve_context(instance):
     finally:
         if instance is not None:
             instance._dd_internal_context_query = False
+
+def _extract_model_from_response(response: List[Any]) -> str:
+    if not response or not isinstance(response, list):
+        return ""
+
+    for msg in response:
+        msg_type = type(msg).__name__
+
+        # check AssistantMessage.model
+        if msg_type == "AssistantMessage":
+            return str(_get_attr(msg, "model", None) or "")
+
+        # check SystemMessage.data.model
+        if msg_type == "SystemMessage":
+            data = _get_attr(msg, "data", None)
+            if data and isinstance(data, dict):
+                return data.get("model") or ""
+
+    return ""

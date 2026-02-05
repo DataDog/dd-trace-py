@@ -1,7 +1,8 @@
+from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
+from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 
 
 log = get_logger(__name__)
@@ -27,9 +28,11 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         if type(chunk).__name__ == "ResultMessage" and self.instance and self.context is None:
             self.context = await _retrieve_context(self.instance)
 
-
     def finalize_stream(self, exception=None):
         try:
+            model = _extract_model_from_response(self.chunks)
+            if model:
+                self.primary_span._set_tag_str("claude_agent_sdk.request.model", model)
             if self.context is not None:
                 self.request_kwargs["_dd_context"] = self.context
 

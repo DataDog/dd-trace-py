@@ -1,18 +1,21 @@
-from typing import Any, Tuple
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY, CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, INPUT_VALUE
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -39,10 +42,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         prompt = get_argument_value(args, kwargs, 0, "prompt", optional=True) or ""
-
-        model = self._extract_model_from_response(response)
-        if model and isinstance(model, str):
-            span._set_tag_str("claude_agent_sdk.request.model", model)
+        model = span.get_tag("claude_agent_sdk.request.model") or ""
 
         metadata = self._extract_metadata(kwargs)
 
@@ -64,7 +64,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 METRICS: metrics,
             }
         )
-    
+
     def _extract_metadata(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         metadata = {}
         options = kwargs.get("options")
@@ -73,7 +73,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 metadata[key] = getattr(options, key)
         self._format_context(metadata, kwargs)
         return metadata
-    
+
     def _parse_context_categories(self, context_messages: List[Any]) -> Dict[str, str]:
         """Parse category percentages from context UserMessage.
 
@@ -97,7 +97,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                     continue
 
                 # Find the "Estimated usage by category" section
-                lines = content.split('\n')
+                lines = content.split("\n")
                 in_category_table = False
 
                 for i, line in enumerate(lines):
@@ -111,12 +111,12 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                         break
 
                     # Parse table rows only in the category section
-                    if in_category_table and '|' in line:
+                    if in_category_table and "|" in line:
                         # Skip separator lines (contain only dashes and pipes)
-                        if line.strip().replace('|', '').replace('-', '').strip() == '':
+                        if line.strip().replace("|", "").replace("-", "").strip() == "":
                             continue
 
-                        parts = [p.strip() for p in line.split('|')]
+                        parts = [p.strip() for p in line.split("|")]
                         # parts[0] is empty (before first |), parts[1] is category, parts[3] is percentage
                         if len(parts) >= 4 and parts[1] and parts[3]:
                             category = parts[1]
@@ -143,25 +143,6 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         if before_context:
             parameters["before_context"] = self._parse_context_categories(before_context)
-
-    def _extract_model_from_response(self, response: Any) -> str:
-        if not response or not isinstance(response, list):
-            return ""
-
-        for msg in response:
-            msg_type = type(msg).__name__
-
-            # check AssistantMessage.model
-            if msg_type == "AssistantMessage":
-                return str(_get_attr(msg, "model", None) or "")
-
-            # check SystemMessage.data.model
-            if msg_type == "SystemMessage":
-                data = _get_attr(msg, "data", None)
-                if data and isinstance(data, dict):
-                    return data.get("model") or ""
-
-        return ""
 
     def _extract_input_messages(self, prompt: str) -> List[Message]:
         return [Message(content=prompt, role="user")]

@@ -4,9 +4,8 @@ import pytest
 @pytest.mark.snapshot()
 @pytest.mark.asyncio
 async def test_query(claude_agent_sdk, mock_internal_client):
-    messages = []
-    async for message in claude_agent_sdk.query(prompt="Hello, world!"):
-        messages.append(message)
+    async for _ in claude_agent_sdk.query(prompt="Hello, world!"):
+        pass
 
 
 @pytest.mark.snapshot(ignores=["meta.error.stack"])
