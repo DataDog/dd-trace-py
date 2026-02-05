@@ -15,10 +15,10 @@ from ddtrace.ext import SpanKind
 _DURABLE_ACTIVITY_TRIGGER = "activityTrigger"
 _DURABLE_ENTITY_TRIGGER = "entityTrigger"
 _DURABLE_ORCHESTRATION_TRIGGER = "orchestrationTrigger"
-_DURABLE_TRIGGER_DEFS = {
-    _DURABLE_ACTIVITY_TRIGGER: ("Activity", "azure.durable_functions.patched_activity"),
-    _DURABLE_ENTITY_TRIGGER: ("Entity", "azure.durable_functions.patched_entity"),
-}
+_DURABLE_ACTIVITY_TRIGGER_NAME = "Activity"
+_DURABLE_ENTITY_TRIGGER_NAME = "Entity"
+_DURABLE_ACTIVITY_CONTEXT = "azure.durable_functions.patched_activity"
+_DURABLE_ENTITY_CONTEXT = "azure.durable_functions.patched_entity"
 
 
 def get_version() -> str:
@@ -58,13 +58,17 @@ def wrap_durable_functions(pin, functions):
         if trigger_type == _DURABLE_ORCHESTRATION_TRIGGER:
             continue
 
-        trigger_def = _DURABLE_TRIGGER_DEFS.get(trigger_type)
-        if trigger_def is None:
+        if trigger_type == _DURABLE_ACTIVITY_TRIGGER:
+            trigger_name = _DURABLE_ACTIVITY_TRIGGER_NAME
+            context_name = _DURABLE_ACTIVITY_CONTEXT
+        elif trigger_type == _DURABLE_ENTITY_TRIGGER:
+            trigger_name = _DURABLE_ENTITY_TRIGGER_NAME
+            context_name = _DURABLE_ENTITY_CONTEXT
+        else:
             continue
 
         function_name = function.get_function_name()
         func = function.get_user_function()
-        trigger_name, context_name = trigger_def
         function._func = _wrap_durable_trigger(pin, func, function_name, trigger_name, context_name)
 
 
