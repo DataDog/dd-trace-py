@@ -48,7 +48,7 @@ def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     return dot / (magnitude1 * magnitude2)
 
 
-class SemanticSimilarity(BaseEvaluator):
+class SemanticSimilarityEvaluator(BaseEvaluator):
     """Evaluator that measures semantic similarity using embeddings.
 
     Compares the semantic meaning of output_data and expected_output using
@@ -70,7 +70,7 @@ class SemanticSimilarity(BaseEvaluator):
             )
             return response.data[0].embedding
 
-        evaluator = SemanticSimilarity(
+        evaluator = SemanticSimilarityEvaluator(
             embedding_fn=get_embedding,
             threshold=0.8
         )
@@ -85,7 +85,7 @@ class SemanticSimilarity(BaseEvaluator):
         def get_embedding(text):
             return model.encode(text).tolist()
 
-        evaluator = SemanticSimilarity(embedding_fn=get_embedding)
+        evaluator = SemanticSimilarityEvaluator(embedding_fn=get_embedding)
 
     :param embedding_fn: Function that takes text string and returns embedding vector (list of floats)
     :param threshold: Minimum similarity score (0-1) required to pass (default: 0.7)
@@ -98,7 +98,7 @@ class SemanticSimilarity(BaseEvaluator):
         threshold: float = 0.7,
         name: Optional[str] = None,
     ):
-        """Initialize the SemanticSimilarity evaluator.
+        """Initialize the SemanticSimilarityEvaluator evaluator.
 
         :param embedding_fn: Function that converts text to embedding vector
         :param threshold: Minimum similarity score (0-1) to pass

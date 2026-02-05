@@ -1,16 +1,16 @@
 """Built-in evaluators for LLM Observability."""
 
-from ddtrace.llmobs._evaluators import JSONValidator
-from ddtrace.llmobs._evaluators import LengthValidator
-from ddtrace.llmobs._evaluators import RegexMatch
-from ddtrace.llmobs._evaluators import SemanticSimilarity
-from ddtrace.llmobs._evaluators import StringCheck
+from ddtrace.llmobs._evaluators import JSONEvaluator
+from ddtrace.llmobs._evaluators import LengthEvaluator
+from ddtrace.llmobs._evaluators import RegexMatchEvaluator
+from ddtrace.llmobs._evaluators import SemanticSimilarityEvaluator
+from ddtrace.llmobs._evaluators import StringCheckEvaluator
 
 
 __all__ = [
-    "StringCheck",
-    "RegexMatch",
-    "LengthValidator",
-    "JSONValidator",
-    "SemanticSimilarity",
+    "StringCheckEvaluator",
+    "RegexMatchEvaluator",
+    "LengthEvaluator",
+    "JSONEvaluator",
+    "SemanticSimilarityEvaluator",
 ]

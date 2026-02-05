@@ -2,17 +2,17 @@
 
 import pytest
 
-from ddtrace.llmobs._evaluators.format import JSONValidator
-from ddtrace.llmobs._evaluators.format import LengthValidator
-from ddtrace.llmobs._evaluators.semantic import SemanticSimilarity
-from ddtrace.llmobs._evaluators.string_matching import RegexMatch
-from ddtrace.llmobs._evaluators.string_matching import StringCheck
+from ddtrace.llmobs._evaluators.format import JSONEvaluator
+from ddtrace.llmobs._evaluators.format import LengthEvaluator
+from ddtrace.llmobs._evaluators.semantic import SemanticSimilarityEvaluator
+from ddtrace.llmobs._evaluators.string_matching import RegexMatchEvaluator
+from ddtrace.llmobs._evaluators.string_matching import StringCheckEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 
 
-class TestStringCheck:
+class TestStringCheckEvaluator:
     def test_exact_match(self):
-        evaluator = StringCheck(operation="eq")
+        evaluator = StringCheckEvaluator(operation="eq")
         ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="hello")
         result = evaluator.evaluate(ctx)
         assert result.value is True
@@ -24,23 +24,23 @@ class TestStringCheck:
         assert result.assessment == "fail"
 
     def test_case_insensitive(self):
-        evaluator = StringCheck(operation="eq", case_sensitive=False)
+        evaluator = StringCheckEvaluator(operation="eq", case_sensitive=False)
         ctx = EvaluatorContext(input_data={}, output_data="Hello", expected_output="hello")
         result = evaluator.evaluate(ctx)
         assert result.value is True
         assert result.assessment == "pass"
 
     def test_contains(self):
-        evaluator = StringCheck(operation="contains")
+        evaluator = StringCheckEvaluator(operation="contains")
         ctx = EvaluatorContext(input_data={}, output_data="hello world", expected_output="world")
         result = evaluator.evaluate(ctx)
         assert result.value is True
         assert result.assessment == "pass"
 
 
-class TestRegexMatch:
+class TestRegexMatchEvaluator:
     def test_match(self):
-        evaluator = RegexMatch(pattern=r"\d{3}-\d{4}")
+        evaluator = RegexMatchEvaluator(pattern=r"\d{3}-\d{4}")
         ctx = EvaluatorContext(input_data={}, output_data="Call 555-1234")
         result = evaluator.evaluate(ctx)
         assert result.value is True
@@ -52,7 +52,7 @@ class TestRegexMatch:
         assert result.assessment == "fail"
 
     def test_fullmatch_mode(self):
-        evaluator = RegexMatch(pattern=r"\d{3}-\d{4}", match_mode="fullmatch")
+        evaluator = RegexMatchEvaluator(pattern=r"\d{3}-\d{4}", match_mode="fullmatch")
         ctx = EvaluatorContext(input_data={}, output_data="555-1234")
         result = evaluator.evaluate(ctx)
         assert result.value is True
@@ -65,26 +65,26 @@ class TestRegexMatch:
 
     def test_invalid_pattern(self):
         with pytest.raises(ValueError, match="Invalid regex pattern"):
-            RegexMatch(pattern=r"[invalid(")
+            RegexMatchEvaluator(pattern=r"[invalid(")
 
 
-class TestLengthValidator:
+class TestLengthEvaluator:
     def test_within_range(self):
-        evaluator = LengthValidator(min_length=5, max_length=20)
+        evaluator = LengthEvaluator(min_length=5, max_length=20)
         ctx = EvaluatorContext(input_data={}, output_data="hello world")
         result = evaluator.evaluate(ctx)
         assert result.value is True
         assert result.assessment == "pass"
 
     def test_out_of_range(self):
-        evaluator = LengthValidator(min_length=10, max_length=20)
+        evaluator = LengthEvaluator(min_length=10, max_length=20)
         ctx = EvaluatorContext(input_data={}, output_data="short")
         result = evaluator.evaluate(ctx)
         assert result.value is False
         assert result.assessment == "fail"
 
     def test_word_count(self):
-        evaluator = LengthValidator(min_length=2, max_length=5, count_type="words")
+        evaluator = LengthEvaluator(min_length=2, max_length=5, count_type="words")
         ctx = EvaluatorContext(input_data={}, output_data="one two three")
         result = evaluator.evaluate(ctx)
         assert result.value is True
@@ -92,12 +92,12 @@ class TestLengthValidator:
 
     def test_invalid_range(self):
         with pytest.raises(ValueError, match="min_length .* cannot be greater than max_length"):
-            LengthValidator(min_length=10, max_length=5)
+            LengthEvaluator(min_length=10, max_length=5)
 
 
-class TestJSONValidator:
+class TestJSONEvaluator:
     def test_valid_json(self):
-        evaluator = JSONValidator()
+        evaluator = JSONEvaluator()
         ctx = EvaluatorContext(input_data={}, output_data='{"name": "John"}')
         result = evaluator.evaluate(ctx)
         assert result.value is True
@@ -109,14 +109,14 @@ class TestJSONValidator:
         assert result.assessment == "pass"
 
     def test_invalid_json(self):
-        evaluator = JSONValidator()
+        evaluator = JSONEvaluator()
         ctx = EvaluatorContext(input_data={}, output_data="not json {")
         result = evaluator.evaluate(ctx)
         assert result.value is False
         assert result.assessment == "fail"
 
     def test_required_keys(self):
-        evaluator = JSONValidator(required_keys=["name", "age"])
+        evaluator = JSONEvaluator(required_keys=["name", "age"])
         ctx = EvaluatorContext(input_data={}, output_data='{"name": "John", "age": 30}')
         result = evaluator.evaluate(ctx)
         assert result.value is True
@@ -128,9 +128,9 @@ class TestJSONValidator:
         assert result.assessment == "fail"
 
 
-class TestSemanticSimilarity:
+class TestSemanticSimilarityEvaluator:
     def test_identical_embeddings(self):
-        evaluator = SemanticSimilarity(embedding_fn=lambda x: [1.0, 0.0])
+        evaluator = SemanticSimilarityEvaluator(embedding_fn=lambda x: [1.0, 0.0])
         ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="hello")
         result = evaluator.evaluate(ctx)
         assert result.value == 1.0
@@ -140,7 +140,7 @@ class TestSemanticSimilarity:
         def embedding_fn(text):
             return [1.0, 0.0] if "hello" in text else [0.0, 1.0]
 
-        evaluator = SemanticSimilarity(embedding_fn=embedding_fn)
+        evaluator = SemanticSimilarityEvaluator(embedding_fn=embedding_fn)
         ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="world")
         result = evaluator.evaluate(ctx)
         assert result.value == 0.5
@@ -150,13 +150,13 @@ class TestSemanticSimilarity:
         def failing_fn(text):
             raise RuntimeError("API error")
 
-        evaluator = SemanticSimilarity(embedding_fn=failing_fn)
+        evaluator = SemanticSimilarityEvaluator(embedding_fn=failing_fn)
         ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="world")
         with pytest.raises(RuntimeError, match="API error"):
             evaluator.evaluate(ctx)
 
     def test_threshold_pass(self):
-        evaluator = SemanticSimilarity(embedding_fn=lambda x: [1.0, 0.0], threshold=0.9)
+        evaluator = SemanticSimilarityEvaluator(embedding_fn=lambda x: [1.0, 0.0], threshold=0.9)
         ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="hello")
         result = evaluator.evaluate(ctx)
         assert result.value == 1.0
@@ -166,7 +166,7 @@ class TestSemanticSimilarity:
         def embedding_fn(text):
             return [1.0, 0.0] if "hello" in text else [0.0, 1.0]
 
-        evaluator = SemanticSimilarity(embedding_fn=embedding_fn, threshold=0.6)
+        evaluator = SemanticSimilarityEvaluator(embedding_fn=embedding_fn, threshold=0.6)
         ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="world")
         result = evaluator.evaluate(ctx)
         assert result.value == 0.5

@@ -172,7 +172,7 @@ class BaseEvaluator(ABC):
 
     Example (simple return)::
 
-        class SemanticSimilarity(BaseEvaluator):
+        class SemanticSimilarityEvaluator(BaseEvaluator):
             def __init__(self, threshold=0.8):
                 super().__init__(name="semantic_similarity")
                 self.threshold = threshold
@@ -184,7 +184,7 @@ class BaseEvaluator(ABC):
 
     Example (with EvaluatorResult)::
 
-        class SemanticSimilarity(BaseEvaluator):
+        class SemanticSimilarityEvaluator(BaseEvaluator):
             def __init__(self, threshold=0.8):
                 super().__init__(name="semantic_similarity")
                 self.threshold = threshold

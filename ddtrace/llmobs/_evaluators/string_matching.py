@@ -11,7 +11,7 @@ from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
 
-class StringCheck(BaseEvaluator):
+class StringCheckEvaluator(BaseEvaluator):
     """Evaluator that performs string comparison operations.
 
     Compares the output_data with expected_output using various string operations.
@@ -26,24 +26,24 @@ class StringCheck(BaseEvaluator):
     Example::
 
         # Exact match (default)
-        evaluator = StringCheck(operation="eq", case_sensitive=True)
+        evaluator = StringCheckEvaluator(operation="eq", case_sensitive=True)
         result = evaluator.evaluate(context)
         # Returns: True if output == expected_output
 
         # Not equals
-        evaluator = StringCheck(operation="ne")
+        evaluator = StringCheckEvaluator(operation="ne")
         # Returns: True if output != expected_output
 
         # Contains (case-sensitive)
-        evaluator = StringCheck(operation="contains")
+        evaluator = StringCheckEvaluator(operation="contains")
         # Returns: True if expected_output is in output
 
         # Contains (case-insensitive)
-        evaluator = StringCheck(operation="icontains")
+        evaluator = StringCheckEvaluator(operation="icontains")
         # Returns: True if expected_output is in output (ignoring case)
 
         # Extract field from dict output
-        evaluator = StringCheck(
+        evaluator = StringCheckEvaluator(
             operation="eq",
             output_extractor=lambda x: x.get("message", "") if isinstance(x, dict) else str(x),
         )
@@ -70,7 +70,7 @@ class StringCheck(BaseEvaluator):
         expected_output_extractor: Optional[Callable[[Any], Optional[str]]] = None,
         name: Optional[str] = None,
     ):
-        """Initialize the StringCheck evaluator.
+        """Initialize the StringCheckEvaluator evaluator.
 
         :param operation: String comparison operation: 'eq', 'ne', 'contains', 'icontains'
         :param case_sensitive: Whether to perform case-sensitive comparison
@@ -146,7 +146,7 @@ class StringCheck(BaseEvaluator):
         return EvaluatorResult(value=result, assessment="pass" if result else "fail")
 
 
-class RegexMatch(BaseEvaluator):
+class RegexMatchEvaluator(BaseEvaluator):
     r"""Evaluator that performs regex pattern matching.
 
     Checks if the output_data matches a given regex pattern.
@@ -156,12 +156,12 @@ class RegexMatch(BaseEvaluator):
     Example::
 
         # Validate email format
-        evaluator = RegexMatch(pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+        evaluator = RegexMatchEvaluator(pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
         result = evaluator.evaluate(context)
         # Returns: True if pattern matches, False otherwise
 
         # Extract field from dict output before regex matching
-        evaluator = RegexMatch(
+        evaluator = RegexMatchEvaluator(
             pattern=r"\d{3}-\d{4}",
             output_extractor=lambda x: x.get("phone", "") if isinstance(x, dict) else str(x)
         )
@@ -183,7 +183,7 @@ class RegexMatch(BaseEvaluator):
         output_extractor: Optional[Callable[[Any], Optional[str]]] = None,
         name: Optional[str] = None,
     ):
-        """Initialize the RegexMatch evaluator.
+        """Initialize the RegexMatchEvaluator evaluator.
 
         :param pattern: The regex pattern string
         :param match_mode: One of 'search', 'match', or 'fullmatch'

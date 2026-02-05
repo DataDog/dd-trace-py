@@ -13,7 +13,7 @@ from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
 
-class LengthValidator(BaseEvaluator):
+class LengthEvaluator(BaseEvaluator):
     """Evaluator that validates output length constraints.
 
     Checks if the output_data length falls within specified min/max bounds.
@@ -23,12 +23,12 @@ class LengthValidator(BaseEvaluator):
     Example::
 
         # Ensure response is between 50-200 characters
-        evaluator = LengthValidator(min_length=50, max_length=200, count_type="characters")
+        evaluator = LengthEvaluator(min_length=50, max_length=200, count_type="characters")
         result = evaluator.evaluate(context)
         # Returns: True if within bounds, False otherwise
 
         # Validate length of extracted field
-        evaluator = LengthValidator(
+        evaluator = LengthEvaluator(
             min_length=10,
             max_length=100,
             output_extractor=lambda x: x.get("summary", "") if isinstance(x, dict) else str(x)
@@ -51,7 +51,7 @@ class LengthValidator(BaseEvaluator):
         output_extractor: Optional[Callable[[Any], Optional[str]]] = None,
         name: Optional[str] = None,
     ):
-        """Initialize the LengthValidator evaluator.
+        """Initialize the LengthEvaluator evaluator.
 
         :param min_length: Minimum allowed length (None for no minimum)
         :param max_length: Maximum allowed length (None for no maximum)
@@ -124,7 +124,7 @@ class LengthValidator(BaseEvaluator):
         return EvaluatorResult(value=True, assessment="pass")
 
 
-class JSONValidator(BaseEvaluator):
+class JSONEvaluator(BaseEvaluator):
     """Evaluator that validates if output is valid JSON.
 
     Checks if the output_data can be parsed as valid JSON.
@@ -133,17 +133,17 @@ class JSONValidator(BaseEvaluator):
     Example::
 
         # Just validate JSON syntax
-        evaluator = JSONValidator()
+        evaluator = JSONEvaluator()
         result = evaluator.evaluate(context)
         # Returns: True if valid JSON, False otherwise
 
         # Validate required keys
-        evaluator = JSONValidator(required_keys=["name", "age"])
+        evaluator = JSONEvaluator(required_keys=["name", "age"])
         result = evaluator.evaluate(context)
         # Returns: True if valid JSON with all required keys, False otherwise
 
         # Validate JSON in extracted field
-        evaluator = JSONValidator(
+        evaluator = JSONEvaluator(
             required_keys=["status"],
             output_extractor=lambda x: x.get("response", "") if isinstance(x, dict) else str(x)
         )
@@ -161,7 +161,7 @@ class JSONValidator(BaseEvaluator):
         output_extractor: Optional[Callable[[Any], Union[str, Dict, List, None]]] = None,
         name: Optional[str] = None,
     ):
-        """Initialize the JSONValidator evaluator.
+        """Initialize the JSONEvaluator evaluator.
 
         :param required_keys: List of keys that must be present in the parsed JSON
         :param output_extractor: Optional function to extract/transform output_data before validation.
