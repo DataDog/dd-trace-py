@@ -9,9 +9,10 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_TRIGGER_DEFS
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_CONTEXT
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER_NAME
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_CONTEXT
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER_NAME
 from ddtrace.contrib.internal.azure_durable_functions.patch import _wrap_durable_trigger
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
@@ -96,8 +97,13 @@ def test_activity_trigger():
         def activity():
             return "ok"
 
-        trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ACTIVITY_TRIGGER]
-        wrapped = _wrap_durable_trigger(pin, activity, "sample_activity", trigger_name, context_name)
+        wrapped = _wrap_durable_trigger(
+            pin,
+            activity,
+            "sample_activity",
+            _DURABLE_ACTIVITY_TRIGGER_NAME,
+            _DURABLE_ACTIVITY_CONTEXT,
+        )
         assert wrapped() == "ok"
 
         spans = TracerSpanContainer(tracer).pop()
@@ -123,8 +129,13 @@ def test_entity_trigger():
         def entity():
             return "ok"
 
-        trigger_name, context_name = _DURABLE_TRIGGER_DEFS[_DURABLE_ENTITY_TRIGGER]
-        wrapped = _wrap_durable_trigger(pin, entity, "sample_entity", trigger_name, context_name)
+        wrapped = _wrap_durable_trigger(
+            pin,
+            entity,
+            "sample_entity",
+            _DURABLE_ENTITY_TRIGGER_NAME,
+            _DURABLE_ENTITY_CONTEXT,
+        )
         assert wrapped() == "ok"
 
         spans = TracerSpanContainer(tracer).pop()
