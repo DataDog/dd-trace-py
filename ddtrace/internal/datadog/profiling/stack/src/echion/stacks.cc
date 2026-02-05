@@ -1,12 +1,29 @@
 #include <echion/stacks.h>
 
+#include <echion/echion_sampler.h>
 #include <unordered_set>
+
+#include <echion/echion_sampler.h>
+
+void
+FrameStack::render(EchionSampler& echion)
+{
+    auto& renderer = echion.renderer();
+    for (auto it = this->rbegin(); it != this->rend(); ++it) {
+#if PY_VERSION_HEX >= 0x030c0000
+        if ((*it).get().is_entry)
+            // This is a shim frame so we skip it.
+            continue;
+#endif
+        renderer.render_frame((*it).get());
+    }
+}
 
 // Unwind Python frames starting from frame_addr and push them onto stack.
 // @param max_depth: Maximum number of frames to unwind. Defaults to max_frames.
 // @return: Number of frames added to the stack.
 size_t
-unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth)
+unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth)
 {
     std::unordered_set<PyObject*> seen_frames; // Used to detect cycles in the stack
     size_t count = 0;
@@ -19,10 +36,11 @@ unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth)
         seen_frames.insert(current_frame_addr);
 
 #if PY_VERSION_HEX >= 0x030b0000
-        auto maybe_frame = Frame::read(reinterpret_cast<_PyInterpreterFrame*>(current_frame_addr),
+        auto maybe_frame = Frame::read(echion,
+                                       reinterpret_cast<_PyInterpreterFrame*>(current_frame_addr),
                                        reinterpret_cast<_PyInterpreterFrame**>(&current_frame_addr));
 #else
-        auto maybe_frame = Frame::read(current_frame_addr, &current_frame_addr);
+        auto maybe_frame = Frame::read(echion, current_frame_addr, &current_frame_addr);
 #endif
         if (!maybe_frame) {
             break;
@@ -44,7 +62,7 @@ unwind_frame(PyObject* frame_addr, FrameStack& stack, size_t max_depth)
 }
 
 void
-unwind_python_stack(PyThreadState* tstate, FrameStack& stack)
+unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack)
 {
     stack.clear();
 #if PY_VERSION_HEX >= 0x030b0000
@@ -70,5 +88,5 @@ unwind_python_stack(PyThreadState* tstate, FrameStack& stack)
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    unwind_frame(frame_addr, stack);
+    unwind_frame(echion, frame_addr, stack);
 }

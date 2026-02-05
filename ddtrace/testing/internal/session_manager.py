@@ -88,7 +88,11 @@ class SessionManager:
         )
 
         self.upload_git_data()
-        self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        if self.settings.itr_enabled:
+            self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        else:
+            self.skippable_items = set()
+            self.itr_correlation_id = None
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
@@ -132,6 +136,7 @@ class SessionManager:
 
     def finish_collection(self) -> None:
         self.setup_retry_handlers()
+        self.collected_tests.clear()
 
     def setup_retry_handlers(self) -> None:
         if self.settings.test_management.enabled:
@@ -234,8 +239,6 @@ class SessionManager:
         test, created = test_suite.get_or_create_child(test_ref.name)
         if created:
             try:
-                self.collected_tests.add(test_ref)
-
                 is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
 
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
