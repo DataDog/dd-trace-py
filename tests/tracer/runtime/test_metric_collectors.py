@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.internal.runtime.constants import CPU_PERCENT
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
