@@ -1,5 +1,7 @@
 #include <echion/tasks.h>
 
+#include <echion/echion_sampler.h>
+
 #include <stack>
 
 Result<GenInfo::Ptr>
@@ -85,7 +87,7 @@ GenInfo::create(PyObject* gen_addr)
 
 // ----------------------------------------------------------------------------
 Result<TaskInfo::Ptr>
-TaskInfo::create(TaskObj* task_addr)
+TaskInfo::create(EchionSampler& echion, TaskObj* task_addr)
 {
     static thread_local size_t recursion_depth = 0;
     recursion_depth++;
@@ -107,7 +109,7 @@ TaskInfo::create(TaskObj* task_addr)
         return ErrorKind::TaskInfoGeneratorError;
     }
 
-    auto maybe_name = string_table.key(task.task_name, StringTag::TaskName);
+    auto maybe_name = echion.string_table().key(task.task_name, StringTag::TaskName);
     if (!maybe_name) {
         recursion_depth--;
         return ErrorKind::TaskInfoError;
@@ -118,7 +120,8 @@ TaskInfo::create(TaskObj* task_addr)
 
     TaskInfo::Ptr waiter = nullptr;
     if (task.task_fut_waiter) {
-        auto maybe_waiter = TaskInfo::create(reinterpret_cast<TaskObj*>(task.task_fut_waiter)); // TODO: Make lazy?
+        auto maybe_waiter =
+          TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task.task_fut_waiter)); // TODO: Make lazy?
         if (maybe_waiter) {
             waiter = std::move(*maybe_waiter);
         }
@@ -130,7 +133,7 @@ TaskInfo::create(TaskObj* task_addr)
 }
 
 size_t
-TaskInfo::unwind(FrameStack& stack)
+TaskInfo::unwind(EchionSampler& echion, FrameStack& stack)
 {
     // TODO: Check for running task.
 
@@ -156,7 +159,7 @@ TaskInfo::unwind(FrameStack& stack)
         // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
         // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
         // the Frame chain unnecessarily.
-        auto new_frames = unwind_frame(frame, stack, 1);
+        auto new_frames = unwind_frame(echion, frame, stack, 1);
         assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
