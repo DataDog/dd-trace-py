@@ -8,7 +8,6 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.span import Span
-from ddtrace._trace.trace_handlers import httpx_url_to_str
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _get_asm_context
@@ -25,6 +24,7 @@ from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.httpx.utils import httpx_url_to_str
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
@@ -615,7 +615,7 @@ def _on_httpx_request_ended(ctx: ExecutionContext, exc_info) -> None:
         return
 
     response = ctx.get_item("response")
-    if not response or (300 <= response.status_code < 400):
+    if response is None or (300 <= response.status_code < 400):
         return
 
     addresses = {
@@ -659,8 +659,8 @@ def listen():
 
     core.on("context.started.httpx.client._send_single_request", _on_httpx_client_send_single_request_started)
     core.on("context.ended.httpx.client._send_single_request", _on_httpx_client_send_single_request_ended)
-    core.on("context.started.httpx.request", _on_httpx_request_started)
-    core.on("context.ended.httpx.request", _on_httpx_request_ended)
+    core.on("context.started.http.client.request", _on_httpx_request_started)
+    core.on("context.ended.http.client.request", _on_httpx_request_ended)
 
     # disabling threats grpc listeners.
     # core.on("grpc.server.response.message", _on_grpc_server_response)

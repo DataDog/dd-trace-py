@@ -1,18 +1,17 @@
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
 import requests
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
-from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace import tracer
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
+from ddtrace.contrib.events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
+from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import USER_AGENT_HEADER
 from ddtrace.internal.logger import get_logger
@@ -21,8 +20,6 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -69,6 +66,13 @@ def _extract_query_string(uri):
     return uri[start:end]
 
 
+def _get_service_name(request, hostname) -> Optional[str]:
+    if config.requests["split_by_domain"] and hostname:
+        return hostname
+
+    return ext_service(None, config.requests)
+
+
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
     # skip if tracing is not enabled
@@ -86,59 +90,28 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg: Dict[str, Any] = {}
-    pin = Pin.get_from(instance)
-    if pin:
-        cfg = pin._config
-
-    service = None
-    if cfg["split_by_domain"] and hostname:
-        service = hostname
-    if service is None:
-        service = cfg.get("service", None)
-    if service is None:
-        service = cfg.get("service_name", None)
-    if service is None:
-        service = trace_utils.ext_service(None, config.requests)
-
-    operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
-    with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
-        span._set_tag_str(COMPONENT, config.requests.integration_name)
-
-        # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-        # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-        # propagate distributed tracing headers
-        if cfg.get("distributed_tracing"):
-            HTTPPropagator.inject(span.context, request.headers)
-
-        response = response_headers = None
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            span_name=schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND),
+            span_type=SpanTypes.HTTP,
+            service=_get_service_name(request, hostname),
+            resource=f"{method} {path}",
+            tags={COMPONENT: config.requests.integration_name, SPAN_KIND: SpanKind.CLIENT},
+            integration_config=config.requests,
+            url=url,
+            method=method,
+            target_host=host_without_port,
+            query=_extract_query_string(url),
+            request_headers=request.headers,
+            request=request,
+        ),
+    ) as ctx:
+        response = None
         try:
             response = func(*args, **kwargs)
             return response
         finally:
-            try:
-                status = None
-                if response is not None:
-                    status = response.status_code
-                    # Storing response headers in the span.
-                    # Note that response.headers is not a dict, but an iterable
-                    # requests custom structure, that we convert to a dict
-                    response_headers = dict(getattr(response, "headers", {}))
-
-                trace_utils.set_http_meta(
-                    span,
-                    config.requests,
-                    request_headers=request.headers,
-                    response_headers=response_headers,
-                    method=method,
-                    url=request.url,
-                    target_host=host_without_port,
-                    status_code=status,
-                    query=_extract_query_string(url),
-                )
-            except Exception:
-                log.debug("requests: error adding tags", exc_info=True)
+            ctx.set_item("response", response)
+            # Note: requests.Response is falsy for status >= 400, so use `is not None`
+            ctx.set_item("status_code", response.status_code if response is not None else None)
+            ctx.set_item("response_headers", dict(getattr(response, "headers", {})) if response is not None else None)
