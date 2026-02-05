@@ -16,6 +16,8 @@
 
 #define FRAME_NOT_SET Py_False // Sentinel for frame cell
 
+class EchionSampler;
+
 class GreenletInfo
 {
   public:
@@ -34,5 +36,5 @@ class GreenletInfo
     {
     }
 
-    int unwind(PyObject*, PyThreadState*, FrameStack&);
+    int unwind(EchionSampler& echion, PyObject*, PyThreadState*, FrameStack&);
 };

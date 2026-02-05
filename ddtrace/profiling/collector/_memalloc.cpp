@@ -109,7 +109,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
     if (memalloc_enabled) {
         PyErr_SetString(PyExc_RuntimeError, "the memalloc module is already started");
-        return NULL;
+        return nullptr;
     }
 
     // Ensure profile_state is initialized before creating Sample objects
@@ -141,26 +141,32 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     long long int heap_sample_size;
 
     /* Store short ints in ints so we're sure they fit */
-    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size))
-        return NULL;
+    if (!PyArg_ParseTuple(args, "lL", &max_nframe, &heap_sample_size)) {
+        // Don't set an error string, ParseTuple will set it to a TypeError already.
+        return nullptr;
+    }
 
     if (max_nframe < 1 || max_nframe > TRACEBACK_MAX_NFRAME) {
         PyErr_Format(PyExc_ValueError, "the number of frames must be in range [1; %u]", TRACEBACK_MAX_NFRAME);
-        return NULL;
+        return nullptr;
     }
 
     global_memalloc_ctx.max_nframe = (uint16_t)max_nframe;
 
     if (heap_sample_size < 0 || heap_sample_size > MAX_HEAP_SAMPLE_SIZE) {
         PyErr_Format(PyExc_ValueError, "the heap sample size must be in range [0; %u]", MAX_HEAP_SAMPLE_SIZE);
-        return NULL;
+        return nullptr;
     }
 
-    if (!traceback_t::init_invokes_cpython())
-        return NULL;
+    if (!traceback_t::init_invokes_cpython()) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to initialize traceback module");
+        return nullptr;
+    }
 
-    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))
-        return NULL;
+    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
+        return nullptr;
+    }
 
     PyMemAllocatorEx alloc;
 
