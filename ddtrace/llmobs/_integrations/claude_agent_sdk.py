@@ -90,56 +90,59 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         if not context_messages or not isinstance(context_messages, list):
             return result
-
-        # Find the UserMessage containing the context table
-        for msg in context_messages:
-            msg_type = type(msg).__name__
-            if msg_type == "UserMessage":
-                content = _get_attr(msg, "content", "")
-                if not content or not isinstance(content, str):
-                    continue
-
-                lines = content.split("\n")
-                in_category_table = False
-
-                for i, line in enumerate(lines):
-                    # Parse token usage line: "**Tokens:** 16.3k / 200.0k (8%)"
-                    if "**Tokens:**" in line:
-                        try:
-                            # Extract the token counts from format: "16.3k / 200.0k"
-                            tokens_part = line.split("**Tokens:**")[1].split("(")[0].strip()
-                            if "/" in tokens_part:
-                                used_str, total_str = [t.strip() for t in tokens_part.split("/")]
-                                result["used_tokens"] = used_str
-                                result["total_tokens"] = total_str
-                        except (IndexError, ValueError):
-                            pass
-
-                    # Start parsing when we find the category section
-                    if "### Estimated usage by category" in line:
-                        in_category_table = True
+        
+        try:
+            # Find the UserMessage containing the context table
+            for msg in context_messages:
+                msg_type = type(msg).__name__
+                if msg_type == "UserMessage":
+                    content = _get_attr(msg, "content", "")
+                    if not content or not isinstance(content, str):
                         continue
 
-                    # Stop when we hit the next section
-                    if in_category_table and line.startswith("###"):
-                        break
+                    lines = content.split("\n")
+                    in_category_table = False
 
-                    # Parse table rows only in the category section
-                    if in_category_table and "|" in line:
-                        # Skip separator lines (contain only dashes and pipes)
-                        if line.strip().replace("|", "").replace("-", "").strip() == "":
+                    for i, line in enumerate(lines):
+                        # Parse token usage line: "**Tokens:** 16.3k / 200.0k (8%)"
+                        if "**Tokens:**" in line:
+                            try:
+                                # Extract the token counts from format: "16.3k / 200.0k"
+                                tokens_part = line.split("**Tokens:**")[1].split("(")[0].strip()
+                                if "/" in tokens_part:
+                                    used_str, total_str = [t.strip() for t in tokens_part.split("/")]
+                                    result["used_tokens"] = used_str
+                                    result["total_tokens"] = total_str
+                            except (IndexError, ValueError):
+                                pass
+
+                        # Start parsing when we find the category section
+                        if "### Estimated usage by category" in line:
+                            in_category_table = True
                             continue
 
-                        parts = [p.strip() for p in line.split("|")]
-                        # parts[0] is empty (before first |), parts[1] is category, parts[3] is percentage
-                        if len(parts) >= 4 and parts[1] and parts[3]:
-                            category = parts[1]
-                            percentage = parts[3]
-                            # Skip header row
-                            if category != "Category" and percentage != "Percentage":
-                                result["categories"][category] = percentage
+                        # Stop when we hit the next section
+                        if in_category_table and line.startswith("###"):
+                            break
 
-                break  # Only process the first UserMessage
+                        # Parse table rows only in the category section
+                        if in_category_table and "|" in line:
+                            # Skip separator lines (contain only dashes and pipes)
+                            if line.strip().replace("|", "").replace("-", "").strip() == "":
+                                continue
+
+                            parts = [p.strip() for p in line.split("|")]
+                            # parts[0] is empty (before first |), parts[1] is category, parts[3] is percentage
+                            if len(parts) >= 4 and parts[1] and parts[3]:
+                                category = parts[1]
+                                percentage = parts[3]
+                                # Skip header row
+                                if category != "Category" and percentage != "Percentage":
+                                    result["categories"][category] = percentage
+
+                    break  # Only process the first UserMessage
+        except Exception:
+            log.warning("Error parsing context categories", exc_info=True)
 
         return result
 
