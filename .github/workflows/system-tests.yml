@@ -383,6 +383,7 @@ jobs:
 
       - name: Build datadog_lambda layer
         run: |
+          wheel_path=$(find ./artifacts -name "*.whl" | head -n 1)
           ARCH=amd64 PYTHON_VERSION=3.13 DD_TRACE_WHEEL=$wheel_path ./scripts/build_layers.sh
 
       - name: Upload layer artifact
