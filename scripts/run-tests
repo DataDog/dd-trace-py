@@ -510,12 +510,12 @@ class TestRunner:
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={TESTAGENT_URL} for snapshot tests")
 
             # Execute each unique venv hash in this suite
-            # Note: riot will run all env var variants for each hash automatically
+            # Note: riot will run all instances for each hash (different commands, env vars, etc.)
             suite_success = True
             for venv in venvs:
-                # Count how many variants share this hash in this suite
-                variants_with_same_hash = [v for v in all_venvs_by_suite[suite_name] if v.hash == venv.hash]
-                num_variants = len(variants_with_same_hash)
+                # Count how many instances share this hash in this suite
+                instances_with_same_hash = [v for v in all_venvs_by_suite[suite_name] if v.hash == venv.hash]
+                num_instances = len(instances_with_same_hash)
 
                 # Execute using ddtest with the specific venv hash
                 cmd = [str(self.root / "scripts" / "ddtest"), "riot", "-v", "run", "--pass-env", venv.hash]
@@ -526,8 +526,11 @@ class TestRunner:
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
-                    if num_variants > 1:
-                        print(f"[DRY RUN] Note: This will run {num_variants} env var variant(s) for hash {venv.hash}")
+                    if num_instances > 1:
+                        print(
+                            f"[DRY RUN] Note: This will run {num_instances} instance(s) "
+                            f"for hash {venv.hash} (different commands, env vars, etc.)"
+                        )
                     env_vars_to_show = []
                     if suite_env:
                         for key, value in sorted(suite_env.items()):
@@ -537,8 +540,8 @@ class TestRunner:
                     if env_vars_to_show:
                         print(f"[DRY RUN] With env: {', '.join(env_vars_to_show)}")
                 else:
-                    variant_info = f" [{num_variants} env variant(s)]" if num_variants > 1 else ""
-                    print(f"\n▶️  Executing ({venv.display_name}){variant_info}: {' '.join(cmd)}")
+                    instance_info = f" [{num_instances} instance(s)]" if num_instances > 1 else ""
+                    print(f"\n▶️  Executing ({venv.display_name}){instance_info}: {' '.join(cmd)}")
                     try:
                         result = subprocess.run(cmd, env=env, cwd=self.root)
                         if result.returncode != 0:
