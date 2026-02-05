@@ -32,12 +32,20 @@ def demo_text_template():
     print(f"Version: {prompt.version}")
     print(f"Label: {prompt.label}")
     print(f"Source: {prompt.source}")
+    print(f"Prompt UUID: {prompt._uuid}")
+    print(f"Version UUID: {prompt._version_uuid}")
     print(f"Template: {prompt.template}")
     print()
 
     # Render with variables
     rendered = prompt.format(time_of_day="morning", name="Alice")
     print(f"Rendered: {rendered}")
+    print()
+
+    annotation = prompt.to_annotation_dict(time_of_day="morning", name="Alice")
+    print("Annotation dict:")
+    for key, value in annotation.items():
+        print(f"  {key}: {value}")
     print()
 
     return prompt
@@ -58,6 +66,8 @@ def demo_chat_template():
     print(f"Version: {prompt.version}")
     print(f"Label: {prompt.label}")
     print(f"Source: {prompt.source}")
+    print(f"Prompt UUID: {prompt._uuid}")
+    print(f"Version UUID: {prompt._version_uuid}")
     print(f"Template (chat): {prompt.template}")
     print()
 
@@ -71,6 +81,17 @@ def demo_chat_template():
     print("Rendered messages:")
     for msg in rendered:
         print(f"  [{msg['role']}]: {msg['content']}")
+    print()
+
+    annotation = prompt.to_annotation_dict(
+        domain="Python",
+        years="10",
+        question="best practices for async programming",
+        word_limit="100",
+    )
+    print("Annotation dict:")
+    for key, value in annotation.items():
+        print(f"  {key}: {value}")
     print()
 
     return prompt
@@ -113,6 +134,8 @@ def demo_not_found():
     print(f"Prompt ID: {prompt.id}")
     print(f"Version: {prompt.version}")
     print(f"Source: {prompt.source} (should be 'fallback')")
+    print(f"Prompt UUID: {prompt._uuid} (None for fallback)")
+    print(f"Version UUID: {prompt._version_uuid} (None for fallback)")
     print(f"Template: {prompt.template}")
     print()
 
