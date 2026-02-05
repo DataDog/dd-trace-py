@@ -32,6 +32,8 @@ class ManagedPrompt:
     label: Optional[str]
     source: Literal["registry", "cache", "fallback"]
     template: Union[str, List[Message]]
+    _uuid: Optional[str] = None
+    _version_uuid: Optional[str] = None
 
     def format(self, **variables: str) -> Union[str, List[Message]]:
         """
@@ -72,6 +74,10 @@ class ManagedPrompt:
                 "dd.prompt.label": self.label,
             },
         }
+        if self._uuid:
+            result["prompt_uuid"] = self._uuid
+        if self._version_uuid:
+            result["prompt_version_uuid"] = self._version_uuid
 
         if isinstance(self.template, str):
             result["template"] = self.template
@@ -91,6 +97,8 @@ class ManagedPrompt:
             "label": self.label,
             "source": self.source,
             "template": self.template,
+            "_uuid": self._uuid,
+            "_version_uuid": self._version_uuid,
         }
 
     @classmethod
@@ -102,6 +110,8 @@ class ManagedPrompt:
             label=data["label"],
             source=data.get("source", "cache"),
             template=data["template"],
+            _uuid=data.get("_uuid"),
+            _version_uuid=data.get("_version_uuid"),
         )
 
     def _with_source(self, source: Literal["registry", "cache", "fallback"]) -> "ManagedPrompt":
