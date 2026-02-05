@@ -39,9 +39,7 @@ class ForkTime(bm.Scenario):
             os.environ["DD_SERVICE"] = "fork-benchmark"
             os.environ["DD_ENV"] = "benchmark"
 
-            from ddtrace import tracer
-
-            tracer.configure()
+            import ddtrace.auto
 
             try:
                 from flask import Flask
