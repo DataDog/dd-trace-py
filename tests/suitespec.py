@@ -21,7 +21,7 @@ def _collect_suitespecs() -> dict:
 
     for specfile, root in specfiles:
         try:
-            namespace = "::".join(specfile.relative_to(Path(root).parents[0]).parts[:-1]) or None
+            namespace = "::".join(specfile.relative_to(root).parts[:-1]) or None
         except IndexError:
             namespace = None
         with YAML() as yaml:
