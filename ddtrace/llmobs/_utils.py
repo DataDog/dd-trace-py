@@ -144,8 +144,8 @@ def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: b
     if final_query_variable_keys:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
 
-    prompt_uuid = prompt.get("prompt_uuid")
-    version_uuid = prompt.get("prompt_version_uuid")
+    prompt_uuid: Optional[str] = prompt.get("prompt_uuid")
+    version_uuid: Optional[str] = prompt.get("prompt_version_uuid")
     if prompt_uuid:
         validated_prompt["prompt_uuid"] = prompt_uuid
     if version_uuid:
