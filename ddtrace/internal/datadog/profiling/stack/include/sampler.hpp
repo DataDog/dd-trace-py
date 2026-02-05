@@ -26,9 +26,6 @@ class Sampler
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
 
-    // Parameters
-    uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
-
     // This is a singleton, so no public constructor
     Sampler();
 
