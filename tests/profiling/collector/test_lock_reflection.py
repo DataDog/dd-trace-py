@@ -23,7 +23,7 @@ broken for our wrapper.
 from __future__ import annotations
 
 import threading
-from typing import Callable
+from typing import Any, Callable
 from typing import List
 from typing import Set
 from typing import Tuple
@@ -155,3 +155,50 @@ def test_known_gaps_limit() -> None:
         f"Too many known gaps: {len(KNOWN_COVERAGE_GAPS)} (max is {MAX_ALLOWED_GAPS}). "
         f"Consider fixing some: {KNOWN_COVERAGE_GAPS}"
     )
+
+
+def test_reflection_detects_broken_delegation() -> None:
+    """Meta-test: verify reflection mechanism detects broken delegation in real _ProfiledLock.
+
+    This test uses the actual _ProfiledLock class but patches __getattr__ to simulate
+    a delegation bug.
+    """
+    # Create a real profiled lock
+    with ThreadingLockCollector(capture_pct=100):
+        profiled_lock = threading.Lock()
+
+    assert isinstance(profiled_lock, _ProfiledLock), "Should be a profiled lock"
+
+    # Get the original lock to compare against
+    original_lock = profiled_lock.__wrapped__
+
+    # Verify normal delegation works (sanity check)
+    # 'acquire_lock' is delegated via __getattr__ (not explicitly defined on _ProfiledLock)
+    original_methods = set[str]() #get_public_methods(original_lock)
+    assert "acquire_lock" in original_methods, "Original lock should have acquire_lock"
+    assert is_accessible(profiled_lock, "acquire_lock"), "Profiled lock should delegate acquire_lock"
+
+    # Now patch __getattr__ to break delegation for 'acquire_lock' method
+    original_getattr = _ProfiledLock.__getattr__
+
+    def broken_getattr(self: _ProfiledLock, name: str) -> object:
+        if name == "acquire_lock":
+            raise AttributeError(f"_ProfiledLock has no attribute '{name}'")
+        return original_getattr(self, name)
+
+    # Temporarily break delegation and verify detection catches it
+    _ProfiledLock.__getattr__ = broken_getattr  # type: ignore[method-assign]
+    try:
+        # Verify 'acquire_lock' is now broken
+        assert not is_accessible(profiled_lock, "acquire_lock"), "acquire_lock should NOT be accessible after patch"
+
+        # Verify detection catches the gap
+        missing: Set[str] = {m for m in original_methods if not is_accessible(profiled_lock, m)}
+        assert "acquire_lock" in missing, f"Detection should find 'acquire_lock' missing, got: {missing}"
+        assert "locked" not in missing, f"Detection should NOT report 'locked' as missing, got: {missing}"
+    finally:
+        # Restore original __getattr__
+        _ProfiledLock.__getattr__ = original_getattr  # type: ignore[method-assign]
+
+    # Verify restoration worked
+    assert is_accessible(profiled_lock, "acquire_lock"), "acquire_lock should be accessible after restoration"
