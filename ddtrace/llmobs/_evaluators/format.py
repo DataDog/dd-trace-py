@@ -113,8 +113,7 @@ class LengthValidator(BaseEvaluator):
         if output is None:
             return EvaluatorResult(value=False, assessment="fail")
 
-        output_str = str(output)
-        length = self._calculate_length(output_str)
+        length = self._calculate_length(str(output))
 
         if self.min_length is not None and length < self.min_length:
             return EvaluatorResult(value=False, assessment="fail")
