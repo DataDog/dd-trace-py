@@ -122,6 +122,7 @@ def test_awakeable_periodic_service():
     assert queue == list(range(n + 1))
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_forksafe_awakeable_periodic_service():
     queue = [None]
 

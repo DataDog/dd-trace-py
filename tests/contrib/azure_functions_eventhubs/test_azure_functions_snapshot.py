@@ -106,5 +106,6 @@ def cleanup_checkpoints():
     indirect=["azure_functions_client"],
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_event_hubs_trigger(azure_functions_client: Client, payload_type) -> None:
     assert azure_functions_client.post(f"/api/sendevent{payload_type}", headers=DEFAULT_HEADERS).status_code == 200

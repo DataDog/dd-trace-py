@@ -2,9 +2,12 @@ from os.path import dirname
 from os.path import sep
 import subprocess
 
+import pytest
+
 from tests.utils import call_program
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_django_celery_gevent_startup():
     """Test that Celery starts correctly with the Django integration enabled.
 

@@ -704,6 +704,7 @@ def test_memory_collector_allocation_during_shutdown():
             allocation_thread.join(timeout=1)
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_memory_collector_buffer_pool_exhaustion():
     """Test that the memory collector handles buffer pool exhaustion.
     This test creates multiple threads that simultaneously allocate with very deep

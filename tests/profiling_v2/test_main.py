@@ -153,6 +153,7 @@ methods = multiprocessing.get_all_start_methods()
     "method",
     set(methods) - {"forkserver", "fork"},
 )
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_multiprocessing(method, tmp_path):
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()

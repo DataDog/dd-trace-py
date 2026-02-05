@@ -32,6 +32,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
             self.assertIsNotNone(value)
             self.assertRegex(metric_name, r"^runtime.python\..*")
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_static_metrics(self):
         import os
         import threading

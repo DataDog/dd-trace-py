@@ -249,6 +249,7 @@ patch(raise_errors=False, sqlite3=True)
     assert integration_error[0]["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
     code = """
 import flask

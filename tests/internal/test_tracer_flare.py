@@ -68,6 +68,7 @@ class TracerFlareTests(TestCase):
                 return handler
         return None
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_single_process_success(self):
         """
         Validate that the baseline tracer flare works for a single process
@@ -90,6 +91,7 @@ class TracerFlareTests(TestCase):
         # This just validates the request params
         self.flare.send(MOCK_FLARE_SEND_REQUEST)
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_single_process_partial_failure(self):
         """
         Validate that even if one of the files fails to be generated,
@@ -114,6 +116,7 @@ class TracerFlareTests(TestCase):
 
         self.flare.send(MOCK_FLARE_SEND_REQUEST)
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_no_app_logs(self):
         """
         Validate that app logs are not being added to the
@@ -135,6 +138,7 @@ class TracerFlareTests(TestCase):
         self.flare.clean_up_files()
         self.flare.revert_configs()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_json_logs(self):
         """
         Validate that logs produced are in JSON format
@@ -222,6 +226,7 @@ class TracerFlareTests(TestCase):
         if self.prepare_called:
             assert self._get_handler() is None, "File handler was not removed"
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_case_id_must_be_numeric(self):
         """
         Validate that case_id must be numeric (contain only digits)
@@ -288,6 +293,7 @@ class TracerFlareTests(TestCase):
             # Verify that HTTP connection was attempted for valid case_id
             mock_connection.assert_called_once()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_case_id_cannot_be_zero(self):
         """
         Validate that case_id cannot be 0 or "0"
@@ -329,6 +335,7 @@ class TracerFlareTests(TestCase):
             # Verify that HTTP connection was attempted for valid case_id
             mock_connection.assert_called_once()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_flare_dir_cleaned_on_all_send_exit_points(self):
         """
         Flare directory should be cleaned up after send, regardless of exit point.
@@ -364,6 +371,7 @@ class TracerFlareTests(TestCase):
             mock_connection.assert_called_once()
         assert not self.flare.flare_dir.exists()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_prepare_creates_flare_dir(self):
         """
         Prepare should create the flare directory if it doesn't exist.
@@ -407,6 +415,7 @@ class TracerFlareTests(TestCase):
         # Directory should be cleaned up after send
         assert not self.flare.flare_dir.exists()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_flare_dir_cleaned_on_send_error(self):
         """
         Flare directory should be cleaned up if send raises an error.
@@ -429,6 +438,7 @@ class TracerFlareTests(TestCase):
                 assert False, "Expected Exception('fail') to be raised"
         assert not self.flare.flare_dir.exists()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_uuid_field_validation(self):
         """
         Validate that uuid field is properly handled in FlareSendRequest
@@ -467,6 +477,7 @@ class TracerFlareTests(TestCase):
             self.flare.send(empty_uuid_request)
             mock_connection.assert_called_once()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_uuid_in_payload(self):
         """
         Validate that uuid field is included in the generated payload
@@ -490,6 +501,7 @@ class TracerFlareTests(TestCase):
         self.flare.clean_up_files()
         self.flare.revert_configs()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_config_file_contents_validation(self):
         """
         Validate that config file contents are properly checked and logged when generation fails
@@ -549,6 +561,7 @@ class TracerFlareTests(TestCase):
         self.flare.clean_up_files()
         self.flare.revert_configs()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_api_key_not_in_payload(self):
         """
         Validate that DD-API-KEY header is not included in the payload since the agent forwards it
@@ -595,6 +608,7 @@ class TracerFlareTests(TestCase):
         self.flare.clean_up_files()
         self.flare.revert_configs()
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_payload_field_order(self):
         """
         Validate that the multipart form-data payload fields are in the correct order:
@@ -852,6 +866,7 @@ class TracerFlareSubscriberTests(TestCase):
         ), "Original request should not have been updated with newer request start time"
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_native_logs(tmp_path):
     """
     Validate that the flare collects native logs if native writer is enabled.

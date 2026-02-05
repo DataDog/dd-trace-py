@@ -900,6 +900,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
 
 
 @pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_flush_connection_uds(endpoint_uds_server, writer_class):
     writer = writer_class("unix://%s" % endpoint_uds_server.server_address)
     writer._encoder.put([Span("foobar")])

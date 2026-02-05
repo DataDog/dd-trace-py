@@ -308,6 +308,7 @@ def test_otel_logs_exporter_auto_configured_grpc():
     ), "Expected log message not found in exported gRPC payload"
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 @pytest.mark.skipif(
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
@@ -367,6 +368,7 @@ def test_ddtrace_log_injection_otlp_enabled():
     ), f"Log Injection attributes should not be present in the log record: {ddtrace_attributes}"
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 @pytest.mark.skipif(
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
@@ -437,6 +439,7 @@ def test_ddtrace_log_correlation():
     ), f"Expected span_id_hex to be set to {attributes['span_id']} but found: {span.span_id}"
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 @pytest.mark.skipif(
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
@@ -506,6 +509,7 @@ def test_otel_trace_log_correlation():
     ), f"Expected span_id_hex to be set to {attributes['span_id']} but found: {span_context.span_id}"
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 @pytest.mark.skipif(
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",

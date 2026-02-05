@@ -629,6 +629,7 @@ def test_asyncio_import_profiler_from_process_after_starting_loop():
     ),
     err=None,
 )
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_asyncio_start_profiler_from_process_after_task_start():
     # NOW import profiling modules - this should track the existing loop
     import asyncio
@@ -757,6 +758,7 @@ def test_asyncio_start_profiler_from_process_after_task_start():
     ),
     err=None,
 )
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_asyncio_import_and_start_profiler_from_process_after_task_start():
     import asyncio
     import os

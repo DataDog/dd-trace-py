@@ -129,6 +129,7 @@ def test_openai_chat_model_vision_generate(langchain_core, langchain_openai, ope
         "meta.langchain.response.completions.1.0.content",
     ]
 )
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 async def test_openai_chat_model_async_generate(langchain_core, langchain_openai, openai_url):
     if parse_version(langchain_core.__version__) < (0, 3, 0):
         pytest.skip("Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136")

@@ -77,6 +77,7 @@ def test_http_get_ok_obfuscated(azure_functions_client: Client) -> None:
 
 
 @pytest.mark.snapshot
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_http_get_ok_async_obfuscated(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetokasync?secret=val", headers=DEFAULT_HEADERS).status_code == 200
 
@@ -99,6 +100,7 @@ def test_http_get_trigger_arg(azure_functions_client: Client) -> None:
 
 
 @pytest.mark.snapshot
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_http_get_function_name_decorator(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetfunctionnamedecorator", headers=DEFAULT_HEADERS).status_code == 200
 

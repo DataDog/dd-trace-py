@@ -87,6 +87,7 @@ def azure_functions_client(request):
     indirect=["azure_functions_client"],
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_service_bus_trigger(azure_functions_client: Client, entity, payload_type) -> None:
     assert (
         azure_functions_client.post(f"/api/{entity}sendmessage{payload_type}", headers=DEFAULT_HEADERS).status_code

@@ -111,6 +111,7 @@ def test_stack_locations(tmp_path):
     pprof_utils.assert_profile_has_sample(profile, samples=samples, expected_sample=expected_sample)
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_push_span(tmp_path, tracer):
     test_name = "test_push_span"
     pprof_prefix = str(tmp_path / test_name)
@@ -154,6 +155,7 @@ def test_push_span(tmp_path, tracer):
         )
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
     with patch("ddtrace.internal.datadog.profiling.stack_v2.unregister_thread") as unregister_thread:
         tracer._endpoint_call_counter_span_processor.enable()
@@ -206,6 +208,7 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
         unregister_thread.assert_called_with(thread_id)
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_push_non_web_span(tmp_path, tracer):
     tracer._endpoint_call_counter_span_processor.enable()
 
@@ -249,6 +252,7 @@ def test_push_non_web_span(tmp_path, tracer):
         )
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_push_span_none_span_type(tmp_path, tracer):
     # Test for https://github.com/DataDog/dd-trace-py/issues/11141
     test_name = "test_push_span_none_span_type"

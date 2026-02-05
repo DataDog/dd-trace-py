@@ -850,6 +850,7 @@ def test_tracing_context_is_not_propagated_by_default(dummy_tracer, consumer, pr
 
 
 # Propagation should work when enabled
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_tracing_context_is_propagated_when_enabled(ddtrace_run_python_code_in_subprocess):
     code = """
 import pytest

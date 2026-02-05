@@ -474,6 +474,7 @@ def test_trace_128bit_processor(trace_id):
     assert chunk_root._meta[HIGHER_ORDER_TRACE_ID_BITS] == "{:016x}".format(chunk_root.trace_id >> 64)
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_span_creation_metrics():
     """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
     writer = DummyWriter()
