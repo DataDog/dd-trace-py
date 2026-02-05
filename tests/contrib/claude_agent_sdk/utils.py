@@ -16,6 +16,20 @@ from claude_agent_sdk import UserMessage
 MOCK_MODEL = "claude-sonnet-4-5-20250929"
 
 
+EXPECTED_SYSTEM_MESSAGE_DATA = {
+    "type": "system",
+    "subtype": "init",
+    "cwd": "/test/path",
+    "session_id": "test-session-id",
+    "tools": ["Task", "Bash", "Read", "Write", "Grep"],
+    "mcp_servers": [],
+    "model": MOCK_MODEL,
+    "permissionMode": "default",
+    "apiKeySource": "ANTHROPIC_API_KEY",
+    "claude_code_version": "2.0.62",
+}
+
+
 def create_mock_system_message(
     session_id: str = "test-session-id",
     model: str = MOCK_MODEL,
@@ -23,18 +37,7 @@ def create_mock_system_message(
     """Create a mock SystemMessage for testing (init message with session info)."""
     return SystemMessage(
         subtype="init",
-        data={
-            "type": "system",
-            "subtype": "init",
-            "cwd": "/test/path",
-            "session_id": session_id,
-            "tools": ["Task", "Bash", "Read", "Write", "Grep"],
-            "mcp_servers": [],
-            "model": model,
-            "permissionMode": "default",
-            "apiKeySource": "ANTHROPIC_API_KEY",
-            "claude_code_version": "2.0.62",
-        },
+        data=EXPECTED_SYSTEM_MESSAGE_DATA,
     )
 
 
@@ -179,14 +182,7 @@ EXPECTED_QUERY_USAGE = {
 
 # mocked client messages are in a raw format compared to normal query responses
 MOCK_CLIENT_RAW_MESSAGES = [
-    {
-        "type": "system",
-        "subtype": "init",
-        "cwd": "/test/path",
-        "session_id": "test-session-id",
-        "tools": ["Task", "Bash", "Read"],
-        "model": MOCK_MODEL,
-    },
+    EXPECTED_SYSTEM_MESSAGE_DATA,
     {
         "type": "assistant",
         "message": {"content": [{"type": "text", "text": "4"}], "model": MOCK_MODEL},

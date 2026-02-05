@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE
+from tests.contrib.claude_agent_sdk.utils import EXPECTED_SYSTEM_MESSAGE_DATA
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
@@ -27,7 +28,16 @@ class TestLLMObsClaudeAgentSdk:
             span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
-            output_value=safe_json([{"content": "4", "role": "assistant"}]),
+            output_value=safe_json(
+                [
+                    {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {"content": "4", "role": "assistant"},
+                    {"content": "4", "role": "system"},
+                ]
+            ),
             metadata={},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
@@ -49,7 +59,16 @@ class TestLLMObsClaudeAgentSdk:
             span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
-            output_value=safe_json([{"content": "4", "role": "assistant"}]),
+            output_value=safe_json(
+                [
+                    {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {"content": "4", "role": "assistant"},
+                    {"content": "4", "role": "system"},
+                ]
+            ),
             metadata={"max_turns": 3},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
@@ -99,7 +118,15 @@ class TestLLMObsClaudeAgentSdk:
             span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
-            output_value=safe_json([{"content": "4", "role": "assistant"}]),
+            output_value=safe_json(
+                [
+                    {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {"content": "4", "role": "assistant"}
+                ]
+            ),
             metadata={
                 "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
                 "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
@@ -133,6 +160,10 @@ class TestLLMObsClaudeAgentSdk:
             output_value=safe_json(
                 [
                     {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {
                         "content": "",
                         "role": "assistant",
                         "tool_calls": [
@@ -143,7 +174,8 @@ class TestLLMObsClaudeAgentSdk:
                                 "type": "tool_use",
                             }
                         ],
-                    }
+                    },
+                    {"content": "4", "role": "system"},
                 ]
             ),
             metadata={},
@@ -170,6 +202,10 @@ class TestLLMObsClaudeAgentSdk:
             output_value=safe_json(
                 [
                     {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {
                         "content": "",
                         "role": "assistant",
                         "tool_calls": [
@@ -180,7 +216,8 @@ class TestLLMObsClaudeAgentSdk:
                                 "type": "tool_use",
                             }
                         ],
-                    }
+                    },
+                    {"content": "4", "role": "system"},
                 ]
             ),
             metadata={},
@@ -207,6 +244,10 @@ class TestLLMObsClaudeAgentSdk:
             output_value=safe_json(
                 [
                     {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {
                         "content": "",
                         "role": "assistant",
                         "tool_calls": [
@@ -217,7 +258,8 @@ class TestLLMObsClaudeAgentSdk:
                                 "type": "tool_use",
                             }
                         ],
-                    }
+                    },
+                    {"content": "4", "role": "system"},
                 ]
             ),
             metadata={},

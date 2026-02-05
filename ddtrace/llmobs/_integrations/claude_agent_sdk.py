@@ -19,9 +19,10 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _get_attr, safe_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
+from ddtrace.llmobs.types import ToolResult
 from ddtrace.trace import Span
 
 
@@ -164,6 +165,54 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     def _extract_input_messages(self, prompt: str) -> List[Message]:
         return [Message(content=prompt, role="user")]
 
+    def _parse_content_blocks(self, content: Any, role: str) -> List[Message]:
+        """Parses content which can be a string or a list of content blocks 
+        (TextBlock, ToolUseBlock, etc.) into a list of messages.
+        """
+        messages: List[Message] = []
+
+        if isinstance(content, str):
+            messages.append(Message(content=content, role=role))
+            return messages
+
+        if not isinstance(content, list):
+            return messages
+
+        for block in content:
+            block_type = type(block).__name__
+            if block_type == "TextBlock":
+                text = _get_attr(block, "text", "") or ""
+                messages.append(Message(content=str(text), role=role))
+            elif block_type == "ThinkingBlock":
+                thinking = _get_attr(block, "thinking", "") or ""
+                messages.append(Message(content=str(thinking), role=role))
+            elif block_type == "ToolUseBlock":
+                tool_name = _get_attr(block, "name", "unknown_tool")
+                tool_id = _get_attr(block, "id", "")
+                tool_input = _get_attr(block, "input", {})
+                tool_call = ToolCall(
+                    name=str(tool_name),
+                    arguments=tool_input if isinstance(tool_input, dict) else {},
+                    tool_id=str(tool_id),
+                    type="tool_use",
+                )
+                messages.append(Message(content="", role=role, tool_calls=[tool_call]))
+            elif block_type == "ToolResultBlock":
+                tool_use_id = _get_attr(block, "tool_use_id", "")
+                result_content = _get_attr(block, "content", "")
+                if isinstance(result_content, str):
+                    formatted_result = result_content
+                else:
+                    formatted_result = safe_json(result_content) or str(result_content)
+                tool_result = ToolResult(
+                    result=formatted_result,
+                    tool_id=str(tool_use_id),
+                    type="tool_result",
+                )
+                messages.append(Message(content="", role=role, tool_results=[tool_result]))
+
+        return messages
+
     def _extract_output_data(self, response: Any) -> Tuple[List[Message], Dict[str, int]]:
         output_messages: List[Message] = []
         metrics: Dict[str, int] = {}
@@ -174,28 +223,22 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         for msg in response:
             msg_type = type(msg).__name__
             if msg_type == "AssistantMessage":
-                content_blocks = _get_attr(msg, "content", []) or []
-                if not isinstance(content_blocks, list):
-                    continue
-                for block in content_blocks:
-                    block_type = type(block).__name__
-                    if block_type == "TextBlock":
-                        text = _get_attr(block, "text", "")
-                        if text:
-                            output_messages.append(Message(content=str(text), role="assistant"))
-                    elif block_type == "ToolUseBlock":
-                        tool_name = _get_attr(block, "name", "unknown_tool")
-                        tool_id = _get_attr(block, "id", "")
-                        tool_input = _get_attr(block, "input", {})
-                        tool_call = ToolCall(
-                            name=str(tool_name),
-                            arguments=tool_input if isinstance(tool_input, dict) else {},
-                            tool_id=str(tool_id),
-                            type="tool_use",
-                        )
-                        output_messages.append(Message(content="", role="assistant", tool_calls=[tool_call]))
-            elif msg_type == "ResultMessage" and not metrics:
-                metrics = self._extract_result_message(msg)
+                content = _get_attr(msg, "content", []) or []
+                output_messages.extend(self._parse_content_blocks(content, "assistant"))
+            elif msg_type == "SystemMessage":
+                data = _get_attr(msg, "data", {}) or {}
+                if data:
+                    content = safe_json(data) or ""
+                    output_messages.append(Message(content=content, role="system"))
+            elif msg_type == "UserMessage":
+                content = _get_attr(msg, "content", "") or ""
+                output_messages.extend(self._parse_content_blocks(content, "user"))
+            elif msg_type == "ResultMessage":
+                if not metrics:
+                    metrics = self._extract_result_message(msg)
+                result = _get_attr(msg, "result", "") or ""
+                if result:
+                    output_messages.append(Message(content=str(result), role="system"))
 
         return output_messages or [Message(content="")], metrics
 
