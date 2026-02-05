@@ -11,6 +11,7 @@ log = get_logger(__name__)
 class ENDPOINT(str, Enum):
     TEST_CYCLE = "test_cycle"
     CODE_COVERAGE = "code_coverage"
+    COVERAGE_REPORT = "coverage_report"
 
 
 class ENDPOINT_PAYLOAD_TELEMETRY(str, Enum):

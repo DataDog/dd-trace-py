@@ -316,19 +316,25 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn = get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
+                # Merge client headers with request headers
+                final_headers = {}
+                if hasattr(client, "_headers") and client._headers:
+                    final_headers.update(client._headers)
+                final_headers.update(headers)
+
                 _safelog(
                     log.debug,
                     "Sending request: Method=%s Endpoint=%s Headers=%s PayloadSize=%s",
                     self.HTTP_METHOD,
                     client.ENDPOINT,
-                    headers,
+                    final_headers,
                     _human_size(len(data)),
                 )
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
                     data,
-                    headers,
+                    final_headers,
                 )
                 resp = self._conn.getresponse()
                 t = sw.elapsed()

@@ -4,11 +4,9 @@ import gzip
 import json
 import logging
 from pathlib import Path
-import time
 import typing as t
 import uuid
 
-from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -376,77 +374,6 @@ class APIClient:
 
         return skippable_items, correlation_id
 
-    def _create_coverage_report_event(
-        self, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
-    ) -> t.Dict[str, t.Any]:
-        """
-        Create the event JSON for the coverage report upload with git and CI tags.
-
-        Args:
-            coverage_format: The format of the coverage report
-            tags: Optional additional tags to include
-
-        Returns:
-            Event dictionary with type, format, and all available git/CI tags
-        """
-        event: t.Dict[str, t.Any] = {
-            "type": "coverage_report",
-            "format": coverage_format,
-            "timestamp": int(time.time() * 1000),  # FIXME: Is this needed?
-        }
-
-        # Add any custom tags provided
-        if tags:
-            event.update(tags)
-
-        # Add git tags from env_tags
-        git_tags = [
-            GitTag.REPOSITORY_URL,
-            GitTag.COMMIT_SHA,
-            GitTag.BRANCH,
-            GitTag.TAG,
-            GitTag.COMMIT_MESSAGE,
-            GitTag.COMMIT_AUTHOR_NAME,
-            GitTag.COMMIT_AUTHOR_EMAIL,
-            GitTag.COMMIT_AUTHOR_DATE,
-            GitTag.COMMIT_COMMITTER_NAME,
-            GitTag.COMMIT_COMMITTER_EMAIL,
-            GitTag.COMMIT_COMMITTER_DATE,
-        ]
-
-        for git_tag in git_tags:
-            if git_tag in self.env_tags:
-                event[git_tag] = self.env_tags[git_tag]
-
-        # Warn if Git repository URL is missing
-        if GitTag.REPOSITORY_URL not in self.env_tags:
-            log.warning("Git repository URL not available for coverage report upload")
-
-        # Add CI tags from env_tags
-        ci_tags = [
-            CITag.PROVIDER_NAME,
-            CITag.PIPELINE_ID,
-            CITag.PIPELINE_NAME,
-            CITag.PIPELINE_NUMBER,
-            CITag.PIPELINE_URL,
-            CITag.JOB_NAME,
-            CITag.JOB_URL,
-            CITag.STAGE_NAME,
-            CITag.WORKSPACE_PATH,
-            CITag.NODE_NAME,
-            CITag.NODE_LABELS,
-        ]
-
-        for ci_tag in ci_tags:
-            if ci_tag in self.env_tags:
-                event[ci_tag] = self.env_tags[ci_tag]
-
-        # Add PR number if available
-        if "git.pull_request.number" in self.env_tags:
-            event["pr.number"] = self.env_tags["git.pull_request.number"]
-
-        return event
-
     def upload_coverage_report(
         self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
     ) -> bool:
@@ -480,8 +407,21 @@ class APIClient:
                 "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
             )
 
+            # Warn if Git repository URL is missing
+            if GitTag.REPOSITORY_URL not in self.env_tags:
+                log.warning("Git repository URL not available for coverage report upload")
+
             # Create the event payload with git and CI tags
-            event_data = self._create_coverage_report_event(coverage_format, tags)
+            from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
+
+            all_tags = dict(self.env_tags)
+            if tags:
+                all_tags.update(tags)
+
+            event_data = create_coverage_report_event(
+                coverage_format=coverage_format,
+                tags=all_tags,
+            )
 
             # Debug log the event payload to diagnose 400 errors
             log.debug("Coverage report event payload: %s", json.dumps(event_data, indent=2))
