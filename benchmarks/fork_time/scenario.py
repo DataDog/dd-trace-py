@@ -33,7 +33,31 @@ class ForkTime(bm.Scenario):
     def _pyperf(self, loops: int) -> float:
         return self.run_fork(loops)
 
+    def _setup_flask(self):
+        from flask import Flask
+        try:
+            app = Flask(__name__)  # noqa: F841
+
+            @app.route("/")
+            def hello():
+                return "Hello"
+
+            try:
+                import requests  # noqa: F401
+            except ImportError:
+                pass
+
+            try:
+                import pymongo  # noqa: F401
+            except ImportError:
+                pass
+
+        except ImportError:
+            pass
+
+
     def run_fork(self, loops: int) -> float:
+
         if self.configure:
             os.environ["DD_TRACE_ENABLED"] = "true"
             os.environ["DD_SERVICE"] = "fork-benchmark"
@@ -41,29 +65,8 @@ class ForkTime(bm.Scenario):
 
             import ddtrace.auto
 
-            try:
-                from flask import Flask
+        self._setup_flask()
 
-                app = Flask(__name__)  # noqa: F841
-
-                @app.route("/")
-                def hello():
-                    return "Hello"
-
-                try:
-                    import requests  # noqa: F401
-                except ImportError:
-                    pass
-
-                try:
-                    import pymongo  # noqa: F401
-                except ImportError:
-                    pass
-
-            except ImportError:
-                pass
-
-        # Yield fork overhead for each iteration
         total = 0.0
         for _ in range(loops):
             parent_conn, child_conn = multiprocessing.Pipe()
