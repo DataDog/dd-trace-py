@@ -95,6 +95,7 @@ def mock_internal_client_grep_tool(claude_agent_sdk):
     with _create_mock_internal_client(MOCK_GREP_TOOL_RESPONSE_SEQUENCE):
         yield
 
+
 @pytest.fixture
 def mock_internal_client_error(claude_agent_sdk):
     async def mock_process_query_error(self, prompt, options, transport=None):
@@ -127,6 +128,7 @@ def mock_client(claude_agent_sdk):
     client._transport = mock_transport
 
     return client
+
 
 @pytest.fixture
 def mock_client_error(claude_agent_sdk):

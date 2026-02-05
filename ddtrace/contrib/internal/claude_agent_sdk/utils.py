@@ -23,6 +23,7 @@ async def _retrieve_context(instance):
         if instance is not None:
             instance._dd_internal_context_query = False
 
+
 def _extract_model_from_response(response: List[Any]) -> str:
     if not response or not isinstance(response, list):
         return ""

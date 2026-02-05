@@ -90,7 +90,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         if not context_messages or not isinstance(context_messages, list):
             return result
-        
+
         try:
             # Find the UserMessage containing the context table
             for msg in context_messages:

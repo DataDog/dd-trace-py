@@ -34,9 +34,7 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    async def test_llmobs_query_with_options(
-        self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans
-    ):
+    async def test_llmobs_query_with_options(self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans):
         prompt = "Test prompt with options"
         options = claude_agent_sdk.ClaudeAgentOptions(max_turns=3)
 
@@ -86,9 +84,7 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    async def test_llmobs_client_query_captures_prompt(
-        self, mock_client, llmobs_events, test_spans
-    ):
+    async def test_llmobs_client_query_captures_prompt(self, mock_client, llmobs_events, test_spans):
         prompt = "Hello from client!"
 
         await mock_client.query(prompt=prompt)
@@ -229,4 +225,3 @@ class TestLLMObsClaudeAgentSdk:
         )
 
         assert llmobs_events[0] == expected_event
-
