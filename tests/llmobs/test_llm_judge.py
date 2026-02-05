@@ -4,31 +4,31 @@ import json
 
 import pytest
 
-from ddtrace.llmobs._evaluators.llm_judge import BooleanOutput
-from ddtrace.llmobs._evaluators.llm_judge import CategoricalOutput
+from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
-from ddtrace.llmobs._evaluators.llm_judge import ScoreOutput
+from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
 
 class TestStructuredOutputTypes:
     def test_boolean_output_schema(self):
-        output = BooleanOutput("Correctness check", reasoning=True)
+        output = BooleanStructuredOutput("Correctness check", reasoning=True)
         schema = output.to_json_schema()
         assert output.label == "boolean_eval"
         assert schema["properties"]["boolean_eval"]["type"] == "boolean"
         assert "reasoning" in schema["properties"]
 
     def test_score_output_schema(self):
-        output = ScoreOutput("Quality", min_score=0.0, max_score=1.0, reasoning=True)
+        output = ScoreStructuredOutput("Quality", min_score=0.0, max_score=1.0, reasoning=True)
         schema = output.to_json_schema()
         assert output.label == "score_eval"
         assert schema["properties"]["score_eval"]["minimum"] == 0.0
         assert schema["properties"]["score_eval"]["maximum"] == 1.0
 
     def test_categorical_output_schema(self):
-        output = CategoricalOutput("Sentiment", categories=["pos", "neg"])
+        output = CategoricalStructuredOutput("Sentiment", categories=["pos", "neg"])
         schema = output.to_json_schema()
         assert output.label == "categorical_eval"
         assert schema["properties"]["categorical_eval"]["enum"] == ["pos", "neg"]
@@ -52,7 +52,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Evaluate: {{output_data}}",
-            structured_output=BooleanOutput("Correctness", reasoning=True, pass_when=True),
+            structured_output=BooleanStructuredOutput("Correctness", reasoning=True, pass_when=True),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
 
@@ -69,7 +69,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Evaluate: {{output_data}}",
-            structured_output=BooleanOutput("Correctness", pass_when=True),
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
 
@@ -84,7 +84,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Rate: {{output_data}}",
-            structured_output=ScoreOutput("Quality", min_score=0.0, max_score=1.0, min_threshold=0.7),
+            structured_output=ScoreStructuredOutput("Quality", min_score=0.0, max_score=1.0, min_threshold=0.7),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
 
@@ -99,7 +99,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Rate: {{output_data}}",
-            structured_output=ScoreOutput("Quality", min_score=0.0, max_score=1.0, min_threshold=0.7),
+            structured_output=ScoreStructuredOutput("Quality", min_score=0.0, max_score=1.0, min_threshold=0.7),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
 
@@ -114,7 +114,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Classify: {{output_data}}",
-            structured_output=CategoricalOutput(
+            structured_output=CategoricalStructuredOutput(
                 "Sentiment", categories=["positive", "negative"], pass_values=["positive"]
             ),
         )
@@ -182,7 +182,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Evaluate: {{output_data}}",
-            structured_output=BooleanOutput("Check"),
+            structured_output=BooleanStructuredOutput("Check"),
         )
         with pytest.raises(ValueError, match="Invalid JSON"):
             judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
@@ -195,7 +195,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Evaluate: {{output_data}}",
-            structured_output=BooleanOutput("Check"),
+            structured_output=BooleanStructuredOutput("Check"),
         )
         with pytest.raises(ValueError, match="Expected boolean"):
             judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
@@ -212,7 +212,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Evaluate: {{output_data}}",
-            structured_output=BooleanOutput("Check"),  # No pass_when, reasoning=False
+            structured_output=BooleanStructuredOutput("Check"),  # No pass_when, reasoning=False
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None

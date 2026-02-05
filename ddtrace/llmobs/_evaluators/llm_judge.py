@@ -1,3 +1,5 @@
+from abc import ABC
+from abc import abstractmethod
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
@@ -28,8 +30,37 @@ class LLMClient(Protocol):
     ) -> str: ...
 
 
+class BaseStructuredOutput(ABC):
+    """Abstract base class for LLM Judge structured outputs."""
+
+    description: str
+    reasoning: bool
+    reasoning_description: Optional[str]
+
+    @property
+    @abstractmethod
+    def label(self) -> str:
+        """Return the label key for the evaluation result."""
+
+    @abstractmethod
+    def to_json_schema(self) -> Dict[str, Any]:
+        """Return the JSON schema for structured output."""
+
+    def _build_schema(self, label_schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Build JSON schema with the label property and optional reasoning."""
+        properties: Dict[str, Any] = {self.label: label_schema}
+        required = [self.label]
+        if self.reasoning:
+            properties["reasoning"] = {
+                "type": "string",
+                "description": self.reasoning_description or "Explanation for the evaluation result",
+            }
+            required.append("reasoning")
+        return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+
+
 @dataclass
-class BooleanOutput:
+class BooleanStructuredOutput(BaseStructuredOutput):
     """Represents a Boolean LLM Judge structured output."""
 
     description: str
@@ -42,19 +73,11 @@ class BooleanOutput:
         return "boolean_eval"
 
     def to_json_schema(self) -> Dict[str, Any]:
-        properties: Dict[str, Any] = {self.label: {"type": "boolean", "description": self.description}}
-        required = [self.label]
-        if self.reasoning:
-            properties["reasoning"] = {
-                "type": "string",
-                "description": self.reasoning_description or "Explanation for the evaluation result",
-            }
-            required.append("reasoning")
-        return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+        return self._build_schema({"type": "boolean", "description": self.description})
 
 
 @dataclass
-class ScoreOutput:
+class ScoreStructuredOutput(BaseStructuredOutput):
     """Represents a Score LLM Judge structured output."""
 
     description: str
@@ -70,26 +93,18 @@ class ScoreOutput:
         return "score_eval"
 
     def to_json_schema(self) -> Dict[str, Any]:
-        properties: Dict[str, Any] = {
-            self.label: {
+        return self._build_schema(
+            {
                 "type": "number",
                 "description": self.description,
                 "minimum": self.min_score,
                 "maximum": self.max_score,
             }
-        }
-        required = [self.label]
-        if self.reasoning:
-            properties["reasoning"] = {
-                "type": "string",
-                "description": self.reasoning_description or "Explanation for the evaluation result",
-            }
-            required.append("reasoning")
-        return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+        )
 
 
 @dataclass
-class CategoricalOutput:
+class CategoricalStructuredOutput(BaseStructuredOutput):
     """Represents a Categorical LLM Judge structured output."""
 
     description: str
@@ -103,20 +118,12 @@ class CategoricalOutput:
         return "categorical_eval"
 
     def to_json_schema(self) -> Dict[str, Any]:
-        properties: Dict[str, Any] = {
-            self.label: {"type": "string", "description": self.description, "enum": self.categories}
-        }
-        required = [self.label]
-        if self.reasoning:
-            properties["reasoning"] = {
-                "type": "string",
-                "description": self.reasoning_description or "Explanation for the evaluation result",
-            }
-            required.append("reasoning")
-        return {"type": "object", "properties": properties, "required": required, "additionalProperties": False}
+        return self._build_schema({"type": "string", "description": self.description, "enum": self.categories})
 
 
-StructuredOutput = Union[BooleanOutput, ScoreOutput, CategoricalOutput, Dict[str, JSONType]]
+StructuredOutput = Union[
+    BooleanStructuredOutput, ScoreStructuredOutput, CategoricalStructuredOutput, Dict[str, JSONType]
+]
 
 
 def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
@@ -246,9 +253,9 @@ class LLMJudge(BaseEvaluator):
         evaluation criteria.
 
         Supported Output Types:
-            - ``BooleanOutput``: Returns True/False with optional pass/fail assessment.
-            - ``ScoreOutput``: Returns a numeric score within a defined range with optional thresholds.
-            - ``CategoricalOutput``: Returns one of predefined categories with optional pass values.
+            - ``BooleanStructuredOutput``: Returns True/False with optional pass/fail assessment.
+            - ``ScoreStructuredOutput``: Returns a numeric score within a defined range with optional thresholds.
+            - ``CategoricalStructuredOutput``: Returns one of predefined categories with optional pass values.
             - ``Dict[str, JSONType]``: Custom JSON schema for arbitrary structured responses.
 
         Template Variables:
@@ -263,8 +270,8 @@ class LLMJudge(BaseEvaluator):
                 to inject span context.
             system_prompt: Optional system prompt to set judge behavior/persona. Does not
                 support template variables.
-            structured_output: Output format specification (BooleanOutput, ScoreOutput,
-                CategoricalOutput, or a custom JSON schema dict).
+            structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
+                CategoricalStructuredOutput, or a custom JSON schema dict).
             provider: LLM provider to use (``"openai"`` or ``"anthropic"``). Required if
                 ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
@@ -287,7 +294,7 @@ class LLMJudge(BaseEvaluator):
                     provider="openai",
                     model="gpt-5-mini",
                     user_prompt="Is this response factually accurate? Response: {{output_data}}",
-                    structured_output=BooleanOutput(
+                    structured_output=BooleanStructuredOutput(
                         description="Whether the response is factually accurate",
                         reasoning=True,
                         pass_when=True,
@@ -300,7 +307,7 @@ class LLMJudge(BaseEvaluator):
                     provider="anthropic",
                     model="claude-haiku-4-5-20250514",
                     user_prompt="Rate the helpfulness of this response (1-10): {{output_data}}",
-                    structured_output=ScoreOutput(
+                    structured_output=ScoreStructuredOutput(
                         description="Helpfulness score",
                         min_score=1,
                         max_score=10,
@@ -314,7 +321,7 @@ class LLMJudge(BaseEvaluator):
                     provider="openai",
                     model="gpt-5-mini",
                     user_prompt="Classify the sentiment: {{output_data}}",
-                    structured_output=CategoricalOutput(
+                    structured_output=CategoricalStructuredOutput(
                         description="Sentiment classification",
                         categories=["positive", "neutral", "negative"],
                         pass_values=["positive", "neutral"],
@@ -426,13 +433,13 @@ class LLMJudge(BaseEvaluator):
         label = getattr(structured_output, "label", None)
         result = data.get(label) if label else data
 
-        if isinstance(structured_output, BooleanOutput):
+        if isinstance(structured_output, BooleanStructuredOutput):
             if not isinstance(result, bool):
                 raise ValueError(f"Expected boolean, got {type(result).__name__}")
-        elif isinstance(structured_output, ScoreOutput):
+        elif isinstance(structured_output, ScoreStructuredOutput):
             if not isinstance(result, (int, float)):
                 raise ValueError(f"Expected number, got {type(result).__name__}")
-        elif isinstance(structured_output, CategoricalOutput):
+        elif isinstance(structured_output, CategoricalStructuredOutput):
             if not isinstance(result, str):
                 raise ValueError(f"Expected string, got {type(result).__name__}")
 
@@ -456,19 +463,19 @@ class LLMJudge(BaseEvaluator):
             "pass" or "fail" if thresholds are configured, None otherwise.
 
         Note:
-            For ScoreOutput with both min_threshold and max_threshold:
+            For ScoreStructuredOutput with both min_threshold and max_threshold:
             - If max >= min: inclusive range, pass if min <= result <= max
             - If max < min: exclusive range, pass if result < max OR result > min
         """
         structured_output = self._structured_output
 
-        if isinstance(structured_output, BooleanOutput) and structured_output.pass_when is not None:
+        if isinstance(structured_output, BooleanStructuredOutput) and structured_output.pass_when is not None:
             return "pass" if result == structured_output.pass_when else "fail"
 
-        if isinstance(structured_output, CategoricalOutput) and structured_output.pass_values is not None:
+        if isinstance(structured_output, CategoricalStructuredOutput) and structured_output.pass_values is not None:
             return "pass" if result in structured_output.pass_values else "fail"
 
-        if isinstance(structured_output, ScoreOutput):
+        if isinstance(structured_output, ScoreStructuredOutput):
             min_t, max_t = structured_output.min_threshold, structured_output.max_threshold
             if min_t is not None and max_t is not None:
                 if max_t >= min_t:
