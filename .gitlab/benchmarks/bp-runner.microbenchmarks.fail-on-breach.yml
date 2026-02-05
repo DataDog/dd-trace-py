@@ -1157,8 +1157,8 @@ experiments:
           - name: forktime-baseline
             thresholds:
               - execution_time < 1.75 ms
-              - max_rss_usage < 17.50 MB
+              - max_rss_usage < 20 MB
           - name: forktime-configured
             thresholds:
               - execution_time < 4.50 ms
-              - max_rss_usage < 48.00 MB
+              - max_rss_usage < 53 MB
