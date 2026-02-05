@@ -3,7 +3,10 @@
 import json
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
@@ -35,7 +38,8 @@ class LengthValidator(BaseEvaluator):
     :param min_length: Minimum allowed length (inclusive), None for no minimum
     :param max_length: Maximum allowed length (inclusive), None for no maximum
     :param count_type: What to count - 'characters', 'words', or 'lines'
-    :param output_extractor: Optional function to extract/transform output_data before validation (default: None)
+    :param output_extractor: Optional function to extract/transform output_data before validation.
+                             Must return a str or None. (default: None)
     :param name: Optional custom name for the evaluator
     """
 
@@ -44,7 +48,7 @@ class LengthValidator(BaseEvaluator):
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
         count_type: str = "characters",
-        output_extractor: Optional[Callable[[Any], Any]] = None,
+        output_extractor: Optional[Callable[[Any], Optional[str]]] = None,
         name: Optional[str] = None,
     ):
         """Initialize the LengthValidator evaluator.
@@ -52,7 +56,8 @@ class LengthValidator(BaseEvaluator):
         :param min_length: Minimum allowed length (None for no minimum)
         :param max_length: Maximum allowed length (None for no maximum)
         :param count_type: One of 'characters', 'words', or 'lines'
-        :param output_extractor: Optional function to extract/transform output_data before validation
+        :param output_extractor: Optional function to extract/transform output_data before validation.
+                                 Must return a str or None.
         :param name: Optional custom name for the evaluator
         :raises ValueError: If count_type is invalid or min > max
         """
@@ -146,20 +151,22 @@ class JSONValidator(BaseEvaluator):
         # Validates the "response" field as JSON
 
     :param required_keys: Optional list of keys that must be present in the JSON object
-    :param output_extractor: Optional function to extract/transform output_data before validation (default: None)
+    :param output_extractor: Optional function to extract/transform output_data before validation.
+                             Must return a str, dict, list, or None. (default: None)
     :param name: Optional custom name for the evaluator
     """
 
     def __init__(
         self,
         required_keys: Optional[list] = None,
-        output_extractor: Optional[Callable[[Any], Any]] = None,
+        output_extractor: Optional[Callable[[Any], Union[str, Dict, List, None]]] = None,
         name: Optional[str] = None,
     ):
         """Initialize the JSONValidator evaluator.
 
         :param required_keys: List of keys that must be present in the parsed JSON
-        :param output_extractor: Optional function to extract/transform output_data before validation
+        :param output_extractor: Optional function to extract/transform output_data before validation.
+                                 Must return a str, dict, list, or None.
         :param name: Optional custom name for the evaluator
         """
         super().__init__(name=name)

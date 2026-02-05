@@ -52,10 +52,10 @@ class StringCheck(BaseEvaluator):
     :param operation: String comparison operation: 'eq', 'ne', 'contains', 'icontains' (default: 'eq')
     :param case_sensitive: Whether to perform case-sensitive comparison (default: True, ignored for 'icontains')
     :param strip_whitespace: Whether to strip leading/trailing whitespace before comparison (default: False)
-    :param output_extractor: Optional function to extract/transform output_data before comparison
-                             (default: None)
+    :param output_extractor: Optional function to extract/transform output_data before comparison.
+                             Must return a str or None. (default: None)
     :param expected_output_extractor: Optional function to extract/transform expected_output before
-                                      comparison (default: None)
+                                      comparison. Must return a str or None. (default: None)
     :param name: Optional custom name for the evaluator
     """
 
@@ -66,8 +66,8 @@ class StringCheck(BaseEvaluator):
         operation: str = "eq",
         case_sensitive: bool = True,
         strip_whitespace: bool = False,
-        output_extractor: Optional[Callable[[Any], Any]] = None,
-        expected_output_extractor: Optional[Callable[[Any], Any]] = None,
+        output_extractor: Optional[Callable[[Any], Optional[str]]] = None,
+        expected_output_extractor: Optional[Callable[[Any], Optional[str]]] = None,
         name: Optional[str] = None,
     ):
         """Initialize the StringCheck evaluator.
@@ -75,8 +75,10 @@ class StringCheck(BaseEvaluator):
         :param operation: String comparison operation: 'eq', 'ne', 'contains', 'icontains'
         :param case_sensitive: Whether to perform case-sensitive comparison
         :param strip_whitespace: Whether to strip whitespace before comparison
-        :param output_extractor: Optional function to extract/transform output_data before comparison
-        :param expected_output_extractor: Optional function to extract/transform expected_output before comparison
+        :param output_extractor: Optional function to extract/transform output_data before comparison.
+                                 Must return a str or None.
+        :param expected_output_extractor: Optional function to extract/transform expected_output before
+                                          comparison. Must return a str or None.
         :param name: Optional custom name for the evaluator
         :raises ValueError: If operation is invalid
         """
@@ -168,7 +170,8 @@ class RegexMatch(BaseEvaluator):
     :param pattern: The regex pattern to match against
     :param match_mode: How to match - 'search' (partial), 'match' (from start), or 'fullmatch' (entire string)
     :param flags: Optional regex flags (e.g., re.IGNORECASE)
-    :param output_extractor: Optional function to extract/transform output_data before matching (default: None)
+    :param output_extractor: Optional function to extract/transform output_data before matching.
+                             Must return a str or None. (default: None)
     :param name: Optional custom name for the evaluator
     """
 
@@ -177,7 +180,7 @@ class RegexMatch(BaseEvaluator):
         pattern: str,
         match_mode: str = "search",
         flags: int = 0,
-        output_extractor: Optional[Callable[[Any], Any]] = None,
+        output_extractor: Optional[Callable[[Any], Optional[str]]] = None,
         name: Optional[str] = None,
     ):
         """Initialize the RegexMatch evaluator.
@@ -185,7 +188,8 @@ class RegexMatch(BaseEvaluator):
         :param pattern: The regex pattern string
         :param match_mode: One of 'search', 'match', or 'fullmatch'
         :param flags: Regex flags (e.g., re.IGNORECASE, re.MULTILINE)
-        :param output_extractor: Optional function to extract/transform output_data before matching
+        :param output_extractor: Optional function to extract/transform output_data before matching.
+                                 Must return a str or None.
         :param name: Optional custom name for the evaluator
         :raises ValueError: If match_mode is invalid or pattern is invalid
         """
