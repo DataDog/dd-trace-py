@@ -290,7 +290,6 @@ def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
     for suite_name, suite_config in suites.items():
         # Extract stage from suite name prefix if present
         suite_parts = suite_name.split("::")[-2:]
-        print(suite_parts)
         if len(suite_parts) == 2:
             stage, clean_name = suite_parts
         else:

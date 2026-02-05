@@ -7,7 +7,7 @@ from ruamel.yaml import YAML  # noqa
 
 TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
-SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks::"))
+SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 
 
 def _collect_suitespecs() -> dict:
@@ -19,16 +19,12 @@ def _collect_suitespecs() -> dict:
             specfiles.append((f, root, ns_prefix))
 
     for s, root, ns_prefix in specfiles:
-        try:
-            namespace = "::".join(s.relative_to(root).parts[:-1]) or None
-        except (IndexError, TypeError):
-            namespace = None
-        else:
-            namespace = f"{ns_prefix}{namespace or ''}"
+        path_parts = s.relative_to(root).parts[:-1]
+        namespace = "::".join(path_parts) if path_parts else ns_prefix or None
         with YAML() as yaml:
             data = yaml.load(s)
             suites = data.get("suites", {})
-            if namespace not in (None, ""):
+            if namespace is not None:
                 for name, spec in list(suites.items()):
                     if "pattern" not in spec:
                         spec["pattern"] = name
