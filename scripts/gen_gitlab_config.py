@@ -36,6 +36,7 @@ class BenchmarkSpec:
     pattern: t.Optional[str] = None
     paths: t.Optional[t.Set[str]] = None  # ignored
     skip: bool = False
+    type: str = "benchmark"  # ignored
 
 
 @dataclass
@@ -56,6 +57,7 @@ class JobSpec:
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
     gpu: bool = False
+    type: str = "test"  # ignored
 
     def __str__(self) -> str:
         lines = []
@@ -238,8 +240,8 @@ def gen_required_suites() -> None:
 
 
 def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
-    suites = {k: v for k, v in suites.items() if k.startswith("benchmarks::")}
-    required_suites = [a for a in required_suites if a.startswith("benchmarks::")]
+    suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
+    required_suites = [a for a in required_suites if a in list(suites.keys())]
 
     # Copy the template file
     MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
@@ -277,8 +279,8 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
 
 
 def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
-    suites = {k: v for k, v in suites.items() if k.startswith("tests::")}
-    required_suites = [a for a in required_suites if a.startswith("tests::")]
+    suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
+    required_suites = [a for a in required_suites if a in list(suites.keys())]
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
@@ -287,9 +289,10 @@ def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
         # Extract stage from suite name prefix if present
-        suite_parts = suite_name.split("::")
-        if len(suite_parts) == 3:
-            _, stage, clean_name = suite_parts
+        suite_parts = suite_name.split("::")[-2:]
+        print(suite_parts)
+        if len(suite_parts) == 2:
+            stage, clean_name = suite_parts
         else:
             stage = "core"
             clean_name = suite_parts[-1]

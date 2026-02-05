@@ -24,11 +24,11 @@ def _collect_suitespecs() -> dict:
         except (IndexError, TypeError):
             namespace = None
         else:
-            namespace = f"{ns_prefix}{namespace}"
+            namespace = f"{ns_prefix}{namespace or ''}"
         with YAML() as yaml:
             data = yaml.load(s)
             suites = data.get("suites", {})
-            if namespace is not None:
+            if namespace not in (None, ""):
                 for name, spec in list(suites.items()):
                     if "pattern" not in spec:
                         spec["pattern"] = name
