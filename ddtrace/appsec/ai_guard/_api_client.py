@@ -10,8 +10,6 @@ from typing import TypedDict
 from typing import Union
 
 from ddtrace import config
-from ddtrace import tracer as ddtracer
-from ddtrace._trace.tracer import Tracer
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
@@ -20,6 +18,7 @@ from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.trace import tracer
 from ddtrace.version import __version__
 
 
@@ -97,17 +96,14 @@ class AIGuardAbortError(Exception):
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
-    def __init__(self, endpoint: str, api_key: str, app_key: str, tracer: Tracer):
+    def __init__(self, endpoint: str, api_key: str, app_key: str):
         """Initialize AI Guard client.
 
         Args:
             endpoint: AI Guard service endpoint URL
             api_key: Datadog API key
             app_key: Datadog application key
-            tracer: Datadog tracer instance
         """
-
-        self._tracer = tracer
         self._endpoint = endpoint
         self._headers = {
             "Content-Type": "application/json",
@@ -225,7 +221,7 @@ class AIGuardClient:
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        with self._tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+        with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
@@ -313,7 +309,6 @@ class AIGuardClient:
 
 def new_ai_guard_client(
     endpoint: Optional[str] = None,
-    tracer: Tracer = ddtracer,
 ) -> AIGuardClient:
     api_key = config._dd_api_key
     app_key = config._dd_app_key
@@ -326,4 +321,4 @@ def new_ai_guard_client(
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"
 
-    return AIGuardClient(endpoint, api_key, app_key, tracer)
+    return AIGuardClient(endpoint, api_key, app_key)
