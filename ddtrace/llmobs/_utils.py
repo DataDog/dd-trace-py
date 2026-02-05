@@ -151,6 +151,13 @@ def _validate_prompt(
     if final_query_variable_keys:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
 
+    prompt_uuid = prompt.get("prompt_uuid")
+    version_uuid = prompt.get("prompt_version_uuid")
+    if prompt_uuid:
+        validated_prompt["prompt_uuid"] = prompt_uuid
+    if version_uuid:
+        validated_prompt["prompt_version_uuid"] = version_uuid
+
     return validated_prompt
 
 

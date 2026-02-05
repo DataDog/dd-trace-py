@@ -14,6 +14,8 @@ from tests.utils import override_global_config
 # Mock API responses
 TEXT_PROMPT_RESPONSE = {
     "prompt_id": "greeting",
+    "prompt_uuid": "prompt-uuid-123",
+    "prompt_version_uuid": "version-uuid-456",
     "version": "v1",
     "label": "prod",
     "template": "Hello {name}!",
@@ -21,6 +23,8 @@ TEXT_PROMPT_RESPONSE = {
 
 CHAT_PROMPT_RESPONSE = {
     "prompt_id": "assistant",
+    "prompt_uuid": "chat-uuid-123",
+    "prompt_version_uuid": "chat-version-uuid-456",
     "version": "v2",
     "label": "prod",
     "template": [
@@ -31,6 +35,8 @@ CHAT_PROMPT_RESPONSE = {
 
 DEV_PROMPT_RESPONSE = {
     "prompt_id": "greeting",
+    "prompt_uuid": "dev-prompt-uuid-789",
+    "prompt_version_uuid": "dev-version-uuid-012",
     "version": "dev-v1",
     "label": "dev",
     "template": "DEBUG: Hello {name}!",
@@ -88,6 +94,15 @@ def mock_api(status: int = 200, body: Optional[Union[dict, str]] = None):
     return patch("ddtrace.llmobs._prompts.manager.get_connection", lambda *a, **k: conn)
 
 
+def assert_prompt_matches_response(prompt, response, expected_source):
+    """Assert prompt fields match the API response."""
+    assert prompt.id == response["prompt_id"]
+    assert prompt.version == response["version"]
+    assert prompt.source == expected_source
+    assert prompt._uuid == response.get("prompt_uuid")
+    assert prompt._version_uuid == response.get("prompt_version_uuid")
+
+
 class TestGetPrompt:
     """Core get_prompt functionality - customer use cases."""
 
@@ -97,9 +112,7 @@ class TestGetPrompt:
             prompt = LLMObs.get_prompt("greeting")
 
         assert isinstance(prompt, ManagedPrompt)
-        assert prompt.id == "greeting"
-        assert prompt.version == "v1"
-        assert prompt.source == "registry"
+        assert_prompt_matches_response(prompt, TEXT_PROMPT_RESPONSE, "registry")
         assert prompt.format(name="Alice") == "Hello Alice!"
 
     def test_fetch_and_render_chat_prompt(self):
@@ -107,6 +120,7 @@ class TestGetPrompt:
         with mock_api(200, CHAT_PROMPT_RESPONSE):
             prompt = LLMObs.get_prompt("assistant")
 
+        assert_prompt_matches_response(prompt, CHAT_PROMPT_RESPONSE, "registry")
         messages = prompt.format(persona="helpful assistant", question="What is Python?")
         assert isinstance(messages, list)
         assert len(messages) == 2
@@ -125,12 +139,12 @@ class TestGetPrompt:
         with patch("ddtrace.llmobs._prompts.manager.get_connection", counting_conn):
             prompt1 = LLMObs.get_prompt("greeting")
         assert call_count == 1
-        assert prompt1.source == "registry"
+        assert_prompt_matches_response(prompt1, TEXT_PROMPT_RESPONSE, "registry")
 
         # Second call - no API request
         prompt2 = LLMObs.get_prompt("greeting")
         assert call_count == 1
-        assert prompt2.source == "cache"
+        assert_prompt_matches_response(prompt2, TEXT_PROMPT_RESPONSE, "cache")
 
     def test_label_parameter(self):
         """Different labels fetch different prompt versions."""
@@ -160,6 +174,8 @@ class TestFallback:
             prompt = LLMObs.get_prompt("greeting", fallback="Default: {name}")
 
         assert prompt.source == "fallback"
+        assert prompt._uuid is None
+        assert prompt._version_uuid is None
         assert prompt.format(name="Bob") == "Default: Bob"
 
     def test_chat_fallback_on_404(self):
@@ -284,3 +300,5 @@ class TestAnnotationContext:
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
                 assert prompt_data["variables"] == {"name": "Alice"}
+                assert prompt_data["prompt_uuid"] == "prompt-uuid-123"
+                assert prompt_data["prompt_version_uuid"] == "version-uuid-456"

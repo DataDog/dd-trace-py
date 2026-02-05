@@ -227,6 +227,8 @@ class PromptManager:
                 label=data.get("label", label),
                 source="registry",
                 template=extract_template(data, default=[]),
+                _uuid=data.get("prompt_uuid"),
+                _version_uuid=data.get("prompt_version_uuid"),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
