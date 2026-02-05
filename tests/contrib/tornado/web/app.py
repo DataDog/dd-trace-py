@@ -4,6 +4,8 @@ import time
 import tornado.concurrent
 import tornado.web
 
+from ddtrace.trace import tracer
+
 from . import uimodules
 from .compat import ThreadPoolExecutor
 from .compat import sleep
@@ -29,7 +31,6 @@ class ResponseStatusHandler(tornado.web.RequestHandler):
 class NestedHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.sleep"):
             yield sleep(0.05)
         self.write("OK")
@@ -38,8 +39,6 @@ class NestedHandler(tornado.web.RequestHandler):
 class NestedWrapHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.coro")
@@ -54,8 +53,6 @@ class NestedWrapHandler(tornado.web.RequestHandler):
 class NestedExceptionWrapHandler(tornado.web.RequestHandler):
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.coro")
@@ -116,8 +113,6 @@ class SyncExceptionHandler(tornado.web.RequestHandler):
 
 class SyncNestedWrapHandler(tornado.web.RequestHandler):
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.func")
@@ -130,8 +125,6 @@ class SyncNestedWrapHandler(tornado.web.RequestHandler):
 
 class SyncNestedExceptionWrapHandler(tornado.web.RequestHandler):
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         # define a wrapped coroutine: having an inner coroutine
         # is only for easy testing
         @tracer.wrap("tornado.func")
@@ -158,7 +151,6 @@ class ExecutorHandler(tornado.web.RequestHandler):
 
     @tornado.concurrent.run_on_executor
     def outer_executor(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.with"):
             time.sleep(0.05)
 
@@ -172,7 +164,6 @@ class ExecutorSubmitHandler(tornado.web.RequestHandler):
     executor = ThreadPoolExecutor(max_workers=3)
 
     def query(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.query"):
             time.sleep(0.05)
 
@@ -193,7 +184,6 @@ class ExecutorDelayedHandler(tornado.web.RequestHandler):
         # waiting here means expecting that the `get()` flushes
         # the request trace
         time.sleep(0.01)
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.with"):
             time.sleep(0.05)
 
@@ -217,7 +207,6 @@ try:
             # wait before creating a trace so that we're sure
             # the `tornado.executor.with` span has the right
             # parent
-            tracer = self.settings["datadog_trace"]["tracer"]
             with tracer.trace("tornado.executor.with"):
                 time.sleep(0.05)
 
@@ -257,7 +246,6 @@ class ExecutorExceptionHandler(tornado.web.RequestHandler):
         # the `tornado.executor.with` span has the right
         # parent
         time.sleep(0.05)
-        tracer = self.settings["datadog_trace"]["tracer"]
         with tracer.trace("tornado.executor.with"):
             raise Exception("Ouch!")
 
@@ -273,8 +261,6 @@ class ExecutorWrapHandler(tornado.web.RequestHandler):
 
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         @tracer.wrap("tornado.executor.wrap")
         @tornado.concurrent.run_on_executor
         def outer_executor(self):
@@ -290,8 +276,6 @@ class ExecutorExceptionWrapHandler(tornado.web.RequestHandler):
 
     @tornado.gen.coroutine
     def get(self):
-        tracer = self.settings["datadog_trace"]["tracer"]
-
         @tracer.wrap("tornado.executor.wrap")
         @tornado.concurrent.run_on_executor
         def outer_executor(self):

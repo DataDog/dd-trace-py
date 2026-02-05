@@ -318,7 +318,7 @@ class TestOptPlugin:
         """
         for item in session.items:
             test_ref = item_to_test_ref(item)
-            test_module, test_suite, test = self._discover_test(item, test_ref)
+            self.manager.collected_tests.add(test_ref)
 
         self.manager.finish_collection()
 
