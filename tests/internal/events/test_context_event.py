@@ -1,3 +1,4 @@
+import sys
 from types import TracebackType
 from typing import Optional
 from typing import Tuple
@@ -78,8 +79,12 @@ def test_context_event_double_dispatch():
     assert len(_listeners[f"context.ended.{TestContextEvent.event_name}"].values()) == 1
 
 
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
 def test_context_event_enforce_kwargs_error():
-    """Test that missing required fields raise TypeError."""
+    """Test that missing required fields raise TypeError.
+    On Python 3.9, we create a default value to every attributes because kw_only
+    is not available in dataclass field. Therefore we skip the test
+    """
     called = []
 
     @context_event

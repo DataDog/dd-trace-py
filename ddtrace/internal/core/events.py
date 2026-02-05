@@ -26,7 +26,7 @@ This example shows how ``core.dispatch()`` can be replaced by `core.dispatch_eve
 
 This example shows how ``core.context_with_data()`` can be replaced by `core.context_with_event()`::
 
-    @span_context
+    @context_event
     class TestContextEvent(SpanContextEvent):
         # SpanContextEvent requires this attributes
         event_name = "test.event"
@@ -115,11 +115,14 @@ def context_event(cls: Any) -> Any:
         class MyEvent(SpanContextEvent):
             url: str  # Automatically gets event_field() applied
     """
-    annotations = getattr(cls, "__annotations__", {})
+
+    annotations = cls.__dict__.get("__annotations__", {})
 
     # For each annotated field without a default, set it to event_field()
     for name, _ in annotations.items():
-        if not hasattr(cls, name):
+        # Only apply `event_field()` for fields that don't define a default value
+        # in the class body.
+        if name not in cls.__dict__:
             setattr(cls, name, event_field())
 
     return dataclass(cls)
