@@ -8,6 +8,7 @@ mod ffe;
 mod library_config;
 mod log;
 mod py_string;
+mod rand;
 mod span;
 
 use pyo3::prelude::*;
@@ -37,6 +38,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
     data_pipeline::register_data_pipeline(m)?;
+    rand::register_rand(m)?;
     span::register_native_span(m)?;
 
     // Add FFE submodule

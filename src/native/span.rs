@@ -71,6 +71,7 @@ impl SpanLinkData {
 #[derive(Default)]
 pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
+    span_id: u64,
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -97,12 +98,15 @@ fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
 impl SpanData {
     #[new]
     #[allow(unused_variables)]
-    #[pyo3(signature = (name, service=None, resource=None, *args, **kwargs))]
+    #[pyo3(signature = (name, service=None, resource=None, span_type=None, trace_id=None, span_id=None, *args, **kwargs))]
     pub fn __new__<'p>(
         py: Python<'p>,
         name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<&Bound<'p, PyAny>>,
+        span_type: Option<&Bound<'p, PyAny>>, // placeholder for positional compatibility
+        trace_id: Option<&Bound<'p, PyAny>>,  // placeholder for positional compatibility
+        span_id: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
@@ -120,6 +124,10 @@ impl SpanData {
             Some(obj) => span.set_resource(obj),
             None => span.data.resource = span.data.name.clone_ref(py),
         }
+        // Initialize span_id from parameter or generate random value
+        span.span_id = span_id
+            .and_then(|obj| obj.extract::<u64>().ok())
+            .unwrap_or_else(crate::rand::rand64bits);
         span
     }
 
@@ -164,6 +172,21 @@ impl SpanData {
     #[inline(always)]
     fn set_resource(&mut self, resource: &Bound<'_, PyAny>) {
         self.data.resource = extract_backed_string_or_default(resource);
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn get_span_id(&self) -> u64 {
+        self.span_id
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_span_id(&mut self, span_id: &Bound<'_, PyAny>) {
+        // Invalid types are silently ignored (no error raised)
+        if let Ok(id) = span_id.extract::<u64>() {
+            self.span_id = id;
+        }
     }
 }
 

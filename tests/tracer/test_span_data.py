@@ -475,3 +475,107 @@ def test_service_none_to_string_transitions():
 
     span.service = "service-2"
     assert span.service == "service-2"
+
+
+# =============================================================================
+# span_id Tests
+# =============================================================================
+
+
+def test_span_id_basic():
+    """span_id can be read and written."""
+    span = SpanData(name="test", span_id=12345)
+    assert span.span_id == 12345
+
+
+def test_span_id_defaults_to_random():
+    """span_id defaults to random value when not provided."""
+    span = SpanData(name="test")
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+    # Verify randomness - creating multiple spans should give different IDs
+    span2 = SpanData(name="test")
+    assert span.span_id != span2.span_id
+
+
+def test_span_id_none_generates_random():
+    """span_id=None generates random value."""
+    span = SpanData(name="test", span_id=None)
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+
+def test_span_id_invalid_type_generates_random():
+    """span_id with invalid type generates random ID instead of raising."""
+    span = SpanData(name="test", span_id="foo")
+    assert isinstance(span.span_id, int)
+    assert span.span_id != 0
+
+    span2 = SpanData(name="test", span_id=[123])
+    assert isinstance(span2.span_id, int)
+    assert span2.span_id != 0
+
+
+def test_span_id_setter():
+    """span_id can be set via property setter."""
+    span = SpanData(name="test", span_id=111)
+    assert span.span_id == 111
+
+    span.span_id = 222
+    assert span.span_id == 222
+
+
+def test_span_id_setter_invalid_type_ignored():
+    """Setting span_id with invalid type is silently ignored."""
+    span = SpanData(name="test", span_id=123)
+    original_id = span.span_id
+    assert original_id == 123
+
+    # Invalid type should be silently ignored (no change)
+    span.span_id = "invalid"
+    assert span.span_id == original_id
+
+    # Valid type should work
+    span.span_id = 456
+    assert span.span_id == 456
+
+
+def test_span_id_zero():
+    """span_id can be explicitly set to 0."""
+    span = SpanData(name="test", span_id=0)
+    assert span.span_id == 0
+
+
+def test_span_id_max_value():
+    """span_id can be set to max u64 value."""
+    max_u64 = (2**64) - 1
+    span = SpanData(name="test", span_id=max_u64)
+    assert span.span_id == max_u64
+
+
+def test_span_id_larger_than_u64_constructor():
+    """span_id larger than u64 max in constructor generates random ID."""
+    # This could happen if someone accidentally passes a u128 trace_id as span_id
+    larger_than_u64 = (2**64) + 12345
+    span = SpanData(name="test", span_id=larger_than_u64)
+    # Should generate a random ID instead of raising or wrapping
+    assert isinstance(span.span_id, int)
+    assert span.span_id != larger_than_u64
+    assert 0 < span.span_id <= (2**64) - 1
+
+
+def test_span_id_larger_than_u64_setter():
+    """Setting span_id to value larger than u64 max is silently ignored."""
+    # This could happen if someone accidentally tries to set span_id = trace_id
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Try to set to a value larger than u64 max
+    larger_than_u64 = (2**64) + 67890
+    span.span_id = larger_than_u64
+
+    # Should be silently ignored, keeping the original value
+    assert span.span_id == original_id
+    assert span.span_id == 12345

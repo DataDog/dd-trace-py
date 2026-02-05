@@ -819,11 +819,19 @@ def test_on_finish_multi_callback():
     m2.assert_called_once_with(s)
 
 
-@pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
+@pytest.mark.parametrize("arg", ["trace_id", "parent_id"])
 def test_span_preconditions(arg):
     Span("test", **{arg: None})
     with pytest.raises(TypeError):
         Span("test", **{arg: "foo"})
+
+
+def test_span_id_preconditions():
+    """span_id with invalid type generates random ID instead of raising."""
+    Span("test", span_id=None)
+    span = Span("test", span_id="foo")
+    assert isinstance(span.span_id, int)
+    assert span.span_id != 0
 
 
 def test_manual_context_usage():

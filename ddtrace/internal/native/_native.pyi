@@ -514,16 +514,25 @@ class ffe:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
 
+def seed() -> None: ...
+def rand64bits() -> int: ...
+
 class SpanData:
     name: str
     service: Optional[str]
     resource: str
+    span_id: int
 
     def __new__(
         cls: Type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> _SpanDataT: ...
 
 class SpanEventData:
