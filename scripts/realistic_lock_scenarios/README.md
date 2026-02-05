@@ -29,7 +29,9 @@ python agent_checks_simulator.py --checks 20 --duration 60
 python benchmark_locks.py --scenario all --duration 30 --inline
 ```
 
-### With Otel Host Profiler (separate terminal)
+### With Otel Host Profiler (Linux only, separate terminal)
+
+The Otel Host Profiler uses eBPF and only runs on Linux.
 
 ```bash
 # Linux (amd64)
@@ -37,12 +39,6 @@ python benchmark_locks.py --scenario all --duration 30 --inline
 
 # Linux (arm64)
 ./dd-otel-host-profiler-linux-arm64
-
-# macOS (Intel)
-./dd-otel-host-profiler-darwin-amd64
-
-# macOS (Apple Silicon)
-./dd-otel-host-profiler-darwin-arm64
 ```
 
 Download from: https://github.com/DataDog/dd-otel-host-profiler/releases

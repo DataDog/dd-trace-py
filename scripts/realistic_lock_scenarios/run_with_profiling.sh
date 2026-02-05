@@ -17,10 +17,10 @@
 #   1. dd-trace-py installed with profiling support
 #   2. Datadog Agent running (for sending profiles to Datadog)
 #
-# Optional: Run dd-otel-host-profiler in a separate terminal:
-#   Linux:  ./dd-otel-host-profiler-linux-amd64 (or -arm64)
-#   macOS:  ./dd-otel-host-profiler-darwin-amd64 (Intel) or -darwin-arm64 (Apple Silicon)
+# Optional (Linux only): Run dd-otel-host-profiler in a separate terminal:
+#   ./dd-otel-host-profiler-linux-amd64 (or -arm64)
 #   Download: https://github.com/DataDog/dd-otel-host-profiler/releases
+#   Note: Otel Host Profiler uses eBPF and only runs on Linux.
 #
 
 set -e
