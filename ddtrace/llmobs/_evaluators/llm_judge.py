@@ -149,7 +149,13 @@ def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LL
                 "json_schema": {"name": "evaluation", "strict": True, "schema": json_schema},
             }
         response = client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content or ""
+        choices = getattr(response, "choices", None)
+        if not choices or not isinstance(choices, list) or len(choices) == 0:
+            return ""
+        message = getattr(choices[0], "message", None)
+        if message is None:
+            return ""
+        return getattr(message, "content", None) or ""
 
     return call
 
@@ -206,13 +212,16 @@ def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) ->
             kwargs["extra_body"] = {"output_format": {"type": "json_schema", "schema": schema_copy}}
 
         response = client.messages.create(**kwargs)
-        if not response.content:
+        content = getattr(response, "content", None)
+        if not content or not isinstance(content, list) or len(content) == 0:
             return ""
-        block = response.content[0]
-        if hasattr(block, "text"):
-            return block.text
-        if hasattr(block, "json"):
-            return json.dumps(block.json)
+        block = content[0]
+        text = getattr(block, "text", None)
+        if text is not None:
+            return text
+        json_content = getattr(block, "json", None)
+        if json_content is not None:
+            return json.dumps(json_content)
         return ""
 
     return call
@@ -358,6 +367,15 @@ class LLMJudge(BaseEvaluator):
         return response
 
     def _render(self, template: str, context: EvaluatorContext) -> str:
+        """Render a prompt template by substituting {{field.path}} placeholders with context values.
+
+        Args:
+            template: Prompt template string with {{field.path}} placeholders.
+            context: EvaluatorContext containing input_data, output_data, expected_output, and metadata.
+
+        Returns:
+            Rendered prompt string with placeholders replaced by actual values.
+        """
         ctx = asdict(context)
 
         def resolve(path: str) -> Any:
@@ -381,10 +399,25 @@ class LLMJudge(BaseEvaluator):
         return re.sub(r"\{\{(.+?)\}\}", replace, template)
 
     def _parse_response(self, response: str) -> Union[EvaluatorResult, Any]:
+        """Parse the LLM response and extract structured evaluation results.
+
+        Args:
+            response: Raw JSON string response from the LLM.
+
+        Returns:
+            EvaluatorResult with extracted value, reasoning, and assessment.
+
+        Raises:
+            ValueError: If the response is not valid JSON or doesn't match expected schema.
+        """
+        if not response or not isinstance(response, str):
+            raise ValueError("Invalid response: expected non-empty string")
         try:
             data = json.loads(response)
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, TypeError) as e:
             raise ValueError(f"Invalid JSON response: {e}") from e
+        if not isinstance(data, dict):
+            raise ValueError(f"Invalid JSON response: expected object, got {type(data).__name__}")
 
         structured_output = self._structured_output
         if isinstance(structured_output, dict):
@@ -417,6 +450,19 @@ class LLMJudge(BaseEvaluator):
         )
 
     def _compute_assessment(self, result: Any) -> Optional[str]:
+        """Compute pass/fail assessment based on structured output thresholds.
+
+        Args:
+            result: The evaluation result value to assess.
+
+        Returns:
+            "pass" or "fail" if thresholds are configured, None otherwise.
+
+        Note:
+            For ScoreOutput with both min_threshold and max_threshold:
+            - If max >= min: inclusive range, pass if min <= result <= max
+            - If max < min: exclusive range, pass if result < max OR result > min
+        """
         structured_output = self._structured_output
 
         if isinstance(structured_output, BooleanOutput) and structured_output.pass_when is not None:
@@ -429,7 +475,9 @@ class LLMJudge(BaseEvaluator):
             min_t, max_t = structured_output.min_threshold, structured_output.max_threshold
             if min_t is not None and max_t is not None:
                 if max_t >= min_t:
+                    # Inclusive range: pass if within [min_t, max_t]
                     return "pass" if min_t <= result <= max_t else "fail"
+                # Exclusive range: pass if outside (max_t, min_t)
                 return "pass" if result < max_t or result > min_t else "fail"
             if min_t is not None:
                 return "pass" if result >= min_t else "fail"
