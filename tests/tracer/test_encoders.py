@@ -954,9 +954,9 @@ def _value():
         # {"service": True},  # Now handled gracefully by Rust (converts to None)
         # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
         # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
+        # {"span_type": 100},  # Now handled gracefully by Rust (converts to None)
         {"start_ns": []},
         {"duration_ns": {}},
-        {"span_type": 100},
     ],
 )
 def test_encoding_invalid_data_raises(data):
@@ -990,18 +990,22 @@ def test_encoding_invalid_data_raises(data):
         ("resource", 50, "", "test"),  # Invalid resource type -> "" (empty string)
         ("resource", [1, 2, 3], "", "test"),  # Invalid resource type -> "" (empty string)
         ("resource", {"dict": "value"}, "", "my-name"),  # Invalid resource type -> "" (empty string)
+        ("span_type", 100, None, "test"),  # Invalid span_type -> None
+        ("span_type", True, None, "test"),  # Invalid span_type -> None
+        ("span_type", {"dict": "value"}, None, "test"),  # Invalid span_type -> None
     ],
 )
-def test_encoding_invalid_name_service_handled_gracefully(field, invalid_value, expected_value, span_name):
-    """Test that invalid data types for name/service/resource are handled gracefully.
+def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_value, expected_value, span_name):
+    """Test that invalid data types for Rust-backed string fields are handled gracefully.
 
-    Since name, service, and resource are now backed by Rust PyBackedString, invalid types
+    Since name, service, resource, and span_type are now backed by Rust PyBackedString, invalid types
     are converted at setter time rather than raising during encoding.
 
     - Invalid name types -> "" (empty string)
     - Invalid service types -> None (allows inheritance from parent/config)
     - Invalid resource types -> "" (empty string)
       Note: fallback to name only happens when resource=None in __new__, not on setter
+    - Invalid span_type types -> None
     """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
