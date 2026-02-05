@@ -171,8 +171,8 @@
     {
         "dependency": "claude-agent-sdk",
         "integration": "claude_agent_sdk",
-        "minimum_tracer_supported": "0.1.21",
-        "max_tracer_supported": "0.1.21",
+        "minimum_tracer_supported": "0.0.23",
+        "max_tracer_supported": "0.1.29",
         "auto-instrumented": true
     },
     {

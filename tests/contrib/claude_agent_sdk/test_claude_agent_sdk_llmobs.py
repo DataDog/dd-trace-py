@@ -12,7 +12,6 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 class TestLLMObsClaudeAgentSdk:
-    @pytest.mark.asyncio
     async def test_llmobs_query_extracts_content_and_usage(
         self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans
     ):
@@ -35,7 +34,6 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    @pytest.mark.asyncio
     async def test_llmobs_query_with_options(
         self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans
     ):
@@ -60,7 +58,6 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    @pytest.mark.asyncio
     async def test_llmobs_query_error_no_output(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_error, test_spans
     ):
@@ -89,7 +86,6 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    @pytest.mark.asyncio
     async def test_llmobs_client_query_captures_prompt(
         self, mock_client, llmobs_events, test_spans
     ):
@@ -123,7 +119,6 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    @pytest.mark.asyncio
     async def test_llmobs_query_with_read_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_tool_use, test_spans
     ):
@@ -161,7 +156,6 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    @pytest.mark.asyncio
     async def test_llmobs_query_with_bash_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_bash_tool, test_spans
     ):
@@ -199,7 +193,6 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    @pytest.mark.asyncio
     async def test_llmobs_query_with_grep_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_grep_tool, test_spans
     ):
