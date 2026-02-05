@@ -61,7 +61,10 @@ class BaseStructuredOutput(ABC):
 
 @dataclass
 class BooleanStructuredOutput(BaseStructuredOutput):
-    """Represents a Boolean LLM Judge structured output."""
+    """Boolean structured output for true/false evaluations.
+
+    Use ``pass_when`` to define the passing condition for assessments.
+    """
 
     description: str
     reasoning: bool = False
@@ -78,7 +81,13 @@ class BooleanStructuredOutput(BaseStructuredOutput):
 
 @dataclass
 class ScoreStructuredOutput(BaseStructuredOutput):
-    """Represents a Score LLM Judge structured output."""
+    """Numeric score structured output within a defined range.
+
+    Use ``min_threshold`` and/or ``max_threshold`` for pass/fail assessments:
+    - Both set with max >= min: inclusive range [min, max]
+    - Both set with max < min: exclusive range (outside (max, min) passes)
+    - Only one set: simple >= or <= comparison
+    """
 
     description: str
     min_score: float
@@ -105,7 +114,10 @@ class ScoreStructuredOutput(BaseStructuredOutput):
 
 @dataclass
 class CategoricalStructuredOutput(BaseStructuredOutput):
-    """Represents a Categorical LLM Judge structured output."""
+    """Categorical structured output selecting from predefined categories.
+
+    Use ``pass_values`` to define which categories count as passing.
+    """
 
     description: str
     categories: List[str]
