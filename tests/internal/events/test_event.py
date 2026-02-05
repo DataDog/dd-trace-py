@@ -4,7 +4,7 @@ import pytest
 
 from ddtrace.internal import core
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import BaseEvent
+from ddtrace.internal.core.events import Event
 
 
 @pytest.fixture(autouse=True)
@@ -15,15 +15,15 @@ def reset_event_hub():
 
 
 def test_base_event_registers_handler():
-    """Test that BaseEvent automatically registers its on_event handler when dispatched."""
+    """Test that TestEvent automatically registers its on_event handler when dispatched."""
     called = []
 
     @dataclass
-    class TestEvent(BaseEvent):
+    class TestEvent(Event):
         event_name = "test.event"
 
         @classmethod
-        def on_event(cls, event_instance, *args):
+        def on_event(cls, event_instance):
             called.append("event_called")
 
     core.dispatch_event(TestEvent())
@@ -36,11 +36,11 @@ def test_base_event_double_dispatch():
     called = []
 
     @dataclass
-    class TestEvent(BaseEvent):
+    class TestEvent(Event):
         event_name = "test.event"
 
         @classmethod
-        def on_event(cls, event_instance, *args):
+        def on_event(cls, event_instance):
             called.append("event_called")
 
     core.dispatch_event(TestEvent())
@@ -54,49 +54,75 @@ def test_base_event_double_dispatch():
     assert len(_listeners[TestEvent.event_name].values()) == 1
 
 
-def test_base_event_additional_args():
-    """Test that additional positional arguments passed to dispatch_event are forwarded to on_event."""
+def test_base_event_enforce_kwargs_error():
+    """Test that missing required fields raise TypeError."""
     called = []
 
     @dataclass
-    class TestEvent(BaseEvent):
-        event_name = "test.event"
-
-        @classmethod
-        def on_event(cls, event_instance, *args):
-            called.append("event_called")
-            called.append(args[0])
-
-    core.dispatch_event(TestEvent(), "foo")
-    assert called == ["event_called", "foo"]
-
-
-def test_base_event_enforce_kwargs():
-    """Test that event instances args enforcement"""
-    called = []
-
-    @dataclass
-    class TestEvent(BaseEvent):
+    class TestEvent(Event):
         event_name = "test.event"
         foo: str
         bar: int
 
         @classmethod
-        def on_event(cls, event_instance, *args):
+        def on_event(cls, event_instance):
             called.append(event_instance.foo)
-            called.append(event_instance.bar)
-            called.append(args[0])
 
-    core.dispatch_event(TestEvent(foo="toto", bar=0), "titi")
-    assert called == ["toto", 0, "titi"]
+    with pytest.raises(TypeError):
+        core.dispatch_event(TestEvent(foo="toto"))
+
+    assert called == []
 
 
-def test_base_event_compatible_with_core_api():
-    """Test that BaseEvent compatiblity with core API."""
+def test_base_event_enforce_kwargs():
+    """Test that event instances with all required fields are dispatched correctly."""
     called = []
 
     @dataclass
-    class TestEvent(BaseEvent):
+    class TestEvent(Event):
+        event_name = "test.event"
+        foo: str
+        bar: int
+
+        @classmethod
+        def on_event(cls, event_instance):
+            called.append(event_instance.foo)
+            called.append(event_instance.bar)
+
+    core.dispatch_event(TestEvent(foo="toto", bar=1))
+
+    assert called == ["toto", 1]
+
+
+def test_extend_base_event_capabilites():
+    """Test that additional handlers can be registered using extend_event()."""
+    called = []
+
+    @dataclass
+    class TestEvent(Event):
+        event_name = "test.event"
+        foo: str
+
+        @classmethod
+        def on_event(cls, event_instance, *args):
+            called.append("event_api")
+
+    def trace_hook(event):
+        called.append("second_hook")
+        called.append(event.foo)
+
+    TestEvent.extend_event(trace_hook)
+
+    core.dispatch_event(TestEvent(foo="bar"))
+    assert called == ["event_api", "second_hook", "bar"]
+
+
+def test_base_event_compatible_with_core_api():
+    """Test that Event is compatible with core API."""
+    called = []
+
+    @dataclass
+    class TestEvent(Event):
         event_name = "test.event"
         foo: str
 
