@@ -321,7 +321,7 @@ def test_appsec_enabled_metric(
             dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled, _lib_was_injected=ssi_enabled)
         ),
     ):
-        tracer.configure(appsec_enabled=appsec_enabled)
+        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_DEFAULT)
         if rc_enabled:
             enable_asm()
 
@@ -333,4 +333,4 @@ def test_appsec_enabled_metric(
         ]
 
         # Restore defaults
-        tracer.configure(appsec_enabled=appsec_enabled)
+        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_DEFAULT)
