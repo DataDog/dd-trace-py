@@ -150,12 +150,10 @@ def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LL
             }
         response = client.chat.completions.create(**kwargs)
         choices = getattr(response, "choices", None)
-        if not choices or not isinstance(choices, list) or len(choices) == 0:
-            return ""
-        message = getattr(choices[0], "message", None)
-        if message is None:
-            return ""
-        return getattr(message, "content", None) or ""
+        if choices and isinstance(choices, list):
+            message = getattr(choices[0], "message", None)
+            return getattr(message, "content", None) or ""
+        return ""
 
     return call
 
@@ -213,15 +211,14 @@ def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) ->
 
         response = client.messages.create(**kwargs)
         content = getattr(response, "content", None)
-        if not content or not isinstance(content, list) or len(content) == 0:
-            return ""
-        block = content[0]
-        text = getattr(block, "text", None)
-        if text is not None:
-            return text
-        json_content = getattr(block, "json", None)
-        if json_content is not None:
-            return json.dumps(json_content)
+        if content and isinstance(content, list):
+            block = content[0]
+            text = getattr(block, "text", None)
+            if text is not None:
+                return text
+            json_content = getattr(block, "json", None)
+            if json_content is not None:
+                return json.dumps(json_content)
         return ""
 
     return call
