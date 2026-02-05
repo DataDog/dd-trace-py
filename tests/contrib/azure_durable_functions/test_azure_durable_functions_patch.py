@@ -1,20 +1,27 @@
-import unittest
+from ddtrace.contrib.internal.azure_functions.patch import get_version
+from ddtrace.contrib.internal.azure_functions.patch import patch
+from ddtrace.contrib.internal.azure_functions.patch import unpatch
+from tests.contrib.patch import PatchTestCase
 
-from ddtrace.contrib.internal.azure_functions.patch import patch as azure_functions_patch
-from ddtrace.contrib.internal.azure_functions.patch import unpatch as azure_functions_unpatch
-from tests.contrib.patch import PatchMixin
 
+class TestAzureFunctionsDurablePatch(PatchTestCase.Base):
+    __integration_name__ = "azure_functions"
+    __module_name__ = "azure.functions"
+    __patch_func__ = patch
+    __unpatch_func__ = unpatch
+    __get_version__ = get_version
 
-class TestAzureDurableFunctionsPatch(PatchMixin, unittest.TestCase):
-    def test_dfapp_get_functions_wrapped(self):
+    @staticmethod
+    def _get_dfapp():
         from azure.durable_functions.decorators import durable_app
 
-        azure_functions_unpatch()
-        self.assert_not_wrapped(durable_app.DFApp.get_functions)
+        return durable_app.DFApp
 
-        azure_functions_patch()
-        try:
-            self.assert_wrapped(durable_app.DFApp.get_functions)
-        finally:
-            azure_functions_unpatch()
-            self.assert_not_wrapped(durable_app.DFApp.get_functions)
+    def assert_module_patched(self, azure_functions):
+        self.assert_wrapped(self._get_dfapp().get_functions)
+
+    def assert_not_module_patched(self, azure_functions):
+        self.assert_not_wrapped(self._get_dfapp().get_functions)
+
+    def assert_not_module_double_patched(self, azure_functions):
+        self.assert_not_double_wrapped(self._get_dfapp().get_functions)
