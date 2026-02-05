@@ -6,12 +6,12 @@ import claude_agent_sdk
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import handle_streamed_response
+from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
-from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 
 
 log = get_logger(__name__)
@@ -37,7 +37,6 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
         pin,
         "claude_agent_sdk.query",
         submit_to_llmobs=True,
-        span_name="claude_agent_sdk.query",
     )
 
     try:
@@ -63,7 +62,6 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
         pin,
         "claude_agent_sdk.request",
         submit_to_llmobs=True,
-        span_name="claude_agent_sdk.request",
         instance=instance,
     )
 
@@ -98,13 +96,15 @@ def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs)
 
     if before_context is not None:
         query_kwargs["_dd_before_context"] = before_context
-    
+
     if span is None:
         return func(*args, **kwargs)
 
     try:
         resp = func(*args, **kwargs)
-        return handle_streamed_response(integration, resp, query_args, query_kwargs, span, operation="request", instance=instance)
+        return handle_streamed_response(
+            integration, resp, query_args, query_kwargs, span, operation="request", instance=instance
+        )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=query_args, kwargs=query_kwargs, response=None, operation="request")
