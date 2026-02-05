@@ -412,10 +412,25 @@ def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> L
                 kwargs["inferenceConfig"] = inference_config
 
         if json_schema:
+            # Bedrock doesn't support minimum/maximum for number properties in json schema.
+            # The range should be described in the description instead.
+            schema_copy = json.loads(json.dumps(json_schema))
+            for prop_val in schema_copy.get("properties", {}).values():
+                if isinstance(prop_val, dict) and prop_val.get("type") == "number":
+                    min_val = prop_val.pop("minimum", None)
+                    max_val = prop_val.pop("maximum", None)
+                    if min_val is not None or max_val is not None:
+                        range_str = f" (range: {min_val} to {max_val})"
+                        prop_val["description"] = prop_val.get("description", "") + range_str
             kwargs["outputConfig"] = {
                 "textFormat": {
                     "type": "json_schema",
-                    "structure": {"jsonSchema": {"schema": json.dumps(json_schema), "name": "evaluation"}},
+                    "structure": {
+                        "jsonSchema": {
+                            "name": "evaluation",
+                            "schema": json.dumps(json_schema),
+                        },
+                    },
                 }
             }
 
