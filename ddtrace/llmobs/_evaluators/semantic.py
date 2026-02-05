@@ -25,13 +25,11 @@ def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     try:
         import numpy as np
 
-        v1 = np.array(vec1)
-        v2 = np.array(vec2)
-        magnitude1 = np.linalg.norm(v1)
-        magnitude2 = np.linalg.norm(v2)
+        magnitude1 = np.linalg.norm(vec1)
+        magnitude2 = np.linalg.norm(vec2)
         if magnitude1 == 0 or magnitude2 == 0:
             return 0.0
-        return float(np.dot(v1, v2) / (magnitude1 * magnitude2))
+        return float(np.dot(vec1, vec2) / (magnitude1 * magnitude2))
     except ImportError:
         pass
 
@@ -132,11 +130,8 @@ class SemanticSimilarity(BaseEvaluator):
         if output is None or expected is None:
             return EvaluatorResult(value=0.0, assessment="fail")
 
-        output_str = str(output)
-        expected_str = str(expected)
-
-        output_embedding = self.embedding_fn(output_str)
-        expected_embedding = self.embedding_fn(expected_str)
+        output_embedding = self.embedding_fn(str(output))
+        expected_embedding = self.embedding_fn(str(expected))
 
         similarity = _cosine_similarity(output_embedding, expected_embedding)
         normalized_similarity = (similarity + 1) / 2
