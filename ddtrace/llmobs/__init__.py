@@ -6,20 +6,16 @@ To start the service manually, invoke the ``enable`` method::
     LLMObs.enable()
 """
 
-from ._evaluators import BaseEvaluator
-from ._evaluators import EvaluatorContext
-from ._evaluators import JSONValidator
-from ._evaluators import LengthValidator
-from ._evaluators import RegexMatch
-from ._evaluators import SemanticSimilarity
-from ._evaluators import StringCheck
-from ._evaluators import SummaryEvaluatorContext
-from ._experiment import Dataset
-from ._experiment import DatasetRecord
-from ._experiment import EvaluatorResult
-from ._llmobs import LLMObs
-from ._llmobs import LLMObsSpan
-from .types import Prompt
+from ddtrace.llmobs._evaluators import BaseEvaluator
+from ddtrace.llmobs._evaluators import BaseSummaryEvaluator
+from ddtrace.llmobs._evaluators import EvaluatorContext
+from ddtrace.llmobs._evaluators import SummaryEvaluatorContext
+from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._llmobs import LLMObsSpan
+from ddtrace.llmobs.types import Prompt
 
 
 __all__ = [
@@ -29,12 +25,8 @@ __all__ = [
     "DatasetRecord",
     "Prompt",
     "BaseEvaluator",
+    "BaseSummaryEvaluator",
     "EvaluatorContext",
-    "StringCheck",
-    "RegexMatch",
-    "LengthValidator",
-    "JSONValidator",
-    "SemanticSimilarity",
     "EvaluatorResult",
     "SummaryEvaluatorContext",
 ]
