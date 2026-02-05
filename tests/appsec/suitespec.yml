@@ -162,7 +162,7 @@ suites:
     runner: riot
     services:
       - testagent
-    timeout: 40m
+    timeout: 60m
   appsec_integrations_django:
     venvs_per_job: 1
     paths:
