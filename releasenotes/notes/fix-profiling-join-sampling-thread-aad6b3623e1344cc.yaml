@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: This fix resolves an issue where the sampling thread was not
+    being properly joined when the profiler stopped.
