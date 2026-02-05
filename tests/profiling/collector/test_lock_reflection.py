@@ -155,3 +155,46 @@ def test_known_gaps_limit() -> None:
         f"Too many known gaps: {len(KNOWN_COVERAGE_GAPS)} (max is {MAX_ALLOWED_GAPS}). "
         f"Consider fixing some: {KNOWN_COVERAGE_GAPS}"
     )
+
+
+def test_reflection_detects_missing_method() -> None:
+    """Meta-test: verify reflection mechanism correctly detects missing methods.
+
+    This test creates a deliberately incomplete wrapper to confirm that our
+    reflection-based detection logic actually works. If this test passes,
+    we can trust that test_public_methods_accessible and test_dunders_accessible
+    would catch real missing methods.
+    """
+
+    class OriginalWithMethod:
+        """Mock original class with a public method."""
+
+        def some_method(self) -> str:
+            return "original"
+
+        def another_method(self) -> int:
+            return 42
+
+    class IncompleteWrapper:
+        """Mock wrapper that intentionally omits some_method."""
+
+        def another_method(self) -> int:
+            return 42
+
+    original = OriginalWithMethod()
+    wrapper = IncompleteWrapper()
+
+    original_methods: Set[str] = get_public_methods(original)
+    assert "some_method" in original_methods, "Test setup: original should have some_method"
+    assert "another_method" in original_methods, "Test setup: original should have another_method"
+
+    # Verify is_accessible correctly identifies the missing method
+    assert is_accessible(wrapper, "another_method"), "Wrapper has another_method"
+    assert not is_accessible(wrapper, "some_method"), "Wrapper should NOT have some_method"
+
+    # Verify the detection logic would catch this gap
+    missing: Set[str] = {m for m in original_methods if not is_accessible(wrapper, m)}
+    assert "some_method" in missing, f"Detection logic should find 'some_method' missing, but got: {missing}"
+    assert "another_method" not in missing, (
+        f"Detection logic should NOT report 'another_method' as missing, but got: {missing}"
+    )
