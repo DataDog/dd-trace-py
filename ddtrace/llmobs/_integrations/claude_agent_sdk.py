@@ -166,7 +166,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         return [Message(content=prompt, role="user")]
 
     def _parse_content_blocks(self, content: Any, role: str) -> List[Message]:
-        """Parses content which can be a string or a list of content blocks 
+        """Parses content which can be a string or a list of content blocks
         (TextBlock, ToolUseBlock, etc.) into a list of messages.
         """
         messages: List[Message] = []

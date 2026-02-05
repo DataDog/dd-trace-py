@@ -124,7 +124,7 @@ class TestLLMObsClaudeAgentSdk:
                         "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
                         "role": "system",
                     },
-                    {"content": "4", "role": "assistant"}
+                    {"content": "4", "role": "assistant"},
                 ]
             ),
             metadata={
