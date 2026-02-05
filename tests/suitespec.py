@@ -7,25 +7,26 @@ from ruamel.yaml import YAML  # noqa
 
 TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
-SEARCH_ROOTS = (TESTS, BENCHMARKS)
+SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks::"))
 
 
 def _collect_suitespecs() -> dict:
-    # Recursively search for suitespec.yml in TESTS
     suitespec = {"components": {}, "suites": {}}
 
     specfiles = []
-    for root in SEARCH_ROOTS:
+    for root, ns_prefix in SEARCH_ROOTS:
         for f in root.rglob("suitespec.yml"):
-            specfiles.append((f, root))
+            specfiles.append((f, root, ns_prefix))
 
-    for specfile, root in specfiles:
+    for s, root, ns_prefix in specfiles:
         try:
-            namespace = "::".join(specfile.relative_to(root).parts[:-1]) or None
-        except IndexError:
+            namespace = "::".join(s.relative_to(root).parts[:-1]) or None
+        except (IndexError, TypeError):
             namespace = None
+        else:
+            namespace = f"{ns_prefix}{namespace}"
         with YAML() as yaml:
-            data = yaml.load(specfile)
+            data = yaml.load(s)
             suites = data.get("suites", {})
             if namespace is not None:
                 for name, spec in list(suites.items()):
