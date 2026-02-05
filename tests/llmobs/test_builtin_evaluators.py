@@ -37,6 +37,61 @@ class TestStringCheckEvaluator:
         assert result.value is True
         assert result.assessment == "pass"
 
+    def test_not_equals(self):
+        evaluator = StringCheckEvaluator(operation="ne")
+        ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="world")
+        result = evaluator.evaluate(ctx)
+        assert result.value is True
+        assert result.assessment == "pass"
+
+        ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="hello")
+        result = evaluator.evaluate(ctx)
+        assert result.value is False
+        assert result.assessment == "fail"
+
+    def test_icontains(self):
+        evaluator = StringCheckEvaluator(operation="icontains")
+        ctx = EvaluatorContext(input_data={}, output_data="Hello World", expected_output="WORLD")
+        result = evaluator.evaluate(ctx)
+        assert result.value is True
+        assert result.assessment == "pass"
+
+        ctx = EvaluatorContext(input_data={}, output_data="Hello World", expected_output="foo")
+        result = evaluator.evaluate(ctx)
+        assert result.value is False
+        assert result.assessment == "fail"
+
+    def test_strip_whitespace(self):
+        evaluator = StringCheckEvaluator(operation="eq", strip_whitespace=True)
+        ctx = EvaluatorContext(input_data={}, output_data="  hello  ", expected_output="hello")
+        result = evaluator.evaluate(ctx)
+        assert result.value is True
+        assert result.assessment == "pass"
+
+    def test_none_handling(self):
+        evaluator = StringCheckEvaluator(operation="eq")
+
+        ctx = EvaluatorContext(input_data={}, output_data=None, expected_output=None)
+        result = evaluator.evaluate(ctx)
+        assert result.value is True
+        assert result.assessment == "pass"
+
+        ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output=None)
+        result = evaluator.evaluate(ctx)
+        assert result.value is False
+        assert result.assessment == "fail"
+
+        ctx = EvaluatorContext(input_data={}, output_data=None, expected_output="hello")
+        result = evaluator.evaluate(ctx)
+        assert result.value is False
+        assert result.assessment == "fail"
+
+        evaluator_ne = StringCheckEvaluator(operation="ne")
+        ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output=None)
+        result = evaluator_ne.evaluate(ctx)
+        assert result.value is True
+        assert result.assessment == "pass"
+
 
 class TestRegexMatchEvaluator:
     def test_match(self):
@@ -50,6 +105,13 @@ class TestRegexMatchEvaluator:
         result = evaluator.evaluate(ctx)
         assert result.value is False
         assert result.assessment == "fail"
+
+    def test_search_mode(self):
+        evaluator = RegexMatchEvaluator(pattern=r"\d{3}-\d{4}", match_mode="search")
+        ctx = EvaluatorContext(input_data={}, output_data="Call 555-1234 now")
+        result = evaluator.evaluate(ctx)
+        assert result.value is True
+        assert result.assessment == "pass"
 
     def test_fullmatch_mode(self):
         evaluator = RegexMatchEvaluator(pattern=r"\d{3}-\d{4}", match_mode="fullmatch")
@@ -66,6 +128,13 @@ class TestRegexMatchEvaluator:
     def test_invalid_pattern(self):
         with pytest.raises(ValueError, match="Invalid regex pattern"):
             RegexMatchEvaluator(pattern=r"[invalid(")
+
+    def test_none_handling(self):
+        evaluator = RegexMatchEvaluator(pattern=r"\d+")
+        ctx = EvaluatorContext(input_data={}, output_data=None)
+        result = evaluator.evaluate(ctx)
+        assert result.value is False
+        assert result.assessment == "fail"
 
 
 class TestLengthEvaluator:
@@ -93,6 +162,13 @@ class TestLengthEvaluator:
     def test_invalid_range(self):
         with pytest.raises(ValueError, match="min_length .* cannot be greater than max_length"):
             LengthEvaluator(min_length=10, max_length=5)
+
+    def test_none_handling(self):
+        evaluator = LengthEvaluator(min_length=1)
+        ctx = EvaluatorContext(input_data={}, output_data=None)
+        result = evaluator.evaluate(ctx)
+        assert result.value is False
+        assert result.assessment == "fail"
 
 
 class TestJSONEvaluator:
@@ -123,6 +199,13 @@ class TestJSONEvaluator:
         assert result.assessment == "pass"
 
         ctx = EvaluatorContext(input_data={}, output_data='{"name": "John"}')
+        result = evaluator.evaluate(ctx)
+        assert result.value is False
+        assert result.assessment == "fail"
+
+    def test_none_handling(self):
+        evaluator = JSONEvaluator()
+        ctx = EvaluatorContext(input_data={}, output_data=None)
         result = evaluator.evaluate(ctx)
         assert result.value is False
         assert result.assessment == "fail"
@@ -170,4 +253,22 @@ class TestSemanticSimilarityEvaluator:
         ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output="world")
         result = evaluator.evaluate(ctx)
         assert result.value == 0.5
+        assert result.assessment == "fail"
+
+    def test_none_handling(self):
+        evaluator = SemanticSimilarityEvaluator(embedding_fn=lambda x: [1.0, 0.0])
+
+        ctx = EvaluatorContext(input_data={}, output_data=None, expected_output=None)
+        result = evaluator.evaluate(ctx)
+        assert result.value == 1.0
+        assert result.assessment == "pass"
+
+        ctx = EvaluatorContext(input_data={}, output_data="hello", expected_output=None)
+        result = evaluator.evaluate(ctx)
+        assert result.value == 0.0
+        assert result.assessment == "fail"
+
+        ctx = EvaluatorContext(input_data={}, output_data=None, expected_output="hello")
+        result = evaluator.evaluate(ctx)
+        assert result.value == 0.0
         assert result.assessment == "fail"
