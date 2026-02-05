@@ -8,6 +8,8 @@ To start the service manually, invoke the ``enable`` method::
 
 from ._evaluators import BaseEvaluator
 from ._evaluators import EvaluatorContext
+from ._evaluators import RemoteEvaluator
+from ._evaluators import RemoteEvaluatorError
 from ._evaluators import SummaryEvaluatorContext
 from ._experiment import Dataset
 from ._experiment import DatasetRecord
@@ -26,5 +28,7 @@ __all__ = [
     "BaseEvaluator",
     "EvaluatorContext",
     "EvaluatorResult",
+    "RemoteEvaluator",
+    "RemoteEvaluatorError",
     "SummaryEvaluatorContext",
 ]
