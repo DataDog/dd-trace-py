@@ -1306,10 +1306,10 @@ class TestSafelog:
         logger.handlers = [handler]
         logger.setLevel(logging.DEBUG)
 
-        try:
-            # Close the stream to simulate pytest closing captured streams
-            stream.close()
+        # Close the stream to simulate pytest closing captured streams
+        stream.close()
 
+        try:
             # This should not raise even though the stream is closed
             _safelog(logger.warning, "Test message with %s", "args")
             _safelog(logger.error, "Another test message")
