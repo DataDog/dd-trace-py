@@ -14,6 +14,7 @@ from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
@@ -40,6 +41,7 @@ log = get_logger(__name__)
 ValidatedPromptDict = Dict[str, Union[str, Dict[str, Any], List[str], List[Dict[str, str]], List[Message]]]
 
 STANDARD_INTEGRATION_SPAN_NAMES = (
+    CLAUDE_AGENT_SDK_APM_SPAN_NAME,
     CREWAI_APM_SPAN_NAME,
     GEMINI_APM_SPAN_NAME,
     LANGCHAIN_APM_SPAN_NAME,
