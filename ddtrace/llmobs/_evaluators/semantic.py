@@ -9,14 +9,6 @@ from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
 
-try:
-    import numpy as np
-
-    _HAS_NUMPY = True
-except ImportError:
-    _HAS_NUMPY = False
-
-
 def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     """Calculate cosine similarity between two vectors.
 
@@ -30,7 +22,9 @@ def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     if len(vec1) != len(vec2):
         raise ValueError(f"Vectors must have same length: {len(vec1)} != {len(vec2)}")
 
-    if _HAS_NUMPY:
+    try:
+        import numpy as np
+
         v1 = np.array(vec1)
         v2 = np.array(vec2)
         magnitude1 = np.linalg.norm(v1)
@@ -38,6 +32,8 @@ def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
         if magnitude1 == 0 or magnitude2 == 0:
             return 0.0
         return float(np.dot(v1, v2) / (magnitude1 * magnitude2))
+    except ImportError:
+        pass
 
     dot, mag1, mag2 = 0.0, 0.0, 0.0
     for a, b in zip(vec1, vec2):
