@@ -66,16 +66,16 @@ def test_rc_enabled_by_default(tracer):
 def test_rc_activate_is_active_and_get_processor_tags(tracer, rc_poller):
     with override_global_config(dict(_remote_config_enabled=True)):
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
         rc_config = build_payload("ASM_FEATURES", None, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         result = _set_and_get_appsec_tags(tracer)
         assert result is None
         assert AppSecSpanProcessor._instance is None
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
 
@@ -96,7 +96,7 @@ def test_rc_activation_states_on(tracer, appsec_enabled, rc_value, rc_poller):
         if appsec_enabled:
             tracer.configure(appsec_enabled=asbool(appsec_enabled))
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": rc_value}}, "config")
-        _appsec_callback([rc_config], tracer)
+        _appsec_callback([rc_config])
         result = _set_and_get_appsec_tags(tracer)
         assert result
 
@@ -120,7 +120,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, rc_poller):
             if rc_value is False:
                 rc_configs = []
 
-            _appsec_callback(rc_configs, tracer)
+            _appsec_callback(rc_configs)
             result = _set_and_get_appsec_tags(tracer)
             assert result is None
 
@@ -164,7 +164,7 @@ def test_rc_activation_capabilities(tracer, rc_poller, env_rules, expected):
         # flaky test
         # assert not rc_poller._worker
 
-        _appsec_callback(rc_configs, test_tracer=tracer)
+        _appsec_callback(rc_configs)
 
         assert _appsec_rc_capabilities() == expected
 
@@ -270,7 +270,7 @@ def test_rc_activation_with_auto_user_appsec_fixed(tracer, rc_poller, auto_user)
         ),
     ):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
+        enable_appsec_rc()
 
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM)
@@ -283,7 +283,7 @@ def test_rc_activation_with_auto_user_appsec_fixed(tracer, rc_poller, auto_user)
 def test_load_new_configurations_dispatch_applied_configs(mock_appsec_rules_data, rc_poller, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
+        enable_appsec_rc()
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data = b'{"data": [{"test": "data"}]}'
         payload = AgentPayload(
@@ -335,7 +335,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_appsec_rules_data
 def test_load_new_configurations_empty_config(mock_appsec_rules_data, rc_poller, tracer):
     with override_global_config(dict(_asm_enabled=True, _remote_config_enabled=True, api_version="v0.4")):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
+        enable_appsec_rc()
         asm_features_data = b'{"asm":{"enabled":true}}'
         asm_data_data = b'{"data": []}'
         payload = AgentPayload(
@@ -504,7 +504,7 @@ def test_rc_activation_ip_blocking_data(tracer, rc_poller):
         }
         assert rc_poller.status == ServiceStatus.STOPPED
 
-        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")], tracer)
+        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")])
         with asm_context(tracer, ip_addr="8.8.4.4") as span:
             set_http_meta(
                 span,
@@ -531,7 +531,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, rc_poller):
 
         assert rc_poller.status == ServiceStatus.STOPPED
 
-        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")], tracer)
+        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")])
 
         with asm_context(tracer, ip_addr="8.8.4.4") as span:
             set_http_meta(
@@ -557,7 +557,7 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, rc_poller):
 
         assert rc_poller.status == ServiceStatus.STOPPED
 
-        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")], tracer)
+        _appsec_callback([build_payload("ASM_DATA", rc_config, "data")])
 
         with asm_context(tracer, ip_addr="8.8.4.4") as span:
             set_http_meta(

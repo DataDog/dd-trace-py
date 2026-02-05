@@ -102,8 +102,6 @@ class AppSecCallback(RCCallback):
         )
         log.debug(debug_info)
 
-        local_tracer = test_tracer or self._test_tracer or tracer
-
         for_the_waf_updates: List[tuple[str, str, PayloadType]] = []
         for_the_waf_removals: List[tuple[str, str]] = []
         for_the_tracer: List[Payload] = []
@@ -114,7 +112,7 @@ class AppSecCallback(RCCallback):
                 for_the_waf_removals.append((payload.metadata.product_name, payload.path))
             else:
                 for_the_waf_updates.append((payload.metadata.product_name, payload.path, payload.content))
-        _process_asm_features(for_the_tracer, local_tracer)
+        _process_asm_features(for_the_tracer)
         if (for_the_waf_removals or for_the_waf_updates) and asm_config._asm_enabled:
             core.dispatch("waf.update", (for_the_waf_removals, for_the_waf_updates))
 
@@ -141,7 +139,7 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[
     return res
 
 
-def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cache: Dict[str, Dict[str, Any]] = {}):
+def _process_asm_features(payload_list: List[Payload], cache: Dict[str, Dict[str, Any]] = {}):
     """This callback updates appsec enabled in tracer and config instances following this logic:
     ```
     | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -158,14 +156,14 @@ def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cac
     result = _update_asm_features(payload_list, cache)
     if "asm" in result and asm_config._asm_can_be_enabled:
         if result["asm"].get("enabled", False):
-            enable_asm(local_tracer)
+            enable_asm()
         else:
-            disable_asm(local_tracer)
+            disable_asm()
     if "auto_user_instrum" in result:
         asm_config._auto_user_instrumentation_rc_mode = result["auto_user_instrum"].get("mode", None)
 
 
-def disable_asm(local_tracer: Tracer):
+def disable_asm():
     if asm_config._asm_enabled:
         from ddtrace.appsec._processor import AppSecSpanProcessor
 
@@ -177,10 +175,10 @@ def disable_asm(local_tracer: Tracer):
 
             APIManager.disable()
 
-        local_tracer.configure(appsec_enabled=False)
+        tracer.configure(appsec_enabled=False)
 
 
-def enable_asm(local_tracer: Tracer):
+def enable_asm():
     if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
@@ -190,7 +188,7 @@ def enable_asm(local_tracer: Tracer):
 
             APIManager.enable()
         load_appsec()
-        local_tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
+        tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
 
 
 class AppSecPreprocessor:

@@ -72,7 +72,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
     with override_global_config(dict(_remote_config_poll_interval=0.1, _remote_config_enabled=True)):
         mock_callback = MagicMock()
 
-        def _mock_appsec_callback(features, test_tracer=None):
+        def _mock_appsec_callback(features):
             mock_callback((features))
 
         class MockExtractFile:
@@ -120,7 +120,7 @@ def test_load_new_configurations_dispatch_applied_configs(mock_extract_target_fi
 
         mock_callback = mock.MagicMock()
 
-        def _mock_appsec_callback(features, test_tracer=None):
+        def _mock_appsec_callback(features):
             mock_callback(features)
 
         callback_content = {"b": [1, 2, 3]}
