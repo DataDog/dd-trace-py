@@ -85,6 +85,12 @@ class StringCheck(BaseEvaluator):
         if operation not in self.VALID_OPERATIONS:
             raise ValueError(f"operation must be one of {self.VALID_OPERATIONS}, got: {operation}")
 
+        if output_extractor is not None and not callable(output_extractor):
+            raise TypeError("output_extractor must be a callable function")
+
+        if expected_output_extractor is not None and not callable(expected_output_extractor):
+            raise TypeError("expected_output_extractor must be a callable function")
+
         self.operation = operation
         self.case_sensitive = case_sensitive
         self.strip_whitespace = strip_whitespace
@@ -105,40 +111,35 @@ class StringCheck(BaseEvaluator):
         if self.expected_output_extractor is not None:
             expected = self.expected_output_extractor(expected)
 
-        result = False
-
         if output is None and expected is None:
+            result = self.operation == "eq"
+            return EvaluatorResult(value=result, assessment="pass" if result else "fail")
+
+        if output is None or expected is None:
             if self.operation == "eq":
-                result = True
+                return EvaluatorResult(value=False, assessment="fail")
             elif self.operation == "ne":
-                result = False
+                return EvaluatorResult(value=True, assessment="pass")
             else:
-                result = False
-        elif output is None or expected is None:
-            if self.operation == "eq":
-                result = False
-            elif self.operation == "ne":
-                result = True
-            else:
-                result = False
+                return EvaluatorResult(value=False, assessment="fail")
+
+        output_str = str(output)
+        expected_str = str(expected)
+
+        if self.strip_whitespace:
+            output_str = output_str.strip()
+            expected_str = expected_str.strip()
+
+        if self.operation == "icontains" or not self.case_sensitive:
+            output_str = output_str.lower()
+            expected_str = expected_str.lower()
+
+        if self.operation == "eq":
+            result = output_str == expected_str
+        elif self.operation == "ne":
+            result = output_str != expected_str
         else:
-            output_str = str(output)
-            expected_str = str(expected)
-
-            if self.strip_whitespace:
-                output_str = output_str.strip()
-                expected_str = expected_str.strip()
-
-            if self.operation == "icontains" or not self.case_sensitive:
-                output_str = output_str.lower()
-                expected_str = expected_str.lower()
-
-            if self.operation == "eq":
-                result = output_str == expected_str
-            elif self.operation == "ne":
-                result = output_str != expected_str
-            elif self.operation in ("contains", "icontains"):
-                result = expected_str in output_str
+            result = expected_str in output_str
 
         return EvaluatorResult(value=result, assessment="pass" if result else "fail")
 
@@ -197,6 +198,9 @@ class RegexMatch(BaseEvaluator):
             self.pattern: Pattern = re.compile(pattern, flags)
         except re.error as e:
             raise ValueError(f"Invalid regex pattern: {e}")
+
+        if output_extractor is not None and not callable(output_extractor):
+            raise TypeError("output_extractor must be a callable function")
 
         self.pattern_str = pattern
         self.match_mode = match_mode

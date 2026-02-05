@@ -9,8 +9,19 @@ from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
 
+try:
+    import numpy as np
+
+    _HAS_NUMPY = True
+except ImportError:
+    _HAS_NUMPY = False
+
+
 def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     """Calculate cosine similarity between two vectors.
+
+    Uses numpy if available for optimized performance, otherwise falls back
+    to a single-pass pure Python implementation.
 
     :param vec1: First vector
     :param vec2: Second vector
@@ -19,14 +30,28 @@ def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     if len(vec1) != len(vec2):
         raise ValueError(f"Vectors must have same length: {len(vec1)} != {len(vec2)}")
 
-    dot_product = sum(a * b for a, b in zip(vec1, vec2))
-    magnitude1 = sum(a * a for a in vec1) ** 0.5
-    magnitude2 = sum(b * b for b in vec2) ** 0.5
+    if _HAS_NUMPY:
+        v1 = np.array(vec1)
+        v2 = np.array(vec2)
+        magnitude1 = np.linalg.norm(v1)
+        magnitude2 = np.linalg.norm(v2)
+        if magnitude1 == 0 or magnitude2 == 0:
+            return 0.0
+        return float(np.dot(v1, v2) / (magnitude1 * magnitude2))
+
+    dot, mag1, mag2 = 0.0, 0.0, 0.0
+    for a, b in zip(vec1, vec2):
+        dot += a * b
+        mag1 += a * a
+        mag2 += b * b
+
+    magnitude1 = mag1**0.5
+    magnitude2 = mag2**0.5
 
     if magnitude1 == 0 or magnitude2 == 0:
         return 0.0
 
-    return dot_product / (magnitude1 * magnitude2)
+    return dot / (magnitude1 * magnitude2)
 
 
 class SemanticSimilarity(BaseEvaluator):

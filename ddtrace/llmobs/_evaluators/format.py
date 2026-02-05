@@ -73,6 +73,9 @@ class LengthValidator(BaseEvaluator):
         if min_length is None and max_length is None:
             raise ValueError("At least one of min_length or max_length must be specified")
 
+        if output_extractor is not None and not callable(output_extractor):
+            raise TypeError("output_extractor must be a callable function")
+
         self.min_length = min_length
         self.max_length = max_length
         self.count_type = count_type
@@ -160,6 +163,10 @@ class JSONValidator(BaseEvaluator):
         :param name: Optional custom name for the evaluator
         """
         super().__init__(name=name)
+
+        if output_extractor is not None and not callable(output_extractor):
+            raise TypeError("output_extractor must be a callable function")
+
         self.required_keys = required_keys or []
         self.output_extractor = output_extractor
 
@@ -183,7 +190,7 @@ class JSONValidator(BaseEvaluator):
             output_str = str(output)
             try:
                 parsed_data = json.loads(output_str)
-            except (json.JSONDecodeError, ValueError):
+            except (json.JSONDecodeError, ValueError, TypeError):
                 return EvaluatorResult(value=False, assessment="fail")
 
         if self.required_keys and isinstance(parsed_data, dict):
