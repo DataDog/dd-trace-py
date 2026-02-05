@@ -197,7 +197,7 @@ def record_llmobs_user_processor_called(error: bool) -> None:
 
 
 def record_llmobs_submit_evaluation(join_on: Dict[str, Any], metric_type: str, error: Optional[str]):
-    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean") else "other"
+    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean", "json") else "other"
     custom_joining_key = str(int(join_on.get("tag") is not None))
     tags = _base_tags(error)
     tags.extend([("metric_type", _metric_type), ("custom_joining_key", custom_joining_key)])
