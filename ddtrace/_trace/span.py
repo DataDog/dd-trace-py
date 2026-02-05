@@ -316,7 +316,7 @@ class Span(SpanData):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: str, value: Optional[str] = None) -> None:
+    def set_tag(self, key: str, value: Optional[str | NumericType] = None) -> None:
         """Set a tag key/value pair on the span.
 
         Keys must be strings, values must be ``str``-able.
