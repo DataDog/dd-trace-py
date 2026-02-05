@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: The lock profiler is now disabled by default due to its high overhead.
+    To re-enable it, set the environment variable ``DD_PROFILING_LOCK_ENABLED=true``.
+
