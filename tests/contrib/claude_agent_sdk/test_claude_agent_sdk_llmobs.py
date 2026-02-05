@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import ANY
+
+import pytest
 
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.claude_agent_sdk.utils import EXPECTED_QUERY_USAGE

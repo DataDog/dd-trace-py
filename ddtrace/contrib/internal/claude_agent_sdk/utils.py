@@ -1,4 +1,6 @@
-from typing import Any, List
+from typing import Any
+from typing import List
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._utils import _get_attr
 

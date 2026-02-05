@@ -2,16 +2,12 @@
 
 Since claude-agent-sdk uses subprocess/CLI transport (not HTTP), we mock
 the internal transport layer and provide mock message responses.
-
-Mock data is based on real SDK responses captured from sample app execution.
-See: .analysis/claude-agent-sdk/sample_app/artifacts/captured-responses.json
 """
 
 from claude_agent_sdk import AssistantMessage
 from claude_agent_sdk import ResultMessage
 from claude_agent_sdk import SystemMessage
 from claude_agent_sdk import TextBlock
-from claude_agent_sdk import ToolResultBlock
 from claude_agent_sdk import ToolUseBlock
 from claude_agent_sdk import UserMessage
 
@@ -172,7 +168,6 @@ EXPECTED_CACHE_READ_INPUT_TOKENS = 1854
 EXPECTED_INPUT_TOKENS = 3 + EXPECTED_CACHE_WRITE_INPUT_TOKENS + EXPECTED_CACHE_READ_INPUT_TOKENS
 EXPECTED_OUTPUT_TOKENS = 5
 EXPECTED_TOTAL_TOKENS = EXPECTED_INPUT_TOKENS + EXPECTED_OUTPUT_TOKENS
-
 EXPECTED_QUERY_USAGE = {
     "input_tokens": EXPECTED_INPUT_TOKENS,
     "output_tokens": EXPECTED_OUTPUT_TOKENS,
