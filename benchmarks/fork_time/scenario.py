@@ -30,9 +30,6 @@ class ForkTime(bm.Scenario):
 
     cprofile_loops: int = 0  # Fork benchmarks don't work well with cprofile
 
-    def _pyperf(self, loops: int) -> float:
-        return self.run_fork(loops)
-
     def _setup_flask(self):
         from flask import Flask
         try:
@@ -41,23 +38,11 @@ class ForkTime(bm.Scenario):
             @app.route("/")
             def hello():
                 return "Hello"
-
-            try:
-                import requests  # noqa: F401
-            except ImportError:
-                pass
-
-            try:
-                import pymongo  # noqa: F401
-            except ImportError:
-                pass
-
         except ImportError:
             pass
 
 
-    def run_fork(self, loops: int) -> float:
-
+    def _pyperf(self, loops: int) -> float:
         if self.configure:
             os.environ["DD_TRACE_ENABLED"] = "true"
             os.environ["DD_SERVICE"] = "fork-benchmark"
