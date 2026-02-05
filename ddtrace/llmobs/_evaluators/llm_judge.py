@@ -177,6 +177,54 @@ def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LL
     return call
 
 
+def _create_azure_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    api_key = client_options.get("api_key") or os.environ.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = client_options.get("azure_endpoint") or os.environ.get("AZURE_OPENAI_ENDPOINT")
+    api_version = (
+        client_options.get("api_version") or os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-02-15-preview"
+    )
+
+    if not api_key:
+        raise ValueError(
+            "Azure OpenAI API key not provided. "
+            "Pass 'api_key' in client_options or set AZURE_OPENAI_API_KEY environment variable"
+        )
+    if not azure_endpoint:
+        raise ValueError(
+            "Azure OpenAI endpoint not provided. "
+            "Pass 'azure_endpoint' in client_options or set AZURE_OPENAI_ENDPOINT environment variable"
+        )
+
+    try:
+        from openai import AzureOpenAI
+    except ImportError:
+        raise ImportError("openai package required: pip install openai")
+
+    client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version)
+
+    def call(
+        provider: Optional[str],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
+        model: str,
+        model_params: Optional[Dict[str, Any]],
+    ) -> str:
+        deployment = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT") or model
+        kwargs: Dict[str, Any] = {"model": deployment, "messages": messages}
+        if model_params:
+            kwargs.update(model_params)
+        if json_schema:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "evaluation", "strict": True, "schema": json_schema},
+            }
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content or ""
+
+    return call
+
+
 def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
@@ -243,6 +291,148 @@ def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) ->
     return call
 
 
+def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    project = (
+        client_options.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT")
+    )
+    location = (
+        client_options.get("location")
+        or os.environ.get("GOOGLE_CLOUD_REGION")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or "us-central1"
+    )
+
+    if not project:
+        raise ValueError(
+            "Google Cloud project not provided. "
+            "Pass 'project' in client_options or set GOOGLE_CLOUD_PROJECT environment variable"
+        )
+
+    try:
+        import vertexai
+        from vertexai.generative_models import GenerationConfig
+        from vertexai.generative_models import GenerativeModel
+    except ImportError:
+        raise ImportError("google-cloud-aiplatform package required: pip install google-cloud-aiplatform")
+
+    vertexai.init(project=project, location=location, credentials=client_options.get("credentials"))
+
+    def call(
+        provider: Optional[str],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
+        model: str,
+        model_params: Optional[Dict[str, Any]],
+    ) -> str:
+        system_instruction = None
+        contents = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            else:
+                role = "user" if msg["role"] == "user" else "model"
+                contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+
+        model_instance = GenerativeModel(model, system_instruction=system_instruction)
+
+        generation_config_params = model_params.copy() if model_params else {}
+        if json_schema:
+            generation_config_params["response_mime_type"] = "application/json"
+            generation_config_params["response_schema"] = json_schema
+
+        generation_config = GenerationConfig(**generation_config_params) if generation_config_params else None
+        response = model_instance.generate_content(contents, generation_config=generation_config)
+
+        if response.candidates and response.candidates[0].content.parts:
+            return response.candidates[0].content.parts[0].text
+        return ""
+
+    return call
+
+
+def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    region_name = (
+        client_options.get("region_name")
+        or os.environ.get("AWS_REGION")
+        or os.environ.get("AWS_DEFAULT_REGION")
+        or "us-east-1"
+    )
+
+    try:
+        import boto3
+    except ImportError:
+        raise ImportError("boto3 package required: pip install boto3")
+
+    session_kwargs: Dict[str, Any] = {"region_name": region_name}
+    if client_options.get("profile_name"):
+        session_kwargs["profile_name"] = client_options["profile_name"]
+    if client_options.get("aws_access_key_id"):
+        session_kwargs["aws_access_key_id"] = client_options["aws_access_key_id"]
+    if client_options.get("aws_secret_access_key"):
+        session_kwargs["aws_secret_access_key"] = client_options["aws_secret_access_key"]
+    if client_options.get("aws_session_token"):
+        session_kwargs["aws_session_token"] = client_options["aws_session_token"]
+
+    session = boto3.Session(**session_kwargs)
+    client = session.client("bedrock-runtime")
+
+    def call(
+        provider: Optional[str],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
+        model: str,
+        model_params: Optional[Dict[str, Any]],
+    ) -> str:
+        system_msgs = []
+        converse_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_msgs.append({"text": msg["content"]})
+            else:
+                role = "user" if msg["role"] == "user" else "assistant"
+                converse_messages.append({"role": role, "content": [{"text": msg["content"]}]})
+
+        kwargs: Dict[str, Any] = {"modelId": model, "messages": converse_messages}
+
+        if system_msgs:
+            kwargs["system"] = system_msgs
+
+        if model_params:
+            inference_config: Dict[str, Any] = {}
+            for key in ["temperature", "topP", "maxTokens", "stopSequences"]:
+                if key in model_params:
+                    inference_config[key] = model_params[key]
+            if "max_tokens" in model_params:
+                inference_config["maxTokens"] = model_params["max_tokens"]
+            if "top_p" in model_params:
+                inference_config["topP"] = model_params["top_p"]
+            if inference_config:
+                kwargs["inferenceConfig"] = inference_config
+
+        if json_schema:
+            kwargs["outputConfig"] = {
+                "textFormat": {
+                    "type": "json_schema",
+                    "structure": {"jsonSchema": {"schema": json.dumps(json_schema), "name": "evaluation"}},
+                }
+            }
+
+        response = client.converse(**kwargs)
+
+        output = response.get("output", {})
+        message = output.get("message", {})
+        content_blocks = message.get("content", [])
+
+        for block in content_blocks:
+            if "text" in block:
+                return block["text"]
+        return ""
+
+    return call
+
+
 class LLMJudge(BaseEvaluator):
     """Evaluator that uses an LLM to judge LLM Observability span outputs."""
 
@@ -251,7 +441,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        provider: Optional[Literal["openai", "anthropic"]] = None,
+        provider: Optional[Literal["openai", "anthropic", "azure_openai", "vertexai", "bedrock"]] = None,
         model: Optional[str] = None,
         model_params: Optional[Dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
@@ -261,8 +451,8 @@ class LLMJudge(BaseEvaluator):
         """Initialize an LLMJudge evaluator.
 
         LLMJudge enables automated evaluation of LLM outputs using another LLM as the judge.
-        It supports multiple providers (OpenAI, Anthropic) and output formats for flexible
-        evaluation criteria.
+        It supports multiple providers (OpenAI, Anthropic, Azure OpenAI, Vertex AI, Bedrock)
+        and output formats for flexible evaluation criteria.
 
         Supported Output Types:
             - ``BooleanStructuredOutput``: Returns True/False with optional pass/fail assessment.
@@ -284,17 +474,48 @@ class LLMJudge(BaseEvaluator):
                 support template variables.
             structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
                 CategoricalStructuredOutput, or a custom JSON schema dict).
-            provider: LLM provider to use (``"openai"`` or ``"anthropic"``). Required if
-                ``client`` is not provided.
+            provider: LLM provider to use. Supported values: ``"openai"``, ``"anthropic"``,
+                ``"azure_openai"``, ``"vertexai"``, ``"bedrock"``. Required if ``client``
+                is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
             model_params: Additional parameters passed to the LLM API (e.g., temperature).
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
-            client_options: Provider-specific configuration options. Supported keys:
+            client_options: Provider-specific configuration options. Supported keys vary
+                by provider:
 
-                - ``api_key``: API key for OpenAI or Anthropic. Falls back to
-                  ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY`` environment variables.
+                **OpenAI:**
+                    - ``api_key``: API key. Falls back to ``OPENAI_API_KEY`` env var.
+
+                **Anthropic:**
+                    - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+
+                **Azure OpenAI:**
+                    - ``api_key``: API key. Falls back to ``AZURE_OPENAI_API_KEY`` env var.
+                    - ``azure_endpoint``: Endpoint URL. Falls back to ``AZURE_OPENAI_ENDPOINT``.
+                    - ``api_version``: API version (default: "2024-02-15-preview").
+                      Falls back to ``AZURE_OPENAI_API_VERSION``.
+                    - ``azure_deployment``: Deployment name. Falls back to
+                      ``AZURE_OPENAI_DEPLOYMENT`` or uses ``model`` param.
+
+                **Vertex AI:**
+                    - ``project``: Google Cloud project ID. Falls back to
+                      ``GOOGLE_CLOUD_PROJECT`` or ``GCLOUD_PROJECT`` env var.
+                    - ``location``: Region (default: "us-central1"). Falls back to
+                      ``GOOGLE_CLOUD_REGION`` or ``GOOGLE_CLOUD_LOCATION``.
+                    - ``credentials``: Optional service account credentials object.
+
+                **Bedrock:**
+                    - ``aws_access_key_id``: AWS access key. Falls back to
+                      ``AWS_ACCESS_KEY_ID`` env var.
+                    - ``aws_secret_access_key``: AWS secret key. Falls back to
+                      ``AWS_SECRET_ACCESS_KEY`` env var.
+                    - ``aws_session_token``: Session token. Falls back to
+                      ``AWS_SESSION_TOKEN`` env var.
+                    - ``region_name``: AWS region (default: "us-east-1"). Falls back to
+                      ``AWS_REGION`` or ``AWS_DEFAULT_REGION``.
+                    - ``profile_name``: AWS profile name. Falls back to ``AWS_PROFILE``.
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.
@@ -354,8 +575,14 @@ class LLMJudge(BaseEvaluator):
             self._client = _create_openai_client(client_options=client_options)
         elif provider == "anthropic":
             self._client = _create_anthropic_client(client_options=client_options)
+        elif provider == "azure_openai":
+            self._client = _create_azure_openai_client(client_options=client_options)
+        elif provider == "vertexai":
+            self._client = _create_vertexai_client(client_options=client_options)
+        elif provider == "bedrock":
+            self._client = _create_bedrock_client(client_options=client_options)
         else:
-            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic)")
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/azure_openai/vertexai/bedrock)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:
