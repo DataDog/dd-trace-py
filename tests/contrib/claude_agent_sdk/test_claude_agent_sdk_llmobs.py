@@ -108,8 +108,8 @@ class TestLLMObsClaudeAgentSdk:
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json([{"content": "4", "role": "assistant"}]),
             metadata={
-                "after_context": {},
-                "before_context": {},
+                "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
             },
             token_metrics={
                 "input_tokens": 14599,

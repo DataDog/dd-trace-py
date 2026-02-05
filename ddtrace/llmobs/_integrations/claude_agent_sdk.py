@@ -74,19 +74,22 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         self._format_context(metadata, kwargs)
         return metadata
 
-    def _parse_context_categories(self, context_messages: List[Any]) -> Dict[str, str]:
-        """Parse category percentages from context UserMessage.
+    def _parse_context_categories(self, context_messages: List[Any]) -> Dict[str, Any]:
+        """Parse category percentages and token counts from context UserMessage.
 
         Args:
             context_messages: List of messages from /context query
 
         Returns:
-            Dictionary mapping category names to percentage strings (e.g., {"Free space": "73.6%"})
+            Dictionary with:
+                - "categories": Dict mapping category names to percentage strings
+                - "used_tokens": Token count string (e.g., "16.3k") or None
+                - "total_tokens": Token count string (e.g., "200.0k") or None
         """
-        categories = {}
+        result = {"categories": {}, "used_tokens": None, "total_tokens": None}
 
         if not context_messages or not isinstance(context_messages, list):
-            return categories
+            return result
 
         # Find the UserMessage containing the context table
         for msg in context_messages:
@@ -96,11 +99,22 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 if not content or not isinstance(content, str):
                     continue
 
-                # Find the "Estimated usage by category" section
                 lines = content.split("\n")
                 in_category_table = False
 
                 for i, line in enumerate(lines):
+                    # Parse token usage line: "**Tokens:** 16.3k / 200.0k (8%)"
+                    if "**Tokens:**" in line:
+                        try:
+                            # Extract the token counts from format: "16.3k / 200.0k"
+                            tokens_part = line.split("**Tokens:**")[1].split("(")[0].strip()
+                            if "/" in tokens_part:
+                                used_str, total_str = [t.strip() for t in tokens_part.split("/")]
+                                result["used_tokens"] = used_str
+                                result["total_tokens"] = total_str
+                        except (IndexError, ValueError):
+                            pass
+
                     # Start parsing when we find the category section
                     if "### Estimated usage by category" in line:
                         in_category_table = True
@@ -123,17 +137,17 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                             percentage = parts[3]
                             # Skip header row
                             if category != "Category" and percentage != "Percentage":
-                                categories[category] = percentage
+                                result["categories"][category] = percentage
 
                 break  # Only process the first UserMessage
 
-        return categories
+        return result
 
     def _format_context(self, parameters: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
         """Format context from kwargs.
 
-        Extracts category usage percentages from before and after context messages
-        and stores them as dictionaries in the parameters.
+        Extracts category usage percentages and token counts from before and after context messages
+        and stores them in the parameters.
         """
         after_context = kwargs.get("_dd_context")
         before_context = kwargs.get("_dd_before_context")
