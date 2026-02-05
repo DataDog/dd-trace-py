@@ -9,6 +9,8 @@ To start the service manually, invoke the ``enable`` method::
 from ddtrace.llmobs._evaluators import BaseEvaluator
 from ddtrace.llmobs._evaluators import BaseSummaryEvaluator
 from ddtrace.llmobs._evaluators import EvaluatorContext
+from ddtrace.llmobs._evaluators import RemoteEvaluator
+from ddtrace.llmobs._evaluators import RemoteEvaluatorError
 from ddtrace.llmobs._evaluators import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
@@ -28,5 +30,7 @@ __all__ = [
     "BaseSummaryEvaluator",
     "EvaluatorContext",
     "EvaluatorResult",
+    "RemoteEvaluator",
+    "RemoteEvaluatorError",
     "SummaryEvaluatorContext",
 ]
