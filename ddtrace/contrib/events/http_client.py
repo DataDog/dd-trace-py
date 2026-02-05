@@ -9,8 +9,8 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.core.events import SpanContextEvent
-from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.events import context_event
+from ddtrace.internal.core.events import event_field
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
