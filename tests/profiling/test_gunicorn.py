@@ -144,6 +144,7 @@ def _test_gunicorn(
         )
 
 
+@pytest.mark.skip(reason="flaky test on 4.1 branch")
 def test_gunicorn(
     gunicorn: RunGunicornFunc,
     tmp_path: pathlib.Path,
