@@ -10,13 +10,6 @@
 using namespace Datadog;
 
 void
-StackRenderer::render_message(std::string_view msg)
-{
-    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
-    (void)msg;
-}
-
-void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
                                    std::string_view name,
                                    microsecond_t wall_time_us,
@@ -115,7 +108,7 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
 }
 
 void
-StackRenderer::render_stack_begin(long long, long long, const std::string&)
+StackRenderer::render_stack_begin()
 {
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
@@ -184,7 +177,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 }
 
 void
-StackRenderer::render_stack_end(MetricType, uint64_t)
+StackRenderer::render_stack_end()
 {
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;
@@ -195,12 +188,4 @@ StackRenderer::render_stack_end(MetricType, uint64_t)
     sample->flush_sample();
     SampleManager::drop_sample(sample);
     sample = nullptr;
-}
-
-bool
-StackRenderer::is_valid()
-{
-    // In general, echion may need to check whether the extension has invalid state before calling into it,
-    // but in this case it doesn't matter
-    return true;
 }

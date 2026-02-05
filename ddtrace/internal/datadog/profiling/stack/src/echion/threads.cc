@@ -576,9 +576,10 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
-    Renderer::get().render_thread_begin(tstate, name, delta, thread_id, native_id);
+    auto& renderer = echion.renderer();
+    renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
     microsecond_t previous_cpu_time = cpu_time;
     auto update_cpu_time_success = update_cpu_time();
@@ -586,7 +587,7 @@ ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, mi
         return ErrorKind::CpuTimeError;
     }
 
-    Renderer::get().render_cpu_time(cpu_time - previous_cpu_time);
+    renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
     this->unwind(echion, tstate);
 
@@ -602,12 +603,12 @@ ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, mi
             }
 
             const auto& task_name = maybe_task_name->get();
-            Renderer::get().render_task_begin(task_name, task_stack_info->on_cpu);
-            Renderer::get().render_stack_begin(pid, iid, name);
+            renderer.render_task_begin(task_name, task_stack_info->on_cpu);
+            renderer.render_stack_begin();
 
-            task_stack_info->stack.render();
+            task_stack_info->stack.render(echion);
 
-            Renderer::get().render_stack_end(MetricType::Time, delta);
+            renderer.render_stack_end();
         }
 
         current_tasks.clear();
@@ -619,20 +620,20 @@ ThreadInfo::sample(EchionSampler& echion, int64_t iid, PyThreadState* tstate, mi
             }
 
             const auto& task_name = maybe_task_name->get();
-            Renderer::get().render_task_begin(task_name, greenlet_stack->on_cpu);
-            Renderer::get().render_stack_begin(pid, iid, name);
+            renderer.render_task_begin(task_name, greenlet_stack->on_cpu);
+            renderer.render_stack_begin();
 
             auto& stack = greenlet_stack->stack;
-            stack.render();
+            stack.render(echion);
 
-            Renderer::get().render_stack_end(MetricType::Time, delta);
+            renderer.render_stack_end();
         }
 
         current_greenlets.clear();
     } else {
-        Renderer::get().render_stack_begin(pid, iid, name);
-        python_stack.render();
-        Renderer::get().render_stack_end(MetricType::Time, delta);
+        renderer.render_stack_begin();
+        python_stack.render(echion);
+        renderer.render_stack_end();
     }
 
     return Result<void>::ok();

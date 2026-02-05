@@ -16,34 +16,33 @@ PYTEST_ASYNCIO_VERSION = parse_version(pytest_asyncio.__version__)
 if PYTEST_ASYNCIO_VERSION < (1, 0):
 
     @pytest.fixture
-    async def app_tracer(tracer, loop):
+    async def app(loop):
         app = setup_app()
-        trace_app(app, tracer)
-        return app, tracer
+        trace_app(app)
+        return app
 
     @pytest.fixture
-    async def untraced_app_tracer(tracer, loop):
+    async def untraced_app(loop):
         app = setup_app()
-        yield app, tracer
+        yield app
         unpatch()
 
 else:
 
     @pytest.fixture
-    async def app_tracer(tracer):
+    async def app():
         app = setup_app()
-        trace_app(app, tracer)
-        return app, tracer
+        trace_app(app)
+        return app
 
     @pytest.fixture
-    async def untraced_app_tracer(tracer):
+    async def untraced_app():
         app = setup_app()
-        yield app, tracer
+        yield app
         unpatch()
 
 
 @pytest.fixture
-async def patched_app_tracer(app_tracer):
-    app, tracer = app_tracer
-    yield app, tracer
+async def patched_app(app):
+    yield app
     unpatch()

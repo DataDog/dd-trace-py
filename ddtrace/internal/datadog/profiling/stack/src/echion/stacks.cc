@@ -3,6 +3,22 @@
 #include <echion/echion_sampler.h>
 #include <unordered_set>
 
+#include <echion/echion_sampler.h>
+
+void
+FrameStack::render(EchionSampler& echion)
+{
+    auto& renderer = echion.renderer();
+    for (auto it = this->rbegin(); it != this->rend(); ++it) {
+#if PY_VERSION_HEX >= 0x030c0000
+        if ((*it).get().is_entry)
+            // This is a shim frame so we skip it.
+            continue;
+#endif
+        renderer.render_frame((*it).get());
+    }
+}
+
 // Unwind Python frames starting from frame_addr and push them onto stack.
 // @param max_depth: Maximum number of frames to unwind. Defaults to max_frames.
 // @return: Number of frames added to the stack.
