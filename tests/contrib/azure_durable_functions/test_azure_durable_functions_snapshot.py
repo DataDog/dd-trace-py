@@ -9,10 +9,10 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_CONTEXT
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER_NAME
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_CONTEXT
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER_NAME
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_CONTEXT as ACTIVITY_CTX
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER_NAME as ACTIVITY_NAME
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_CONTEXT as ENTITY_CTX
+from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER_NAME as ENTITY_NAME
 from ddtrace.contrib.internal.azure_durable_functions.patch import _wrap_durable_trigger
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
@@ -91,19 +91,13 @@ def _wait_for_durable_completion(client: Client, response) -> None:
 
 
 @pytest.mark.parametrize(
-    "func_name, trigger_name, context_name, expected_resource, expected_trigger",
+    "func_name, trigger_name, context_name",
     [
-        (
-            "sample_activity",
-            _DURABLE_ACTIVITY_TRIGGER_NAME,
-            _DURABLE_ACTIVITY_CONTEXT,
-            "Activity sample_activity",
-            "Activity",
-        ),
-        ("sample_entity", _DURABLE_ENTITY_TRIGGER_NAME, _DURABLE_ENTITY_CONTEXT, "Entity sample_entity", "Entity"),
+        ("sample_activity", ACTIVITY_NAME, ACTIVITY_CTX),
+        ("sample_entity", ENTITY_NAME, ENTITY_CTX),
     ],
 )
-def test_trigger_wrapper(func_name, trigger_name, context_name, expected_resource, expected_trigger):
+def test_trigger_wrapper(func_name, trigger_name, context_name):
     with scoped_tracer() as tracer:
         pin = Pin()
 
@@ -128,10 +122,10 @@ def test_trigger_wrapper(func_name, trigger_name, context_name, expected_resourc
         )
         assert span.name == expected_name
         assert span.service == int_service(pin, config.azure_functions)
-        assert span.resource == expected_resource
+        assert span.resource == f"{trigger_name} {func_name}"
         assert span.span_type == SpanTypes.SERVERLESS
         assert span.get_tag("aas.function.name") == func_name
-        assert span.get_tag("aas.function.trigger") == expected_trigger
+        assert span.get_tag("aas.function.trigger") == trigger_name
         assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
 
 
