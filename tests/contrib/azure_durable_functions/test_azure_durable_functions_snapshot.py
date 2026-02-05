@@ -90,51 +90,32 @@ def _wait_for_durable_completion(client: Client, response) -> None:
     pytest.fail("Durable orchestration did not complete before timeout")
 
 
-def test_activity_trigger():
-    with scoped_tracer() as tracer:
-        pin = Pin()
-
-        def activity():
-            return "ok"
-
-        wrapped = _wrap_durable_trigger(
-            pin,
-            activity,
+@pytest.mark.parametrize(
+    "func_name, trigger_name, context_name, expected_resource, expected_trigger",
+    [
+        (
             "sample_activity",
             _DURABLE_ACTIVITY_TRIGGER_NAME,
             _DURABLE_ACTIVITY_CONTEXT,
-        )
-        assert wrapped() == "ok"
-
-        spans = TracerSpanContainer(tracer).pop()
-        assert len(spans) == 1
-        span = spans[0]
-
-        expected_name = schematize_cloud_faas_operation(
-            "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
-        )
-        assert span.name == expected_name
-        assert span.service == int_service(pin, config.azure_functions)
-        assert span.resource == "Activity sample_activity"
-        assert span.span_type == SpanTypes.SERVERLESS
-        assert span.get_tag("aas.function.name") == "sample_activity"
-        assert span.get_tag("aas.function.trigger") == "Activity"
-        assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
-
-
-def test_entity_trigger():
+            "Activity sample_activity",
+            "Activity",
+        ),
+        ("sample_entity", _DURABLE_ENTITY_TRIGGER_NAME, _DURABLE_ENTITY_CONTEXT, "Entity sample_entity", "Entity"),
+    ],
+)
+def test_trigger_wrapper(func_name, trigger_name, context_name, expected_resource, expected_trigger):
     with scoped_tracer() as tracer:
         pin = Pin()
 
-        def entity():
+        def trigger_func():
             return "ok"
 
         wrapped = _wrap_durable_trigger(
             pin,
-            entity,
-            "sample_entity",
-            _DURABLE_ENTITY_TRIGGER_NAME,
-            _DURABLE_ENTITY_CONTEXT,
+            trigger_func,
+            func_name,
+            trigger_name,
+            context_name,
         )
         assert wrapped() == "ok"
 
@@ -147,10 +128,10 @@ def test_entity_trigger():
         )
         assert span.name == expected_name
         assert span.service == int_service(pin, config.azure_functions)
-        assert span.resource == "Entity sample_entity"
+        assert span.resource == expected_resource
         assert span.span_type == SpanTypes.SERVERLESS
-        assert span.get_tag("aas.function.name") == "sample_entity"
-        assert span.get_tag("aas.function.trigger") == "Entity"
+        assert span.get_tag("aas.function.name") == func_name
+        assert span.get_tag("aas.function.trigger") == expected_trigger
         assert span.get_tag(SPAN_KIND) == SpanKind.INTERNAL
 
 
