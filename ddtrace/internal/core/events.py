@@ -59,6 +59,7 @@ from dataclasses import MISSING
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import fields
+import sys
 from types import TracebackType
 from typing import Any
 from typing import Dict
@@ -86,7 +87,13 @@ def event_field(
     elif default_factory is not MISSING:
         kwargs["default_factory"] = default_factory
 
-    kwargs["kw_only"] = True
+    # Python 3.9: Give fields without defaults a None default to work around
+    # field ordering constraints with inheritance
+    if sys.version_info < (3, 10):
+        if default is MISSING and default_factory is MISSING:
+            kwargs["default"] = None
+    else:
+        kwargs["kw_only"] = True
 
     return field(**kwargs)
 
@@ -211,13 +218,13 @@ class SpanContextEvent(BaseContextEvent):
     span_type: str = field(init=False)
     span_kind: str = field(init=False, repr=False)
     component: str = field(init=False, repr=False)
-    call_trace: bool = field(default=True, kw_only=True)
-    service: Optional[str] = field(default=None, kw_only=True)
-    distributed_context: Optional[Any] = field(default=None, kw_only=True)
-    resource: Optional[str] = field(default=None, kw_only=True)
     tags: Dict[str, str] = field(default_factory=dict, init=False)
-
     _end_span: bool = field(default=True, init=False, repr=False)
+
+    call_trace: bool = event_field(default=True, in_context=True)
+    service: Optional[str] = event_field(default=None, in_context=True)
+    distributed_context: Optional[Any] = event_field(default=None, in_context=True)
+    resource: Optional[str] = event_field(default=None, in_context=True)
 
     def create_event_context(self):
         """Convert this event instance into a dict that is used to create an ExecutionContext.
