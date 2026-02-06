@@ -12,7 +12,6 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 
-from .._trace.pin import Pin
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
@@ -44,9 +43,8 @@ def get_version():
 class TracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
-    def __init__(self, cursor, pin, cfg):
+    def __init__(self, cursor, cfg):
         super(TracedCursor, self).__init__(cursor)
-        pin.onto(self)
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
             cfg["_dbapi_span_name_prefix"]
@@ -81,20 +79,19 @@ class TracedCursor(wrapt.ObjectProxy):
         :param kwargs: The args that will be passed as kwargs to the wrapped method
         :return: The result of the wrapped method invocation
         """
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not tracer.enabled:
             return method(*args, **kwargs)
         measured = name == self._self_datadog_name
 
         with tracer.trace(
-            name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
+            name, service=ext_service(None, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
                 # PERF: avoid setting via Span.set_tag
                 s.set_metric(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            s.set_tags(pin.tags)
+            s.set_tags(tracer._tags)
             s.set_tags(extra_tags)
 
             s._set_tag_str(COMPONENT, self._self_config.integration_name)
@@ -231,7 +228,7 @@ class FetchTracedCursor(TracedCursor):
 class TracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
-    def __init__(self, conn, pin=None, cfg=None, cursor_cls=None):
+    def __init__(self, conn, cfg=None, cursor_cls=None):
         if not cfg:
             cfg = config.dbapi2
         # Set default cursor class if one was not provided
@@ -242,8 +239,6 @@ class TracedConnection(wrapt.ObjectProxy):
         super(TracedConnection, self).__init__(conn)
         name = _get_vendor(conn)
         self._self_datadog_name = "{}.connection".format(name)
-        db_pin = pin or Pin(service=name)
-        db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
@@ -282,37 +277,30 @@ class TracedConnection(wrapt.ObjectProxy):
             if iswrapped(r):
                 return r
             else:
-                pin = Pin.get_from(self)
-                if not pin:
-                    return r
-                return self._self_cursor_cls(r, pin, self._self_config)
+                return self._self_cursor_cls(r, self._self_config)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
             return r
 
     def _trace_method(self, method, name, extra_tags, *args, **kwargs):
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not tracer.enabled:
             return method(*args, **kwargs)
 
-        with tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
+        with tracer.trace(name, service=ext_service(None, self._self_config)) as s:
             s._set_tag_str(COMPONENT, self._self_config.integration_name)
 
             # set span.kind to the type of request being performed
             s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            s.set_tags(pin.tags)
+            s.set_tags(tracer._tags)
             s.set_tags(extra_tags)
 
             return method(*args, **kwargs)
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
-        pin = Pin.get_from(self)
-        if not pin:
-            return cursor
-        return self._self_cursor_cls(cursor=cursor, pin=pin, cfg=self._self_config)
+        return self._self_cursor_cls(cursor=cursor, cfg=self._self_config)
 
     def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")
