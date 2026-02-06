@@ -9,52 +9,6 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
-/* RAII helper to save and restore Python error state */
-class PythonErrorRestorer
-{
-  public:
-    PythonErrorRestorer()
-    {
-#ifdef _PY312_AND_LATER
-        // Python 3.12+: Use the new API that returns a single exception object
-        saved_exception = PyErr_GetRaisedException();
-#else
-        // Python < 3.12: Use the old API with separate type, value, traceback
-        PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
-#endif
-    }
-
-    ~PythonErrorRestorer()
-    {
-#ifdef _PY312_AND_LATER
-        // Python 3.12+: Restore using the new API if there was an exception
-        if (saved_exception != NULL) {
-            PyErr_SetRaisedException(saved_exception);
-        }
-#else
-        // Python < 3.12: Restore using the old API if there was an exception
-        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
-            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
-        }
-#endif
-    }
-
-    // Non-copyable, non-movable
-    PythonErrorRestorer(const PythonErrorRestorer&) = delete;
-    PythonErrorRestorer& operator=(const PythonErrorRestorer&) = delete;
-    PythonErrorRestorer(PythonErrorRestorer&&) = delete;
-    PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
-
-  private:
-#ifdef _PY312_AND_LATER
-    PyObject* saved_exception;
-#else
-    PyObject* saved_exc_type;
-    PyObject* saved_exc_value;
-    PyObject* saved_exc_traceback;
-#endif
-};
-
 /* Helper function to convert PyUnicode object to string_view
  * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
  * The pointer remains valid as long as the PyObject is alive */
@@ -70,6 +24,10 @@ unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unkn
     if (ptr) {
         return std::string_view(ptr, len);
     }
+    // PyUnicode_AsUTF8AndSize always sets an error on failure (TypeError if not a
+    // unicode object, MemoryError if UTF-8 cache allocation fails). Clear it since
+    // we're inside the allocator hook and must not leave stale errors for the caller.
+    PyErr_Clear();
     return fallback;
 }
 
@@ -173,9 +131,6 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
-    // Save any existing error state to avoid masking errors during traceback construction/reset
-    PythonErrorRestorer error_restorer;
-
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0

@@ -52,11 +52,6 @@ class MemoryCollector:
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
-        # The C++ allocator hook now uses only C-level APIs (PyThread_get_thread_ident,
-        # PyThread_get_thread_native_id) for thread info, so no threading module
-        # references are needed. We keep this import for its side effects.
-        import ddtrace.internal._threads  # noqa: F401
-
         try:
             _memalloc.start(self.max_nframe, self.heap_sample_size)
         except RuntimeError:
