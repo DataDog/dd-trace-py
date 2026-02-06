@@ -2,7 +2,7 @@
 
 #include <echion/echion_sampler.h>
 
-int
+void
 GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* tstate, FrameStack& stack)
 {
     PyObject* frame_addr = NULL;
@@ -15,15 +15,17 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
         // safely instead of dereferencing directly.
         struct _frame frame_copy;
         if (copy_type(cur_frame, frame_copy))
-            return 0;
+            return;
+
         frame_addr = reinterpret_cast<PyObject*>(frame_copy.f_frame);
     }
 #elif PY_VERSION_HEX >= 0x030b0000
     if (cur_frame == Py_None) {
         _PyCFrame cframe;
         _PyCFrame* cframe_addr = tstate->cframe;
-        if (copy_type(cframe_addr, cframe))
-            return 0;
+        if (copy_type(cframe_addr, cframe)) {
+            return;
+        }
 
         frame_addr = reinterpret_cast<PyObject*>(cframe.current_frame);
     } else {
@@ -32,16 +34,13 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
         // safely instead of dereferencing directly.
         struct _frame frame_copy;
         if (copy_type(cur_frame, frame_copy))
-            return 0;
+            return;
         frame_addr = reinterpret_cast<PyObject*>(frame_copy.f_frame);
     }
 #else // Python < 3.11
     frame_addr = cur_frame == Py_None ? reinterpret_cast<PyObject*>(tstate->frame) : cur_frame;
 #endif
-    auto count = unwind_frame(echion, frame_addr, stack);
+    unwind_frame(echion, frame_addr, stack);
 
     stack.push_back(Frame::get(echion, name));
-
-    return count + 1; // We add an extra count for the frame with the greenlet
-                      // name.
 }
