@@ -12,7 +12,6 @@ import copy
 import re
 import shlex
 import subprocess
-import sys
 
 from flask import Flask
 from flask import Response
@@ -310,7 +309,7 @@ def iast_code_injection_vulnerability():
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
     tracer.shutdown()
-    sys.exit(0)
+    return "OK"
 
 
 @app.route("/iast-stacktrace-leak-vulnerability", methods=["GET"])

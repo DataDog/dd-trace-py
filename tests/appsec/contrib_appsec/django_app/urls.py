@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
-import sys
 import tempfile
 from typing import Optional
 
@@ -408,7 +407,7 @@ def authenticated_view(request):
 def shutdown(request):
     # Endpoint used to flush traces to the agent when doing snapshots.
     tracer.shutdown()
-    sys.exit(0)
+    return HttpResponse(status=200)
 
 
 urlpatterns = [

@@ -3,7 +3,6 @@ import hashlib
 import json
 import logging
 import subprocess
-import sys
 import time
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -66,9 +65,9 @@ def get_app():
 
     @app.get("/shutdown")
     async def shutdown():
-        """Shutdown endpoint for test cleanup."""
         tracer.shutdown()
-        sys.exit(0)
+        """Shutdown endpoint for test cleanup."""
+        return {"status": "shutting down"}
 
     @app.get("/health")
     async def health():
