@@ -68,12 +68,11 @@ class ManagedPrompt:
         result: Dict[str, Any] = {
             "id": self.id,
             "version": self.version,
-            "variables": variables if variables else {},
-            "tags": {
-                "dd.prompt.source": self.source,
-                "dd.prompt.label": self.label,
-            },
         }
+        if variables:
+            result["variables"] = variables
+        if self.label:
+            result["label"] = self.label
         if self._uuid:
             result["prompt_uuid"] = self._uuid
         if self._version_uuid:

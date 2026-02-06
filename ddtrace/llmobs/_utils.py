@@ -62,12 +62,15 @@ def _validate_prompt(
     ml_app = config._llmobs_ml_app
     prompt_id = prompt.get("id")
     version = prompt.get("version")
+    label = prompt.get("label")
     tags = prompt.get("tags")
     variables: Optional[Dict[str, Any]] = prompt.get("variables") or None
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
     query_variable_keys = prompt.get("rag_query_variables")
+    prompt_uuid = prompt.get("prompt_uuid")
+    version_uuid = prompt.get("prompt_version_uuid")
 
     if strict_validation:
         if prompt_id is None:
@@ -95,6 +98,8 @@ def _validate_prompt(
 
     if version and not isinstance(version, str):
         raise TypeError(f"version: {version} must be a string, received {type(version).__name__}")
+    if label and not isinstance(label, str):
+        raise TypeError(f"label: {label} must be a string, received {type(label).__name__}")
 
     if tags:
         if not isinstance(tags, dict):
@@ -131,6 +136,11 @@ def _validate_prompt(
         for msg in chat_template:
             final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
 
+    if prompt_uuid and not isinstance(prompt_uuid, str):
+        raise TypeError(f"prompt_uuid: {prompt_uuid} must be a string, received {type(prompt_uuid).__name__}")
+    if version_uuid and not isinstance(version_uuid, str):
+        raise TypeError(f"version_uuid: {version_uuid} must be a string, received {type(version_uuid).__name__}")
+
     validated_prompt: ValidatedPromptDict = {}
     if final_prompt_id:
         validated_prompt["id"] = final_prompt_id
@@ -138,6 +148,8 @@ def _validate_prompt(
         validated_prompt["ml_app"] = ml_app
     if version:
         validated_prompt["version"] = version
+    if label:
+        validated_prompt["label"] = label
     if variables:
         validated_prompt["variables"] = variables
     if template:
@@ -150,6 +162,10 @@ def _validate_prompt(
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
     if final_query_variable_keys:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
+    if prompt_uuid:
+        validated_prompt["prompt_uuid"] = prompt_uuid
+    if version_uuid:
+        validated_prompt["prompt_version_uuid"] = version_uuid
 
     prompt_uuid = prompt.get("prompt_uuid")
     version_uuid = prompt.get("prompt_version_uuid")
