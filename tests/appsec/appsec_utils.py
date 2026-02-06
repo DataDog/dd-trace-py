@@ -395,7 +395,7 @@ def appsec_application_server(
 
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
         try:
-            client.get_ignored("/shutdown")
+            client.get_ignored("/shutdown", timeout=5)
         except ConnectionError:
             pass
         except Exception:
