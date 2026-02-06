@@ -1,5 +1,7 @@
 from typing import Dict
 
+from wrapt import wrap_function_wrapper as _w
+
 
 try:
     import azure.durable_functions as durable_functions
@@ -7,8 +9,10 @@ except Exception:
     durable_functions = None
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.azure_functions.utils import create_context
 from ddtrace.contrib.internal.azure_functions.utils import wrap_function_with_tracing
+from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 
 
@@ -43,6 +47,22 @@ def patch():
     if getattr(durable_functions, "_datadog_patch", False):
         return
     durable_functions._datadog_patch = True
+    _patch_dfapp()
+
+
+def _patch_dfapp():
+    try:
+        from azure.durable_functions.decorators import durable_app
+    except Exception:
+        return
+
+    if not hasattr(durable_app, "DFApp"):
+        return
+
+    from ddtrace.contrib.internal.azure_functions.patch import _patched_get_functions
+
+    Pin().onto(durable_app.DFApp)
+    _w("azure.durable_functions", "DFApp.get_functions", _patched_get_functions)
 
 
 def wrap_durable_functions(pin, functions):
@@ -92,3 +112,10 @@ def unpatch():
     if not getattr(durable_functions, "_datadog_patch", False):
         return
     durable_functions._datadog_patch = False
+
+    try:
+        from azure.durable_functions.decorators import durable_app
+    except Exception:
+        durable_app = None
+    if durable_app is not None and hasattr(durable_app, "DFApp"):
+        _u(durable_app.DFApp, "get_functions")
