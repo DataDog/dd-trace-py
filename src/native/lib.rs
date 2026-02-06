@@ -9,6 +9,7 @@ mod library_config;
 mod log;
 mod py_string;
 mod span;
+mod tracer_flare;
 
 use pyo3::prelude::*;
 
@@ -45,6 +46,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add logger submodule
     let logger_module = pyo3::wrap_pymodule!(log::logger);
     m.add_wrapped(logger_module)?;
+
+    // Add tracer_flare submodule
+    m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
 
     Ok(())
 }

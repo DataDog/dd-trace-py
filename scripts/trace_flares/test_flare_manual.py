@@ -17,8 +17,7 @@ import uuid
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from ddtrace.internal.flare.flare import Flare
-from ddtrace.internal.flare.flare import FlareSendRequest
-
+from ddtrace.internal.native._native import register_tracer_flare as native_flare  # type: ignore
 
 def main():
     print("🧪 Manual Flare Test")
@@ -102,6 +101,9 @@ def main():
         # Create flare request with UUID case_id
         # case_id = "0"  # Use 0 to create a new ticket instead of attaching to existing
         case_id = "23223"
+        hostname = "integration_tests"
+        email = "paul.coignet@datadoghq.com"
+        uuid_str = str(uuid.uuid4()) # Add UUID for race condition prevention
 
         # Print sample AGENT_TASK config payload
         print("\n📝 Sample AGENT_TASK config payload:")
@@ -116,19 +118,11 @@ def main():
         }
         print(json.dumps(agent_task_config, indent=4))
 
-        flare_request = FlareSendRequest(
-            case_id=case_id,
-            hostname="integration_tests",
-            email="paul.coignet@datadoghq.com",
-            uuid=str(uuid.uuid4()),  # Add UUID for race condition prevention
-            source="tracer_python",
-        )
-
         print("🚀 Step 3: Sending flare to Datadog...")
         print(f"   📧 Sending flare for case: {case_id}")
-        print(f"   📧 Email: {flare_request.email}")
-        print(f"   🖥️  Hostname: {flare_request.hostname}")
-        print(f"   📧 Source: {flare_request.source}")
+        print(f"   📧 Email: {email}")
+        print(f"   🖥️  Hostname: {hostname}")
+        print(f"   📧 Source: tracer_python")
 
         # Print flare configuration details
         print("   ⚙️  Flare configuration:")
@@ -146,17 +140,10 @@ def main():
         print("      - Form fields: source, case_id, hostname, email, flare_file")
         print(f"      - Zip filename: tracer-python-{case_id}-{int(time.time() * 1000)}-debug.zip")
 
-        # Print the actual payload (headers and body summary)
-        print("\n   📨 Flare HTTP payload preview:")
-        headers, body = flare._generate_payload(flare_request)
-        print(f"      Debug: case_id = '{flare_request.case_id}'")
-        for k, v in headers.items():
-            print(f"      Header: {k}: {v}")
-        print(f"      [binary zip content: {body.count(b'PK')}] bytes, total body size: {len(body)} bytes")
-
+        send_request = native_flare.ReturnAction.get_send_action_from(case_id, hostname, email, uuid_str)
         # Send the flare
         try:
-            flare.send(flare_request)
+            flare.send(send_request)
             print("   ✅ Flare sent successfully!")
         except Exception as e:
             print(f"   ❌ Error sending flare: {e}")
