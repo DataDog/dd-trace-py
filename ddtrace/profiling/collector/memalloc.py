@@ -52,13 +52,6 @@ class MemoryCollector:
         if _memalloc is None:
             raise collector.CollectorUnavailable
 
-        # Ensure threading module structures are available before starting memalloc
-        # The C++ code directly accesses threading._active, threading._limbo, and
-        # ddtrace.internal._threads.periodic_threads dictionaries to get thread info.
-        # The threading module is already imported at the top of this file.
-        # We import _threads here to ensure periodic_threads dict exists.
-        import ddtrace.internal._threads  # noqa: F401
-
         try:
             _memalloc.start(self.max_nframe, self.heap_sample_size)
         except RuntimeError:
