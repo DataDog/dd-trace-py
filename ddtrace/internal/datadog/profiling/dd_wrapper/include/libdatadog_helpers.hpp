@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -52,12 +53,12 @@ namespace Datadog {
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,
 
-enum class ExportTagKey
+enum class ExportTagKey : std::uint8_t
 {
     EXPORTER_TAGS(X_ENUM) Length_
 };
 
-enum class ExportLabelKey
+enum class ExportLabelKey : std::uint8_t
 {
     EXPORTER_LABELS(X_ENUM) Length_
 };
