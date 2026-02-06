@@ -32,6 +32,7 @@ class ForkTime(bm.Scenario):
 
     def _setup_flask(self):
         from flask import Flask
+
         try:
             app = Flask(__name__)  # noqa: F841
 
@@ -41,14 +42,13 @@ class ForkTime(bm.Scenario):
         except ImportError:
             pass
 
-
     def _pyperf(self, loops: int) -> float:
         if self.configure:
             os.environ["DD_TRACE_ENABLED"] = "true"
             os.environ["DD_SERVICE"] = "fork-benchmark"
             os.environ["DD_ENV"] = "benchmark"
 
-            import ddtrace.auto
+            import ddtrace.auto  # noqa: F401
 
         self._setup_flask()
 
