@@ -64,10 +64,14 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import TypeVar
 
 from ddtrace.constants import SPAN_KIND
-from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+
+
+_CONTEXT_FIELDS_ATTR = "__dd_context_event_fields__"
+_PY3_9 = sys.version_info <= (3, 10)
 
 
 class Event:
@@ -81,26 +85,8 @@ class Event:
 
     event_name: str
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
 
-        # Automatically register the event handler
-        if "on_event" in cls.__dict__:
-            core.on(cls.event_name, cls.on_event)
-
-    @classmethod
-    def on_event(cls, event_instance) -> None:
-        """To access args enforced by a BaseEvent, such as BaseEvent(foo="bar"),
-        event_instance.foo must be used
-        """
-        pass
-
-    @classmethod
-    def extend_event(cls, handler) -> None:
-        core.on(cls.event_name, handler)
-
-
-def context_event(cls: Any) -> Any:
+def context_event(cls: type[_T]) -> type[_T]:
     """Decorator that converts a class into a dataclass with automatic event_field() defaults.
 
     By automatically applying event_field() to fields without defaults, this decorator allows child classes
@@ -121,7 +107,10 @@ def context_event(cls: Any) -> Any:
         if name not in cls.__dict__:
             setattr(cls, name, event_field())
 
-    return dataclass(cls)
+    dc_cls = dataclass(cls)
+    setattr(dc_cls, _CONTEXT_FIELDS_ATTR, {f.name for f in fields(dc_cls) if f.repr})
+
+    return dc_cls
 
 
 def event_field(
@@ -149,7 +138,7 @@ def event_field(
 
     # Python 3.9: Give fields without defaults a None default to work around
     # field ordering constraints with inheritance
-    if sys.version_info < (3, 10):
+    if _PY3_9:
         if default is MISSING and default_factory is MISSING:
             kwargs["default"] = None
     else:
@@ -170,11 +159,27 @@ class ContextEvent:
 
     event_name: str = field(init=False, repr=False)
 
+    def _apply_event_context(self, out: Dict[str, Any]) -> None:
+        names = getattr(self.__class__, _CONTEXT_FIELDS_ATTR, None)
+        if names is None:
+            # Defensive fallback in case a class wasn't decorated with @context_event.
+            names = tuple(f.name for f in fields(self) if f.repr)
+
+        d = self.__dict__
+        for field_name in names:
+            # PERF: `__dict__` access is faster than getattr in the hot-path.
+            # Fallback to getattr for edge cases (unlikely for dataclass instances).
+            try:
+                out[field_name] = d[field_name]
+            except KeyError:
+                out[field_name] = getattr(self, field_name)
+
     def create_event_context(self):
         """Convert this event instance into a dict that is used to create an ExecutionContext.
         Only event_field marked with in_context=True will be passed to the ExeuctionContext
         """
-        return {f.name: getattr(self, f.name) for f in fields(self) if f.repr}
+        names = getattr(self.__class__, _CONTEXT_FIELDS_ATTR)
+        return {field_name: getattr(self, field_name) for field_name in names}
 
 
 @dataclass

@@ -290,7 +290,9 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def context_with_event(event: "ContextEvent", parent=None):
-    return _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()), **event.create_event_context())
+    ctx = _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()))
+    ctx._data.update(event.create_event_context())
+    return ctx
 
 
 def add_suppress_exception(exc_type: type) -> None:
