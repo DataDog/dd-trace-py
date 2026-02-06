@@ -245,7 +245,6 @@ class Tracer(object):
     def debug_logging(self):
         return log.isEnabledFor(logging.DEBUG)
 
-
     @property
     def enabled(self) -> bool:
         return config._tracing_enabled

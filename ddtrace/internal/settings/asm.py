@@ -327,7 +327,7 @@ class ASMConfig(DDConfig):
     @property
     def _apm_opt_out(self) -> bool:
         return self._atleast_one_security_feature_enabled and not self._apm_tracing_enabled
-    
+
     @property
     def _atleast_one_security_feature_enabled(self) -> bool:
         return self._asm_enabled or self._iast_enabled or tracer_config._sca_enabled is True
