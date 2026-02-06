@@ -388,20 +388,7 @@ class Tracer(object):
             self._endpoint_call_counter_span_processor,
         )
 
-    def _start_span_after_shutdown(
-        self,
-        name: str,
-        child_of: Optional[Union[Span, Context]] = None,
-        service: Optional[str] = None,
-        resource: Optional[str] = None,
-        span_type: Optional[str] = None,
-        activate: bool = False,
-        span_api: str = SPAN_API_DATADOG,
-    ) -> Span:
-        log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
-        return self._start_span(name, child_of, service, resource, span_type, activate, span_api)
-
-    def _start_span(
+    def start_span(
         self,
         name: str,
         child_of: Optional[Union[Span, Context]] = None,
@@ -568,7 +555,23 @@ class Tracer(object):
         core.dispatch("trace.span_start", (span,))
         return span
 
-    start_span = _start_span
+    _start_span = start_span
+
+    def _start_span_after_shutdown(
+        self,
+        name: str,
+        child_of: Optional[Union[Span, Context]] = None,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        activate: bool = False,
+        span_api: str = SPAN_API_DATADOG,
+    ) -> Span:
+        span = self._start_span(name, child_of, service, resource, span_type, activate, span_api)
+        log.warning(
+            "Spans started after the tracer has been shut down will not be sent to the Datadog Agent: %s.", span
+        )
+        return span
 
     def _on_span_finish(self, span: Span) -> None:
         active = self.current_span()
