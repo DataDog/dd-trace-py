@@ -113,12 +113,9 @@ class Span(SpanData):
         "parent_id",
         "_meta",
         "_meta_struct",
-        "error",
         "context",
         "_metrics",
         "_store",
-        "start_ns",
-        "duration_ns",
         # Internal attributes
         "_parent_context",
         "_local_root_value",
@@ -184,13 +181,9 @@ class Span(SpanData):
         self._span_api = span_api
 
         self._meta: Dict[str, str] = {}
-        self.error = 0
         self._metrics: Dict[str, NumericType] = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
-
-        self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
 
         if trace_id is not None:
             self.trace_id: int = trace_id
@@ -252,30 +245,6 @@ class Span(SpanData):
     @property
     def _trace_id_64bits(self) -> int:
         return _get_64_lowest_order_bits_as_int(self.trace_id)
-
-    @property
-    def start(self) -> float:
-        """The start timestamp in Unix epoch seconds."""
-        return self.start_ns / 1e9
-
-    @start.setter
-    def start(self, value: Union[int, float]) -> None:
-        self.start_ns = int(value * 1e9)
-
-    @property
-    def finished(self) -> bool:
-        return self.duration_ns is not None
-
-    @property
-    def duration(self) -> Optional[float]:
-        """The span duration in seconds."""
-        if self.duration_ns is not None:
-            return self.duration_ns / 1e9
-        return None
-
-    @duration.setter
-    def duration(self, value: float) -> None:
-        self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
