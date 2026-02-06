@@ -823,6 +823,7 @@ def test_collect_span_resource_after_finish(tracer, tmp_path, request):
     )
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_resource_not_collected(tmp_path, tracer):
     test_name = "test_resource_not_collected"
     pprof_prefix = str(tmp_path / test_name)

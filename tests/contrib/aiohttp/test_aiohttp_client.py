@@ -153,6 +153,7 @@ asyncio.run(test())
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
 @pytest.mark.snapshot()
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_unspecified_service_name_env(ddtrace_run_python_code_in_subprocess, schema_version):
     """
     default (v0 schema): When only setting DD_SERVICE

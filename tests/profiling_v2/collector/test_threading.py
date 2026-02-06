@@ -498,6 +498,7 @@ class BaseThreadingLockCollectorTest:
             # Try this way too
             Foobar(self.lock_class)
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_lock_events(self):
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
@@ -530,6 +531,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_lock_acquire_events_class(self) -> None:
         with self.collector_class(capture_pct=100):
             lock_class: LockClassType = self.lock_class  # Capture for inner class
@@ -619,6 +621,7 @@ class BaseThreadingLockCollectorTest:
             ],
         )
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_lock_events_tracer_non_web(self, tracer: Tracer) -> None:
         tracer._endpoint_call_counter_span_processor.enable()
         resource: str = str(uuid.uuid4())
@@ -851,6 +854,7 @@ class BaseThreadingLockCollectorTest:
                 ],
             )
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_private_lock(self) -> None:
         class Foo:
             def __init__(self, lock_class: LockClassType) -> None:

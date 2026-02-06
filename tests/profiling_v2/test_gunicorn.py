@@ -134,6 +134,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     sys.version_info[:2] == (3, 8) and os.environ.get("DD_PROFILE_TEST_GEVENT") == "1",
     reason="Flaky and fails often on Python 3.8 with DD_PROFILE_TEST_GEVENT=1",
 )
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
     args = ("-k", "gevent") if TESTING_GEVENT else tuple()

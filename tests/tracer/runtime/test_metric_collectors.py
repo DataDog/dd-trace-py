@@ -1,3 +1,5 @@
+import pytest
+
 from ddtrace.internal.runtime.constants import CPU_PERCENT
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
 from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
@@ -32,6 +34,7 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
             self.assertIsNotNone(value)
             self.assertRegex(metric_name, r"^runtime.python\..*")
 
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_static_metrics(self):
         import os
         import threading

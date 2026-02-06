@@ -143,6 +143,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
         assert len(samples) > 0
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)

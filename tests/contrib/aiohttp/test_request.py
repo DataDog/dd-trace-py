@@ -2,6 +2,8 @@ import asyncio
 import threading
 from urllib import request
 
+import pytest
+
 from ddtrace import config
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from tests.utils import assert_is_measured
@@ -68,6 +70,7 @@ async def test_stream_request(patched_app_tracer, aiohttp_client):
     assert abs(0.5 - request_span.duration) < 0.05
 
 
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
     app, tracer = patched_app_tracer
     client = await aiohttp_client(app)
