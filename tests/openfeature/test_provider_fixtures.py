@@ -17,9 +17,9 @@ from ddtrace.openfeature import DataDogProvider
 from tests.utils import override_global_config
 
 
-# Get fixtures directory path
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-FLAGS_CONFIG_PATH = Path(__file__).parent / "flags-v1.json"
+# Get fixtures directory path (from ffe-system-test-data submodule)
+FIXTURES_DIR = Path(__file__).parent / "ffe-data/evaluation-cases"
+FLAGS_CONFIG_PATH = Path(__file__).parent / "ffe-data/config/ufc-config.json"
 
 
 def load_flags_config():
