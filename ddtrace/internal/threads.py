@@ -62,8 +62,8 @@ class PeriodicThread(_PeriodicThread):
                 _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
 
 
-# List of running periodic threads that need to be restarted after a fork.
-_threads_to_restart_after_fork: t.List[_PeriodicThread] = []
+# Set of running periodic threads that need to be restarted after a fork.
+_threads_to_restart_after_fork: t.Set[_PeriodicThread] = set()
 
 
 @atexit.register
@@ -181,7 +181,7 @@ def _before_fork() -> None:
 
     # Take note of all the periodic threads that are running and will need to be
     # restarted.
-    _threads_to_restart_after_fork.extend(periodic_threads.values())
+    _threads_to_restart_after_fork.update(periodic_threads.values())
 
     # Stop all the periodic threads that are still running, without executing
     # the shutdown methods, if any. This ensures that we can stop the threads
