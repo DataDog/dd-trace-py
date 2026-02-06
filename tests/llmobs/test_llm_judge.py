@@ -1,6 +1,7 @@
 """Tests for LLMJudge evaluator."""
 
 import json
+from unittest import mock
 
 import pytest
 
@@ -8,6 +9,7 @@ from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
@@ -221,3 +223,55 @@ class TestLLMJudge:
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
         assert result.reasoning is None
+
+
+class TestVertexAIClient:
+    def test_missing_project_raises(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+        with pytest.raises(ValueError, match="Google Cloud project not provided"):
+            _create_vertexai_client()
+
+    def test_client_call(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+
+        mock_part = mock.MagicMock()
+        mock_part.text = '{"result": "positive"}'
+
+        mock_content = mock.MagicMock()
+        mock_content.parts = [mock_part]
+
+        mock_candidate = mock.MagicMock()
+        mock_candidate.content = mock_content
+
+        mock_response = mock.MagicMock()
+        mock_response.candidates = [mock_candidate]
+
+        mock_model_instance = mock.MagicMock()
+        mock_model_instance.generate_content.return_value = mock_response
+
+        mock_generation_config = mock.MagicMock()
+
+        mock_vertexai_module = mock.MagicMock()
+        mock_generative_models = mock.MagicMock()
+        mock_generative_models.GenerativeModel.return_value = mock_model_instance
+        mock_generative_models.GenerationConfig.return_value = mock_generation_config
+
+        with mock.patch.dict(
+            "sys.modules",
+            {
+                "vertexai": mock_vertexai_module,
+                "vertexai.generative_models": mock_generative_models,
+            },
+        ):
+            client = _create_vertexai_client()
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "evaluate"}],
+                json_schema={"type": "object"},
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.2},
+            )
+
+        assert result == '{"result": "positive"}'
+        mock_generative_models.GenerativeModel.assert_called_once_with("gemini-1.5-pro", system_instruction="Judge")

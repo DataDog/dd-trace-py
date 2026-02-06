@@ -247,6 +247,66 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     return call
 
 
+def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    project = (
+        client_options.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT")
+    )
+    location = (
+        client_options.get("location")
+        or os.environ.get("GOOGLE_CLOUD_REGION")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or "us-central1"
+    )
+
+    if not project:
+        raise ValueError(
+            "Google Cloud project not provided. "
+            "Pass 'project' in client_options or set GOOGLE_CLOUD_PROJECT environment variable"
+        )
+
+    try:
+        import vertexai
+        from vertexai.generative_models import GenerationConfig
+        from vertexai.generative_models import GenerativeModel
+    except ImportError:
+        raise ImportError("google-cloud-aiplatform package required: pip install google-cloud-aiplatform")
+
+    vertexai.init(project=project, location=location, credentials=client_options.get("credentials"))
+
+    def call(
+        provider: Optional[str],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
+        model: str,
+        model_params: Optional[Dict[str, Any]],
+    ) -> str:
+        system_instruction = None
+        contents = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            else:
+                role = "user" if msg["role"] == "user" else "model"
+                contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+
+        model_instance = GenerativeModel(model, system_instruction=system_instruction)
+
+        generation_config_params = model_params.copy() if model_params else {}
+        if json_schema:
+            generation_config_params["response_mime_type"] = "application/json"
+            generation_config_params["response_schema"] = json_schema
+
+        generation_config = GenerationConfig(**generation_config_params) if generation_config_params else None
+        response = model_instance.generate_content(contents, generation_config=generation_config)
+
+        if response.candidates and response.candidates[0].content.parts:
+            return response.candidates[0].content.parts[0].text
+        return ""
+
+    return call
+
+
 class LLMJudge(BaseEvaluator):
     """Evaluator that uses an LLM to judge LLM Observability span outputs."""
 
@@ -255,7 +315,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        provider: Optional[Literal["openai", "anthropic"]] = None,
+        provider: Optional[Literal["openai", "anthropic", "vertexai"]] = None,
         model: Optional[str] = None,
         model_params: Optional[dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
@@ -265,8 +325,8 @@ class LLMJudge(BaseEvaluator):
         """Initialize an LLMJudge evaluator.
 
         LLMJudge enables automated evaluation of LLM outputs using another LLM as the judge.
-        It supports multiple providers (OpenAI, Anthropic) and output formats for flexible
-        evaluation criteria.
+        It supports multiple providers (OpenAI, Anthropic, Vertex AI) and output formats
+        for flexible evaluation criteria.
 
         Supported Output Types:
             - ``BooleanStructuredOutput``: Returns True/False with optional pass/fail assessment.
@@ -288,17 +348,28 @@ class LLMJudge(BaseEvaluator):
                 support template variables.
             structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
                 CategoricalStructuredOutput, or a custom JSON schema dict).
-            provider: LLM provider to use (``"openai"`` or ``"anthropic"``). Required if
-                ``client`` is not provided.
+            provider: LLM provider to use. Supported values: ``"openai"``, ``"anthropic"``,
+                ``"vertexai"``. Required if ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
             model_params: Additional parameters passed to the LLM API (e.g., temperature).
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
-            client_options: Provider-specific configuration options. Supported keys:
+            client_options: Provider-specific configuration options. Supported keys vary
+                by provider:
 
-                - ``api_key``: API key for OpenAI or Anthropic. Falls back to
-                  ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY`` environment variables.
+                **OpenAI:**
+                    - ``api_key``: API key. Falls back to ``OPENAI_API_KEY`` env var.
+
+                **Anthropic:**
+                    - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+
+                **Vertex AI:**
+                    - ``project``: Google Cloud project ID. Falls back to
+                      ``GOOGLE_CLOUD_PROJECT`` or ``GCLOUD_PROJECT`` env var.
+                    - ``location``: Region (default: "us-central1"). Falls back to
+                      ``GOOGLE_CLOUD_REGION`` or ``GOOGLE_CLOUD_LOCATION``.
+                    - ``credentials``: Optional service account credentials object.
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.
@@ -361,8 +432,10 @@ class LLMJudge(BaseEvaluator):
             self._client = _create_openai_client(client_options=client_options)
         elif provider == "anthropic":
             self._client = _create_anthropic_client(client_options=client_options)
+        elif provider == "vertexai":
+            self._client = _create_vertexai_client(client_options=client_options)
         else:
-            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic)")
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/vertexai)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:
