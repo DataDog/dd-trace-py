@@ -718,7 +718,7 @@ ThreadInfo::update_cpu_time()
 }
 
 void
-for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback)
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadStateCallback& callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
