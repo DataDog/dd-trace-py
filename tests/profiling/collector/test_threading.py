@@ -655,8 +655,14 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
             bsem2.release()
 
 
-class BaseThreadingLockCollectorTest:
-    # These should be implemented by child classes
+class LockCollectorTestBase:
+    """Minimal base class providing ddup setup/teardown for lock collector tests.
+
+    Subclasses must define:
+    - collector_class: The collector class to use (e.g., ThreadingLockCollector)
+    - lock_class: The lock class to use (e.g., threading.Lock)
+    """
+
     @property
     def collector_class(self) -> CollectorTypeClass:
         raise NotImplementedError("Child classes must implement collector_class")
@@ -702,6 +708,25 @@ class BaseThreadingLockCollectorTest:
                 os.remove(f)
             except Exception as e:
                 print("Error removing file: {}".format(e))
+
+
+class TestGenericLockProfiling(LockCollectorTestBase):
+    """Generic lock profiling tests that run once with threading.Lock.
+
+    These tests verify the core profiling infrastructure which is shared across
+    all lock types. Running them once with Lock is sufficient since:
+    - All lock types use the same _ProfiledLock wrapper
+    - The profiling logic (sampling, stack traces, ddup integration) is identical
+    - Lock-type-specific behavior is tested in dedicated test classes
+    """
+
+    @property
+    def collector_class(self) -> Type[ThreadingLockCollector]:
+        return ThreadingLockCollector
+
+    @property
+    def lock_class(self) -> Type[threading.Lock]:
+        return threading.Lock
 
     def test_wrapper(self) -> None:
         with self.collector_class():
@@ -1478,8 +1503,12 @@ class BaseThreadingLockCollectorTest:
         )
 
 
-class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
-    """Test Lock profiling"""
+class TestThreadingLockCollector(LockCollectorTestBase):
+    """Test Lock-specific profiling behavior.
+
+    Generic profiling tests are in TestGenericLockProfiling.
+    This class only tests Lock-specific behavior (e.g., acquire_lock/release_lock aliases).
+    """
 
     @property
     def collector_class(self) -> Type[ThreadingLockCollector]:
@@ -1508,8 +1537,12 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
             lock.release_lock()
 
 
-class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
-    """Test RLock profiling"""
+class TestThreadingRLockCollector(LockCollectorTestBase):
+    """Test RLock-specific profiling behavior.
+
+    Generic profiling tests are in TestGenericLockProfiling.
+    This class only tests RLock-specific behavior (e.g., _is_owned method).
+    """
 
     @property
     def collector_class(self) -> Type[ThreadingRLockCollector]:
@@ -1544,11 +1577,12 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
             assert not lock._is_owned()
 
 
-class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
+class BaseSemaphoreTest(LockCollectorTestBase):
     """Base test class for Semaphore-like locks (Semaphore and BoundedSemaphore).
 
     Contains tests that apply to both regular Semaphore and BoundedSemaphore,
     particularly those related to internal lock detection and Condition-based implementation.
+    Generic profiling tests are in TestGenericLockProfiling.
     """
 
     def test_subclassing_wrapped_lock(self) -> None:
@@ -1812,8 +1846,12 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
                 sem.release()
 
 
-class TestThreadingConditionCollector(BaseThreadingLockCollectorTest):
-    """Test threading.Condition profiling."""
+class TestThreadingConditionCollector(LockCollectorTestBase):
+    """Test threading.Condition-specific profiling behavior.
+
+    Generic profiling tests are in TestGenericLockProfiling.
+    This class can be extended with Condition-specific tests (e.g., wait/notify behavior).
+    """
 
     @property
     def collector_class(self) -> Type[ThreadingConditionCollector]:
