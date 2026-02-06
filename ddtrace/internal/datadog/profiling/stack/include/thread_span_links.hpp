@@ -18,7 +18,7 @@ struct Span
     Span(uint64_t _span_id, uint64_t _local_root_span_id, std::string _span_type)
       : span_id(_span_id)
       , local_root_span_id(_local_root_span_id)
-      , span_type(_span_type)
+      , span_type(std::move(_span_type))
     {
     }
 
