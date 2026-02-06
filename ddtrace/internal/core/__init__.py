@@ -110,6 +110,7 @@ from typing import Optional  # noqa:F401
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
+from .event_hub import dispatch_event  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
@@ -118,6 +119,7 @@ from .event_hub import reset as reset_listeners  # noqa:F401
 
 if typing.TYPE_CHECKING:
     from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.internal.core.events import ContextEvent  # noqa:F401
 
 import contextvars
 
@@ -285,6 +287,10 @@ def _reset_context():
 
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def context_with_event(event: "ContextEvent", parent=None):
+    return _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()), **event.create_event_context())
 
 
 def add_suppress_exception(exc_type: type) -> None:
