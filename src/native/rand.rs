@@ -3,8 +3,11 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 use std::cell::RefCell;
 
 fn create_rng() -> SmallRng {
-    let mut source = rand::rng();
-    SmallRng::from_rng(&mut source)
+    // Use seed_from_u64 with OS entropy for fork safety.
+    // We get a fresh seed from the OS RNG each time this is called,
+    // ensuring child processes get independent RNG state after fork.
+    let seed = rand::random::<u64>();
+    SmallRng::seed_from_u64(seed)
 }
 
 thread_local! {
