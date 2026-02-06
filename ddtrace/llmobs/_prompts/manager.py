@@ -234,6 +234,9 @@ class PromptManager:
         """Parse the API response into a ManagedPrompt."""
         try:
             data = json.loads(body)
+            if not isinstance(data, dict):
+                log.warning("Failed to parse prompt response: expected object, got %s", type(data).__name__)
+                return None
             return ManagedPrompt(
                 id=data.get("prompt_id", prompt_id),
                 version=data.get("version", "unknown"),
