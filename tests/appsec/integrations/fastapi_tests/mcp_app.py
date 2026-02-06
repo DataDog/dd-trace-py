@@ -5,6 +5,7 @@ with different communication patterns.
 """
 
 import subprocess
+import sys
 
 from fastapi import FastAPI
 from fastapi import Form
@@ -60,7 +61,7 @@ def get_app():
         from ddtrace import tracer
 
         tracer.shutdown()
-        return {"status": "shutting down"}
+        sys.exit(0)
 
     @app.post("/iast-cmdi-form")
     async def iast_cmdi_form(command: str = Form(...)):

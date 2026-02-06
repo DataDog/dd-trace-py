@@ -1,5 +1,6 @@
+import sys
+
 import django
-from django.http import HttpResponse
 from django.urls import path
 
 from ddtrace.trace import tracer
@@ -16,7 +17,7 @@ else:
 def shutdown(request):
     # Endpoint used to flush traces to the agent when doing snapshots.
     tracer.shutdown()
-    return HttpResponse(status=200)
+    sys.exit(0)
 
 
 urlpatterns = [
