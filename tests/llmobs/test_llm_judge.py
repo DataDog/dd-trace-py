@@ -1,6 +1,7 @@
 """Tests for LLMJudge evaluator."""
 
 import json
+from unittest import mock
 
 import pytest
 
@@ -8,6 +9,7 @@ from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
@@ -217,3 +219,37 @@ class TestLLMJudge:
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
         assert result.reasoning is None
+
+
+class TestBedrockClient:
+    def test_missing_package_raises(self):
+        with mock.patch.dict("sys.modules", {"boto3": None}):
+            with pytest.raises(ImportError, match="boto3 package required"):
+                _create_bedrock_client()
+
+    def test_client_call(self):
+        mock_bedrock_client = mock.MagicMock()
+        mock_bedrock_client.converse.return_value = {"output": {"message": {"content": [{"text": '{"eval": true}'}]}}}
+
+        mock_session = mock.MagicMock()
+        mock_session.client.return_value = mock_bedrock_client
+
+        mock_boto3 = mock.MagicMock()
+        mock_boto3.Session.return_value = mock_session
+
+        with mock.patch.dict("sys.modules", {"boto3": mock_boto3}):
+            client = _create_bedrock_client({"region_name": "us-west-2"})
+            result = client(
+                provider="bedrock",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={"type": "object"},
+                model="anthropic.claude-3-sonnet",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+
+        assert result == '{"eval": true}'
+        mock_bedrock_client.converse.assert_called_once()
+        call_kwargs = mock_bedrock_client.converse.call_args[1]
+        assert call_kwargs["modelId"] == "anthropic.claude-3-sonnet"
+        assert call_kwargs["system"] == [{"text": "Judge"}]
+        assert "inferenceConfig" in call_kwargs
