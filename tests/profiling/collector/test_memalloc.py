@@ -120,7 +120,8 @@ def test_memory_collector(tmp_path: Path) -> None:
         expected_sample=pprof_utils.StackEvent(
             # Memory profiler uses Python C APIs to get thread id and there's
             # no Python C API to get thread name. We can consider using Echion's
-            # ThreadInfoMap to get thread_name.
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
             thread_name=str(threading.main_thread().ident),
             thread_id=threading.main_thread().ident,
             locations=[
@@ -1139,7 +1140,8 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         expected_sample=pprof_utils.StackEvent(
             # Memory profiler uses Python C APIs to get thread id and there's
             # no Python C API to get thread name. We can consider using Echion's
-            # ThreadInfoMap to get thread_name.
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
             thread_name=str(threading.main_thread().ident),
             thread_id=threading.main_thread().ident,
             locations=[
