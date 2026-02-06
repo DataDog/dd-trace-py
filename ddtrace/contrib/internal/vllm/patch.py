@@ -115,7 +115,6 @@ def _create_finished_spans(
             continue
 
         span = create_span(
-            pin=pin,
             integration=integration,
             model_name=model_name,
             trace_headers=span_info["trace_headers"],
