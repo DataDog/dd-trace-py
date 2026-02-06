@@ -20,6 +20,8 @@ class BaseSubscriber:
         super().__init_subclass__(**kwargs)
 
         cls._started_handlers = tuple(
+            base_cls.on_started
+            for base_cls in reversed(cls.__mro__[:-1])
             if issubclass(base_cls, BaseSubscriber)
             and "on_started" in base_cls.__dict__
             and base_cls is not BaseSubscriber
@@ -34,6 +36,7 @@ class BaseSubscriber:
 
         if "event_name" not in cls.__dict__:
             return
+
         core.on(
             f"context.started.{cls.event_name}",
             cls._on_context_started,
