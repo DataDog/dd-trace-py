@@ -214,17 +214,12 @@ impl TraceExporterPy {
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
-        match self
-            .inner
-            .take()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .shutdown(Some(Duration::from_nanos(timeout_ns)))
-        {
-            Ok(_) => Ok(()),
-            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
+        if let Some(exporter) = self.inner.take() {
+            exporter
+                .shutdown(Some(Duration::from_nanos(timeout_ns)))
+                .map_err(TraceExporterErrorPy::from)?;
         }
+        Ok(())
     }
 
     fn drop(&mut self) -> PyResult<()> {
