@@ -44,7 +44,6 @@ VmReader::create(size_t sz)
     for (auto& tmp_dir : tmp_dirs) {
         // Reset the file descriptor, just in case
         close(fd);
-        fd = -1;
 
         // Create the temporary file
         std::string tmpfile = tmp_dir + tmp_suffix;
