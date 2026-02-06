@@ -6,7 +6,7 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-from threading import RLock
+from threading import Lock
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -151,9 +151,10 @@ class Tracer(object):
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
+        atexit.register_on_exit_signal(self._atexit)
         forksafe.register(self._child_after_fork)
 
-        self._shutdown_lock = RLock()
+        self._shutdown_lock = Lock()
 
         self._new_process = False
 
@@ -883,8 +884,10 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        with self._shutdown_lock:
-            # Thread safety: Ensures tracer is shutdown synchronously
+        if not self._shutdown_lock.acquire(blocking=False):
+            # Already shutting down from this or another thread — skip re-entrant call
+            return
+        try:
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)
@@ -897,3 +900,5 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+        finally:
+            self._shutdown_lock.release()
