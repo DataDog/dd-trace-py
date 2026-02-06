@@ -661,6 +661,21 @@ class NativeWriterTests(AgentWriterTests):
             for trace in payload:
                 assert 0.6 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
 
+    def test_on_shutdown_idempotent(self):
+        """Test that NativeWriter.on_shutdown() can be called multiple times without raising ValueError."""
+        writer = NativeWriter("http://dne:1234")
+        writer.start()
+        # First call should succeed
+        writer.on_shutdown()
+        # Second call should also succeed (idempotent)
+        writer.on_shutdown()
+
+    def test_on_shutdown_before_start(self):
+        """Test that NativeWriter.on_shutdown() can be called before start() without raising ValueError."""
+        writer = NativeWriter("http://dne:1234")
+        # Call shutdown without ever calling start()
+        writer.on_shutdown()
+
     # Http related metrics are sent by the native code
     def test_drop_reason_bad_endpoint(self):
         pytest.skip()
