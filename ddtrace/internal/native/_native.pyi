@@ -518,12 +518,14 @@ class SpanData:
     name: str
     service: Optional[str]
     resource: str
+    span_type: Optional[str]
 
     def __new__(
         cls: Type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
+        span_type: Optional[str] = None,
     ) -> _SpanDataT: ...
 
 class SpanEventData:

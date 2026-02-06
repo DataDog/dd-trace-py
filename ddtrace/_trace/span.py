@@ -117,7 +117,6 @@ class Span(SpanData):
         "context",
         "_metrics",
         "_store",
-        "span_type",
         "start_ns",
         "duration_ns",
         # Internal attributes
@@ -182,7 +181,6 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        self.span_type = span_type
         self._span_api = span_api
 
         self._meta: Dict[str, str] = {}
