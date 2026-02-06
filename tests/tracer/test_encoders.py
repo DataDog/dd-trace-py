@@ -955,15 +955,15 @@ def _value():
         # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
         # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
         # {"span_type": 100},  # Now handled gracefully by Rust (converts to None)
-        {"start_ns": []},
-        {"duration_ns": {}},
+        # {"start_ns": []},  # Now handled gracefully by Rust (falls back to 0)
+        # {"duration_ns": {}},  # Now handled gracefully by Rust (falls back to -1/None)
     ],
 )
 def test_encoding_invalid_data_raises(data):
     """Test that invalid data types for certain fields raise during encoding.
 
-    Note: name, service, and resource are now validated at the Rust layer and convert
-    invalid types gracefully, so they no longer raise during encoding.
+    Note: name, service, resource, start_ns, and duration_ns are now validated at the
+    Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
     """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
@@ -993,12 +993,16 @@ def test_encoding_invalid_data_raises(data):
         ("span_type", 100, None, "test"),  # Invalid span_type -> None
         ("span_type", True, None, "test"),  # Invalid span_type -> None
         ("span_type", {"dict": "value"}, None, "test"),  # Invalid span_type -> None
+        ("start_ns", [], 0, "test"),  # Invalid start_ns type -> 0 (default)
+        ("start_ns", {}, 0, "test"),  # Invalid start_ns type -> 0 (default)
+        ("duration_ns", {}, None, "test"),  # Invalid duration_ns type -> None (sentinel -1)
+        ("duration_ns", [], None, "test"),  # Invalid duration_ns type -> None (sentinel -1)
     ],
 )
 def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_value, expected_value, span_name):
     """Test that invalid data types for Rust-backed string fields are handled gracefully.
 
-    Since name, service, resource, and span_type are now backed by Rust PyBackedString, invalid types
+    Since name, service, resource, span_type, start_ns, and duration_ns are now backed by Rust, invalid types
     are converted at setter time rather than raising during encoding.
 
     - Invalid name types -> "" (empty string)
@@ -1006,6 +1010,8 @@ def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_v
     - Invalid resource types -> "" (empty string)
       Note: fallback to name only happens when resource=None in __new__, not on setter
     - Invalid span_type types -> None
+    - Invalid start_ns types -> 0 (default)
+    - Invalid duration_ns types -> None (sentinel -1 for "not set")
     """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
