@@ -16,13 +16,13 @@ from pyfakefs.fake_filesystem_unittest import TestCase
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
+from ddtrace.internal.flare._subscribers import TracerFlareCallback
+from ddtrace.internal.flare._subscribers import TracerFlareState
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import remote_config_build_payload as build_payload
 
@@ -744,18 +744,7 @@ class TracerFlareMultiprocessTests(TestCase):
         assert self.errors.qsize() == 1
 
 
-class MockPubSubConnector(PublisherSubscriberConnector):
-    def __init__(self):
-        pass
-
-    def read(self):
-        pass
-
-    def write(self):
-        pass
-
-
-class TracerFlareSubscriberTests(TestCase):
+class TracerFlareCallbackTests(TestCase):
     agent_config = [False, {"name": "flare-log-level", "config": {"log_level": "DEBUG"}}]
     agent_task = [
         False,
@@ -773,37 +762,38 @@ class TracerFlareSubscriberTests(TestCase):
     def setUp(self):
         self.setUpPyfakefs()
         self.shared_dir = self.fs.create_dir("tracer_flare_test")
-        self.tracer_flare_sub = TracerFlareSubscriber(
-            data_connector=MockPubSubConnector(),
+        self.flare = Flare(
+            trace_agent_url=TRACE_AGENT_URL,
+            ddconfig={"config": "testconfig"},
+            flare_dir=pathlib.Path(self.shared_dir.name),
+        )
+        self.state = TracerFlareState()
+        self.callback = TracerFlareCallback(
             callback=_handle_tracer_flare,
-            flare=Flare(
-                trace_agent_url=TRACE_AGENT_URL,
-                ddconfig={"config": "testconfig"},
-                flare_dir=pathlib.Path(self.shared_dir.name),
-            ),
+            flare=self.flare,
+            state=self.state,
+            stale_duration_mins=20,
         )
 
     def generate_agent_config(self):
-        with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
-            mock_pubsub_conn.return_value = [build_payload("AGENT_CONFIG", self.agent_config, "config")]
-            self.tracer_flare_sub._get_data_from_connector_and_exec()
+        payload = build_payload("AGENT_CONFIG", self.agent_config, "config")
+        self.callback([payload])
 
     def generate_agent_task(self):
-        with mock.patch("tests.internal.test_tracer_flare.MockPubSubConnector.read") as mock_pubsub_conn:
-            mock_pubsub_conn.return_value = [build_payload("AGENT_TASK", self.agent_task, "task")]
-            self.tracer_flare_sub._get_data_from_connector_and_exec()
+        payload = build_payload("AGENT_TASK", self.agent_task, "task")
+        self.callback([payload])
 
     def test_process_flare_request_success(self):
         """
         Ensure a full successful tracer flare process
         """
-        assert self.tracer_flare_sub.stale_tracer_flare_num_mins == 20
+        assert self.callback._stale_duration_secs == 20 * 60
         # Generate an AGENT_CONFIG product to trigger a request
         with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
             self.generate_agent_config()
             mock_flare_prep.assert_called_once()
 
-        assert self.tracer_flare_sub.current_request_start is not None, (
+        assert self.state.current_request_start is not None, (
             "current_request_start should be a non-None value after request is received"
         )
 
@@ -813,7 +803,7 @@ class TracerFlareSubscriberTests(TestCase):
             mock_flare_send.assert_called_once()
 
         # Timestamp cleared after request completed
-        assert self.tracer_flare_sub.current_request_start is None, (
+        assert self.state.current_request_start is None, (
             "current_request_start timestamp should have been reset after request was completed"
         )
 
@@ -823,21 +813,23 @@ class TracerFlareSubscriberTests(TestCase):
         flare job has gone stale
         """
         # Set this to 0 so all requests are stale
-        self.tracer_flare_sub.stale_tracer_flare_num_mins = 0
+        self.callback._stale_duration_secs = 0
 
         # Generate an AGENT_CONFIG product to trigger a request
         with mock.patch("ddtrace.internal.flare.flare.Flare.prepare") as mock_flare_prep:
             self.generate_agent_config()
             mock_flare_prep.assert_called_once()
 
-        assert self.tracer_flare_sub.current_request_start is not None
+        assert self.state.current_request_start is not None
 
-        # Setting this to 0 minutes so all jobs are considered stale
-        assert self.tracer_flare_sub.has_stale_flare()
+        # Setting this to 0 seconds so all jobs are considered stale
+        assert self.callback._has_stale_flare()
 
-        self.generate_agent_config()
+        # Call the periodic method to trigger the stale check
+        # This simulates the RC client calling periodic() at every polling interval
+        self.callback.periodic()
 
-        assert self.tracer_flare_sub.current_request_start is None, "current_request_start should have been reset"
+        assert self.state.current_request_start is None, "current_request_start should have been reset"
 
     def test_no_overlapping_requests(self):
         """
@@ -850,7 +842,7 @@ class TracerFlareSubscriberTests(TestCase):
             self.generate_agent_config()
             mock_flare_prep.assert_called_once()
 
-        original_request_start = self.tracer_flare_sub.current_request_start
+        original_request_start = self.state.current_request_start
         assert original_request_start is not None
 
         # Generate another AGENT_CONFIG product to trigger a request
@@ -859,7 +851,7 @@ class TracerFlareSubscriberTests(TestCase):
             self.generate_agent_config()
             mock_flare_prep.assert_not_called()
 
-        assert self.tracer_flare_sub.current_request_start == original_request_start, (
+        assert self.state.current_request_start == original_request_start, (
             "Original request should not have been updated with newer request start time"
         )
 
