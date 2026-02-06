@@ -70,6 +70,7 @@ class Prompt(TypedDict, total=False):
         id: str - the id of the prompt set by the user. Should be unique per ml_app.
         version: str - user tag for the version of the prompt.
         variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
+        label: str - label associated with the prompt version (for example, "prod")
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
             - A list of dicts of (role,template)
             where role is the role of the prompt and template is the template string
@@ -85,6 +86,7 @@ class Prompt(TypedDict, total=False):
 
     version: str
     id: str
+    label: str
     template: str
     chat_template: Union[List[Dict[str, str]], List[Message]]
     variables: Dict[str, str]
