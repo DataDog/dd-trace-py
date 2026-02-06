@@ -203,6 +203,7 @@ def _create_azure_openai_client(client_options: Optional[Dict[str, Any]] = None)
         raise ImportError("openai package required: pip install openai")
 
     client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version)
+    deployment_name = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT")
 
     def call(
         provider: Optional[str],
@@ -211,8 +212,7 @@ def _create_azure_openai_client(client_options: Optional[Dict[str, Any]] = None)
         model: str,
         model_params: Optional[Dict[str, Any]],
     ) -> str:
-        deployment = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT") or model
-        kwargs: Dict[str, Any] = {"model": deployment, "messages": messages}
+        kwargs: Dict[str, Any] = {"model": deployment_name or model, "messages": messages}
         if model_params:
             kwargs.update(model_params)
         if json_schema:
@@ -221,7 +221,11 @@ def _create_azure_openai_client(client_options: Optional[Dict[str, Any]] = None)
                 "json_schema": {"name": "evaluation", "strict": True, "schema": json_schema},
             }
         response = client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content or ""
+        choices = getattr(response, "choices", None)
+        if choices and isinstance(choices, list):
+            message = getattr(choices[0], "message", None)
+            return getattr(message, "content", None) or ""
+        return ""
 
     return call
 

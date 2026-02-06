@@ -238,6 +238,13 @@ class TestAzureOpenAIClient:
         with pytest.raises(ValueError, match="Azure OpenAI endpoint not provided"):
             _create_azure_openai_client()
 
+    def test_missing_openai_package_raises(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        with mock.patch.dict("sys.modules", {"openai": None}):
+            with pytest.raises(ImportError, match="openai package required"):
+                _create_azure_openai_client()
+
     def test_client_call(self, monkeypatch):
         monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
         monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
@@ -265,3 +272,170 @@ class TestAzureOpenAIClient:
         assert result == '{"score": 0.9}'
         call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
         assert call_kwargs["model"] == "my-deployment"
+
+    def test_client_falls_back_to_model_when_no_deployment(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        monkeypatch.delenv("AZURE_OPENAI_DEPLOYMENT", raising=False)
+
+        mock_response = mock.MagicMock()
+        mock_response.choices = [mock.MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+
+        mock_azure_client = mock.MagicMock()
+        mock_azure_client.chat.completions.create.return_value = mock_response
+
+        mock_openai_module = mock.MagicMock()
+        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            client = _create_azure_openai_client()
+            client(
+                provider="azure_openai",
+                messages=[{"role": "user", "content": "test"}],
+                json_schema=None,
+                model="gpt-4o",
+                model_params=None,
+            )
+
+        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
+        assert call_kwargs["model"] == "gpt-4o"
+
+    def test_client_forwards_json_schema(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+
+        mock_response = mock.MagicMock()
+        mock_response.choices = [mock.MagicMock()]
+        mock_response.choices[0].message.content = '{"boolean_eval": true}'
+
+        mock_azure_client = mock.MagicMock()
+        mock_azure_client.chat.completions.create.return_value = mock_response
+
+        mock_openai_module = mock.MagicMock()
+        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
+
+        schema = {"type": "object", "properties": {"boolean_eval": {"type": "boolean"}}}
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            client = _create_azure_openai_client()
+            client(
+                provider="azure_openai",
+                messages=[{"role": "user", "content": "test"}],
+                json_schema=schema,
+                model="gpt-4o",
+                model_params=None,
+            )
+
+        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
+        assert call_kwargs["response_format"] == {
+            "type": "json_schema",
+            "json_schema": {"name": "evaluation", "strict": True, "schema": schema},
+        }
+
+    def test_client_forwards_model_params(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+
+        mock_response = mock.MagicMock()
+        mock_response.choices = [mock.MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+
+        mock_azure_client = mock.MagicMock()
+        mock_azure_client.chat.completions.create.return_value = mock_response
+
+        mock_openai_module = mock.MagicMock()
+        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            client = _create_azure_openai_client()
+            client(
+                provider="azure_openai",
+                messages=[{"role": "user", "content": "test"}],
+                json_schema=None,
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 100},
+            )
+
+        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
+        assert call_kwargs["temperature"] == 0.5
+        assert call_kwargs["max_tokens"] == 100
+
+    def test_client_uses_env_var_deployment(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "env-deployment")
+
+        mock_response = mock.MagicMock()
+        mock_response.choices = [mock.MagicMock()]
+        mock_response.choices[0].message.content = "ok"
+
+        mock_azure_client = mock.MagicMock()
+        mock_azure_client.chat.completions.create.return_value = mock_response
+
+        mock_openai_module = mock.MagicMock()
+        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            client = _create_azure_openai_client()
+            client(
+                provider="azure_openai",
+                messages=[{"role": "user", "content": "test"}],
+                json_schema=None,
+                model="gpt-4o",
+                model_params=None,
+            )
+
+        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
+        assert call_kwargs["model"] == "env-deployment"
+
+    def test_client_returns_empty_on_empty_choices(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+
+        mock_response = mock.MagicMock()
+        mock_response.choices = []
+
+        mock_azure_client = mock.MagicMock()
+        mock_azure_client.chat.completions.create.return_value = mock_response
+
+        mock_openai_module = mock.MagicMock()
+        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            client = _create_azure_openai_client()
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "user", "content": "test"}],
+                json_schema=None,
+                model="gpt-4o",
+                model_params=None,
+            )
+
+        assert result == ""
+
+    def test_llmjudge_with_azure_openai_provider(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+
+        mock_response = mock.MagicMock()
+        mock_response.choices = [mock.MagicMock()]
+        mock_response.choices[0].message.content = json.dumps({"boolean_eval": True})
+
+        mock_azure_client = mock.MagicMock()
+        mock_azure_client.chat.completions.create.return_value = mock_response
+
+        mock_openai_module = mock.MagicMock()
+        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            judge = LLMJudge(
+                provider="azure_openai",
+                model="gpt-4o",
+                user_prompt="Evaluate: {{output_data}}",
+                structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            )
+            result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
+
+        assert isinstance(result, EvaluatorResult)
+        assert result.value is True
+        assert result.assessment == "pass"
