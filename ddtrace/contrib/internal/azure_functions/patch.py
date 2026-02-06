@@ -24,8 +24,6 @@ config._add(
     ),
 )
 
-_PATCHED_DFAPP = False
-
 
 def get_version() -> str:
     return getattr(azure_functions, "__version__", "")
@@ -46,25 +44,6 @@ def patch():
 
     Pin().onto(azure_functions.FunctionApp)
     _w("azure.functions", "FunctionApp.get_functions", _patched_get_functions)
-    _patch_dfapp()
-
-
-def _patch_dfapp():
-    global _PATCHED_DFAPP
-    if _PATCHED_DFAPP:
-        return
-
-    try:
-        from azure.durable_functions.decorators import durable_app
-    except Exception:
-        return
-
-    if not hasattr(durable_app, "DFApp"):
-        return
-
-    Pin().onto(durable_app.DFApp)
-    _w("azure.durable_functions.decorators.durable_app", "DFApp.get_functions", _patched_get_functions)
-    _PATCHED_DFAPP = True
 
 
 def _apply_durable_wrappers(pin, functions):
@@ -271,18 +250,8 @@ def _wrap_timer_trigger(pin, func, function_name):
 
 
 def unpatch():
-    global _PATCHED_DFAPP
     if not getattr(azure_functions, "_datadog_patch", False):
         return
     azure_functions._datadog_patch = False
 
     _u(azure_functions.FunctionApp, "get_functions")
-
-    if _PATCHED_DFAPP:
-        try:
-            from azure.durable_functions.decorators import durable_app
-        except Exception:
-            durable_app = None
-        if durable_app is not None and hasattr(durable_app, "DFApp"):
-            _u(durable_app.DFApp, "get_functions")
-    _PATCHED_DFAPP = False
