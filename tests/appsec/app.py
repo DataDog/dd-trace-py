@@ -308,7 +308,7 @@ def iast_code_injection_vulnerability():
 
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
-    tracer.shutdown()
+    tracer.flush()
     return "OK"
 
 
