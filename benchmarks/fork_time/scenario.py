@@ -30,6 +30,29 @@ class ForkTime(bm.Scenario):
 
     cprofile_loops: int = 0  # Fork benchmarks don't work well with cprofile
 
+    def __post_init__(self):
+        self._setup_done = False
+
+    def _one_time_setup(self):
+        """Run ddtrace and Flask setup exactly once per process.
+
+        _pyperf is called once per warmup/value by pyperf. Moving setup here
+        prevents accumulating Flask app instances and ddtrace instrumentation
+        state across calls, which would artificially inflate fork times.
+        """
+        if self._setup_done:
+            return
+
+        if self.configure:
+            os.environ["DD_TRACE_ENABLED"] = "true"
+            os.environ["DD_SERVICE"] = "fork-benchmark"
+            os.environ["DD_ENV"] = "benchmark"
+
+            import ddtrace.auto  # noqa: F401
+
+        self._setup_flask()
+        self._setup_done = True
+
     def _setup_flask(self):
         from flask import Flask
 
@@ -43,14 +66,7 @@ class ForkTime(bm.Scenario):
             pass
 
     def _pyperf(self, loops: int) -> float:
-        if self.configure:
-            os.environ["DD_TRACE_ENABLED"] = "true"
-            os.environ["DD_SERVICE"] = "fork-benchmark"
-            os.environ["DD_ENV"] = "benchmark"
-
-            import ddtrace.auto  # noqa: F401
-
-        self._setup_flask()
+        self._one_time_setup()
 
         total = 0.0
         for _ in range(loops):
