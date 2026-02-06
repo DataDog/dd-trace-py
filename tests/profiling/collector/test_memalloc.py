@@ -118,7 +118,10 @@ def test_memory_collector(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            # thread_name="MainThread",  # Memory profiler uses C-level APIs; no thread name available
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name.
+            thread_name=str(threading.main_thread().ident),
             thread_id=threading.main_thread().ident,
             locations=[
                 pprof_utils.StackLocation(
@@ -1134,7 +1137,11 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            # thread_name="MainThread",  # Memory profiler uses C-level APIs; no thread name available
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name.
+            thread_name=str(threading.main_thread().ident),
+            thread_id=threading.main_thread().ident,
             locations=[
                 loc("inner_frame"),
                 loc("middle_frame"),
