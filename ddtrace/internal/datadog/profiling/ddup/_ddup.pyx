@@ -2,10 +2,12 @@
 # cython: language_level=3
 
 import platform
+import types
 from typing import Mapping
 from typing import Optional
 from typing import Union
 
+from cpython.object cimport PyObject
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
@@ -38,6 +40,9 @@ cdef extern from "sample.hpp" namespace "Datadog":
         pass
 
 cdef extern from "ddup_interface.hpp":
+    ctypedef struct PyFrameObject:
+        pass
+
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)
     void ddup_config_version(string_view version)
@@ -83,6 +88,7 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
+    void ddup_push_pyframes(Sample *sample, PyFrameObject* frame)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
@@ -468,6 +474,21 @@ cdef class SampleHandle:
             sanitized_filename = sanitize_string(filename)
             call_ddup_push_frame(self.ptr, sanitized_name, sanitized_filename,
                                  clamp_to_uint64_unsigned(address), clamp_to_int64_unsigned(line))
+
+    def push_pyframes(self, object frame) -> None:
+        cdef PyObject* frame_obj
+        cdef PyFrameObject* frame_ptr
+
+        if self.ptr is not NULL and frame is not None:
+            # Validate that frame is actually a frame object to avoid crashes
+            # from invalid casts (e.g., if frame contains a non-frame object)
+            if not isinstance(frame, types.FrameType):
+                return
+            # In Cython, 'frame' is already a PyObject*. Get the raw pointer.
+            frame_obj = <PyObject*>frame
+            # Cast to PyFrameObject* - both are just pointers to the same memory
+            frame_ptr = <PyFrameObject*>frame_obj
+            ddup_push_pyframes(self.ptr, frame_ptr)
 
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
         if self.ptr is not NULL:

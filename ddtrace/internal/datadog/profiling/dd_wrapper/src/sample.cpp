@@ -1,5 +1,13 @@
 #include "sample.hpp"
 
+#define PY_SSIZE_T_CLEAN
+
+#include <Python.h>
+#include <frameobject.h>
+
+#include "pymacro.hpp"
+#include "python_helpers.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <string_view>
@@ -82,6 +90,94 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
     } else {
         ++dropped_frames;
     }
+}
+
+/* Helper function to convert PyUnicode object to string_view
+ * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
+ * The pointer remains valid as long as the PyObject is alive */
+static std::string_view
+unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unknown>")
+{
+    if (unicode_obj == nullptr) {
+        return fallback;
+    }
+
+    Py_ssize_t len;
+    const char* ptr = PyUnicode_AsUTF8AndSize(unicode_obj, &len);
+
+    if (ptr) {
+        return std::string_view(ptr, len);
+    }
+    return fallback;
+}
+
+void
+Datadog::Sample::push_pyframes(PyFrameObject* frame)
+{
+    /* Walk the Python frame chain and push each frame to the sample
+     * Frames are pushed in leaf-to-root order
+     *
+     * Note: The caller retains ownership of the initial frame. We only take ownership
+     * of subsequent frames obtained from PyFrame_GetBack(). */
+
+    // Save and restore Python error state
+    // PyFrame_GetBack() in Python 3.14+ may set a spurious "TypeError: bad argument type"
+    // but still return a valid result. PythonErrorRestorer will clear this error on destruction
+    // if there was no error before we started.
+    PythonErrorRestorer error_restorer;
+
+    bool is_initial_frame = true;
+    for (PyFrameObject* f = frame; f != nullptr;) {
+        // Early exit optimization: once we've reached the frame limit, stop traversing
+        // to avoid expensive CPython API calls (PyFrame_GetCode, PyFrame_GetLineNumber, etc.)
+        // for frames that will be dropped anyway.
+        if (locations.size() > max_nframes) {
+            ++dropped_frames;
+            if (!is_initial_frame) {
+                Py_DECREF(f); // Clean up frame reference obtained from PyFrame_GetBack
+            }
+            break;
+        }
+
+        // Extract frame info
+        int lineno_val = PyFrame_GetLineNumber(f);
+        if (lineno_val < 0) {
+            lineno_val = 0;
+        }
+
+        // Python 3.9+: PyFrame_GetCode() returns a new reference
+        PyCodeObject* code = PyFrame_GetCode(f);
+
+        std::string_view name_sv = "<unknown>";
+        std::string_view filename_sv = "<unknown>";
+
+        if (code != nullptr) {
+            // Extract function name (use co_qualname for Python 3.11+ for better context)
+#if defined(_PY311_AND_LATER)
+            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+#else
+            PyObject* name_obj = code->co_name;
+#endif
+            name_sv = unicode_to_string_view(name_obj);
+            filename_sv = unicode_to_string_view(code->co_filename);
+        }
+
+        // Push frame to Sample (leaf to root order)
+        // push_frame copies the strings immediately into its StringArena
+        push_frame(name_sv, filename_sv, 0, lineno_val);
+
+        // Python 3.9+: PyFrame_GetBack() and PyFrame_GetCode() return new references
+        PyFrameObject* back = PyFrame_GetBack(f);
+        Py_XDECREF(code); // Release code reference from PyFrame_GetCode
+
+        // Only DECREF frames we own (from PyFrame_GetBack), not the initial frame passed by caller
+        if (!is_initial_frame) {
+            Py_DECREF(f);
+        }
+        is_initial_frame = false;
+        f = back;
+    }
+    // Error state is automatically restored by error_restorer destructor
 }
 
 bool
