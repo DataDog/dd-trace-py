@@ -6,6 +6,7 @@ To start the service manually, invoke the ``enable`` method::
     LLMObs.enable()
 """
 
+from ._evaluators import AsyncBaseEvaluator
 from ._evaluators import BaseEvaluator
 from ._evaluators import EvaluatorContext
 from ._evaluators import SummaryEvaluatorContext
@@ -20,6 +21,7 @@ from .types import Prompt
 __all__ = [
     "LLMObs",
     "LLMObsSpan",
+    "AsyncBaseEvaluator",
     "Dataset",
     "DatasetRecord",
     "Prompt",

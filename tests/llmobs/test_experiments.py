@@ -14,6 +14,7 @@ import os
 import re
 import tempfile
 import time
+from typing import Dict
 from typing import Generator
 from typing import List
 from typing import Optional
@@ -80,11 +81,16 @@ def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected
 DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 
 
-def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
-    eri = _ExperimentRunInfo(iteration)
-    eri._id = "12345678-abcd-abcd-abcd-123456789012"
+def run_info_with_stable_id(
+    iteration: int, run_id: Optional[str] = None, base_tags: Optional[Dict[str, str]] = None
+) -> _ExperimentRunInfo:
+    eri = _ExperimentRunInfo(iteration, base_tags or {})
+    stable_id = "12345678-abcd-abcd-abcd-123456789012"
     if run_id is not None:
-        eri._id = run_id
+        stable_id = run_id
+    eri._id = stable_id
+    # Update tags to reflect the stable ID
+    eri.tags["run_id"] = str(stable_id)
     return eri
 
 
@@ -1663,9 +1669,10 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
 
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    run = run_info_with_stable_id(0, base_tags=exp._tags)
+    task_results = exp._run_task(1, run=run, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
+    merged_results = exp._merge_results(run, task_results, eval_results, None)
 
     assert len(merged_results.rows) == 1
     assert merged_results.run_iteration == 1
@@ -1692,9 +1699,10 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
 
 def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    run = run_info_with_stable_id(0, base_tags=exp._tags)
+    task_results = exp._run_task(1, run=run, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
+    merged_results = exp._merge_results(run, task_results, eval_results, None)
 
     assert len(merged_results.rows) == 1
     assert merged_results.run_iteration == 1
@@ -1742,7 +1750,9 @@ def test_experiment_run(llmobs, test_dataset_one_record):
         }
         with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
             # this is to ensure that the UUID for the run is always the same
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            mock_experiment_run_info.side_effect = lambda iteration, base_tags: run_info_with_stable_id(
+                iteration, base_tags=base_tags
+            )
             exp = llmobs.experiment(
                 "test_experiment",
                 dummy_task,
@@ -1789,7 +1799,9 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
         }
         with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
             # this is to ensure that the UUID for the run is always the same
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            mock_experiment_run_info.side_effect = lambda iteration, base_tags: run_info_with_stable_id(
+                iteration, base_tags=base_tags
+            )
             exp = llmobs.experiment(
                 "test_experiment",
                 dummy_task,
@@ -1834,7 +1846,9 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
         }
         with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
             # this is to ensure that the UUID for the run is always the same
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+            mock_experiment_run_info.side_effect = lambda iteration, base_tags: run_info_with_stable_id(
+                iteration, base_tags=base_tags
+            )
             exp = llmobs.experiment(
                 "test_experiment",
                 dummy_task,
@@ -2076,3 +2090,359 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
     # Successful evaluator completed
     assert summary_evals_dict["successful_summary_evaluator"]["value"] == 100
     assert summary_evals_dict["successful_summary_evaluator"]["error"] is None
+
+
+# =====================================================
+# AsyncExperiment Tests
+# =====================================================
+
+
+async def async_dummy_task(input_data, config):
+    """Simple async task for testing."""
+    return input_data
+
+
+async def async_faulty_task(input_data, config):
+    """Async task that raises an error."""
+    raise ValueError("This is an async test error")
+
+
+async def async_dummy_evaluator(input_data, output_data, expected_output):
+    """Simple async function evaluator."""
+    return int(output_data == expected_output)
+
+
+async def async_faulty_evaluator(input_data, output_data, expected_output):
+    """Async evaluator that raises an error."""
+    raise ValueError("This is an async test error in evaluator")
+
+
+def test_async_experiment_invalid_sync_task_raises(llmobs, test_dataset_one_record):
+    """Test that a sync task raises TypeError for async_experiment."""
+    with pytest.raises(TypeError, match="task must be an async function"):
+        llmobs.async_experiment("test_async_experiment", dummy_task, test_dataset_one_record, [async_dummy_evaluator])
+
+
+def test_async_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_record):
+    """Test that invalid task signature raises TypeError."""
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+
+        async def my_async_task(not_input):
+            pass
+
+        llmobs.async_experiment(
+            "test_async_experiment", my_async_task, test_dataset_one_record, [async_dummy_evaluator]
+        )
+
+
+def test_async_experiment_invalid_dataset_raises(llmobs):
+    """Test that non-Dataset argument raises TypeError."""
+    with pytest.raises(TypeError, match="Dataset must be an LLMObs Dataset object."):
+        llmobs.async_experiment("test_async_experiment", async_dummy_task, 123, [async_dummy_evaluator])
+
+
+def test_async_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_record):
+    """Test that invalid evaluators raise TypeError."""
+    with pytest.raises(TypeError, match="Evaluators must be a non-empty list"):
+        llmobs.async_experiment("test_async_experiment", async_dummy_task, test_dataset_one_record, [])
+    with pytest.raises(TypeError, match="must be an async function or an instance of AsyncBaseEvaluator"):
+        llmobs.async_experiment("test_async_experiment", async_dummy_task, test_dataset_one_record, [123])
+
+
+def test_async_experiment_sync_evaluator_rejected(llmobs, test_dataset_one_record):
+    """Test that sync function evaluators are rejected."""
+    with pytest.raises(TypeError, match="is not an async function"):
+        llmobs.async_experiment("test_async_experiment", async_dummy_task, test_dataset_one_record, [dummy_evaluator])
+
+
+def test_async_experiment_sync_class_evaluator_rejected(llmobs, test_dataset_one_record):
+    """Test that sync BaseEvaluator class evaluators are rejected."""
+    from ddtrace.llmobs._experiment import BaseEvaluator
+    from ddtrace.llmobs._experiment import EvaluatorContext
+
+    class SyncEvaluator(BaseEvaluator):
+        def __init__(self):
+            super().__init__(name="sync_eval")
+
+        def evaluate(self, context: EvaluatorContext):
+            return 1
+
+    with pytest.raises(TypeError, match="is a sync BaseEvaluator"):
+        llmobs.async_experiment("test_async_experiment", async_dummy_task, test_dataset_one_record, [SyncEvaluator()])
+
+
+def test_async_experiment_init(llmobs, test_dataset_one_record):
+    """Test that async_experiment creates an AsyncExperiment correctly."""
+    from ddtrace.llmobs._experiment import AsyncExperiment
+
+    exp = llmobs.async_experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
+        description="async experiment test",
+    )
+    assert isinstance(exp, AsyncExperiment)
+    assert exp.name == "test_async_experiment"
+    assert exp._async_task == async_dummy_task
+    assert exp._dataset == test_dataset_one_record
+    assert list(exp._async_evaluators) == [async_dummy_evaluator]
+    assert exp._project_name == "test-project"
+    assert exp._description == "async experiment test"
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_with_async_evaluator(llmobs, test_dataset_one_record):
+    """Test async experiment with async function evaluator."""
+    with (
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._async_process_record") as mock_process_record,
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._setup_experiment"),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
+
+        async def mock_process(*args, **kwargs):
+            return {
+                "idx": 0,
+                "span_id": "123",
+                "trace_id": "456",
+                "timestamp": 1234567890,
+                "output": {"answer": "Paris"},
+                "metadata": {
+                    "dataset_record_index": 0,
+                    "experiment_name": "test_async_experiment",
+                    "dataset_name": "test-dataset-123",
+                },
+                "error": {"message": None, "type": None, "stack": None},
+            }
+
+        mock_process_record.side_effect = mock_process
+
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator],
+        )
+        exp._id = "test-exp-id"
+
+        results = await exp.run(task_concurrency=5, evaluator_concurrency=10, raise_errors=False)
+
+        assert len(results["rows"]) == 1
+        # Output matches expected output {"answer": "Paris"}
+        assert results["rows"][0]["evaluations"]["async_dummy_evaluator"]["value"] == 1
+        assert results["rows"][0]["evaluations"]["async_dummy_evaluator"]["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_with_async_base_evaluator(llmobs, test_dataset_one_record):
+    """Test async experiment with AsyncBaseEvaluator class."""
+    from ddtrace.llmobs._experiment import AsyncBaseEvaluator
+    from ddtrace.llmobs._experiment import EvaluatorContext
+
+    class MyAsyncEvaluator(AsyncBaseEvaluator):
+        def __init__(self):
+            super().__init__(name="my_async_evaluator")
+
+        async def evaluate(self, context: EvaluatorContext):
+            # Simulate async operation
+            return int(context.output_data == context.expected_output)
+
+    with (
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._async_process_record") as mock_process_record,
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._setup_experiment"),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
+
+        async def mock_process(*args, **kwargs):
+            return {
+                "idx": 0,
+                "span_id": "123",
+                "trace_id": "456",
+                "timestamp": 1234567890,
+                "output": {"answer": "Paris"},
+                "metadata": {
+                    "dataset_record_index": 0,
+                    "experiment_name": "test_async_experiment",
+                    "dataset_name": "test-dataset-123",
+                },
+                "error": {"message": None, "type": None, "stack": None},
+            }
+
+        mock_process_record.side_effect = mock_process
+
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [MyAsyncEvaluator()],
+        )
+        exp._id = "test-exp-id"
+
+        results = await exp.run(task_concurrency=5, evaluator_concurrency=10, raise_errors=False)
+
+        assert len(results["rows"]) == 1
+        assert results["rows"][0]["evaluations"]["my_async_evaluator"]["value"] == 1
+        assert results["rows"][0]["evaluations"]["my_async_evaluator"]["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_with_multiple_async_evaluators(llmobs, test_dataset_one_record):
+    """Test async experiment with multiple async evaluators (function and class-based)."""
+    from ddtrace.llmobs._experiment import AsyncBaseEvaluator
+    from ddtrace.llmobs._experiment import EvaluatorContext
+
+    class AsyncClassEvaluator1(AsyncBaseEvaluator):
+        def __init__(self):
+            super().__init__(name="async_class_eval_1")
+
+        async def evaluate(self, context: EvaluatorContext):
+            return 10
+
+    class AsyncClassEvaluator2(AsyncBaseEvaluator):
+        def __init__(self):
+            super().__init__(name="async_class_eval_2")
+
+        async def evaluate(self, context: EvaluatorContext):
+            return 20
+
+    with (
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._async_process_record") as mock_process_record,
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._setup_experiment"),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
+
+        async def mock_process(*args, **kwargs):
+            return {
+                "idx": 0,
+                "span_id": "123",
+                "trace_id": "456",
+                "timestamp": 1234567890,
+                "output": {"answer": "Paris"},
+                "metadata": {
+                    "dataset_record_index": 0,
+                    "experiment_name": "test_async_experiment",
+                    "dataset_name": "test-dataset-123",
+                },
+                "error": {"message": None, "type": None, "stack": None},
+            }
+
+        mock_process_record.side_effect = mock_process
+
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator, AsyncClassEvaluator1(), AsyncClassEvaluator2()],
+        )
+        exp._id = "test-exp-id"
+
+        results = await exp.run(task_concurrency=5, evaluator_concurrency=10, raise_errors=False)
+
+        assert len(results["rows"]) == 1
+        evals = results["rows"][0]["evaluations"]
+
+        # All async evaluators should have run
+        assert "async_dummy_evaluator" in evals
+        assert "async_class_eval_1" in evals
+        assert "async_class_eval_2" in evals
+
+        assert evals["async_class_eval_1"]["value"] == 10
+        assert evals["async_class_eval_2"]["value"] == 20
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_evaluator_error_handling(llmobs, test_dataset_one_record):
+    """Test that errors in one async evaluator don't block others."""
+    with (
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._async_process_record") as mock_process_record,
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._setup_experiment"),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
+
+        async def mock_process(*args, **kwargs):
+            return {
+                "idx": 0,
+                "span_id": "123",
+                "trace_id": "456",
+                "timestamp": 1234567890,
+                "output": {"answer": "Paris"},
+                "metadata": {
+                    "dataset_record_index": 0,
+                    "experiment_name": "test_async_experiment",
+                    "dataset_name": "test-dataset-123",
+                },
+                "error": {"message": None, "type": None, "stack": None},
+            }
+
+        mock_process_record.side_effect = mock_process
+
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [async_faulty_evaluator, async_dummy_evaluator],
+        )
+        exp._id = "test-exp-id"
+
+        results = await exp.run(task_concurrency=5, evaluator_concurrency=10, raise_errors=False)
+
+        assert len(results["rows"]) == 1
+        evals = results["rows"][0]["evaluations"]
+
+        # Faulty evaluator should have error
+        assert evals["async_faulty_evaluator"]["error"] is not None
+        assert "async test error in evaluator" in evals["async_faulty_evaluator"]["error"]["message"]
+
+        # Good evaluator should have run successfully
+        assert evals["async_dummy_evaluator"]["error"] is None
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_raises_on_error(llmobs, test_dataset_one_record):
+    """Test that raise_errors=True raises when evaluator fails."""
+    with (
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._async_process_record") as mock_process_record,
+        mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._setup_experiment"),
+        mock.patch.object(llmobs._instance._dne_client, "experiment_eval_post"),
+    ):
+
+        async def mock_process(*args, **kwargs):
+            return {
+                "idx": 0,
+                "span_id": "123",
+                "trace_id": "456",
+                "timestamp": 1234567890,
+                "output": {"answer": "Paris"},
+                "metadata": {},
+                "error": {"message": None, "type": None, "stack": None},
+            }
+
+        mock_process_record.side_effect = mock_process
+
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [async_faulty_evaluator],
+        )
+        exp._id = "test-exp-id"
+
+        with pytest.raises(RuntimeError, match="Evaluator async_faulty_evaluator failed on row 0"):
+            await exp.run(task_concurrency=5, evaluator_concurrency=10, raise_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_invalid_concurrency(llmobs, test_dataset_one_record):
+    """Test that invalid concurrency values raise ValueError."""
+    exp = llmobs.async_experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
+    )
+
+    with pytest.raises(ValueError, match="task_concurrency must be at least 1"):
+        await exp.run(task_concurrency=0, evaluator_concurrency=10)
+
+    with pytest.raises(ValueError, match="evaluator_concurrency must be at least 1"):
+        await exp.run(task_concurrency=10, evaluator_concurrency=0)

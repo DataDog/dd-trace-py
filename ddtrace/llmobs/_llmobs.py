@@ -7,6 +7,7 @@ import os
 import sys
 import time
 from typing import Any
+from typing import Awaitable
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -97,16 +98,22 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._experiment import AsyncBaseEvaluator
+from ddtrace.llmobs._experiment import AsyncEvaluator
+from ddtrace.llmobs._experiment import AsyncExperiment
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import Evaluator
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._experiment import SummaryEvaluator
+from ddtrace.llmobs._experiment import Task
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
@@ -1103,34 +1110,14 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: Task,
         dataset: Dataset,
-        evaluators: Sequence[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-            ]
-        ],
+        evaluators: Sequence[Evaluator],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        summary_evaluators: Optional[
-            List[
-                Union[
-                    Callable[
-                        [
-                            List[DatasetRecordInputType],
-                            List[JSONType],
-                            List[JSONType],
-                            Dict[str, List[JSONType]],
-                        ],
-                        JSONType,
-                    ],
-                    BaseSummaryEvaluator,
-                ]
-            ]
-        ] = None,
+        summary_evaluators: Optional[Sequence[SummaryEvaluator]] = None,
         runs: Optional[int] = 1,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
@@ -1206,6 +1193,135 @@ class LLMObs(Service):
                         "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
                     )
         return Experiment(
+            name,
+            task,
+            dataset,
+            evaluators,
+            project_name=project_name or cls._project_name,
+            tags=tags,
+            description=description,
+            config=config,
+            _llmobs_instance=cls._instance,
+            summary_evaluators=summary_evaluators,
+            runs=runs,
+        )
+
+    @classmethod
+    def async_experiment(
+        cls,
+        name: str,
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], Awaitable[JSONType]],
+        dataset: Dataset,
+        evaluators: Sequence[AsyncEvaluator],
+        description: str = "",
+        project_name: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        config: Optional[ConfigType] = None,
+        summary_evaluators: Optional[Sequence[SummaryEvaluator]] = None,
+        runs: Optional[int] = 1,
+    ) -> AsyncExperiment:
+        """Initializes an AsyncExperiment to run an async task on a Dataset with async evaluators.
+
+        AsyncExperiment enables efficient parallel execution of async tasks and evaluators
+        using Python's asyncio. Tasks run concurrently, and evaluators run immediately after
+        each task completes (pipeline pattern).
+
+        :param name: The name of the experiment.
+        :param task: The async task function to run. Must accept parameters ``input_data`` and ``config``
+                     and be an async function (coroutine function).
+        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
+        :param evaluators: A list of async evaluator functions or AsyncBaseEvaluator instances.
+                           All evaluators must be async. Function-based evaluators must be async functions
+                           that accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param project_name: The name of the project to save the experiment to.
+        :param description: A description of the experiment.
+        :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
+        :param config: A configuration dictionary describing the experiment.
+        :param summary_evaluators: A list of summary evaluator functions or BaseSummaryEvaluator instances.
+                                   Summary evaluators remain synchronous as they perform fast aggregations.
+        :param runs: The number of times to run the experiment.
+
+        Example::
+
+            async def async_task(input_data, config):
+                response = await llm_client.chat(input_data["prompt"])
+                return response
+
+            async def async_evaluator(input_data, output_data, expected_output):
+                score = await compute_similarity(output_data, expected_output)
+                return score
+
+            experiment = LLMObs.async_experiment(
+                name="my_async_experiment",
+                task=async_task,
+                dataset=dataset,
+                evaluators=[async_evaluator],
+            )
+            results = await experiment.run(task_concurrency=10, evaluator_concurrency=20)
+        """
+        if not callable(task):
+            raise TypeError("task must be a callable function.")
+        if not inspect.iscoroutinefunction(task):
+            raise TypeError("task must be an async function (coroutine function).")
+        sig = inspect.signature(task)
+        params = sig.parameters
+        if "input_data" not in params or "config" not in params:
+            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+        if not isinstance(dataset, Dataset):
+            raise TypeError("Dataset must be an LLMObs Dataset object.")
+        if not evaluators:
+            raise TypeError("Evaluators must be a non-empty list of async functions or AsyncBaseEvaluator instances.")
+        for evaluator in evaluators:
+            if isinstance(evaluator, AsyncBaseEvaluator):
+                continue
+            if isinstance(evaluator, BaseEvaluator):
+                raise TypeError(
+                    f"Evaluator {evaluator.name} is a sync BaseEvaluator. "
+                    "AsyncExperiment only accepts async evaluators (AsyncBaseEvaluator or async functions)."
+                )
+            if not callable(evaluator):
+                raise TypeError(
+                    f"Evaluator {evaluator} must be an async function or an instance of AsyncBaseEvaluator."
+                )
+            if not inspect.iscoroutinefunction(evaluator):
+                raise TypeError(
+                    f"Evaluator {evaluator.__name__} is not an async function. "
+                    "AsyncExperiment only accepts async evaluators."
+                )
+            sig = inspect.signature(evaluator)
+            params = sig.parameters
+            evaluator_required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in evaluator_required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+        if summary_evaluators and not all(
+            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            for summary_evaluator in summary_evaluators
+        ):
+            raise TypeError(
+                "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
+            )
+        if summary_evaluators:
+            for summary_evaluator in summary_evaluators:
+                if isinstance(summary_evaluator, BaseSummaryEvaluator):
+                    continue
+                if not callable(summary_evaluator):
+                    raise TypeError(
+                        f"Summary evaluator {summary_evaluator} must be callable "
+                        "or an instance of BaseSummaryEvaluator."
+                    )
+                sig = inspect.signature(summary_evaluator)
+                params = sig.parameters
+                summary_evaluator_required_params = (
+                    "inputs",
+                    "outputs",
+                    "expected_outputs",
+                    "evaluators_results",
+                )
+                if not all(param in params for param in summary_evaluator_required_params):
+                    raise TypeError(
+                        "Summary evaluator function must have parameters {}.".format(summary_evaluator_required_params)
+                    )
+        return AsyncExperiment(
             name,
             task,
             dataset,
