@@ -290,16 +290,7 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def context_with_event(event: "ContextEvent", parent=None):
-    # PERF: avoid `**mapping` expansion (noticeable overhead in tight loops).
-    # We create the context first then update the local data dict.
-    ctx = _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()))
-    # PERF: avoid building an intermediate dict for the hot-path.
-    apply = getattr(event, "_apply_event_context", None)
-    if apply is not None:
-        apply(ctx._data)
-    else:
-        ctx._data.update(event.create_event_context())
-    return ctx
+    return _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()), **event.create_event_context())
 
 
 def add_suppress_exception(exc_type: type) -> None:
