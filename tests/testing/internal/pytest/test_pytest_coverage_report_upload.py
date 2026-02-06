@@ -301,7 +301,7 @@ class TestPytestCoverageReportUpload:
         upload_attempted = []
 
         def failing_upload_coverage_report(
-            coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+            coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
         ):
             upload_attempted.append("/api/v2/cicovreprt")
             # Simulate upload failure by returning False

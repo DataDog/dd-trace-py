@@ -808,7 +808,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
 
 
 def validate_request_body(received_body, payload, payload_type, seq_id=None):
-    # type: (Dict, Dict, str, Optional[int]) -> Dict
+    # type: (dict, dict, str, Optional[int]) -> dict
     """used to test the body of requests received by the testagent"""
     assert len(received_body) == 9
     assert received_body["tracer_time"] == time.time()

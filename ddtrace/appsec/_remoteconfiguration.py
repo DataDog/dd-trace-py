@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Sequence
 
@@ -100,9 +98,9 @@ def _appsec_callback(payload_list: Sequence[Payload]) -> None:
     )
     log.debug(debug_info)
 
-    for_the_waf_updates: List[tuple[str, str, PayloadType]] = []
-    for_the_waf_removals: List[tuple[str, str]] = []
-    for_the_tracer: List[Payload] = []
+    for_the_waf_updates: list[tuple[str, str, PayloadType]] = []
+    for_the_waf_removals: list[tuple[str, str]] = []
+    for_the_tracer: list[Payload] = []
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
             for_the_tracer.append(payload)
@@ -115,8 +113,8 @@ def _appsec_callback(payload_list: Sequence[Payload]) -> None:
         core.dispatch("waf.update", (for_the_waf_removals, for_the_waf_updates))
 
 
-def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    res: Dict[str, Dict[str, Optional[bool]]] = {}
+def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    res: dict[str, dict[str, Optional[bool]]] = {}
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
             payload_content = payload.content
@@ -133,7 +131,7 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[
     return res
 
 
-def _process_asm_features(payload_list: List[Payload], cache: Dict[str, Dict[str, Any]] = {}):
+def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str, Any]] = {}):
     """This callback updates appsec enabled in tracer and config instances following this logic:
     ```
     | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -186,8 +184,8 @@ def enable_asm():
 
 
 def _preprocess_results_appsec_1click_activation(
-    payload_list: List[Payload], pubsub_instance: PubSub, cache: Dict[str, Dict[str, Any]] = {}
-) -> List[Payload]:
+    payload_list: list[Payload], pubsub_instance: PubSub, cache: dict[str, dict[str, Any]] = {}
+) -> list[Payload]:
     """The main process has the responsibility to enable or disable the ASM products. The child processes don't
     care about that, the children only need to know about payload content.
     """

@@ -15,11 +15,9 @@ import threading
 from typing import Callable
 from typing import Generator
 from typing import Iterable
-from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Text
-from typing import Tuple
 import urllib.parse
 
 
@@ -726,7 +724,7 @@ class SampleClass(object):
     TIME_ZONE = "UTC/UTM"
 
     @staticmethod
-    def commonprefix(first: Text, *args: List) -> Sequence:
+    def commonprefix(first: Text, *args: list) -> Sequence:
         return os.path.commonprefix(list([first]) + list(args))
 
 
@@ -815,13 +813,13 @@ class MyIter:
         return output
 
 
-def func_iter_sum(a: str) -> List[str]:
-    out: List[str] = []  # type
+def func_iter_sum(a: str) -> list[str]:
+    out: list[str] = []  # type
     out += a, a
     return out
 
 
-def get_random_string_module_encode(allowed_chars: str) -> List[str]:
+def get_random_string_module_encode(allowed_chars: str) -> list[str]:
     result = ("%s%s%s" % ("a", "b", "c")).encode("utf-8")
     return [allowed_chars for i in result]
 
@@ -852,11 +850,11 @@ def conditional_escape(a: str) -> Text:
     return a
 
 
-def format_html(a: str, args: Tuple) -> str:
+def format_html(a: str, args: tuple) -> str:
     return a.join(args)
 
 
-def format_html_join(attrs: str, args_generator: List[str] = None) -> str:
+def format_html_join(attrs: str, args_generator: list[str] = None) -> str:
     if args_generator is None:
         args_generator = ["a", "b", "c"]
 
@@ -1058,39 +1056,39 @@ def do_namedtuple(s: Text):
     return my_string
 
 
-def do_split_no_args(s: str) -> List[str]:
+def do_split_no_args(s: str) -> list[str]:
     return s.split()
 
 
-def do_rsplit_no_args(s: str) -> List[str]:
+def do_rsplit_no_args(s: str) -> list[str]:
     return s.rsplit()
 
 
-def do_split_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
+def do_split_maxsplit(s: str, maxsplit: int = -1) -> list[str]:
     return s.split(maxsplit=maxsplit)
 
 
-def do_rsplit_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
+def do_rsplit_maxsplit(s: str, maxsplit: int = -1) -> list[str]:
     return s.rsplit(maxsplit=maxsplit)
 
 
-def do_split_separator(s: str, separator: str) -> List[str]:
+def do_split_separator(s: str, separator: str) -> list[str]:
     return s.split(separator)
 
 
-def do_rsplit_separator(s: str, separator: str) -> List[str]:
+def do_rsplit_separator(s: str, separator: str) -> list[str]:
     return s.rsplit(separator)
 
 
-def do_split_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
+def do_split_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> list[str]:
     return s.split(separator, maxsplit)
 
 
-def do_rsplit_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
+def do_rsplit_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> list[str]:
     return s.rsplit(separator, maxsplit)
 
 
-def do_splitlines_no_arg(s: str) -> List[str]:
+def do_splitlines_no_arg(s: str) -> list[str]:
     return s.splitlines()
 
 
@@ -1140,18 +1138,18 @@ def get_http_headers(header_key: str) -> bytes:
     return conn._buffer[2]
 
 
-def urlunsplit_1(data):  # type: (List[str]) -> str
+def urlunsplit_1(data):  # type: (list[str]) -> str
     scheme, netloc, url, query, fragment = data
     return scheme + "://" + netloc + url + "?" + query + "#" + fragment
 
 
-def urlunsplit_2(data):  # type: (List[str]) -> str
+def urlunsplit_2(data):  # type: (list[str]) -> str
     netloc, url = data
     url = "//" + (netloc or "")
     return url
 
 
-def urljoin(bpath, path):  # type: (str, str) -> List[str]
+def urljoin(bpath, path):  # type: (str, str) -> list[str]
     return bpath.split("/")[:-1] + path.split("/")
 
 

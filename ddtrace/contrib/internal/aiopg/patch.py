@@ -1,5 +1,4 @@
 # 3p
-from typing import Dict
 
 import aiopg.connection
 import psycopg2.extensions
@@ -28,7 +27,7 @@ def get_version():
     return getattr(aiopg, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"aiopg": ">=0.16.0"}
 
 

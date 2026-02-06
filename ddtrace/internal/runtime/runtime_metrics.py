@@ -101,7 +101,7 @@ class RuntimeWorker(periodic.PeriodicService):
         else:
             self._platform_tags = self._format_tags(PlatformTags())
 
-        self._process_tags: List[str] = list(ProcessTags())
+        self._process_tags: list[str] = list(ProcessTags())
 
     @classmethod
     def disable(cls) -> None:
@@ -158,7 +158,7 @@ class RuntimeWorker(periodic.PeriodicService):
                 log.debug("Sending ddtrace runtime metric %s:%s", key, value)
                 self.send_metric(key, value)
 
-    def _format_tags(self, tags: RuntimeCollectorsIterable) -> List[str]:
+    def _format_tags(self, tags: RuntimeCollectorsIterable) -> list[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         return ["{}:{}".format(k, v) for k, v in tags]
 

@@ -8,7 +8,6 @@ import json
 from operator import itemgetter
 import pathlib
 import sys
-import typing
 from typing import Optional
 
 from packaging.version import Version
@@ -54,7 +53,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def _get_contrib_modules() -> typing.Set[str]:
+def _get_contrib_modules() -> set[str]:
     """Get all integrations by checking modules that have contribs implemented for them"""
     all_integration_names = set()
     for item in CONTRIB_ROOT.iterdir():
@@ -69,7 +68,7 @@ def _get_contrib_modules() -> typing.Set[str]:
     return all_integration_names
 
 
-def _get_riot_envs_including_any(contrib_modules: typing.Set[str]) -> typing.Set[str]:
+def _get_riot_envs_including_any(contrib_modules: set[str]) -> set[str]:
     """Return the set of riot env hashes where each env uses at least one of the given modules"""
     envs = set()
     riot_requirements_dir = pathlib.Path(".riot/requirements")
@@ -96,14 +95,14 @@ def _integration_to_dependency_mapping_contains(integration: str, lockfile_conte
     return False
 
 
-def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> typing.Set[str]:
+def _get_updatable_packages_implementing(contrib_modules: set[str]) -> set[str]:
     """Return all integrations that can be updated"""
     all_venvs = riotfile.venv.venvs
     all_venvs = _propagate_venv_names_to_child_venvs(all_venvs)
 
     packages_setting_latest = set()
 
-    def recurse_venvs(venvs: typing.List[riotfile.Venv]):
+    def recurse_venvs(venvs: list[riotfile.Venv]):
         for venv in venvs:
             # split venv name by ":" since some venvs are named after the integration:subintegration
             package = venv.name.split(":")[0] if venv.name is not None else venv.name
@@ -124,7 +123,7 @@ def _get_updatable_packages_implementing(contrib_modules: typing.Set[str]) -> ty
     return packages
 
 
-def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) -> typing.List[riotfile.Venv]:
+def _propagate_venv_names_to_child_venvs(all_venvs: list[riotfile.Venv]) -> list[riotfile.Venv]:
     """
     Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
     venvs are nested within each other, we will get a consistent integration name for each venv / child venv. Also
@@ -144,7 +143,7 @@ def _propagate_venv_names_to_child_venvs(all_venvs: typing.List[riotfile.Venv]) 
 
 
 @lru_cache(maxsize=256)
-def _get_version_extremes(contrib_module: str) -> typing.Tuple[Optional[str], Optional[str]]:
+def _get_version_extremes(contrib_module: str) -> tuple[Optional[str], Optional[str]]:
     """Return the (earliest, latest) supported versions of a given package"""
     with Capturing() as output:
         _internal.main(["index", "versions", contrib_module])
@@ -197,7 +196,7 @@ def _get_version_extremes(contrib_module: str) -> typing.Tuple[Optional[str], Op
     return earliest_within_window, versions[0]
 
 
-def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
+def _get_riot_hash_to_venv_name() -> dict[str, str]:
     """Get a mapping of riot hash to venv name."""
     import re
 
@@ -226,8 +225,8 @@ def _get_riot_hash_to_venv_name() -> typing.Dict[str, str]:
 
 
 def _get_package_versions_from(
-    env: str, contrib_modules: typing.Set[str], riot_hash_to_venv_name: typing.Dict[str, str]
-) -> typing.List[typing.Tuple[str, str]]:
+    env: str, contrib_modules: set[str], riot_hash_to_venv_name: dict[str, str]
+) -> list[tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
     lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
     lock_packages = []
@@ -236,7 +235,7 @@ def _get_package_versions_from(
     if riot_hash_to_venv_name.get(env):
         venv_name = riot_hash_to_venv_name[env].split(":")[0]
 
-        def get_integration_and_dependencies(venv_name: str) -> typing.Tuple[str, typing.List[str]]:
+        def get_integration_and_dependencies(venv_name: str) -> tuple[str, list[str]]:
             if venv_name in contrib_modules:
                 integration = venv_name
                 dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING.get(venv_name, integration)
@@ -267,7 +266,7 @@ def _is_module_autoinstrumented(module: str) -> bool:
     return module in PATCH_MODULES and PATCH_MODULES[module]
 
 
-def _versions_fully_cover_bounds(bounds: typing.Tuple[str, str], versions: typing.List[str]) -> bool:
+def _versions_fully_cover_bounds(bounds: tuple[str, str], versions: list[str]) -> bool:
     """Return whether the tested versions cover the upper bound range of supported versions"""
     if not versions:
         return False
@@ -308,7 +307,7 @@ def _get_all_used_versions(envs, contrib_modules, riot_hash_to_venv_name) -> dic
     return all_used_versions
 
 
-def _get_version_bounds(contrib_modules: typing.Set[str]) -> dict:
+def _get_version_bounds(contrib_modules: set[str]) -> dict:
     """
     Return dict(module: (earliest, latest)) of the module from PyPI
     """

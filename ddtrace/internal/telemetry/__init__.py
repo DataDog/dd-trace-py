@@ -26,7 +26,7 @@ __all__ = ["telemetry_writer"]
 
 
 def get_config(
-    envs: t.Union[str, t.List[str]],
+    envs: t.Union[str, list[str]],
     default: t.Any = None,
     modifier: t.Optional[t.Callable[[t.Any], t.Any]] = None,
     otel_env: t.Optional[str] = None,

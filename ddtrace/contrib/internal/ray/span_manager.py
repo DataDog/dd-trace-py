@@ -4,9 +4,7 @@ from itertools import chain
 import sys
 import threading
 import time
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ray.dashboard.modules.job.common import JobInfo
@@ -64,11 +62,11 @@ def long_running_ray_span(
 
 class RaySpanManager:
     def __init__(self) -> None:
-        self._timers: Dict[str, threading.Timer] = {}
+        self._timers: dict[str, threading.Timer] = {}
         # {submission_id: {(trace_id, span_id): Span}}
-        self._job_spans: Dict[str, Dict[Tuple[int, int], Span]] = {}
+        self._job_spans: dict[str, dict[tuple[int, int], Span]] = {}
         # {submission_id: (Span)}
-        self._root_spans: Dict[str, Span] = {}
+        self._root_spans: dict[str, Span] = {}
         self._lock = Lock()
         self._is_shutting_down: bool = False
 

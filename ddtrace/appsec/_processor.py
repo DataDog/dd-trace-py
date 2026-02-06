@@ -5,12 +5,8 @@ import os
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Sequence
-from typing import Set
-from typing import Tuple
 from typing import Union
 
 from ddtrace.ext import SpanTypes
@@ -49,8 +45,8 @@ from ddtrace.internal.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
-def _transform_headers(data: Union[Dict[str, str], List[Tuple[str, str]]]) -> Dict[str, Union[str, List[str]]]:
-    normalized: Dict[str, Union[str, List[str]]] = {}
+def _transform_headers(data: Union[dict[str, str], list[tuple[str, str]]]) -> dict[str, Union[str, list[str]]]:
+    normalized: dict[str, Union[str, list[str]]] = {}
     headers = data if isinstance(data, list) else data.items()
     for header, value in headers:
         header = header.lower()
@@ -86,7 +82,7 @@ class AppSecSpanProcessor(SpanProcessor):
     rule_filename: str = dataclasses.field(default_factory=get_rules)
     obfuscation_parameter_key_regexp: bytes = dataclasses.field(init=False)
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
-    _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
+    _addresses_to_keep: set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
     _instance: ClassVar[Optional["AppSecSpanProcessor"]] = None
 
@@ -162,7 +158,7 @@ class AppSecSpanProcessor(SpanProcessor):
         self._addresses_to_keep.add(WAF_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
 
     def _update_rules(
-        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
+        self, removals: Sequence[tuple[str, str]], updates: Sequence[tuple[str, str, PayloadType]]
     ) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
@@ -251,7 +247,7 @@ class AppSecSpanProcessor(SpanProcessor):
         self,
         entry_span: Span,
         ctx: "ddwaf.ddwaf_types.ddwaf_context_capsule",
-        custom_data: Optional[Dict[str, Any]] = None,
+        custom_data: Optional[dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
         force_sent: bool = False,
@@ -408,8 +404,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
 
 def waf_update(
-    removals: Sequence[Tuple[str, str]],
-    updates: Sequence[Tuple[str, str, PayloadType]],
+    removals: Sequence[tuple[str, str]],
+    updates: Sequence[tuple[str, str, PayloadType]],
 ) -> None:
     """Update the WAF rules with the provided removals and updates."""
     if AppSecSpanProcessor._instance is not None:

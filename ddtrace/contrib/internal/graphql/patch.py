@@ -4,8 +4,6 @@ import re
 import sys
 import traceback
 from typing import TYPE_CHECKING
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace.internal import core
@@ -60,7 +58,7 @@ def get_version():
     return _graphql_version_str
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"graphql": ">=3.1"}
 
 
@@ -258,7 +256,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
 
 
 def _inject_trace_middleware_to_args(trace_middleware, args, kwargs):
-    # type: (Callable, Tuple, Dict) -> Tuple[Tuple, Dict]
+    # type: (Callable, Tuple, dict) -> Tuple[Tuple, dict]
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
@@ -306,7 +304,7 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _validate_error_extensions(error: GraphQLError, error_extension_fields: List) -> Dict:
+def _validate_error_extensions(error: GraphQLError, error_extension_fields: list) -> dict:
     """Validate user-provided extensions format and return the formatted extensions.
     All extensions values MUST be stringified, EXCEPT for numeric values and
     boolean values, which remain in their original type.
@@ -322,7 +320,7 @@ def _validate_error_extensions(error: GraphQLError, error_extension_fields: List
     return error_extensions
 
 
-def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
+def _set_span_errors(errors: list[GraphQLError], span: Span) -> None:
     """
     Set tags on error span and set span events on each error.
     """

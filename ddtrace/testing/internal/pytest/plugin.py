@@ -77,7 +77,7 @@ log = logging.getLogger(__name__)
 
 
 # The tuple pytest expects as the `longrepr` field of reports for failed or skipped tests.
-_Longrepr = t.Tuple[
+_Longrepr = tuple[
     # 1st field: pathname of the test file
     str,
     # 2nd field: line number.
@@ -88,7 +88,7 @@ _Longrepr = t.Tuple[
 
 
 # The tuple pytest expects as the output of the `pytest_report_teststatus` hook.
-_ReportTestStatus = t.Tuple[
+_ReportTestStatus = tuple[
     # 1st field: the status category in which the test will be counted in the final stats (X passed, Y failed, etc).
     # Usually this is the same as report.outcome, but does not have to be! For example if a report has report.outcome =
     # "skipped" but `pytest_report_teststatus` returns "quarantined" as the first tuple item here, the test will be
@@ -102,7 +102,7 @@ _ReportTestStatus = t.Tuple[
         str,
         # - a tuple (text, properties_dict), where the properties_dict can contain properties such as {"blue": True}.
         #   These properties are also applied to the short representation.
-        t.Tuple[str, t.Dict[str, bool]],
+        tuple[str, dict[str, bool]],
     ],
 ]
 # The `pytest_report_teststatus` hook can return a tuple of empty strings ("", "", ""), in which case the test report is
@@ -110,7 +110,7 @@ _ReportTestStatus = t.Tuple[
 # `None` if you want the default pytest log output).
 
 # The tuple stored in the `location` attribute of a `pytest.Item`
-_Location = t.Tuple[
+_Location = tuple[
     str,  # 1st field: file name
     int,  # 2nd field: line number
     str,  # 3rd field: test name
@@ -138,7 +138,7 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
         return abs_path
 
 
-def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[t.Optional[str], int, int]:
+def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
     """
     Extract test location information (file path, start line, end line) from a pytest item.
 
@@ -167,7 +167,7 @@ def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[
             return None, 0, 0
 
 
-def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[int, int]:
+def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
     """
     Get start and end line numbers for a test item.
 
@@ -202,7 +202,7 @@ class TestPhase:
     __test__ = False
 
 
-_ReportGroup = t.Dict[str, pytest.TestReport]
+_ReportGroup = dict[str, pytest.TestReport]
 
 
 class TestOptPlugin:
@@ -224,16 +224,16 @@ class TestOptPlugin:
             self.enable_ddtrace_trace_filter = False
 
         self.enable_all_ddtrace_integrations = False
-        self.reports_by_nodeid: t.Dict[str, _ReportGroup] = defaultdict(lambda: {})
-        self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
-        self.benchmark_data_by_nodeid: t.Dict[str, BenchmarkData] = {}
-        self.tests_by_nodeid: t.Dict[str, Test] = {}
+        self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
+        self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
+        self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
 
         self.manager = session_manager
         self.session = self.manager.session
 
-        self.extra_failed_reports: t.List[pytest.TestReport] = []
+        self.extra_failed_reports: list[pytest.TestReport] = []
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -322,7 +322,7 @@ class TestOptPlugin:
 
         self.manager.finish_collection()
 
-    def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> t.Tuple[TestModule, TestSuite, Test]:
+    def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
         Return the module, suite and test objects for a given test item, creating them if necessary.
         """
@@ -444,7 +444,7 @@ class TestOptPlugin:
 
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
-    ) -> t.Tuple[TestRun, _ReportGroup]:
+    ) -> tuple[TestRun, _ReportGroup]:
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
         test_run.start()
@@ -564,7 +564,7 @@ class TestOptPlugin:
 
         return None
 
-    def _extract_longrepr(self, reports: _ReportGroup) -> t.Tuple[t.Any, t.Any]:
+    def _extract_longrepr(self, reports: _ReportGroup) -> tuple[t.Any, t.Any]:
         """
         Extract the most relevant report `longrepr` for a report group.
 
@@ -666,7 +666,7 @@ class TestOptPlugin:
 
         return None
 
-    def _get_test_outcome(self, nodeid: str) -> t.Tuple[TestStatus, t.Dict[str, str]]:
+    def _get_test_outcome(self, nodeid: str) -> tuple[TestStatus, dict[str, str]]:
         """
         Return test status and tags with exception/skip information for a given executed test.
 
@@ -881,7 +881,7 @@ class XdistTestOptPlugin:
             self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
-def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
+def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
     return {report.when: report for report in reports}
 
 
@@ -924,7 +924,7 @@ def _is_test_optimization_disabled_by_kill_switch() -> bool:
     return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
 
 
-def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
+def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
     if _is_test_optimization_disabled_by_kill_switch():
         return False
 
@@ -934,13 +934,13 @@ def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
     return _is_option_true("ddtrace", early_config, args)
 
 
-def _is_option_true(option: str, early_config: pytest.Config, args: t.List[str]) -> bool:
+def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -> bool:
     return early_config.getoption(option) or early_config.getini(option) or f"--{option}" in args
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_load_initial_conftests(
-    early_config: pytest.Config, parser: pytest.Parser, args: t.List[str]
+    early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
     if not _is_enabled_early(early_config, args):
         yield
@@ -1040,7 +1040,7 @@ def _get_test_command(config: pytest.Config) -> str:
     return command
 
 
-def _get_exception_tags(excinfo: t.Optional[pytest.ExceptionInfo[t.Any]]) -> t.Dict[str, str]:
+def _get_exception_tags(excinfo: t.Optional[pytest.ExceptionInfo[t.Any]]) -> dict[str, str]:
     if excinfo is None:
         return {}
 
@@ -1072,7 +1072,7 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
     if callspec is None:
         return None
 
-    parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
+    parameters: dict[str, dict[str, str]] = {"arguments": {}, "metadata": {}}
     for param_name, param_val in item.callspec.params.items():
         try:
             parameters["arguments"][param_name] = _encode_test_parameter(param_val)
@@ -1113,8 +1113,8 @@ def _is_test_unskippable(item: pytest.Item) -> bool:
     )
 
 
-def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
-    tags: t.Dict[str, str] = {}
+def _get_test_custom_tags(item: pytest.Item) -> dict[str, str]:
+    tags: dict[str, str] = {}
 
     for marker in item.iter_markers(name="dd_tags"):
         for key, value in marker.kwargs.items():

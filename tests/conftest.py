@@ -20,9 +20,7 @@ from tempfile import NamedTemporaryFile
 from tempfile import gettempdir
 import time
 from typing import Any  # noqa:F401
-from typing import Dict
 from typing import Generator  # noqa:F401
-from typing import List
 from typing import Tuple  # noqa:F401
 from unittest import TestCase
 from unittest import mock
@@ -651,7 +649,7 @@ class TelemetryTestSession(object):
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method, url):
-        # type: (str, str) -> Tuple[int, bytes]
+        # type: (str, str) -> tuple[int, bytes]
         conn = self.create_connection()
         MAX_RETRY = 9
         exp_time = 1.618034
@@ -711,7 +709,7 @@ class TelemetryTestSession(object):
                     events.append(req_body)
         return events
 
-    def _get_request_bodies(self, req: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _get_request_bodies(self, req: dict[str, Any]) -> list[dict[str, Any]]:
         if req["body"]["request_type"] == "message-batch":
             payloads = req["body"]["payload"]
         else:

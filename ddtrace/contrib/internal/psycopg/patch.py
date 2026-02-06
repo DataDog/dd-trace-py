@@ -83,11 +83,11 @@ def get_version() -> str:
 PATCHED_VERSIONS = {}
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"psycopg": ">=3.0.0", "psycopg2": ">=2.9.10"}
 
 
-def get_versions() -> List[str]:
+def get_versions() -> list[str]:
     return PATCHED_VERSIONS
 
 

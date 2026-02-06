@@ -57,7 +57,7 @@ def _set_waf_error_log(msg: str, version: str, action: str, error_level: bool = 
 
 def _set_waf_updates_metric(info: DDWaf_info, success: bool):
     try:
-        tags: typing.Tuple[typing.Tuple[str, str], ...] = (
+        tags: tuple[tuple[str, str], ...] = (
             ("event_rules_version", info.version or UNKNOWN_VERSION),
             ("waf_version", ddwaf_version),
         )
@@ -72,7 +72,7 @@ def _set_waf_updates_metric(info: DDWaf_info, success: bool):
 
 def _set_waf_init_metric(info: DDWaf_info, success: bool):
     try:
-        tags: typing.Tuple[typing.Tuple[str, str], ...] = (
+        tags: tuple[tuple[str, str], ...] = (
             ("event_rules_version", info.version or UNKNOWN_VERSION),
             ("waf_version", ddwaf_version),
         )

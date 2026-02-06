@@ -21,7 +21,7 @@ from ddtrace.internal.module import origin
 
 
 # Track all the covered modules and its lines. Indexed by module origin.
-_tracked_modules: t.Dict[Path, t.Tuple[ModuleType, t.Set[int]]] = {}
+_tracked_modules: dict[Path, tuple[ModuleType, set[int]]] = {}
 
 
 class LineCollector(ModuleCollector):
@@ -62,7 +62,7 @@ class LineCoverage(ExplorationDebugger):
 
     @classmethod
     def report_coverage(cls) -> None:
-        seen_lines_map: t.Dict[Path, set] = defaultdict(set)
+        seen_lines_map: dict[Path, set] = defaultdict(set)
         for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, LogLineProbe)):
             seen_lines_map[t.cast(LogLineProbe, probe).resolved_source_file].add(probe.line)
 

@@ -19,10 +19,10 @@ _gevent_wait: t.Callable[..., t.Any] = gevent.wait
 _gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
 
 # Global package state
-_tracked_greenlets: t.Set[int] = set()
+_tracked_greenlets: set[int] = set()
 _original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
-_greenlet_parent_map: t.Dict[int, int] = {}
-_parent_greenlet_count: t.Dict[int, int] = {}
+_greenlet_parent_map: dict[int, int] = {}
+_parent_greenlet_count: dict[int, int] = {}
 
 FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
 
@@ -66,7 +66,7 @@ def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None
 def greenlet_tracer(event: str, args: t.Any) -> None:
     if event in {"switch", "throw"}:
         # This tracer function runs in the context of the target
-        origin, target = t.cast(t.Tuple[_Greenlet, _Greenlet], args)
+        origin, target = t.cast(tuple[_Greenlet, _Greenlet], args)
 
         if (origin_id := thread.get_ident(origin)) not in _tracked_greenlets:
             try:

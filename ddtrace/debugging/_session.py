@@ -75,7 +75,7 @@ class Session:
         return self._counts.get(probe_id, 0)
 
     @classmethod
-    def from_trace(cls, trace_context: t.Optional[t.Any] = None) -> t.List["Session"]:
+    def from_trace(cls, trace_context: t.Optional[t.Any] = None) -> list["Session"]:
         return SessionManager.get_sessions_for_trace(trace_context)
 
     @classmethod
@@ -88,7 +88,7 @@ class Session:
 
 
 class SessionManager:
-    _sessions_trace_map: t.MutableMapping[t.Any, t.Dict[SessionId, Session]] = (
+    _sessions_trace_map: t.MutableMapping[t.Any, dict[SessionId, Session]] = (
         wkdict()
     )  # Trace context to Sessions mapping
 
@@ -112,7 +112,7 @@ class SessionManager:
         cls._sessions_trace_map.get(context, {}).pop(session.ident, None)
 
     @classmethod
-    def get_sessions_for_trace(cls, trace_context: t.Optional[t.Any] = None) -> t.List[Session]:
+    def get_sessions_for_trace(cls, trace_context: t.Optional[t.Any] = None) -> list[Session]:
         return (
             list(cls._sessions_trace_map.get(context, {}).values())
             if cls._sessions_trace_map and (context := (trace_context or tracer.current_trace_context())) is not None

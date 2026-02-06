@@ -1,5 +1,4 @@
 import logging
-from typing import Dict
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -29,7 +28,7 @@ def get_version():
     return getattr(logging, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"logging": "*"}
 
 

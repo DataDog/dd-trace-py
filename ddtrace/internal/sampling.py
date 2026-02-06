@@ -1,7 +1,5 @@
 import json
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TypedDict
 
@@ -61,8 +59,8 @@ SpanSamplingRules = TypedDict(
 
 
 def validate_sampling_decision(
-    meta: Dict[str, str],
-) -> Dict[str, str]:
+    meta: dict[str, str],
+) -> dict[str, str]:
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
@@ -155,7 +153,7 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def get_span_sampling_rules() -> List[SpanSamplingRule]:
+def get_span_sampling_rules() -> list[SpanSamplingRule]:
     json_rules = _get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
@@ -186,7 +184,7 @@ def get_span_sampling_rules() -> List[SpanSamplingRule]:
     return sampling_rules
 
 
-def _get_span_sampling_json() -> List[Dict[str, Any]]:
+def _get_span_sampling_json() -> list[dict[str, Any]]:
     env_json_rules = _get_env_json()
     file_json_rules = _get_file_json()
 
@@ -201,7 +199,7 @@ def _get_span_sampling_json() -> List[Dict[str, Any]]:
     return env_json_rules or file_json_rules or []
 
 
-def _get_file_json() -> Optional[List[Dict[str, Any]]]:
+def _get_file_json() -> Optional[list[dict[str, Any]]]:
     file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
@@ -209,14 +207,14 @@ def _get_file_json() -> Optional[List[Dict[str, Any]]]:
     return None
 
 
-def _get_env_json() -> Optional[List[Dict[str, Any]]]:
+def _get_env_json() -> Optional[list[dict[str, Any]]]:
     env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None
 
 
-def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
+def _load_span_sampling_json(raw_json_rules: str) -> list[dict[str, Any]]:
     try:
         json_rules = json.loads(raw_json_rules)
         if not isinstance(json_rules, list):
@@ -267,7 +265,7 @@ def _inherit_sampling_tags(target: Span, source: Span):
     target._set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
-def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:
+def _get_highest_precedence_rule_matching(span: Span, rules: list[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 

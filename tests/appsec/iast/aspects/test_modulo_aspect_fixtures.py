@@ -33,7 +33,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
         template = _to_tainted_string_with_origin(taint_escaped_template)
 
         parameter = tuple()  # type: Any
-        if isinstance(taint_escaped_parameter, (tuple, List)):
+        if isinstance(taint_escaped_parameter, (tuple, list)):
             parameter = tuple([_to_tainted_string_with_origin(item) for item in taint_escaped_parameter])
         else:
             parameter = _to_tainted_string_with_origin(taint_escaped_parameter)

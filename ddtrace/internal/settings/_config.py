@@ -203,7 +203,7 @@ INTEGRATION_CONFIGS = frozenset(
 
 
 def _parse_propagation_styles(styles_str):
-    # type: (str) -> Optional[List[str]]
+    # type: (str) -> Optional[list[str]]
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -273,7 +273,7 @@ def _deepmerge(source, destination):
 
 
 def get_error_ranges(error_range_str):
-    # type: (str) -> List[Tuple[int, int]]
+    # type: (str) -> list[tuple[int, int]]
     error_ranges = []
     error_range_str = error_range_str.strip()
     error_ranges_str = error_range_str.split(",")
@@ -291,14 +291,14 @@ def get_error_ranges(error_range_str):
 
 
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
-_JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
+_JSONType = Union[None, int, float, str, bool, list["_JSONType"], dict[str, "_JSONType"]]
 
 
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
     def __init__(self, default, envs, modifier, otel_env=None):
-        # type: (Union[_JSONType, Callable[[], _JSONType]], List[str], Callable[[str], Any], Optional[str]) -> None
+        # type: (Union[_JSONType, Callable[[], _JSONType]], list[str], Callable[[str], Any], Optional[str]) -> None
         # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
         self._name = envs[0]
         self._env_value: _JSONType = None
@@ -348,7 +348,7 @@ class _ConfigItem:
         )
 
 
-def _default_config() -> Dict[str, _ConfigItem]:
+def _default_config() -> dict[str, _ConfigItem]:
     return {
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
@@ -395,7 +395,7 @@ class Config(object):
 
     class _HTTPServerConfig(object):
         _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
-        _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
+        _error_ranges = get_error_ranges(_error_statuses)  # type: list[tuple[int, int]]
 
         @property
         def error_statuses(self):
@@ -412,7 +412,7 @@ class Config(object):
 
         @property
         def error_ranges(self):
-            # type: () -> List[Tuple[int, int]]
+            # type: () -> list[tuple[int, int]]
             return self._error_ranges
 
         @cachedmethod()

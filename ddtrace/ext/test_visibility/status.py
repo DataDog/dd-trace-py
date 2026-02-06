@@ -3,7 +3,6 @@ from enum import Enum
 from pathlib import Path
 from types import TracebackType
 from typing import Optional
-from typing import Type
 
 from ddtrace.ext.test import Status as _TestStatus
 from ddtrace.ext.test_visibility._test_visibility_base import TestSourceFileInfoBase
@@ -21,7 +20,7 @@ class TestStatus(Enum):
 @dataclasses.dataclass(frozen=True)
 class TestExcInfo:
     __test__ = False
-    exc_type: Type[BaseException]
+    exc_type: type[BaseException]
     exc_value: BaseException
     exc_traceback: TracebackType
 

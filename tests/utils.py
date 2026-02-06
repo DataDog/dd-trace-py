@@ -12,10 +12,7 @@ import subprocess
 import sys
 import time
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import TypedDict
 from typing import cast
 from urllib import parse
@@ -122,7 +119,7 @@ def override_global_config(values):
         >>> with self.override_global_config(dict(name=value,...)):
             # Your test
     """
-    # List of global variables we allow overriding
+    # list of global variables we allow overriding
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
         "_tracing_enabled",
@@ -375,7 +372,7 @@ class BaseTestCase(SubprocessTestCase):
 
 
 def _build_tree(
-    spans,  # type: List[Span]
+    spans,  # type: list[Span]
     root,  # type: Span
 ):
     # type: (...) -> TestSpanNode
@@ -389,7 +386,7 @@ def _build_tree(
 
 
 def get_root_span(
-    spans,  # type: List[Span]
+    spans,  # type: list[Span]
 ):
     # type: (...) -> TestSpanNode
     """
@@ -438,7 +435,7 @@ class TestSpanContainer(object):
         """
         internal helper to ensure the list of spans are all :class:`tests.utils.span.TestSpan`
 
-        :param spans: List of :class:`ddtrace.trace.Span` or :class:`tests.utils.span.TestSpan`
+        :param spans: list of :class:`ddtrace.trace.Span` or :class:`tests.utils.span.TestSpan`
         :type spans: list
         :returns: A list og :class:`tests.utils.span.TestSpan`
         :rtype: list
@@ -465,7 +462,7 @@ class TestSpanContainer(object):
         return get_root_span(self.spans)
 
     def get_root_spans(self):
-        # type: (...) -> List[Span]
+        # type: (...) -> list[Span]
         """
         Helper to get all root spans from the list of spans in this container
 
@@ -566,7 +563,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def pop_spans(self):
         """Pop and return all spans from the writer"""
-        # type: () -> List[Span]
+        # type: () -> list[Span]
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop"):
             return writer.pop()
@@ -574,7 +571,7 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def pop_traces(self):
         """Pop and return all traces from the writer"""
-        # type: () -> List[List[Span]]
+        # type: () -> list[list[Span]]
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop_traces"):
             return writer.pop_traces()
@@ -623,13 +620,13 @@ class DummyWriterMixin:
             self.traces += traces
 
     def pop(self):
-        # type: () -> List[Span]
+        # type: () -> list[Span]
         s = self.spans
         self.spans = []
         return s
 
     def pop_traces(self):
-        # type: () -> List[List[Span]]
+        # type: () -> list[list[Span]]
         traces = self.traces
         self.traces = []
         return traces
@@ -1071,7 +1068,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
         :param root: Properties to assert for this root span, these are passed to
             :meth:`tests.utils.span.TestSpan.assert_matches`
         :type root: dict
-        :param children: List of child assertions to make, if children is None then do not make any
+        :param children: list of child assertions to make, if children is None then do not make any
             assertions about this nodes children. Each list element must be a list with 2 items
             the first is a ``dict`` of property assertions on that child, and the second is a ``list``
             of child assertions to make.
@@ -1117,7 +1114,7 @@ class SnapshotFailed(Exception):
 class TestAgentRequest(TypedDict):
     method: str
     url: str
-    headers: Dict[str, str]
+    headers: dict[str, str]
     body: bytes
     status: int
     response: bytes
@@ -1138,7 +1135,7 @@ class TestAgentClient:
         assert parsed.hostname is not None
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
-    def _request(self, method: str, url: str) -> Tuple[int, bytes]:
+    def _request(self, method: str, url: str) -> tuple[int, bytes]:
         conn = self.create_connection()
         MAX_RETRY = 9
         exp_time = 1.618034
@@ -1155,13 +1152,13 @@ class TestAgentClient:
                 conn.close()
         return 0, b""
 
-    def requests(self) -> List[TestAgentRequest]:
+    def requests(self) -> list[TestAgentRequest]:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
-        return cast(List[Dict[str, Any]], data)
+        return cast(list[dict[str, Any]], data)
 
-    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[TestAgentRequest]:
+    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> list[TestAgentRequest]:
         reqs = []
         for req in self.requests():
             if "dd-telemetry-request-type" not in req["headers"]:
@@ -1173,7 +1170,7 @@ class TestAgentClient:
                 reqs.append(req)
         return reqs
 
-    def crash_messages(self) -> List[TestAgentRequest]:
+    def crash_messages(self) -> list[TestAgentRequest]:
         reqs = []
         for req in self.telemetry_requests(telemetry_type="logs"):
             # Parse the json data in order to filter based on "origin" key,
@@ -1207,7 +1204,7 @@ class SnapshotTest:
     def __init__(self, token: str):
         self._client = TestAgentClient(base_url=ddtrace.tracer.agent_trace_url, token=token)
 
-    def requests(self) -> List[Dict[str, Any]]:
+    def requests(self) -> list[dict[str, Any]]:
         return self._client.requests()
 
     def clear(self):
@@ -1554,7 +1551,7 @@ def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_
 
 
 @contextmanager
-def override_third_party_packages(packages: List[str]):
+def override_third_party_packages(packages: list[str]):
     try:
         original_callonce = _third_party_packages.__wrapped__.__callonce_result__
     except AttributeError:

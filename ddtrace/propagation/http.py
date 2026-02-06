@@ -73,7 +73,7 @@ _HTTP_HEADER_BAGGAGE: Literal["baggage"] = "baggage"
 
 
 def _possible_header(header):
-    # type: (str) -> FrozenSet[str]
+    # type: (str) -> frozenset[str]
     return frozenset([header, get_wsgi_header(header).lower()])
 
 
@@ -113,7 +113,7 @@ _TRACEPARENT_HEX_REGEX = re.compile(
 
 
 def _extract_header_value(possible_header_names, headers, default=None):
-    # type: (FrozenSet[str], Dict[str, str], Optional[str]) -> Optional[str]
+    # type: (frozenset[str], dict[str, str], Optional[str]) -> Optional[str]
     for header in possible_header_names:
         if header in headers:
             return ensure_text(headers[header], errors="backslashreplace")
@@ -121,7 +121,7 @@ def _extract_header_value(possible_header_names, headers, default=None):
     return default
 
 
-def _attach_baggage_to_context(headers: Dict[str, str], context: Context):
+def _attach_baggage_to_context(headers: dict[str, str], context: Context):
     if context is not None:
         for key, value in headers.items():
             for possible_prefix in _POSSIBLE_HTTP_BAGGAGE_PREFIX:
@@ -152,7 +152,7 @@ def _record_http_telemetry(metric_name: str, header_style: str) -> None:
     """Record telemetry metric for HTTP propagation operations.
 
     :param metric_name: The name of the metric to record
-    :param tags: Tuple of tag key-value pairs to include with the metric
+    :param tags: tuple of tag key-value pairs to include with the metric
     """
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.TRACERS,
@@ -191,7 +191,7 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _get_tags_value(headers):
-        # type: (Dict[str, str]) -> Optional[str]
+        # type: (dict[str, str]) -> Optional[str]
         return _extract_header_value(
             _POSSIBLE_HTTP_HEADER_TAGS,
             headers,
@@ -239,7 +239,7 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+        # type: (Context, dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -301,7 +301,7 @@ class _DatadogMultiHeader:
 
     @staticmethod
     def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+        # type: (dict[str, str]) -> Optional[Context]
         trace_id_str = _extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers)
         if trace_id_str is None:
             return None
@@ -432,7 +432,7 @@ class _B3MultiHeader:
 
     @staticmethod
     def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+        # type: (Context, dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -454,7 +454,7 @@ class _B3MultiHeader:
 
     @staticmethod
     def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+        # type: (dict[str, str]) -> Optional[Context]
         trace_id_val = _extract_header_value(
             _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS,
             headers,
@@ -552,7 +552,7 @@ class _B3SingleHeader:
 
     @staticmethod
     def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+        # type: (Context, dict[str, str]) -> None
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -573,7 +573,7 @@ class _B3SingleHeader:
 
     @staticmethod
     def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+        # type: (dict[str, str]) -> Optional[Context]
         single_header = _extract_header_value(_POSSIBLE_HTTP_HEADER_B3_SINGLE_HEADER, headers)
         if not single_header:
             return None
@@ -684,7 +684,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_traceparent_values(tp):
-        # type: (str) -> Tuple[int, int, Literal[0,1]]
+        # type: (str) -> tuple[int, int, Literal[0,1]]
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
@@ -699,7 +699,7 @@ class _TraceContext:
             span_id_hex,
             trace_flags_hex,
             future_vals,
-        ) = valid_tp_values.groups()  # type: Tuple[str, str, str, str, Optional[str]]
+        ) = valid_tp_values.groups()  # type: tuple[str, str, str, str, Optional[str]]
 
         if version == "ff":
             # https://www.w3.org/TR/trace-context/#version
@@ -730,7 +730,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_tracestate_values(ts_l):
-        # type: (List[str]) -> Tuple[Optional[int], Dict[str, str], Optional[str], Optional[str]]
+        # type: (list[str]) -> tuple[Optional[int], dict[str, str], Optional[str], Optional[str]]
 
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
@@ -805,7 +805,7 @@ class _TraceContext:
 
     @staticmethod
     def _extract(headers):
-        # type: (Dict[str, str]) -> Optional[Context]
+        # type: (dict[str, str]) -> Optional[Context]
 
         try:
             tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
@@ -824,7 +824,7 @@ class _TraceContext:
 
     @staticmethod
     def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
-        # type: (int, int, Optional[Literal[0,1]], Optional[str], Optional[Dict[str, str]]) -> Context
+        # type: (int, int, Optional[Literal[0,1]], Optional[str], Optional[dict[str, str]]) -> Context
         if meta is None:
             meta = {}
         origin = None
@@ -870,7 +870,7 @@ class _TraceContext:
 
     @staticmethod
     def _inject(span_context, headers):
-        # type: (Context, Dict[str, str]) -> None
+        # type: (Context, dict[str, str]) -> None
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp
@@ -905,7 +905,7 @@ class _BaggageHeader:
         return urllib.parse.quote(str(value).strip(), safe=_BaggageHeader.SAFE_CHARACTERS_VALUE)
 
     @staticmethod
-    def _inject(span_context: Context, headers: Dict[str, str]) -> None:
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         baggage_items = span_context._baggage.items()
         if not baggage_items:
             return
@@ -922,7 +922,7 @@ class _BaggageHeader:
                 )
                 baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
-            encoded_items: List[str] = []
+            encoded_items: list[str] = []
             total_size = 0
             for key, value in baggage_items:
                 item = f"{_BaggageHeader._encode_key(key)}={_BaggageHeader._encode_value(value)}"
@@ -961,7 +961,7 @@ class _BaggageHeader:
         return Context(baggage={})
 
     @staticmethod
-    def _extract(headers: Dict[str, str]) -> Context:
+    def _extract(headers: dict[str, str]) -> Context:
         header_value = _extract_header_value(_POSSIBLE_HTTP_BAGGAGE_HEADER, headers)
 
         if not header_value:
@@ -1038,7 +1038,7 @@ class HTTPPropagator(object):
         return injection_context
 
     @staticmethod
-    def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
+    def _extract_configured_contexts_avail(normalized_headers: dict[str, str]) -> tuple[list[Context], list[str]]:
         contexts = []
         styles_w_ctx = []
         if config._propagation_style_extract is not None:
@@ -1112,7 +1112,7 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(context: Union[Context, Span], headers: Dict[str, str]) -> None:
+    def inject(context: Union[Context, Span], headers: dict[str, str]) -> None:
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::

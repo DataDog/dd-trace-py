@@ -53,7 +53,7 @@ def maybe_stringify(obj: Any) -> Optional[str]:
     return None
 
 
-ExcInfoType = Union[Tuple[Type[BaseException], BaseException, Optional[TracebackType]], Tuple[None, None, None]]
+ExcInfoType = Union[tuple[type[BaseException], BaseException, Optional[TracebackType]], tuple[None, None, None]]
 
 
 def is_valid_ip(ip: str) -> bool:

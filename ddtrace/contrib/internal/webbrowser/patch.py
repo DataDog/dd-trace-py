@@ -1,4 +1,3 @@
-from typing import Dict
 import webbrowser
 
 from wrapt import wrap_function_wrapper as _w
@@ -12,7 +11,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"webbrowser": "*"}
 
 

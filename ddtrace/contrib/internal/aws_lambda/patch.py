@@ -1,6 +1,5 @@
 from importlib import import_module
 import signal
-from typing import Dict
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -20,7 +19,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"datadog_lambda": "*"}
 
 

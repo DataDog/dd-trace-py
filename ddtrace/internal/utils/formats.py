@@ -65,7 +65,7 @@ def asbool(value):
     return value.lower() in ("true", "1")
 
 
-def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
+def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
     """
     Parses a string containing key-value pairs and returns a dictionary.
     Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
@@ -75,7 +75,7 @@ def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
     """
-    res: Dict[str, str] = {}
+    res: dict[str, str] = {}
     if not tags_str:
         return res
     # falling back to comma as separator
@@ -100,14 +100,14 @@ def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
 
 
 def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_LEN):
-    # type: (List[Any], int, int) -> Text
+    # type: (list[Any], int, int) -> Text
     """Convert a list of arguments into a space concatenated string
 
     This function is useful to convert a list of cache keys
     into a resource name or tag value with a max size limit.
     """
     length = 0
-    out = []  # type: List[Text]
+    out = []  # type: list[Text]
     for arg in args:
         try:
             if isinstance(arg, (bytes, str)):
@@ -142,7 +142,7 @@ def is_sequence(obj):
 
 
 def flatten_key_value(root_key, value):
-    # type: (str, Any) -> Dict[str, Any]
+    # type: (str, Any) -> dict[str, Any]
     """Flattens attributes"""
     if not is_sequence(value):
         return {root_key: value}

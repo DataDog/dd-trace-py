@@ -27,12 +27,12 @@ log = get_logger(__name__)
 
 _original_exec = exec
 
-ctx_covered: ContextVar[t.List[t.DefaultDict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
+ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
 
-def _get_ctx_covered_lines() -> t.DefaultDict[str, CoverageLines]:
+def _get_ctx_covered_lines() -> defaultdict[str, CoverageLines]:
     if ctx_coverage_enabled.get():
         if context_stack := ctx_covered.get():
             return context_stack[-1]
@@ -48,26 +48,26 @@ class ModuleCodeCollector(ModuleWatchdog):
         super().__init__()
         # Coverage collection configuration
         self._collect_import_coverage: bool = False
-        self._include_paths: t.List[Path] = []
+        self._include_paths: list[Path] = []
         # By default, exclude standard / venv paths (eg: avoids over-instrumenting cases where a virtualenv is created
         # in the root directory of a repository)
-        self._exclude_paths: t.List[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
+        self._exclude_paths: list[Path] = [stdlib_path, platstdlib_path, platlib_path, purelib_path]
 
         # Avoid instrumenting anything in the current module
         self._exclude_paths.append(Path(__file__).resolve().parent)
 
         self._coverage_enabled: bool = False
-        self.seen: t.Set[t.Tuple[CodeType, str]] = set()
+        self.seen: set[tuple[CodeType, str]] = set()
 
         # Data structures for coverage data
-        self.lines: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
-        self.covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
+        self.lines: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+        self.covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
 
         # Import-time coverage data
-        self._import_time_covered: t.DefaultDict[str, CoverageLines] = defaultdict(CoverageLines)
-        self._import_time_contexts: t.Dict[str, "ModuleCodeCollector.CollectInContext"] = {}
-        self._import_time_name_to_path: t.Dict[str, str] = {}
-        self._import_names_by_path: t.Dict[str, t.Set[t.Tuple[str, t.Tuple[str, ...]]]] = defaultdict(set)
+        self._import_time_covered: defaultdict[str, CoverageLines] = defaultdict(CoverageLines)
+        self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
+        self._import_time_name_to_path: dict[str, str] = {}
+        self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
 
         # Replace the built-in exec function with our own in the pytest globals
         try:
@@ -78,7 +78,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             pass
 
     @classmethod
-    def install(cls, include_paths: t.Optional[t.List[Path]] = None, collect_import_time_coverage: bool = False):
+    def install(cls, include_paths: t.Optional[list[Path]] = None, collect_import_time_coverage: bool = False):
         if ModuleCodeCollector.is_installed():
             return
 
@@ -99,10 +99,10 @@ class ModuleCodeCollector(ModuleWatchdog):
                 lambda x: True, cls._instance._exit_context_on_exception_hook
             )
 
-    def hook(self, arg: t.Tuple[int, str, t.Optional[t.Tuple[str, t.Tuple[str, ...]]]]):
+    def hook(self, arg: tuple[int, str, t.Optional[tuple[str, tuple[str, ...]]]]):
         line: int
         path: str
-        import_name: t.Optional[t.Tuple[str, t.Tuple[str, ...]]]
+        import_name: t.Optional[tuple[str, tuple[str, ...]]]
         line, path, import_name = arg
 
         if self._coverage_enabled:
@@ -121,8 +121,8 @@ class ModuleCodeCollector(ModuleWatchdog):
     @classmethod
     def inject_coverage(
         cls,
-        lines: t.Optional[t.Dict[str, CoverageLines]] = None,
-        covered: t.Optional[t.Dict[str, CoverageLines]] = None,
+        lines: t.Optional[dict[str, CoverageLines]] = None,
+        covered: t.Optional[dict[str, CoverageLines]] = None,
     ):
         """Inject coverage data into the collector. This can be used to arbitrarily add covered files."""
         instance = cls._instance
@@ -167,7 +167,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         with open(filename, "w") as f:
             f.write(gen_json_report(executable_lines, covered_lines, workspace_path, ignore_nocover=ignore_nocover))
 
-    def _get_covered_lines(self, include_imported: bool = False) -> t.Dict[str, CoverageLines]:
+    def _get_covered_lines(self, include_imported: bool = False) -> dict[str, CoverageLines]:
         # Covered lines should always be a copy to make sure the original cannot be altered
         covered_lines = deepcopy(_get_ctx_covered_lines() if ctx_coverage_enabled.get() else self.covered)
         if include_imported:
@@ -247,7 +247,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             if len(covered_lines_stack) == 0:
                 ctx_coverage_enabled.set(False)
 
-        def get_covered_lines(self) -> t.Dict[str, CoverageLines]:
+        def get_covered_lines(self) -> dict[str, CoverageLines]:
             covered_lines = _get_ctx_covered_lines()
             if global_instance := ModuleCodeCollector._instance:
                 global_instance._add_import_time_lines(covered_lines)
@@ -274,9 +274,9 @@ class ModuleCodeCollector(ModuleWatchdog):
         return cls._instance._coverage_enabled
 
     @classmethod
-    def get_import_coverage_for_paths(cls, paths: t.Iterable[Path]) -> t.Optional[t.Dict[Path, CoverageLines]]:
+    def get_import_coverage_for_paths(cls, paths: t.Iterable[Path]) -> t.Optional[dict[Path, CoverageLines]]:
         """Returns import-time coverage data for the given paths"""
-        coverages: t.Dict[Path, CoverageLines] = {}
+        coverages: dict[Path, CoverageLines] = {}
         if cls._instance is None:
             return {}
         for path in paths:

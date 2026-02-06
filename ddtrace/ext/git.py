@@ -186,7 +186,7 @@ def _extract_upstream_sha(cwd=None):
 
 
 def _is_shallow_repository_with_details(cwd=None):
-    # type: (Optional[str]) -> Tuple[bool, float, int]
+    # type: (Optional[str]) -> tuple[bool, float, int]
     stdout, _, duration, returncode = _git_subprocess_cmd_with_details("rev-parse", "--is-shallow-repository", cwd=cwd)
     is_shallow = stdout.strip() == "true"
     return (is_shallow, duration, returncode)
@@ -225,7 +225,7 @@ def _unshallow_repository(
     _unshallow_repository_with_details(cwd, repo, refspec, parent_only)
 
 
-def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> Dict[str, Tuple[str, str, str]]:
+def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> dict[str, tuple[str, str, str]]:
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
     cmd = "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z"
@@ -267,7 +267,7 @@ def _extract_latest_commits_with_details(cwd=None):
 
 
 def extract_latest_commits(cwd=None):
-    # type: (Optional[str]) -> List[str]
+    # type: (Optional[str]) -> list[str]
     latest_commits, error, _, returncode = _extract_latest_commits_with_details(cwd=cwd)
     if returncode == 0:
         return latest_commits.split("\n") if latest_commits else []
@@ -346,8 +346,8 @@ def extract_commit_sha(cwd=None):
     return commit_sha
 
 
-def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -> Dict[str, Optional[str]]:
-    tags: Dict[str, Optional[str]] = {}
+def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -> dict[str, Optional[str]]:
+    tags: dict[str, Optional[str]] = {}
 
     is_shallow, *_ = _is_shallow_repository_with_details(cwd=cwd)
     if is_shallow:
@@ -373,9 +373,9 @@ def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -
 
 
 def extract_git_metadata(cwd=None):
-    # type: (Optional[str]) -> Dict[str, Optional[str]]
+    # type: (Optional[str]) -> dict[str, Optional[str]]
     """Extract git commit metadata."""
-    tags = {}  # type: Dict[str, Optional[str]]
+    tags = {}  # type: dict[str, Optional[str]]
     _set_safe_directory()
     try:
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
@@ -400,7 +400,7 @@ def extract_git_metadata(cwd=None):
 
 
 def extract_user_git_metadata(env=None):
-    # type: (Optional[MutableMapping[str, str]]) -> Dict[str, Optional[str]]
+    # type: (Optional[MutableMapping[str, str]]) -> dict[str, Optional[str]]
     """Extract git commit metadata from user-provided env vars."""
     env = os.environ if env is None else env
 

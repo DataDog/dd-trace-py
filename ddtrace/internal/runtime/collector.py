@@ -24,12 +24,12 @@ class ValueCollector(object):
 
     enabled = True
     periodic = False
-    required_modules = []  # type: List[str]
-    value = None  # type: Optional[List[Tuple[str, str]]]
+    required_modules = []  # type: list[str]
+    value = None  # type: Optional[list[tuple[str, str]]]
     value_loaded = False
 
     def __init__(self, enabled=None, periodic=None, required_modules=None):
-        # type: (Optional[bool], Optional[bool], Optional[List[str]]) -> None
+        # type: (Optional[bool], Optional[bool], Optional[list[str]]) -> None
         self.enabled = self.enabled if enabled is None else enabled
         self.periodic = self.periodic if periodic is None else periodic
         self.required_modules = self.required_modules if required_modules is None else required_modules
@@ -56,7 +56,7 @@ class ValueCollector(object):
         return modules
 
     def collect(self, keys=None):
-        # type: (Optional[Set[str]]) -> Optional[List[Tuple[str, str]]]
+        # type: (Optional[set[str]]) -> Optional[list[tuple[str, str]]]
         """Returns metrics as collected by `collect_fn`.
 
         :param keys: The keys of the metrics to collect.

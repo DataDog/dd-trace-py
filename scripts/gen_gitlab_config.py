@@ -32,16 +32,16 @@ class JobSpec:
     stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
-    services: t.Optional[t.List[str]] = None
-    env: t.Optional[t.Dict[str, str]] = None
+    services: t.Optional[list[str]] = None
+    env: t.Optional[dict[str, str]] = None
     parallelism: t.Optional[int] = None
     venvs_per_job: t.Optional[int] = None
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
     skip: bool = False
     allow_failure: bool = False
-    paths: t.Optional[t.Set[str]] = None  # ignored
-    only: t.Optional[t.Set[str]] = None  # ignored
+    paths: t.Optional[set[str]] = None  # ignored
+    only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
 
     def __str__(self) -> str:
@@ -206,7 +206,7 @@ def gen_required_suites() -> None:
 
     suites = suitespec.get_suites()
 
-    required_suites: t.List[str] = []
+    required_suites: list[str] = []
 
     for_each_testrun_needed(
         suites=sorted(suites.keys()),
@@ -312,7 +312,7 @@ def gen_pre_checks() -> None:
 
     checks: list[tuple[str, str]] = []
 
-    def check(name: str, command: str, paths: t.Set[str]) -> None:
+    def check(name: str, command: str, paths: set[str]) -> None:
         if pr_matches_patterns(paths):
             checks.append((name, command))
 

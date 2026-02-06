@@ -5,7 +5,6 @@ import os
 import sys
 from typing import Any
 from typing import Callable
-from typing import Dict
 
 import ray
 from wrapt import wrap_function_wrapper as _w
@@ -93,7 +92,7 @@ config._add(
 )
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"ray": ">=2.46.0"}
 
 

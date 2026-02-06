@@ -16,9 +16,9 @@ from ddtrace.internal import _unpatched
 log = logging.getLogger(__name__)
 
 
-_registry = []  # type: typing.List[typing.Callable[[], None]]
-_registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
-_registry_after_parent = []  # type: typing.List[typing.Callable[[], None]]
+_registry = []  # type: list[typing.Callable[[], None]]
+_registry_before_fork = []  # type: list[typing.Callable[[], None]]
+_registry_after_parent = []  # type: list[typing.Callable[[], None]]
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -42,7 +42,7 @@ def has_forked():
 
 
 def run_hooks(registry):
-    # type: (typing.List[typing.Callable[[], None]]) -> None
+    # type: (list[typing.Callable[[], None]]) -> None
     for hook in list(registry):
         try:
             hook()
@@ -127,7 +127,7 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
 
     def __init__(
         self,
-        wrapped_class,  # type: typing.Type[_T]
+        wrapped_class,  # type: type[_T]
     ):
         # type: (...) -> None
         super(ResetObject, self).__init__(wrapped_class())

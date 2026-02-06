@@ -8,14 +8,10 @@ import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Mapping
 from typing import MutableMapping
 from typing import Optional
-from typing import Set
-from typing import Tuple
 import uuid
 
 import ddtrace
@@ -81,14 +77,14 @@ class Signature:
 @dataclasses.dataclass
 class Key:
     keytype: str
-    keyid_hash_algorithms: List[str]
+    keyid_hash_algorithms: list[str]
     keyval: Mapping
     scheme: str
 
 
 @dataclasses.dataclass
 class Role:
-    keyids: List[str]
+    keyids: list[str]
     threshold: int
 
 
@@ -115,7 +111,7 @@ class Root:
 
 @dataclasses.dataclass
 class SignedRoot:
-    signatures: List[Signature]
+    signatures: list[Signature]
     signed: Root
 
     def __post_init__(self):
@@ -154,7 +150,7 @@ class Targets:
 
 @dataclasses.dataclass
 class SignedTargets:
-    signatures: List[Signature]
+    signatures: list[Signature]
     signed: Targets
     version: int = 0
 
@@ -174,10 +170,10 @@ class TargetFile:
 
 @dataclasses.dataclass
 class AgentPayload:
-    roots: Optional[List[SignedRoot]] = None
+    roots: Optional[list[SignedRoot]] = None
     targets: Optional[SignedTargets] = None
-    target_files: List[TargetFile] = dataclasses.field(default_factory=list)
-    client_configs: Set[str] = dataclasses.field(default_factory=set)
+    target_files: list[TargetFile] = dataclasses.field(default_factory=list)
+    client_configs: set[str] = dataclasses.field(default_factory=set)
 
     def __post_init__(self):
         if self.roots is not None:
@@ -191,8 +187,8 @@ class AgentPayload:
                 self.target_files[i] = TargetFile(**self.target_files[i])
 
 
-AppliedConfigType = Dict[str, ConfigMetadata]
-TargetsType = Dict[str, ConfigMetadata]
+AppliedConfigType = dict[str, ConfigMetadata]
+TargetsType = dict[str, ConfigMetadata]
 
 
 class RemoteConfigClient:
@@ -238,7 +234,7 @@ class RemoteConfigClient:
         if p_tags_list := process_tags.process_tags_list:
             self._client_tracer["process_tags"] = p_tags_list
 
-        self.cached_target_files: List[AppliedConfigType] = []
+        self.cached_target_files: list[AppliedConfigType] = []
 
         self._products: MutableMapping[str, PubSub] = dict()
         self._applied_configs: AppliedConfigType = dict()
@@ -275,7 +271,7 @@ class RemoteConfigClient:
             return True
         return False
 
-    def start_products(self, products: Set[str]) -> None:
+    def start_products(self, products: set[str]) -> None:
         for product_name in products:
             pubsub_instance = self._products.get(product_name)
             if pubsub_instance:
@@ -332,7 +328,7 @@ class RemoteConfigClient:
         return json.loads(data)
 
     @staticmethod
-    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[Dict[str, Any]]:
+    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[dict[str, Any]]:
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
             log.debug(
@@ -404,7 +400,7 @@ class RemoteConfigClient:
 
     @staticmethod
     def _apply_callback(
-        list_callbacks: List[PubSub],
+        list_callbacks: list[PubSub],
         callback: PubSub,
         config_content: PayloadType,
         target: str,
@@ -416,7 +412,7 @@ class RemoteConfigClient:
 
     def _remove_previously_applied_configurations(
         self,
-        list_callbacks: List[PubSub],
+        list_callbacks: list[PubSub],
         applied_configs: AppliedConfigType,
         client_configs: TargetsType,
         targets: TargetsType,
@@ -443,7 +439,7 @@ class RemoteConfigClient:
 
     def _load_new_configurations(
         self,
-        list_callbacks: List[PubSub],
+        list_callbacks: list[PubSub],
         applied_configs: AppliedConfigType,
         client_configs: TargetsType,
         payload: AgentPayload,
@@ -488,7 +484,7 @@ class RemoteConfigClient:
             self.cached_target_files = []
 
     def _validate_config_exists_in_target_paths(
-        self, payload_client_configs: Set[str], payload_target_files: List[TargetFile]
+        self, payload_client_configs: set[str], payload_target_files: list[TargetFile]
     ) -> None:
         paths = {_.path for _ in payload_target_files}
         paths = paths.union({_["path"] for _ in self.cached_target_files})
@@ -499,7 +495,7 @@ class RemoteConfigClient:
 
     @staticmethod
     def _validate_signed_target_files(
-        payload_target_files: List[TargetFile], payload_targets_signed: Targets, client_configs: TargetsType
+        payload_target_files: list[TargetFile], payload_targets_signed: Targets, client_configs: TargetsType
     ) -> None:
         for target in payload_target_files:
             if (payload_targets_signed.targets and not payload_targets_signed.targets.get(target.path)) and (
@@ -509,11 +505,11 @@ class RemoteConfigClient:
                     "target file %s not exists in client_config and signed targets" % (target.path,)
                 )
 
-    def _publish_configuration(self, list_callbacks: List[PubSub]) -> None:
+    def _publish_configuration(self, list_callbacks: list[PubSub]) -> None:
         for callback_to_dispach in list_callbacks:
             callback_to_dispach.publish()
 
-    def _process_targets(self, payload: AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]:
+    def _process_targets(self, payload: AgentPayload) -> tuple[Optional[int], Optional[str], Optional[TargetsType]]:
         if payload.targets is None:
             # no targets received
             return None, None, None
@@ -564,7 +560,7 @@ class RemoteConfigClient:
 
         # 2. Remove previously applied configurations
         applied_configs: AppliedConfigType = dict()
-        list_callbacks: List[PubSub] = []
+        list_callbacks: list[PubSub] = []
         self._remove_previously_applied_configurations(list_callbacks, applied_configs, client_configs, targets)
 
         # 3. Load new configurations

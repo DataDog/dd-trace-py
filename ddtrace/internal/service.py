@@ -15,7 +15,7 @@ class ServiceStatus(enum.Enum):
 class ServiceStatusError(RuntimeError):
     def __init__(
         self,
-        service_cls,  # type: typing.Type[Service]
+        service_cls,  # type: type[Service]
         current_status,  # type: ServiceStatus
     ):
         # type: (...) -> None

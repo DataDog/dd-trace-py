@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import aiohttp
 import wrapt
@@ -57,7 +56,7 @@ def get_version():
     return aiohttp.__version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"aiohttp": ">=3.7"}
 
 

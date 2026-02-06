@@ -6,8 +6,8 @@ import typing as t
 
 def create_coverage_report_event(
     coverage_format: str,
-    tags: t.Optional[t.Dict[str, str]] = None,
-) -> t.Dict[str, t.Any]:
+    tags: t.Optional[dict[str, str]] = None,
+) -> dict[str, t.Any]:
     """
     Create the event JSON payload for coverage report upload.
 
@@ -20,7 +20,7 @@ def create_coverage_report_event(
     Returns:
         Dictionary with event data ready for upload
     """
-    event: t.Dict[str, t.Any] = {
+    event: dict[str, t.Any] = {
         "type": "coverage_report",
         "format": coverage_format,
         "timestamp": int(time.time() * 1000),

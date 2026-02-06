@@ -3,11 +3,8 @@ import sys
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Mapping
 from typing import Optional
-from typing import Tuple
 from urllib import parse
 
 import wrapt
@@ -127,7 +124,7 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
-def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, Any]:
+def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> dict[str, Any]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
         parameter_value = ctx.get_item(parameter_name)
@@ -164,7 +161,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         raise ValueError("span_name must be set in the context before starting a span")
     span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
 
-    tags: Optional[Dict[str, str]] = ctx.get_item("tags")
+    tags: Optional[dict[str, str]] = ctx.get_item("tags")
     if tags:
         for tk, tv in tags.items():
             span.set_tag(tk, tv)
@@ -183,7 +180,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 
 def _finish_span(
     ctx: core.ExecutionContext,
-    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ):
     """
     Finish the span in the context.
@@ -560,7 +557,7 @@ def _on_django_finalize_response_pre(ctx, after_request_tags, request, response)
 
 
 def _on_django_start_response(
-    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[Dict[str, str]]
+    ctx, request, extract_body: Callable, remake_body: Callable, query: str, uri: str, path: Optional[dict[str, str]]
 ):
     parsed_query = request.GET
     body = extract_body(request)
@@ -581,7 +578,7 @@ def _on_django_start_response(
 
 def _on_django_cache(
     ctx: core.ExecutionContext,
-    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     try:
         rowcount = ctx.get_item("rowcount")
@@ -597,7 +594,7 @@ def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
             ctx.span._ignore_exception(exc)
 
 
-def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
+def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         ctx.span._set_tag_str(tk, tv)
     _set_url_tag(django_config, ctx.span, url, query)
@@ -704,7 +701,7 @@ def _on_botocore_trace_context_injection_prepared(
             log.warning("Unable to inject trace context", exc_info=True)
 
 
-def _on_botocore_kinesis_update_record(ctx, stream, data_obj: Dict, record, inject_trace_context):
+def _on_botocore_kinesis_update_record(ctx, stream, data_obj: dict, record, inject_trace_context):
     if inject_trace_context:
         if "_datadog" not in data_obj:
             data_obj["_datadog"] = {}
@@ -771,7 +768,7 @@ def _on_end_of_traced_method_in_fork(ctx):
 
 def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
-    result: List[Dict[str, Any]],
+    result: list[dict[str, Any]],
 ):
     ctx.get_item("bedrock_integration").llmobs_set_tags(
         ctx.span,
@@ -784,7 +781,7 @@ def _on_botocore_bedrock_process_response_converse(
 
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
-    formatted_response: Dict[str, Any],
+    formatted_response: dict[str, Any],
 ) -> None:
     with ctx.span as span:
         model_name = ctx.get_item("model_name")
@@ -795,7 +792,7 @@ def _on_botocore_bedrock_process_response(
 
 
 def _on_botocore_sqs_recvmessage_post(
-    ctx: core.ExecutionContext, _, result: Dict, propagate: bool, message_parser: Callable
+    ctx: core.ExecutionContext, _, result: dict, propagate: bool, message_parser: Callable
 ) -> None:
     if result is not None and "Messages" in result and len(result["Messages"]) >= 1:
         ctx.set_item("message_received", True)
@@ -1002,7 +999,7 @@ def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
             log.debug("Could not validate client IP address for websocket send message: %s", str(e))
 
 
-def _init_websocket_message_counters(scope: Dict[str, Any]) -> None:
+def _init_websocket_message_counters(scope: dict[str, Any]) -> None:
     if "datadog" not in scope:
         scope["datadog"] = {}
     if "websocket_receive_counter" not in scope["datadog"]:
@@ -1011,7 +1008,7 @@ def _init_websocket_message_counters(scope: Dict[str, Any]) -> None:
         scope["datadog"]["websocket_send_counter"] = 0
 
 
-def _increment_websocket_counter(scope: Dict[str, Any], counter_type: str) -> int:
+def _increment_websocket_counter(scope: dict[str, Any], counter_type: str) -> int:
     """
     Increment and return websocket message counter (either websocket_receive_counter or websocket_send_counter)
     """
@@ -1059,10 +1056,10 @@ def _has_distributed_tracing_context(span: Span) -> bool:
 
 
 def _add_websocket_span_pointer_attributes(
-    link_attributes: Dict[str, Any],
+    link_attributes: dict[str, Any],
     integration_config: Any,
     handshake_span: Span,
-    scope: Dict[str, Any],
+    scope: dict[str, Any],
     is_incoming: bool,
 ) -> None:
     """
@@ -1239,7 +1236,7 @@ def _on_aiokafka_send_start(
     _topic: str,
     send_value: Optional[bytes],
     send_key: Optional[bytes],
-    headers: List[Tuple[str, bytes]],
+    headers: list[tuple[str, bytes]],
     ctx: core.ExecutionContext,
     partition: Optional[int],
 ) -> None:
@@ -1253,14 +1250,14 @@ def _on_aiokafka_send_start(
 
     if config.aiokafka.distributed_tracing_enabled:
         # inject headers with Datadog tags:
-        tracing_headers: Dict[str, str] = {}
+        tracing_headers: dict[str, str] = {}
         HTTPPropagator.inject(span.context, tracing_headers)
         for key, value in tracing_headers.items():
             headers.append((key, value.encode("utf-8")))
 
 
 def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext, exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
+    ctx: core.ExecutionContext, exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]], _
 ) -> None:
     _finish_span(ctx, exc_info)
 
@@ -1298,7 +1295,7 @@ def _on_aiokafka_getone_message(
 def _on_aiokafka_getmany_message(
     _instance: Any,
     ctx: core.ExecutionContext,
-    messages: Optional[Dict[Any, List[Any]]],
+    messages: Optional[dict[Any, list[Any]]],
 ) -> None:
     span = ctx.span
 
@@ -1309,7 +1306,7 @@ def _on_aiokafka_getmany_message(
         first_topic = next(iter(messages)).topic
         span._set_tag_str(MESSAGING_DESTINATION_NAME, first_topic)
 
-        topics_partitions: Dict[str, List[int]] = {}
+        topics_partitions: dict[str, list[int]] = {}
         for topic_partition in messages.keys():
             topic = topic_partition.topic
             partition = topic_partition.partition
@@ -1365,7 +1362,7 @@ def httpx_url_to_str(url) -> str:
 
 def _on_httpx_send_completed(
     ctx: core.ExecutionContext,
-    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     span = ctx.span
 

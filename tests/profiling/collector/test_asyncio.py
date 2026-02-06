@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Any
 from typing import Callable
-from typing import Type
 from typing import Union
 import uuid
 
@@ -30,14 +29,14 @@ init_linenos(__file__)
 
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
-# Type aliases for supported classes
+# type aliases for supported classes
 LockTypeInst = Union[asyncio.Lock, asyncio.Semaphore, asyncio.BoundedSemaphore, asyncio.Condition]
-LockTypeClass = Type[LockTypeInst]
+LockTypeClass = type[LockTypeInst]
 
 CollectorTypeInst = Union[
     AsyncioLockCollector, AsyncioSemaphoreCollector, AsyncioBoundedSemaphoreCollector, AsyncioConditionCollector
 ]
-CollectorTypeClass = Type[CollectorTypeInst]
+CollectorTypeClass = type[CollectorTypeInst]
 
 
 @pytest.mark.parametrize(
@@ -244,11 +243,11 @@ class TestAsyncioLockCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Lock profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioLockCollector]:
+    def collector_class(self) -> type[AsyncioLockCollector]:
         return AsyncioLockCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.Lock]:
+    def lock_class(self) -> type[asyncio.Lock]:
         return asyncio.Lock
 
 
@@ -256,11 +255,11 @@ class TestAsyncioSemaphoreCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Semaphore profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioSemaphoreCollector]:
+    def collector_class(self) -> type[AsyncioSemaphoreCollector]:
         return AsyncioSemaphoreCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.Semaphore]:
+    def lock_class(self) -> type[asyncio.Semaphore]:
         return asyncio.Semaphore
 
 
@@ -268,11 +267,11 @@ class TestAsyncioBoundedSemaphoreCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.BoundedSemaphore profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioBoundedSemaphoreCollector]:
+    def collector_class(self) -> type[AsyncioBoundedSemaphoreCollector]:
         return AsyncioBoundedSemaphoreCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.BoundedSemaphore]:
+    def lock_class(self) -> type[asyncio.BoundedSemaphore]:
         return asyncio.BoundedSemaphore
 
     async def test_bounded_behavior_preserved(self) -> None:
@@ -294,9 +293,9 @@ class TestAsyncioConditionCollector(BaseAsyncioLockCollectorTest):
     """Test asyncio.Condition profiling."""
 
     @property
-    def collector_class(self) -> Type[AsyncioConditionCollector]:
+    def collector_class(self) -> type[AsyncioConditionCollector]:
         return AsyncioConditionCollector
 
     @property
-    def lock_class(self) -> Type[asyncio.Condition]:
+    def lock_class(self) -> type[asyncio.Condition]:
         return asyncio.Condition

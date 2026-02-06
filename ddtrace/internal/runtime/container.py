@@ -3,7 +3,6 @@ from functools import lru_cache
 import os
 import re
 from typing import Any
-from typing import Dict
 from typing import Literal  # noqa:F401
 from typing import Optional
 from typing import Union
@@ -156,7 +155,7 @@ def get_container_info(pid: Union[Literal["self"], int] = "self") -> Optional[CG
     return None
 
 
-def update_headers(headers: Dict) -> None:
+def update_headers(headers: dict) -> None:
     """Get the container info (either the container ID or the cgroup inode) and add it to the headers."""
     container_info = get_container_info()
     if container_info is not None:

@@ -39,7 +39,7 @@ class Metrics(object):
             self.name = name
 
         def increment(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+            # type: (str, float, Optional[dict[str, str]]) -> None
             if not self.metrics.enabled:
                 return None
 
@@ -48,7 +48,7 @@ class Metrics(object):
             )
 
         def gauge(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+            # type: (str, float, Optional[dict[str, str]]) -> None
             if not self.metrics.enabled:
                 return None
 
@@ -57,7 +57,7 @@ class Metrics(object):
             )
 
         def histogram(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+            # type: (str, float, Optional[dict[str, str]]) -> None
             if not self.metrics.enabled:
                 return None
 
@@ -66,7 +66,7 @@ class Metrics(object):
             )
 
         def distribution(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+            # type: (str, float, Optional[dict[str, str]]) -> None
             if not self.metrics.enabled:
                 return None
 

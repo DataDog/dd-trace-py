@@ -42,7 +42,7 @@ class HttpConfig(object):
         return len(self._header_tags) > 0
 
     def trace_headers(self, whitelist):
-        # type: (Union[List[str], str]) -> Optional[HttpConfig]
+        # type: (Union[list[str], str]) -> Optional[HttpConfig]
         """
         Registers a set of headers to be traced at global level or integration level.
         :param whitelist: the case-insensitive list of traced headers

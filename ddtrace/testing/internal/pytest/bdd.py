@@ -134,7 +134,7 @@ class BddTestOptPlugin:
             span.set_exc_info(type(exception), exception, tb)
             span.finish()
 
-    def _get_codeowners(self, feature_path: Path) -> t.Optional[t.List[str]]:
+    def _get_codeowners(self, feature_path: Path) -> t.Optional[list[str]]:
         if codeowners := self.main_plugin.manager.codeowners:
             return codeowners.of(str(feature_path))
         return None

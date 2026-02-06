@@ -1,6 +1,5 @@
 import copyreg
 import os
-from typing import Dict
 
 import fastapi
 import fastapi.routing
@@ -94,7 +93,7 @@ def get_version():
     return getattr(fastapi, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"fastapi": ">=0.64.0"}
 
 

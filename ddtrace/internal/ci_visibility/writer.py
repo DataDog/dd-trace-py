@@ -2,7 +2,6 @@ from http.client import RemoteDisconnected
 import os
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
@@ -62,7 +61,7 @@ class CIVisibilityEventClient(WriterClientBase):
         )
         super(CIVisibilityEventClient, self).__init__(encoder)
 
-    def set_metadata(self, event_type: str, metadata: Dict[str, str]) -> None:
+    def set_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         if isinstance(self.encoder, CIVisibilityEncoderV01):
             self.encoder.set_metadata(event_type, metadata)
 
@@ -136,7 +135,7 @@ class CIVisibilityWriter(HTTPWriter):
         sync_mode=False,  # type: bool
         report_metrics=False,  # type: bool
         reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
+        headers=None,  # type: Optional[dict[str, str]]
         use_evp=False,  # type: bool
         coverage_enabled=False,  # type: bool
         coverage_report_upload_enabled=False,  # type: bool
@@ -158,7 +157,7 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
-        clients: List[WriterClientBase] = (
+        clients: list[WriterClientBase] = (
             [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
         )
         self._coverage_enabled = coverage_enabled
@@ -248,7 +247,7 @@ class CIVisibilityWriter(HTTPWriter):
         )
 
     def _put(self, data, headers, client, no_trace):
-        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
+        # type: (bytes, dict[str, str], WriterClientBase, bool) -> Response
         request_error = None  # type: Optional[REQUEST_ERROR_TYPE]
 
         with StopWatch() as sw:

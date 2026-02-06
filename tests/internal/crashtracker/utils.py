@@ -5,7 +5,6 @@ import random
 import time
 from typing import Callable
 from typing import Generator
-from typing import List
 from typing import Optional
 
 import ddtrace
@@ -119,7 +118,7 @@ def _get_matching_crash_messages(
     count: int = 1,
     timeout: float = 10.0,
     poll_interval: float = 0.2,
-) -> List[TestAgentRequest]:
+) -> list[TestAgentRequest]:
     """
     Poll the test agent for crash messages matching a predicate.
 
@@ -131,13 +130,13 @@ def _get_matching_crash_messages(
         poll_interval: Time between polling attempts in seconds
 
     Returns:
-        List of matching crash messages
+        list of matching crash messages
 
     Raises:
         AssertionError: If count matching messages are not found within timeout
     """
     seen_report_ids = set()
-    matching_messages: List[TestAgentRequest] = []
+    matching_messages: list[TestAgentRequest] = []
     end_time = time.time() + timeout
 
     while time.time() < end_time:

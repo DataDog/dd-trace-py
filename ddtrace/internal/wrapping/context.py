@@ -300,7 +300,7 @@ class BaseWrappingContext(ABC):
         self._storage_stack.get().append({})
         return self
 
-    def _pop_storage(self) -> t.Dict[str, t.Any]:
+    def _pop_storage(self) -> dict[str, t.Any]:
         return self._storage_stack.get().pop()
 
     def __return__(self, value: T) -> T:
@@ -309,7 +309,7 @@ class BaseWrappingContext(ABC):
 
     def __exit__(
         self,
-        exc_type: t.Optional[t.Type[BaseException]],
+        exc_type: t.Optional[type[BaseException]],
         exc_val: t.Optional[BaseException],
         exc_tb: t.Optional[TracebackType],
     ) -> None:
@@ -389,7 +389,7 @@ class WrappingContext(BaseWrappingContext):
 class LazyWrappedFunction(Protocol):
     """A lazy-wrapped function."""
 
-    __dd_lazy_contexts__: t.List[WrappingContext]
+    __dd_lazy_contexts__: list[WrappingContext]
 
     def __call__(self, *args, **kwargs):
         pass
@@ -479,7 +479,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def __init__(self, f: FunctionType) -> None:
         super().__init__(f)
 
-        self._contexts: t.List[WrappingContext] = []
+        self._contexts: list[WrappingContext] = []
 
     def register(self, context: WrappingContext) -> None:
         _type = type(context)
@@ -501,7 +501,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def is_registered(self, context: WrappingContext) -> bool:
         return type(context) in self._contexts
 
-    def registered(self, context_type: t.Type[WrappingContext]) -> WrappingContext:
+    def registered(self, context_type: type[WrappingContext]) -> WrappingContext:
         for context in self._contexts:
             if isinstance(context, context_type):
                 return context

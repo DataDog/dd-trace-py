@@ -19,7 +19,7 @@ class TestOperatorFormatMapReplacement(BaseReplacement):
     def _assert_format_map_result(
         self,
         taint_escaped_template,  # type: str
-        taint_escaped_mapping,  # type: Dict[str, Any]
+        taint_escaped_mapping,  # type: dict[str, Any]
         expected_result,  # type: str
         escaped_expected_result,  # type: str
     ):  # type: (...) -> None

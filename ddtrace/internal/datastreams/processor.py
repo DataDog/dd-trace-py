@@ -7,7 +7,6 @@ import os
 import struct
 import threading
 import time
-import typing
 from typing import DefaultDict  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
@@ -64,7 +63,7 @@ SHUTDOWN_TIMEOUT = 5
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
 """
-PathwayAggrKey = typing.Tuple[
+PathwayAggrKey = tuple[
     str,  # edge tags
     int,  # hash_value
     int,  # parent hash
@@ -87,9 +86,9 @@ ConsumerPartitionKey = NamedTuple("ConsumerPartitionKey", [("group", str), ("top
 Bucket = NamedTuple(
     "Bucket",
     [
-        ("pathway_stats", DefaultDict[PathwayAggrKey, PathwayStats]),
-        ("latest_produce_offsets", DefaultDict[PartitionKey, int]),
-        ("latest_commit_offsets", DefaultDict[ConsumerPartitionKey, int]),
+        ("pathway_stats", defaultdict[PathwayAggrKey, PathwayStats]),
+        ("latest_produce_offsets", defaultdict[PartitionKey, int]),
+        ("latest_commit_offsets", defaultdict[ConsumerPartitionKey, int]),
     ],
 )
 
@@ -120,13 +119,13 @@ class DataStreamsProcessor(PeriodicService):
             "Datadog-Meta-Tracer-Version": self._version,
             "Content-Type": "application/msgpack",
             "Content-Encoding": "gzip",
-        }  # type: Dict[str, str]
+        }  # type: dict[str, str]
         self._hostname = compat.ensure_text(get_hostname())
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
-        self._schema_samplers: Dict[str, SchemaSampler] = {}
+        self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
@@ -139,7 +138,7 @@ class DataStreamsProcessor(PeriodicService):
     def on_checkpoint_creation(
         self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, payload_size=0
     ):
-        # type: (int, int, List[str], float, float, float, int) -> None
+        # type: (int, int, list[str], float, float, float, int) -> None
         """
         on_checkpoint_creation is called every time a new checkpoint is created on a pathway. It records the
         latency to the previous checkpoint in the pathway (edge latency),
@@ -189,7 +188,7 @@ class DataStreamsProcessor(PeriodicService):
             )
 
     def _serialize_buckets(self):
-        # type: () -> List[Dict]
+        # type: () -> list[dict]
         """Serialize and update the buckets."""
         serialized_buckets = []
         serialized_bucket_keys = []
@@ -284,7 +283,7 @@ class DataStreamsProcessor(PeriodicService):
             "Lang": "python",
             "Stats": serialized_stats,
             "Hostname": self._hostname,
-        }  # type: Dict[str, Union[List[Dict], str, List[str]]]
+        }  # type: dict[str, Union[list[dict], str, list[str]]]
         if config.env:
             raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
@@ -351,7 +350,7 @@ class DataStreamsProcessor(PeriodicService):
 
     def set_checkpoint(self, tags, now_sec=None, payload_size=0, span=None):
         """
-        type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
+        type: (list[str], Optional[int], Optional[int]) -> DataStreamsCtx
         :param tags: a list of strings identifying the pathway and direction
         :param now_sec: The time in seconds to count as "now" when computing latencies
         :param payload_size: The size of the payload being sent in bytes
@@ -437,7 +436,7 @@ class DataStreamsCtx:
         span=None,
     ):
         """
-        type: (List[str], float, float, float) -> None
+        type: (list[str], float, float, float) -> None
 
         :param tags: an list of tags identifying the pathway and direction
         :param now_sec: The time in seconds to count as "now" when computing latencies

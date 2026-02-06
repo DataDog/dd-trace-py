@@ -1,8 +1,6 @@
 import time
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Set
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -71,7 +69,7 @@ def record_llmobs_enabled(
     site: str,
     start_ns: int,
     auto: bool,
-    instrumented_proxy_urls: Optional[Set[str]],
+    instrumented_proxy_urls: Optional[set[str]],
     ml_app: Optional[str],
 ):
     tags = _base_tags(error)
@@ -196,7 +194,7 @@ def record_llmobs_user_processor_called(error: bool) -> None:
     )
 
 
-def record_llmobs_submit_evaluation(join_on: Dict[str, Any], metric_type: str, error: Optional[str]):
+def record_llmobs_submit_evaluation(join_on: dict[str, Any], metric_type: str, error: Optional[str]):
     _metric_type = metric_type if metric_type in ("categorical", "score", "boolean", "json") else "other"
     custom_joining_key = str(int(join_on.get("tag") is not None))
     tags = _base_tags(error)

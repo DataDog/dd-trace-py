@@ -3,7 +3,6 @@ import json
 import re
 import types
 from typing import Any
-from typing import List
 from typing import Optional
 from typing import Text
 from typing import Union
@@ -100,7 +99,7 @@ class CustomBytearray(bytearray):
 non_empty_text = text().filter(lambda x: x not in ("",) and not x.startswith("\x00"))
 non_empty_binary = binary().filter(lambda x: x not in (b"",) and not x.startswith(b"\x00"))
 
-string_strategies: List[Any] = [
+string_strategies: list[Any] = [
     text(),  # regular str
     binary(),  # regular bytes
     builds(bytearray, binary()),  # regular bytearray
@@ -109,7 +108,7 @@ string_strategies: List[Any] = [
     builds(CustomBytearray, binary()),  # custom bytearray subclass
 ]
 
-string_valid_to_taint_strategies: List[Any] = [
+string_valid_to_taint_strategies: list[Any] = [
     non_empty_text,  # regular str
     non_empty_binary,  # regular bytes
     builds(bytearray, non_empty_binary),  # regular bytearray

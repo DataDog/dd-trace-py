@@ -1,6 +1,5 @@
 from typing import Any
 from typing import Callable
-from typing import List
 
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
@@ -52,7 +51,7 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
         log.warning("Received unexpected tracer flare product type: %s", product_type)
 
 
-def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
+def _prepare_tracer_flare(flare: Flare, configs: list[Any]) -> bool:
     """
     Update configurations to start sending tracer logs to a file
     to be sent in a flare later.
@@ -82,7 +81,7 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     return False
 
 
-def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
+def _generate_tracer_flare(flare: Flare, configs: list[Any]) -> bool:
     """
     Revert tracer flare configurations back to original state
     before sending the flare.

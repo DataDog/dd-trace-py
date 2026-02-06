@@ -1,5 +1,3 @@
-from typing import Type
-
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._utils import DDWaf_info
@@ -26,5 +24,5 @@ if asm_config._asm_libddwaf_available:
 else:
     import ddtrace.appsec._ddwaf.waf_mock as waf_module  # type: ignore[no-redef]
 
-DDWaf: Type[WAF] = waf_module.DDWaf
+DDWaf: type[WAF] = waf_module.DDWaf
 version = waf_module.version

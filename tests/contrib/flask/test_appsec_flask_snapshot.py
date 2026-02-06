@@ -41,13 +41,13 @@ def flask_wsgi_application():
 
 @pytest.fixture
 def flask_command(flask_wsgi_application, flask_port):
-    # type: (str, str) -> List[str]
+    # type: (str, str) -> list[str]
     cmd = "ddtrace-run flask run -h 0.0.0.0 -p %s" % (flask_port,)
     return cmd.split()
 
 
 def flask_appsec_good_rules_env(flask_wsgi_application):
-    # type: (str) -> Dict[str, str]
+    # type: (str) -> dict[str, str]
     env = os.environ.copy()
     env.update(
         {
@@ -63,7 +63,7 @@ def flask_appsec_good_rules_env(flask_wsgi_application):
 
 @pytest.fixture
 def flask_client(flask_command, flask_port, flask_wsgi_application, flask_env_arg):
-    # type: (List[str], Dict[str, str], str, Callable) -> Generator[Client, None, None]
+    # type: (list[str], dict[str, str], str, Callable) -> Generator[Client, None, None]
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
     # webservers might exec or fork into another process, so we need to os.setsid() to create a process group

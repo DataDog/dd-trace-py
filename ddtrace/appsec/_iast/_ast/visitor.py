@@ -7,8 +7,6 @@ import os
 import sys
 from typing import Any
 from typing import Dict  # noqa:F401
-from typing import List
-from typing import Set
 from typing import Text
 from typing import Tuple  # noqa:F401
 
@@ -37,7 +35,7 @@ def _mark_avoid_convert_recursively(node):
             _mark_avoid_convert_recursively(child)
 
 
-_ASPECTS_SPEC: Dict[Text, Any] = {
+_ASPECTS_SPEC: dict[Text, Any] = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
     "alias_module": _PREFIX + "aspects",
     "functions": {
@@ -203,7 +201,7 @@ class AstVisitor(ast.NodeTransformer):
         self.module_name = module_name
         self.ast_modified = False
 
-        excluded_from_patching: Dict[str, Dict[str, Tuple[str]]] = _ASPECTS_SPEC["excluded_from_patching"]
+        excluded_from_patching: dict[str, dict[str, tuple[str]]] = _ASPECTS_SPEC["excluded_from_patching"]
         self.excluded_functions = excluded_from_patching.get(self.module_name, {})
         self.dont_patch_these_functionsdefs = set()
         for _, v in self.excluded_functions.items():
@@ -226,7 +224,7 @@ class AstVisitor(ast.NodeTransformer):
             self.codetype = CODE_TYPE_STDLIB
 
     @staticmethod
-    def _merge_dicts(*args_functions: Set[str]) -> Set[str]:
+    def _merge_dicts(*args_functions: set[str]) -> set[str]:
         merged_set = set()
 
         for functions in args_functions:
@@ -347,7 +345,7 @@ class AstVisitor(ast.NodeTransformer):
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
 
-    def _assign_node(self, from_node: Any, targets: List[Any], value: Any) -> Any:
+    def _assign_node(self, from_node: Any, targets: list[Any], value: Any) -> Any:
         return self._node(
             ast.Assign,
             from_node,
@@ -412,7 +410,7 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
-    def _call_node(self, from_node: Any, func: Any, args: List[Any]) -> Any:
+    def _call_node(self, from_node: Any, func: Any, args: list[Any]) -> Any:
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
     def visit_Module(self, module_node: ast.Module) -> Any:
@@ -850,12 +848,12 @@ class AstVisitor(ast.NodeTransformer):
                 # Best effort to avoid converting type definitions
                 if assign_node.value.value.id in (
                     "Callable",
-                    "Dict",
+                    "dict",
                     "Generator",
-                    "List",
+                    "list",
                     "Optional",
                     "Sequence",
-                    "Tuple",
+                    "tuple",
                     "Type",
                     "TypeVar",
                     "Union",
@@ -867,7 +865,7 @@ class AstVisitor(ast.NodeTransformer):
                 # We can't assign to a function call, which is anyway going to rewrite
                 # the index destination so we just ignore that target
                 target.avoid_convert = True  # type: ignore[attr-defined]
-            elif isinstance(target, (List, ast.Tuple)):
+            elif isinstance(target, (list, ast.Tuple)):
                 # Same for lists/tuples on the left side of the assignment
                 for element in target.elts:
                     if isinstance(element, ast.Subscript):
