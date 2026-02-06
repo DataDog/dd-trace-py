@@ -1,7 +1,6 @@
 from itertools import chain
 import multiprocessing as mp
 
-from ddtrace._trace.span import Span
 import pytest
 
 
@@ -14,11 +13,11 @@ from queue import Queue
 import threading
 import time
 
+from ddtrace._trace.span import Span
 from ddtrace.internal import forksafe
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native import seed
-from ddtrace.trace import tracer
 
 
 def test_random():
