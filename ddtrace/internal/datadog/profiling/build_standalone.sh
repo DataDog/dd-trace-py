@@ -192,7 +192,12 @@ run_cmake() {
   fi
   if [[ " ${cmake_args[*]} " =~ " -DBUILD_TESTING=ON " ]]; then
     echo "--------------------------------------------------------------------- Running Tests"
-    ctest ${ctest_args[*]} --output-on-failure || { echo "tests failed!"; exit 1; }
+    if command -v nproc &> /dev/null; then
+      NPROC=$(nproc)
+    else
+      NPROC=$(getconf _NPROCESSORS_ONLN)
+    fi
+    ctest -j${NPROC} ${ctest_args[*]} --output-on-failure || { echo "tests failed!"; exit 1; }
   fi
 
   # OK, the build or whatever went fine I guess.
