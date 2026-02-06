@@ -1,19 +1,13 @@
 #include "stack_renderer.hpp"
 
+#include "sampler.hpp"
 #include "thread_span_links.hpp"
 
 #include "dd_wrapper/include/sample_manager.hpp"
 
-#include "echion/strings.h"
+#include "echion/echion_sampler.h"
 
 using namespace Datadog;
-
-void
-StackRenderer::render_message(std::string_view msg)
-{
-    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
-    (void)msg;
-}
 
 void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
@@ -114,7 +108,7 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
 }
 
 void
-StackRenderer::render_stack_begin(long long, long long, const std::string&)
+StackRenderer::render_stack_begin()
 {
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
@@ -138,7 +132,7 @@ StackRenderer::render_frame(Frame& frame)
     auto line = frame.location.line;
 
     std::string_view name_str;
-    auto maybe_name_str = string_table.lookup(frame.name);
+    auto maybe_name_str = Sampler::get().get_echion().string_table().lookup(frame.name);
     if (maybe_name_str) {
         name_str = maybe_name_str->get();
     } else {
@@ -158,7 +152,7 @@ StackRenderer::render_frame(Frame& frame)
     }
 
     std::string_view filename_str;
-    auto maybe_filename_str = string_table.lookup(frame.filename);
+    auto maybe_filename_str = Sampler::get().get_echion().string_table().lookup(frame.filename);
     if (maybe_filename_str) {
         filename_str = maybe_filename_str->get();
     } else {
@@ -183,7 +177,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 }
 
 void
-StackRenderer::render_stack_end(MetricType, uint64_t)
+StackRenderer::render_stack_end()
 {
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;
@@ -194,12 +188,4 @@ StackRenderer::render_stack_end(MetricType, uint64_t)
     sample->flush_sample();
     SampleManager::drop_sample(sample);
     sample = nullptr;
-}
-
-bool
-StackRenderer::is_valid()
-{
-    // In general, echion may need to check whether the extension has invalid state before calling into it,
-    // but in this case it doesn't matter
-    return true;
 }

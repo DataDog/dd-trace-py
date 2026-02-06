@@ -97,11 +97,12 @@ fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
 impl SpanData {
     #[new]
     #[allow(unused_variables)]
-    #[pyo3(signature = (name, service=None, *args, **kwargs))]
+    #[pyo3(signature = (name, service=None, resource=None, *args, **kwargs))]
     pub fn __new__<'p>(
         py: Python<'p>,
         name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
+        resource: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
@@ -112,6 +113,12 @@ impl SpanData {
             Some(obj) => span.set_service(obj),
             // Directly set py_none to avoid creating a bound None and going through extraction
             None => span.data.service = PyBackedString::py_none(py),
+        }
+        // Set resource to the provided value, or default to name if None
+        // Use clone_ref for efficient refcount increment with Python token
+        match resource {
+            Some(obj) => span.set_resource(obj),
+            None => span.data.resource = span.data.name.clone_ref(py),
         }
         span
     }
@@ -144,6 +151,19 @@ impl SpanData {
     #[inline(always)]
     fn set_service(&mut self, service: &Bound<'_, PyAny>) {
         self.data.service = extract_backed_string_or_none(service);
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn get_resource<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        // Use as_py to handle both stored (zero-copy) and static (interned) strings
+        self.data.resource.as_py(py)
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_resource(&mut self, resource: &Bound<'_, PyAny>) {
+        self.data.resource = extract_backed_string_or_default(resource);
     }
 }
 

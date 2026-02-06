@@ -3,9 +3,9 @@
 #include <atomic>
 
 #include "constants.hpp"
-#include "stack_renderer.hpp"
 
 #include "echion/strings.h"
+#include "echion/timing.h"
 
 class EchionSampler;
 
@@ -18,9 +18,6 @@ class Sampler
     // to keep it aligned with the echion state.
     std::unique_ptr<EchionSampler> echion;
 
-  private:
-    std::shared_ptr<StackRenderer> renderer_ptr;
-
     // The sampling interval is atomic because it needs to be safely propagated to the sampling thread
     std::atomic<microsecond_t> sample_interval_us{ g_default_sampling_period_us };
 
@@ -28,9 +25,6 @@ class Sampler
     // transactions upon the sampling threads (usually starts + stops). This allows threads to be
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
-
-    // Parameters
-    uint64_t echion_frame_cache_size = g_default_echion_frame_cache_size;
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -51,6 +45,10 @@ class Sampler
   public:
     // Singleton instance
     static Sampler& get();
+
+    // Accessor for EchionSampler
+    EchionSampler& get_echion() { return *echion; }
+
     bool start();
     void stop();
     void register_thread(uint64_t id, uint64_t native_id, const char* name);

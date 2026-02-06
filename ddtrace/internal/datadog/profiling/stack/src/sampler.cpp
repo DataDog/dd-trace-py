@@ -1,5 +1,6 @@
 #include "sampler.hpp"
 
+#include "constants.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -176,7 +177,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, interp.id, tstate, wall_time_us);
+                auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -184,7 +185,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         });
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
-        Sample::profile_borrow().stats().set_string_table_count(string_table.size());
+        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -216,8 +217,7 @@ Sampler::set_interval(double new_interval_s)
 }
 
 Sampler::Sampler()
-  : echion{ std::make_unique<EchionSampler>() }
-  , renderer_ptr{ std::make_shared<StackRenderer>() }
+  : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {
 }
 
@@ -280,10 +280,6 @@ _stack_atfork_child()
 
     // Clear renderer caches to avoid using stale interned IDs
     Sampler::get().postfork_child();
-
-    // Reset the string_table mutex to avoid deadlock if fork happened while it was held
-    // Note: task_link_map_lock and greenlet_info_map_lock are handled in EchionSampler::postfork_child
-    string_table.postfork_child();
 }
 
 __attribute__((constructor)) void
@@ -295,15 +291,10 @@ _stack_init()
 void
 Sampler::one_time_setup()
 {
-    init_frame_cache(echion_frame_cache_size);
-
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the atfork handler to ensure that we're tracking the correct process
     _stack_atfork_child();
     pthread_atfork(nullptr, nullptr, _stack_atfork_child);
-
-    // Register our rendering callbacks with echion's Renderer singleton
-    Renderer::get().set_renderer(renderer_ptr);
 }
 
 void
