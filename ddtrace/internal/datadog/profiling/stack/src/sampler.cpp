@@ -114,7 +114,8 @@ Sampler::adapt_sampling_interval()
                             info.system_time.seconds * 1e6 + info.system_time.microseconds);
 #endif
     auto sampler_thread_delta = static_cast<double>(new_sampler_thread_count - sampler_thread_count);
-    auto process_delta = static_cast<double>(new_process_count - process_count - sampler_thread_delta);
+    auto process_delta =
+      static_cast<double>(new_process_count) - static_cast<double>(process_count) - sampler_thread_delta;
     if (process_delta <= 0) {
         process_delta = 1; // Avoid division by zero or negative values
     }

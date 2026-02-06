@@ -2,7 +2,7 @@
 
 #include <echion/echion_sampler.h>
 
-int
+void
 GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* tstate, FrameStack& stack)
 {
     PyObject* frame_addr = NULL;
@@ -14,9 +14,10 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
     if (cur_frame == Py_None) {
         _PyCFrame cframe;
         _PyCFrame* cframe_addr = tstate->cframe;
-        if (copy_type(cframe_addr, cframe))
+        if (copy_type(cframe_addr, cframe)) {
             // TODO: Invalid cur_frame
-            return 0;
+            return;
+        }
 
         frame_addr = reinterpret_cast<PyObject*>(cframe.current_frame);
     } else {
@@ -26,10 +27,7 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
 #else // Python < 3.11
     frame_addr = cur_frame == Py_None ? reinterpret_cast<PyObject*>(tstate->frame) : cur_frame;
 #endif
-    auto count = unwind_frame(echion, frame_addr, stack);
+    unwind_frame(echion, frame_addr, stack);
 
     stack.push_back(Frame::get(echion, name));
-
-    return count + 1; // We add an extra count for the frame with the greenlet
-                      // name.
 }
