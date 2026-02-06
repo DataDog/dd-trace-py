@@ -14,6 +14,8 @@ from typing import cast
 
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils._inspection import Frame  # noqa
+from ddtrace.internal.utils._inspection import get_frame_cache_size  # noqa
+from ddtrace.internal.utils._inspection import set_frame_cache_size  # noqa
 from ddtrace.internal.utils._inspection import unwind_current_thread  # noqa
 from ddtrace.internal.utils.cache import cached
 

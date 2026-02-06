@@ -3,6 +3,12 @@
 
 #define Py_BUILD_CORE
 
+// Disable MSVC warning about CPython internal header syntax
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4576) // Parenthesized type followed by initializer list
+#endif
+
 #include <frameobject.h>
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
@@ -16,11 +22,25 @@
 #endif // PY_VERSION_HEX >= 0x030e0000
 #endif // PY_VERSION_HEX >= 0x030b0000
 
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 #include "structmember.h"
 
 #include <stddef.h>
 
 #include <unordered_map>
+#include <vector>
+
+// ----------------------------------------------------------------------------
+// Cache configuration
+//
+// Default cache size: Maximum number of cached Frame objects
+// - Typical stack depth is ~10-100 frames, but hot code paths can create many unique frames
+// - 2048 provides good balance between memory usage (~100KB) and cache hit rate
+// - Can be configured at runtime via set_frame_cache_size()
+#define DEFAULT_FRAME_CACHE_SIZE 2048
 
 // ----------------------------------------------------------------------------
 typedef struct
@@ -35,8 +55,15 @@ typedef struct
     long column_end;
 } Frame;
 
-// TODO: Use a (non-global?) bounded-size cache with eviction policy instead.
-std::unordered_map<uintptr_t, PyObject*> frame_cache;
+// ----------------------------------------------------------------------------
+// Module state: bounded cache with ring buffer eviction
+typedef struct
+{
+    std::unordered_map<uintptr_t, PyObject*>* cache_map; // Hash map for O(1) lookup
+    std::vector<uintptr_t>* cache_ring;                  // Ring buffer for eviction tracking
+    size_t ring_pos;                                     // Current position in ring buffer
+    size_t cache_size;                                   // Current maximum cache size
+} ModuleState;
 
 // ----------------------------------------------------------------------------
 static PyMemberDef Frame_members[] = {
@@ -410,9 +437,135 @@ Frame_key(PyCodeObject* code, int lasti)
 }
 
 // ----------------------------------------------------------------------------
-static PyObject*
-unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
+// Cache operations with bounded size and ring buffer eviction
+//
+// Eviction Strategy: Ring Buffer / FIFO
+// - O(1) lookup via hash map
+// - O(1) insertion with bounded size
+// - Simple FIFO eviction: oldest inserted frame is evicted when cache is full
+// - Good for stack unwinding where frames are often reused in hot code paths
+//
+// Memory Management:
+// - Cached frames have refcount=1 (owned by cache)
+// - When returned to caller, they're borrowed references (no INCREF needed)
+// - Evicted frames have their refcount decremented (may deallocate if unreferenced elsewhere)
+//
+// Thread Safety: Not thread-safe by design (Python GIL protects access)
+// Sub-interpreter Safety: Each module instance has its own cache via module state
+static inline PyObject*
+cache_get_or_create(ModuleState* state, uintptr_t key, PyCodeObject* code_obj, int lasti)
 {
+    // Try to find in cache
+    auto it = state->cache_map->find(key);
+    if (it != state->cache_map->end()) {
+        return it->second; // Cache hit - return borrowed reference
+    }
+
+    // Cache miss: create new frame
+    PyObject* frame = Frame_new(code_obj, lasti);
+    if (frame == NULL) {
+        return NULL;
+    }
+
+    // Check if cache is full
+    if (state->cache_map->size() >= state->cache_size) {
+        // Evict the oldest entry (ring buffer position)
+        uintptr_t evict_key = (*state->cache_ring)[state->ring_pos];
+        if (evict_key != 0) { // Key 0 means slot not yet used
+            auto evict_it = state->cache_map->find(evict_key);
+            if (evict_it != state->cache_map->end()) {
+                // Decrement reference count of evicted frame
+                Py_DECREF(evict_it->second);
+                state->cache_map->erase(evict_it);
+            }
+        }
+    }
+
+    // Insert new frame into cache (cache takes ownership - refcount remains 1)
+    (*state->cache_map)[key] = frame;
+    (*state->cache_ring)[state->ring_pos] = key;
+    state->ring_pos = (state->ring_pos + 1) % state->cache_size;
+
+    return frame; // Return borrowed reference
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+set_frame_cache_size(PyObject* module, PyObject* args)
+{
+    size_t new_size;
+    if (!PyArg_ParseTuple(args, "n", &new_size)) {
+        return NULL;
+    }
+
+    if (new_size == 0) {
+        PyErr_SetString(PyExc_ValueError, "Cache size must be greater than 0");
+        return NULL;
+    }
+
+    // Get module state
+    ModuleState* state = (ModuleState*)PyModule_GetState(module);
+    if (state == NULL || state->cache_map == NULL || state->cache_ring == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Module state not initialized");
+        return NULL;
+    }
+
+    // If shrinking the cache, evict excess entries
+    if (new_size < state->cache_size) {
+        while (state->cache_map->size() > new_size) {
+            // Evict the oldest entry
+            uintptr_t evict_key = (*state->cache_ring)[state->ring_pos];
+            if (evict_key != 0) {
+                auto evict_it = state->cache_map->find(evict_key);
+                if (evict_it != state->cache_map->end()) {
+                    Py_DECREF(evict_it->second);
+                    state->cache_map->erase(evict_it);
+                }
+                (*state->cache_ring)[state->ring_pos] = 0;
+            }
+            state->ring_pos = (state->ring_pos + 1) % state->cache_size;
+        }
+    }
+
+    // Resize ring buffer if needed
+    if (new_size != state->cache_size) {
+        try {
+            state->cache_ring->resize(new_size, 0);
+            state->cache_size = new_size;
+            state->ring_pos = state->ring_pos % new_size; // Adjust position if needed
+        } catch (const std::bad_alloc&) {
+            PyErr_NoMemory();
+            return NULL;
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+get_frame_cache_size(PyObject* module, PyObject* Py_UNUSED(arg))
+{
+    ModuleState* state = (ModuleState*)PyModule_GetState(module);
+    if (state == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Module state not initialized");
+        return NULL;
+    }
+
+    return PyLong_FromSize_t(state->cache_size);
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+unwind_current_thread(PyObject* module, PyObject* Py_UNUSED(arg))
+{
+    // Get module state for cache access
+    ModuleState* state = (ModuleState*)PyModule_GetState(module);
+    if (state == NULL || state->cache_map == NULL || state->cache_ring == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Module state not initialized");
+        return NULL;
+    }
+
     PyObject* frames_list = PyList_New(0);
     if (frames_list == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to create list for frames");
@@ -434,28 +587,13 @@ unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
         }
 
         int lasti = get_lasti_from_frame(py_frame);
-
         uintptr_t frame_key = Frame_key(code_obj, lasti);
 
-        // DEV: As long as we use the cache we don't need to touch the reference
-        // count on frame objects. Their reference count starts at one and only
-        // needs to be decreased when removed from the cache.
-        PyObject* frame = NULL;
-        auto frame_cache_entry = frame_cache.find(frame_key);
-        if (frame_cache_entry == frame_cache.end()) {
-            frame = Frame_new(code_obj, lasti);
-            if (frame == NULL) {
-                Py_DECREF(frames_list);
-                return NULL;
-            }
-            frame_cache[frame_key] = frame;
-        } else {
-            frame = frame_cache_entry->second;
-            if (frame == NULL) {
-                Py_DECREF(frames_list);
-                PyErr_SetString(PyExc_RuntimeError, "Failed to retrieve a valid frame from the cache");
-                return NULL;
-            }
+        // Get or create frame from bounded cache
+        PyObject* frame = cache_get_or_create(state, frame_key, code_obj, lasti);
+        if (frame == NULL) {
+            Py_DECREF(frames_list);
+            return NULL;
         }
 
         // Append the frame to the list
@@ -470,14 +608,68 @@ unwind_current_thread(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(arg))
 }
 
 // ----------------------------------------------------------------------------
+// Module state management
+static int
+module_traverse(PyObject* m, visitproc visit, void* arg)
+{
+    ModuleState* state = (ModuleState*)PyModule_GetState(m);
+    if (state == NULL)
+        return 0;
+
+    // Visit all cached Frame objects
+    if (state->cache_map != NULL) {
+        for (auto& entry : *state->cache_map) {
+            Py_VISIT(entry.second);
+        }
+    }
+    return 0;
+}
+
+static int
+module_clear(PyObject* m)
+{
+    ModuleState* state = (ModuleState*)PyModule_GetState(m);
+    if (state == NULL)
+        return 0;
+
+    // Clear all cached Frame objects
+    if (state->cache_map != NULL) {
+        for (auto& entry : *state->cache_map) {
+            Py_CLEAR(entry.second);
+        }
+        delete state->cache_map;
+        state->cache_map = NULL;
+    }
+
+    if (state->cache_ring != NULL) {
+        delete state->cache_ring;
+        state->cache_ring = NULL;
+    }
+
+    return 0;
+}
+
+static void
+module_free(void* m)
+{
+    module_clear((PyObject*)m);
+}
+
+// ----------------------------------------------------------------------------
 static PyMethodDef _inspection_methods[] = {
-    { "unwind_current_thread", (PyCFunction)unwind_current_thread, METH_NOARGS, NULL },
+    { "unwind_current_thread",
+      (PyCFunction)unwind_current_thread,
+      METH_NOARGS,
+      "Unwind the current thread's call stack" },
+    { "set_frame_cache_size", (PyCFunction)set_frame_cache_size, METH_VARARGS, "Set the maximum frame cache size" },
+    { "get_frame_cache_size", (PyCFunction)get_frame_cache_size, METH_NOARGS, "Get the current frame cache size" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
 // ----------------------------------------------------------------------------
 static struct PyModuleDef inspectionmodule = {
-    PyModuleDef_HEAD_INIT, "_inspection", NULL, 0, _inspection_methods,
+    PyModuleDef_HEAD_INIT, "_inspection", NULL,        sizeof(ModuleState), _inspection_methods, NULL,
+    module_traverse,       module_clear,  module_free,
 };
 
 // ----------------------------------------------------------------------------
@@ -485,6 +677,7 @@ PyMODINIT_FUNC
 PyInit__inspection(void)
 {
     PyObject* m = NULL;
+    ModuleState* state = NULL;
 
     if (PyType_Ready(&FrameType) < 0)
         return NULL;
@@ -492,6 +685,23 @@ PyInit__inspection(void)
     m = PyModule_Create(&inspectionmodule);
     if (m == NULL)
         goto error;
+
+    // Initialize module state
+    state = (ModuleState*)PyModule_GetState(m);
+    if (state == NULL)
+        goto error;
+
+    // Initialize the cache structures
+    try {
+        state->cache_map = new std::unordered_map<uintptr_t, PyObject*>();
+        state->cache_map->reserve(DEFAULT_FRAME_CACHE_SIZE);
+        state->cache_ring = new std::vector<uintptr_t>(DEFAULT_FRAME_CACHE_SIZE, 0);
+        state->ring_pos = 0;
+        state->cache_size = DEFAULT_FRAME_CACHE_SIZE;
+    } catch (const std::bad_alloc&) {
+        PyErr_NoMemory();
+        goto error;
+    }
 
     Py_INCREF(&FrameType);
     if (PyModule_AddObject(m, "Frame", (PyObject*)&FrameType) < 0) {
