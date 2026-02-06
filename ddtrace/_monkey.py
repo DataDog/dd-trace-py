@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Set
 from typing import Union
 
 from wrapt.importer import when_imported
@@ -398,6 +397,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _get_patched_modules() -> Set[str]:
+def _get_patched_modules() -> set[str]:
     """Get the list of patched modules"""
     return _PATCHED_MODULES

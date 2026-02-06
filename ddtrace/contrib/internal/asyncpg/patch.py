@@ -1,6 +1,5 @@
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:I001
-from typing import Dict
 
 import asyncpg
 import wrapt
@@ -52,12 +51,12 @@ def get_version() -> str:
     return getattr(asyncpg, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"asyncpg": ">=0.23.0"}
 
 
 def _get_connection_tags(conn):
-    # type: (asyncpg.Connection) -> Dict[str, str]
+    # type: (asyncpg.Connection) -> dict[str, str]
     addr = conn._addr
     params = conn._params
     host = port = ""

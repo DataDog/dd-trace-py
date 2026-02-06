@@ -82,7 +82,7 @@ class FilterOrg(TraceFilter):
     """Replace the organization tag on spans with fake data."""
 
     def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+        # type: (list[Span]) -> Optional[list[Span]]
         for span in trace:
             if span.get_tag("organization"):
                 span._set_tag_str("organization", "not-a-real-org")

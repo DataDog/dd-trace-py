@@ -52,7 +52,7 @@ REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 _quantize_text = Union[Text, bytes]
-_quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
+_quantize_param = Union[_quantize_text, list[_quantize_text], dict[_quantize_text, Any], Any]
 
 
 def resource_from_cache_prefix(resource: str, cache: Any) -> str:
@@ -79,9 +79,9 @@ def quantize_key_values(keys):
 
     If text is provided we convert to text.
     """
-    args = []  # type: List[Union[Text, bytes, Any]]
+    args = []  # type: list[Union[Text, bytes, Any]]
 
-    # Normalize input values into a List[Text, bytes]
+    # Normalize input values into a list[Text, bytes]
     if isinstance(keys, dict):
         args = list(keys.keys())
     elif isinstance(keys, (list, tuple)):

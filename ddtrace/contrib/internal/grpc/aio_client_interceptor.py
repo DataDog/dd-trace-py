@@ -35,7 +35,7 @@ log = get_logger(__name__)
 
 
 def create_aio_client_interceptors(pin, host, port):
-    # type: (Pin, str, int) -> Tuple[aio.ClientInterceptor, ...]
+    # type: (Pin, str, int) -> tuple[aio.ClientInterceptor, ...]
     return (
         _UnaryUnaryClientInterceptor(pin, host, port),
         _UnaryStreamClientInterceptor(pin, host, port),
@@ -139,7 +139,7 @@ class _ClientInterceptor:
         self._port = port
 
     def _intercept_client_call(self, method_kind, client_call_details):
-        # type: (str, aio.ClientCallDetails) -> Tuple[Span, aio.ClientCallDetails]
+        # type: (str, aio.ClientCallDetails) -> tuple[Span, aio.ClientCallDetails]
 
         method_as_str = client_call_details.method.decode()
         span = tracer.trace(

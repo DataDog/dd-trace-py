@@ -80,7 +80,7 @@ IP_PATTERNS = (
 
 
 def _store_headers(headers, span, integration_config, request_or_response):
-    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
+    # type: (dict[str, str], Span, IntegrationConfig, str) -> None
     """
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -230,7 +230,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
 
 def _store_request_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    # type: (dict[str, str], Span, IntegrationConfig) -> None
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -244,7 +244,7 @@ def _store_request_headers(headers, span, integration_config):
 
 
 def _store_response_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+    # type: (dict[str, str], Span, IntegrationConfig) -> None
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -403,13 +403,13 @@ def set_http_meta(
     response_headers=None,  # type: Optional[Mapping[str, str]]
     retries_remain=None,  # type: Optional[Union[int, str]]
     raw_uri=None,  # type: Optional[str]
-    request_cookies=None,  # type: Optional[Dict[str, str]]
-    request_path_params=None,  # type: Optional[Dict[str, str]]
-    request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
+    request_cookies=None,  # type: Optional[dict[str, str]]
+    request_path_params=None,  # type: Optional[dict[str, str]]
+    request_body=None,  # type: Optional[Union[str, dict[str, list[str]]]]
     peer_ip=None,  # type: Optional[str]
     headers_are_case_sensitive=False,  # type: bool
     route=None,  # type: Optional[str]
-    response_cookies=None,  # type: Optional[Dict[str, str]]
+    response_cookies=None,  # type: Optional[dict[str, str]]
 ):
     # type: (...) -> None
     """
@@ -520,7 +520,7 @@ def set_http_meta(
 
 
 def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
+    # type: (Tracer, Optional[IntegrationConfig], Optional[dict[str, str]], Optional[bool]) -> None
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
@@ -594,7 +594,7 @@ def _flatten(
     prefix="",  # type: str
     exclude_policy=None,  # type: Optional[Callable[[str], bool]]
 ):
-    # type: (...) -> Generator[Tuple[str, Any], None, None]
+    # type: (...) -> Generator[tuple[str, Any], None, None]
     s = deque()  # type: ignore
     s.append((prefix, obj))
     while s:
@@ -609,7 +609,7 @@ def _flatten(
 
 def set_flattened_tags(
     span,  # type: Span
-    items,  # type: Iterator[Tuple[str, Any]]
+    items,  # type: Iterator[tuple[str, Any]]
     sep=".",  # type: str
     exclude_policy=None,  # type: Optional[Callable[[str], bool]]
     processor=None,  # type: Optional[Callable[[Any], Any]]
@@ -621,7 +621,7 @@ def set_flattened_tags(
 
 
 def extract_netloc_and_query_info_from_url(url):
-    # type: (str) -> Tuple[str, str]
+    # type: (str) -> tuple[str, str]
     parse_result = parse.urlparse(url)
     query = parse_result.query
 

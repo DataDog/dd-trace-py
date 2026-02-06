@@ -44,7 +44,7 @@ class V2LogWriter(PeriodicService):
         # type: (str, str, float, float) -> None
         super(V2LogWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer = []  # type: List[V2LogEvent]
+        self._buffer = []  # type: list[V2LogEvent]
         # match the API limit
         self._buffer_limit = 1000
         self._timeout = timeout  # type: float

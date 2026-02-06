@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import pymysql
 import wrapt
@@ -43,7 +42,7 @@ CONN_ATTR_BY_TAG = {
 }
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"pymysql": ">=0.10"}
 
 

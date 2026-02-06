@@ -19,7 +19,7 @@ def truncate_arg_value(value, max_len=1024):
 
 
 def _add_api_param_span_tags(span, endpoint_name, params):
-    # type: (Span, str, Dict[str, Any]) -> None
+    # type: (Span, str, dict[str, Any]) -> None
     # Note: Only some boto3 requests will supply these params
     # i.e. that might explain why you see these tags being set to empty strings
     if endpoint_name == "cloudwatch":

@@ -8,8 +8,6 @@ import sys
 import threading
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TextIO
 import weakref
@@ -157,7 +155,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+        # type: (Optional[list[Span]]) -> None
         pass
 
     @abc.abstractmethod
@@ -186,7 +184,7 @@ class LogWriter(TraceWriter):
         return
 
     def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+        # type: (Optional[list[Span]]) -> None
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
@@ -209,7 +207,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def __init__(
         self,
         intake_url: str,
-        clients: List[WriterClientBase],
+        clients: list[WriterClientBase],
         processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -219,7 +217,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         dogstatsd: Optional["DogStatsd"] = None,
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
+        headers: Optional[dict[str, str]] = None,
         report_metrics: bool = True,
         use_gzip: bool = False,
     ) -> None:
@@ -237,7 +235,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._clients = clients
         self.dogstatsd = dogstatsd
-        self._metrics: Dict[str, int] = defaultdict(int)
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
@@ -273,7 +271,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return client._intake_url
         return self.intake_url
 
-    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
         if config._health_metrics_enabled and self.dogstatsd:
@@ -302,7 +300,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data: bytes, headers: Dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
+    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
@@ -364,7 +362,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict[str, str]:
         headers = self._headers.copy()
         headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         if hasattr(client, "_headers"):
@@ -412,7 +410,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self.flush_queue()
 
     def _write_with_client(self, client, spans=None):
-        # type: (WriterClientBase, Optional[List[Span]]) -> None
+        # type: (WriterClientBase, Optional[list[Span]]) -> None
         if spans is None:
             return
 
@@ -545,7 +543,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
 
 class AgentResponse(object):
-    def __init__(self, rate_by_service: Dict[str, float]) -> None:
+    def __init__(self, rate_by_service: dict[str, float]) -> None:
         self.rate_by_service = rate_by_service
 
 
@@ -589,7 +587,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         sync_mode: bool = False,
         api_version: Optional[str] = None,
         reuse_connections: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
+        headers: Optional[dict[str, str]] = None,
         response_callback: Optional[Callable[[AgentResponse], None]] = None,
     ) -> None:
         if processing_interval is None:
@@ -752,7 +750,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict[str, str]:
         headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
@@ -853,7 +851,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         self._clients = [client]
         self.dogstatsd = dogstatsd
-        self._metrics: Dict[str, int] = defaultdict(int)
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
@@ -1008,7 +1006,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _encoder(self):
         return self._clients[0].encoder
 
-    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
         if config._health_metrics_enabled and self.dogstatsd:
@@ -1066,13 +1064,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans: Optional[List["Span"]] = None) -> None:
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[List["Span"]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
         if spans is None:
             return
 
@@ -1264,7 +1262,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
             stats_opt_out=asm_config._apm_opt_out,
         )
     else:
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         if config._trace_compute_stats or asm_config._apm_opt_out:
             headers["Datadog-Client-Computed-Stats"] = "yes"
 

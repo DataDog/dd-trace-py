@@ -21,7 +21,7 @@ SERVICE_INTERVAL = 1
 GunicornServerSettings = NamedTuple(
     "GunicornServerSettings",
     [
-        ("env", Dict[str, str]),
+        ("env", dict[str, str]),
         ("directory", str),
         ("app_path", str),
         ("num_workers", str),
@@ -41,7 +41,7 @@ def parse_payload(data):
 
 
 def _gunicorn_settings_factory(
-    env=None,  # type: Dict[str, str]
+    env=None,  # type: dict[str, str]
     directory=None,  # type: str
     app_path="tests.contrib.gunicorn.wsgi_mw_app:app",  # type: str
     num_workers="4",  # type: str

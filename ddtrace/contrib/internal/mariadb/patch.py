@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import mariadb
 import wrapt
@@ -29,7 +28,7 @@ def get_version():
     return getattr(mariadb, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"mariadb": ">=1.0.0"}
 
 

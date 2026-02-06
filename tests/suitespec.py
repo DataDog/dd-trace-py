@@ -1,7 +1,5 @@
 from functools import cache
 from pathlib import Path
-import typing as t
-
 from ruamel.yaml import YAML  # noqa
 
 
@@ -36,7 +34,7 @@ SUITESPEC = _collect_suitespecs()
 
 
 @cache
-def get_patterns(suite: str) -> t.Set[str]:
+def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
@@ -72,11 +70,11 @@ def get_patterns(suite: str) -> t.Set[str]:
     return {_.format(suite=suite.replace("::", ".")) for _ in resolve(suite_patterns)}
 
 
-def get_suites() -> t.Dict[str, dict]:
+def get_suites() -> dict[str, dict]:
     """Get the list of suites."""
     return SUITESPEC["suites"]
 
 
-def get_components() -> t.Dict[str, t.List[str]]:
+def get_components() -> dict[str, list[str]]:
     """Get the list of jobs."""
     return SUITESPEC.get("components", {})

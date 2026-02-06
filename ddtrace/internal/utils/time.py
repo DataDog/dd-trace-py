@@ -72,7 +72,7 @@ class StopWatch(object):
         return self
 
     def __exit__(
-        self, tp: Optional[Type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]
+        self, tp: Optional[type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]
     ) -> None:
         """Stops the watch."""
         self.stop()

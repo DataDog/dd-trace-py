@@ -2,7 +2,6 @@ import functools
 import http.client as httplib
 import os
 import sys
-from typing import Dict
 from urllib import parse
 
 import wrapt
@@ -45,7 +44,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"http.client": "*"}
 
 

@@ -30,7 +30,7 @@ class _EncoderBase(object):
     """
 
     def encode_traces(self, traces):
-        # type: (List[List[Span]]) -> str
+        # type: (list[list[Span]]) -> str
         """
         Encodes a list of traces, expecting a list of items where each items
         is a list of spans. Before dumping the string in a serialized format all
@@ -42,7 +42,7 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     def encode(self, obj):
-        # type: (List[List[Any]]) -> Tuple[str, int]
+        # type: (list[list[Any]]) -> tuple[str, int]
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal
@@ -52,7 +52,7 @@ class _EncoderBase(object):
 
     @staticmethod
     def _span_to_dict(span):
-        # type: (Span) -> Dict[str, Any]
+        # type: (Span) -> dict[str, Any]
         d = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
@@ -61,7 +61,7 @@ class _EncoderBase(object):
             "resource": span.resource,
             "name": span.name,
             "error": span.error,
-        }  # type: Dict[str, Any]
+        }  # type: dict[str, Any]
 
         # a common mistake is to set the error field to a boolean instead of an
         # int. let's special case that here, because it's sure to happen in
@@ -132,13 +132,13 @@ class JSONEncoderV2(JSONEncoder):
     content_type = "application/json"
 
     def encode_traces(self, traces):
-        # type: (List[List[Span]]) -> str
+        # type: (list[list[Span]]) -> str
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
         return self.encode({"traces": normalized_traces})[0]
 
     @staticmethod
     def _convert_span(span):
-        # type: (Span) -> Dict[str, Any]
+        # type: (Span) -> dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))

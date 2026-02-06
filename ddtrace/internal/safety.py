@@ -20,7 +20,7 @@ PY = sys.version_info
 
 
 def _maybe_slots(obj):
-    # type: (Any) -> Union[Tuple[str], List[str]]
+    # type: (Any) -> Union[tuple[str], list[str]]
     try:
         slots = object.__getattribute__(obj, "__slots__")
         if isinstance(slots, str):
@@ -32,18 +32,18 @@ def _maybe_slots(obj):
 
 @cached()
 def _slots(_type):
-    # type: (Type) -> Set[str]
+    # type: (type) -> set[str]
     return {_ for cls in object.__getattribute__(_type, "__mro__") for _ in _maybe_slots(cls)}
 
 
 def get_slots(obj):
-    # type: (Any) -> Set[str]
+    # type: (Any) -> set[str]
     """Get the object's slots."""
     return _slots(type(obj))
 
 
 def _isinstance(obj, types):
-    # type: (Any, Union[Type, Tuple[Union[Type, Tuple[Any, ...]], ...]]) -> bool
+    # type: (Any, Union[type, tuple[Union[type, tuple[Any, ...]], ...]]) -> bool
     # DEV: isinstance falls back to calling __getattribute__ which could cause
     # side effects.
     return issubclass(type(obj), types)
@@ -92,7 +92,7 @@ class SafeObjectProxy(wrapt.ObjectProxy):
         return iter(type(self).safe(_) for _ in super(SafeObjectProxy, self).__iter__())
 
     def items(self):
-        # type: () -> Iterator[Tuple[Any, Any]]
+        # type: () -> Iterator[tuple[Any, Any]]
         return (
             (type(self).safe(k), type(self).safe(v)) for k, v in super(SafeObjectProxy, self).__getattr__("items")()
         )

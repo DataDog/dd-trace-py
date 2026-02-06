@@ -1,7 +1,6 @@
 import abc
 import os
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import List
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
@@ -16,7 +15,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
     from ddtrace.internal.remoteconfig._pubsub import PubSub
 
-    PreprocessFunc = Callable[[List[Payload], PubSub], List[Payload]]
+    PreprocessFunc = Callable[[list[Payload], PubSub], list[Payload]]
 
 log = get_logger(__name__)
 
@@ -44,7 +43,7 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     def __init__(self, data_connector, preprocess_func=None):
         # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
-        self._config_and_metadata: List[Payload] = []
+        self._config_and_metadata: list[Payload] = []
 
     def append(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
         self._config_and_metadata.append(Payload(config_metadata, target, config_content))

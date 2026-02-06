@@ -5,7 +5,6 @@ import random
 import string
 import threading
 from typing import Any
-from typing import Dict
 from unittest import TestCase
 
 from hypothesis import given
@@ -1031,7 +1030,7 @@ def test_encoding_invalid_name_service_handled_gracefully(field, invalid_value, 
         ({}, {"key": "value"}),
     ],
 )
-def test_encoding_invalid_data_ok(meta: Dict[str, Any], metrics: Dict[str, Any]):
+def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any]):
     """Encoding invalid meta/metrics data should not raise an exception"""
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 

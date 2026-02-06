@@ -47,7 +47,7 @@ from .utils import update_client_context
 from .utils import update_eventbridge_detail
 
 
-_PATCHED_SUBMODULES = set()  # type: Set[str]
+_PATCHED_SUBMODULES = set()  # type: set[str]
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -73,7 +73,7 @@ ENDPOINTS_TO_PATCH_FUNCTIONS = {
 log = get_logger(__name__)
 
 
-def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
+def _load_dynamodb_primary_key_names_for_tables() -> dict[str, set[str]]:
     try:
         encoded_table_primary_keys = os.getenv("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")
         raw_table_primary_keys = json.loads(encoded_table_primary_keys)
@@ -136,7 +136,7 @@ def get_version():
     return __version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"botocore": "*"}
 
 
@@ -162,7 +162,7 @@ def unpatch():
 
 
 def patch_submodules(submodules):
-    # type: (Union[List[str], bool]) -> None
+    # type: (Union[list[str], bool]) -> None
     if isinstance(submodules, bool) and submodules:
         _PATCHED_SUBMODULES.clear()
     elif isinstance(submodules, list):

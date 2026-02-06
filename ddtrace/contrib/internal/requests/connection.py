@@ -86,7 +86,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg: Dict[str, Any] = {}
+    cfg: dict[str, Any] = {}
     pin = Pin.get_from(instance)
     if pin:
         cfg = pin._config

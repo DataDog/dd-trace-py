@@ -1,5 +1,3 @@
-from typing import Dict
-
 import avro
 import wrapt
 
@@ -22,7 +20,7 @@ def get_version():
     return getattr(avro, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"avro": "*"}
 
 

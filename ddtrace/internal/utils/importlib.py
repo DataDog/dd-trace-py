@@ -6,14 +6,13 @@ from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional
-from typing import Type
 
 
 class require_modules(object):
     """Context manager to check the availability of required modules."""
 
     def __init__(self, modules):
-        # type: (List[str]) -> None
+        # type: (list[str]) -> None
         self._missing_modules = []
         for module in modules:
             try:
@@ -22,12 +21,12 @@ class require_modules(object):
                 self._missing_modules.append(module)
 
     def __enter__(self):
-        # type: () -> List[str]
+        # type: () -> list[str]
         return self._missing_modules
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:

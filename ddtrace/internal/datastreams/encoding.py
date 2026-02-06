@@ -13,7 +13,7 @@ def encode_var_int_64(v):
 
 
 def decode_var_int_64(b):
-    # type: (bytes) -> Tuple[int, bytes]
+    # type: (bytes) -> tuple[int, bytes]
     v, b = decode_var_uint_64(b)
     return (v >> 1) ^ -(v & 1), b
 
@@ -31,7 +31,7 @@ def encode_var_uint_64(v):
 
 
 def decode_var_uint_64(b):
-    # type: (bytes) -> Tuple[int, bytes]
+    # type: (bytes) -> tuple[int, bytes]
     x = 0
     s = 0
     for i in range(0, MAX_VAR_LEN_64):

@@ -171,7 +171,7 @@ class CIVisibilityGitClient(object):
         requests_mode,  # int
         base_url,  # str
         _metadata_upload_status,  # METADATA_UPLOAD_STATUS
-        _tags=None,  # Optional[Dict[str, str]]
+        _tags=None,  # Optional[dict[str, str]]
         _response=None,  # Optional[Response]
         cwd=None,  # Optional[str]
         log_level=0,  # int
@@ -247,7 +247,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_repository_url(cls, tags=None, cwd=None):
-        # type: (Optional[Dict[str, str]], Optional[str]) -> str
+        # type: (Optional[dict[str, str]], Optional[str]) -> str
         if tags is None:
             tags = {}
         result = tags.get(ci.git.REPOSITORY_URL, "")
@@ -257,7 +257,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_latest_commits(cls, cwd=None):
-        # type: (Optional[str]) -> List[str]
+        # type: (Optional[str]) -> list[str]
         latest_commits, stderr, duration, returncode = _extract_latest_commits_with_details(cwd=cwd)
         record_git_command(GIT_TELEMETRY_COMMANDS.GET_LOCAL_COMMITS, duration, returncode)
         if returncode == 0:
@@ -266,7 +266,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
-        # type: (int, str, str, List[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> Optional[List[str]]
+        # type: (int, str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> Optional[list[str]]
         payload = serializer.search_commits_encode(repo_url, latest_commits)
         request_error = None
         with StopWatch() as stopwatch:
@@ -329,7 +329,7 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
-        # type: (List[str], Optional[List[str]], Optional[str]) -> str
+        # type: (list[str], Optional[list[str]], Optional[str]) -> str
         filtered_revisions, _, duration, returncode = _get_rev_list_with_details(
             excluded_commits, included_commits, cwd=cwd
         )
@@ -460,8 +460,8 @@ class CIVisibilityGitClientSerializerV1(object):
         )
 
     def search_commits_decode(self, payload):
-        # type: (str) -> List[str]
-        res = []  # type: List[str]
+        # type: (str) -> list[str]
+        res = []  # type: list[str]
         try:
             if isinstance(payload, bytes):
                 parsed = json.loads(payload.decode())
@@ -476,7 +476,7 @@ class CIVisibilityGitClientSerializerV1(object):
         return res
 
     def upload_packfile_encode(self, repo_url, sha, file_path):
-        # type: (str, str, str) -> Tuple[str, bytes]
+        # type: (str, str, str) -> tuple[str, bytes]
         BOUNDARY = b"----------boundary------"
         CRLF = b"\r\n"
         body = []

@@ -1,6 +1,4 @@
 import inspect
-from typing import List
-from typing import Tuple
 
 import wrapt
 
@@ -10,7 +8,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _parse_trace_methods(raw_dd_trace_methods: str) -> List[Tuple[str, str]]:
+def _parse_trace_methods(raw_dd_trace_methods: str) -> list[tuple[str, str]]:
     """Return a list of the module,methodname tuples to trace based on the
     specification of DD_TRACE_METHODS.
 

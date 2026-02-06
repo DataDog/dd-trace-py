@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
@@ -12,7 +11,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"concurrent.futures.thread": "*"}
 
 

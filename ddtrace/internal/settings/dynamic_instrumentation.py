@@ -29,7 +29,7 @@ def normalize_ident(ident):
     return ident.strip().lower().replace("_", "")
 
 
-def validate_type_patterns(types: t.Set[str]):
+def validate_type_patterns(types: set[str]):
     for typ in types:
         for s in typ.strip().split("."):
             s = s.strip().replace("*", "a")

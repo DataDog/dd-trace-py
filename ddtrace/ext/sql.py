@@ -24,7 +24,7 @@ def normalize_vendor(vendor):
 
 
 def _dd_parse_pg_dsn(dsn):
-    # type: (str) -> Dict[str, str]
+    # type: (str) -> dict[str, str]
     """
     Return a dictionary of the components of a postgres DSN.
     >>> parse_pg_dsn('user=dog port=1543 dbname=dogdata')

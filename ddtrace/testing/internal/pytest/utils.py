@@ -1,6 +1,4 @@
 import re
-import typing as t
-
 import pytest
 
 from ddtrace.testing.internal.test_data import ModuleRef
@@ -11,7 +9,7 @@ from ddtrace.testing.internal.test_data import TestRef
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
 
-def nodeid_to_names(nodeid: str) -> t.Tuple[str, str, str]:
+def nodeid_to_names(nodeid: str) -> tuple[str, str, str]:
     matches = _NODEID_REGEX.match(nodeid)
 
     if matches:

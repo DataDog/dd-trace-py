@@ -1,5 +1,3 @@
-from typing import Dict
-
 import gevent
 import gevent.pool
 
@@ -18,7 +16,7 @@ def get_version():
     return getattr(gevent, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"gevent": ">=21.1.2"}
 
 

@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 import anthropic
 
@@ -26,7 +25,7 @@ def get_version():
 ANTHROPIC_VERSION = parse_version(get_version())
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"anthropic": ">=0.28.0"}
 
 

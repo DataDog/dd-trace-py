@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Dict
 from typing import Iterable
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -56,7 +55,7 @@ def get_version():
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"wsgi": "*"}
 
 
@@ -188,7 +187,7 @@ class _DDWSGIMiddlewareBase(object):
             return result.value if result else []
 
     def _traced_start_response(self, start_response, request_span, app_span, status, environ, exc_info=None):
-        # type: (Callable, Span, Span, str, Dict, Any) -> None
+        # type: (Callable, Span, Span, str, dict, Any) -> None
         """sets the status code on a request span when start_response is called"""
         with core.context_with_data(
             "wsgi.response",
@@ -205,15 +204,15 @@ class _DDWSGIMiddlewareBase(object):
             return start_response(status, environ, exc_info)
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
-        # type: (Span, Dict, Optional[Dict]) -> None
+        # type: (Span, dict, Optional[dict]) -> None
         """Implement to modify span attributes on the request_span"""
 
     def _application_span_modifier(self, app_span, environ, result):
-        # type: (Span, Dict, Iterable) -> None
+        # type: (Span, dict, Iterable) -> None
         """Implement to modify span attributes on the application_span"""
 
     def _response_span_modifier(self, resp_span, response):
-        # type: (Span, Dict) -> None
+        # type: (Span, dict) -> None
         """Implement to modify span attributes on the request_span"""
 
 
@@ -288,7 +287,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
     _response_span_name = "wsgi.response"
 
     def __init__(self, application, tracer=None, span_modifier=default_wsgi_span_modifier, app_is_iterator=False):
-        # type: (Iterable, Optional[Tracer], Callable[[Span, Dict[str, str]], None], bool) -> None
+        # type: (Iterable, Optional[Tracer], Callable[[Span, dict[str, str]], None], bool) -> None
         super(DDWSGIMiddleware, self).__init__(application, tracer, config.wsgi, None, app_is_iterator=app_is_iterator)
         self.span_modifier = span_modifier
 

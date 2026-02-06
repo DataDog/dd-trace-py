@@ -6,7 +6,7 @@ from ddtrace.version import __version__
 
 
 def parse_version(version):
-    # type: (str) -> typing.Tuple[int, int, int]
+    # type: (str) -> tuple[int, int, int]
     """Convert a version string to a tuple of (major, minor, micro)
 
     Examples::

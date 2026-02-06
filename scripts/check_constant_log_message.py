@@ -8,8 +8,6 @@ Exceptions can be specified in the EXCEPTIONS set using:
 import ast
 import pathlib
 import sys
-from typing import List
-from typing import Tuple
 
 
 # Line-specific exceptions to exclude from checking
@@ -37,7 +35,7 @@ EXCEPTIONS = {
 class LogMessageChecker(ast.NodeVisitor):
     def __init__(self, filepath: str):
         self.filepath = filepath
-        self.errors: List[Tuple[int, int]] = []
+        self.errors: list[tuple[int, int]] = []
 
     def _has_send_to_telemetry_false(self, node: ast.Call) -> bool:
         """Check if the call has extra={'send_to_telemetry': False}."""
@@ -86,7 +84,7 @@ class LogMessageChecker(ast.NodeVisitor):
         return f"{str(self.filepath)}:{line_no}" in EXCEPTIONS
 
 
-def check_file(filepath: pathlib.Path) -> List[Tuple[int, int]]:
+def check_file(filepath: pathlib.Path) -> list[tuple[int, int]]:
     try:
         source = filepath.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(filepath))

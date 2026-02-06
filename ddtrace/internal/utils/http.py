@@ -93,7 +93,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
         redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
 
     if redacted_query is not None and len(parts) >= 5:
-        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: Tuple[Union[str, bytes], ...]
+        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: tuple[Union[str, bytes], ...]
         bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
         return urlunsplit(bytes_redacted_parts, url)
 
@@ -102,7 +102,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
 
 
 def urlunsplit(components, original_url):
-    # type: (Tuple[bytes, ...], str) -> bytes
+    # type: (tuple[bytes, ...], str) -> bytes
     """
     Adaptation from urlunsplit and urlunparse, using bytes components
     """
@@ -193,7 +193,7 @@ def w3c_get_dd_list_member(context):
 
 @cached()
 def w3c_encode_tag(args):
-    # type: (Tuple[Pattern, str, str]) -> str
+    # type: (tuple[Pattern, str, str]) -> str
     pattern, replacement, tag_val = args
     tag_val = pattern.sub(replacement, tag_val)
     # replace = with ~ if it wasn't already replaced by the regex
@@ -369,10 +369,10 @@ def _get_blocked_template(accept_header_value: str, security_response_id: str) -
     return _format_template(_JSON_BLOCKED_TEMPLATE_CACHE, security_response_id)
 
 
-def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
+def parse_form_params(body: str) -> dict[str, Union[str, list[str]]]:
     """Return a dict of form data after HTTP form parsing"""
     body_params = body.replace("+", " ")
-    req_body: Dict[str, Union[str, List[str]]] = dict()
+    req_body: dict[str, Union[str, list[str]]] = dict()
     for item in body_params.split("&"):
         key, equal, val = item.partition("=")
         if equal:
@@ -388,7 +388,7 @@ def parse_form_params(body: str) -> Dict[str, Union[str, List[str]]]:
     return req_body
 
 
-def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str, Any]:
+def parse_form_multipart(body: str, headers: Optional[dict] = None) -> dict[str, Any]:
     """Return a dict of form data after HTTP form parsing"""
     import email
     import json
@@ -432,7 +432,7 @@ class FormData:
     content_type: str
 
 
-def multipart(parts: List[FormData]) -> Tuple[bytes, dict]:
+def multipart(parts: list[FormData]) -> tuple[bytes, dict]:
     from email.mime.application import MIMEApplication
     from email.mime.multipart import MIMEMultipart
     from email.policy import HTTP
