@@ -343,6 +343,7 @@ url
 urls
 username
 uvicorn
+uvloop
 uWSGI
 valkey
 vendored
