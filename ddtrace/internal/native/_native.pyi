@@ -522,7 +522,6 @@ class SpanData:
     start_ns: int
     duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
     error: int
-    finished: bool  # Read-only, returns duration_ns != -1
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
 
@@ -535,8 +534,10 @@ class SpanData:
         trace_id: Optional[int] = None,  # placeholder for Span.__init__
         span_id: Optional[int] = None,  # placeholder for Span.__init__
         parent_id: Optional[int] = None,  # placeholder for Span.__init__
-        start: Optional[float] = None,  # USED: in seconds (float or int)
+        start: Optional[float] = None,
     ) -> _SpanDataT: ...
+    @property
+    def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
 class SpanEventData:
     def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...

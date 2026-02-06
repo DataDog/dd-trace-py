@@ -133,7 +133,7 @@ impl SpanData {
         trace_id=None,     // placeholder for Span.__init__ positional arg
         span_id=None,      // placeholder for Span.__init__ positional arg
         parent_id=None,    // placeholder for Span.__init__ positional arg
-        start=None,        // USED: in seconds (float or int)
+        start=None,
         *args,
         **kwargs
     ))]
@@ -143,10 +143,10 @@ impl SpanData {
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<&Bound<'p, PyAny>>,
         span_type: Option<&Bound<'p, PyAny>>,
-        trace_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
-        span_id: Option<&Bound<'p, PyAny>>,   // placeholder, not used
+        trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        span_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
         parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
-        start: Option<&Bound<'p, PyAny>>,     // USED: in seconds (float or int)
+        start: Option<&Bound<'p, PyAny>>,    // USED: in seconds (float or int)
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
