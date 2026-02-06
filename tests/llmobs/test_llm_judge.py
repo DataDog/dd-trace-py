@@ -1,6 +1,7 @@
 """Tests for LLMJudge evaluator."""
 
 import json
+from unittest import mock
 
 import pytest
 
@@ -8,6 +9,7 @@ from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import _create_azure_openai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
@@ -221,3 +223,45 @@ class TestLLMJudge:
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
         assert result.reasoning is None
+
+
+class TestAzureOpenAIClient:
+    def test_missing_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        with pytest.raises(ValueError, match="Azure OpenAI API key not provided"):
+            _create_azure_openai_client()
+
+    def test_missing_endpoint_raises(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+        with pytest.raises(ValueError, match="Azure OpenAI endpoint not provided"):
+            _create_azure_openai_client()
+
+    def test_client_call(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+
+        mock_response = mock.MagicMock()
+        mock_response.choices = [mock.MagicMock()]
+        mock_response.choices[0].message.content = '{"score": 0.9}'
+
+        mock_azure_client = mock.MagicMock()
+        mock_azure_client.chat.completions.create.return_value = mock_response
+
+        mock_openai_module = mock.MagicMock()
+        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
+
+        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+            client = _create_azure_openai_client({"azure_deployment": "my-deployment"})
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "user", "content": "test"}],
+                json_schema=None,
+                model="gpt-4o",
+                model_params=None,
+            )
+
+        assert result == '{"score": 0.9}'
+        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
+        assert call_kwargs["model"] == "my-deployment"

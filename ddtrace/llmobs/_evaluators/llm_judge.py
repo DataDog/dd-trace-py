@@ -178,6 +178,54 @@ def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LL
     return call
 
 
+def _create_azure_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    api_key = client_options.get("api_key") or os.environ.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = client_options.get("azure_endpoint") or os.environ.get("AZURE_OPENAI_ENDPOINT")
+    api_version = (
+        client_options.get("api_version") or os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-02-15-preview"
+    )
+
+    if not api_key:
+        raise ValueError(
+            "Azure OpenAI API key not provided. "
+            "Pass 'api_key' in client_options or set AZURE_OPENAI_API_KEY environment variable"
+        )
+    if not azure_endpoint:
+        raise ValueError(
+            "Azure OpenAI endpoint not provided. "
+            "Pass 'azure_endpoint' in client_options or set AZURE_OPENAI_ENDPOINT environment variable"
+        )
+
+    try:
+        from openai import AzureOpenAI
+    except ImportError:
+        raise ImportError("openai package required: pip install openai")
+
+    client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version)
+
+    def call(
+        provider: Optional[str],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
+        model: str,
+        model_params: Optional[Dict[str, Any]],
+    ) -> str:
+        deployment = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT") or model
+        kwargs: Dict[str, Any] = {"model": deployment, "messages": messages}
+        if model_params:
+            kwargs.update(model_params)
+        if json_schema:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "evaluation", "strict": True, "schema": json_schema},
+            }
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content or ""
+
+    return call
+
+
 def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
@@ -257,7 +305,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        provider: Optional[Literal["openai", "anthropic"]] = None,
+        provider: Optional[Literal["openai", "anthropic", "azure_openai"]] = None,
         model: Optional[str] = None,
         model_params: Optional[Dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
@@ -267,8 +315,8 @@ class LLMJudge(BaseEvaluator):
         """Initialize an LLMJudge evaluator.
 
         LLMJudge enables automated evaluation of LLM outputs using another LLM as the judge.
-        It supports multiple providers (OpenAI, Anthropic) and output formats for flexible
-        evaluation criteria.
+        It supports multiple providers (OpenAI, Anthropic, Azure OpenAI) and output formats
+        for flexible evaluation criteria.
 
         Supported Output Types:
             - ``BooleanStructuredOutput``: Returns True/False with optional pass/fail assessment.
@@ -290,17 +338,29 @@ class LLMJudge(BaseEvaluator):
                 support template variables.
             structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
                 CategoricalStructuredOutput, or a custom JSON schema dict).
-            provider: LLM provider to use (``"openai"`` or ``"anthropic"``). Required if
-                ``client`` is not provided.
+            provider: LLM provider to use. Supported values: ``"openai"``, ``"anthropic"``,
+                ``"azure_openai"``. Required if ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
             model_params: Additional parameters passed to the LLM API (e.g., temperature).
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
-            client_options: Provider-specific configuration options. Supported keys:
+            client_options: Provider-specific configuration options. Supported keys vary
+                by provider:
 
-                - ``api_key``: API key for OpenAI or Anthropic. Falls back to
-                  ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY`` environment variables.
+                **OpenAI:**
+                    - ``api_key``: API key. Falls back to ``OPENAI_API_KEY`` env var.
+
+                **Anthropic:**
+                    - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+
+                **Azure OpenAI:**
+                    - ``api_key``: API key. Falls back to ``AZURE_OPENAI_API_KEY`` env var.
+                    - ``azure_endpoint``: Endpoint URL. Falls back to ``AZURE_OPENAI_ENDPOINT``.
+                    - ``api_version``: API version (default: "2024-02-15-preview").
+                      Falls back to ``AZURE_OPENAI_API_VERSION``.
+                    - ``azure_deployment``: Deployment name. Falls back to
+                      ``AZURE_OPENAI_DEPLOYMENT`` or uses ``model`` param.
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.
@@ -363,8 +423,10 @@ class LLMJudge(BaseEvaluator):
             self._client = _create_openai_client(client_options=client_options)
         elif provider == "anthropic":
             self._client = _create_anthropic_client(client_options=client_options)
+        elif provider == "azure_openai":
+            self._client = _create_azure_openai_client(client_options=client_options)
         else:
-            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic)")
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/azure_openai)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:
