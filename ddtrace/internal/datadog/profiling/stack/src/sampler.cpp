@@ -1,5 +1,6 @@
 #include "sampler.hpp"
 
+#include "constants.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -216,7 +217,7 @@ Sampler::set_interval(double new_interval_s)
 }
 
 Sampler::Sampler()
-  : echion{ std::make_unique<EchionSampler>() }
+  : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {
 }
 
@@ -309,8 +310,6 @@ _stack_init()
 void
 Sampler::one_time_setup()
 {
-    init_frame_cache(echion_frame_cache_size);
-
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
     _stack_postfork_cleanup();
