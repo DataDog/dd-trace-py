@@ -134,12 +134,9 @@ class Tracer(object):
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
-
-        self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
 
-        if asm_config._apm_opt_out:
-            self.enabled = False
+        if asm_config._atleast_one_security_feature_enabled:
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
         # Direct link to the appsec processor
@@ -247,6 +244,15 @@ class Tracer(object):
     def debug_logging(self):
         return log.isEnabledFor(logging.DEBUG)
 
+
+    @property
+    def enabled(self) -> bool:
+        return config._tracing_enabled
+
+    @enabled.setter
+    def enabled(self, value: bool):
+        config._tracing_enabled = value
+
     def current_trace_context(self, *args, **kwargs) -> Optional[Context]:
         """Return the context for the current trace.
 
@@ -314,13 +320,12 @@ class Tracer(object):
         if apm_tracing_disabled is not None:
             asm_config._apm_tracing_enabled = not apm_tracing_disabled
 
-        if asm_config._apm_opt_out:
-            config._tracing_enabled = self.enabled = False
+        if asm_config._atleast_one_security_feature_enabled:
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
             log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
-        elif asm_config._apm_tracing_enabled:
-            config._tracing_enabled = self.enabled = True
+        # elif asm_config._apm_tracing_enabled:
+        #     self.enabled = True
 
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
@@ -586,7 +591,7 @@ class Tracer(object):
                     p.on_span_finish(span)
 
         core.dispatch("trace.span_finish", (span,))
-        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
+        log.debug("finishing span - %r (apm tracing enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
