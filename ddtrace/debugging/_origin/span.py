@@ -17,9 +17,9 @@ from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
