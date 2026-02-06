@@ -1,6 +1,7 @@
 from itertools import chain
 import multiprocessing as mp
 
+from ddtrace._trace.span import Span
 import pytest
 
 
@@ -13,15 +14,17 @@ from queue import Queue
 import threading
 import time
 
-from ddtrace.internal import _rand
 from ddtrace.internal import forksafe
+from ddtrace.internal.native import generate_128bit_trace_id
+from ddtrace.internal.native import rand64bits
+from ddtrace.internal.native import seed
 from ddtrace.trace import tracer
 
 
 def test_random():
     m = set()
     for _ in range(0, 2**16):
-        n = _rand.rand64bits()
+        n = rand64bits()
         assert 0 <= n <= 2**64 - 1
         assert n not in m
         m.add(n)
@@ -34,8 +37,8 @@ def test_rand128bit():
     # This test validates the timestamp set in the trace id.
     # To avoid random test failures t1 and t2 are set to an interval of 2 at least seconds.
     t1 = int(time.time()) - 1
-    val1 = _rand.rand128bits()
-    val2 = _rand.rand128bits()
+    val1 = generate_128bit_trace_id()
+    val2 = generate_128bit_trace_id()
     t2 = int(time.time()) + 1
 
     val1_as_binary = format(val1, "b")
@@ -65,7 +68,7 @@ def test_rand128bit():
 def test_fork_no_pid_check():
     import os
 
-    from ddtrace.internal import _rand
+    from ddtrace.internal.native import rand64bits
     from tests.tracer.test_rand import MPQueue
 
     q = MPQueue()
@@ -76,7 +79,7 @@ def test_fork_no_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits() for _ in range(100)}
+        rns = {rand64bits() for _ in range(100)}
         child_rns = q.get()
 
         assert rns & child_rns == set()
@@ -84,7 +87,7 @@ def test_fork_no_pid_check():
     else:
         # child
         try:
-            rngs = {_rand.rand64bits() for _ in range(100)}
+            rngs = {rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the
@@ -97,7 +100,7 @@ def test_fork_no_pid_check():
 def test_fork_pid_check():
     import os
 
-    from ddtrace.internal import _rand
+    from ddtrace.internal.native import rand64bits
     from tests.tracer.test_rand import MPQueue
 
     q = MPQueue()
@@ -108,7 +111,7 @@ def test_fork_pid_check():
     # if we get collisions or not.
     if pid > 0:
         # parent
-        rns = {_rand.rand64bits() for _ in range(100)}
+        rns = {rand64bits() for _ in range(100)}
         child_rns = q.get()
 
         assert rns & child_rns == set()
@@ -116,7 +119,7 @@ def test_fork_pid_check():
     else:
         # child
         try:
-            rngs = {_rand.rand64bits() for _ in range(100)}
+            rngs = {rand64bits() for _ in range(100)}
             q.put(rngs)
         finally:
             # Kill the process so it doesn't continue running the rest of the
@@ -126,8 +129,8 @@ def test_fork_pid_check():
 
 
 def _test_multiprocess_target(q):
-    assert sum((_ is _rand.seed for _ in forksafe._registry)) == 1
-    q.put([_rand.rand64bits() for _ in range(100)])
+    assert sum((_ is seed for _ in forksafe._registry)) == 1
+    q.put([rand64bits() for _ in range(100)])
 
 
 def test_multiprocess():
@@ -142,7 +145,7 @@ def test_multiprocess():
         if p.exitcode != 0:
             return  # this can happen occasionally. ideally this test would `assert p.exitcode == 0`.
 
-    ids_list = [_rand.rand64bits() for _ in range(1000)]
+    ids_list = [rand64bits() for _ in range(1000)]
     ids = set(ids_list)
     assert len(ids_list) == len(ids), "Collisions found in ids"
 
@@ -159,7 +162,7 @@ def test_multiprocess():
 def _test_threadsafe_target(q):
     # Generate a bunch of numbers to try to maximize the chance that
     # two threads will be calling rand64bits at the same time.
-    rngs = [_rand.rand64bits() for _ in range(200000)]
+    rngs = [rand64bits() for _ in range(200000)]
     q.put(rngs)
 
 
@@ -241,8 +244,9 @@ def test_tracer_usage_fork():
 
 
 def _get_ids():
-    with tracer.start_span("s") as s:
-        return s.span_id, s.trace_id
+    # Don't use tracer.trace since we don't need to encode/flush these spans
+    s = Span("s")
+    return s.span_id, s.trace_id
 
 
 def _test_tracer_usage_multiprocess_target(q):
