@@ -48,6 +48,14 @@ def patch():
     _w("azure.functions", "FunctionApp.get_functions", _patched_get_functions)
 
 
+def _apply_durable_wrappers(pin, functions):
+    try:
+        from ddtrace.contrib.internal.azure_durable_functions.patch import wrap_durable_functions
+    except Exception:
+        return
+    wrap_durable_functions(pin, functions)
+
+
 def _patched_get_functions(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -76,6 +84,7 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
         elif trigger_type == "eventHubTrigger":
             function._func = _wrap_event_hubs_trigger(pin, func, function_name, trigger_arg_name, trigger_details)
 
+    _apply_durable_wrappers(pin, functions)
     return functions
 
 
