@@ -2,7 +2,6 @@
 
 #include <echion/echion_sampler.h>
 #include <echion/errors.h>
-#include <echion/render.h>
 
 #if PY_VERSION_HEX >= 0x030b0000
 #include <cstddef>
@@ -41,21 +40,6 @@ _read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
     return (val & 1) ? -(val >> 1) : (val >> 1);
 }
 #endif
-
-// ----------------------------------------------------------------------------
-void
-init_frame_cache(size_t capacity)
-{
-    frame_cache = new LRUCache<uintptr_t, Frame>(capacity);
-}
-
-// ----------------------------------------------------------------------------
-void
-reset_frame_cache()
-{
-    delete frame_cache;
-    frame_cache = nullptr;
-}
 
 // ------------------------------------------------------------------------
 Result<Frame::Ptr>
@@ -339,7 +323,7 @@ Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
 {
     auto frame_key = Frame::key(code_addr, lasti);
 
-    auto maybe_frame = frame_cache->lookup(frame_key);
+    auto maybe_frame = echion.frame_cache().lookup(frame_key);
     if (maybe_frame) {
         return *maybe_frame;
     }
@@ -357,24 +341,17 @@ Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
     auto new_frame = std::move(*maybe_new_frame);
     new_frame->cache_key = frame_key;
     auto& f = *new_frame;
-    Renderer::get().frame(frame_key,
-                          new_frame->filename,
-                          new_frame->name,
-                          new_frame->location.line,
-                          new_frame->location.line_end,
-                          new_frame->location.column,
-                          new_frame->location.column_end);
-    frame_cache->store(frame_key, std::move(new_frame));
+    echion.frame_cache().store(frame_key, std::move(new_frame));
     return std::ref(f);
 }
 
 // ----------------------------------------------------------------------------
 Frame&
-Frame::get(StringTable::Key name)
+Frame::get(EchionSampler& echion, StringTable::Key name)
 {
     uintptr_t frame_key = static_cast<uintptr_t>(name);
 
-    auto maybe_frame = frame_cache->lookup(frame_key);
+    auto maybe_frame = echion.frame_cache().lookup(frame_key);
     if (maybe_frame) {
         return *maybe_frame;
     }
@@ -382,13 +359,6 @@ Frame::get(StringTable::Key name)
     auto frame = std::make_unique<Frame>(name);
     frame->cache_key = frame_key;
     auto& f = *frame;
-    Renderer::get().frame(frame_key,
-                          frame->filename,
-                          frame->name,
-                          frame->location.line,
-                          frame->location.line_end,
-                          frame->location.column,
-                          frame->location.column_end);
-    frame_cache->store(frame_key, std::move(frame));
+    echion.frame_cache().store(frame_key, std::move(frame));
     return f;
 }

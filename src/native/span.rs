@@ -129,7 +129,7 @@ impl SpanData {
         name,
         service=None,
         resource=None,
-        span_type=None,    // placeholder for Span.__init__ positional arg
+        span_type=None,
         trace_id=None,     // placeholder for Span.__init__ positional arg
         span_id=None,      // placeholder for Span.__init__ positional arg
         parent_id=None,    // placeholder for Span.__init__ positional arg
@@ -142,7 +142,7 @@ impl SpanData {
         name: &Bound<'p, PyAny>,
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<&Bound<'p, PyAny>>,
-        span_type: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        span_type: Option<&Bound<'p, PyAny>>,
         trace_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
         span_id: Option<&Bound<'p, PyAny>>,   // placeholder, not used
         parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
@@ -164,6 +164,9 @@ impl SpanData {
             Some(obj) => span.set_resource(obj),
             None => span.data.resource = span.data.name.clone_ref(py),
         }
+        span.data.r#type = span_type
+            .map(|obj| extract_backed_string_or_none(obj))
+            .unwrap_or_else(|| PyBackedString::py_none(py));
         // Handle start parameter: None means capture current time, otherwise convert seconds to nanoseconds
         span.data.start = match start {
             None => wall_clock_ns(), // Common case: native time capture
@@ -221,6 +224,22 @@ impl SpanData {
     #[inline(always)]
     fn set_resource(&mut self, resource: &Bound<'_, PyAny>) {
         self.data.resource = extract_backed_string_or_default(resource);
+    }
+
+    #[getter]
+    #[inline(always)]
+    fn get_span_type<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        if self.data.r#type.is_py_none(py) {
+            None
+        } else {
+            Some(self.data.r#type.as_py(py))
+        }
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_span_type(&mut self, span_type: &Bound<'_, PyAny>) {
+        self.data.r#type = extract_backed_string_or_none(span_type);
     }
 
     // start_ns property (maps to self.data.start)

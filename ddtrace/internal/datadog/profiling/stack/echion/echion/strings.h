@@ -15,7 +15,6 @@
 #include <unordered_map>
 
 #include <echion/long.h>
-#include <echion/render.h>
 #include <echion/vm.h>
 
 constexpr ssize_t MAX_STRING_SIZE = 1 << 20; // 1 MiB

@@ -66,7 +66,7 @@ SPECIAL_CHARACTER_STRINGS = [
 
 # Property categories for parameterized tests
 REQUIRED_STRING_PROPERTIES = ["name", "resource"]
-OPTIONAL_STRING_PROPERTIES = ["service"]
+OPTIONAL_STRING_PROPERTIES = ["service", "span_type"]
 ALL_STRING_PROPERTIES = REQUIRED_STRING_PROPERTIES + OPTIONAL_STRING_PROPERTIES
 
 # Values that are not valid numeric types - should trigger fallback behavior
@@ -90,6 +90,7 @@ def test_basic_creation():
     assert span.service is None
     # resource defaults to name when not provided
     assert span.resource == "test.span"
+    assert span.span_type is None
 
 
 def test_creation_accepts_extra_kwargs():
@@ -97,7 +98,7 @@ def test_creation_accepts_extra_kwargs():
 
     Since SpanData.__new__ accepts *args/**kwargs, subclasses (like Span) can pass
     additional parameters without needing to override __new__. SpanData only uses
-    'name', 'service', and 'resource'; other parameters are ignored but don't raise errors.
+    'name', 'service', 'resource', and 'span_type'; other parameters are ignored but don't raise errors.
     """
     span = SpanData(
         name="test.span",
@@ -114,6 +115,7 @@ def test_creation_accepts_extra_kwargs():
     assert span.name == "test.span"
     assert span.service == "test-service"
     assert span.resource == "test-resource"
+    assert span.span_type == "web"
 
 
 # =============================================================================

@@ -518,6 +518,7 @@ class SpanData:
     name: str
     service: Optional[str]
     resource: str
+    span_type: Optional[str]
     start_ns: int
     duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
     error: int
@@ -530,7 +531,7 @@ class SpanData:
         name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
-        span_type: Optional[str] = None,  # placeholder for Span.__init__
+        span_type: Optional[str] = None,
         trace_id: Optional[int] = None,  # placeholder for Span.__init__
         span_id: Optional[int] = None,  # placeholder for Span.__init__
         parent_id: Optional[int] = None,  # placeholder for Span.__init__

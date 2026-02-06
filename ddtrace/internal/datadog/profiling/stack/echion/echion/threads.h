@@ -28,7 +28,6 @@
 #include <echion/errors.h>
 #include <echion/greenlets.h>
 #include <echion/interp.h>
-#include <echion/render.h>
 #include <echion/stacks.h>
 #include <echion/tasks.h>
 #include <echion/timing.h>
@@ -60,7 +59,7 @@ class ThreadInfo
 
     [[nodiscard]] Result<void> update_cpu_time();
 
-    [[nodiscard]] Result<void> sample(EchionSampler&, int64_t, PyThreadState*, microsecond_t);
+    [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
     void unwind(EchionSampler&, PyThreadState*);
 
     // ------------------------------------------------------------------------
