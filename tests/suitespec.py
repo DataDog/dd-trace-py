@@ -6,17 +6,21 @@ from ruamel.yaml import YAML  # noqa
 
 
 TESTS = Path(__file__).parents[1] / "tests"
+BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
+SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 
 
 def _collect_suitespecs() -> dict:
-    # Recursively search for suitespec.yml in TESTS
     suitespec = {"components": {}, "suites": {}}
 
-    for s in TESTS.rglob("suitespec.yml"):
-        try:
-            namespace = ".".join(s.relative_to(TESTS).parts[:-1]) or None
-        except IndexError:
-            namespace = None
+    specfiles = []
+    for root, ns_prefix in SEARCH_ROOTS:
+        for f in root.rglob("suitespec.yml"):
+            specfiles.append((f, root, ns_prefix))
+
+    for s, root, ns_prefix in specfiles:
+        path_parts = s.relative_to(root).parts[:-1]
+        namespace = "::".join(path_parts) if path_parts else ns_prefix or None
         with YAML() as yaml:
             data = yaml.load(s)
             suites = data.get("suites", {})

@@ -78,6 +78,7 @@ tests-gen:
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
+      - .gitlab/benchmarks/microbenchmarks-gen.yml
 
 run-tests-trigger:
  stage: tests
@@ -134,6 +135,7 @@ serverless lambda tests:
 microbenchmarks:
   stage: benchmarks
   needs:
+    - job: tests-gen
     - job: "build linux"
       parallel:
         matrix:
@@ -146,7 +148,9 @@ microbenchmarks:
       allow_failure: true
     - allow_failure: false
   trigger:
-    include: .gitlab/benchmarks/microbenchmarks.yml
+    include:
+      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
+        job: tests-gen
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID

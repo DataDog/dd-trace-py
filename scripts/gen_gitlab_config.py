@@ -17,12 +17,26 @@ file in .gitlab/tests.yml, add a function named gen_<name> to this
 file. The function will be called automatically when this script is run.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import os
 import re
 import subprocess
 import typing as t
+
+
+MAX_BENCHMARKS_PER_GROUP = 8
+
+
+@dataclass
+class BenchmarkSpec:
+    name: str
+    cpus_per_run: t.Optional[int] = 1
+    pattern: t.Optional[str] = None
+    paths: t.Optional[t.Set[str]] = None  # ignored
+    skip: bool = False
+    type: str = "benchmark"  # ignored
 
 
 @dataclass
@@ -43,6 +57,7 @@ class JobSpec:
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
     gpu: bool = False
+    type: str = "test"  # ignored
 
     def __str__(self) -> str:
         lines = []
@@ -199,7 +214,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
 
 
 def gen_required_suites() -> None:
-    """Generate the list of test suites that need to be run."""
+    """Generate the list of test and benchmark suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
     from needs_testrun import for_each_testrun_needed
     import suitespec
@@ -220,6 +235,53 @@ def gen_required_suites() -> None:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
 
+    _gen_tests(suites, required_suites)
+    _gen_benchmarks(suites, required_suites)
+
+
+def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
+    suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
+    required_suites = [a for a in required_suites if a in list(suites.keys())]
+
+    # Copy the template file
+    MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
+
+    for suite_name, suite_config in suites.items():
+        clean_name = suite_name.split("::")[-1]
+        suite_config["_clean_name"] = clean_name
+
+    groups = defaultdict(list)
+
+    for suite in required_suites:
+        suite_config = suites[suite].copy()
+        clean_name = suite_config.pop("_clean_name", suite)
+
+        # Create JobSpec with clean name and explicit stage
+        jobspec = BenchmarkSpec(clean_name, **suite_config)
+        if jobspec.skip:
+            LOGGER.debug("Skipping suite %s", suite)
+            continue
+
+        groups[jobspec.cpus_per_run].append(jobspec)
+
+    with MICROBENCHMARKS_GEN.open("a") as f:
+        for cpus_per_run, jobspecs in groups.items():
+            print(f'      - CPUS_PER_RUN: "{cpus_per_run}"\n        SCENARIOS:', file=f)
+            jobspecs = sorted(jobspecs, key=lambda s: s.name)
+            # DEV: The organization into these groups is mostly arbitrary, based on observed runtimes and
+            #      trying to keep total runtime per job <10 minutes
+            for subgroup in [
+                jobspecs[i : i + MAX_BENCHMARKS_PER_GROUP] for i in range(0, len(jobspecs), MAX_BENCHMARKS_PER_GROUP)
+            ]:
+                names = [i.name for i in subgroup]
+                group_spec = f'        - "{" ".join(names)}"'
+                print(group_spec, file=f)
+
+
+def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
+    suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
+    required_suites = [a for a in required_suites if a in list(suites.keys())]
+
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
 
@@ -227,11 +289,12 @@ def gen_required_suites() -> None:
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
         # Extract stage from suite name prefix if present
-        if "::" in suite_name:
-            stage, _, clean_name = suite_name.partition("::")
+        suite_parts = suite_name.split("::")[-2:]
+        if len(suite_parts) == 2:
+            stage, clean_name = suite_parts
         else:
             stage = "core"
-            clean_name = suite_name
+            clean_name = suite_parts[-1]
 
         stages.add(stage)
         # Store the stage in the suite config for later use
@@ -482,6 +545,7 @@ ROOT = Path(__file__).parents[1]
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
+MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
