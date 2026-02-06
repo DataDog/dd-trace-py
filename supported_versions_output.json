@@ -61,7 +61,7 @@
         "dependency": "anthropic",
         "integration": "anthropic",
         "minimum_tracer_supported": "0.28.1",
-        "max_tracer_supported": "0.74.1",
+        "max_tracer_supported": "0.76.0",
         "auto-instrumented": true
     },
     {
