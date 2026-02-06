@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import types
 from types import ModuleType
+
 from _config import config
 from output import log
 from utils import COLS

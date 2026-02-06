@@ -1,4 +1,5 @@
 import re
+
 import pytest
 
 from ddtrace.testing.internal.test_data import ModuleRef

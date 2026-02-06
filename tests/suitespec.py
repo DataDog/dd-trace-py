@@ -1,5 +1,6 @@
 from functools import cache
 from pathlib import Path
+
 from ruamel.yaml import YAML  # noqa
 
 

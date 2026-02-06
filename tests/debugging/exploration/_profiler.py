@@ -1,5 +1,6 @@
 from pathlib import Path
 from random import random
+
 from _config import config as expl_config
 from debugger import ExplorationDebugger
 from debugger import ModuleCollector

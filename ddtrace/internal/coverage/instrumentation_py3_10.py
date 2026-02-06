@@ -1,6 +1,7 @@
 import dis
 import sys
 from types import CodeType
+
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
