@@ -54,7 +54,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
         ddog_Error_drop(&bytes_res.err);
         return false;
     }
-    out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), bytes_res.ok.len);
+    out.write(reinterpret_cast<const char*>(bytes_res.ok.ptr), static_cast<std::streamsize>(bytes_res.ok.len));
     if (out.fail()) {
         std::cerr << "Error writing to output file " << pprof_filename << ": " << strerror(errno) << std::endl;
         return false;

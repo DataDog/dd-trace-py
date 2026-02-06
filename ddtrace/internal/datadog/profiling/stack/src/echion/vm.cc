@@ -55,7 +55,7 @@ VmReader::create(size_t sz)
         unlink(tmpfile.data());
 
         // Make sure we have enough size
-        if (ftruncate(fd, sz) == -1) {
+        if (ftruncate(fd, static_cast<off_t>(sz)) == -1) {
             continue;
         }
 
@@ -109,7 +109,7 @@ VmReader::safe_copy(pid_t process_id,
 
     // Check to see if we need to resize the buffer
     if (remote_iov[0].iov_len > sz) {
-        if (ftruncate(fd, remote_iov[0].iov_len) == -1) {
+        if (ftruncate(fd, static_cast<off_t>(remote_iov[0].iov_len)) == -1) {
             return 0;
         } else {
             void* tmp = mremap(buffer, sz, remote_iov[0].iov_len, MREMAP_MAYMOVE);
@@ -121,7 +121,7 @@ VmReader::safe_copy(pid_t process_id,
         }
     }
 
-    ssize_t ret = pwritev(fd, remote_iov, riovcnt, 0);
+    ssize_t ret = pwritev(fd, remote_iov, static_cast<int>(riovcnt), 0);
     if (ret == -1) {
         return ret;
     }
@@ -211,7 +211,7 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
 
     // Early exit on zero page
     if (reinterpret_cast<uintptr_t>(addr) < 4096) {
-        return result;
+        return static_cast<int>(result);
     }
 
 #if defined PL_LINUX

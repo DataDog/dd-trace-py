@@ -10,7 +10,7 @@ MirrorSet::create(PyObject* set_addr)
     }
 
     auto size = set.mask + 1;
-    ssize_t table_size = size * sizeof(setentry);
+    ssize_t table_size = static_cast<ssize_t>(size * sizeof(setentry));
     if (table_size < 0 || table_size > MAX_MIRROR_SIZE) {
         return ErrorKind::MirrorError;
     }

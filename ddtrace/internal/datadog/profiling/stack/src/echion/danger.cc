@@ -141,10 +141,10 @@ safe_memcpy(void* dst, const void* src, size_t n)
 
     // Copy in page-bounded chunks (at most one fault per bad page).
     while (rem) {
-        safe_memcpy_return_t to_src_pg =
-          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(s)) & (page_size - 1));
-        safe_memcpy_return_t to_dst_pg =
-          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(d)) & (page_size - 1));
+        safe_memcpy_return_t to_src_pg = static_cast<safe_memcpy_return_t>(
+          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(s)) & (page_size - 1)));
+        safe_memcpy_return_t to_dst_pg = static_cast<safe_memcpy_return_t>(
+          page_size - (static_cast<uintptr_t>(reinterpret_cast<uintptr_t>(d)) & (page_size - 1)));
         safe_memcpy_return_t chunk = std::min(rem, std::min(to_src_pg, to_dst_pg));
 
         // Optional early probe to fault before entering large memcpy
