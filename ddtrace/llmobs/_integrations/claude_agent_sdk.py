@@ -88,7 +88,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 - "used_tokens": Token count string (e.g., "16.3k") or None
                 - "total_tokens": Token count string (e.g., "200.0k") or None
         """
-        result = {"categories": {}, "used_tokens": None, "total_tokens": None}
+        result: Dict[str, Any] = {"categories": {}, "used_tokens": None, "total_tokens": None}
 
         if not context_messages or not isinstance(context_messages, list):
             return result
