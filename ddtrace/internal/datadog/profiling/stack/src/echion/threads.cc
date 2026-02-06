@@ -205,7 +205,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             }
 
             // Add the task name frame
-            stack.push_back(Frame::get(task.name));
+            stack.push_back(Frame::get(echion, task.name));
 
             // Get the next task in the chain
             PyObject* task_origin = task.origin;
