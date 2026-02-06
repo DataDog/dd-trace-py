@@ -141,11 +141,10 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return NULL;
     }
 
-    if (!traceback_t::init_invokes_cpython())
-        return NULL;
-
-    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size))
-        return NULL;
+    if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
+        return nullptr;
+    }
 
     PyMemAllocatorEx alloc;
 
@@ -188,9 +187,6 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
     memalloc_heap_tracker_deinit_no_cpython();
-
-    /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
-    traceback_t::deinit_invokes_cpython();
 
     memalloc_enabled = false;
 
