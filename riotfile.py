@@ -237,7 +237,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_integrations_django",
-            command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
+            command="pytest -vvv -s {cmdargs} tests/appsec/integrations/django_tests/",
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
@@ -3543,7 +3543,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_integrations_flask",
-            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
+            command="pytest -vvv -s {cmdargs} tests/appsec/integrations/flask_tests/",
             pkgs={
                 "requests": latest,
                 "gunicorn": latest,
