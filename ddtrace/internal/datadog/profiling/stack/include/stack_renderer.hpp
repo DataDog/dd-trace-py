@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -12,7 +13,7 @@
 
 namespace Datadog {
 
-enum class MetricType
+enum class MetricType : std::uint8_t
 {
     Time,
     Memory
