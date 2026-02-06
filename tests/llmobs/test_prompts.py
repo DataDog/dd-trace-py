@@ -7,6 +7,7 @@ import pytest
 
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_PROMPT
+from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from tests.utils import override_global_config
 
@@ -299,6 +300,64 @@ class TestAnnotationContext:
                 prompt_data = span._get_ctx_item(INPUT_PROMPT)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
+                assert prompt_data["label"] == "prod"
                 assert prompt_data["variables"] == {"name": "Alice"}
                 assert prompt_data["prompt_uuid"] == "prompt-uuid-123"
                 assert prompt_data["prompt_version_uuid"] == "version-uuid-456"
+                assert "tags" not in prompt_data
+
+    def test_annotation_context_fallback_prompt_omits_label_and_tags(self, tracer):
+        """Fallback managed prompt should annotate without managed-prompt tags."""
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+
+        with mock_api(500, "Error"):
+            prompt = LLMObs.get_prompt("greeting", fallback="Fallback: {name}")
+
+        with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(name="Alice")):
+            with LLMObs.llm(model_name="test-model", name="test") as span:
+                prompt_data = span._get_ctx_item(INPUT_PROMPT)
+                assert prompt_data["id"] == "greeting"
+                assert prompt_data["version"] == "fallback"
+                assert prompt_data["variables"] == {"name": "Alice"}
+                assert prompt_data["template"] == "Fallback: {name}"
+                assert "label" not in prompt_data
+                assert "tags" not in prompt_data
+
+
+class TestPromptManagerInternals:
+    def test_trigger_background_refresh_does_not_leave_stale_thread_entry(self):
+        manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
+
+        class ImmediateThread:
+            def __init__(self, target=None, daemon=None):
+                self._target = target
+                self.daemon = daemon
+
+            def start(self):
+                if self._target is not None:
+                    self._target()
+
+            def join(self, timeout=None):
+                pass
+
+        with patch.object(manager, "_background_refresh", return_value=None) as refresh_mock:
+            with patch("ddtrace.llmobs._prompts.manager.threading.Thread", ImmediateThread):
+                manager._trigger_background_refresh("greeting:prod", "greeting", "prod")
+                assert "greeting:prod" not in manager._refresh_threads
+                manager._trigger_background_refresh("greeting:prod", "greeting", "prod")
+
+        assert refresh_mock.call_count == 2
+
+    @pytest.mark.parametrize(
+        "base_url,endpoint_override,expected",
+        [
+            ("https://api.datadoghq.com", "https://host/foo/bar", "https://host/foo/bar/"),
+            ("https://api.datadoghq.com", "https://host/foo/bar/", "https://host/foo/bar/"),
+            ("https://api.datadoghq.com", "https://host", "https://host/"),
+            ("https://api.datadoghq.com", "host/foo/bar", "https://host/foo/bar/"),
+            ("https://api.datadoghq.com", None, "https://api.datadoghq.com/"),
+        ],
+    )
+    def test_normalize_base_url(self, base_url, endpoint_override, expected):
+        normalized = PromptManager._normalize_base_url(base_url, endpoint_override)
+        assert normalized == expected

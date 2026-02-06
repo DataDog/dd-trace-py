@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
@@ -152,9 +153,6 @@ class PromptManager:
 
     def _trigger_background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Trigger a background refresh if not already in progress."""
-        with self._refresh_lock:
-            if key in self._refresh_threads:
-                return
 
         def run_refresh():
             try:
@@ -163,12 +161,17 @@ class PromptManager:
                 with self._refresh_lock:
                     self._refresh_threads.pop(key, None)
 
-        thread = threading.Thread(target=run_refresh, daemon=True)
+        with self._refresh_lock:
+            if key in self._refresh_threads:
+                return
+            thread = threading.Thread(target=run_refresh, daemon=True)
+            self._refresh_threads[key] = thread
+
         try:
             thread.start()
-            with self._refresh_lock:
-                self._refresh_threads[key] = thread
         except RuntimeError:
+            with self._refresh_lock:
+                self._refresh_threads.pop(key, None)
             log.debug("Failed to start background refresh thread for prompt %s", prompt_id)
 
     def _background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
@@ -212,10 +215,20 @@ class PromptManager:
 
     @staticmethod
     def _normalize_base_url(base_url: str, endpoint_override: Optional[str]) -> str:
+        """Normalize base URL for prompt fetches.
+
+        - Default missing scheme to ``https://``.
+        - For HTTP(S), normalize to a trailing ``/`` so relative endpoint joins
+          always resolve from a directory base path.
+        """
         url = endpoint_override or base_url
         if "://" not in url:
             url = "https://" + url
-        return url.rstrip("/")
+
+        parsed = urlparse(url)
+        if parsed.scheme in ("http", "https") and not parsed.path.endswith("/"):
+            parsed = parsed._replace(path=parsed.path + "/")
+        return parsed.geturl()
 
     def _parse_response(self, body: str, prompt_id: str, label: Optional[str]) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""
