@@ -72,6 +72,7 @@ impl SpanLinkData {
 #[derive(Default)]
 pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
+    _trace_id_128bit_mode: bool,
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -184,6 +185,12 @@ impl SpanData {
         span.data.span_id = span_id
             .and_then(|obj| obj.extract::<u64>().ok())
             .unwrap_or_else(crate::rand::rand64bits);
+        // Initialize trace_id from parameter or generate random 128-bit
+        span.data.trace_id = trace_id
+            .and_then(|obj| obj.extract::<u128>().ok())
+            .unwrap_or_else(crate::rand::generate_128bit_trace_id);
+        // Initialize 128-bit mode flag to true (default)
+        span._trace_id_128bit_mode = true;
         span
     }
 
@@ -309,6 +316,54 @@ impl SpanData {
         // Extract u64, silently ignore invalid types (keep existing value)
         if let Ok(id) = value.extract::<u64>() {
             self.data.span_id = id;
+        }
+    }
+
+    // trace_id property - returns full 128-bit or lower 64 bits based on mode
+    #[getter]
+    #[inline(always)]
+    fn get_trace_id(&self) -> u128 {
+        if self._trace_id_128bit_mode {
+            // Return full 128-bit trace ID
+            self.data.trace_id
+        } else {
+            // Return lower 64 bits only (masked to u64 range)
+            self.data.trace_id & 0xFFFFFFFFFFFFFFFF
+        }
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_trace_id(&mut self, value: &Bound<'_, PyAny>) {
+        // Extract u128, silently ignore invalid types (keep existing value)
+        if let Ok(id) = value.extract::<u128>() {
+            self.data.trace_id = id;
+        }
+    }
+
+    // _trace_id_64bits property - always returns lower 64 bits regardless of mode
+    #[getter]
+    #[inline(always)]
+    #[allow(non_snake_case)]
+    fn get__trace_id_64bits(&self) -> u64 {
+        (self.data.trace_id & 0xFFFFFFFFFFFFFFFF) as u64
+    }
+
+    // _trace_id_128bit_mode property - controls whether trace_id getter returns full 128-bit
+    #[getter]
+    #[inline(always)]
+    #[allow(non_snake_case)]
+    fn get__trace_id_128bit_mode(&self) -> bool {
+        self._trace_id_128bit_mode
+    }
+
+    #[setter]
+    #[inline(always)]
+    #[allow(non_snake_case)]
+    fn set__trace_id_128bit_mode(&mut self, value: &Bound<'_, PyAny>) {
+        // Extract bool, silently ignore invalid types
+        if let Ok(mode) = value.extract::<bool>() {
+            self._trace_id_128bit_mode = mode;
         }
     }
 

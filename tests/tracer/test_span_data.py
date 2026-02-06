@@ -742,3 +742,189 @@ def test_span_id_overflow():
     # This behavior depends on how PyO3 handles overflow - may wrap or raise
     # For now, just verify it doesn't crash
     assert isinstance(span.span_id, int)
+    assert span.span_id != large_value
+    assert 0 < span.span_id <= (2**64) - 1
+
+
+def test_span_id_larger_than_u64_setter():
+    """Setting span_id to value larger than u64 max is silently ignored."""
+    # This could happen if someone accidentally tries to set span_id = trace_id
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Try to set to a value larger than u64 max
+    larger_than_u64 = (2**64) + 67890
+    span.span_id = larger_than_u64
+
+    # Should be silently ignored, keeping the original value
+    assert span.span_id == original_id
+    assert span.span_id == 12345
+
+
+# =============================================================================
+# trace_id Tests
+# =============================================================================
+
+
+def test_trace_id_auto_generation():
+    """trace_id defaults to random 128-bit value when not provided."""
+    span = SpanData(name="test")
+    assert isinstance(span.trace_id, int)
+    assert span.trace_id > 0
+
+    # Verify randomness - creating multiple spans should give different IDs
+    span2 = SpanData(name="test")
+    assert span.trace_id != span2.trace_id
+
+
+def test_trace_id_explicit_value():
+    """trace_id can be explicitly provided and roundtrips correctly."""
+    span = SpanData(name="test", trace_id=12345)
+    assert span.trace_id == 12345
+
+
+def test_trace_id_invalid_type_generates_random():
+    """trace_id with invalid type generates random ID instead of raising."""
+    span = SpanData(name="test", trace_id="foo")
+    assert isinstance(span.trace_id, int)
+    assert span.trace_id != 0
+
+    span2 = SpanData(name="test", trace_id=[123])
+    assert isinstance(span2.trace_id, int)
+    assert span2.trace_id != 0
+
+
+def test_trace_id_128bit_mode_roundtrip():
+    """128-bit trace_id values are stored and retrieved correctly in 128-bit mode."""
+    max_u64 = (2**64) - 1
+    trace_id_128 = max_u64 + 12345  # Value larger than 64 bits
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+    span._trace_id_128bit_mode = True  # Enable 128-bit mode
+
+    assert span.trace_id == trace_id_128
+    assert span.trace_id > max_u64
+
+
+def test_trace_id_64bit_mode_masking():
+    """In 64-bit mode, trace_id getter returns only lower 64 bits."""
+    max_u64 = (2**64) - 1
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+    span._trace_id_128bit_mode = False  # Disable 128-bit mode
+
+    # Should return only lower 64 bits
+    assert span.trace_id == 0x1234567890ABCDEF
+    assert span.trace_id <= max_u64
+
+
+def test_trace_id_max_u128():
+    """trace_id can handle max u128 value."""
+    max_u128 = (2**128) - 1
+    span = SpanData(name="test", trace_id=max_u128)
+    span._trace_id_128bit_mode = True
+
+    assert span.trace_id == max_u128
+
+
+def test_trace_id_setter_invalid_ignored():
+    """Setting trace_id with invalid type is silently ignored."""
+    span = SpanData(name="test", trace_id=123)
+    original_id = span.trace_id
+    assert original_id == 123
+
+    # Invalid type should be silently ignored (no change)
+    span.trace_id = "invalid"
+    assert span.trace_id == original_id
+
+    # Valid type should work
+    span.trace_id = 456
+    assert span.trace_id == 456
+
+
+def test_trace_id_128bit_mode_flag_default():
+    """_trace_id_128bit_mode flag defaults to True."""
+    span = SpanData(name="test")
+    assert span._trace_id_128bit_mode is True
+
+
+def test_trace_id_64bits_property():
+    """_trace_id_64bits property always returns lower 64 bits."""
+    # 128-bit trace ID with distinct upper and lower halves
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+
+    # _trace_id_64bits should always return lower 64 bits regardless of mode
+    assert span._trace_id_64bits == 0x1234567890ABCDEF
+
+    # Verify it works in both modes
+    span._trace_id_128bit_mode = True
+    assert span._trace_id_64bits == 0x1234567890ABCDEF
+
+    span._trace_id_128bit_mode = False
+    assert span._trace_id_64bits == 0x1234567890ABCDEF
+
+
+def test_trace_id_mode_toggle():
+    """Toggling _trace_id_128bit_mode flag changes trace_id getter behavior."""
+    trace_id_128 = (0xABCDEF << 64) | 0x123456
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+
+    # Start in 128-bit mode
+    span._trace_id_128bit_mode = True
+    assert span.trace_id == trace_id_128
+
+    # Switch to 64-bit mode
+    span._trace_id_128bit_mode = False
+    assert span.trace_id == 0x123456
+
+    # Switch back to 128-bit mode
+    span._trace_id_128bit_mode = True
+    assert span.trace_id == trace_id_128
+
+
+def test_trace_id_native_generation_format():
+    """Test native 128-bit trace ID generation follows the correct format.
+
+    Format: <32-bit unix seconds><32 bits of zero><64 random bits>
+
+    This test verifies the same format as tests/tracer/test_rand.py::test_rand128bit()
+    but for the native Rust generation function.
+    """
+    import time
+
+    # Generate trace IDs with timestamps bracketed
+    t1 = int(time.time()) - 1
+    span1 = SpanData(name="test")
+    span2 = SpanData(name="test")
+    t2 = int(time.time()) + 1
+
+    val1 = span1.trace_id
+    val2 = span2.trace_id
+
+    # Convert to binary and extract components
+    val1_as_binary = format(val1, "b")
+    rand_64bit1 = int(val1_as_binary[-64:], 2)
+    zeros1 = int(val1_as_binary[-96:-64], 2)
+    unix_time1 = int(val1_as_binary[:-96], 2)
+
+    val2_as_binary = format(val2, "b")
+    rand_64bit2 = int(val2_as_binary[-64:], 2)
+    zeros2 = int(val2_as_binary[-96:-64], 2)
+    unix_time2 = int(val2_as_binary[:-96], 2)
+
+    # Assert that 64 lowest order bits of the 128 bit integers are random
+    assert 0 <= rand_64bit1 <= 2**64 - 1
+    assert 0 <= rand_64bit2 <= 2**64 - 1
+    assert rand_64bit1 != rand_64bit2
+
+    # Assert that bits 64 to 96 are zeros (from least significant to most)
+    assert zeros1 == zeros2 == 0
+
+    # Assert that the 32 most significant bits is unix time in seconds
+    assert t1 <= unix_time1 <= t2
+    assert t1 <= unix_time2 <= t2
