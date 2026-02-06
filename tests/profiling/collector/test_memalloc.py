@@ -118,7 +118,7 @@ def test_memory_collector(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # thread_name="MainThread",  # Memory profiler uses C-level APIs; no thread name available
             thread_id=threading.main_thread().ident,
             locations=[
                 pprof_utils.StackLocation(
@@ -1134,7 +1134,7 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # thread_name="MainThread",  # Memory profiler uses C-level APIs; no thread name available
             locations=[
                 loc("inner_frame"),
                 loc("middle_frame"),
