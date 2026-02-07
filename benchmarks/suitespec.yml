@@ -54,9 +54,6 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
-    - ddtrace/internal/_rand.pyi
-    - ddtrace/internal/_rand.pyx
-    - ddtrace/internal/_stdint.h
     - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
@@ -273,3 +270,7 @@ suites:
       - '@flask'
       - '@django'
     cpus_per_run: 2
+  rand:
+    paths:
+      - 'src/native/rand.rs'
+    cpus_per_run: 1

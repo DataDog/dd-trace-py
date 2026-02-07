@@ -167,7 +167,7 @@ microbenchmarks:
     matrix:
       - CPUS_PER_RUN: "1"
         SCENARIOS:
-        - "span tracer core_api set_http_meta telemetry_add_metric otel_span otel_sdk_span recursive_computation sampling_rule_matches"
+        - "span tracer core_api set_http_meta telemetry_add_metric otel_span otel_sdk_span recursive_computation sampling_rule_matches rand"
         - "http_propagation_extract http_propagation_inject rate_limiter appsec_iast_aspects appsec_iast_aspects_ospath appsec_iast_aspects_re_module appsec_iast_aspects_split appsec_iast_propagation"
         - "packages_package_for_root_module_mapping packages_update_imported_dependencies"
       - CPUS_PER_RUN: "2"
