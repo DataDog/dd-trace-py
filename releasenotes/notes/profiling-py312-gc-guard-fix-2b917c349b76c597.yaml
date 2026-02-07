@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where intermittent segmentation faults
+    occurred when running the memory profiler on Python 3.12. The crashes were
+    caused by garbage collection running during memory allocation tracking, which
+    could corrupt internal state and lead to failures.

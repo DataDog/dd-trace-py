@@ -383,8 +383,14 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
        increase in memory usage during sampling. But it is overall cheap (mostly
        just toggling a boolean) and the alternative is hard-to-diagnose crashes.
 
+       UPDATE: We've observed intermittent crashes in Python 3.12 (particularly in
+       CI environments) that suggest reentrancy or corruption issues. While Python
+       3.12 defers GC, the profiler still calls Python APIs (threading.current_thread(),
+       PyUnicode_AsUTF8AndSize, frame access) during allocation hooks, which can
+       trigger issues. Re-enabling the GC guard for 3.12 as a conservative measure.
+
        RAII guard automatically re-enables GC when it goes out of scope. */
-#if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
+#if defined(_PY310_AND_LATER)
     pygc_temp_disable_guard_t gc_guard;
 #endif
 
