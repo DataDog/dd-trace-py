@@ -219,6 +219,16 @@ integrations:
       min: 17.0.0
       max: 18.10.0
 
+- integration_name: claude_agent_sdk
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - claude-agent-sdk
+  tested_versions_by_dependency:
+    claude-agent-sdk:
+      min: 0.0.23
+      max: 0.1.29
+
 - integration_name: consul
   is_external_package: true
   is_tested: true
