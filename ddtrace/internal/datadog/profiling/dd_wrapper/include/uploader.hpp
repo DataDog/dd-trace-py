@@ -83,7 +83,7 @@ class Uploader
         other.ddog_exporter = { .inner = nullptr };
         encoded_profile = other.encoded_profile;
         other.encoded_profile = { .inner = nullptr };
-        profiler_stats = std::move(other.profiler_stats);
+        profiler_stats = other.profiler_stats;
         output_filename = std::move(other.output_filename);
         errmsg = std::move(other.errmsg);
         process_tags = std::move(other.process_tags);
@@ -98,7 +98,7 @@ class Uploader
             other.ddog_exporter = { .inner = nullptr };
             encoded_profile = other.encoded_profile;
             other.encoded_profile = { .inner = nullptr };
-            profiler_stats = std::move(other.profiler_stats);
+            profiler_stats = other.profiler_stats;
             output_filename = std::move(other.output_filename);
             errmsg = std::move(other.errmsg);
             process_tags = std::move(other.process_tags);
