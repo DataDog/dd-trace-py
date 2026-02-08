@@ -4,6 +4,7 @@
 # requires-python = ">=3.9"
 # dependencies = [
 #     "riot>=0.20.1",
+#     "setuptools",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
