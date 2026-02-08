@@ -258,7 +258,7 @@ class _ProfiledLock:
             task_id: Optional[int]
             task_name: Optional[str]
             task_frame: Optional[FrameType]
-            task_id, task_name, task_frame = _task.get_task(thread_id)
+            task_id, task_name, task_frame = _task.get_task()
 
             handle.push_task_id(task_id)
             handle.push_task_name(task_name)

@@ -85,7 +85,7 @@ class Frame
     [[nodiscard]] static Result<std::reference_wrapper<Frame>> get(EchionSampler& echion,
                                                                    PyCodeObject* code_addr,
                                                                    int lasti);
-    static Frame& get(StringTable::Key name);
+    static Frame& get(EchionSampler& echion, StringTable::Key name);
 
   private:
     [[nodiscard]] Result<void> inline infer_location(PyCodeObject* code, int lasti);
@@ -95,11 +95,3 @@ class Frame
 inline auto INVALID_FRAME = Frame(StringTable::INVALID);
 inline auto UNKNOWN_FRAME = Frame(StringTable::UNKNOWN);
 inline auto C_FRAME = Frame(StringTable::C_FRAME);
-
-// We make this a raw pointer to prevent its destruction on exit, since we
-// control the lifetime of the cache.
-inline LRUCache<uintptr_t, Frame>* frame_cache = nullptr;
-void
-init_frame_cache(size_t capacity);
-void
-reset_frame_cache();
