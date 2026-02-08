@@ -3,7 +3,8 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot @ git+https://github.com/DataDog/riot.git@264e6910d927e3043b6fdf2665bbb4643c724534",
+#     "riot>=0.20.1",
+#     "setuptools",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
