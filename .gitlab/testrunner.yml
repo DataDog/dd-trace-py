@@ -11,6 +11,7 @@ variables:
   timeout: 20m
   before_script:
     - ulimit -c unlimited
+    - pip uninstall riot && pip install git+https://github.com/DataDog/riot.git@264e6910d927e3043b6fdf2665bbb4643c724534
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
