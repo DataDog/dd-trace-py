@@ -287,7 +287,7 @@ Sampler::postfork_child()
 }
 
 void
-_stack_atfork_child()
+stack_atfork_child()
 {
     // The only thing we need to do at fork is to propagate the PID to echion
     // so we don't even reveal this function to the user
@@ -299,9 +299,9 @@ _stack_atfork_child()
 }
 
 __attribute__((constructor)) void
-_stack_init()
+stack_init()
 {
-    _stack_atfork_child();
+    stack_atfork_child();
 }
 
 void
