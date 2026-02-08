@@ -63,8 +63,22 @@ class OpenAIIntegration(BaseLLMIntegration):
         )
         if operation_id in traced_operations:
             submit_to_llmobs = True
+        # When the OpenAI agents SDK integration is active, it handles LLM span creation
+        # for responses API calls via its own trace processor. Skip submitting these operations
+        # to LLMObs from the OpenAI integration to avoid duplicate spans.
+        if operation_id in ("createResponse", "parseResponse") and self._is_agents_sdk_active():
+            submit_to_llmobs = False
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+
+    def _is_agents_sdk_active(self) -> bool:
+        """Check if the OpenAI agents SDK integration is active."""
+        try:
+            import agents
+
+            return getattr(agents, "_datadog_patch", False)
+        except ImportError:
+            return False
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span._set_tag_str(COMPONENT, self.integration_config.integration_name)
