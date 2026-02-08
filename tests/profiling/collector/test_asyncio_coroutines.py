@@ -4,6 +4,10 @@ import pytest
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_coroutines",
+        # Memory profiler currently does not export Python thread names, while
+        # this test checks thread names. Disable memory profiler to avoid flaky
+        # test results and check samples from stack profiler only.
+        DD_PROFILING_MEMORY_ENABLED="False",
     ),
     err=None,
 )
