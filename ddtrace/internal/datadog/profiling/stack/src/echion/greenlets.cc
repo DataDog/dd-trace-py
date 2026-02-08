@@ -30,6 +30,6 @@ GreenletInfo::unwind(EchionSampler& echion, PyObject* cur_frame, PyThreadState* 
 
     stack.push_back(Frame::get(echion, name));
 
-    return count + 1; // We add an extra count for the frame with the greenlet
-                      // name.
+    return static_cast<int>(count) + 1; // We add an extra count for the frame with the greenlet
+                                        // name.
 }
