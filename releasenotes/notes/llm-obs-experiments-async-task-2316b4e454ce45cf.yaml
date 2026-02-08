@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Adds async task support for experiments. Use the ``arun()`` method to run experiments
+    with async task functions in an async context.
