@@ -7,7 +7,6 @@ import mock
 from mock.mock import ANY
 import pytest
 
-from ddtrace.appsec._remoteconfiguration import _create_preprocess_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
 import ddtrace.internal.remoteconfig._connectors
@@ -108,17 +107,9 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
         MOCK_AGENT_RESPONSES = json.load(f)
 
     mock_callback = mock.MagicMock()
-    mock_preprocess = mock.MagicMock()
 
     def _mock_appsec_callback(features):
         mock_callback(features)
-
-    # Create a tracked preprocessing function
-    actual_preprocess = _create_preprocess_appsec_1click_activation()
-
-    def _tracked_preprocess(payload_list):
-        mock_preprocess(payload_list)
-        return actual_preprocess(payload_list)
 
     class Capabilities(enum.IntFlag):
         TEST = 16
@@ -128,7 +119,7 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
         rc_client = SyncRemoteConfigClient()
 
         # Register callback directly (new architecture)
-        rc_client.register_product("ASM_FEATURES", _mock_appsec_callback, preprocess=_tracked_preprocess)
+        rc_client.register_product("ASM_FEATURES", _mock_appsec_callback)
         rc_client.add_capabilities(Capabilities)
         capabilities = rc_client._encode_capabilities(Capabilities.TEST)
 
@@ -145,12 +136,10 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    mock_preprocess.assert_not_called()
     mock_callback.assert_not_called()
     mock_write.assert_not_called()
 
     mock_send_request.reset_mock()
-    mock_preprocess.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
 
@@ -167,15 +156,12 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0][0].content == {"asm": {"enabled": True}}
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0][0].content == {"asm": {"enabled": True}}
     write_calls = mock_write.call_args
     assert write_calls[0][1][0].content == {"asm": {"enabled": True}}
 
     mock_send_request.reset_mock()
-    mock_preprocess.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
 
@@ -207,15 +193,12 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0][0].content == {"asm": {"enabled": False}}
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0][0].content == {"asm": {"enabled": False}}
     write_calls = mock_write.call_args
     assert write_calls[0][1][0].content == {"asm": {"enabled": False}}
 
     mock_send_request.reset_mock()
-    mock_preprocess.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
 
@@ -247,13 +230,10 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0][0].content is None
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0][0].content is None
 
     mock_send_request.reset_mock()
-    mock_preprocess.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
 
@@ -274,15 +254,12 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0][0].content == {"asm": {"enabled": True}}
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0][0].content == {"asm": {"enabled": True}}
     write_calls = mock_write.call_args
     assert write_calls[0][1][0].content == {"asm": {"enabled": True}}
 
     mock_send_request.reset_mock()
-    mock_preprocess.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
 
@@ -327,14 +304,11 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0][-1].content == {"asm": {"enabled": True}}
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0][-1].content == {"asm": {"enabled": True}}
     write_calls = mock_write.call_args
     assert write_calls[0][1][-1].content == {"asm": {"enabled": True}}
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -380,14 +354,11 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0]
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0]
     write_calls = mock_write.call_args
     assert write_calls[0][1]
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -444,14 +415,11 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0][-1].content == {"asm": {"enabled": True}}
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0][-1].content == {"asm": {"enabled": True}}
     write_calls = mock_write.call_args
     assert write_calls[0][1][-1].content == {"asm": {"enabled": True}}
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -497,11 +465,9 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    mock_preprocess.assert_not_called()
     mock_callback.assert_not_called()
     mock_write.assert_not_called()
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -549,11 +515,9 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    mock_preprocess.assert_not_called()
     mock_callback.assert_not_called()
     mock_write.assert_not_called()
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -600,14 +564,11 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    preprocess_calls = mock_preprocess.call_args
-    assert preprocess_calls[0][0][-1].content == {"asm": {"enabled": True}}
     callback_calls = mock_callback.call_args
     assert callback_calls[0][0][-1].content == {"asm": {"enabled": True}}
     write_calls = mock_write.call_args
     assert write_calls[0][1][-1].content == {"asm": {"enabled": True}}
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -670,10 +631,8 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
     #  - datadog/2/ASM_FEATURES/ASM_FEATURES-second/config -> {"asm": {"enabled": False}}
     # Depends of the Python version, the order of this configuration could change and the result could be different
     # It doesn't matter because this problem can't exist on production
-    mock_preprocess.assert_called()
     mock_callback.assert_called()
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -732,11 +691,9 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    mock_preprocess.assert_not_called()
     mock_callback.assert_not_called()
     mock_write.assert_not_called()
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -800,11 +757,9 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    mock_preprocess.assert_not_called()
     mock_callback.assert_not_called()
     mock_write.assert_not_called()
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
@@ -868,11 +823,9 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
 
     rc_client.poll()
 
-    mock_preprocess.assert_not_called()
     mock_callback.assert_not_called()
     mock_write.assert_not_called()
 
-    mock_preprocess.reset_mock()
     mock_send_request.reset_mock()
     mock_callback.reset_mock()
     mock_write.reset_mock()
