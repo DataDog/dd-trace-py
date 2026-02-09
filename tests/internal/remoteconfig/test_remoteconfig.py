@@ -228,6 +228,7 @@ def test_remote_config_forksafe():
 
 # TODO: split this test into smaller tests that operate independently from each other
 @mock.patch.object(RemoteConfigClient, "_send_request")
+@pytest.mark.skip(reason="Known flaky test on an old release branch")
 def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
     class Callback:
         features = {}

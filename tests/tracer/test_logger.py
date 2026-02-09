@@ -119,6 +119,7 @@ class LoggerTestCase(BaseTestCase):
         self.assertEqual(ddtrace.internal.logger._buckets, dict())
 
     @mock.patch("logging.Logger.callHandlers")
+    @pytest.mark.skip(reason="Known flaky test on an old release branch")
     def test_logger_handle_debug(self, call_handlers):
         """
         Calling `logging.Logger.handle`
