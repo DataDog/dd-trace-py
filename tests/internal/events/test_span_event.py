@@ -4,6 +4,7 @@ from typing import Tuple
 
 import pytest
 
+from ddtrace._trace.subscribers._base import SpanTracingSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -32,6 +33,9 @@ def test_basic_span_context_event(test_spans):
         span_kind = "client"
         component = "test_component"
 
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
+
     with core.context_with_event(TestSpanEvent()):
         pass
 
@@ -53,6 +57,9 @@ def test_span_context_event_missing_required_field(test_spans):
         span_kind = "client"
         component = "component"
 
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
+
     with pytest.raises(AttributeError):
         with core.context_with_event(TestSpanEvent()):
             pass
@@ -70,6 +77,9 @@ def test_span_context_event_with_service_and_resource(test_spans):
         span_type = "test"
         span_kind = "client"
         component = "test_component"
+
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
 
     with core.context_with_event(TestSpanEvent(service="my-service", resource="/api/endpoint")):
         pass
@@ -99,6 +109,9 @@ def test_span_context_event_post_init(test_spans):
             self.component = self.something
             self.tags["my_url"] = self.url
 
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
+
     with core.context_with_event(TestSpanEvent(url="http://", something="foo")):
         pass
 
@@ -122,13 +135,16 @@ def test_span_context_event_with_custom_fields(test_spans):
         url: str = event_field(in_context=True)
         status_code: int = event_field(in_context=True)
 
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
+
         @classmethod
-        def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
             span._set_tag_str("http.url", ctx.get_item("url"))
 
         @classmethod
-        def _on_context_ended(
+        def on_ended(
             cls,
             ctx: core.ExecutionContext,
             exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
@@ -158,8 +174,11 @@ def test_span_context_event_inheritance(test_spans):
 
         url: str = event_field(in_context=True)
 
+    class BaseHTTPSubscriber(SpanTracingSubscriber):
+        event_name = BaseHTTPEvent.event_name
+
         @classmethod
-        def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
             span._set_tag_str("http.url", ctx.get_item("url"))
 
@@ -169,8 +188,11 @@ def test_span_context_event_inheritance(test_spans):
 
         method: str = event_field(in_context=True)
 
+    class HTTPClientSubscriber(BaseHTTPSubscriber):
+        event_name = HTTPClientEvent.event_name
+
         @classmethod
-        def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
             span._set_tag_str("http.method", ctx.get_item("method"))
 
@@ -195,6 +217,9 @@ def test_span_context_event_with_exception(test_spans):
         span_kind = "client"
         component = "test_component"
 
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
+
     with pytest.raises(ValueError):
         with core.context_with_event(TestSpanEvent()):
             raise ValueError("test error")
@@ -217,6 +242,9 @@ def test_span_context_event_call_trace_false_with_distributed_context(test_spans
         span_kind = "consumer"
         component = "test_component"
 
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
+
     with tracer.trace("local.processing"):
         with core.context_with_event(
             TestSpanEvent(call_trace=False, distributed_context=tracer.context_provider.active())
@@ -238,6 +266,9 @@ def test_span_context_event_end_span_false(test_spans):
         span_type = "test"
         span_kind = "client"
         component = "test_component"
+
+    class TestSpanSubscriber(SpanTracingSubscriber):
+        event_name = TestSpanEvent.event_name
         _end_span = False
 
     with core.context_with_event(TestSpanEvent()):
