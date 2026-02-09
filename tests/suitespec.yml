@@ -6,6 +6,7 @@ components:
     - riotfile.py
     - .riot/requirements/*
     - scripts/ddtest
+    - scripts/gen_gitlab_config.py
     - hatch.toml
     - tests/conftest.py
     - tests/utils.py
