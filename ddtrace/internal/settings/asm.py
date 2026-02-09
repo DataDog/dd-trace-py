@@ -197,7 +197,7 @@ class ASMConfig(DDConfig):
     # DOWNSTREAM REQUESTS INSTRUMENTATION
     # sample rate for body analysis
     _dr_sample_rate: float = DDConfig.var(
-        float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", default=0.5
+        float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5
     )
     # max number of downstream requests analysis  with bodies per request
     _dr_body_limit_per_request: int = DDConfig.var(
