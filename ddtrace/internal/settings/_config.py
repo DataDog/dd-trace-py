@@ -34,8 +34,10 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
@@ -547,6 +549,14 @@ class Config(object):
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
         )
 
+        # Emit deprecation warning if env var is set (still functional, removal in 5.0.0)
+        if "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED" in os.environ:
+            deprecate(
+                "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated",
+                message="128-bit trace ID generation will become mandatory in version 5.0.0.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
         self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
 
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)

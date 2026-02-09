@@ -268,12 +268,17 @@ codeowners:
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - export CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
+    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
+    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      if [ ! -z "$CHANGED_FILES" ]; then
-        ./codeowners "$CHANGED_FILES"
+      > /tmp/changed_files.txt
+      while IFS= read -r f; do
+        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
+      done < /tmp/changed_all.txt
+    - |
+      if [ -s /tmp/changed_files.txt ]; then
         echo '```' > codeowners.txt
-        echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
+        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - |

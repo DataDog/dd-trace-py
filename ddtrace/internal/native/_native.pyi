@@ -515,13 +515,26 @@ class SpanData:
     name: str
     service: Optional[str]
     resource: str
+    span_type: Optional[str]
+    start_ns: int
+    duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
+    error: int
+    start: float  # Convenience property: start_ns / 1e9 (in seconds)
+    duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
 
     def __new__(
         cls: type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,  # placeholder for Span.__init__
+        span_id: Optional[int] = None,  # placeholder for Span.__init__
+        parent_id: Optional[int] = None,  # placeholder for Span.__init__
+        start: Optional[float] = None,
     ) -> _SpanDataT: ...
+    @property
+    def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
 class SpanEventData:
     def __init__(self, name: str, attributes: Optional[dict[str, Any]], time_unix_nano: Optional[int]): ...
