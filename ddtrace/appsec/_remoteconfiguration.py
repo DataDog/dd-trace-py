@@ -43,12 +43,10 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
     """
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
 
-    # Register ASM_FEATURES with preprocessing (for 1-click activation)
     if _asm_feature_is_required():
         remoteconfig_poller.register(
             PRODUCTS.ASM_FEATURES,
             _appsec_callback,
-            preprocess=_create_preprocess_appsec_1click_activation(),
             capabilities=[_rc_capabilities()],
         )
 
@@ -86,6 +84,7 @@ class AppSecCallback(RCCallback):
             test_tracer: Optional tracer for testing purposes
         """
         self._test_tracer = test_tracer
+        self._cache: Dict[str, Dict[str, Any]] = {}
 
     def __call__(self, payloads: Sequence[Payload], test_tracer: Optional[Tracer] = None) -> None:
         """Process AppSec configuration payloads.
@@ -96,6 +95,18 @@ class AppSecCallback(RCCallback):
         """
         if not payloads:
             return
+        result = _update_asm_features(payloads, self._cache)
+        if "asm" in result:
+            if asm_config._asm_static_rule_file is None:
+                if result["asm"].get("enabled", False):
+                    # Register additional ASM products with the same callback
+                    remoteconfig_poller.register(PRODUCTS.ASM_DATA, self)  # IP Blocking
+                    remoteconfig_poller.register(PRODUCTS.ASM, self)  # Exclusion Filters & Custom Rules
+                    remoteconfig_poller.register(PRODUCTS.ASM_DD, self)  # DD Rules
+                else:
+                    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
+                    remoteconfig_poller.unregister(PRODUCTS.ASM)
+                    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
         debug_info = (
             f"appsec._remoteconfiguration.deb::_appsec_callback::payload"
             f"{tuple(p.path for p in payloads)}[{os.getpid()}][P: {os.getppid()}]"
@@ -189,78 +200,3 @@ def enable_asm():
             APIManager.enable()
         load_appsec()
         tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
-
-
-class AppSecPreprocessor:
-    """Preprocessor for AppSec 1-click activation."""
-
-    def __init__(self, appsec_callback: "AppSecCallback") -> None:
-        """Initialize the preprocessor.
-
-        Args:
-            appsec_callback: The main AppSec callback to use for registration
-        """
-        self._cache: Dict[str, Dict[str, Any]] = {}
-        self._appsec_callback = appsec_callback
-
-    def __call__(self, payload_list: List[Payload]) -> List[Payload]:
-        """Preprocess payloads to enable/disable ASM products.
-
-        The main process has the responsibility to enable or disable the ASM products.
-        The child processes don't care about that, the children only need to know about
-        payload content.
-
-        Args:
-            payload_list: List of payloads to preprocess
-
-        Returns:
-            The same payload list (preprocessing doesn't modify it)
-        """
-        result = _update_asm_features(payload_list, self._cache)
-        if "asm" in result:
-            if asm_config._asm_static_rule_file is None:
-                if result["asm"].get("enabled", False):
-                    # Register additional ASM products with the same callback
-                    remoteconfig_poller.register(PRODUCTS.ASM_DATA, self._appsec_callback)  # IP Blocking
-                    remoteconfig_poller.register(
-                        PRODUCTS.ASM, self._appsec_callback
-                    )  # Exclusion Filters & Custom Rules
-                    remoteconfig_poller.register(PRODUCTS.ASM_DD, self._appsec_callback)  # DD Rules
-                else:
-                    remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
-                    remoteconfig_poller.unregister(PRODUCTS.ASM)
-                    remoteconfig_poller.unregister(PRODUCTS.ASM_DD)
-        return payload_list
-
-
-# Keep old factory function for compatibility
-def _create_preprocess_appsec_1click_activation():
-    """Create a preprocessing function with its own cache for ASM 1-click activation.
-
-    DEPRECATED: Use AppSecPreprocessor instead.
-    """
-    # We need to use the global _appsec_callback singleton for compatibility
-    return AppSecPreprocessor(_appsec_callback)
-
-
-# Global preprocessor instance for backward compatibility
-_global_preprocessor = None
-
-
-def _preprocess_results_appsec_1click_activation(config: List[Any], pubsub: Any = None) -> List[Any]:
-    """Preprocess AppSec 1-click activation results.
-
-    DEPRECATED: This function exists for backward compatibility with tests.
-    Use AppSecPreprocessor class instead.
-
-    Args:
-        config: List of configuration payloads
-        pubsub: Unused (kept for backward compatibility)
-
-    Returns:
-        Processed configuration list
-    """
-    global _global_preprocessor
-    if _global_preprocessor is None:
-        _global_preprocessor = AppSecPreprocessor(_appsec_callback)
-    return _global_preprocessor(config)

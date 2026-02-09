@@ -12,7 +12,6 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import _appsec_callback
-from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
@@ -222,33 +221,32 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     with override_global_config(global_config):
         tracer.configure(appsec_enabled=True)
         enable_appsec_rc(tracer)
-        pubsub = rc_poller.get_registered(PRODUCTS.ASM_FEATURES)
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending nothing should not change anything (configuration is the same)
-        _preprocess_results_appsec_1click_activation(empty_config, pubsub)
+        _appsec_callback(empty_config, tracer)
 
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending empty config for asm should disable asm (meaning asm was deleted)
-        _preprocess_results_appsec_1click_activation(disable_config, pubsub)
+        _appsec_callback(disable_config, tracer)
 
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending nothing should not change anything (configuration is the same)
-        _preprocess_results_appsec_1click_activation(empty_config, pubsub)
+        _appsec_callback(empty_config, tracer)
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending config should enable asm again
-        _preprocess_results_appsec_1click_activation(enable_config, pubsub)
+        _appsec_callback(enable_config, tracer)
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
