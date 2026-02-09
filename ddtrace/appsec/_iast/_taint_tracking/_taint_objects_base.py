@@ -71,7 +71,7 @@ def get_tainted_ranges(pyobject: Any) -> tuple:
     try:
         return get_ranges(pyobject)
     except ValueError as e:
-        iast_propagation_error_log(f"get_tainted_ranges error (pyobject type {type(pyobject)})", exc=e)  # noqa: LOG001
+        iast_propagation_error_log(f"get_tainted_ranges error (pyobject type {type(pyobject)})", exc=e)
     return tuple()
 
 

@@ -16,17 +16,17 @@ EXCEPTIONS = {
     # only constant message can be log.error()
     "ddtrace/internal/telemetry/logging.py:21",
     # log.exception calls use constant messages
-    "ddtrace/contrib/internal/aws_lambda/patch.py:36",
+    "ddtrace/contrib/internal/aws_lambda/patch.py:35",
     # log.error in _probe/registry.py ends up with a log.debug()
-    "ddtrace/debugging/_probe/registry.py:137",
-    "ddtrace/debugging/_probe/registry.py:146",
+    "ddtrace/debugging/_probe/registry.py:135",
+    "ddtrace/debugging/_probe/registry.py:144",
     # we added a constant check for the wrapping method of add_error_log
-    "ddtrace/appsec/_iast/_metrics.py:53",
+    "ddtrace/appsec/_iast/_metrics.py:52",
     # we added a constant check for the wrapping method of iast_error
     "ddtrace/appsec/_iast/_logs.py:41",
     "ddtrace/appsec/_iast/_logs.py:45",
     # the non constant part is an object type
-    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:75",
+    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:74",
     # _safelog wrapper function dispatches to log methods with variable message
     "ddtrace/internal/writer/writer.py:103",
 }

@@ -49,7 +49,7 @@ def _set_iast_error_metric(msg: Text, exc: Union[BaseException, tuple, None] = N
     provides value and only adds noise. So now, those telemetry metrics are only emitted if IAST is in debug mode
     """
     if _is_iast_debug_enabled():
-        telemetry.telemetry_writer.add_error_log(msg, exc=exc)  # noqa: LOG001
+        telemetry.telemetry_writer.add_error_log(msg, exc=exc)
 
 
 @metric_verbosity(TELEMETRY_MANDATORY_VERBOSITY)
