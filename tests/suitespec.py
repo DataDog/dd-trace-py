@@ -1,5 +1,4 @@
 from functools import cache
-from itertools import chain
 from pathlib import Path
 import typing as t
 
@@ -8,25 +7,22 @@ from ruamel.yaml import YAML  # noqa
 
 TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
-SEARCH_ROOTS = (TESTS, BENCHMARKS)
+SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 
 
 def _collect_suitespecs() -> dict:
-    # Recursively search for suitespec.yml in TESTS
     suitespec = {"components": {}, "suites": {}}
 
     specfiles = []
-    for root in SEARCH_ROOTS:
+    for root, ns_prefix in SEARCH_ROOTS:
         for f in root.rglob("suitespec.yml"):
-            specfiles.append((f, root))
+            specfiles.append((f, root, ns_prefix))
 
-    for specfile, root in specfiles:
-        try:
-            namespace = "::".join(specfile.relative_to(Path(root).parents[0]).parts[:-1]) or None
-        except IndexError:
-            namespace = None
+    for s, root, ns_prefix in specfiles:
+        path_parts = s.relative_to(root).parts[:-1]
+        namespace = "::".join(path_parts) if path_parts else ns_prefix or None
         with YAML() as yaml:
-            data = yaml.load(specfile)
+            data = yaml.load(s)
             suites = data.get("suites", {})
             if namespace is not None:
                 for name, spec in list(suites.items()):

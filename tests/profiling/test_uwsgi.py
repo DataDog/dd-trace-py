@@ -15,6 +15,7 @@ The tests spawn actual uwsgi processes and verify:
 2. Valid configurations produce actual profile samples in each worker
 """
 
+import glob
 from importlib.metadata import version
 import os
 import pathlib
@@ -203,11 +204,12 @@ def _wait_for_profile_samples(
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            profile = pprof_utils.parse_newest_profile(
-                "%s.%d" % (filename_prefix, pid),
-                assert_samples=False,
-                allow_penultimate=True,
-            )
+            files = glob.glob(f"{filename_prefix}.*.pprof")
+            if not files:
+                raise FileNotFoundError(f"No profile files found for {filename_prefix}")
+
+            profiles = [pprof_utils.parse_profile(f) for f in files]
+            profile = pprof_utils.merge_profiles(profiles)
         except (IndexError, FileNotFoundError):
             time.sleep(interval)
             continue

@@ -5,7 +5,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include <echion/strings.h>
 #include <echion/threads.h>
+
+#include "stack_renderer.hpp"
 
 class EchionSampler
 {
@@ -32,9 +35,17 @@ class EchionSampler
     std::optional<Frame::Key> frame_cache_key_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
+    // Caches
+    StringTable string_table_;
+
+    // Stack renderer for outputting samples
+    Datadog::StackRenderer renderer_;
+
   public:
     EchionSampler() = default;
     ~EchionSampler() = default;
+
+    Datadog::StackRenderer& renderer() { return renderer_; }
 
     std::unordered_map<uintptr_t, ThreadInfo::Ptr>& thread_info_map() { return thread_info_map_; }
     std::mutex& thread_info_map_lock() { return thread_info_map_lock_; }
@@ -60,12 +71,19 @@ class EchionSampler
     std::optional<Frame::Key>& frame_cache_key() { return frame_cache_key_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
+    // Accessor for StringTable operations
+    StringTable& string_table() { return string_table_; }
+    const StringTable& string_table() const { return string_table_; }
+
     void postfork_child()
     {
         // Re-init mutexes (placement new to avoid UB)
         new (&thread_info_map_lock_) std::mutex;
         new (&task_link_map_lock_) std::mutex;
         new (&greenlet_info_map_lock_) std::mutex;
+
+        // Reset string_table mutex
+        string_table_.postfork_child();
 
         // Clear stale entries from parent process.
         // No lock needed: only one thread exists in child immediately after fork.
