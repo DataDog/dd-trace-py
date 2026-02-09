@@ -114,11 +114,11 @@ class ScoreStructuredOutput(BaseStructuredOutput):
 class CategoricalStructuredOutput(BaseStructuredOutput):
     """Categorical structured output selecting from predefined categories.
 
+    Categories are provided as a dict mapping category values to their descriptions.
     Use ``pass_values`` to define which categories count as passing.
     """
 
-    description: str
-    categories: list[str]
+    categories: dict[str, str]
     reasoning: bool = False
     reasoning_description: Optional[str] = None
     pass_values: Optional[list[str]] = None
@@ -128,7 +128,8 @@ class CategoricalStructuredOutput(BaseStructuredOutput):
         return "categorical_eval"
 
     def to_json_schema(self) -> dict[str, Any]:
-        return self._build_schema({"type": "string", "description": self.description, "enum": self.categories})
+        any_of = [{"const": value, "description": desc} for value, desc in self.categories.items()]
+        return self._build_schema({"type": "string", "anyOf": any_of})
 
 
 StructuredOutput = Union[
@@ -212,16 +213,21 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
         if system:
             kwargs["system"] = system
         if json_schema:
-            # Anthropic doesn't support minimum/maximum for number properties in json schema.
-            # The range should be described in the description instead.
             schema_copy = json.loads(json.dumps(json_schema))
             for prop_val in schema_copy.get("properties", {}).values():
-                if isinstance(prop_val, dict) and prop_val.get("type") == "number":
+                if not isinstance(prop_val, dict):
+                    continue
+                # Anthropic doesn't support minimum/maximum for number properties in json schema.
+                # The range should be described in the description instead.
+                if prop_val.get("type") == "number":
                     min_val = prop_val.pop("minimum", None)
                     max_val = prop_val.pop("maximum", None)
                     if min_val is not None or max_val is not None:
                         range_str = f" (range: {min_val} to {max_val})"
                         prop_val["description"] = prop_val.get("description", "") + range_str
+                # Anthropic doesn't support 'type' on properties that use 'anyOf'.
+                if "anyOf" in prop_val:
+                    prop_val.pop("type", None)
             # Use beta API for structured outputs
             kwargs["extra_headers"] = {"anthropic-beta": "structured-outputs-2025-11-13"}
             kwargs["extra_body"] = {"output_format": {"type": "json_schema", "schema": schema_copy}}
@@ -332,8 +338,11 @@ class LLMJudge(BaseEvaluator):
                     model="gpt-5-mini",
                     user_prompt="Classify the sentiment: {{output_data}}",
                     structured_output=CategoricalStructuredOutput(
-                        description="Sentiment classification",
-                        categories=["positive", "neutral", "negative"],
+                        categories={
+                            "positive": "The response has a positive sentiment",
+                            "neutral": "The response has a neutral sentiment",
+                            "negative": "The response has a negative sentiment",
+                        },
                         pass_values=["positive", "neutral"],
                     ),
                 )

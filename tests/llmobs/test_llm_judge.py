@@ -28,10 +28,13 @@ class TestStructuredOutputTypes:
         assert schema["properties"]["score_eval"]["maximum"] == 1.0
 
     def test_categorical_output_schema(self):
-        output = CategoricalStructuredOutput("Sentiment", categories=["pos", "neg"])
+        output = CategoricalStructuredOutput(categories={"pos": "Positive sentiment", "neg": "Negative sentiment"})
         schema = output.to_json_schema()
         assert output.label == "categorical_eval"
-        assert schema["properties"]["categorical_eval"]["enum"] == ["pos", "neg"]
+        assert schema["properties"]["categorical_eval"]["anyOf"] == [
+            {"const": "pos", "description": "Positive sentiment"},
+            {"const": "neg", "description": "Negative sentiment"},
+        ]
 
 
 class TestLLMJudge:
@@ -115,7 +118,8 @@ class TestLLMJudge:
             model="test-model",
             user_prompt="Classify: {{output_data}}",
             structured_output=CategoricalStructuredOutput(
-                "Sentiment", categories=["positive", "negative"], pass_values=["positive"]
+                categories={"positive": "Positive sentiment", "negative": "Negative sentiment"},
+                pass_values=["positive"],
             ),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="Great!"))
