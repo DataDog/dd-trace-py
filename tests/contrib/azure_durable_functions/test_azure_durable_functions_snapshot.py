@@ -9,11 +9,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_CONTEXT as ACTIVITY_CTX
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ACTIVITY_TRIGGER_NAME as ACTIVITY_NAME
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_CONTEXT as ENTITY_CTX
-from ddtrace.contrib.internal.azure_durable_functions.patch import _DURABLE_ENTITY_TRIGGER_NAME as ENTITY_NAME
-from ddtrace.contrib.internal.azure_durable_functions.patch import _wrap_durable_trigger
+from ddtrace.contrib.internal.azure_functions.utils import wrap_durable_trigger
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -93,8 +89,8 @@ def _wait_for_durable_completion(client: Client, response) -> None:
 @pytest.mark.parametrize(
     "func_name, trigger_name, context_name",
     [
-        ("sample_activity", ACTIVITY_NAME, ACTIVITY_CTX),
-        ("sample_entity", ENTITY_NAME, ENTITY_CTX),
+        ("sample_activity", "Activity", "azure.durable_functions.patched_activity"),
+        ("sample_entity", "Entity", "azure.durable_functions.patched_entity"),
     ],
 )
 def test_trigger_wrapper(func_name, trigger_name, context_name):
@@ -104,7 +100,7 @@ def test_trigger_wrapper(func_name, trigger_name, context_name):
         def trigger_func():
             return "ok"
 
-        wrapped = _wrap_durable_trigger(
+        wrapped = wrap_durable_trigger(
             pin,
             trigger_func,
             func_name,
