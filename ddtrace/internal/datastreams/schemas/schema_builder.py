@@ -19,11 +19,21 @@ class SchemaBuilder:
     CACHE: Dict[str, Schema] = {}
     properties = 0
 
-    def __init__(self, iterator):
+    def __init__(self, iterator: SchemaIterator) -> None:
         self.schema: OpenApiSchema = OpenApiSchema()
         self.iterator: SchemaIterator = iterator
 
-    def add_property(self, schema_name, field_name, is_array, type_, description, ref, format_, enum_values):
+    def add_property(
+        self,
+        schema_name: str,
+        field_name: str,
+        is_array: bool,
+        type_: Optional[str],
+        description: Optional[str],
+        ref: Optional[str],
+        format_: Optional[str],
+        enum_values: Optional[List[Any]],
+    ) -> bool:
         if self.properties >= self.max_properties:
             return False
         self.properties += 1
@@ -62,7 +72,7 @@ class OpenApiSchema:
 
     @dataclass
     class Property:
-        type: str
+        type: Optional[str]
         description: Optional[str] = None
         ref: Optional[str] = field(default=None, metadata={"name": "$ref"})
         format: Optional[str] = None

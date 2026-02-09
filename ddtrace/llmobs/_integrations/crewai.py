@@ -413,7 +413,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             flow_span._set_ctx_item(SPAN_LINKS, flow_span_span_links)
         return
 
-    def _llmobs_set_span_link_on_task(self, span, args, kwargs):
+    def _llmobs_set_span_link_on_task(self, span: Optional[Span], args: Any, kwargs: Any) -> None:
         """Set span links for the next queued task in a CrewAI workflow.
         This happens between task executions, (the current span is the crew span and the task span hasn't started yet)
         so we create span links to be set on the task span once it starts later.

@@ -386,7 +386,7 @@ def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
     return _get_attr(system_prompt, "content", None)
 
 
-def _get_tools_from_react_agent(tools):
+def _get_tools_from_react_agent(tools: Any) -> Optional[List[Dict[str, Any]]]:
     """
     Get the tools for the agent manifest passed into the react agent.
 

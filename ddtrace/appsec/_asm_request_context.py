@@ -654,7 +654,7 @@ def tornado_block(_integration, handler, block):
     return handler.finish(_get_blocked_template(content_type, block.block_id))
 
 
-def tornado_call_waf_first(integration, handler):
+def tornado_call_waf_first(integration: str, handler: Any) -> None:
     if not asm_config._asm_enabled:
         return
     info = f"{integration}::srb_on_request"
@@ -668,7 +668,7 @@ def tornado_call_waf_first(integration, handler):
     request_headers = get_headers() or {}
     parsed_body = handler.request.body_arguments
     if parsed_body:
-        parsed_body = {k: v[0] if len(v) == 1 else list[v] for k, v in parsed_body.items()}
+        parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
     else:
         _body: bytes = handler.request.body
         try:

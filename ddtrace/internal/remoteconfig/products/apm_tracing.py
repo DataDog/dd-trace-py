@@ -45,7 +45,7 @@ class APMTracingAdapter(PubSub):
     __subscriber_class__ = RemoteConfigSubscriber
     __shared_data__ = PublisherSubscriberConnector()
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._publisher = self.__publisher_class__(self.__shared_data__)
         self._subscriber = self.__subscriber_class__(self.__shared_data__, self.rc_callback, "APM_TRACING")
 

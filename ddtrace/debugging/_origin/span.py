@@ -118,7 +118,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
 
         return self
 
-    def _close_signal(self, retval=None, exc_info=(None, None, None)):
+    def _close_signal(self, retval: t.Any = None, exc_info: t.Tuple[t.Any, t.Any, t.Any] = (None, None, None)) -> None:
         if not self.__enabled__:
             return
 

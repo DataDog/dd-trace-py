@@ -8,6 +8,7 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -426,7 +427,7 @@ class Config(object):
                     return True
             return False
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
 
@@ -435,7 +436,7 @@ class Config(object):
         self._config = _default_config()
 
         # Use a dict as underlying storing mechanism for integration configs
-        self._integration_configs = {}
+        self._integration_configs: Dict[str, IntegrationConfig] = {}
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
@@ -506,11 +507,11 @@ class Config(object):
         if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
-        self._extra_services = set()
+        self._extra_services: Set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
 
-        self._extra_services_sent = set()  # type: set[str]
+        self._extra_services_sent: Set[str] = set()
         self._extra_services_queue = None
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
