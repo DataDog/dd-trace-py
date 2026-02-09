@@ -19,11 +19,11 @@ jobs:
       && (
         (
           github.event.action == 'closed'
-          && contains(join(github.event.pull_request.labels.*.name, ','), 'backport')
+          && contains(join(github.event.pull_request.labels.*.name, ','), 'backport ')
         )
         || (
           github.event.action == 'labeled'
-          && contains(github.event.label.name, 'backport')
+          && contains(github.event.label.name, 'backport ')
         )
       )
     steps:
@@ -38,10 +38,34 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - name: Execute Backport
-        id: create-commit
+      - name: Collect Backport Labels (Labeled Event)
+        if: github.event.action == 'labeled'
         env:
           BACKPORT_LABEL: ${{ github.event.label.name }}
+        run: |
+          rm -f /tmp/backport-labels.sorted.txt
+          if echo "${BACKPORT_LABEL}" | grep -Eq '^backport [0-9]+\.[0-9]+$'; then
+            echo "${BACKPORT_LABEL}" > /tmp/backport-labels.sorted.txt
+          else
+            echo "Label '${BACKPORT_LABEL}' does not match expected format 'backport x.y'."
+            exit 1
+          fi
+
+      - name: Collect Backport Labels (Closed Event)
+        if: github.event.action == 'closed'
+        run: |
+          rm -f /tmp/backport-labels.sorted.txt
+          jq -r '.pull_request.labels[].name | select(test("^backport [0-9]+\\.[0-9]+$"))' "${GITHUB_EVENT_PATH}" \
+            | sort -u \
+            > /tmp/backport-labels.sorted.txt
+          if [ ! -s /tmp/backport-labels.sorted.txt ]; then
+            echo "No backport labels found for this merged PR."
+            exit 1
+          fi
+
+      - name: Execute Backport
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BRANCH: ${{ github.head_ref }}
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
@@ -49,46 +73,42 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
-          if [ -z "${BACKPORT_LABEL}" ]; then
-            BACKPORT_LABEL=$(jq -r '.pull_request.labels[].name | select(contains("backport"))' "${GITHUB_EVENT_PATH}" | head -n1)
-          fi
-          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
-          if [ -z "${TARGET_BRANCH}" ]; then
-            echo "No backport label/target branch found for this event."
-            exit 1
-          fi
           MERGE_COMMIT=$(git rev-parse HEAD)
-          WORKTREE=".worktrees/backport-${TARGET_BRANCH}"
-          BACKPORT_BRANCH="backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
-          git worktree add ${WORKTREE} ${TARGET_BRANCH}
-          cd ${WORKTREE}
-          git branch -D ${BACKPORT_BRANCH} || true
-          echo "switching"
-          git switch --create ${BACKPORT_BRANCH}
-          echo "cherrypicking"
-          git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
+          while IFS= read -r BACKPORT_LABEL; do
+            TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+            WORKTREE=".worktrees/backport-${TARGET_BRANCH}"
+            BACKPORT_BRANCH="backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
 
-          echo "branch=${BACKPORT_BRANCH}" | tee -a "$GITHUB_OUTPUT"
-          echo "branch-from=$(git rev-parse ${TARGET_BRANCH})" | tee -a "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse HEAD)" | tee -a "$GITHUB_OUTPUT"
-          echo "target-branch=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+            echo "Backporting ${MERGE_COMMIT} to ${TARGET_BRANCH}"
+            git worktree add ${WORKTREE} ${TARGET_BRANCH}
+            cd ${WORKTREE}
+            git branch -D ${BACKPORT_BRANCH} || true
+            git switch --create ${BACKPORT_BRANCH}
 
-      - name: Push Commit
-        uses: DataDog/commit-headless@action/v2.0.3
-        with:
-          branch: ${{ steps.create-commit.outputs.branch }}
-          branch-from: ${{ steps.create-commit.outputs.branch-from }}
-          command: push
-          commits: ${{ steps.create-commit.outputs.commit }}
-          force: true
+            set +e
+            CHERRYPICK_OUT=$(git cherry-pick -x --mainline 1 ${MERGE_COMMIT} 2>&1)
+            CHERRYPICK_STATUS=$?
+            set -e
+            if [ "${CHERRYPICK_STATUS}" -ne 0 ]; then
+              echo "${CHERRYPICK_OUT}"
+              git cherry-pick --abort || true
+              exit 1
+            fi
 
-      - name: Create PR
-        env:
-          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
-        run: |
-          gh pr create \
-            --title "${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]" \
-            --body "Backport #${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}" \
-            --base ${{ steps.create-commit.outputs.target-branch }} \
-            --head ${{ steps.create-commit.outputs.branch }} \
+            git push --force origin ${BACKPORT_BRANCH}
+            cd "${GITHUB_WORKSPACE}"
+            git worktree remove -f ${WORKTREE}
+
+            EXISTING_PR=$(gh pr list --state open --base ${TARGET_BRANCH} --head ${BACKPORT_BRANCH} --json number --jq '.[0].number')
+            if [ -z "${EXISTING_PR}" ]; then
+              gh pr create \
+                --title "${PR_TITLE} [backport ${TARGET_BRANCH}]" \
+                --body "Backport #${PR_NUMBER} to ${TARGET_BRANCH}" \
+                --base ${TARGET_BRANCH} \
+                --head ${BACKPORT_BRANCH}
+            else
+              echo "Backport PR already exists for ${TARGET_BRANCH}: #${EXISTING_PR}"
+            fi
+          done < /tmp/backport-labels.sorted.txt
