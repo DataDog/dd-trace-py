@@ -79,6 +79,7 @@ tests-gen:
     paths:
       - .gitlab/tests-gen.yml
       - .gitlab/benchmarks/microbenchmarks-gen.yml
+      - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
 run-tests-trigger:
  stage: tests
