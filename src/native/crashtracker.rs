@@ -28,7 +28,7 @@ pub trait RustWrapper {
 }
 
 // We redefine the Enum here to expose it to Python as libdd_crashtracker::StacktraceCollection
-// is defined in an external crate.
+// is defined in an external crate. v2
 #[pyclass(
     eq,
     eq_int,
