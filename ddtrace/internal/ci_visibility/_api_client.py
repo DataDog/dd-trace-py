@@ -113,6 +113,7 @@ class TestVisibilityAPISettings:
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
     known_tests_enabled: bool = False
+    coverage_report_upload_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     test_management: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
@@ -409,6 +410,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
             )
             known_tests_enabled = attributes["known_tests_enabled"]
+            coverage_report_upload_enabled = attributes.get("coverage_report_upload_enabled", False)
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
@@ -452,6 +454,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             known_tests_enabled=known_tests_enabled,
             early_flake_detection=early_flake_detection,
             test_management=test_management,
+            coverage_report_upload_enabled=coverage_report_upload_enabled,
         )
 
         record_settings_response(

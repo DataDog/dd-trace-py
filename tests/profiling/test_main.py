@@ -71,13 +71,19 @@ def test_fork(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
-    stdout, _, exitcode, pid = call_program(
-        "python", os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
+    stdout, stderr, exitcode, pid = call_program(
+        sys.executable, os.path.join(os.path.dirname(__file__), "simple_program_fork.py"), env=env
     )
-    assert exitcode == 0
+    assert exitcode == 0, stderr
     stdout = stdout.decode() if isinstance(stdout, bytes) else stdout
     child_pid = stdout.strip()
-    profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}", allow_penultimate=True)
+
+    # Merge all pprof files for parent PID
+    all_files_for_pid = sorted([x for x in os.listdir(tmp_path) if ".pprof" in x])
+    parent_files = [str(tmp_path / f) for f in all_files_for_pid if f".{str(pid)}." in f]
+    parent_profiles = [pprof_utils.parse_profile(f) for f in parent_files]
+    parent_profile = pprof_utils.merge_profiles(parent_profiles)
+
     parent_expected_acquire_events = [
         pprof_utils.LockAcquireEvent(
             caller_name="<module>",
@@ -95,11 +101,15 @@ def test_fork(tmp_path: Path) -> None:
         ),
     ]
     pprof_utils.assert_lock_events(
-        profile,
+        parent_profile,
         expected_acquire_events=parent_expected_acquire_events,
         expected_release_events=parent_expected_release_events,
+        print_samples_on_failure=True,
     )
-    child_profile = pprof_utils.parse_newest_profile(f"{filename}.{child_pid}")
+
+    # Merge all pprof files for child PID
+    child_files = [str(tmp_path / f) for f in all_files_for_pid if f".{str(child_pid)}." in f]
+    child_profile = pprof_utils.merge_profiles([pprof_utils.parse_profile(f) for f in child_files])
     # We expect the child profile to not have lock events from the parent process
     # Note that assert_lock_events function only checks that the given events
     # exists, and doesn't assert that other events don't exist.
@@ -135,6 +145,7 @@ def test_fork(tmp_path: Path) -> None:
                 lock_name="lock",
             ),
         ],
+        print_samples_on_failure=True,
     )
 
 

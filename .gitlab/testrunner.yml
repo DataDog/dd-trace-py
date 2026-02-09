@@ -16,8 +16,12 @@ variables:
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   retry: 2
   artifacts:
+    when: always
+    paths:
+      - core.*
     reports:
       junit: test-results/junit*.xml
+    expire_in: 1 week
 
 .testrunner_gpu:
   extends: .testrunner

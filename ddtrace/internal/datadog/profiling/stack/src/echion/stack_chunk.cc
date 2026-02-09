@@ -6,6 +6,17 @@
 Result<void>
 StackChunk::update(_PyStackChunk* chunk_addr)
 {
+    return update_with_depth(chunk_addr, 0);
+}
+
+// ----------------------------------------------------------------------------
+Result<void>
+StackChunk::update_with_depth(_PyStackChunk* chunk_addr, size_t depth)
+{
+    if (depth >= kMaxChunkDepth) {
+        return ErrorKind::StackChunkError;
+    }
+
     _PyStackChunk chunk;
 
     if (copy_type(chunk_addr, chunk)) {
@@ -32,10 +43,14 @@ StackChunk::update(_PyStackChunk* chunk_addr)
     }
 
     if (chunk.previous != NULL) {
+        if (chunk.previous == chunk_addr) {
+            previous = nullptr;
+            return Result<void>::ok();
+        }
         if (previous == nullptr)
             previous = std::make_unique<StackChunk>();
 
-        auto update_success = previous->update(reinterpret_cast<_PyStackChunk*>(chunk.previous));
+        auto update_success = previous->update_with_depth(reinterpret_cast<_PyStackChunk*>(chunk.previous), depth + 1);
         if (!update_success) {
             previous = nullptr;
         }
