@@ -103,7 +103,7 @@ def _multiproc_do_tracer_flare(
 ):
     """Helper for multiprocessing partial failure test."""
     try:
-        # Create Flare and ReturnAction inside the process to avoid pickling issues
+        # Create Flare and FlareAction inside the process to avoid pickling issues
         data_manager = native_flare.TracerFlareManager(trace_agent_url, "python")
         send_request = setup_task_request(data_manager, case_id, hostname, email, uuid)
 
@@ -127,7 +127,7 @@ def _multiproc_do_tracer_flare(
 
 def setup_task_request(
     manager: native_flare.TracerFlareManager, case_id: str, hostname: str, email: str, uuid: str
-) -> native_flare.ReturnAction:
+) -> native_flare.FlareAction:
     config = {
         "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
         "task_type": "tracer_flare",
@@ -542,7 +542,7 @@ class TracerFlareTests(TestCase):
 
     def test_uuid_field_validation(self):
         """
-        Validate that uuid field is properly handled in the ReturnAction
+        Validate that uuid field is properly handled in the FlareAction
         """
         self.flare.prepare("DEBUG")
         self.prepare_called = True
@@ -680,7 +680,7 @@ class TracerFlareMultiprocessTests(unittest.TestCase):
         processes = []
 
         # Create successful process - use module-level function for pickling
-        # Flare objects and ReturnActions are created inside the process to avoid pickling issues
+        # Flare objects and FlareActions are created inside the process to avoid pickling issues
         p = multiprocessing.Process(
             target=_multiproc_do_tracer_flare,
             args=("DEBUG", *MOCK_FLARE_SEND_REQUEST, TRACE_AGENT_URL, self.shared_dir, self.errors),

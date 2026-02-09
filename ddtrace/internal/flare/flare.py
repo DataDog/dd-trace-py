@@ -45,9 +45,9 @@ class Flare:
         self._api_key: Optional[str] = api_key
         self.ddconfig = ddconfig
 
-        self._createnative_manager()
+        self._create_native_manager()
 
-    def _createnative_manager(self):
+    def _create_native_manager(self):
         """Create or recreate the native manager to ensure clean state."""
         self.native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
 
@@ -75,25 +75,25 @@ class Flare:
         self._setup_flare_logging(flare_log_level_int)
         return True
 
-    def send(self, return_action: native_flare.ReturnAction):
+    def send(self, flare_action: native_flare.FlareAction):
         """
         Revert tracer flare configurations back to original state
         before sending the flare.
         """
         # Always revert configs and cleanup, even for invalid requests
         try:
-            if return_action.is_send() is False:
+            if flare_action.is_send() is False:
                 return
             self.revert_configs()
 
             # Ensure the flare directory exists (it might have been deleted by clean_up_files)
             self.flare_dir.mkdir(exist_ok=True)
 
-            self._send_flare_request(return_action)
+            self._send_flare_request(flare_action)
         finally:
             self.clean_up_files()
             # Recreate the native manager to reset its state for the next flare
-            self._createnative_manager()
+            self._create_native_manager()
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")
@@ -153,7 +153,7 @@ class Flare:
         valid_original_level = 100 if self.original_log_level == 0 else self.original_log_level
         return min(valid_original_level, flare_log_level)
 
-    def _send_flare_request(self, return_action: native_flare.ReturnAction):
+    def _send_flare_request(self, flare_action: native_flare.FlareAction):
         """
         Send the flare request to the agent.
         """
@@ -167,8 +167,8 @@ class Flare:
             log.debug("Sending tracer flare using native implementation")
 
             # Use native zip_and_send
-            self.native_manager.zip_and_send(str(self.flare_dir.absolute()), return_action)  # type: ignore
-            log.info("Successfully sent the flare to Zendesk ticket %s", return_action.case_id)
+            self.native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)  # type: ignore
+            log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
 
     def clean_up_files(self):
         """Clean up the flare directory using Python's shutil."""

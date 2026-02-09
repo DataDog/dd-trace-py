@@ -57,9 +57,9 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             if not isinstance(item, dict):
                 log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(item)))
                 continue
-            return_action = self.flare.native_manager.handle_remote_config_data(item, product_type)
+            flare_action = self.flare.native_manager.handle_remote_config_data(item, product_type)
 
-            if return_action.is_set():
+            if flare_action.is_set():
                 # We will only process one tracer flare request at a time
                 if self.current_request_start is not None:
                     log.warning(
@@ -69,10 +69,10 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                     continue
                 log.info("Preparing tracer flare")
 
-                log_level = return_action.level
+                log_level = flare_action.level
                 if self.flare.prepare(log_level):
                     self.current_request_start = datetime.now()
-            elif return_action.is_send():
+            elif flare_action.is_send():
                 # Edge case: AGENT_TASK received without prior AGENT_CONFIG
                 # Start the flare job now with default settings before sending
                 if self.current_request_start is None:
@@ -87,7 +87,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 log.info("Generating and sending tracer flare")
 
                 self.flare.revert_configs()
-                self.flare.send(return_action)
+                self.flare.send(flare_action)
                 self.current_request_start = None
             else:
                 log.warning("Received unexpected product type for tracer flare: {}", product_type)

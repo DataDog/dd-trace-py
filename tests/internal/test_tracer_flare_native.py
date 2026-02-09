@@ -47,28 +47,6 @@ class TestTracerFlareNativeBindings:
         assert hasattr(native_flare.LogLevel, "CRITICAL")
         assert hasattr(native_flare.LogLevel, "OFF")
 
-    def test_return_action_static_constructors(self):
-        """Test that ReturnAction static constructors work"""
-        try:
-            from ddtrace.internal.native._native import native_flare
-        except ImportError:
-            pytest.skip("Native tracer flare module not available")
-
-        # Test ReturnAction.none()
-        none_action = native_flare.ReturnAction.none()
-        assert none_action.is_none() is True
-        assert none_action.is_send() is False
-        assert none_action.is_set() is False
-        assert none_action.is_unset() is False
-
-        # Test ReturnAction.unset()
-        unset_action = native_flare.ReturnAction.unset()
-        assert unset_action.is_unset() is True
-        assert unset_action.is_none() is False
-
-        # Note: ReturnAction.send() is no longer exposed to Python
-        # It's only used internally when processing remote config data
-
     def test_agent_task_file(self):
         """Test that AgentTaskFile is not exposed (internal only)"""
         try:

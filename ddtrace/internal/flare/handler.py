@@ -1,8 +1,6 @@
 from typing import Callable
 
 from ddtrace.internal.flare.flare import Flare
-
-# from ddtrace.internal.flare.flare import FlareSendRequest
 from ddtrace.internal.logger import get_logger
 
 
@@ -43,17 +41,17 @@ def _handle_tracer_flare(flare: Flare, data: dict):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
             continue
         config_data = c.get("config", {})
-        return_action = flare.native_manager.handle_remote_config_data(config_data, product_type)
+        flare_action = flare.native_manager.handle_remote_config_data(config_data, product_type)
 
-        if return_action.is_send():
+        if flare_action.is_send():
             flare.revert_configs()
-            flare.send(return_action)
+            flare.send(flare_action)
 
-        elif return_action.is_set():
-            log_level = return_action.level
+        elif flare_action.is_set():
+            log_level = flare_action.level
             flare.prepare(log_level)
 
-        elif return_action.is_unset():
+        elif flare_action.is_unset():
             log.info("Reverting tracer flare configurations and cleaning up any generated files")
             flare.revert_configs()
             flare.clean_up_files()
