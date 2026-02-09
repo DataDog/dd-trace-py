@@ -300,7 +300,7 @@ class IastSpanReporter(NotNoneDictable):
         - pyobject (Any): Python object.
 
         Returns:
-        - tuple[set[Source], list[dict]]: set of Source objects and list of tainted ranges as dictionaries.
+        - tuple[set[Source], list[dict]]: Set of Source objects and list of tainted ranges as dictionaries.
         """
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 

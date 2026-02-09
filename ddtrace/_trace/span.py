@@ -582,7 +582,7 @@ class Span(SpanData):
             return True
 
         if not isinstance(value[0], (str, bool, int, float)):
-            log.warning("record_exception: list values %s must be string, number, or boolean: %s.", key, value)
+            log.warning("record_exception: List values %s must be string, number, or boolean: %s.", key, value)
             return False
 
         first_type = type(value[0])
