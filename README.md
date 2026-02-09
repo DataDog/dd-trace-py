@@ -28,4 +28,4 @@ For information about the bug/security fix and maintenance policy, see the [vers
 [visualization docs]: https://docs.datadoghq.com/tracing/visualization/
 [versioning docs]: https://github.com/DataDog/dd-trace-py/blob/main/docs/versioning.rst#release-support
 
-v3
+v4
