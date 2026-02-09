@@ -32,7 +32,7 @@ class DDLambdaLogger:
 
     def exception(self, msg, *args, exc_info=True, **kwargs):
         if self.is_cold_start:
-            self.logger.error(msg, *args, exc_info=exc_info, **kwargs)
+            self.logger.error(msg, *args, exc_info=exc_info, **kwargs)  # noqa: LOG001
 
     def warning(self, msg, *args, **kwargs):
         if self.is_cold_start:

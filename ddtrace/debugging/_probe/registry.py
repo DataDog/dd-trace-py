@@ -132,7 +132,7 @@ class ProbeRegistry(dict):
         """Set the error message for a probe."""
         with self._lock:
             self[probe.probe_id].set_error(error_type, message)
-            self.logger.error(probe, (error_type, message))
+            self.logger.error(probe, (error_type, message))  # noqa: LOG001
 
     def _log_probe_status_unlocked(self, entry: ProbeRegistryEntry) -> None:
         if entry.emitting:
@@ -141,7 +141,7 @@ class ProbeRegistry(dict):
             self.logger.installed(entry.probe)
         elif entry.error_type:
             assert entry.message is not None, entry  # nosec
-            self.logger.error(entry.probe, error=(entry.error_type, entry.message))
+            self.logger.error(entry.probe, error=(entry.error_type, entry.message))  # noqa: LOG001
         else:
             self.logger.received(entry.probe)
 
