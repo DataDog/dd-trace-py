@@ -173,10 +173,6 @@ class Span(SpanData):
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
-
-        # trace_id already set by SpanData.__new__ (provided value or auto-generated 128-bit)
         # Set mode flag — controls whether getter returns full 128-bit or lower 64 bits
         self._trace_id_128bit_mode = config._128_bit_trace_id_enabled
         self.parent_id: Optional[int] = parent_id
@@ -228,30 +224,6 @@ class Span(SpanData):
         if not self._store:
             return None
         return self._store.get(key)
-
-    @property
-    def start(self) -> float:
-        """The start timestamp in Unix epoch seconds."""
-        return self.start_ns / 1e9
-
-    @start.setter
-    def start(self, value: Union[int, float]) -> None:
-        self.start_ns = int(value * 1e9)
-
-    @property
-    def finished(self) -> bool:
-        return self.duration_ns is not None
-
-    @property
-    def duration(self) -> Optional[float]:
-        """The span duration in seconds."""
-        if self.duration_ns is not None:
-            return self.duration_ns / 1e9
-        return None
-
-    @duration.setter
-    def duration(self, value: float) -> None:
-        self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
