@@ -1156,7 +1156,7 @@ experiments:
           # rand
           - name: rand-rand64bits
             thresholds:
-              - execution_time < 0.15 ms
+              - execution_time < 0.015 ms
           - name: rand-rand128bits
             thresholds:
-              - execution_time < 0.21 ms
+              - execution_time < 0.021 ms
