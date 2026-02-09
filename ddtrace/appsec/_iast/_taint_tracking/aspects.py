@@ -114,6 +114,7 @@ __all__ = [
     "str_aspect",
     "stringio_aspect",
     "swapcase_aspect",
+    "template_string_aspect",
     "title_aspect",
     "translate_aspect",
     "upper_aspect",
@@ -234,6 +235,127 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
 
 def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
     return join_aspect("".join, 1, "", args)
+
+
+def _template_string_build_parts(
+    args: Tuple[Any, ...],
+    interpolation_type: Any,
+    use_str_aspect_for_format_spec: bool,
+    collect_taint_info: bool,
+) -> Tuple[List[Any], List[Tuple[int, Any]]]:
+    template_parts: List[Any] = []
+    taint_info: List[Tuple[int, Any]] = []
+
+    current_offset = 0
+    for arg in args:
+        if isinstance(arg, tuple) and len(arg) == 4:
+            value, expr_text, conversion, format_spec = arg
+
+            if format_spec is None:
+                format_spec_str = ""
+            elif isinstance(format_spec, str):
+                format_spec_str = format_spec
+            else:
+                format_spec_str = (
+                    str_aspect(str, 0, format_spec) if use_str_aspect_for_format_spec else str(format_spec)
+                )
+
+            if collect_taint_info and is_pyobject_tainted(value):
+                ranges = get_ranges(value)
+                if ranges:
+                    taint_info.append((current_offset, ranges))
+
+            template_parts.append(
+                interpolation_type(
+                    value=value,
+                    expression=expr_text,
+                    conversion=conversion,
+                    format_spec=format_spec_str,
+                )
+            )
+            current_offset += len(str(value))
+        else:
+            if isinstance(arg, str):
+                string_part = arg
+            elif arg is not None:
+                string_part = str(arg)
+            else:
+                string_part = ""
+
+            if collect_taint_info and is_pyobject_tainted(string_part):
+                ranges = get_ranges(string_part)
+                if ranges:
+                    taint_info.append((current_offset, ranges))
+
+            template_parts.append(string_part)
+            current_offset += len(string_part)
+
+    return template_parts, taint_info
+
+
+def template_string_aspect(*args: List[Any]) -> Any:
+    """
+    Aspect for PEP-750 template strings (t-strings).
+
+    Template strings evaluate to a Template object at runtime. This aspect
+    reconstructs the Template object from the AST-provided arguments and handles
+    taint propagation.
+
+    The visitor passes:
+    - String constants: as regular strings
+    - Interpolations: as tuples of (value, expr_text, conversion, format_spec)
+
+    For example, t"Hello {name}" becomes:
+        template_string_aspect("Hello ", (name_value, "name", None, ""))
+
+    If any interpolated value is tainted, the entire Template object is tainted.
+
+    Returns: Template object (from string.templatelib)
+    """
+    # Import Template and Interpolation from string.templatelib (Python 3.14+)
+    from string.templatelib import Interpolation
+    from string.templatelib import Template
+
+    try:
+        template_parts, taint_info = _template_string_build_parts(
+            tuple(args),
+            Interpolation,
+            use_str_aspect_for_format_spec=True,
+            collect_taint_info=True,
+        )
+
+        # Ensure we have at least one part
+        if len(template_parts) == 0:
+            template_parts.append("")
+
+        # Create the Template object
+        template = Template(*template_parts)
+
+        # Apply taint if any values were tainted
+        if taint_info:
+            all_ranges = []
+            for offset, ranges in taint_info:
+                for r in ranges:
+                    shifted_range = shift_taint_range(r, offset)
+                    all_ranges.append(shifted_range)
+
+            if all_ranges:
+                taint_pyobject_with_ranges(template, tuple(all_ranges))
+
+        return template
+    except Exception as e:
+        iast_propagation_error_log("template_string_aspect", e)
+
+        fallback_parts, _ = _template_string_build_parts(
+            tuple(args),
+            Interpolation,
+            use_str_aspect_for_format_spec=False,
+            collect_taint_info=False,
+        )
+        if not fallback_parts:
+            fallback_parts.append("")
+
+        return Template(*fallback_parts)
 
 
 def ljust_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> TEXT_TYPES:

@@ -60,7 +60,9 @@ function(dd_wrapper_add_test name)
                    ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp")
 
     if(LIB_INSTALL_DIR)
-        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        get_filename_component(_test_install_dir "${LIB_INSTALL_DIR}" DIRECTORY)
+        set(_test_install_dir "${_test_install_dir}/test")
+        install(TARGETS ${name} RUNTIME DESTINATION ${_test_install_dir})
     endif()
 endfunction()
 
