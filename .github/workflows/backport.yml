@@ -30,7 +30,7 @@ jobs:
           scope: DataDog/dd-trace-py
           policy: self.backport.create-pr
 
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -65,7 +65,7 @@ jobs:
           echo "target-branch=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
 
       - name: Push Commit
-        uses: DataDog/commit-headless@action/v0.5.2
+        uses: DataDog/commit-headless@action/v2.0.3
         with:
           branch: ${{ steps.create-commit.outputs.branch }}
           branch-from: ${{ steps.create-commit.outputs.branch-from }}

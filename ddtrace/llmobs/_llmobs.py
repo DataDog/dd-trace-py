@@ -1413,7 +1413,11 @@ class LLMObs(Service):
             span = cls._instance._current_span()
             if span is None:
                 telemetry.record_span_exported(span, "no_active_span")
-                raise LLMObsExportSpanError("No span provided and no active LLMObs-generated span found.")
+                raise LLMObsExportSpanError(
+                    "No span provided and no active LLMObs-generated span found. "
+                    "Ensure you pass the span explicitly using LLMObs.export_span(span=<your_span>) "
+                    "when exporting from a different thread or async task than where the span was created."
+                )
         error = None
         try:
             if span.span_type != SpanTypes.LLM:
@@ -1854,7 +1858,11 @@ class LLMObs(Service):
                 span = cls._instance._current_span()
                 if span is None:
                     error = "invalid_span_no_active_spans"
-                    raise LLMObsExportSpanError("No span provided and no active LLMObs-generated span found.")
+                    raise LLMObsExportSpanError(
+                        "No span provided and no active LLMObs-generated span found. "
+                        "Ensure you pass the span explicitly using LLMObs.annotate(span=<your_span>, ...) "
+                        "when annotating from a different thread or async task than where the span was created."
+                    )
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span_type"
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
@@ -2125,9 +2133,9 @@ class LLMObs(Service):
                 raise ValueError("label value must not contain a '.'.")
 
             metric_type = metric_type.lower()
-            if metric_type not in ("categorical", "score", "boolean"):
+            if metric_type not in ("categorical", "score", "boolean", "json"):
                 error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
+                raise ValueError("metric_type must be one of 'categorical', 'score', 'boolean', or 'json'.")
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
@@ -2138,6 +2146,9 @@ class LLMObs(Service):
             if metric_type == "boolean" and not isinstance(value, bool):
                 error = "invalid_metric_value"
                 raise TypeError("value must be a boolean for a boolean metric.")
+            if metric_type == "json" and not isinstance(value, dict):
+                error = "invalid_metric_value"
+                raise TypeError("value must be a dict for a json metric.")
 
             if tags is not None and not isinstance(tags, dict):
                 raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
