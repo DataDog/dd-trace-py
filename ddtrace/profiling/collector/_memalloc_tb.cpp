@@ -8,6 +8,7 @@
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
+
 /* Helper function to convert PyUnicode object to string_view
  * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
  * The pointer remains valid as long as the PyObject is alive */
@@ -96,6 +97,9 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
+    // Save any existing error state to avoid masking errors during traceback construction/reset
+    PythonErrorRestorer error_restorer;
+
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0
