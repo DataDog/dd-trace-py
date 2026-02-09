@@ -148,13 +148,13 @@ impl SpanData {
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<&Bound<'p, PyAny>>,
         span_type: Option<&Bound<'p, PyAny>>,
-        trace_id: Option<&Bound<'p, PyAny>>,   // placeholder, not used
-        span_id: Option<&Bound<'p, PyAny>>,    // placeholder, not used
-        parent_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
-        start: Option<&Bound<'p, PyAny>>,      // USED: in seconds (float or int)
-        context: Option<&Bound<'p, PyAny>>,    // placeholder, not used
-        on_finish: Option<&Bound<'p, PyAny>>,  // placeholder, not used
-        span_api: Option<&Bound<'p, PyAny>>,   // USED: tracing API identifier
+        trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        span_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
+        parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        start: Option<&Bound<'p, PyAny>>,
+        context: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        span_api: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
