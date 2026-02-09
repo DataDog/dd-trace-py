@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import time
 from unittest import mock
@@ -13,6 +14,9 @@ from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+
+
+TESTING_GEVENT = bool(os.getenv("DD_PROFILE_TEST_GEVENT", False))
 
 
 def test_status():
@@ -328,3 +332,19 @@ def test_user_threads_have_native_id():
     t.join()
 
     p.stop()
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_ENABLED="false",
+        DD_PROFILING_STACK_ENABLED="true",
+    )
+)
+def test_gevent_not_patched_when_profiling_disabled():
+    import gevent
+
+    from ddtrace.profiling.collector import _task  # noqa: F401
+
+    assert gevent.Greenlet.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.spawn.__module__ != "ddtrace.profiling._gevent"

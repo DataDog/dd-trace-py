@@ -8,64 +8,62 @@ from .. import _threading
 from ddtrace.internal.settings.profiling import config
 
 
-# Patch gevent only when profiling is enabled
-if config.enabled:
-    if (is_stack := config.stack.enabled):
+if (is_stack := config.stack.enabled):
 
-        @when_imported("gevent")
-        def _(gevent):
-            from .. import _gevent
+    @when_imported("gevent")
+    def _(gevent):
+        from .. import _gevent
 
-            _gevent.patch()
+        _gevent.patch()
 
-    else:
-        _gevent_tracer = None
+else:
+    _gevent_tracer = None
 
 
-        @when_imported("gevent")
-        def install_greenlet_tracer(gevent):
-            global _gevent_tracer
+    @when_imported("gevent")
+    def install_greenlet_tracer(gevent):
+        global _gevent_tracer
 
-            try:
-                import gevent.hub
-                import gevent.thread
-                from greenlet import getcurrent
-                from greenlet import greenlet
-                from greenlet import settrace
-            except ImportError:
-                # We don't seem to have the required dependencies.
-                return
+        try:
+            import gevent.hub
+            import gevent.thread
+            from greenlet import getcurrent
+            from greenlet import greenlet
+            from greenlet import settrace
+        except ImportError:
+            # We don't seem to have the required dependencies.
+            return
 
-            class DDGreenletTracer(object):
-                def __init__(self, gevent):
-                    # type: (ModuleType) -> None
-                    self.gevent = gevent
+        class DDGreenletTracer(object):
+            def __init__(self, gevent):
+                # type: (ModuleType) -> None
+                self.gevent = gevent
 
-                    self.previous_trace_function = settrace(self)
-                    self.greenlets = weakref.WeakValueDictionary()
-                    self.active_greenlet = getcurrent()
-                    self._store_greenlet(self.active_greenlet)
+                self.previous_trace_function = settrace(self)
+                self.greenlets = weakref.WeakValueDictionary()
+                self.active_greenlet = getcurrent()
+                self._store_greenlet(self.active_greenlet)
 
-                def _store_greenlet(
-                        self,
-                        greenlet,  # type: greenlet.greenlet
-                ):
-                    # type: (...) -> None
-                    self.greenlets[gevent.thread.get_ident(greenlet)] = greenlet
+            def _store_greenlet(
+                    self,
+                    greenlet,  # type: greenlet.greenlet
+            ):
+                # type: (...) -> None
+                self.greenlets[gevent.thread.get_ident(greenlet)] = greenlet
 
-                def __call__(self, event, args):
-                    if event in ('switch', 'throw'):
-                        # Do not trace gevent Hub: the Hub is a greenlet but we want to know the latest active greenlet *before*
-                        # the application yielded back to the Hub. There's no point showing the Hub most of the time to the
-                        # users as that does not give any information about user code.
-                        if not isinstance(args[1], gevent.hub.Hub):
-                            self.active_greenlet = args[1]
-                            self._store_greenlet(args[1])
+            def __call__(self, event, args):
+                if event in ('switch', 'throw'):
+                    # Do not trace gevent Hub: the Hub is a greenlet but we want to know the latest active greenlet *before*
+                    # the application yielded back to the Hub. There's no point showing the Hub most of the time to the
+                    # users as that does not give any information about user code.
+                    if not isinstance(args[1], gevent.hub.Hub):
+                        self.active_greenlet = args[1]
+                        self._store_greenlet(args[1])
 
-                    if self.previous_trace_function is not None:
-                        self.previous_trace_function(event, args)
+                if self.previous_trace_function is not None:
+                    self.previous_trace_function(event, args)
 
-            _gevent_tracer = DDGreenletTracer(gevent)
+        _gevent_tracer = DDGreenletTracer(gevent)
 
 
 cdef _asyncio_task_get_frame(task):
