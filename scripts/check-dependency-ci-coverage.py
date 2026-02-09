@@ -6,6 +6,7 @@
 #     "packaging>=23.1,<24",
 #     "requests>=2.28,<3",
 #     "riot>=0.19.0",
+#     "setuptools<82",
 # ]
 # ///
 """
