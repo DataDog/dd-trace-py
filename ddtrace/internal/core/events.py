@@ -152,7 +152,7 @@ def context_event(cls: Any) -> Any:
 
 
 @dataclass
-class ContextEvent:
+class ContextEvent(Event):
     """ContextEvent is an abstraction created to constrain the arguments that can be passed
     during a call to core.context_with_data()
 
