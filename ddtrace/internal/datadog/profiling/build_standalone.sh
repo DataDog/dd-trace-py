@@ -109,7 +109,7 @@ cmake_args=(
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   -DCMAKE_VERBOSE_MAKEFILE=ON
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
-  -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+  -DPython3_ROOT_DIR=$(python3 -c "import sys; print(sys.prefix)")
   -DNATIVE_EXTENSION_LOCATION=$(realpath $MY_DIR)/../../native
   -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 )
@@ -192,7 +192,12 @@ run_cmake() {
   fi
   if [[ " ${cmake_args[*]} " =~ " -DBUILD_TESTING=ON " ]]; then
     echo "--------------------------------------------------------------------- Running Tests"
-    ctest ${ctest_args[*]} --output-on-failure || { echo "tests failed!"; exit 1; }
+    if command -v nproc &> /dev/null; then
+      NPROC=$(nproc)
+    else
+      NPROC=$(getconf _NPROCESSORS_ONLN)
+    fi
+    ctest -j${NPROC} ${ctest_args[*]} --output-on-failure || { echo "tests failed!"; exit 1; }
   fi
 
   # OK, the build or whatever went fine I guess.

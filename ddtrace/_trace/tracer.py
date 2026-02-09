@@ -6,7 +6,7 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-from threading import RLock
+from threading import Lock
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -154,9 +154,10 @@ class Tracer(object):
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
+        atexit.register_on_exit_signal(self._atexit)
         forksafe.register(self._child_after_fork)
 
-        self._shutdown_lock = RLock()
+        self._shutdown_lock = Lock()
 
         self._new_process = False
 
@@ -387,20 +388,7 @@ class Tracer(object):
             self._endpoint_call_counter_span_processor,
         )
 
-    def _start_span_after_shutdown(
-        self,
-        name: str,
-        child_of: Optional[Union[Span, Context]] = None,
-        service: Optional[str] = None,
-        resource: Optional[str] = None,
-        span_type: Optional[str] = None,
-        activate: bool = False,
-        span_api: str = SPAN_API_DATADOG,
-    ) -> Span:
-        log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
-        return self._start_span(name, child_of, service, resource, span_type, activate, span_api)
-
-    def _start_span(
+    def start_span(
         self,
         name: str,
         child_of: Optional[Union[Span, Context]] = None,
@@ -567,7 +555,23 @@ class Tracer(object):
         core.dispatch("trace.span_start", (span,))
         return span
 
-    start_span = _start_span
+    _start_span = start_span
+
+    def _start_span_after_shutdown(
+        self,
+        name: str,
+        child_of: Optional[Union[Span, Context]] = None,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        activate: bool = False,
+        span_api: str = SPAN_API_DATADOG,
+    ) -> Span:
+        span = self._start_span(name, child_of, service, resource, span_type, activate, span_api)
+        log.warning(
+            "Spans started after the tracer has been shut down will not be sent to the Datadog Agent: %s.", span
+        )
+        return span
 
     def _on_span_finish(self, span: Span) -> None:
         active = self.current_span()
@@ -875,8 +879,10 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        with self._shutdown_lock:
-            # Thread safety: Ensures tracer is shutdown synchronously
+        if not self._shutdown_lock.acquire(blocking=False):
+            # Already shutting down from this or another thread — skip re-entrant call
+            return
+        try:
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)
@@ -889,3 +895,5 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+        finally:
+            self._shutdown_lock.release()
