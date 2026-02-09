@@ -4,6 +4,7 @@
 # requires-python = ">=3.9"
 # dependencies = [
 #     "riot>=0.20.1",
+#     "setuptools<82",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -357,9 +358,9 @@ def gen_pre_checks() -> None:
         paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
     )
     check(
-        name="Check project dependency bounds",
-        command="scripts/check-dependency-bounds",
-        paths={"pyproject.toml"},
+        name="Check project dependencies",
+        command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
+        paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
     )
     check(
         name="Check package version",

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 import sqlite3
 import subprocess
 from typing import AsyncGenerator
@@ -116,6 +117,7 @@ class HomeHandler(BaseHandler):
 
 
 class AsmHandler(BaseHandler):
+    # only str are possible with path params on tornado
     async def _handle(self, param_int: int, param_str: str) -> None:
         query_params = self._query_params()
         body = {
@@ -211,8 +213,12 @@ class RaspHandler(BaseHandler):
                     if param.startswith("filename"):
                         filename = query_params[param]
                     try:
-                        with open(filename, "rb") as f:
-                            res.append(f"File: {f.read()}")
+                        if param.startswith("filename_pathlib"):
+                            with Path(filename).open("rb") as f:
+                                res.append(f"File (pathlib): {f.read()}")
+                        else:
+                            with open(filename, "rb") as f:
+                                res.append(f"File: {f.read()}")
                     except Exception as e:
                         res.append(f"Error: {e}")
                 _set_rasp_done(endpoint)
@@ -558,7 +564,7 @@ def get_app() -> tornado.web.Application:
     app = tornado.web.Application(
         [
             (r"/", HomeHandler),
-            (r"/asm/(?P<param_int>\d+)/(?P<param_str>[^/]+)/?", AsmHandler),
+            (r"/asm/(\d+)/([^/]+)/?", AsmHandler),
             (r"/asm/?", AsmNoParamHandler),
             (r"/new_service/(?P<service_name>[^/]+)/?", NewServiceHandler, {"app": None}),
             (r"/stream/?", StreamHandler),

@@ -6,6 +6,7 @@ from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
+from ddtrace.debugging._probe.model import CaptureExpression
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import LiteralTemplateSegment
 from ddtrace.debugging._probe.model import LogFunctionProbe
@@ -35,6 +36,17 @@ def compile_template(*args):
             segments.append(ExpressionTemplateSegment(DDRedactedExpression.compile(arg)))
 
     return {"template": template, "segments": segments}
+
+
+def compile_capture_expressions(exprs):
+    return {
+        "capture_expressions": [
+            CaptureExpression(
+                name=expr["name"], expr=DDRedactedExpression.compile(expr["expr"]), limits=DEFAULT_CAPTURE_LIMITS
+            )
+            for expr in exprs
+        ],
+    }
 
 
 def ddexpr(json, dsl="test"):
@@ -76,6 +88,7 @@ def log_probe_defaults(f):
         kwargs.setdefault("take_snapshot", False)
         kwargs.setdefault("rate", DEFAULT_PROBE_RATE)
         kwargs.setdefault("limits", DEFAULT_CAPTURE_LIMITS)
+        kwargs.setdefault("capture_expressions", [])
         return f(*args, **kwargs)
 
     return _wrapper
@@ -84,6 +97,19 @@ def log_probe_defaults(f):
 def snapshot_probe_defaults(f):
     def _wrapper(*args, **kwargs):
         kwargs.setdefault("take_snapshot", True)
+        kwargs.setdefault("rate", DEFAULT_SNAPSHOT_PROBE_RATE)
+        kwargs.setdefault("limits", DEFAULT_CAPTURE_LIMITS)
+        kwargs.setdefault("template", "")
+        kwargs.setdefault("segments", [])
+        kwargs.setdefault("capture_expressions", [])
+        return f(*args, **kwargs)
+
+    return _wrapper
+
+
+def capture_expressions_probe_defaults(f):
+    def _wrapper(*args, **kwargs):
+        kwargs.setdefault("take_snapshot", False)
         kwargs.setdefault("rate", DEFAULT_SNAPSHOT_PROBE_RATE)
         kwargs.setdefault("limits", DEFAULT_CAPTURE_LIMITS)
         kwargs.setdefault("template", "")
@@ -139,6 +165,21 @@ def create_snapshot_line_probe(**kwargs):
 @timing_defaults
 @snapshot_probe_defaults
 def create_snapshot_function_probe(**kwargs):
+    return LogFunctionProbe(**kwargs)
+
+
+@create_probe_defaults
+@probe_conditional_defaults
+@capture_expressions_probe_defaults
+def create_capture_expressions_line_probe(**kwargs):
+    return LogLineProbe(**kwargs)
+
+
+@create_probe_defaults
+@probe_conditional_defaults
+@timing_defaults
+@capture_expressions_probe_defaults
+def create_capture_expressions_function_probe(**kwargs):
     return LogFunctionProbe(**kwargs)
 
 

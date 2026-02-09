@@ -61,6 +61,7 @@ class Subdomain(str, Enum):
     API = "api"
     CITESTCYCLE = "citestcycle-intake"
     CITESTCOV = "citestcov-intake"
+    CICOVREPRT = "ci-intake"
 
 
 RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}

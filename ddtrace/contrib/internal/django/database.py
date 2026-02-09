@@ -8,7 +8,6 @@ from typing import Tuple
 from typing import Type
 from typing import cast
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
@@ -82,7 +81,6 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         else:
             pin = Pin(tags=tags)
             pin.onto(cursor.cursor)
-        pin._tracer = config_django._tracer or pin._tracer or ddtrace.tracer
         return cursor
 
     # Always wrap Django database cursors:
@@ -146,9 +144,7 @@ def get_conn_pin(conn: Any) -> Pin:
                 tags[tag] = str(conn.settings_dict.get(attr))
 
     service = get_conn_service_name(alias)
-    tracer = config_django._tracer or ddtrace.tracer
     pin = Pin(service, tags=tags)
-    pin._tracer = tracer
     return pin
 
 

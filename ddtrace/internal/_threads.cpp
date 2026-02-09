@@ -3,6 +3,7 @@
 
 #include "structmember.h"
 
+#include <cstring>
 #include <stddef.h>
 
 #include <chrono>
@@ -10,6 +11,124 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+
+// Platform-specific includes for thread naming
+#if defined(__linux__)
+#include <pthread.h>
+#elif defined(__APPLE__)
+#include <pthread.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#include <pthread.h>
+#include <pthread_np.h>
+#endif
+
+// ----------------------------------------------------------------------------
+/**
+ * Truncate thread names with format "module.path:ClassName".
+ * Prioritizes keeping the part after the colon (class name) as it's more useful.
+ */
+static void
+truncate_at_class_name(char* dest, size_t dest_size, const char* name)
+{
+    size_t name_len = strlen(name);
+
+    // If the name fits, just copy it
+    if (name_len < dest_size) {
+        strcpy(dest, name);
+        return;
+    }
+
+    // Look for a colon separator (e.g., "some.module:SomeThreadSubclass")
+    const char* colon = strchr(name, ':');
+    if (colon != NULL) {
+        // Skip the colon to get the class name part
+        const char* class_name = colon + 1;
+        size_t class_name_len = strlen(class_name);
+
+        // If the class name fits, use it; otherwise truncate it
+        if (class_name_len < dest_size) {
+            strcpy(dest, class_name);
+        } else {
+            strncpy(dest, class_name, dest_size - 1);
+            dest[dest_size - 1] = '\0';
+        }
+    } else {
+        // No colon found, just truncate from the start
+        strncpy(dest, name, dest_size - 1);
+        dest[dest_size - 1] = '\0';
+    }
+}
+
+// ----------------------------------------------------------------------------
+/**
+ * Set the native thread name for the current thread.
+ * This is a cross-platform utility that handles platform-specific APIs.
+ */
+static void
+set_native_thread_name(PyObject* name_obj)
+{
+    if (name_obj == Py_None || name_obj == NULL) {
+        return;
+    }
+
+    // Extract the thread name as a UTF-8 C string
+    const char* name = PyUnicode_AsUTF8(name_obj);
+    if (name == NULL) {
+        PyErr_Clear(); // Clear any error and continue without setting the name
+        return;
+    }
+
+#if defined(__linux__)
+    // Linux: pthread_setname_np with thread handle and name (max 15 chars + null terminator)
+    char truncated_name[16];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(pthread_self(), truncated_name);
+
+#elif defined(__APPLE__)
+    // macOS: pthread_setname_np with just the name (applies to current thread)
+    // macOS has a longer limit but we'll still truncate for safety
+    char truncated_name[64];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(truncated_name);
+
+#elif defined(_WIN32)
+    // Windows 10+: SetThreadDescription (no length limit in practice)
+    // Convert UTF-8 to wide string
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, name, -1, NULL, 0);
+    if (wlen > 0) {
+        wchar_t* wname = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+        if (wname != NULL) {
+            MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, wlen);
+            SetThreadDescription(GetCurrentThread(), wname);
+            free(wname);
+        }
+    }
+
+#elif defined(__FreeBSD__)
+    // FreeBSD: pthread_set_name_np (no documented length limit, but use truncation for safety)
+    char truncated_name[64];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_set_name_np(pthread_self(), truncated_name);
+
+#elif defined(__OpenBSD__)
+    // OpenBSD: pthread_setname_np with just the name (similar limits to Linux)
+    char truncated_name[32];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(pthread_self(), truncated_name);
+
+#elif defined(__NetBSD__)
+    // NetBSD: pthread_setname_np with format string
+    char truncated_name[32];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(pthread_self(), "%s", (void*)truncated_name);
+
+#else
+    // Unsupported platform: do nothing
+    (void)name; // Suppress unused variable warning
+#endif
+}
 
 // ----------------------------------------------------------------------------
 /**
@@ -105,6 +224,10 @@ class Event
     void set()
     {
         std::lock_guard<std::mutex> lock(_mutex);
+
+        if (_set)
+            return;
+
         _set = true;
         _cond.notify_all();
     }
@@ -293,6 +416,9 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
         }
 
+        // Set the native thread name for better debugging and profiling
+        set_native_thread_name(self->name);
+
         // Mark the thread as started from this point.
         self->_started->set();
 
@@ -311,7 +437,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
                     // Awake signal
                     self->_request->clear();
-                    self->_served->set();
                 }
             }
 
@@ -328,7 +453,14 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
                 error = true;
                 break;
             }
+
+            // If this came from a request mark it as served
+            self->_served->set();
         }
+
+        // Set request served in case any threads are waiting while a thread is
+        // stopping.
+        self->_served->set();
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.

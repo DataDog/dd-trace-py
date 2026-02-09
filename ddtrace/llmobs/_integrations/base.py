@@ -14,8 +14,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
-from ddtrace.trace import Span
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -52,9 +53,9 @@ class BaseLLMIntegration:
         """
         span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
         span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
-        parent_context = kwargs.get("parent_context") or pin.tracer.context_provider.active()
+        parent_context = kwargs.get("parent_context") or tracer.context_provider.active()
 
-        span = pin.tracer.start_span(
+        span = tracer.start_span(
             span_name,
             child_of=parent_context,
             service=int_service(pin, self.integration_config),

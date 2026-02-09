@@ -1,6 +1,6 @@
 name: Backport
 on:
-  pull_request_target:
+  pull_request:
     types:
       - closed
       - labeled
@@ -30,11 +30,55 @@ jobs:
           scope: DataDog/dd-trace-py
           policy: self.backport.create-pr
 
-      - uses: tibdex/backport@9565281eda0731b1d20c4025c43339fb0a23812e # v2.0.4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          github_token: ${{ steps.octo-sts.outputs.token }}
-          body_template: "Backport <%= mergeCommitSha %> from #<%= number %> to <%= base %>.\n\n<%= body %>"
-          label_pattern: "^backport (?<base>([0-9]+\\.[0-9]+))$"
-          # Include the original labels from the merged PR (minus any matching label_pattern)
-          labels_template: "<% print(JSON.stringify(labels)) %>"
-          title_template: "<%= title %> [backport <%= base %>]"
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Execute Backport
+        id: create-commit
+        env:
+          BACKPORT_LABEL: ${{ github.event.label.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+          TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+          MERGE_COMMIT=$(git rev-parse HEAD)
+          WORKTREE=".worktrees/backport-${TARGET_BRANCH}"
+          BACKPORT_BRANCH="backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
+
+          git worktree add ${WORKTREE} ${TARGET_BRANCH}
+          cd ${WORKTREE}
+          git branch -D ${BACKPORT_BRANCH} || true
+          echo "switching"
+          git switch --create ${BACKPORT_BRANCH}
+          echo "cherrypicking"
+          git cherry-pick -x --mainline 1 ${MERGE_COMMIT}
+
+          echo "branch=${BACKPORT_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+          echo "branch-from=$(git rev-parse ${TARGET_BRANCH})" | tee -a "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" | tee -a "$GITHUB_OUTPUT"
+          echo "target-branch=${TARGET_BRANCH}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Push Commit
+        uses: DataDog/commit-headless@action/v2.0.3
+        with:
+          branch: ${{ steps.create-commit.outputs.branch }}
+          branch-from: ${{ steps.create-commit.outputs.branch-from }}
+          command: push
+          commits: ${{ steps.create-commit.outputs.commit }}
+          force: true
+
+      - name: Create PR
+        env:
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+        run: |
+          gh pr create \
+            --title "${{ github.event.pull_request.title }} [backport ${{ steps.create-commit.outputs.target-branch }}]" \
+            --body "Backport #${{ github.event.pull_request.number }} to ${{ steps.create-commit.outputs.target-branch }}" \
+            --base ${{ steps.create-commit.outputs.target-branch }} \
+            --head ${{ steps.create-commit.outputs.branch }} \

@@ -88,7 +88,11 @@ class SessionManager:
         )
 
         self.upload_git_data()
-        self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        if self.settings.itr_enabled:
+            self.skippable_items, self.itr_correlation_id = self.api_client.get_skippable_tests()
+        else:
+            self.skippable_items = set()
+            self.itr_correlation_id = None
         if self.settings.require_git:
             # Fetch settings again after uploading git data, as it may change ITR settings.
             self.settings = self.api_client.get_settings()
@@ -132,6 +136,7 @@ class SessionManager:
 
     def finish_collection(self) -> None:
         self.setup_retry_handlers()
+        self.collected_tests.clear()
 
     def setup_retry_handlers(self) -> None:
         if self.settings.test_management.enabled:
@@ -163,6 +168,30 @@ class SessionManager:
         self.writer.start()
         self.coverage_writer.start()
         atexit.register(self.finish)
+
+    def upload_coverage_report(
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+    ) -> bool:
+        """
+        Upload a coverage report to Datadog CI Intake.
+
+        This creates a temporary API client connection to upload the coverage report.
+
+        Args:
+            coverage_report_bytes: The coverage report content (will be gzipped by the API client)
+            coverage_format: The format of the report (lcov, cobertura, jacoco, clover, opencover, simplecov)
+            tags: Optional additional tags to include in the event
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        try:
+            result = self.api_client.upload_coverage_report(coverage_report_bytes, coverage_format, tags)
+            return result
+
+        except Exception as e:
+            log.exception("Error uploading coverage report: %s", e)
+            return False
 
     def finish(self) -> None:
         # Avoid being called again by atexit if we've already been called by the pytest plugin.
@@ -210,8 +239,6 @@ class SessionManager:
         test, created = test_suite.get_or_create_child(test_ref.name)
         if created:
             try:
-                self.collected_tests.add(test_ref)
-
                 is_new = not test.has_parameters() and len(self.known_tests) > 0 and test_ref not in self.known_tests
 
                 test_properties = self.test_properties.get(test_ref) or TestProperties()
@@ -344,6 +371,10 @@ class SessionManager:
             log.debug("TIA code coverage collection is enabled by environment variable")
             self.settings.coverage_enabled = True
 
+        if asbool(os.environ.get("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "false")):
+            log.debug("Code coverage report upload is enabled by environment variable")
+            self.settings.coverage_report_upload_enabled = True
+
     def show_settings(self) -> None:
         log.info("Service: %s (env: %s)", self.service, self.env)
         log.info(
@@ -357,6 +388,10 @@ class SessionManager:
         )
         log.info("Test Optimization settings: Known Tests enabled: %s", self.settings.known_tests_enabled)
         log.info("Test Optimization settings: Auto Test Retries enabled: %s", self.settings.auto_test_retries.enabled)
+        log.info(
+            "Test Optimization settings: Coverage Report Upload enabled: %s",
+            self.settings.coverage_report_upload_enabled,
+        )
 
 
 def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:

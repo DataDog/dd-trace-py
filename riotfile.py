@@ -95,6 +95,7 @@ _appsec_threats_iast_variants = [
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
             "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            "DD_IAST_WEAK_HASH_ALGORITHMS": "NOTexist",
         },
     ),
 ]
@@ -527,7 +528,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
-                "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": "0",  # DEV: Temporary, remove once merged
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -726,6 +727,7 @@ venv = Venv(
                 "kombu": ">=4.2.0,<4.3.0",
                 "pymssql": latest,
                 "pytest-randomly": latest,
+                "redis": latest,
                 "requests": latest,
             },
             env={
@@ -3328,8 +3330,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
-                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
-                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module,ignore::UserWarning:gevent.events",
+                "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
             },
             pkgs={
                 "gunicorn": latest,

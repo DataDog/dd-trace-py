@@ -284,13 +284,13 @@ class DataStreamsProcessor(PeriodicService):
             "Lang": "python",
             "Stats": serialized_stats,
             "Hostname": self._hostname,
-        }  # type: Dict[str, Union[List[Dict], str]]
+        }  # type: Dict[str, Union[List[Dict], str, List[str]]]
         if config.env:
             raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
             raw_payload["Version"] = compat.ensure_text(config.version)
-        if p_tags := process_tags.process_tags:
-            raw_payload["ProcessTags"] = compat.ensure_text(p_tags)
+        if p_tags := process_tags.process_tags_list:
+            raw_payload["ProcessTags"] = p_tags
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)

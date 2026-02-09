@@ -1,6 +1,7 @@
 stages:
   - package
   - tests
+  - fuzz
   - shared-pipeline
   - benchmarks
   - release
@@ -14,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "e1cd85f960c713cf6a7e9caa61094b5914d0e386"
+  SYSTEM_TESTS_REF: "7e245eb5813f8dde45f9f25a708739ab5209ffd3"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
@@ -53,6 +54,7 @@ include:
   - local: ".gitlab/multi-os-tests.yml"
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
+  - local: ".gitlab/fuzz.yml"
 
 tests-gen:
   stage: tests
@@ -266,12 +268,17 @@ codeowners:
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - export CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
+    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
+    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      if [ ! -z "$CHANGED_FILES" ]; then
-        ./codeowners "$CHANGED_FILES"
+      > /tmp/changed_files.txt
+      while IFS= read -r f; do
+        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
+      done < /tmp/changed_all.txt
+    - |
+      if [ -s /tmp/changed_files.txt ]; then
         echo '```' > codeowners.txt
-        echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
+        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - |
