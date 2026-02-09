@@ -26,6 +26,12 @@ class LRUCache
 
     void store(const K& k, std::unique_ptr<V> v);
 
+    void clear()
+    {
+        items.clear();
+        index.clear();
+    }
+
   private:
     size_t capacity;
     std::list<std::pair<K, std::unique_ptr<V>>> items;
