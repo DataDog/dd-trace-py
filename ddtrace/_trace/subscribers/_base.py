@@ -5,15 +5,33 @@ from typing import Tuple
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.internal import core
-from ddtrace.internal.core.subscriber import BaseSubscriber
+from ddtrace.internal.core.subscriber import BaseContextSubscriber
 
 
-class SpanTracingSubscriber(BaseSubscriber):
-    """Subscriber that creates a span on start and finishes it on end.
+class SpanTracingSubscriber(BaseContextSubscriber):
+    """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
-    Subclasses override on_started/on_ended for type-specific logic.
-    Span lifecycle is handled here — subclasses never call _start_span/_finish_span.
+    This base class handles span creation and finishing, so subclasses only need to
+    override on_started/on_ended for their specific logic.
+
+    Example:
+        class MySpanSubscriber(SpanTracingSubscriber):
+            event_name = "my.span"
+
+            @classmethod
+            def on_started(cls, ctx, call_trace=True, **kwargs):
+                ctx.span.set_tag("custom.tag", "value")
+
+            @classmethod
+            def on_ended(cls, ctx, exc_info):
+                if exc_info[1]:
+                    ctx.span.set_tag("error", True)
+
+    Attributes:
+        _end_span: If False, span won't be finished automatically (defaults to True)
     """
+
+    _end_span = True
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
@@ -31,4 +49,5 @@ class SpanTracingSubscriber(BaseSubscriber):
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)
         finally:
-            _finish_span(ctx, exc_info)
+            if cls._end_span:
+                _finish_span(ctx, exc_info)
