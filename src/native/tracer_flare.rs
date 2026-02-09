@@ -1,10 +1,15 @@
-use datadog_remote_config::{RemoteConfigData, config::{agent_task::AgentTaskFile, agent_config::AgentConfigFile}};
-use datadog_remote_config::config::{agent_task::AgentTask, agent_config::AgentConfig};
-use datadog_tracer_flare::{error::FlareError, LogLevel, FlareAction, TracerFlareManager};
+use datadog_remote_config::config::{agent_config::AgentConfig, agent_task::AgentTask};
+use datadog_remote_config::{
+    config::{agent_config::AgentConfigFile, agent_task::AgentTaskFile},
+    RemoteConfigData,
+};
+use datadog_tracer_flare::{error::FlareError, FlareAction, LogLevel, TracerFlareManager};
 use regex::Regex;
 
 /// ERROR
-use pyo3::{create_exception, exceptions::PyException, prelude::*, PyErr, Bound, types::PyDict, PyAny};
+use pyo3::{
+    create_exception, exceptions::PyException, prelude::*, types::PyDict, Bound, PyAny, PyErr,
+};
 
 create_exception!(
     tracer_flare_exceptions,
@@ -104,38 +109,53 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
         let dict = ob.cast::<PyDict>()?;
 
-        let args_ob = dict.get_item("args")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("args".to_string())
-        })?;
+        let args_ob = dict
+            .get_item("args")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("args".to_string()))?;
         let args_dict = args_ob.cast::<PyDict>()?;
 
-        let case_id: String = args_dict.get_item("case_id")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("case_id".to_string())
-        })?.extract()?;
+        let case_id: String = args_dict
+            .get_item("case_id")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("case_id".to_string()))?
+            .extract()?;
 
         if case_id.is_empty() || case_id == "0" {
-            return Err(ParsingError::new_err(format!("Invalid case_id: '{}'", case_id)));
+            return Err(ParsingError::new_err(format!(
+                "Invalid case_id: '{}'",
+                case_id
+            )));
         }
         if !case_id.chars().all(|c| c.is_ascii_digit()) {
-            let case_id_regex = Regex::new(r"^\d+-(with-debug|with-content)$").map_err(|e| ParsingError::new_err(format!("Failed to compile case_id regex: {}", e)))?;
+            let case_id_regex = Regex::new(r"^\d+-(with-debug|with-content)$").map_err(|e| {
+                ParsingError::new_err(format!("Failed to compile case_id regex: {}", e))
+            })?;
             if !case_id_regex.is_match(&case_id) {
-                return Err(ParsingError::new_err(format!("Invalid case_id format: '{}'", case_id)));
+                return Err(ParsingError::new_err(format!(
+                    "Invalid case_id format: '{}'",
+                    case_id
+                )));
             }
         }
 
-        let hostname: String = args_dict.get_item("hostname")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("hostname".to_string())
-        })?.extract()?;
-        let user_handle: String = args_dict.get_item("user_handle")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("user_handle".to_string())
-        })?.extract()?;
+        let hostname: String = args_dict
+            .get_item("hostname")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("hostname".to_string()))?
+            .extract()?;
+        let user_handle: String = args_dict
+            .get_item("user_handle")?
+            .ok_or_else(|| {
+                PyErr::new::<pyo3::exceptions::PyKeyError, _>("user_handle".to_string())
+            })?
+            .extract()?;
 
-        let task_type: String = dict.get_item("task_type")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("task_type".to_string())
-        })?.extract()?;
-        let uuid: String = dict.get_item("uuid")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("uuid".to_string())
-        })?.extract()?;
+        let task_type: String = dict
+            .get_item("task_type")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("task_type".to_string()))?
+            .extract()?;
+        let uuid: String = dict
+            .get_item("uuid")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("uuid".to_string()))?
+            .extract()?;
 
         Ok(Self {
             inner: AgentTaskFile {
@@ -162,23 +182,23 @@ impl<'py> FromPyObject<'_, 'py> for AgentConfigFileWrapper {
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
         let dict = ob.cast::<PyDict>()?;
 
-        let name : String = dict.get_item("name")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("name".to_string())
-        })?.extract()?;
-        let config_ob = dict.get_item("config")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("config".to_string())
-        })?;
+        let name: String = dict
+            .get_item("name")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("name".to_string()))?
+            .extract()?;
+        let config_ob = dict
+            .get_item("config")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("config".to_string()))?;
         let config_dict = config_ob.cast::<PyDict>()?;
-        let log_level: Option<String> = config_dict.get_item("log_level")?.ok_or_else(|| {
-            PyErr::new::<pyo3::exceptions::PyKeyError, _>("log_level".to_string())
-        })?.extract()?;
+        let log_level: Option<String> = config_dict
+            .get_item("log_level")?
+            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("log_level".to_string()))?
+            .extract()?;
 
         Ok(Self {
             inner: AgentConfigFile {
                 name,
-                config: AgentConfig {
-                    log_level,
-                },
+                config: AgentConfig { log_level },
             },
         })
     }
@@ -270,7 +290,11 @@ impl TracerFlareManagerPy {
         }
     }
 
-    fn handle_remote_config_data(&self, data: &Bound<PyAny>, product: &str) -> PyResult<FlareActionPy> {
+    fn handle_remote_config_data(
+        &self,
+        data: &Bound<PyAny>,
+        product: &str,
+    ) -> PyResult<FlareActionPy> {
         let manager = self.manager.as_ref();
 
         if product == "AGENT_CONFIG" {
@@ -280,9 +304,12 @@ impl TracerFlareManagerPy {
                     return Ok(FlareActionPy::from(FlareAction::None));
                 }
             };
-            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.inner))
-                .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e)))?.into());
-
+            return Ok(manager
+                .handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.inner))
+                .map_err(|e| {
+                    ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e))
+                })?
+                .into());
         } else if product == "AGENT_TASK" {
             let agent_task: AgentTaskFileWrapper = match data.extract() {
                 Ok(agent_task) => agent_task,
@@ -290,9 +317,10 @@ impl TracerFlareManagerPy {
                     return Ok(FlareActionPy::from(FlareAction::None));
                 }
             };
-            return Ok(manager.handle_remote_config_data(&RemoteConfigData::TracerFlareTask(agent_task.inner))
-                .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_TASK: {}", e)))?.into());
-
+            return Ok(manager
+                .handle_remote_config_data(&RemoteConfigData::TracerFlareTask(agent_task.inner))
+                .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_TASK: {}", e)))?
+                .into());
         } else {
             return Err(ParsingError::new_err(format!(
                 "Received unexpected tracer flare product type: {}",
@@ -325,9 +353,7 @@ impl TracerFlareManagerPy {
             .enable_time()
             .enable_io()
             .build()
-            .map_err(|e| {
-                PyException::new_err(format!("Failed to create tokio runtime: {e}"))
-            })?;
+            .map_err(|e| PyException::new_err(format!("Failed to create tokio runtime: {e}")))?;
 
         rt.block_on(async move {
             let manager = manager_arc.as_ref();
@@ -338,7 +364,6 @@ impl TracerFlareManagerPy {
                 .map_err(|e| FlareErrorPy::from(e).into())
         })
     }
-
 
     fn __repr__(&self) -> String {
         "TracerFlareManager".to_string()
