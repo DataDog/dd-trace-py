@@ -14,7 +14,7 @@ Locked CI dependencies ensure reproducible builds and prevent transitive depende
 - **GitHub Actions** (`.github/workflows/`): Use locked requirements from `ci/requirements/ci.txt`
 - **GitLab CI** (`.gitlab/`): Uses explicit version specifications (e.g., `pip install 'twine>=5.0,<7'`)
   - GitLab files are checked for version specifications but not auto-updated
-  - This allows GitLab CI to have simpler, minimal dependencies without the full locked file
+  - This approach lets GitLab CI use a minimal set of explicitly specified dependencies, avoiding the need for the full locked file. Since we can cache wheel files, predefining some dependencies is not an issue.
 
 ## Workflow
 
