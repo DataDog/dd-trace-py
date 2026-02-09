@@ -152,6 +152,8 @@ microbenchmarks:
     include:
       - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
         job: tests-gen
+      - artifact: .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+        job: tests-gen
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
