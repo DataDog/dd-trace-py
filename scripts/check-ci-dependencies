@@ -407,7 +407,7 @@ def main() -> int:
         print("\n1. Add dependencies to locked requirements:")
         print("     scripts/update-ci-dependencies --compile --update-workflows")
         print("\n2. Or allow specific exceptions (for minimal installs like twine):")
-        print("     Add comment: pip install twine  # ci-deps: allow")
+        print("     Add comment: pip install twine  # ci-deps: allow or # ci-deps: allow-no-version")
         print("\nThis will:")
         print("  1. Extract all CI dependencies to ci/requirements/ci.in")
         print("  2. Generate locked ci/requirements/ci.txt")
