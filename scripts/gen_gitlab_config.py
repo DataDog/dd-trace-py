@@ -309,7 +309,7 @@ def _filter_benchmarks_slos_file(classnames: t.List) -> None:
         if in_scenario_to_keep:
             new_contents.append(line)
 
-    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents)))
+    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
 
 def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
