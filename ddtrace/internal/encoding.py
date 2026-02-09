@@ -26,7 +26,7 @@ class _EncoderBase(object):
     Encoder interface that provides the logic to encode traces and service.
     """
 
-    def encode_traces(self, traces: list[list[Span]]) -> str:
+    def encode_traces(self, traces: list[list["Span"]]) -> str:
         """
         Encodes a list of traces, expecting a list of items where each items
         is a list of spans. Before dumping the string in a serialized format all
@@ -46,7 +46,7 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _span_to_dict(span: Span) -> dict[str, Any]:
+    def _span_to_dict(span: "Span") -> dict[str, Any]:
         d: dict[str, Any] = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
@@ -125,12 +125,12 @@ class JSONEncoderV2(JSONEncoder):
 
     content_type = "application/json"
 
-    def encode_traces(self, traces: list[list[Span]]) -> str:
+    def encode_traces(self, traces: list[list["Span"]]) -> str:
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
         return self.encode({"traces": normalized_traces})[0]
 
     @staticmethod
-    def _convert_span(span: Span) -> dict[str, Any]:
+    def _convert_span(span: "Span") -> dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
