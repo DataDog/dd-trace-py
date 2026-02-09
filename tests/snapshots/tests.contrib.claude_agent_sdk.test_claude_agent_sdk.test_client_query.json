@@ -11,8 +11,8 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6983c18400000000",
-      "language": "python",
       "claude_agent_sdk.request.model": "claude-sonnet-4-5-20250929",
+      "language": "python",
       "runtime-id": "6d8b44096ea1434e9a4bb9ea70ad6407"
     },
     "metrics": {
