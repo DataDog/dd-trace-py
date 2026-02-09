@@ -17,7 +17,10 @@ jobs:
     if: >
       github.event.pull_request.merged
       && (
-        github.event.action == 'closed'
+        (
+          github.event.action == 'closed'
+          && contains(join(github.event.pull_request.labels.*.name, ','), 'backport')
+        )
         || (
           github.event.action == 'labeled'
           && contains(github.event.label.name, 'backport')
@@ -46,7 +49,14 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
 
+          if [ -z "${BACKPORT_LABEL}" ]; then
+            BACKPORT_LABEL=$(jq -r '.pull_request.labels[].name | select(contains("backport"))' "${GITHUB_EVENT_PATH}" | head -n1)
+          fi
           TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
+          if [ -z "${TARGET_BRANCH}" ]; then
+            echo "No backport label/target branch found for this event."
+            exit 1
+          fi
           MERGE_COMMIT=$(git rev-parse HEAD)
           WORKTREE=".worktrees/backport-${TARGET_BRANCH}"
           BACKPORT_BRANCH="backport-${PR_NUMBER}-to-${TARGET_BRANCH}"
