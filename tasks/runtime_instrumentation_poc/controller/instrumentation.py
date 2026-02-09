@@ -6,9 +6,12 @@ at runtime to inject instrumentation hooks.
 
 import logging
 from types import FunctionType
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING
+from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.bytecode_injection import inject_hook
+
 
 if TYPE_CHECKING:
     from tasks.runtime_instrumentation_poc.shared.state import SharedState
@@ -90,16 +93,14 @@ class Instrumenter:
             # Inject hook at first line using dd-trace-py's inject_hook
             first_line = original_code.co_firstlineno
 
-            logger.debug(
-                f"Injecting hook into {qualified_name} at line {first_line}"
-            )
+            logger.debug("Injecting hook into %s at line %s", qualified_name, first_line)
 
             inject_hook(func, instrumentation_hook, first_line, qualified_name)
 
             # Mark as instrumented in shared state
             self.shared_state.mark_instrumented(qualified_name, original_code)
 
-            logger.info(f"Successfully instrumented: {qualified_name}")
+            logger.info("Successfully instrumented: %s", qualified_name)
             return (True, f"Successfully instrumented: {qualified_name}")
 
         except Exception as e:
@@ -132,7 +133,5 @@ class Instrumenter:
             if isinstance(underlying, FunctionType):
                 return underlying
 
-        logger.warning(
-            f"Cannot resolve {callable_obj} (type: {type(callable_obj)}) to FunctionType"
-        )
+        logger.warning("Cannot resolve %s (type: %s) to FunctionType", callable_obj, type(callable_obj))
         return None

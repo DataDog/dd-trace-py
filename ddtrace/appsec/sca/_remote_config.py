@@ -13,6 +13,8 @@ from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -67,10 +69,11 @@ def _sca_detection_callback(payload_list: Sequence) -> None:
         targets_to_remove = []
 
         for payload in payload_list:
+            payload_path = getattr(payload, "path", "<unknown>")
             try:
                 log.debug(
                     "Processing SCA detection payload: path=%s, content=%s",
-                    getattr(payload, "path", None),
+                    payload_path,
                     bool(getattr(payload, "content", None)),
                 )
 
@@ -98,9 +101,14 @@ def _sca_detection_callback(payload_list: Sequence) -> None:
                     else:
                         log.warning("Invalid content format in payload (not a dict): %s", type(content))
 
-            except Exception:
+            except Exception as e:
                 # Don't let one bad payload stop processing others
-                log.error("Failed to process individual SCA detection payload", exc_info=True)
+                # Log which specific payload failed for debugging
+                log.error("Failed to process SCA detection payload (path=%s): %s", payload_path, e, exc_info=True)
+                # Send telemetry for payload processing failures
+                telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.APPSEC, "sca.payload_errors", 1, tags=(("payload_path", payload_path),)
+                )
                 continue
 
         # Apply instrumentation updates

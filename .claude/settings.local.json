@@ -37,7 +37,8 @@
       "Skill(run-tests)",
       "Skill(lint)",
       "Skill(find-cpython-usage)",
-      "Skill(compare-cpython-versions)"
+      "Skill(compare-cpython-versions)",
+      "Bash(hatch -v run lint:fmt:*)"
     ],
     "deny": []
   }

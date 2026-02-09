@@ -31,34 +31,46 @@ def start():
         try:
             from ddtrace.appsec.sca import enable_sca_detection
 
-            enable_sca_detection()
-            log.info("SCA detection started")
-        except Exception:
-            log.error("Failed to start SCA detection", exc_info=True)
+            success = enable_sca_detection()
+            if success:
+                log.info("SCA detection started")
+            else:
+                log.error("SCA detection failed to start (enable returned False)")
+        except ImportError as e:
+            # Missing dependencies - log but don't crash tracer
+            log.error("SCA detection unavailable: missing dependencies - %s", e, exc_info=True)
+        except Exception as e:
+            # Unexpected error
+            log.error("Failed to start SCA detection: unexpected error - %s", e, exc_info=True)
 
 
-def stop(join=False):
+def stop(join: bool = False) -> None:
     """Cleanup SCA detection on shutdown.
 
     Args:
-        join: If True, wait for background operations to complete
+        join: If True, wait for background operations to complete.
+              If False (default), shutdown is immediate.
     """
     try:
         from ddtrace.appsec.sca import disable_sca_detection
 
-        disable_sca_detection()
-        log.info("SCA detection stopped")
-    except Exception:
-        log.error("Failed to stop SCA detection", exc_info=True)
+        success = disable_sca_detection()
+        if success:
+            log.info("SCA detection stopped")
+        else:
+            log.warning("SCA detection failed to stop cleanly")
+    except Exception as e:
+        log.error("Failed to stop SCA detection: %s", e, exc_info=True)
 
 
-def restart(join=False):
+def restart(join: bool = False) -> None:
     """Handle fork scenarios by restarting SCA detection in child process.
 
     SCA detection state is process-local, so we need to restart in child processes.
 
     Args:
-        join: If True, wait for background operations to complete during stop
+        join: If True, wait for background operations to complete during stop.
+              If False (default), restart happens immediately without waiting.
     """
     stop(join=join)
     start()

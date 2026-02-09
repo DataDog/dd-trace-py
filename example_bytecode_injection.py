@@ -40,7 +40,7 @@ def main():
         f=dummy_function,
         hook=my_hook,
         line=19,  # Line number where the first print statement is
-        arg="my_identifier"  # Identifier for this hook (used for later removal if needed)
+        arg="my_identifier",  # Identifier for this hook (used for later removal if needed)
     )
 
     print("  Hook successfully injected!")

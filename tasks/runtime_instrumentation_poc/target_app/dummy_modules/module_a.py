@@ -6,6 +6,7 @@ Each callable increments its call counter in the shared state.
 
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from tasks.runtime_instrumentation_poc.shared.state import SharedState
 

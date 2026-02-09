@@ -8,6 +8,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from tasks.runtime_instrumentation_poc.shared.state import SharedState
     from tasks.runtime_instrumentation_poc.target_app.registry import CallableRegistry
@@ -57,13 +58,13 @@ class TargetApp:
                     callable_obj()
                 except Exception as e:
                     # Log but don't crash - target app keeps running
-                    logger.error(f"Error calling {qualified_name}: {e}")
+                    logger.error("Error calling %s: %s", qualified_name, e)
 
                 # Small sleep to keep UI readable (~100 calls/second)
                 await asyncio.sleep(0.01)
 
             except Exception as e:
-                logger.error(f"Error in main loop: {e}")
+                logger.error("Error in main loop: %s", e)
                 await asyncio.sleep(0.1)  # Back off on errors
 
         logger.info("Target app execution loop stopped.")

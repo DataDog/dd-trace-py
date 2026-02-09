@@ -454,7 +454,8 @@ class SCA(metaclass=Constant_Class):
     ENV_ENABLED: Literal["DD_APPSEC_SCA_ENABLED"] = "DD_APPSEC_SCA_ENABLED"
     ENV_DETECTION: Literal["DD_SCA_DETECTION_ENABLED"] = "DD_SCA_DETECTION_ENABLED"
 
-    # Telemetry tags
+    # Span tags (per RFC Section 6)
+    TAG_ENABLED: Literal["_dd.sca.enabled"] = "_dd.sca.enabled"
     TAG_INSTRUMENTED: Literal["_dd.sca.instrumented"] = "_dd.sca.instrumented"
     TAG_DETECTION_HIT: Literal["_dd.sca.detection_hit"] = "_dd.sca.detection_hit"
     TAG_TARGET: Literal["_dd.sca.target"] = "_dd.sca.target"

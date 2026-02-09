@@ -6,6 +6,7 @@ target functions registered via Remote Configuration.
 
 from dataclasses import dataclass
 from dataclasses import field
+import os
 from threading import Lock
 from types import CodeType
 from typing import Dict
@@ -86,7 +87,8 @@ class InstrumentationRegistry:
         Returns:
             True if target exists in registry
         """
-        return qualified_name in self._targets
+        with self._lock:
+            return qualified_name in self._targets
 
     def is_instrumented(self, qualified_name: str) -> bool:
         """Check if target is instrumented.
@@ -97,8 +99,12 @@ class InstrumentationRegistry:
         Returns:
             True if target is instrumented (bytecode patched)
         """
-        state = self._targets.get(qualified_name)
-        return state is not None and state.is_instrumented
+        with self._lock:
+            state = self._targets.get(qualified_name)
+        if state is not None:
+            with state.lock:
+                return state.is_instrumented
+        return False
 
     def is_pending(self, qualified_name: str) -> bool:
         """Check if target is pending module import.
@@ -109,8 +115,12 @@ class InstrumentationRegistry:
         Returns:
             True if target is pending (module not yet imported)
         """
-        state = self._targets.get(qualified_name)
-        return state is not None and state.is_pending
+        with self._lock:
+            state = self._targets.get(qualified_name)
+        if state is not None:
+            with state.lock:
+                return state.is_pending
+        return False
 
     def mark_instrumented(self, qualified_name: str, original_code: CodeType) -> None:
         """Mark target as instrumented and store original code.
@@ -119,7 +129,8 @@ class InstrumentationRegistry:
             qualified_name: Fully qualified name of instrumented target
             original_code: Original __code__ object before patching
         """
-        state = self._targets.get(qualified_name)
+        with self._lock:
+            state = self._targets.get(qualified_name)
         if state:
             with state.lock:
                 state.is_instrumented = True
@@ -136,10 +147,11 @@ class InstrumentationRegistry:
         Args:
             qualified_name: Fully qualified name of the called function
         """
-        state = self._targets.get(qualified_name)
+        with self._lock:
+            state = self._targets.get(qualified_name)
         if state:
-            with state.lock:
-                state.hit_count += 1
+            # No lock needed for simple increment in CPython (GIL-protected)
+            state.hit_count += 1
 
     def get_hit_count(self, qualified_name: str) -> int:
         """Get hit count for a target.
@@ -150,10 +162,11 @@ class InstrumentationRegistry:
         Returns:
             Number of times the function was called (0 if not found)
         """
-        state = self._targets.get(qualified_name)
+        with self._lock:
+            state = self._targets.get(qualified_name)
         if state:
-            with state.lock:
-                return state.hit_count
+            # Simple read is GIL-protected in CPython
+            return state.hit_count
         return 0
 
     def get_stats(self) -> Dict[str, Dict]:
@@ -170,15 +183,19 @@ class InstrumentationRegistry:
                 ...
             }
         """
-        stats = {}
+        # Quick copy of targets dict while holding lock
         with self._lock:
-            for name, state in self._targets.items():
-                with state.lock:
-                    stats[name] = {
-                        "is_instrumented": state.is_instrumented,
-                        "is_pending": state.is_pending,
-                        "hit_count": state.hit_count,
-                    }
+            targets_copy = dict(self._targets)
+
+        # Now iterate without holding global lock
+        stats = {}
+        for name, state in targets_copy.items():
+            # Simple reads are GIL-protected in CPython
+            stats[name] = {
+                "is_instrumented": state.is_instrumented,
+                "is_pending": state.is_pending,
+                "hit_count": state.hit_count,
+            }
         return stats
 
     def clear(self) -> None:
@@ -196,6 +213,22 @@ _global_registry: Optional[InstrumentationRegistry] = None
 _registry_lock = Lock()
 
 
+def _reset_global_registry_after_fork():
+    """Reset global registry after fork to prevent stale state in child process.
+
+    This ensures child processes don't inherit parent's instrumentation state,
+    hit counts, or lock objects which may be in locked state.
+    """
+    global _global_registry
+    _global_registry = None
+    log.debug("Reset global InstrumentationRegistry after fork")
+
+
+# Register fork handler for process safety
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_reset_global_registry_after_fork)
+
+
 def get_global_registry() -> InstrumentationRegistry:
     """Get or create global registry instance.
 
@@ -204,10 +237,8 @@ def get_global_registry() -> InstrumentationRegistry:
     """
     global _global_registry
 
-    if _global_registry is None:
-        with _registry_lock:
-            if _global_registry is None:
-                _global_registry = InstrumentationRegistry()
-                log.debug("Created global InstrumentationRegistry")
-
-    return _global_registry
+    with _registry_lock:
+        if _global_registry is None:
+            _global_registry = InstrumentationRegistry()
+            log.debug("Created global InstrumentationRegistry")
+        return _global_registry

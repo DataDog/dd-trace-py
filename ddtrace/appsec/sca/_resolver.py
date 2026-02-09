@@ -5,7 +5,9 @@ to actual Python callables that can be instrumented.
 """
 
 import importlib
+from threading import Lock
 from types import FunctionType
+from typing import List
 from typing import Optional
 from typing import Set
 from typing import Tuple
@@ -128,12 +130,13 @@ class LazyResolver:
 
     Maintains a set of qualified names that failed to resolve (typically
     because their modules haven't been imported yet) and provides retry
-    functionality.
+    functionality. Thread-safe for concurrent access.
     """
 
     def __init__(self):
-        """Initialize empty pending set."""
+        """Initialize empty pending set with lock."""
         self._pending: Set[str] = set()
+        self._lock = Lock()
 
     def add_pending(self, qualified_name: str) -> None:
         """Add target for lazy resolution.
@@ -141,7 +144,8 @@ class LazyResolver:
         Args:
             qualified_name: Qualified name that failed to resolve
         """
-        self._pending.add(qualified_name)
+        with self._lock:
+            self._pending.add(qualified_name)
         log.debug("Added to pending resolution: %s", qualified_name)
 
     def remove_pending(self, qualified_name: str) -> None:
@@ -150,7 +154,8 @@ class LazyResolver:
         Args:
             qualified_name: Qualified name to remove
         """
-        self._pending.discard(qualified_name)
+        with self._lock:
+            self._pending.discard(qualified_name)
 
     def get_pending(self) -> Set[str]:
         """Get all pending qualified names.
@@ -158,9 +163,10 @@ class LazyResolver:
         Returns:
             Set of qualified names awaiting resolution
         """
-        return self._pending.copy()
+        with self._lock:
+            return self._pending.copy()
 
-    def retry_pending(self) -> list[Tuple[str, FunctionType]]:
+    def retry_pending(self) -> List[Tuple[str, FunctionType]]:
         """Retry resolution of all pending targets.
 
         Attempts to resolve each pending target. Successfully resolved
@@ -169,21 +175,28 @@ class LazyResolver:
         Returns:
             List of successfully resolved (name, function) tuples
         """
-        resolved = []
-        still_pending = set()
+        # Get snapshot of pending targets while holding lock
+        with self._lock:
+            pending_snapshot = self._pending.copy()
 
-        for qname in self._pending:
+        resolved = []
+        resolved_names = set()
+
+        for qname in pending_snapshot:
             result = SymbolResolver.resolve(qname)
             if result:
                 resolved.append(result)
+                resolved_names.add(qname)
                 log.debug("Lazy resolution succeeded: %s", qname)
-            else:
-                still_pending.add(qname)
 
-        self._pending = still_pending
+        # Remove resolved targets from pending set (using set difference)
+        with self._lock:
+            self._pending -= resolved_names
 
         if resolved:
-            log.info("Lazy resolution completed: %d/%d targets", len(resolved), len(resolved) + len(still_pending))
+            with self._lock:
+                remaining = len(self._pending)
+            log.info("Lazy resolution completed: %d/%d targets", len(resolved), len(resolved) + remaining)
 
         return resolved
 
@@ -192,5 +205,6 @@ class LazyResolver:
 
         This is primarily for testing purposes.
         """
-        self._pending.clear()
+        with self._lock:
+            self._pending.clear()
         log.debug("Cleared all pending targets")

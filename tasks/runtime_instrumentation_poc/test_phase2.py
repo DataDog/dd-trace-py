@@ -6,18 +6,20 @@ and verifies that the instrumentation counter increases.
 
 import asyncio
 import logging
-import sys
 from pathlib import Path
+import sys
+
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from tasks.runtime_instrumentation_poc.shared.state import SharedState
-from tasks.runtime_instrumentation_poc.target_app.registry import CallableRegistry
-from tasks.runtime_instrumentation_poc.target_app.main import TargetApp
-from tasks.runtime_instrumentation_poc.target_app.dummy_modules import module_a
-from tasks.runtime_instrumentation_poc.controller.instrumentation import Instrumenter
+# Imports after sys.path manipulation (intentional for PoC)
+from tasks.runtime_instrumentation_poc.controller.instrumentation import Instrumenter  # noqa: E402
+from tasks.runtime_instrumentation_poc.shared.state import SharedState  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.dummy_modules import module_a  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.main import TargetApp  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.registry import CallableRegistry  # noqa: E402
 
 
 # Configure logging
@@ -116,11 +118,7 @@ async def main():
         await asyncio.sleep(2.0)
 
         snapshot = shared_state.get_snapshot()
-        func_a1_before = next(
-            e
-            for e in snapshot
-            if e["qualified_name"].endswith("func_a1")
-        )
+        func_a1_before = next(e for e in snapshot if e["qualified_name"].endswith("func_a1"))
 
         print(
             f"  func_a1 - Calls: {func_a1_before['call_count']}, "
@@ -130,9 +128,7 @@ async def main():
 
         # Instrument func_a1
         print("\nPhase 2: Instrumenting func_a1...")
-        target_name = (
-            "tasks.runtime_instrumentation_poc.target_app.dummy_modules.module_a:func_a1"
-        )
+        target_name = "tasks.runtime_instrumentation_poc.target_app.dummy_modules.module_a:func_a1"
         success, message = instrumenter.instrument_callable(target_name)
 
         if not success:
@@ -146,11 +142,7 @@ async def main():
         await asyncio.sleep(2.0)
 
         snapshot = shared_state.get_snapshot()
-        func_a1_after = next(
-            e
-            for e in snapshot
-            if e["qualified_name"].endswith("func_a1")
-        )
+        func_a1_after = next(e for e in snapshot if e["qualified_name"].endswith("func_a1"))
 
         print(
             f"  func_a1 - Calls: {func_a1_after['call_count']}, "
@@ -162,9 +154,7 @@ async def main():
         print("\nResults:")
         print("-" * 80)
 
-        call_count_increased = (
-            func_a1_after["call_count"] > func_a1_before["call_count"]
-        )
+        call_count_increased = func_a1_after["call_count"] > func_a1_before["call_count"]
         instrumentation_count_increased = func_a1_after["instrumentation_count"] > 0
         is_marked_instrumented = func_a1_after["is_instrumented"]
 
@@ -175,11 +165,7 @@ async def main():
         )
         print(f"Marked as instrumented: {is_marked_instrumented}")
 
-        if (
-            call_count_increased
-            and instrumentation_count_increased
-            and is_marked_instrumented
-        ):
+        if call_count_increased and instrumentation_count_increased and is_marked_instrumented:
             print("\n✓ Phase 2 PASSED: Bytecode instrumentation works!")
             return 0
         else:

@@ -5,7 +5,9 @@ to actual callable objects in the running process.
 """
 
 import importlib
-from typing import Callable, Optional, Tuple
+from typing import Callable
+from typing import Optional
+from typing import Tuple
 
 
 class SymbolResolver:

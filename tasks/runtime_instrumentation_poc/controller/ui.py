@@ -8,10 +8,17 @@ at runtime via text input.
 import asyncio
 from typing import TYPE_CHECKING
 
-from textual.app import App, ComposeResult
+from textual.app import App
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Vertical
-from textual.widgets import DataTable, Footer, Header, Input, Static
+from textual.containers import Container
+from textual.containers import Vertical
+from textual.widgets import DataTable
+from textual.widgets import Footer
+from textual.widgets import Header
+from textual.widgets import Input
+from textual.widgets import Static
+
 
 if TYPE_CHECKING:
     from tasks.runtime_instrumentation_poc.controller.instrumentation import Instrumenter
@@ -71,9 +78,7 @@ class InstrumentationUI(App):
         Binding("escape", "unfocus_input", "Cancel"),
     ]
 
-    def __init__(
-        self, shared_state: "SharedState", instrumenter: "Instrumenter"
-    ) -> None:
+    def __init__(self, shared_state: "SharedState", instrumenter: "Instrumenter") -> None:
         """Initialize UI.
 
         Args:
@@ -107,7 +112,10 @@ class InstrumentationUI(App):
             # Input field for instrumentation commands
             with Container(id="input-container"):
                 yield Input(
-                    placeholder="Enter callable path (e.g., tasks.runtime_instrumentation_poc.target_app.dummy_modules.module_a:func_a1)",
+                    placeholder=(
+                        "Enter callable path (e.g., "
+                        "tasks.runtime_instrumentation_poc.target_app.dummy_modules.module_a:func_a1)"
+                    ),
                     id="instrument-input",
                 )
 
@@ -191,9 +199,7 @@ class InstrumentationUI(App):
         # Perform instrumentation in background thread
         # (inject_hook modifies bytecode, shouldn't block UI)
         try:
-            success, message = await asyncio.to_thread(
-                self.instrumenter.instrument_callable, path
-            )
+            success, message = await asyncio.to_thread(self.instrumenter.instrument_callable, path)
 
             # Update status based on result
             if success:

@@ -3,11 +3,12 @@
 print("SCA Detection Test Script Running...")
 
 # Check SCA status after ddtrace has been initialized
-from ddtrace.appsec.sca import _sca_detection_enabled
-from ddtrace.internal.settings._config import config as tracer_config
-from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.appsec._constants import SCA
+from ddtrace.appsec._constants import SCA  # noqa: E402
+from ddtrace.appsec.sca import _sca_detection_enabled  # noqa: E402
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller  # noqa: E402
+from ddtrace.internal.settings._config import config as tracer_config  # noqa: E402
+from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
+
 
 print(f"tracer_config._sca_enabled: {tracer_config._sca_enabled}")
 print(f"asm_config._sca_detection_enabled: {asm_config._sca_detection_enabled}")
@@ -22,7 +23,9 @@ else:
     print("ERROR: SCA_DETECTION not registered!")
 
 # Check products
-from ddtrace.internal.products import manager
+from ddtrace.internal.products import manager  # noqa: E402
+
+
 print(f"\nAvailable products: {list(manager._ProductsRegistry__products__.keys())}")
 
 # Check if SCA product exists

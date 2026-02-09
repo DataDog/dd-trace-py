@@ -6,24 +6,24 @@ alongside the Textual UI, demonstrating runtime bytecode instrumentation.
 
 import asyncio
 import logging
-import sys
 from pathlib import Path
+import sys
+
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from tasks.runtime_instrumentation_poc.shared.state import SharedState
-from tasks.runtime_instrumentation_poc.target_app.registry import CallableRegistry
-from tasks.runtime_instrumentation_poc.target_app.main import TargetApp
-from tasks.runtime_instrumentation_poc.target_app.dummy_modules import (
-    module_a,
-    module_b,
-    module_c,
-    module_d,
-)
-from tasks.runtime_instrumentation_poc.controller.instrumentation import Instrumenter
-from tasks.runtime_instrumentation_poc.controller.ui import InstrumentationUI
+# Imports after sys.path manipulation (intentional for PoC)
+from tasks.runtime_instrumentation_poc.controller.instrumentation import Instrumenter  # noqa: E402
+from tasks.runtime_instrumentation_poc.controller.ui import InstrumentationUI  # noqa: E402
+from tasks.runtime_instrumentation_poc.shared.state import SharedState  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.dummy_modules import module_a  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.dummy_modules import module_b  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.dummy_modules import module_c  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.dummy_modules import module_d  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.main import TargetApp  # noqa: E402
+from tasks.runtime_instrumentation_poc.target_app.registry import CallableRegistry  # noqa: E402
 
 
 # Configure logging

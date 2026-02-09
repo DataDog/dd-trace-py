@@ -4,10 +4,15 @@ This module provides the core data structures for tracking instrumentable callab
 their call counts, and instrumentation status.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from threading import Lock
 from types import CodeType
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Optional
 
 
 @dataclass

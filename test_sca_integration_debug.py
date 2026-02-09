@@ -5,7 +5,9 @@ import time
 import uuid
 
 from tests.appsec.appsec_utils import uvicorn_server
-from tests.appsec.integrations.utils_testagent import _get_agent_client, _get_span
+from tests.appsec.integrations.utils_testagent import _get_agent_client
+from tests.appsec.integrations.utils_testagent import _get_span
+
 
 # SCA environment
 SCA_ENV = {
@@ -76,11 +78,11 @@ for i, trace in enumerate(response_tracer):
         print(f"       meta keys: {list(meta.keys())}")
 
         # Check for SCA-related tags
-        sca_tags = {k: v for k, v in meta.items() if 'sca' in k.lower()}
+        sca_tags = {k: v for k, v in meta.items() if "sca" in k.lower()}
         if sca_tags:
             print(f"       SCA tags found: {sca_tags}")
         else:
-            print(f"       No SCA tags found")
+            print("       No SCA tags found")
 
         # Check for specific tags
         print(f"       _dd.sca.instrumented: {meta.get('_dd.sca.instrumented')}")
