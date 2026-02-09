@@ -245,7 +245,6 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
-    # Copy the template file
     MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
 
     benchmark_classnames = []
@@ -261,7 +260,6 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
         suite_config = suites[suite].copy()
         clean_name = suite_config.pop("_clean_name", suite)
 
-        # Create JobSpec with clean name and explicit stage
         jobspec = BenchmarkSpec(clean_name, **suite_config)
         if jobspec.skip:
             LOGGER.debug("Skipping suite %s", suite)
@@ -286,32 +284,32 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
 
 
 def _get_benchmark_class_name(suite_name: str) -> str:
-    with open(f"benchmarks/{suite_name}/scenario.py", "r") as f:
-        for line in f.readlines():
-            match = re.match(BENCHMARK_CLASS_REGEX, line)
-            if match:
-                return match.group(1).lower()
+    contents = ("benchmarks" / suite_name / "scenario.py").read_text()
+    for line in contents.split("\n")
+        match = re.match(BENCHMARK_CLASS_REGEX, line)
+        if match:
+            return match.group(1).lower()
 
 
 def _filter_benchmarks_slos_file(classnames: t.List) -> None:
     in_scenario_to_keep = True
-    new_content = []
-    with open(".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml", "r") as f:
-        for line in f.readlines()[1:]:
-            match = re.match(BENCHMARK_SCENARIO_REGEX, line)
-            if match:
-                class_on_line = match.group(1)
-                if class_on_line in classnames:
-                    in_scenario_to_keep = True
-                else:
-                    in_scenario_to_keep = False
-            if line.strip().startswith("#"):
-                in_scenario_to_keep = False
-            if in_scenario_to_keep:
-                new_content.append(line)
+    new_contents = []
+    contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
 
-    with open(MICROBENCHMARKS_SLOS, "w") as f:
-        f.writelines(new_content)
+    for line in contents.split("\n")[1:]:
+        match = re.match(BENCHMARK_SCENARIO_REGEX, line)
+        if match:
+            class_on_line = match.group(1)
+            if class_on_line in classnames:
+                in_scenario_to_keep = True
+            else:
+                in_scenario_to_keep = False
+        if line.strip().startswith("#"):
+            in_scenario_to_keep = False
+        if in_scenario_to_keep:
+            new_contents.append(line)
+
+    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents)))
 
 
 def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
@@ -583,6 +581,7 @@ TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
+MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
