@@ -304,12 +304,12 @@ impl TracerFlareManagerPy {
                     return Ok(FlareActionPy::from(FlareAction::None));
                 }
             };
-            return Ok(manager
+            Ok(manager
                 .handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.inner))
                 .map_err(|e| {
                     ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e))
                 })?
-                .into());
+                .into())
         } else if product == "AGENT_TASK" {
             let agent_task: AgentTaskFileWrapper = match data.extract() {
                 Ok(agent_task) => agent_task,
@@ -317,15 +317,15 @@ impl TracerFlareManagerPy {
                     return Ok(FlareActionPy::from(FlareAction::None));
                 }
             };
-            return Ok(manager
+            Ok(manager
                 .handle_remote_config_data(&RemoteConfigData::TracerFlareTask(agent_task.inner))
                 .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_TASK: {}", e)))?
-                .into());
+                .into())
         } else {
-            return Err(ParsingError::new_err(format!(
+            Err(ParsingError::new_err(format!(
                 "Received unexpected tracer flare product type: {}",
                 product
-            )));
+            )))
         }
     }
 
