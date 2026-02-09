@@ -6,6 +6,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import threading
 import time
 from typing import Any
 from typing import Callable
@@ -151,3 +152,102 @@ def test_gunicorn(
 ) -> None:
     args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGTERM not available on Windows")
+def test_gunicorn_gevent_sigterm_graceful_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify in-flight requests complete after SIGTERM with gevent workers and profiling enabled.
+
+    Regression test: the greenlet_tracer in ddtrace.profiling._gevent used to mutate
+    module-level state (set.add) during greenlet switches.  When the switch carried a
+    SystemExit (raised by gunicorn's Worker.handle_exit on SIGTERM), this mutation
+    disrupted gevent's exception propagation and caused the worker to die immediately
+    instead of draining in-flight requests.
+    """
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "1")
+
+    port = 7645
+    cmd = [
+        "ddtrace-run",
+        "gunicorn",
+        "--bind",
+        f"127.0.0.1:{port}",
+        "--worker-tmp-dir",
+        "/dev/shm",
+        "-k",
+        "gevent",
+        "-w",
+        "1",
+        "--graceful-timeout",
+        "10",
+        "--chdir",
+        os.path.dirname(__file__),
+        "tests.profiling.gunicorn_sigterm_app:app",
+    ]
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        time.sleep(5)
+        if proc.poll() is not None:
+            assert proc.stdout is not None
+            output = proc.stdout.read().decode()
+            pytest.fail(f"gunicorn failed to start:\n{output}")
+
+        # Verify the server is ready
+        debug_print("Checking gunicorn is ready")
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=3) as f:
+                assert f.getcode() == 200
+        except Exception as e:
+            proc.terminate()
+            assert proc.stdout is not None
+            output = proc.stdout.read().decode()
+            pytest.fail(f"gunicorn not ready: {e}\n{output}")
+
+        # Fire a slow request in a background thread so we can send SIGTERM
+        # while it is still in-flight.
+        result: dict[str, Any] = {}
+
+        def _make_slow_request() -> None:
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/slow", timeout=15) as f:
+                    result["status"] = f.getcode()
+                    result["body"] = f.read().decode()
+            except Exception as exc:
+                result["error"] = exc
+
+        t = threading.Thread(target=_make_slow_request)
+        t.start()
+
+        # Give the request time to reach the worker
+        time.sleep(1)
+
+        debug_print("Sending SIGTERM to gunicorn master")
+        proc.terminate()
+
+        # Wait for the slow request to complete
+        t.join(timeout=15)
+
+        debug_print(f"Request result: {result}")
+
+        assert "error" not in result, f"In-flight request failed during shutdown: {result.get('error')}"
+        assert result.get("status") == 200, f"Expected 200, got {result}"
+        assert "slow-ok" in result.get("body", ""), f"Unexpected response body: {result}"
+
+        # Gunicorn master should exit cleanly
+        try:
+            exit_code = proc.wait(timeout=10)
+            debug_print(f"gunicorn exit code: {exit_code}")
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            pytest.fail("gunicorn did not exit within timeout after SIGTERM")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        debug_print("=== gunicorn output ===")
+        for line in output.splitlines():
+            debug_print(line)

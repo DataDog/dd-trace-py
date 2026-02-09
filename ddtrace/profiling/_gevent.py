@@ -64,41 +64,33 @@ def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
+    # AIDEV-NOTE: This callback must NOT mutate module-level state (sets, dicts,
+    # etc.).  Any mutation — even set.add() — during a greenlet switch that is
+    # part of gevent's signal-handling path disrupts SystemExit propagation and
+    # prevents gunicorn workers from draining in-flight requests on SIGTERM.
+    # Greenlet registration is handled by the Greenlet.spawn / wrap_spawn hooks
+    # instead; frame updates use stack.update_greenlet_frame directly without
+    # touching _tracked_greenlets.
     if event in {"switch", "throw"}:
-        # This tracer function runs in the context of the target
         origin, target = t.cast(t.Tuple[_Greenlet, _Greenlet], args)
 
-        if (origin_id := thread.get_ident(origin)) not in _tracked_greenlets:
+        origin_id = thread.get_ident(origin)
+        target_id = thread.get_ident(target)
+
+        if origin_id in _tracked_greenlets:
             try:
-                track_gevent_greenlet(origin)
-            except GreenletTrackingError:
-                # Not something that we can track
+                stack.update_greenlet_frame(
+                    origin_id,
+                    t.cast(t.Optional[FrameType], origin.gr_frame) or FRAME_NOT_SET,
+                )
+            except (KeyError, Exception):
                 pass
 
-        if (target_id := thread.get_ident(target)) not in _tracked_greenlets:
-            # This is likely the hub. We take this chance to track it.
+        if target_id in _tracked_greenlets and target_id not in _parent_greenlet_count:
             try:
-                track_gevent_greenlet(target)
-            except GreenletTrackingError:
-                # Not something that we can track
+                stack.update_greenlet_frame(target_id, target.gr_frame)
+            except (KeyError, Exception):
                 pass
-
-        try:
-            # If this is being set to None, it means the greenlet is likely
-            # finished. We use the sentinel again to signal this.
-            update_greenlet_frame(
-                origin_id,
-                t.cast(t.Optional[FrameType], origin.gr_frame) or FRAME_NOT_SET,
-            )
-            if target_id not in _parent_greenlet_count:
-                # We don't want to wipe the frame of a parent greenlet because
-                # we need to unwind it. We definitely know it is still running
-                # so if we allow the tracer to set its tracked frame to None,
-                # we won't be able to unwind the full stack.
-                update_greenlet_frame(target_id, target.gr_frame)  # this *is* None
-        except KeyError:
-            # TODO: Log missing greenlet
-            pass
 
     if _original_greenlet_tracer is not None:
         _original_greenlet_tracer(event, args)
