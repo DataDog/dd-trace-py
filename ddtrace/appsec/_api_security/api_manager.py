@@ -36,17 +36,23 @@ class TooLargeSchemaException(Exception):
     pass
 
 
+def path_param_transform(v):
+    if isinstance(v, (list, tuple)):
+        return list(v)
+    return dict(v)
+
+
 class APIManager(Service):
     BLOCK_COLLECTED = [
         ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
         ("REQUEST_COOKIES", API_SECURITY.REQUEST_COOKIES, dict),
         ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
-        ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, dict),
+        ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, path_param_transform),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
     ]
     COLLECTED = BLOCK_COLLECTED + [
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
-        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f()),
+        ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f() if callable(f) else f),
     ]
 
     _instance: Optional["APIManager"] = None
@@ -122,6 +128,9 @@ class APIManager(Service):
 
         # Framework is not fully supported
         if method is None or route is None or status is None:
+            if is_404 or env.blocked:
+                # We should not report missing route on 404 or blocked requests
+                return False
             log.debug(
                 "unsupported groupkey for api security [method %s] [route %s] [status %s]",
                 bool(method),

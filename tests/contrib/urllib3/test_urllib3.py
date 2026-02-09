@@ -3,7 +3,6 @@ import pytest
 import urllib3
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -33,7 +32,6 @@ class BaseUrllib3TestCase(TracerTestCase):
 
         patch()
         self.http = urllib3.PoolManager()
-        Pin._override(urllib3.connectionpool.HTTPConnectionPool, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseUrllib3TestCase, self).tearDown()
@@ -142,7 +140,6 @@ class TestUrllib3(BaseUrllib3TestCase):
         """Ensure that double patch doesn't duplicate instrumentation"""
         patch()
         connpool = urllib3.connectionpool.HTTPConnectionPool(HOST, PORT)
-        connpool.datadog_tracer = self.tracer
 
         out = connpool.urlopen("GET", URL_200)
         assert out.status == 200

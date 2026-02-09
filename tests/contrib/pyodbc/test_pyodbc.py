@@ -1,6 +1,5 @@
 import pyodbc
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pyodbc.patch import patch
 from ddtrace.contrib.internal.pyodbc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -15,6 +14,7 @@ class PyODBCTest(object):
     """pyodbc test case reuses the connection across tests"""
 
     conn = None
+    tracer = None
 
     def setUp(self):
         super(PyODBCTest, self).setUp()
@@ -29,17 +29,17 @@ class PyODBCTest(object):
                 pass
         unpatch()
 
-    def _get_conn_tracer(self):
-        pass
+    def _get_conn(self):
+        return self.conn
 
     def test_simple_query(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -53,13 +53,13 @@ class PyODBCTest(object):
 
     def test_simple_query_fetchall(self):
         with self.override_config("pyodbc", dict(trace_fetch_methods=True)):
-            conn, tracer = self._get_conn_tracer()
+            conn = self._get_conn()
 
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
             span = spans[0]
@@ -74,27 +74,27 @@ class PyODBCTest(object):
             assert span.get_tag("span.kind") == "client"
 
     def test_query_with_several_rows(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         cursor = conn.cursor()
         query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.assertEqual(spans[0].name, "pyodbc.query")
 
     def test_query_with_several_rows_fetchall(self):
         with self.override_config("pyodbc", dict(trace_fetch_methods=True)):
-            conn, tracer = self._get_conn_tracer()
+            conn = self._get_conn()
 
             cursor = conn.cursor()
             query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
             fetch_span = spans[0]
@@ -102,12 +102,12 @@ class PyODBCTest(object):
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
-        tracer.enabled = False
+        self.tracer.enabled = False
         cursor = conn.cursor()
 
-        tracer.enabled = True
+        self.tracer.enabled = True
         cursor.execute(
             """
             create table if not exists dummy (
@@ -128,19 +128,19 @@ class PyODBCTest(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 3
         cursor.execute("drop table if exists dummy")
 
     def test_query_many_fetchall(self):
         with self.override_config("pyodbc", dict(trace_fetch_methods=True)):
             # tests that the executemany method is correctly wrapped.
-            conn, tracer = self._get_conn_tracer()
+            conn = self._get_conn()
 
-            tracer.enabled = False
+            self.tracer.enabled = False
             cursor = conn.cursor()
 
-            tracer.enabled = True
+            self.tracer.enabled = True
             cursor.execute(
                 """
                 create table if not exists dummy (
@@ -160,7 +160,7 @@ class PyODBCTest(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             cursor.execute("drop table if exists dummy")
 
@@ -168,10 +168,10 @@ class PyODBCTest(object):
             assert fetch_span.name == "pyodbc.query"
 
     def test_commit(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("component") == "pyodbc"
@@ -180,10 +180,10 @@ class PyODBCTest(object):
         assert span.name == "pyodbc.connection.commit"
 
     def test_rollback(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.get_tag("component") == "pyodbc"
@@ -192,42 +192,31 @@ class PyODBCTest(object):
         assert span.name == "pyodbc.connection.rollback"
 
     def test_context_manager(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         with conn as conn2:
             with conn2.cursor() as cursor:
                 cursor.execute("SELECT 1")
                 rows = cursor.fetchall()
                 assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 1
 
 
 class TestPyODBCPatch(PyODBCTest, TracerTestCase):
-    def _get_conn_tracer(self):
+    def _get_conn(self):
         if not self.conn:
             self.conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
-
-            return self.conn, self.tracer
+        return self.conn
 
     def test_patch_unpatch(self):
         unpatch()
         # assert we start unpatched
         conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-        assert not Pin.get_from(conn)
         conn.close()
 
         patch()
         try:
             conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-            pin = Pin.get_from(conn)
-            assert pin
-            pin._clone(tracer=self.tracer).onto(conn)
 
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
@@ -248,91 +237,76 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
 
             # assert we finish unpatched
             conn = pyodbc.connect(PYODBC_CONNECT_DSN)
-            assert not Pin.get_from(conn)
             conn.close()
 
         patch()
 
-    def test_user_pin_override(self):
-        conn, tracer = self._get_conn_tracer()
-        pin = Pin.get_from(conn)
-        pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        rows = cursor.fetchall()
-        assert len(rows) == 1
-        spans = tracer.pop()
-        assert len(spans) == 1
-
-        span = spans[0]
-        assert span.service == "pin-svc"
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYODBC_SERVICE="my-pyodbc-service"))
     def test_user_specified_service_integration(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "my-pyodbc-service"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_schematized_service_name_default(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_service_name_v0(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_service_name_v1(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "mysvc", "Expected service name to be 'mysvc' but was '{}'".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
     def test_schematized_unspecified_service_name_default(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_unspecified_service_name_v0(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pyodbc", "Expected service name to be 'pyodbc' but was '{}'".format(span.service)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_unspecified_service_name_v1(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME, (
@@ -341,12 +315,12 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_schematized_operation_name_v0(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("SELECT 1")
         cursor.fetchall()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(
@@ -355,12 +329,12 @@ class TestPyODBCPatch(PyODBCTest, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_schematized_operation_name_v1(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         cursor = conn.cursor()
 
         cursor.execute("SELECT 1")
         cursor.fetchall()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.name == "pyodbc.query", "Expected operation name to be 'pyodbc.query' but was '{}'".format(

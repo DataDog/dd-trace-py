@@ -26,7 +26,7 @@ from tests.contrib.falcon.app import get_app
 class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
     def setUp(self):
         super(TestCase, self).setUp()
-        self.api = get_app(tracer=self.tracer)
+        self.api = get_app()
         if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
         else:
@@ -36,9 +36,9 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
         traces = self.pop_traces()
         assert len(traces) == 1
-        falcon_span = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
-        assert len(falcon_span) == 1
-        assert falcon_span[0].service == "{}"
+        falcon_spans = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
+        assert len(falcon_spans) == 2
+        assert falcon_spans[0].service == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
@@ -74,7 +74,7 @@ from tests.contrib.falcon.app import get_app
 class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
     def setUp(self):
         super(TestCase, self).setUp()
-        self.api = get_app(tracer=self.tracer)
+        self.api = get_app()
         if FALCON_VERSION >= (2, 0, 0):
             self.client = testing.TestClient(self.api)
         else:
@@ -84,9 +84,9 @@ class TestCase(TracerTestCase, testing.TestCase, FalconTestMixin):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
         traces = self.pop_traces()
         assert len(traces) == 1
-        falcon_span = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
-        assert len(falcon_span) == 1
-        assert falcon_span[0].name == "{}"
+        falcon_spans = [span for trace in traces for span in trace if span.get_tag("component") == "falcon"]
+        assert len(falcon_spans) == 2
+        assert falcon_spans[0].name == "{}"
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))

@@ -34,7 +34,7 @@ class TestITR:
 
         skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = {
             # Mark one test as skippable.
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_should_be_skipped"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_skipped"),
         }
 
         with (
@@ -90,7 +90,7 @@ class TestITR:
 
         skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = {
             # Mark one test as skippable.
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_should_be_skipped"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_skipped"),
         }
 
         with (
@@ -153,8 +153,8 @@ class TestITR:
 
         skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = {
             # Mark one test as skippable.
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_should_be_skipped"),
-            TestRef(SuiteRef(ModuleRef("."), "test_foo.py"), "test_unskippable"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_skipped"),
+            TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_unskippable"),
         }
 
         with (

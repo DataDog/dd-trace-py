@@ -1,7 +1,6 @@
 import mock
 import pymysql
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pymysql.patch import patch
 from ddtrace.contrib.internal.pymysql.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
@@ -20,6 +19,7 @@ class PyMySQLCore(object):
     """PyMySQL test case reuses the connection across tests"""
 
     conn = None
+    tracer = None
 
     DB_INFO = {
         "out.host": MYSQL_CONFIG.get("host"),
@@ -42,12 +42,12 @@ class PyMySQLCore(object):
             self.conn.close()
         unpatch()
 
-    def _get_conn_tracer(self):
+    def _get_conn(self):
         # implement me
         pass
 
     def test_simple_query(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         cursor = conn.cursor()
 
@@ -57,7 +57,7 @@ class PyMySQLCore(object):
 
         rows = cursor.fetchall()
         assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
         span = spans[0]
@@ -76,13 +76,13 @@ class PyMySQLCore(object):
 
     def test_simple_query_fetchall(self):
         with self.override_config("pymysql", dict(trace_fetch_methods=True)):
-            conn, tracer = self._get_conn_tracer()
+            conn = self._get_conn()
 
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             span = spans[0]
@@ -103,27 +103,27 @@ class PyMySQLCore(object):
             assert fetch_span.name == "pymysql.query.fetchall"
 
     def test_query_with_several_rows(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         cursor = conn.cursor()
         query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
         cursor.execute(query)
         rows = cursor.fetchall()
         assert len(rows) == 3
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         self.assertEqual(spans[0].name, "pymysql.query")
 
     def test_query_with_several_rows_fetchall(self):
         with self.override_config("pymysql", dict(trace_fetch_methods=True)):
-            conn, tracer = self._get_conn_tracer()
+            conn = self._get_conn()
 
             cursor = conn.cursor()
             query = "SELECT n FROM (SELECT 42 n UNION SELECT 421 UNION SELECT 4210) m"
             cursor.execute(query)
             rows = cursor.fetchall()
             assert len(rows) == 3
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 2
 
             fetch_span = spans[1]
@@ -131,9 +131,9 @@ class PyMySQLCore(object):
 
     def test_query_many(self):
         # tests that the executemany method is correctly wrapped.
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
-        tracer.enabled = False
+        self.tracer.enabled = False
         cursor = conn.cursor()
 
         cursor.execute(
@@ -142,7 +142,7 @@ class PyMySQLCore(object):
                 dummy_key VARCHAR(32) PRIMARY KEY,
                 dummy_value TEXT NOT NULL)"""
         )
-        tracer.enabled = True
+        self.tracer.enabled = True
 
         stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
         data = [("foo", "this is foo"), ("bar", "this is bar")]
@@ -160,16 +160,16 @@ class PyMySQLCore(object):
         assert rows[1][0] == "foo"
         assert rows[1][1] == "this is foo"
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 2
         cursor.execute("drop table if exists dummy")
 
     def test_query_many_fetchall(self):
         with self.override_config("pymysql", dict(trace_fetch_methods=True)):
             # tests that the executemany method is correctly wrapped.
-            conn, tracer = self._get_conn_tracer()
+            conn = self._get_conn()
 
-            tracer.enabled = False
+            self.tracer.enabled = False
             cursor = conn.cursor()
 
             cursor.execute(
@@ -178,7 +178,7 @@ class PyMySQLCore(object):
                     dummy_key VARCHAR(32) PRIMARY KEY,
                     dummy_value TEXT NOT NULL)"""
             )
-            tracer.enabled = True
+            self.tracer.enabled = True
 
             stmt = "INSERT INTO dummy (dummy_key, dummy_value) VALUES (%s, %s)"
             data = [("foo", "this is foo"), ("bar", "this is bar")]
@@ -192,7 +192,7 @@ class PyMySQLCore(object):
             assert rows[1][0] == "foo"
             assert rows[1][1] == "this is foo"
 
-            spans = tracer.pop()
+            spans = self.pop_spans()
             assert len(spans) == 3
             cursor.execute("drop table if exists dummy")
 
@@ -200,10 +200,10 @@ class PyMySQLCore(object):
             assert fetch_span.name == "pymysql.query.fetchall"
 
     def test_query_proc(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         # create a procedure
-        tracer.enabled = False
+        self.tracer.enabled = False
         cursor = conn.cursor()
         cursor.execute("DROP PROCEDURE IF EXISTS sp_sum")
         cursor.execute(
@@ -214,7 +214,7 @@ class PyMySQLCore(object):
             END;"""
         )
 
-        tracer.enabled = True
+        self.tracer.enabled = True
         proc = "sp_sum"
         data = (40, 2, None)
 
@@ -231,7 +231,7 @@ class PyMySQLCore(object):
         assert len(output) == 3
         assert output[2] == 42
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert spans, spans
 
         # number of spans depends on PyMySQL implementation details,
@@ -249,20 +249,20 @@ class PyMySQLCore(object):
         assert_dict_issuperset(span.get_tags(), meta)
 
     def test_commit(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.commit()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
         assert span.name == "pymysql.connection.commit"
 
     def test_rollback(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
         assert span.service == "pymysql"
@@ -270,32 +270,21 @@ class PyMySQLCore(object):
 
 
 class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
-    def _get_conn_tracer(self):
+    def _get_conn(self):
         if not self.conn:
             self.conn = pymysql.connect(**MYSQL_CONFIG)
             assert not self.conn._closed
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
-
-            return self.conn, self.tracer
+        return self.conn
 
     def test_patch_unpatch(self):
         unpatch()
         # assert we start unpatched
         conn = pymysql.connect(**MYSQL_CONFIG)
-        assert not Pin.get_from(conn)
         conn.close()
 
         patch()
         try:
             conn = pymysql.connect(**MYSQL_CONFIG)
-            pin = Pin.get_from(conn)
-            assert pin
-            pin._clone(tracer=self.tracer).onto(conn)
             assert not conn._closed
 
             cursor = conn.cursor()
@@ -320,40 +309,25 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
             # assert we finish unpatched
             conn = pymysql.connect(**MYSQL_CONFIG)
-            assert not Pin.get_from(conn)
             conn.close()
 
         patch()
 
-    def test_user_pin_override(self):
-        conn, tracer = self._get_conn_tracer()
-        pin = Pin.get_from(conn)
-        pin._clone(service="pin-svc", tracer=self.tracer).onto(conn)
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        rows = cursor.fetchall()
-        assert len(rows) == 1
-        spans = tracer.pop()
-        assert len(spans) == 1
-
-        span = spans[0]
-        assert span.service == "pin-svc"
-
     def test_context_manager(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         # connection doesn't support context manager usage
         with conn.cursor() as cursor:
             cursor.execute("SELECT 1")
             rows = cursor.fetchall()
             assert len(rows) == 1
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert len(spans) == 1
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(DD_PYMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0")
     )
     def test_user_specified_service_integration_v0(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
         spans = self.pop_spans()
@@ -365,7 +339,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
         env_overrides=dict(DD_PYMYSQL_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1")
     )
     def test_user_specified_service_integration_v1(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
         spans = self.pop_spans()
@@ -375,7 +349,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_user_specified_service_v0(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
         spans = self.pop_spans()
@@ -385,7 +359,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_user_specified_service_v1(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
         spans = self.pop_spans()
@@ -395,7 +369,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_unspecified_service_v1(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         conn.rollback()
         spans = self.pop_spans()
@@ -405,7 +379,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
     def test_span_name_v0_schema(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
@@ -416,7 +390,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
     def test_span_name_v1_schema(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
@@ -427,10 +401,10 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_pymysql_dbm_propagation_enabled(self):
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         cursor = conn.cursor()
 
-        shared_tests._test_dbm_propagation_enabled(tracer, cursor, "pymysql")
+        shared_tests._test_dbm_propagation_enabled(self.tracer, cursor, "pymysql")
 
     @TracerTestCase.run_in_subprocess(
         env_overrides=dict(
@@ -442,7 +416,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     )
     def test_pymysql_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
 
@@ -461,7 +435,7 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
     )
     def test_pymysql_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
 
@@ -475,31 +449,12 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_PYMYSQL_SERVICE="service-name-override",
-        )
-    )
-    def test_pymysql_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in mysql"""
-        conn, tracer = self._get_conn_tracer()
-        cursor = conn.cursor()
-        cursor.__wrapped__ = mock.Mock()
-
-        shared_tests._test_dbm_propagation_comment_pin_service_name_override(
-            config=MYSQL_CONFIG, cursor=cursor, conn=conn, tracer=tracer, wrapped_instance=cursor.__wrapped__
-        )
-
-    @TracerTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
             DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True",
         )
     )
     def test_pymysql_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in mysql"""
-        conn, tracer = self._get_conn_tracer()
+        conn = self._get_conn()
         cursor = conn.cursor()
         cursor.__wrapped__ = mock.Mock()
 

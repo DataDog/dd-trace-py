@@ -195,7 +195,7 @@ impl TraceExporterPy {
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
     /// sending the traces.
     fn send(&self, py: Python<'_>, data: PyBackedBytes, trace_count: usize) -> PyResult<String> {
-        py.allow_threads(move || {
+        py.detach(move || {
             match self
                 .inner
                 .as_ref()
@@ -214,17 +214,12 @@ impl TraceExporterPy {
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
-        match self
-            .inner
-            .take()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .shutdown(Some(Duration::from_nanos(timeout_ns)))
-        {
-            Ok(_) => Ok(()),
-            Err(e) => Err(TraceExporterErrorPy::from(e).into()),
+        if let Some(exporter) = self.inner.take() {
+            exporter
+                .shutdown(Some(Duration::from_nanos(timeout_ns)))
+                .map_err(TraceExporterErrorPy::from)?;
         }
+        Ok(())
     }
 
     fn drop(&mut self) -> PyResult<()> {

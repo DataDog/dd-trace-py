@@ -67,6 +67,12 @@ def _transform_headers(data: Union[Dict[str, str], List[Tuple[str, str]]]) -> Di
     return normalized
 
 
+def _serialize_address_values(waf_name: str, value: Any) -> Any:
+    if waf_name in WAF_DATA_NAMES.HEADER_ADDRESSES:
+        return _transform_headers(value)
+    return value
+
+
 def get_rules() -> str:
     return asm_config._asm_static_rule_file or DEFAULT.RULES
 
@@ -282,7 +288,7 @@ class AppSecSpanProcessor(SpanProcessor):
             # ensure ephemeral addresses are sent, event when value is None
             if waf_name not in WAF_DATA_NAMES.PERSISTENT_ADDRESSES and custom_data:
                 if key in custom_data:
-                    ephemeral_data[waf_name] = custom_data[key]
+                    ephemeral_data[waf_name] = _serialize_address_values(waf_name, custom_data.get(key))
 
             elif self._is_needed(waf_name) or force_keys:
                 value = None
@@ -292,7 +298,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     value = _asm_request_context.get_value("waf_addresses", SPAN_DATA_NAMES[key])
                 # if value is a callable, it's a lazy value for api security that should not be sent now
                 if value is not None and not hasattr(value, "__call__"):
-                    data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
+                    data[waf_name] = _serialize_address_values(waf_name, value)
                     if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                         data_already_sent.add(key)
                     log.debug("[action] WAF got value %s", WAF_DATA_NAMES.get(key, key))

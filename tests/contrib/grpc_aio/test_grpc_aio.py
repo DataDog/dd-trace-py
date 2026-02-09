@@ -7,12 +7,9 @@ import grpc
 from grpc import aio
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib.internal.grpc.patch import GRPC_AIO_PIN_MODULE_CLIENT
-from ddtrace.contrib.internal.grpc.patch import GRPC_AIO_PIN_MODULE_SERVER
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.contrib.internal.grpc.utils import _parse_rpc_repr_string
@@ -27,7 +24,6 @@ from tests.contrib.grpc_aio.hellostreamingworld_pb2 import HelloRequest as Hello
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterServicer
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import MultiGreeterStub
 from tests.contrib.grpc_aio.hellostreamingworld_pb2_grpc import add_MultiGreeterServicer_to_server
-from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
 
 
@@ -177,15 +173,6 @@ def patch_grpc_aio():
 
 
 @pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, tracer=tracer)
-    Pin._override(GRPC_AIO_PIN_MODULE_SERVER, tracer=tracer)
-    yield tracer
-    tracer.pop()
-
-
-@pytest.fixture
 async def async_server_info(request, tracer, event_loop):
     _ServerInfo = namedtuple("_ServerInfo", ("target", "abort_supported"))
     _server = grpc.aio.server()
@@ -317,7 +304,7 @@ async def test_secure_channel_with_interceptor_in_args(server_info, tracer):
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_invalid_target(server_info, tracer):
+async def test_invalid_target(server_info, tracer, test_spans):
     target = "localhost:50051"
     async with aio.insecure_channel(target) as channel:
         stub = HelloStub(channel)
@@ -347,69 +334,6 @@ async def test_pin_not_activated(server_info, tracer):
 
     spans = _get_spans(tracer)
     assert len(spans) == 0
-
-
-@pytest.mark.parametrize(
-    "servicer",
-    [_CoroHelloServicer(), _SyncHelloServicer()],
-)
-async def test_pin_tags_put_in_span(servicer, tracer):
-    Pin._override(GRPC_AIO_PIN_MODULE_SERVER, service="server1")
-    Pin._override(GRPC_AIO_PIN_MODULE_SERVER, tags={"tag1": "server"})
-    target = f"localhost:{_GRPC_PORT}"
-    _server = _create_server(servicer, target)
-    await _server.start()
-
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, tags={"tag2": "client"})
-    async with aio.insecure_channel(target) as channel:
-        stub = HelloStub(channel)
-        await stub.SayHello(HelloRequest(name="test"))
-
-    await _server.stop(grace=None)
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-    client_span, server_span = spans
-
-    _check_client_span(client_span, "grpc-aio-client", "SayHello", "unary")
-    assert client_span.get_tag("tag2") == "client"
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
-    _check_server_span(server_span, "server1", "SayHello", "unary")
-    assert server_span.get_tag("tag1") == "server"
-    assert server_span.get_tag("component") == "grpc_aio_server"
-    assert server_span.get_tag("span.kind") == "server"
-
-
-@pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
-async def test_pin_can_be_defined_per_channel(server_info, tracer):
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, service="grpc1")
-    channel1 = aio.insecure_channel(server_info.target)
-
-    Pin._override(GRPC_AIO_PIN_MODULE_CLIENT, service="grpc2")
-    channel2 = aio.insecure_channel(server_info.target)
-
-    stub1 = HelloStub(channel1)
-    await stub1.SayHello(HelloRequest(name="test"))
-    await channel1.close()
-
-    # DEV: make sure we have two spans before proceeding
-    spans = _get_spans(tracer)
-    assert len(spans) == 2
-
-    stub2 = HelloStub(channel2)
-    await stub2.SayHello(HelloRequest(name="test"))
-    await channel2.close()
-
-    spans = _get_spans(tracer)
-    assert len(spans) == 4
-    client_span1, server_span1, client_span2, server_span2 = spans
-
-    # DEV: Server service default, client services override
-    _check_client_span(client_span1, "grpc1", "SayHello", "unary")
-    _check_server_span(server_span1, "grpc-aio-server", "SayHello", "unary")
-    _check_client_span(client_span2, "grpc2", "SayHello", "unary")
-    _check_server_span(server_span2, "grpc-aio-server", "SayHello", "unary")
 
 
 @pytest.mark.skipif(
@@ -904,7 +828,7 @@ from tests.contrib.grpc_aio.test_grpc_aio import _SyncHelloServicer
 from tests.contrib.grpc_aio.test_grpc_aio import _get_spans
 from tests.contrib.grpc_aio.test_grpc_aio import patch_grpc_aio
 from tests.contrib.grpc_aio.test_grpc_aio import server_info
-from tests.contrib.grpc_aio.test_grpc_aio import tracer
+from tests.conftest import *
 
 @pytest.mark.parametrize("server_info",[_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
 async def test_client_streaming(server_info, tracer):

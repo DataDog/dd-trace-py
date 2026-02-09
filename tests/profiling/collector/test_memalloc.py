@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import gc
 import inspect
 import os
 from pathlib import Path
@@ -12,9 +11,10 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Sequence
+from typing import Set
+from typing import Union
 
 import pytest
-from typing_extensions import Union
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import ProfilingConfig
@@ -26,6 +26,7 @@ from tests.profiling.collector import pprof_utils
 
 
 if TYPE_CHECKING:
+    # We need the pyright: ignore because pprof_pb2 does not exist as a real module, only as a pyi.
     from tests.profiling.collector import pprof_pb2  # pyright: ignore[reportMissingModuleSource]
 
 
@@ -117,7 +118,11 @@ def test_memory_collector(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
             thread_id=threading.main_thread().ident,
             locations=[
                 pprof_utils.StackLocation(
@@ -163,10 +168,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )
 def test_heap_profiler_large_heap_overhead() -> None:
-    # TODO(nick): this test case used to crash due to integer arithmetic bugs.
-    # Now it doesn't crash, but it takes far too long to run to be useful in CI.
-    # Un-skip this test if/when we improve the worst-case performance of the
-    # heap profiler for large heaps
+    # NOTE: A regression test for integer arithmetic bugs.
     from ddtrace.profiling import Profiler
     from tests.profiling.collector.test_memalloc import one
 
@@ -282,6 +284,7 @@ def get_tracemalloc_stats_per_func(
     ),
 )
 def test_memalloc_data_race_regression() -> None:
+    import gc
     import threading
     import time
 
@@ -781,11 +784,18 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
     # Store reference to nested function for later qualname access
     deep_alloc_func = None
 
+    num_threads = 10
+    thread_ids: Set[int] = set()
+    thread_ids_lock = threading.Lock()
+
     with mc:
         threads: List[threading.Thread] = []
-        barrier = threading.Barrier(10)
+        barrier = threading.Barrier(num_threads)
 
-        def allocate_with_traceback():
+        def allocate_with_traceback() -> None:
+            # Record this thread's ID before waiting
+            with thread_ids_lock:
+                thread_ids.add(threading.current_thread().ident)  # type: ignore[arg-type]
             barrier.wait()
 
             def deep_alloc(depth: int) -> Union[tuple[None, ...], bytearray]:
@@ -796,10 +806,12 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
             # Capture reference to deep_alloc for later use
             nonlocal deep_alloc_func
             deep_alloc_func = deep_alloc
-            data = deep_alloc(50)
-            del data
+            # Multiple allocations per thread to make sampling more reliable
+            for _ in range(5):
+                data = deep_alloc(50)
+                del data
 
-        for _ in range(10):
+        for _ in range(num_threads):
             t = threading.Thread(target=allocate_with_traceback)
             threads.append(t)
             t.start()
@@ -815,6 +827,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
 
         deep_alloc_total_count = 0
         max_stack_depth = 0
+        sampled_thread_ids: Set[int] = set()
 
         for sample in profile.sample:
             # Buffer pool test: All samples should have stack frames
@@ -826,9 +839,20 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
                 # Samples with identical stack traces are merged in pprof profiles,
                 # so we need to sum the alloc-samples count value
                 deep_alloc_total_count += sample.value[alloc_count_idx]
+                # Track which threads got sampled
+                thread_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread id")
+                if thread_id_label is not None:
+                    sampled_thread_ids.add(thread_id_label.num)
 
         assert deep_alloc_total_count >= 10, (
             f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_total_count}"
+        )
+
+        # Verify we got samples from all threads
+        assert sampled_thread_ids == thread_ids, (
+            f"Buffer pool test: Expected samples from all {num_threads} threads, "
+            f"but only got samples from {len(sampled_thread_ids)} threads. "
+            f"Missing: {thread_ids - sampled_thread_ids}"
         )
 
         assert max_stack_depth >= 50, (
@@ -990,3 +1014,141 @@ def test_memalloc_sample_size(
 
     for predicate, default in zip(predicates, (1024 * 1024, 1, 512, 512 * 1024 * 1024)):
         assert predicate(_derive_default_heap_sample_size(config.heap, default))
+
+
+def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
+    """Regression test for duplicate dropped frames indicator bug.
+
+    This test verifies that when export_sample() is called multiple times on the same
+    sample with dropped frames, the "<N frame(s) omitted>" indicator frame is only
+    added once, not multiple times.
+
+    The bug occurred when:
+    1. A sample had dropped frames (deep stack > max_nframes)
+    2. export_sample() was called, adding the indicator frame
+    3. export_sample() was called again before clear_buffers()
+    4. Another indicator frame was incorrectly added
+
+    This test creates allocations from a very deep stack to trigger frame dropping,
+    calls snapshot twice in a row, and checks that no sample has duplicate
+    "<N frame(s) omitted>" frames.
+    """
+    from ddtrace.internal.settings.profiling import config
+
+    output_filename = _setup_profiling_prelude(tmp_path, "test_no_duplicate_dropped_frames_indicator")
+
+    # Stack depth that should exceed max_nframes to trigger frame dropping
+    DEEP_STACK_DEPTH = 100
+
+    # Verify that max_nframes is less than our deep stack depth
+    # config.max_frames corresponds to DD_PROFILING_MAX_FRAMES (default 64)
+    assert config.max_frames < DEEP_STACK_DEPTH, (
+        f"Test requires DD_PROFILING_MAX_FRAMES ({config.max_frames}) < {DEEP_STACK_DEPTH} to trigger frame dropping"
+    )
+
+    # Create a very deep call stack to trigger frame dropping
+    def make_deep_stack(depth: int):
+        """Recursively creates a call stack of given depth."""
+        if depth == 0:
+            # Allocate at the leaf to create a sample
+            return [object() for _ in range(100)]
+        return make_deep_stack(depth - 1)
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    # Keep allocated objects alive throughout both snapshots
+    junk = []
+
+    with mc:
+        # Create allocations from a deep stack to trigger frame dropping
+        for _ in range(10):
+            junk.append(make_deep_stack(DEEP_STACK_DEPTH))
+
+        # Call snapshot twice in a row to potentially export the same sample multiple times
+        # The objects in junk remain alive, so the samples persist across both exports
+        mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    # Check each sample for duplicate dropped frames indicators
+    for sample_idx, sample in enumerate(profile.sample):
+        omitted_frame_count = 0
+        omitted_frame_locations = []
+
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if location.line:
+                function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+                function_name = profile.string_table[function.name]
+
+                # Check if this is a dropped frames indicator
+                # The format is: "<N frame(s) omitted>" or "<N frames omitted>"
+                if "omitted>" in function_name and function_name.startswith("<"):
+                    omitted_frame_count += 1
+                    omitted_frame_locations.append(function_name)
+
+        # Assert that we don't have duplicate dropped frames indicators
+        assert omitted_frame_count <= 1, (
+            f"Sample {sample_idx} has {omitted_frame_count} dropped frames indicators "
+            f"(expected at most 1). Found: {omitted_frame_locations}"
+        )
+
+
+def test_memory_collector_stack_order(tmp_path: Path) -> None:
+    """Test that stack frames are reported in leaf-to-root order (innermost to outermost).
+
+    This test verifies the fix for upside-down flamegraphs by ensuring that when we have
+    a call chain like outer() -> middle() -> inner() -> allocation, the frames are
+    reported in the order: inner, middle, outer (leaf-to-root).
+    """
+    output_filename = _setup_profiling_prelude(tmp_path, "test_memory_collector_stack_order")
+
+    # Define nested functions to create a known call stack
+    def outer_frame() -> Union[tuple[None, ...], bytearray]:
+        return middle_frame()
+
+    def middle_frame() -> Union[tuple[None, ...], bytearray]:
+        return inner_frame()
+
+    def inner_frame() -> Union[tuple[None, ...], bytearray]:
+        # This is the leaf frame where the actual allocation happens
+        return _create_allocation(256)
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    with mc:
+        # Create allocations with our known call stack
+        data = []
+        for _ in range(20):
+            data.append(outer_frame())
+
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    # Get samples with alloc-space > 0
+    alloc_space_idx = pprof_utils.get_sample_type_index(profile, "alloc-space")
+    samples = [s for s in profile.sample if s.value[alloc_space_idx] > 0]
+
+    assert len(samples) > 0, "Should have captured allocation samples"
+
+    # Helper to create StackLocation with just function name
+    def loc(f_name: str) -> pprof_utils.StackLocation:
+        return pprof_utils.StackLocation(function_name=f_name, filename="", line_no=-1)
+
+    # Verify we have a sample with the expected stack order: inner, middle, outer (leaf-to-root)
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
+            thread_id=threading.main_thread().ident,
+            locations=[
+                loc("inner_frame"),
+                loc("middle_frame"),
+                loc("outer_frame"),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )

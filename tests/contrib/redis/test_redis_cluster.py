@@ -2,15 +2,15 @@
 import pytest
 import redis
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.config import REDISCLUSTER_CONFIG
-from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
+
+from .utils import find_redis_span
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 1), reason="redis.cluster is not implemented in redis<4.1")
@@ -27,7 +27,6 @@ class TestRedisClusterPatch(TracerTestCase):
         patch()
         r = self._get_test_client()
         r.flushall()
-        Pin._override(r, tracer=self.tracer)
         self.r = r
 
     def tearDown(self):
@@ -38,16 +37,13 @@ class TestRedisClusterPatch(TracerTestCase):
     def test_span_service_name_v1(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
 
     def test_basics(self):
         us = self.r.get("cheese")
         assert us is None
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -62,9 +58,7 @@ class TestRedisClusterPatch(TracerTestCase):
     def test_unicode(self):
         us = self.r.get("😐")
         assert us is None
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET 😐")
         assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -84,9 +78,7 @@ class TestRedisClusterPatch(TracerTestCase):
             p.hgetall("xxx")
             p.execute()
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="SET\nRPUSH\nHGETALL")
         assert_is_measured(span)
         assert span.service == "redis"
         assert span.name == "redis.command"
@@ -98,17 +90,18 @@ class TestRedisClusterPatch(TracerTestCase):
         assert span.get_metric("redis.pipeline_length") == 3
 
     def test_patch_unpatch(self):
-        tracer = DummyTracer()
+        # Clear any spans from setUp (cluster discovery + flushall)
+        self.pop_spans()
 
         # Test patch idempotence
         patch()
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        # Filter to only GET spans (ignore cluster discovery spans)
+        spans = [s for s in self.pop_spans() if s.resource == "GET"]
         assert spans, spans
         assert len(spans) == 1
 
@@ -118,17 +111,17 @@ class TestRedisClusterPatch(TracerTestCase):
         r = self._get_test_client()
         r.get("key")
 
-        spans = tracer.pop()
+        spans = self.pop_spans()
         assert not spans, spans
 
         # Test patch again
         patch()
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=tracer).onto(r)
         r.get("key")
 
-        spans = tracer.pop()
+        # Filter to only GET spans (ignore cluster discovery spans)
+        spans = [s for s in self.pop_spans() if s.resource == "GET"]
         assert spans, spans
         assert len(spans) == 1
 
@@ -144,12 +137,9 @@ class TestRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service != "mysvc"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
@@ -164,12 +154,9 @@ class TestRedisClusterPatch(TracerTestCase):
         assert config.service == "mysvc"
 
         r = self._get_test_client()
-        Pin.get_from(r)._clone(tracer=self.tracer).onto(r)
         r.get("key")
 
-        spans = self.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "mysvc"
 
     @TracerTestCase.run_in_subprocess(
@@ -177,7 +164,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_env_user_specified_rediscluster_service_v0(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         assert span.service == "myrediscluster", span.service
 
     @TracerTestCase.run_in_subprocess(
@@ -185,7 +172,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_env_user_specified_rediscluster_service_v1(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "myrediscluster", span.service
 
     @TracerTestCase.run_in_subprocess(
@@ -193,7 +180,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_service_precedence_v0(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET cheese")
         assert span.service == "myrediscluster"
 
         self.reset()
@@ -203,7 +190,7 @@ class TestRedisClusterPatch(TracerTestCase):
     )
     def test_service_precedence_v1(self):
         self.r.get("cheese")
-        span = self.get_spans()[0]
+        span = find_redis_span(self.get_spans(), resource="GET")
         assert span.service == "myrediscluster"
 
         self.reset()

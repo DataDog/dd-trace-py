@@ -4,6 +4,7 @@
 # requires-python = ">=3.8"
 # dependencies = [
 #     "riot>=0.20.1",
+#     "setuptools<82",
 #     "ruamel.yaml>=0.17.21",
 # ]
 # ///
@@ -35,9 +36,9 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import riotfile
-from tests.suitespec import get_patterns
-from tests.suitespec import get_suites
+import riotfile  # noqa: E402
+from tests.suitespec import get_patterns  # noqa: E402
+from tests.suitespec import get_suites  # noqa: E402
 
 
 # Constants
@@ -214,9 +215,15 @@ class TestRunner:
         return services
 
     def get_riot_venvs(self, pattern: str, suite_name: str = "") -> List[RiotVenv]:
-        """Get available riot venvs for a pattern by using riotfile.venv.instances()."""
+        """Get available riot venvs for a pattern, deduplicated by hash.
+
+        Returns one venv per unique hash. When riot expands environment variable arrays,
+        multiple instances may share the same hash - we only return the first instance
+        for each unique hash to avoid confusing duplicate entries in interactive selection.
+        """
         try:
             venvs = []
+            seen_hashes = set()
             pattern_regex = re.compile(pattern)
 
             # Use riot's own instances() method to get all venv instances
@@ -224,6 +231,13 @@ class TestRunner:
                 # Check if this instance matches our pattern (same logic as riot)
                 if not inst.name or not inst.matches_pattern(pattern_regex):
                     continue
+
+                venv_hash = inst.short_hash if hasattr(inst, "short_hash") else f"hash{n}"
+
+                # Skip if we've already seen this hash (deduplication)
+                if venv_hash in seen_hashes:
+                    continue
+                seen_hashes.add(venv_hash)
 
                 # Extract package information from the instance
                 packages_info = ""
@@ -242,7 +256,7 @@ class TestRunner:
                 venvs.append(
                     RiotVenv(
                         number=n,
-                        hash=inst.short_hash if hasattr(inst, "short_hash") else f"hash{n}",
+                        hash=venv_hash,
                         name=inst.name,
                         python_version=str(inst.py._hint)
                         if hasattr(inst, "py") and hasattr(inst.py, "_hint")
@@ -257,49 +271,6 @@ class TestRunner:
 
         except Exception as e:
             print(f"Warning: Failed to get riot venvs for pattern '{pattern}': {e}")
-            return []
-
-    def get_all_riot_venvs(self) -> List[RiotVenv]:
-        """Get all available riot venvs without pattern filtering."""
-        try:
-            venvs = []
-
-            # Get all venv instances without pattern filtering
-            for n, inst in enumerate(riotfile.venv.instances()):
-                if not inst.name:
-                    continue
-
-                # Extract package information from the instance
-                packages_info = ""
-                if hasattr(inst, "pkgs") and inst.pkgs:
-                    all_packages = [f"{pkg}: {version}" for pkg, version in inst.pkgs.items()]
-                    packages_info = ", ".join(all_packages) if all_packages else "standard packages"
-
-                # Extract command from the instance
-                command = ""
-                if hasattr(inst, "cmd"):
-                    command = str(inst.cmd)
-                elif hasattr(inst, "command"):
-                    command = str(inst.command)
-
-                venvs.append(
-                    RiotVenv(
-                        number=n,
-                        hash=inst.short_hash if hasattr(inst, "short_hash") else f"hash{n}",
-                        name=inst.name,
-                        python_version=str(inst.py._hint)
-                        if hasattr(inst, "py") and hasattr(inst.py, "_hint")
-                        else "3.10",
-                        packages=packages_info,
-                        suite_name="",
-                        command=command,
-                    )
-                )
-
-            return venvs
-
-        except Exception as e:
-            print(f"Warning: Failed to get all riot venvs: {e}")
             return []
 
     def start_services(self, services: Set[str]) -> bool:
@@ -422,7 +393,7 @@ class TestRunner:
                 print(f"   ⚠️  No venvs found for suite '{suite_name}'")
                 continue
 
-            print(f"\n📋 Available venvs for suite '{suite_name}' ({len(venvs)} total):")
+            print(f"\n📋 Available venvs for suite '{suite_name}' ({len(venvs)} unique hash(es)):")
             print("=" * 80)
 
             # Custom format function for venvs
@@ -433,9 +404,9 @@ class TestRunner:
 
             if selected:
                 selected_venvs.extend(selected)
-                print(f"   Selected {len(selected)} venv(s) for suite '{suite_name}':")
+                print(f"   Selected {len(selected)} hash(es) for suite '{suite_name}':")
                 for venv in selected:
-                    print(f"     • {venv.name}: {venv.display_name}")
+                    print(f"     • {venv.hash}: {venv.name} - {venv.display_name}")
 
         return selected_venvs
 
@@ -465,23 +436,47 @@ class TestRunner:
             print("ℹ️  No venvs selected for execution.")
             return True
 
-        # Group venvs by suite
+        # Group venvs by suite, then deduplicate by hash within each suite
+        # This prevents running the same hash multiple times when riot expands env var arrays
         venvs_by_suite: Dict[str, List[RiotVenv]] = {}
+        all_venvs_by_suite: Dict[str, List[RiotVenv]] = {}  # Track all variants for display
+
         for venv in selected_venvs:
             suite_name = venv.suite_name
+
+            # Track all venvs for display
+            if suite_name not in all_venvs_by_suite:
+                all_venvs_by_suite[suite_name] = []
+            all_venvs_by_suite[suite_name].append(venv)
+
+            # Deduplicate by hash for execution
             if suite_name not in venvs_by_suite:
                 venvs_by_suite[suite_name] = []
-            venvs_by_suite[suite_name].append(venv)
 
-        print(f"\n🧪 Running {len(selected_venvs)} venv(s) across {len(venvs_by_suite)} suite(s):")
+            # Only add if we haven't seen this hash in this suite yet
+            if not any(v.hash == venv.hash for v in venvs_by_suite[suite_name]):
+                venvs_by_suite[suite_name].append(venv)
+
+        # Count total unique hashes to execute
+        total_unique_hashes = sum(len(venvs) for venvs in venvs_by_suite.values())
+
+        print(f"\n🧪 Running {total_unique_hashes} unique venv hash(es) across {len(venvs_by_suite)} suite(s):")
         for suite_name, venvs in venvs_by_suite.items():
-            print(f"   • Suite '{suite_name}': {len(venvs)} venv(s)")
+            all_variants = all_venvs_by_suite[suite_name]
+            if len(all_variants) > len(venvs):
+                msg = (
+                    f"   • Suite '{suite_name}': {len(venvs)} hash(es) "
+                    f"({len(all_variants)} total instances including env var expansions)"
+                )
+                print(msg)
+            else:
+                print(f"   • Suite '{suite_name}': {len(venvs)} venv(s)")
 
         # Execute each suite with its own service lifecycle
         for suite_name, venvs in venvs_by_suite.items():
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print(f"🎯 Suite: {suite_name}")
-            print(f"{'='*80}")
+            print(f"{'=' * 80}")
 
             # Get suite config
             suite_config = matching_suites.get(suite_name, {})
@@ -515,9 +510,14 @@ class TestRunner:
                 env["DD_TRACE_AGENT_URL"] = TESTAGENT_URL
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={TESTAGENT_URL} for snapshot tests")
 
-            # Execute each venv in this suite
+            # Execute each unique venv hash in this suite
+            # Note: riot will run all instances for each hash (different commands, env vars, etc.)
             suite_success = True
             for venv in venvs:
+                # Count how many instances share this hash in this suite
+                instances_with_same_hash = [v for v in all_venvs_by_suite[suite_name] if v.hash == venv.hash]
+                num_instances = len(instances_with_same_hash)
+
                 # Execute using ddtest with the specific venv hash
                 cmd = [str(self.root / "scripts" / "ddtest"), "riot", "-v", "run", "--pass-env", venv.hash]
 
@@ -527,6 +527,11 @@ class TestRunner:
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
+                    if num_instances > 1:
+                        print(
+                            f"[DRY RUN] Note: This will run {num_instances} instance(s) "
+                            f"for hash {venv.hash} (different commands, env vars, etc.)"
+                        )
                     env_vars_to_show = []
                     if suite_env:
                         for key, value in sorted(suite_env.items()):
@@ -536,7 +541,8 @@ class TestRunner:
                     if env_vars_to_show:
                         print(f"[DRY RUN] With env: {', '.join(env_vars_to_show)}")
                 else:
-                    print(f"\n▶️  Executing ({venv.display_name}): {' '.join(cmd)}")
+                    instance_info = f" [{num_instances} instance(s)]" if num_instances > 1 else ""
+                    print(f"\n▶️  Executing ({venv.display_name}){instance_info}: {' '.join(cmd)}")
                     try:
                         result = subprocess.run(cmd, env=env, cwd=self.root)
                         if result.returncode != 0:
@@ -618,23 +624,45 @@ class TestRunner:
         return selected_venvs
 
     def get_venvs_by_hash_direct(self, venv_hashes: List[str]) -> List[RiotVenv]:
-        """Get specific venvs by their hashes from all available venvs.
+        """Get specific venvs by their hashes, deduplicated (consistent with CI approach).
 
-        This method doesn't require suite information and is used when --venv is provided directly.
+        Deduplicates hashes to avoid running the same hash multiple times when riot
+        expands environment variable arrays into multiple instances with the same hash.
+
+        This uses the same deduplication strategy as CI (.gitlab/tests.yml), where
+        'riot list --hash-only' returns each unique hash only once, even if multiple
+        instances share that hash due to env var expansion.
         """
-        all_venvs = self.get_all_riot_venvs()
-        venv_hashes_set = set(venv_hashes)
-        matched_venvs = [venv for venv in all_venvs if venv.hash in venv_hashes_set]
+        # Deduplicate hashes while preserving order (same as CI behavior)
+        seen = set()
+        unique_hashes = []
+        for venv_hash in venv_hashes:
+            if venv_hash not in seen:
+                seen.add(venv_hash)
+                unique_hashes.append(venv_hash)
 
-        if not matched_venvs:
-            return []
+        if len(unique_hashes) < len(venv_hashes):
+            print(f"ℹ️  Deduplicated {len(venv_hashes)} hash(es) to {len(unique_hashes)} unique hash(es)")
 
-        # Print info about found venvs
-        print(f"📌 Found {len(matched_venvs)} venv(s):")
-        for venv in matched_venvs:
-            print(f"   • {venv.hash}: {venv.name} ({venv.display_name})")
+        print(f"📌 Using {len(unique_hashes)} unique hash(es): {', '.join(unique_hashes)}")
 
-        return matched_venvs
+        # Create minimal RiotVenv objects for each unique hash
+        # Riot will validate the hashes and run all env var variants when executed
+        selected_venvs = []
+        for venv_hash in unique_hashes:
+            selected_venvs.append(
+                RiotVenv(
+                    number=0,  # Not needed for hash-based execution
+                    hash=venv_hash,
+                    name=venv_hash,  # Use hash as name for display
+                    python_version="",  # Not needed for hash-based execution
+                    packages="",  # Not needed for hash-based execution
+                    suite_name="",  # Will be determined later
+                    command="",
+                )
+            )
+
+        return selected_venvs
 
 
 def main():
@@ -685,7 +713,10 @@ Examples:
     parser.add_argument(
         "--venv",
         action="append",
-        help="Run specific venvs (by hash) without interactive prompts. Can be used multiple times (e.g., --venv hash1 --venv hash2)",
+        help=(
+            "Run specific venvs (by hash) without interactive prompts. "
+            "Can be used multiple times (e.g., --venv hash1 --venv hash2)"
+        ),
     )
 
     # Parse args, but handle -- separator for riot args

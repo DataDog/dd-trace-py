@@ -1,12 +1,15 @@
 #include "sampler.hpp"
 
+#include "constants.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/danger.h"
+#include "echion/echion_sampler.h"
 #include "echion/errors.h"
 #include "echion/greenlets.h"
 #include "echion/interp.h"
+#include "echion/strings.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
 #include "echion/vm.h"
@@ -151,6 +154,9 @@ Sampler::adapt_sampling_interval()
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
+    // Mark thread as running
+    thread_running.store(true);
+
     // Re-install SIGSEGV/SIGBUS handlers here, after Python initialization.
     // The handlers may have been installed during static init, but Python or
     // libraries (faulthandler, Django, FastAPI) can overwrite them afterwards.
@@ -173,8 +179,8 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
-            for_each_thread(interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(interp.id, tstate, wall_time_us);
+            for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -182,6 +188,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         });
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
+        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -202,6 +209,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // systems.
         std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
     }
+
+    // Signal that the thread is exiting
+    {
+        std::lock_guard<std::mutex> lock(thread_exit_mutex);
+        thread_running.store(false);
+    }
+    thread_exit_cv.notify_all();
 }
 
 void
@@ -213,7 +227,7 @@ Sampler::set_interval(double new_interval_s)
 }
 
 Sampler::Sampler()
-  : renderer_ptr{ std::make_shared<StackRenderer>() }
+  : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {
 }
 
@@ -225,6 +239,54 @@ Sampler::get()
 }
 
 void
+Sampler::postfork_child()
+{
+    // Clear stale task/greenlet entries from parent process.
+    // No lock needed: only one thread exists in child immediately after fork.
+
+    // The sampling thread from the parent doesn't exist in the child.
+    // Reset the flag so stop() doesn't wait for a non-existent thread.
+    thread_running.store(false);
+    new (&thread_exit_mutex) std::mutex();
+    new (&thread_exit_cv) std::condition_variable();
+
+    // Clear stale echion state (mutexes, maps) from parent process
+    if (echion) {
+        echion->postfork_child();
+    }
+
+    auto& thread_info_map = echion->thread_info_map();
+
+    // Refresh the ThreadInfo for the current (only) Thread.
+    // The pthread_t (thread_id) is preserved across fork, but native_id and
+    // cpu_clock_id/mach_port must be updated for the child process.
+#if defined PL_LINUX
+    auto current_thread_id = static_cast<uintptr_t>(pthread_self());
+#elif defined PL_DARWIN
+    auto current_thread_id = reinterpret_cast<uintptr_t>(pthread_self());
+#endif
+
+    // Extract the current ThreadInfo name if possible. All the other information needs to be updated.
+    auto it = thread_info_map.find(current_thread_id);
+    std::string name = it != thread_info_map.end() ? it->second->name : "MainThread";
+
+    // Clear all entries, we have extracted everything we care about.
+    thread_info_map.clear();
+
+    // After fork, the current thread is the main (and only) thread,
+    // so native_id == pid.
+    auto native_id = static_cast<unsigned long>(getpid());
+
+    auto maybe_thread_info = ThreadInfo::create(current_thread_id, native_id, name.c_str());
+    if (maybe_thread_info) {
+        thread_info_map.emplace(current_thread_id, std::move(*maybe_thread_info));
+    } else {
+        std::cerr << "Failed to register thread: " << std::hex << current_thread_id << std::dec << " (" << native_id
+                  << ") " << name << std::endl;
+    }
+}
+
+void
 _stack_atfork_child()
 {
     // The only thing we need to do at fork is to propagate the PID to echion
@@ -232,11 +294,8 @@ _stack_atfork_child()
     _set_pid(getpid());
     ThreadSpanLinks::postfork_child();
 
-    // `thread_info_map_lock` and `task_link_map_lock` are global locks held in echion
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&thread_info_map_lock) std::mutex;
-    new (&task_link_map_lock) std::mutex;
-    new (&greenlet_info_map_lock) std::mutex;
+    // Clear renderer caches to avoid using stale interned IDs
+    Sampler::get().postfork_child();
 }
 
 __attribute__((constructor)) void
@@ -248,29 +307,24 @@ _stack_init()
 void
 Sampler::one_time_setup()
 {
-    init_frame_cache(echion_frame_cache_size);
-
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the atfork handler to ensure that we're tracking the correct process
     _stack_atfork_child();
     pthread_atfork(nullptr, nullptr, _stack_atfork_child);
-
-    // Register our rendering callbacks with echion's Renderer singleton
-    Renderer::get().set_renderer(renderer_ptr);
 }
 
 void
 Sampler::register_thread(uint64_t id, uint64_t native_id, const char* name)
 {
     // Registering threads requires coordinating with one of echion's global locks, which we take here.
-    const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
+    const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
 
     static bool has_errored = false;
-    auto it = thread_info_map.find(id);
-    if (it == thread_info_map.end()) {
+    auto it = echion->thread_info_map().find(id);
+    if (it == echion->thread_info_map().end()) {
         auto maybe_thread_info = ThreadInfo::create(id, native_id, name);
         if (maybe_thread_info) {
-            thread_info_map.emplace(id, std::move(*maybe_thread_info));
+            echion->thread_info_map().emplace(id, std::move(*maybe_thread_info));
         } else {
             if (!has_errored) {
                 has_errored = true;
@@ -296,8 +350,8 @@ void
 Sampler::unregister_thread(uint64_t id)
 {
     // unregistering threads requires coordinating with one of echion's global locks, which we take here.
-    const std::lock_guard<std::mutex> thread_info_guard{ thread_info_map_lock };
-    thread_info_map.erase(id);
+    const std::lock_guard<std::mutex> thread_info_guard{ echion->thread_info_map_lock() };
+    echion->thread_info_map().erase(id);
 }
 
 bool
@@ -313,9 +367,12 @@ Sampler::start()
     // We might as well get the default stack size and use that
     rlimit stack_sz = {};
     getrlimit(RLIMIT_STACK, &stack_sz);
-    if (create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num) == 0) {
+    auto thread_id = create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num);
+    if (thread_id == 0) {
         return false;
     }
+
+    pthread_detach(thread_id);
 #else
     try {
         std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
@@ -331,45 +388,54 @@ void
 Sampler::stop()
 {
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
-    // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
+    // a sampling loop.
     ++thread_seq_num;
+
+    // Wait for the sampling thread to actually exit (with timeout to avoid hanging forever)
+    std::unique_lock<std::mutex> lock(thread_exit_mutex);
+    constexpr auto timeout = std::chrono::seconds(3);
+    bool exited = thread_exit_cv.wait_for(lock, timeout, [this]() { return !thread_running.load(); });
+    if (!exited) {
+        std::cerr << "Failed to stop sampling thread after timeout, exiting forcefully." << std::endl;
+    }
 }
 
 void
 Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock
-    std::lock_guard<std::mutex> guard(thread_info_map_lock);
-    if (auto it = thread_info_map.find(thread_id); it != thread_info_map.end()) {
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
         it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
 }
 
 void
-Sampler::init_asyncio(PyObject* _asyncio_current_tasks,
-                      PyObject* _asyncio_scheduled_tasks,
-                      PyObject* _asyncio_eager_tasks)
+Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks)
 {
-    asyncio_current_tasks = _asyncio_current_tasks;
-    asyncio_scheduled_tasks = _asyncio_scheduled_tasks;
-    asyncio_eager_tasks = _asyncio_eager_tasks;
-    if (asyncio_eager_tasks == Py_None) {
-        asyncio_eager_tasks = NULL;
-    }
+    echion->init_asyncio(_asyncio_scheduled_tasks, _asyncio_eager_tasks);
 }
 
 void
 Sampler::link_tasks(PyObject* parent, PyObject* child)
 {
-    std::lock_guard<std::mutex> guard(task_link_map_lock);
-    task_link_map[child] = parent;
+    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+    echion->task_link_map()[child] = parent;
+}
+
+void
+Sampler::weak_link_tasks(PyObject* parent, PyObject* child)
+{
+    std::lock_guard<std::mutex> guard(echion->task_link_map_lock());
+    echion->weak_task_link_map()[child] = parent;
 }
 
 void
 Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
+    auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
         // Greenlet is already tracked so we update its info
@@ -380,32 +446,33 @@ Sampler::track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* 
 
     // Update the thread map
     auto native_id = PyThread_get_thread_native_id();
-    greenlet_thread_map[native_id] = greenlet_id;
+    echion->greenlet_thread_map()[native_id] = greenlet_id;
 }
 
 void
 Sampler::untrack_greenlet(uintptr_t greenlet_id)
 {
-    const std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    greenlet_info_map.erase(greenlet_id);
-    greenlet_parent_map.erase(greenlet_id);
-    greenlet_thread_map.erase(greenlet_id);
+    echion->greenlet_info_map().erase(greenlet_id);
+    echion->greenlet_parent_map().erase(greenlet_id);
+    echion->greenlet_thread_map().erase(greenlet_id);
 }
 
 void
 Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
 {
-    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    greenlet_parent_map[child] = parent;
+    echion->greenlet_parent_map()[child] = parent;
 }
 
 void
 Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
 {
-    std::lock_guard<std::mutex> guard(greenlet_info_map_lock);
+    std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
+    auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
         // Update the frame of the greenlet

@@ -10,16 +10,15 @@ from tests.utils import override_global_config
 from .app.web import setup_app
 
 
-async def test_full_request(patched_app_tracer, aiohttp_client):
-    app, tracer = patched_app_tracer
-    client = await aiohttp_client(app)
+async def test_full_request(test_spans, patched_app, aiohttp_client):
+    client = await aiohttp_client(patched_app)
     # it should create a root span when there is a handler hit
     # with the proper tags
     request = await client.request("GET", "/")
     assert 200 == request.status
     await request.text()
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
     request_span = traces[0][0]
@@ -31,18 +30,17 @@ async def test_full_request(patched_app_tracer, aiohttp_client):
     assert "GET /" == request_span.resource
 
 
-async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aiohttp_client):
+async def test_full_request_w_mem_leak_prevention_flag(test_spans, patched_app, aiohttp_client):
     config.aiohttp.disable_stream_timing_for_mem_leak = True
     try:
-        app, tracer = patched_app_tracer
-        client = await aiohttp_client(app)
+        client = await aiohttp_client(patched_app)
         # it should create a root span when there is a handler hit
         # with the proper tags
         request = await client.request("GET", "/")
         assert 200 == request.status
         await request.text()
         # the trace is created
-        traces = tracer.pop_traces()
+        traces = test_spans.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         request_span = traces[0][0]
@@ -58,19 +56,17 @@ async def test_full_request_w_mem_leak_prevention_flag(patched_app_tracer, aioht
         config.aiohttp.disable_stream_timing_for_mem_leak = False
 
 
-async def test_stream_request(patched_app_tracer, aiohttp_client):
-    app, tracer = patched_app_tracer
-    async with await aiohttp_client(app) as client:
+async def test_stream_request(test_spans, patched_app, aiohttp_client):
+    async with await aiohttp_client(patched_app) as client:
         response = await client.request("GET", "/stream/")
         await response.text()
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     request_span = traces[0][0]
     assert abs(0.5 - request_span.duration) < 0.05
 
 
-async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
-    app, tracer = patched_app_tracer
-    client = await aiohttp_client(app)
+async def test_multiple_full_request(test_spans, patched_app, aiohttp_client):
+    client = await aiohttp_client(patched_app)
 
     # it should handle multiple requests using the same loop
     def make_requests():
@@ -91,38 +87,37 @@ async def test_multiple_full_request(patched_app_tracer, aiohttp_client):
         t.join(timeout=0.5)
 
     # the trace is created
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 10 == len(traces)
     assert 1 == len(traces[0])
 
 
-async def test_user_specified_service(tracer, aiohttp_client):
+async def test_user_specified_service(test_spans, aiohttp_client):
     """
     When a service name is specified by the user
         The aiohttp integration should use it as the service name
     """
     with override_global_config(dict(service="mysvc")):
         app = setup_app()
-        trace_app(app, tracer)
+        trace_app(app)
         client = await aiohttp_client(app)
         request = await client.request("GET", "/")
         await request.text()
-        traces = tracer.pop_traces()
+        traces = test_spans.pop_traces()
         assert 1 == len(traces)
         assert 1 == len(traces[0])
         request_span = traces[0][0]
         assert request_span.service == "mysvc"
 
 
-async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client):
-    app, tracer = patched_app_tracer
-    client = await aiohttp_client(app)
+async def test_http_request_header_tracing(test_spans, patched_app, aiohttp_client):
+    client = await aiohttp_client(patched_app)
 
     config.aiohttp.http.trace_headers(["my-header"])
     request = await client.request("GET", "/", headers={"my-header": "my_value"})
     await request.text()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
 
@@ -133,15 +128,14 @@ async def test_http_request_header_tracing(patched_app_tracer, aiohttp_client):
     assert request_span.get_tag("span.kind") == "server"
 
 
-async def test_http_response_header_tracing(patched_app_tracer, aiohttp_client):
-    app, tracer = patched_app_tracer
-    client = await aiohttp_client(app)
+async def test_http_response_header_tracing(test_spans, patched_app, aiohttp_client):
+    client = await aiohttp_client(patched_app)
 
     config.aiohttp.http.trace_headers(["my-response-header"])
     request = await client.request("GET", "/response_headers/")
     await request.text()
 
-    traces = tracer.pop_traces()
+    traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
 

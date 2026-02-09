@@ -5,7 +5,6 @@ import asyncpg
 import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
@@ -152,14 +151,6 @@ async def test_cursor_manual(patched_conn):
         await cur.forward(10)
         await cur.fetchrow()
         await cur.fetch(5)
-
-
-@pytest.mark.asyncio
-@pytest.mark.snapshot
-@pytest.mark.xfail
-async def test_service_override_pin(patched_conn):
-    Pin._override(patched_conn, service="custom-svc")
-    await patched_conn.execute("SELECT 1")
 
 
 @pytest.mark.asyncio
@@ -328,7 +319,10 @@ async def test_pool_custom_connect():
     the tracer doesn't cause a _TracedConnection error or throw any other errors
     The connect option was introduced in 0.30.0
     """
-    database_url = f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
+    database_url = (
+        f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}"
+        f"@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
+    )
 
     try:
         # The default is 10 connection pools so the integration will create 10 spans in the snapshot
@@ -351,7 +345,10 @@ async def test_pool_without_custom_connect():
     """
     Test that create_pool without the connect option still works
     """
-    database_url = f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
+    database_url = (
+        f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}"
+        f"@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
+    )
 
     try:
         # The default is 10 connection pools so the integration will create 10 spans in the snapshot
@@ -383,11 +380,9 @@ def test_patch_unpatch_asyncpg():
 
 
 class AsyncPgTestCase(AsyncioTestCase):
-    # default service
-    TEST_SERVICE = "mysql"
     conn = None
 
-    async def _get_conn_tracer(self):
+    async def _get_conn(self):
         if not self.conn:
             self.conn = await asyncpg.connect(
                 host=POSTGRES_CONFIG["host"],
@@ -397,14 +392,7 @@ class AsyncPgTestCase(AsyncioTestCase):
                 password=POSTGRES_CONFIG["password"],
             )
             assert not self.conn.is_closed()
-            # Ensure that the default pin is there, with its default value
-            pin = Pin.get_from(self.conn)
-            assert pin
-            # Customize the service
-            # we have to apply it on the existing one since new one won't inherit `app`
-            pin._clone(tracer=self.tracer).onto(self.conn)
-
-            return self.conn, self.tracer
+        return self.conn
 
     def setUp(self):
         super().setUp()
@@ -421,15 +409,16 @@ class AsyncPgTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         await conn.execute("SELECT 1")
-        spans = tracer.get_spans()
-        assert len(spans) == 1
-        span = spans[0]
-        assert span.name == "postgres.query"
+        spans = self.get_spans()
+        assert len(spans) == 2, f"Expected 2 spans, got {spans}"
+        conn_span, query_span = spans
+        assert conn_span.name == "postgres.connect"
+        assert query_span.name == "postgres.query"
 
-        assert span.get_tag("_dd.dbm_trace_injected") == "true"
+        assert query_span.get_tag("_dd.dbm_trace_injected") == "true"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(
@@ -443,7 +432,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
@@ -480,7 +469,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
@@ -511,52 +500,13 @@ class AsyncPgTestCase(AsyncioTestCase):
             DD_SERVICE="orders-app",
             DD_ENV="staging",
             DD_VERSION="v7343437-d7ac743",
-            DD_ASYNCPG_SERVICE="service-name-override",
-        )
-    )
-    async def test_asyncpg_dbm_propagation_comment_pin_service_name_override(self):
-        """tests if dbm comment is set in postgres"""
-        db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
-
-        Pin._override(conn, service="pin-service-name-override", tracer=tracer)
-
-        def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
-            return args, kwargs
-
-        with mock.patch(
-            "ddtrace.propagation._database_monitoring.set_argument_value", side_effect=mock_func
-        ) as patched:
-            # test string queries
-            create_table_query = """
-                CREATE TABLE IF NOT EXISTS my_table(
-                    my_column text PRIMARY KEY
-                )
-            """
-
-            await conn.execute(create_table_query)
-            dbm_comment = (
-                f"/*dddb='{db_name}',dddbs='pin-service-name-override',dde='staging',ddh='127.0.0.1',ddps='orders-app',"
-                "ddpv='v7343437-d7ac743'*/ "
-            )
-            assert patched.call_args_list[0][0][4] == dbm_comment + create_table_query, (
-                f"Expected: {dbm_comment + create_table_query},\nActual: {patched.call_args_list[0][0][4]}"
-            )
-
-    @mark_asyncio
-    @AsyncioTestCase.run_in_subprocess(
-        env_overrides=dict(
-            DD_DBM_PROPAGATION_MODE="service",
-            DD_SERVICE="orders-app",
-            DD_ENV="staging",
-            DD_VERSION="v7343437-d7ac743",
             DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED="True",
         )
     )
     async def test_asyncpg_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs

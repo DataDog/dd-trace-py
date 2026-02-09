@@ -4,7 +4,6 @@ from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace.span import Span
 from ddtrace.internal.core import ExecutionContext
-from tests.utils import DummyTracer
 
 
 @pytest.mark.parametrize("missing_resource_path", [False, True])
@@ -15,8 +14,8 @@ def test_create_inferred_proxy_span_for_apigateway(
     proxy_header,
     span_name,
     missing_resource_path,
+    tracer,
 ) -> None:
-    tracer = DummyTracer()
     ctx = ExecutionContext("test")
     headers = {
         "x-dd-proxy": proxy_header,
@@ -34,7 +33,7 @@ def test_create_inferred_proxy_span_for_apigateway(
     if not missing_resource_path:
         headers["x-dd-proxy-resource-path"] = "/{Path}"
 
-    create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of=None, tracer=tracer)
+    create_inferred_proxy_span_if_headers_exist(ctx, headers)
 
     span: Span = ctx.get_item("inferred_proxy_span")
     assert span is not None

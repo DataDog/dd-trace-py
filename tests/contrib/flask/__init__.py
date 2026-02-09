@@ -1,7 +1,6 @@
 import flask
 from flask.testing import FlaskClient
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.flask.patch import patch
 from ddtrace.contrib.internal.flask.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
@@ -36,15 +35,11 @@ class BaseFlaskTestCase(TracerTestCase):
         self.app = flask.Flask(__name__, template_folder="test_templates/")
         self.app.test_client_class = DDFlaskTestClient
         self.client = self.app.test_client()
-        Pin._override(self.app, tracer=self.tracer)
 
     def tearDown(self):
         super(BaseFlaskTestCase, self).tearDown()
         # Unpatch Flask
         unpatch()
-
-    def get_spans(self):
-        return self.tracer.pop()
 
     def assert_is_wrapped(self, obj):
         self.assertTrue(is_wrapted(obj), "{} is not wrapped".format(obj))

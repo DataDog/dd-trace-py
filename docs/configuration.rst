@@ -900,9 +900,21 @@ Logs
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
 
+         Takes precedence over ``DD_TRACE_LOG_LEVEL``.
+
      version_added:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_DEBUG``
+
+   DD_TRACE_LOG_LEVEL:
+     type: String
+     default: None
+
+     description: |
+         Sets the log level for the ddtrace logger, overriding inheritance from the root logger.
+         Valid values are ``NOTSET``, ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, and ``CRITICAL``
+         (case-insensitive). Setting NOTSET will cause the ddtrace logger to inherit from the root logger.
+         ``DD_TRACE_DEBUG=true`` takes precedence over ``DD_TRACE_LOG_LEVEL``.
 
    DD_TRACE_LOG_FILE:
      description: |

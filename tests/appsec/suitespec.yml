@@ -208,7 +208,7 @@ suites:
     services:
       - testagent
   appsec_threats_django:
-    parallelism: 8
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -224,7 +224,7 @@ suites:
     retry: 2
     runner: riot
   appsec_threats_fastapi:
-    parallelism: 6
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -241,7 +241,23 @@ suites:
     retry: 2
     runner: riot
   appsec_threats_flask:
-    parallelism: 4
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@flask'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+    runner: riot
+  appsec_threats_tornado:
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'

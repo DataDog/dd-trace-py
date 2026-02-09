@@ -1,32 +1,34 @@
 """Instrument pymongo to report MongoDB queries.
 
-The pymongo integration works by wrapping pymongo's MongoClient to trace
-network calls. Pymongo 3.0 and greater are the currently supported versions.
-``import ddtrace.auto`` will automatically patch your MongoClient instance to make it work.
+The pymongo integration works by wrapping pymongo's MongoClient and AsyncMongoClient
+to trace network calls. Pymongo 3.0+ is supported for synchronous operations.
+AsyncMongoClient support requires pymongo 4.12+. ``import ddtrace.auto`` will
+automatically patch both client types.
 
 ::
 
-    # Be sure to import pymongo and not pymongo.MongoClient directly,
-    # otherwise you won't have access to the patched version
     from ddtrace import patch
-    from ddtrace._trace.pin import Pin
     import pymongo
 
-    # If not patched yet, you can patch pymongo specifically
     patch(pymongo=True)
 
-    # At that point, pymongo is instrumented with the default settings
+    # Synchronous usage
     client = pymongo.MongoClient()
-    # Example of instrumented query
     db = client["test-db"]
     db.teams.find({"name": "Toronto Maple Leafs"})
 
-    # Use a pin to specify metadata related to this client
-    client = pymongo.MongoClient()
-    pin = Pin.override(client, service="mongo-master")
+    # Asynchronous usage (pymongo 4.12+)
+    from pymongo.asynchronous.mongo_client import AsyncMongoClient
 
-Global Configuration
-~~~~~~~~~~~~~~~~~~~~
+    async def example():
+        client = AsyncMongoClient()
+        db = client["test-db"]
+        async for doc in db.teams.find({"name": "Toronto Maple Leafs"}):
+            print(doc)
+        await client.close()
+
+Configuration
+~~~~~~~~~~~~~
 
 .. py:data:: ddtrace.config.pymongo["service"]
    The service name reported by default for pymongo spans

@@ -4,11 +4,9 @@ from typing import Tuple  # noqa:F401
 import mariadb
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mariadb.patch import patch
 from ddtrace.contrib.internal.mariadb.patch import unpatch
 from tests.contrib.config import MARIADB_CONFIG
-from tests.utils import DummyTracer
 from tests.utils import assert_dict_issuperset
 from tests.utils import assert_is_measured
 from tests.utils import override_config
@@ -26,22 +24,17 @@ SNAPSHOT_VARIANTS = {
 }
 
 
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    patch()
-    try:
-        yield tracer
-        tracer.pop_traces()
-    finally:
-        unpatch()
-
-
 def get_connection(tracer):
     connection = mariadb.connect(**MARIADB_CONFIG)
-    Pin._override(connection, tracer=tracer)
 
     return connection
+
+
+@pytest.fixture(autouse=True)
+def patch_mariadb():
+    patch()
+    yield
+    unpatch()
 
 
 @pytest.fixture
@@ -62,12 +55,12 @@ def test_connection_no_port_or_user_does_not_raise():
             raise exc
 
 
-def test_simple_query(connection, tracer):
+def test_simple_query(connection, tracer, test_spans):
     cursor = connection.cursor()
     cursor.execute("SELECT 1")
     rows = cursor.fetchall()
     assert len(rows) == 1
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 1
     span = spans[0]
     assert_is_measured(span)
@@ -91,7 +84,7 @@ def test_simple_query(connection, tracer):
     )
 
 
-def test_query_executemany(connection, tracer):
+def test_query_executemany(connection, tracer, test_spans):
     tracer.enabled = False
     cursor = connection.cursor()
 
@@ -119,16 +112,16 @@ def test_query_executemany(connection, tracer):
     assert rows[1][0] == "foo"
     assert rows[1][1] == "this is foo"
 
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 2
     span = spans[-1]
     assert span.get_tag("mariadb.query") is None
     cursor.execute("drop table if exists dummy")
 
 
-def test_rollback(connection, tracer):
+def test_rollback(connection, tracer, test_spans):
     connection.rollback()
-    spans = tracer.pop()
+    spans = test_spans.pop()
     assert len(spans) == 1
     span = spans[0]
     assert span.service == "mariadb"

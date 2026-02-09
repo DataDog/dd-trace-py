@@ -12,7 +12,6 @@ from urllib import parse
 
 import wrapt
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
@@ -48,6 +47,8 @@ from ddtrace.ext.kafka import RECEIVED_MESSAGE
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
+from ddtrace.internal.compat import ensure_binary
+from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -65,6 +66,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -138,8 +140,6 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     activate_distributed_headers = ctx.get_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
-    # Look for the tracer in the context, or fallback to the global tracer
-    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
@@ -154,7 +154,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 
     if config._inferred_proxy_services_enabled:
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace))
+        core.dispatch("inferred_proxy.start", (ctx, span_kwargs, call_trace))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
@@ -260,7 +260,7 @@ def _set_inferred_proxy_tags(span, status_code):
                 inferred_span.set_tag(ERROR_STACK, span.get_tag(ERROR_STACK))
 
 
-def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace):
+def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
     # Skip creating another inferred span if one has already been created for this request
     if ctx.get_item("inferred_proxy_span"):
         return
@@ -272,12 +272,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace):
 
     # Inferred Proxy Spans
     if integration_config and headers is not None:
-        create_inferred_proxy_span_if_headers_exist(
-            ctx,
-            headers=headers,
-            child_of=tracer.current_trace_context(),
-            tracer=tracer,
-        )
+        create_inferred_proxy_span_if_headers_exist(ctx, headers=headers)
         inferred_proxy_span = ctx.get_item("inferred_proxy_span")
 
         # use the inferred proxy span as the new parent span
@@ -304,7 +299,7 @@ def _on_inferred_proxy_finish(ctx):
 
 
 def _on_traced_request_context_started_flask(ctx):
-    current_span = ctx.get_item("pin").tracer.current_span()
+    current_span = tracer.current_span()
     if not ctx.get_item("pin").enabled or not current_span:
         return
 
@@ -345,7 +340,7 @@ def _on_request_prepare(ctx, start_response):
         modifier = middleware._request_span_modifier
         args = [req_span, ctx.get_item("environ")]
     modifier(*args)
-    app_span = middleware.tracer.trace(
+    app_span = tracer.trace(
         middleware._application_call_name
         if hasattr(middleware, "_application_call_name")
         else middleware._application_span_name
@@ -390,7 +385,7 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     req_span = ctx.get_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
-    resp_span = middleware.tracer.start_span(
+    resp_span = tracer.start_span(
         (
             middleware._response_call_name
             if hasattr(middleware, "_response_call_name")
@@ -771,7 +766,7 @@ def _on_end_of_traced_method_in_fork(ctx):
     """Force flush to agent since the process `os.exit()`s
     immediately after this method returns
     """
-    ctx.get_item("pin").tracer.flush()
+    tracer.flush()
 
 
 def _on_botocore_bedrock_process_response_converse(
@@ -1342,6 +1337,57 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    span = _start_span(ctx, call_trace, **kwargs)
+    span._metrics[_SPAN_MEASURED_KEY] = 1
+
+    request = ctx.get_item("request")
+
+    if trace_utils.distributed_tracing_enabled(config.httpx):
+        HTTPPropagator.inject(span.context, request.headers)
+
+
+def httpx_url_to_str(url) -> str:
+    """
+    Helper to convert the httpx.URL parts from bytes to a str
+    """
+    scheme = url.raw_scheme
+    host = url.raw_host
+    port = url.port
+    raw_path = url.raw_path
+    url = scheme + b"://" + host
+    if port is not None:
+        url += b":" + ensure_binary(str(port))
+    url += raw_path
+
+    return ensure_text(url)
+
+
+def _on_httpx_send_completed(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    span = ctx.span
+
+    request = ctx.get_item("request")
+    response = ctx.get_item("response")
+
+    try:
+        trace_utils.set_http_meta(
+            span,
+            config.httpx,
+            method=request.method,
+            url=httpx_url_to_str(request.url),
+            target_host=request.url.host,
+            status_code=response.status_code if response else None,
+            query=request.url.query,
+            request_headers=request.headers,
+            response_headers=response.headers if response else None,
+        )
+    finally:
+        _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1487,6 +1533,7 @@ def listen():
         "aiokafka.getmany",
     ):
         core.on(f"context.started.{context_name}", _start_span)
+    core.on("context.started.httpx.request", _on_httpx_request_start)
 
     for name in (
         "asgi.request",
@@ -1524,6 +1571,7 @@ def listen():
 
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
+    core.on("context.ended.httpx.request", _on_httpx_send_completed)
 
 
 listen()

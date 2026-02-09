@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import sqlite3
 import subprocess
 from typing import Optional
@@ -9,7 +10,7 @@ from flask import Flask
 from flask import request
 
 # from ddtrace.appsec.iast import ddtrace_iast_flask_patch
-from ddtrace._trace.pin import Pin
+from ddtrace import config
 import ddtrace.constants
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
@@ -59,9 +60,11 @@ def multi_view(param_int=0, param_str=""):
 @app.route("/new_service/<string:service_name>/", methods=["GET", "POST", "OPTIONS"])
 @app.route("/new_service/<string:service_name>", methods=["GET", "POST", "OPTIONS"])
 def new_service(service_name: str):
-    import ddtrace
-
-    Pin._override(Flask, service=service_name, tracer=ddtrace.tracer)
+    config.flask.service = service_name
+    with tracer.start_span("span_with_new_service", service=service_name):
+        # Generate a root span with the new service name. On span finish,
+        # the service name will be added to the extra services queue.
+        pass
     return service_name
 
 
@@ -81,8 +84,12 @@ def rasp(endpoint: str):
             if param.startswith("filename"):
                 filename = query_params[param]
                 try:
-                    with open(filename, "rb") as f:
-                        res.append(f"File: {f.read()}")
+                    if param.startswith("filename_pathlib"):
+                        with Path(filename).open("rb") as f:
+                            res.append(f"File (pathlib): {f.read()}")
+                    else:
+                        with open(filename, "rb") as f:
+                            res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
@@ -110,6 +117,22 @@ def rasp(endpoint: str):
                     import requests
 
                     r = requests.get(urlname, timeout=0.15)
+                    res.append(f"Url: {r.text}")
+                elif param.startswith("url_httpx_async"):
+                    import asyncio
+
+                    import httpx
+
+                    async def _request():
+                        async with httpx.AsyncClient() as client:
+                            return await client.get(urlname, timeout=0.15)
+
+                    r = asyncio.run(_request())
+                    res.append(f"Url: {r.text}")
+                elif param.startswith("url_httpx"):
+                    import httpx
+
+                    r = httpx.get(urlname, timeout=0.15)
                     res.append(f"Url: {r.text}")
             except Exception as e:
                 res.append(f"Error: {e}")
@@ -163,11 +186,11 @@ def rasp(endpoint: str):
     return f"Unknown endpoint: {endpoint}"
 
 
-@app.route("/redirect/<string:url>/", methods=["GET", "POST"])
-def redirect(url: str):
+@app.route("/redirect/<string:route>/<int:port>", methods=["GET", "POST"])
+def redirect(route: str, port: int):
     import urllib.request
 
-    url = "http://" + url
+    url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.data.decode()
     if body_str:
         body = json.loads(body_str)
@@ -176,10 +199,13 @@ def redirect(url: str):
     try:
         if body:
             request_urllib = urllib.request.Request(
-                url, method="POST", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+                url,
+                method="POST",
+                data=json.dumps(body).encode(),
+                headers={"Content-Type": "application/json", "TagRoute": route},
             )
         else:
-            request_urllib = urllib.request.Request(url, method="GET")
+            request_urllib = urllib.request.Request(url, method="GET", headers={"TagRoute": route})
         with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
             payload = {"payload": f.read().decode(errors="ignore")}
     except Exception as e:
@@ -189,24 +215,84 @@ def redirect(url: str):
     return payload
 
 
-@app.route("/redirect_requests/<string:url>/", methods=["GET", "POST"])
-def redirect_requests(url: str):
+@app.route("/redirect_requests/<string:route>/<int:port>", methods=["GET", "POST"])
+def redirect_requests(route: str, port: int):
     import requests
 
-    full_url = "http://" + url
+    full_url = f"http://127.0.0.1:{port}/{route}"
     body_str = request.data.decode()
     if body_str:
         body = body_str
     else:
         body = None
     method = "POST" if body is not None else "GET"
-    headers = {"TagHost": url}
+    headers = {"TagRoute": route}
     if body is not None:
         headers["Content-Type"] = "application/json"
     try:
         with requests.Session() as s:
             response = s.request(method, full_url, data=body, headers=headers)
             payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
+
+
+@app.route("/redirect_httpx/<string:route>/<int:port>", methods=["GET", "POST"])
+def redirect_httpx(route: str, port: int):
+    import httpx
+
+    full_url = f"http://127.0.0.1:{port}/{route}"
+    body_str = request.data.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagRoute": route}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+        with httpx.Client() as client:
+            response = client.request(
+                method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+            )
+            payload = {"payload": response.text}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
+
+
+@app.route("/redirect_httpx_async/<string:route>/<int:port>", methods=["GET", "POST"])
+def redirect_httpx_async(route: str, port: int):
+    import asyncio
+
+    import httpx
+
+    full_url = f"http://127.0.0.1:{port}/{route}"
+    body_str = request.data.decode()
+    if body_str:
+        body = body_str
+    else:
+        body = None
+    method = "POST" if body is not None else "GET"
+    headers = {"TagRoute": route}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    try:
+
+        async def _request():
+            async with httpx.AsyncClient() as client:
+                return await client.request(
+                    method, full_url, content=body, headers=headers, timeout=0.5, follow_redirects=True
+                )
+
+        response = asyncio.run(_request())
+        payload = {"payload": response.text}
     except Exception as e:
         import traceback
 

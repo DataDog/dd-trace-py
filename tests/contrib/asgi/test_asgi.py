@@ -17,7 +17,6 @@ from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
-from tests.utils import DummyTracer
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 
@@ -58,12 +57,6 @@ def scope(request):
     }
     s.update(request.param)
     return {k: v for (k, v) in s.items() if v is not None}
-
-
-@pytest.fixture
-def tracer():
-    tracer = DummyTracer()
-    yield tracer
 
 
 async def basic_app(scope, receive, send):
@@ -160,8 +153,8 @@ def _check_span_tags(scope, span):
 
 
 @pytest.mark.asyncio
-async def test_basic_asgi(scope, tracer, test_spans):
-    app = TraceMiddleware(basic_app, tracer=tracer)
+async def test_basic_asgi(scope, test_spans):
+    app = TraceMiddleware(basic_app)
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({"type": "http.request", "body": b""})
     response_start = await instance.receive_output(1)
@@ -197,15 +190,14 @@ import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
-from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
 
 @pytest.mark.asyncio
-async def test(scope, tracer, test_spans):
-    app = TraceMiddleware(basic_app, tracer=tracer)
+async def test(scope, test_spans):
+    app = TraceMiddleware(basic_app)
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({{"type": "http.request", "body": b""}})
     response_start = await instance.receive_output(1)
@@ -254,14 +246,13 @@ import pytest
 from tests.conftest import *
 from tests.contrib.asgi.test_asgi import basic_app
 from tests.contrib.asgi.test_asgi import scope
-from tests.contrib.asgi.test_asgi import tracer
 from asgiref.testing import ApplicationCommunicator
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 
 @pytest.mark.asyncio
-async def test(scope, tracer, test_spans):
-    app = TraceMiddleware(basic_app, tracer=tracer)
+async def test(scope, test_spans):
+    app = TraceMiddleware(basic_app)
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({{"type": "http.request", "body": b""}})
     response_start = await instance.receive_output(1)
@@ -298,8 +289,8 @@ if __name__ == "__main__":
 
 
 @pytest.mark.asyncio
-async def test_double_callable_asgi(scope, tracer, test_spans):
-    app = TraceMiddleware(double_callable_app, tracer=tracer)
+async def test_double_callable_asgi(scope, test_spans):
+    app = TraceMiddleware(double_callable_app)
     instance = ApplicationCommunicator(app, scope)
     await instance.send_input({"type": "http.request", "body": b""})
     response_start = await instance.receive_output(1)
@@ -328,9 +319,9 @@ async def test_double_callable_asgi(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_query_string(scope, tracer, test_spans):
+async def test_query_string(scope, test_spans):
     with override_http_config("asgi", dict(trace_query_string=True)):
-        app = TraceMiddleware(basic_app, tracer=tracer)
+        app = TraceMiddleware(basic_app)
         scope["query_string"] = "foo=bar"
         instance = ApplicationCommunicator(app, scope)
         await instance.send_input({"type": "http.request", "body": b""})
@@ -360,8 +351,8 @@ async def test_query_string(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_asgi_error(scope, tracer, test_spans):
-    app = TraceMiddleware(error_app, tracer=tracer)
+async def test_asgi_error(scope, test_spans):
+    app = TraceMiddleware(error_app)
     instance = ApplicationCommunicator(app, scope)
     with pytest.raises(RuntimeError):
         await instance.send_input({"type": "http.request", "body": b""})
@@ -384,8 +375,8 @@ async def test_asgi_error(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_asgi_500(scope, tracer, test_spans):
-    app = TraceMiddleware(error_handled_app, tracer=tracer)
+async def test_asgi_500(scope, test_spans):
+    app = TraceMiddleware(error_handled_app)
     instance = ApplicationCommunicator(app, scope)
 
     await instance.send_input({"type": "http.request", "body": b""})
@@ -404,11 +395,11 @@ async def test_asgi_500(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_asgi_error_custom(scope, tracer, test_spans):
+async def test_asgi_error_custom(scope, test_spans):
     def custom_handle_exception_span(exc, span):
         span.set_tag("http.status_code", 501)
 
-    app = TraceMiddleware(error_app, tracer=tracer, handle_exception_span=custom_handle_exception_span)
+    app = TraceMiddleware(error_app, handle_exception_span=custom_handle_exception_span)
     instance = ApplicationCommunicator(app, scope)
     with pytest.raises(RuntimeError):
         await instance.send_input({"type": "http.request", "body": b""})
@@ -431,8 +422,8 @@ async def test_asgi_error_custom(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_distributed_tracing(scope, tracer, test_spans):
-    app = TraceMiddleware(basic_app, tracer=tracer)
+async def test_distributed_tracing(scope, test_spans):
+    app = TraceMiddleware(basic_app)
     headers = [
         (http_propagation.HTTP_HEADER_PARENT_ID.encode(), "1234".encode()),
         (http_propagation.HTTP_HEADER_TRACE_ID.encode(), "5678".encode()),
@@ -468,9 +459,9 @@ async def test_distributed_tracing(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_multiple_requests(tracer, test_spans):
+async def test_multiple_requests(test_spans):
     with override_http_config("asgi", dict(trace_query_string=True)):
-        app = TraceMiddleware(basic_app, tracer=tracer)
+        app = TraceMiddleware(basic_app)
         async with httpx.AsyncClient(app=app) as client:
             responses = await asyncio.gather(
                 client.get("http://testserver/", params={"sleep": True}),
@@ -506,13 +497,13 @@ async def test_multiple_requests(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_bad_headers(scope, tracer, test_spans):
+async def test_bad_headers(scope):
     """
     When headers can't be decoded
         The middleware should not raise
     """
 
-    app = TraceMiddleware(basic_app, tracer=tracer)
+    app = TraceMiddleware(basic_app)
     headers = [(bytes.fromhex("c0"), "test")]
     scope["headers"] = headers
 
@@ -532,7 +523,7 @@ async def test_bad_headers(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_get_asgi_span(tracer, test_spans):
+async def test_get_asgi_span(tracer):
     async def test_app(scope, receive, send):
         message = await receive()
         if message.get("type") == "http.request":
@@ -542,13 +533,13 @@ async def test_get_asgi_span(tracer, test_spans):
             await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
             await send({"type": "http.response.body", "body": b""})
 
-    app = TraceMiddleware(test_app, tracer=tracer)
+    app = TraceMiddleware(test_app)
     async with httpx.AsyncClient(app=app) as client:
         response = await client.get("http://testserver/")
         assert response.status_code == 200
 
     with override_http_config("asgi", dict(trace_query_string=True)):
-        app = TraceMiddleware(test_app, tracer=tracer)
+        app = TraceMiddleware(test_app)
         async with httpx.AsyncClient(app=app) as client:
             response = await client.get("http://testserver/")
             assert response.status_code == 200
@@ -574,8 +565,7 @@ async def test_get_asgi_span(tracer, test_spans):
 
     # We double wrap this app so that it generates multiple request spans per hit
     app = TraceMiddleware(
-        TraceMiddleware(test_app_that_generates_multiple_request_spans, tracer=tracer, span_modifier=span2_modifier),
-        tracer=tracer,
+        TraceMiddleware(test_app_that_generates_multiple_request_spans, span_modifier=span2_modifier),
         span_modifier=span1_modifier,
     )
 
@@ -594,7 +584,7 @@ async def test_get_asgi_span(tracer, test_spans):
             await send({"type": "http.response.start", "status": 200, "headers": [[b"Content-Type", b"text/plain"]]})
             await send({"type": "http.response.body", "body": b""})
 
-    app = TraceMiddleware(test_app, tracer=tracer)
+    app = TraceMiddleware(test_app)
     async with httpx.AsyncClient(app=app) as client:
         with tracer.trace("root"):
             response = await client.get("http://testserver/")
@@ -614,13 +604,13 @@ async def test_get_asgi_span(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_tasks_asgi_without_more_body(scope, tracer, test_spans):
+async def test_tasks_asgi_without_more_body(scope, test_spans):
     """
     When an application doesn't have more_body calls and does background tasks,
     the asgi span only captures the time it took for a user to get a response, not the time
     it took for other tasks in the background.
     """
-    app = TraceMiddleware(tasks_app_without_more_body, tracer=tracer)
+    app = TraceMiddleware(tasks_app_without_more_body)
     async with httpx.AsyncClient(app=app) as client:
         response = await client.get("http://testserver/")
         assert response.status_code == 200
@@ -637,7 +627,7 @@ async def test_tasks_asgi_without_more_body(scope, tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_request_parse_response_cookies(tracer, test_spans, caplog):
+async def test_request_parse_response_cookies(caplog):
     """
     Regression test https://github.com/DataDog/dd-trace-py/issues/11818
     """
@@ -650,7 +640,7 @@ async def test_request_parse_response_cookies(tracer, test_spans, caplog):
             await asyncio.sleep(1)
 
     with caplog.at_level(logging.DEBUG):
-        app = TraceMiddleware(tasks_cookies, tracer=tracer)
+        app = TraceMiddleware(tasks_cookies)
         async with httpx.AsyncClient(app=app) as client:
             response = await client.get("http://testserver/")
             assert response.status_code == 200
@@ -683,13 +673,13 @@ def test__parse_response_cookies(headers, expected_result, caplog):
 
 
 @pytest.mark.asyncio
-async def test_tasks_asgi_with_more_body(scope, tracer, test_spans):
+async def test_tasks_asgi_with_more_body(scope, test_spans):
     """
     When an application does have more_body calls and does background tasks,
     the asgi span only captures the time it took for a user to get a response, not the time
     it took for other tasks in the background.
     """
-    app = TraceMiddleware(tasks_app_with_more_body, tracer=tracer)
+    app = TraceMiddleware(tasks_app_with_more_body)
     async with httpx.AsyncClient(app=app) as client:
         response = await client.get("http://testserver/")
         assert response.status_code == 200
@@ -707,8 +697,8 @@ async def test_tasks_asgi_with_more_body(scope, tracer, test_spans):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("host", ["hostserver", "hostserver:5454"])
-async def test_host_header(scope, tracer, test_spans, host):
-    app = TraceMiddleware(basic_app, tracer=tracer)
+async def test_host_header(scope, test_spans, host):
+    app = TraceMiddleware(basic_app)
     async with httpx.AsyncClient(app=app) as client:
         response = await client.get("http://testserver/", headers={"host": host})
         assert response.status_code == 200
@@ -719,9 +709,9 @@ async def test_host_header(scope, tracer, test_spans, host):
 
 
 @pytest.mark.asyncio
-async def test_response_headers(scope, tracer, test_spans):
+async def test_response_headers(scope, test_spans):
     with override_http_config("asgi", {"trace_headers": ["content-type"]}):
-        app = TraceMiddleware(basic_app, tracer=tracer)
+        app = TraceMiddleware(basic_app)
         async with httpx.AsyncClient(app=app) as client:
             response = await client.get("http://testserver/")
             assert response.status_code == 200
@@ -741,8 +731,8 @@ async def test_response_headers(scope, tracer, test_spans):
     ],
 )
 @pytest.mark.parametrize("inferred_proxy_enabled", [False, True])
-async def test_inferred_spans_api_gateway_default(scope, tracer, test_spans, app_type, inferred_proxy_enabled):
-    app = TraceMiddleware(app_type["testapp"], tracer=tracer)
+async def test_inferred_spans_api_gateway_default(scope, test_spans, app_type, inferred_proxy_enabled):
+    app = TraceMiddleware(app_type["testapp"])
     default_headers = [
         ("x-dd-proxy", "aws-apigateway"),
         ("x-dd-proxy-request-time-ms", "1736973768000"),
