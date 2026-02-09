@@ -1,5 +1,7 @@
 from contextlib import contextmanager
+import functools
 import inspect
+from inspect import iscoroutinefunction
 from itertools import chain
 import logging
 import os
@@ -11,9 +13,9 @@ from typing import List
 from typing import Optional
 from typing import TypeVar
 from typing import Union
+from typing import cast
 
 from ddtrace._trace.context import Context
-from ddtrace._trace.function_context import wrap_function_with_context_and_executor
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
@@ -703,21 +705,53 @@ class Tracer(object):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
         self._span_aggregator.writer.flush_queue()
 
-    @contextmanager
-    def _trace_context(
+    def _wrap_generator(
         self,
+        f: AnyCallable,
         span_name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
-    ):
-        """Context manager for tracing operations.
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
 
-        This method can be overridden by subclasses (e.g., OpenTelemetry tracer)
-        to provide custom tracing behavior.
-        """
-        with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-            yield
+        @functools.wraps(f)
+        def func_wrapper(*args, **kwargs):
+            if self._wrap_executor is not None:
+                return self._wrap_executor(
+                    self,
+                    f,
+                    args,
+                    kwargs,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                return_value = yield from f(*args, **kwargs)
+                return return_value
+
+        return cast(AnyCallable, func_wrapper)
+
+    def _wrap_generator_async(
+        self,
+        f: AnyCallable,
+        span_name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
+
+        @functools.wraps(f)
+        async def func_wrapper(*args, **kwargs):
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                async for value in f(*args, **kwargs):
+                    yield value
+
+        return cast(AnyCallable, func_wrapper)
 
     def wrap(
         self,
@@ -778,67 +812,55 @@ class Tracer(object):
             # FIXME[matt] include the class name for methods.
             span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
 
-            def context_factory():
-                return self._trace_context(span_name, service=service, resource=resource, span_type=span_type)
-
-            # Create a wrapper for wrap_executor that checks self._wrap_executor at call time
-            # (not decoration time) since tests may set it after decoration
-            def wrap_executor_wrapper(func, args, kwargs, executor_args):
-                if self._wrap_executor is not None:
-                    return self._wrap_executor(
-                        self,
-                        func,
-                        args,
-                        kwargs,
-                        executor_args.get("span_name"),
-                        executor_args.get("service"),
-                        executor_args.get("resource"),
-                        executor_args.get("span_type"),
-                    )
-                # If no wrap_executor, fall back to context manager
-                context = context_factory()
-                with context:
-                    return func(*args, **kwargs)
-
-            executor_args = {
-                "span_name": span_name,
-                "service": service,
-                "resource": resource,
-                "span_type": span_type,
-            }
-
-            # For generators, we need to pass a wrapper that checks self._wrap_executor at call time
-            # For regular functions, we can use wrap_executor_wrapper directly
+            # detect if the the given function is a coroutine and/or a generator
+            # to use the right decorator; this initial check ensures that the
+            # evaluation is done only once for each @tracer.wrap
             if inspect.isgeneratorfunction(f):
-                # Generators need special handling - create a wrapper that checks self._wrap_executor at call time
-                def generator_executor_wrapper(func, args, kwargs, executor_args_dict):
+                func_wrapper = self._wrap_generator(
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            elif inspect.isasyncgenfunction(f):
+                func_wrapper = self._wrap_generator_async(
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            elif iscoroutinefunction(f):
+                # create an async wrapper that awaits the coroutine and traces it
+                @functools.wraps(f)
+                async def func_wrapper(*args, **kwargs):
+                    with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                        return await f(*args, **kwargs)
+
+            else:
+
+                @functools.wraps(f)
+                def func_wrapper(*args, **kwargs):
+                    # if a wrap executor has been configured, it is used instead
+                    # of the default tracing function
                     if self._wrap_executor is not None:
                         return self._wrap_executor(
                             self,
-                            func,
+                            f,
                             args,
                             kwargs,
-                            executor_args_dict.get("span_name"),
-                            executor_args_dict.get("service"),
-                            executor_args_dict.get("resource"),
-                            executor_args_dict.get("span_type"),
+                            span_name,
+                            service=service,
+                            resource=resource,
+                            span_type=span_type,
                         )
-                    # If no wrap_executor, return None to use context manager
-                    return None
 
-                return wrap_function_with_context_and_executor(
-                    f,
-                    context_factory,
-                    wrap_executor=generator_executor_wrapper,
-                    executor_args=executor_args,
-                )
-            else:
-                return wrap_function_with_context_and_executor(
-                    f,
-                    context_factory,
-                    wrap_executor=wrap_executor_wrapper,
-                    executor_args=executor_args,
-                )
+                    # otherwise fallback to a default tracing
+                    with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                        return f(*args, **kwargs)
+
+            return func_wrapper
 
         return wrap_decorator
 
