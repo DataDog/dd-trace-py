@@ -150,9 +150,7 @@ microbenchmarks:
     - allow_failure: false
   trigger:
     include:
-      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
-        job: tests-gen
-      - artifact: .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
+      - artifact: .gitlab/benchmarks/
         job: tests-gen
     strategy: depend
   variables:
