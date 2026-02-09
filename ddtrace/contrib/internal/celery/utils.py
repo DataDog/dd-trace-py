@@ -38,8 +38,7 @@ TAG_KEYS = frozenset(
 )
 
 
-def should_skip_context_value(key, value):
-    # type: (str, Any) -> bool
+def should_skip_context_value(key: str, value: Any) -> bool:
     # Skip this key if it is not set
     if value is None or value == "":
         return True

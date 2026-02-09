@@ -1,11 +1,7 @@
 import itertools
 import re
-from typing import Dict  # noqa:F401
-from typing import FrozenSet  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union
 import urllib.parse
 
@@ -72,8 +68,7 @@ _HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
 _HTTP_HEADER_BAGGAGE: Literal["baggage"] = "baggage"
 
 
-def _possible_header(header):
-    # type: (str) -> frozenset[str]
+def _possible_header(header: str) -> frozenset[str]:
     return frozenset([header, get_wsgi_header(header).lower()])
 
 
@@ -112,8 +107,9 @@ _TRACEPARENT_HEX_REGEX = re.compile(
 )
 
 
-def _extract_header_value(possible_header_names, headers, default=None):
-    # type: (frozenset[str], dict[str, str], Optional[str]) -> Optional[str]
+def _extract_header_value(
+    possible_header_names: frozenset[str], headers: dict[str, str], default: Optional[str] = None
+) -> Optional[str]:
     for header in possible_header_names:
         if header in headers:
             return ensure_text(headers[header], errors="backslashreplace")
@@ -129,8 +125,7 @@ def _attach_baggage_to_context(headers: dict[str, str], context: Context):
                     context.set_baggage_item(key[len(possible_prefix) :], value)
 
 
-def _hex_id_to_dd_id(hex_id):
-    # type: (str) -> int
+def _hex_id_to_dd_id(hex_id: str) -> int:
     """Helper to convert hex ids into Datadog compatible ints."""
     return int(hex_id, 16)
 
@@ -138,8 +133,7 @@ def _hex_id_to_dd_id(hex_id):
 _b3_id_to_dd_id = _hex_id_to_dd_id
 
 
-def _dd_id_to_b3_id(dd_id):
-    # type: (int) -> str
+def _dd_id_to_b3_id(dd_id: int) -> str:
     """Helper to convert Datadog trace/span int ids into lower case hex values"""
     if dd_id > _MAX_UINT_64BITS:
         # b3 trace ids can have the length of 16 or 32 characters:
@@ -190,8 +184,7 @@ class _DatadogMultiHeader:
         return key.startswith("_dd.p.")
 
     @staticmethod
-    def _get_tags_value(headers):
-        # type: (dict[str, str]) -> Optional[str]
+    def _get_tags_value(headers: dict[str, str]) -> Optional[str]:
         return _extract_header_value(
             _POSSIBLE_HTTP_HEADER_TAGS,
             headers,
@@ -238,8 +231,7 @@ class _DatadogMultiHeader:
         return True
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -300,8 +292,7 @@ class _DatadogMultiHeader:
         _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_DATADOG)
 
     @staticmethod
-    def _extract(headers):
-        # type: (dict[str, str]) -> Optional[Context]
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         trace_id_str = _extract_header_value(POSSIBLE_HTTP_HEADER_TRACE_IDS, headers)
         if trace_id_str is None:
             return None
@@ -431,8 +422,7 @@ class _B3MultiHeader:
     """
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -453,8 +443,7 @@ class _B3MultiHeader:
         _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_MULTI)
 
     @staticmethod
-    def _extract(headers):
-        # type: (dict[str, str]) -> Optional[Context]
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         trace_id_val = _extract_header_value(
             _POSSIBLE_HTTP_HEADER_B3_TRACE_IDS,
             headers,
@@ -551,8 +540,7 @@ class _B3SingleHeader:
     """
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         if span_context.trace_id is None or span_context.span_id is None:
             log.debug("tried to inject invalid context %r", span_context)
             return
@@ -572,8 +560,7 @@ class _B3SingleHeader:
         _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_SINGLE)
 
     @staticmethod
-    def _extract(headers):
-        # type: (dict[str, str]) -> Optional[Context]
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         single_header = _extract_header_value(_POSSIBLE_HTTP_HEADER_B3_SINGLE_HEADER, headers)
         if not single_header:
             return None
@@ -683,8 +670,7 @@ class _TraceContext:
         return tag_val.replace("~", "=")
 
     @staticmethod
-    def _get_traceparent_values(tp):
-        # type: (str) -> tuple[int, int, Literal[0,1]]
+    def _get_traceparent_values(tp: str) -> tuple[int, int, Literal[0, 1]]:
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
         traceparent header.
@@ -699,7 +685,7 @@ class _TraceContext:
             span_id_hex,
             trace_flags_hex,
             future_vals,
-        ) = valid_tp_values.groups()  # type: tuple[str, str, str, str, Optional[str]]
+        ) = valid_tp_values.groups()
 
         if version == "ff":
             # https://www.w3.org/TR/trace-context/#version
@@ -724,14 +710,12 @@ class _TraceContext:
         # was set to keep "01" or drop "00"
         # trace flags is a bit field: https://www.w3.org/TR/trace-context/#trace-flags
         # if statement is required to cast traceflags to a Literal
-        sampling_priority = 1 if trace_flags & 0x1 else 0  # type: Literal[0, 1]
+        sampling_priority: Literal[0, 1] = 1 if trace_flags & 0x1 else 0
 
         return trace_id, span_id, sampling_priority
 
     @staticmethod
-    def _get_tracestate_values(ts_l):
-        # type: (list[str]) -> tuple[Optional[int], dict[str, str], Optional[str], Optional[str]]
-
+    def _get_tracestate_values(ts_l: list[str]) -> tuple[Optional[int], dict[str, str], Optional[str], Optional[str]]:
         # tracestate list parsing example: ["dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64","congo=t61rcWkgMzE"]
         # -> 2, {"_dd.p.dm":"-4","_dd.p.usr.id":"baz64"}, "rum"
 
@@ -804,9 +788,7 @@ class _TraceContext:
         return sampling_priority
 
     @staticmethod
-    def _extract(headers):
-        # type: (dict[str, str]) -> Optional[Context]
-
+    def _extract(headers: dict[str, str]) -> Optional[Context]:
         try:
             tp = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACEPARENT, headers)
             if tp is None:
@@ -823,8 +805,13 @@ class _TraceContext:
         return _TraceContext._get_context(trace_id, span_id, trace_flag, ts, meta)
 
     @staticmethod
-    def _get_context(trace_id, span_id, trace_flag, ts, meta=None):
-        # type: (int, int, Optional[Literal[0,1]], Optional[str], Optional[dict[str, str]]) -> Context
+    def _get_context(
+        trace_id: int,
+        span_id: int,
+        trace_flag: Optional[Literal[0, 1]],
+        ts: Optional[str],
+        meta: Optional[dict[str, str]] = None,
+    ) -> Context:
         if meta is None:
             meta = {}
         origin = None
@@ -869,8 +856,7 @@ class _TraceContext:
         )
 
     @staticmethod
-    def _inject(span_context, headers):
-        # type: (Context, dict[str, str]) -> None
+    def _inject(span_context: Context, headers: dict[str, str]) -> None:
         tp = span_context._traceparent
         if tp:
             headers[_HTTP_HEADER_TRACEPARENT] = tp

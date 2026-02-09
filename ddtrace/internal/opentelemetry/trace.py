@@ -21,7 +21,6 @@ from .span import Span
 
 
 if TYPE_CHECKING:
-    from typing import Dict  # noqa:F401
     from typing import Iterator  # noqa:F401
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401

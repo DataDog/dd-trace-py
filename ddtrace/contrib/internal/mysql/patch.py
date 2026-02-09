@@ -29,8 +29,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return mysql.connector.version.VERSION_TEXT
 
 

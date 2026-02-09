@@ -6,9 +6,7 @@ import copy
 import os
 import sys
 from typing import Any
-from typing import Dict  # noqa:F401
 from typing import Text
-from typing import Tuple  # noqa:F401
 
 from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation

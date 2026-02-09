@@ -41,8 +41,6 @@ from .telemetry.payload import record_endpoint_payload_request_time
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import List  # noqa:F401
-
     from ddtrace.internal.utils.http import Response  # noqa:F401
 
 
@@ -128,19 +126,19 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url="",  # type: str
-        processing_interval=None,  # type: Optional[float]
-        timeout=None,  # type: Optional[float]
-        dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=False,  # type: bool
-        report_metrics=False,  # type: bool
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[dict[str, str]]
-        use_evp=False,  # type: bool
-        coverage_enabled=False,  # type: bool
-        coverage_report_upload_enabled=False,  # type: bool
-        itr_suite_skipping_mode=False,  # type: bool
-        use_gzip=False,  # type: bool
+        intake_url: str = "",
+        processing_interval: Optional[float] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional[DogStatsd] = None,
+        sync_mode: bool = False,
+        report_metrics: bool = False,
+        reuse_connections: Optional[bool] = None,
+        headers: Optional[dict[str, str]] = None,
+        use_evp: bool = False,
+        coverage_enabled: bool = False,
+        coverage_report_upload_enabled: bool = False,
+        itr_suite_skipping_mode: bool = False,
+        use_gzip: bool = False,
     ):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -246,9 +244,8 @@ class CIVisibilityWriter(HTTPWriter):
             itr_suite_skipping_mode=self._itr_suite_skipping_mode,
         )
 
-    def _put(self, data, headers, client, no_trace):
-        # type: (bytes, dict[str, str], WriterClientBase, bool) -> Response
-        request_error = None  # type: Optional[REQUEST_ERROR_TYPE]
+    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
+        request_error: Optional[REQUEST_ERROR_TYPE] = None
 
         with StopWatch() as sw:
             try:

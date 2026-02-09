@@ -53,8 +53,7 @@ else:
     from graphql.language.ast import DocumentNode as Document
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return _graphql_version_str
 
 
@@ -255,8 +254,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
         return next_middleware(root, info, **args)
 
 
-def _inject_trace_middleware_to_args(trace_middleware, args, kwargs):
-    # type: (Callable, Tuple, dict) -> Tuple[Tuple, dict]
+def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kwargs: dict) -> tuple[tuple, dict]:
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
@@ -273,7 +271,7 @@ def _inject_trace_middleware_to_args(trace_middleware, args, kwargs):
             # trace_middleware. For the trace_middleware to be called a new MiddlewareManager will
             # need to initialized. This is handled in graphql.execute():
             # https://github.com/graphql-python/graphql-core/blob/v3.2.1/src/graphql/execution/execute.py#L254
-            middlewares = middlewares.middlewares  # type: Iterable
+            middlewares: Iterable = middlewares.middlewares
     except ArgumentError:
         middlewares = []
 
@@ -286,8 +284,7 @@ def _inject_trace_middleware_to_args(trace_middleware, args, kwargs):
     return args, kwargs
 
 
-def _get_source_str(obj):
-    # type: (Union[str, Source, Document]) -> str
+def _get_source_str(obj: Union[str, Source, Document]) -> str:
     """
     Parses graphql Documents and Source objects to retrieve
     the graphql source input for a request.

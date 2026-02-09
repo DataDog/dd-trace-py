@@ -11,8 +11,7 @@ __IMap = gevent.pool.IMap
 __IMapUnordered = gevent.pool.IMapUnordered
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(gevent, "__version__", "")
 
 

@@ -1,6 +1,5 @@
 # Get version is imported from patch.py in _monkey.py
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import pytest
 
     return pytest.__version__

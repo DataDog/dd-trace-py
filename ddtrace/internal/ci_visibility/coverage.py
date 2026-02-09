@@ -2,11 +2,8 @@ from itertools import groupby
 import json
 import os
 from pathlib import Path
-from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace

@@ -5,9 +5,6 @@ Trace queries to aws api done via botocore client
 import collections
 import json
 import os
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
 from botocore import __version__
@@ -47,7 +44,7 @@ from .utils import update_client_context
 from .utils import update_eventbridge_detail
 
 
-_PATCHED_SUBMODULES = set()  # type: set[str]
+_PATCHED_SUBMODULES: set[str] = set()
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -131,8 +128,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return __version__
 
 
@@ -161,8 +157,7 @@ def unpatch():
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
-def patch_submodules(submodules):
-    # type: (Union[list[str], bool]) -> None
+def patch_submodules(submodules: Union[list[str], bool]) -> None:
     if isinstance(submodules, bool) and submodules:
         _PATCHED_SUBMODULES.clear()
     elif isinstance(submodules, list):

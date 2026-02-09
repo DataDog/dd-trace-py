@@ -14,8 +14,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(structlog, "__version__", "")
 
 

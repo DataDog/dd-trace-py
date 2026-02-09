@@ -63,8 +63,7 @@ def get_version_tuple(elasticsearch):
     return getattr(elasticsearch, "__version__", "")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
@@ -72,8 +71,7 @@ def _supported_versions() -> dict[str, str]:
     return {"elasticsearch": ">=1.10"}
 
 
-def get_versions():
-    # type: () -> dict[str, str]
+def get_versions() -> dict[str, str]:
     if not ES_MODULE_VERSIONS:
         for es_module in ES_PACKAGE_TO_MODULE_NAME.keys():
             try:

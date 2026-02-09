@@ -101,16 +101,14 @@ class SpanSamplingRule:
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
 
-    def sample(self, span):
-        # type: (Span) -> bool
+    def sample(self, span: Span) -> bool:
         if self._sample(span):
             if self._limiter.is_allowed():
                 self.apply_span_sampling_tags(span)
                 return True
         return False
 
-    def _sample(self, span):
-        # type: (Span) -> bool
+    def _sample(self, span: Span) -> bool:
         if self._sample_rate == 1:
             return True
         elif self._sample_rate == 0:
@@ -118,8 +116,7 @@ class SpanSamplingRule:
 
         return ((span.span_id * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
-    def match(self, span):
-        # type: (Span) -> bool
+    def match(self, span: Span) -> bool:
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
@@ -144,8 +141,7 @@ class SpanSamplingRule:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
 
-    def apply_span_sampling_tags(self, span):
-        # type: (Span) -> None
+    def apply_span_sampling_tags(self, span: Span) -> None:
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1

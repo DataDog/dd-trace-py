@@ -17,8 +17,7 @@ from ddtrace.trace import tracer
 from .constants import DEFAULT_TEMPLATE_NAME
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(mako, "__version__", "")
 
 

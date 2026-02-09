@@ -371,43 +371,6 @@ class BaseTestCase(SubprocessTestCase):
     assert_is_not_measured = staticmethod(assert_is_not_measured)
 
 
-def _build_tree(
-    spans,  # type: list[Span]
-    root,  # type: Span
-):
-    # type: (...) -> TestSpanNode
-    """helper to build a tree structure for the provided root span"""
-    children = []
-    for span in spans:
-        if span.parent_id == root.span_id:
-            children.append(_build_tree(spans, span))
-
-    return TestSpanNode(root, children)
-
-
-def get_root_span(
-    spans,  # type: list[Span]
-):
-    # type: (...) -> TestSpanNode
-    """
-    Helper to get the root span from the list of spans in this container
-
-    :returns: The root span if one was found, None if not, and AssertionError if multiple roots were found
-    :rtype: :class:`tests.utils.span.TestSpanNode`, None
-    :raises: AssertionError
-    """
-    root = None
-    for span in spans:
-        if span.parent_id is None:
-            if root is not None:
-                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
-            root = span
-
-    assert root, "No root span found in {0!r}".format(spans)
-
-    return _build_tree(spans, root)
-
-
 class TestSpanContainer(object):
     """
     Helper class for a container of Spans.
@@ -450,8 +413,7 @@ class TestSpanContainer(object):
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self):
-        # type: (...) -> TestSpanNode
+    def get_root_span(self) -> "TestSpanNode":
         """
         Helper to get the root span from the list of spans in this container
 
@@ -461,8 +423,7 @@ class TestSpanContainer(object):
         """
         return get_root_span(self.spans)
 
-    def get_root_spans(self):
-        # type: (...) -> list[Span]
+    def get_root_spans(self) -> list[Span]:
         """
         Helper to get all root spans from the list of spans in this container
 
@@ -561,17 +522,15 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
             return writer.spans
         return []
 
-    def pop_spans(self):
+    def pop_spans(self) -> list[Span]:
         """Pop and return all spans from the writer"""
-        # type: () -> list[Span]
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop"):
             return writer.pop()
         return []
 
-    def pop_traces(self):
+    def pop_traces(self) -> list[list[Span]]:
         """Pop and return all traces from the writer"""
-        # type: () -> list[list[Span]]
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop_traces"):
             return writer.pop_traces()
@@ -619,14 +578,12 @@ class DummyWriterMixin:
             self.spans += spans
             self.traces += traces
 
-    def pop(self):
-        # type: () -> list[Span]
+    def pop(self) -> list[Span]:
         s = self.spans
         self.spans = []
         return s
 
-    def pop_traces(self):
-        # type: () -> list[list[Span]]
+    def pop_traces(self) -> list[list[Span]]:
         traces = self.traces
         self.traces = []
         return traces
@@ -1094,6 +1051,41 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             spans[i].assert_structure(root, _children)
 
 
+def _build_tree(
+    spans: list[Span],
+    root: Span,
+) -> TestSpanNode:
+    """helper to build a tree structure for the provided root span"""
+    children = []
+    for span in spans:
+        if span.parent_id == root.span_id:
+            children.append(_build_tree(spans, span))
+
+    return TestSpanNode(root, children)
+
+
+def get_root_span(
+    spans: list[Span],
+) -> TestSpanNode:
+    """
+    Helper to get the root span from the list of spans in this container
+
+    :returns: The root span if one was found, None if not, and AssertionError if multiple roots were found
+    :rtype: :class:`tests.utils.span.TestSpanNode`, None
+    :raises: AssertionError
+    """
+    root = None
+    for span in spans:
+        if span.parent_id is None:
+            if root is not None:
+                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
+            root = span
+
+    assert root, "No root span found in {0!r}".format(spans)
+
+    return _build_tree(spans, root)
+
+
 def assert_dict_issuperset(a, b):
     assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
 
@@ -1422,8 +1414,7 @@ def call_program(*args, **kwargs):
     return stdout, stderr, subp.wait(), subp.pid
 
 
-def request_token(request):
-    # type: (pytest.FixtureRequest) -> str
+def request_token(request: pytest.FixtureRequest) -> str:
     from tests.conftest import get_original_test_name
 
     token = ""

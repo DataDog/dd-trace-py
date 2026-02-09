@@ -121,8 +121,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import vertica_python
 
     return vertica_python.__version__

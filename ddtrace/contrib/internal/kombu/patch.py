@@ -33,8 +33,7 @@ from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return str(kombu.__version__)
 
 

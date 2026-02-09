@@ -2,9 +2,6 @@ from collections import deque
 from types import FunctionType
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
-from typing import Deque  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
 
 from bytecode import Bytecode
 

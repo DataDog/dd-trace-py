@@ -6,11 +6,7 @@ import re
 import shlex
 from shlex import join
 from typing import Callable  # noqa:F401
-from typing import Deque  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 

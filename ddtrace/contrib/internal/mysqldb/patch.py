@@ -44,8 +44,7 @@ KWPOS_BY_TAG = {
 }
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ".".join(map(str, MySQLdb.version_info[0:3]))
 
 

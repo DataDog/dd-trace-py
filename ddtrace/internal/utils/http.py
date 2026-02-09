@@ -9,12 +9,9 @@ from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Generator  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Pattern  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from urllib import parse
 
@@ -50,8 +47,7 @@ log = logging.getLogger(__name__)
 
 
 @cached()
-def normalize_header_name(header_name):
-    # type: (Optional[str]) -> Optional[str]
+def normalize_header_name(header_name: Optional[str]) -> Optional[str]:
     """
     Normalizes an header name to lower case, stripping all its leading and trailing white spaces.
     :param header_name: the header name to normalize
@@ -62,8 +58,7 @@ def normalize_header_name(header_name):
     return header_name.strip().lower() if header_name is not None else None
 
 
-def strip_query_string(url):
-    # type: (str) -> str
+def strip_query_string(url: str) -> str:
     """
     Strips the query string from a URL for use as tag in spans.
     :param url: The URL to be stripped
@@ -76,14 +71,14 @@ def strip_query_string(url):
     return h + fs + f
 
 
-def redact_query_string(query_string, query_string_obfuscation_pattern):
-    # type: (str, re.Pattern) -> Union[bytes, str]
+def redact_query_string(query_string: str, query_string_obfuscation_pattern: re.Pattern) -> Union[bytes, str]:
     bytes_query = query_string if isinstance(query_string, bytes) else query_string.encode("utf-8")
     return query_string_obfuscation_pattern.sub(b"<redacted>", bytes_query)
 
 
-def redact_url(url, query_string_obfuscation_pattern, query_string=None):
-    # type: (str, re.Pattern, Optional[str]) -> Union[str,bytes]
+def redact_url(
+    url: str, query_string_obfuscation_pattern: re.Pattern, query_string: Optional[str] = None
+) -> Union[str, bytes]:
     parts = parse.urlparse(url)
     redacted_query = None
 
@@ -93,7 +88,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
         redacted_query = redact_query_string(parts.query, query_string_obfuscation_pattern)
 
     if redacted_query is not None and len(parts) >= 5:
-        redacted_parts = parts[:4] + (redacted_query,) + parts[5:]  # type: tuple[Union[str, bytes], ...]
+        redacted_parts: tuple[Union[str, bytes], ...] = parts[:4] + (redacted_query,) + parts[5:]
         bytes_redacted_parts = tuple(x if isinstance(x, bytes) else x.encode("utf-8") for x in redacted_parts)
         return urlunsplit(bytes_redacted_parts, url)
 
@@ -101,8 +96,7 @@ def redact_url(url, query_string_obfuscation_pattern, query_string=None):
     return url
 
 
-def urlunsplit(components, original_url):
-    # type: (tuple[bytes, ...], str) -> bytes
+def urlunsplit(components: tuple[bytes, ...], original_url: str) -> bytes:
     """
     Adaptation from urlunsplit and urlunparse, using bytes components
     """
@@ -122,8 +116,7 @@ def urlunsplit(components, original_url):
     return url
 
 
-def connector(url, **kwargs):
-    # type: (str, Any) -> Connector
+def connector(url: str, **kwargs: Any) -> Connector:
     """Create a connector context manager for the given URL.
 
     This function returns a context manager that wraps a connection object to
@@ -138,8 +131,7 @@ def connector(url, **kwargs):
     """
 
     @contextmanager
-    def _connector_context():
-        # type: () -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]
+    def _connector_context() -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]:
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
@@ -192,8 +184,7 @@ def w3c_get_dd_list_member(context):
 
 
 @cached()
-def w3c_encode_tag(args):
-    # type: (tuple[Pattern, str, str]) -> str
+def w3c_encode_tag(args: tuple[Pattern, str, str]) -> str:
     pattern, replacement, tag_val = args
     tag_val = pattern.sub(replacement, tag_val)
     # replace = with ~ if it wasn't already replaced by the regex
@@ -318,8 +309,8 @@ def verify_url(url: str) -> parse.ParseResult:
     return parsed
 
 
-_HTML_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
-_JSON_BLOCKED_TEMPLATE_CACHE = None  # type: Optional[str]
+_HTML_BLOCKED_TEMPLATE_CACHE: Optional[str] = None
+_JSON_BLOCKED_TEMPLATE_CACHE: Optional[str] = None
 _RESPONSE_ID_TEMPLATE = "[security_response_id]"
 
 

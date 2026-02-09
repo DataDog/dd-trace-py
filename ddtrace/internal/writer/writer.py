@@ -53,7 +53,6 @@ from .writer_client import WriterClientBase
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
-    from typing import Tuple  # noqa:F401
 
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
@@ -154,8 +153,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def write(self, spans=None):
-        # type: (Optional[list[Span]]) -> None
+    def write(self, spans: Optional[list[Span]] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -183,8 +181,7 @@ class LogWriter(TraceWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         return
 
-    def write(self, spans=None):
-        # type: (Optional[list[Span]]) -> None
+    def write(self, spans: Optional[list[Span]] = None) -> None:
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
@@ -384,11 +381,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
-            log_args = (
+            log_args: tuple[Any, Any, Any] = (
                 self._intake_endpoint(client),
                 response.status,
                 response.reason,
-            )  # type: Tuple[Any, Any, Any]
+            )
             # Append the payload if requested
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
@@ -409,8 +406,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client, spans=None):
-        # type: (WriterClientBase, Optional[list[Span]]) -> None
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[list[Span]] = None) -> None:
         if spans is None:
             return
 

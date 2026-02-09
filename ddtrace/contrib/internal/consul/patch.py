@@ -21,8 +21,7 @@ from ddtrace.trace import tracer
 _KV_FUNCS = ["put", "get", "delete"]
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(consul, "__version__", "")
 
 

@@ -103,8 +103,6 @@ import logging
 import types
 import typing
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from . import event_hub  # noqa:F401

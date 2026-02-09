@@ -21,7 +21,6 @@ from tempfile import gettempdir
 import time
 from typing import Any  # noqa:F401
 from typing import Generator  # noqa:F401
-from typing import Tuple  # noqa:F401
 from unittest import TestCase
 from unittest import mock
 from urllib import parse
@@ -648,8 +647,7 @@ class TelemetryTestSession(object):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
-    def _request(self, method, url):
-        # type: (str, str) -> tuple[int, bytes]
+    def _request(self, method: str, url: str) -> tuple[int, bytes]:
         conn = self.create_connection()
         MAX_RETRY = 9
         exp_time = 1.618034
@@ -765,8 +763,7 @@ class TelemetryTestSession(object):
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, request):
-    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Generator[TelemetryTestSession, None, None]:
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token

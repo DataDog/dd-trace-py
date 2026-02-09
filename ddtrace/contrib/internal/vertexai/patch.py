@@ -20,8 +20,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model
 config._add("vertexai", {})
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(vertexai, "__version__", "")
 
 

@@ -1,7 +1,5 @@
 # type: ignore
 import logging
-from typing import List  # noqa
-from typing import Tuple  # noqa
 
 from riot import Venv
 

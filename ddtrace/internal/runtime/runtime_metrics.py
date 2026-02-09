@@ -1,6 +1,5 @@
 import itertools
 from typing import ClassVar  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import ddtrace

@@ -21,10 +21,11 @@ log = get_logger(__name__)
 
 
 class RemoteConfigPublisherBase(metaclass=abc.ABCMeta):
-    _preprocess_results_func = None  # type: Optional[PreprocessFunc]
+    _preprocess_results_func: Optional[PreprocessFunc] = None
 
-    def __init__(self, data_connector, preprocess_func=None):
-        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
+    def __init__(
+        self, data_connector: PublisherSubscriberConnector, preprocess_func: Optional[PreprocessFunc] = None
+    ) -> None:
         self._data_connector = data_connector
         self._preprocess_results_func = preprocess_func
 
@@ -40,8 +41,9 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     shared them to all process. Dynamic Instrumentation uses this class
     """
 
-    def __init__(self, data_connector, preprocess_func=None):
-        # type: (PublisherSubscriberConnector, Optional[PreprocessFunc]) -> None
+    def __init__(
+        self, data_connector: PublisherSubscriberConnector, preprocess_func: Optional[PreprocessFunc] = None
+    ) -> None:
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
         self._config_and_metadata: list[Payload] = []
 

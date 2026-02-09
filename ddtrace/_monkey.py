@@ -22,7 +22,6 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
     from typing import Callable  # noqa:F401
-    from typing import List  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -259,8 +258,9 @@ def check_module_compatibility(
     return
 
 
-def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
-    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
+def _on_import_factory(
+    module: str, path_f: str, raise_errors: bool = True, patch_indicator: Union[bool, list[str]] = True
+) -> Callable[[Any], None]:
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -360,8 +360,7 @@ def _patch_all(**patch_modules: bool) -> None:
     patch(raise_errors=False, **modules)
 
 
-def patch(raise_errors=True, **patch_modules):
-    # type: (bool, Union[List[str], bool]) -> None
+def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) -> None:
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.

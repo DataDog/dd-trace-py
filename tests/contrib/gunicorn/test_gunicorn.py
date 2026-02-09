@@ -4,7 +4,6 @@ import os
 import subprocess
 import sys
 import time
-from typing import Dict  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -41,21 +40,20 @@ def parse_payload(data):
 
 
 def _gunicorn_settings_factory(
-    env=None,  # type: dict[str, str]
-    directory=None,  # type: str
-    app_path="tests.contrib.gunicorn.wsgi_mw_app:app",  # type: str
-    num_workers="4",  # type: str
-    worker_class="sync",  # type: str
-    bind="0.0.0.0:8080",  # type: str
-    use_ddtracerun=True,  # type: bool
-    import_auto_in_postworkerinit=False,  # type: bool
-    import_auto_in_app=None,  # type: Optional[bool]
-    enable_module_cloning=False,  # type: bool
-    debug_mode=False,  # type: bool
-    dd_service=None,  # type: Optional[str]
-    schema_version=None,  # type: Optional[str]
-):
-    # type: (...) -> GunicornServerSettings
+    env: dict[str, str] = None,
+    directory: str = None,
+    app_path: str = "tests.contrib.gunicorn.wsgi_mw_app:app",
+    num_workers: str = "4",
+    worker_class: str = "sync",
+    bind: str = "0.0.0.0:8080",
+    use_ddtracerun: bool = True,
+    import_auto_in_postworkerinit: bool = False,
+    import_auto_in_app: Optional[bool] = None,
+    enable_module_cloning: bool = False,
+    debug_mode: bool = False,
+    dd_service: Optional[str] = None,
+    schema_version: Optional[str] = None,
+) -> GunicornServerSettings:
     """Factory for creating gunicorn settings with simple defaults if settings are not defined."""
     if directory is None:
         directory = os.getcwd()

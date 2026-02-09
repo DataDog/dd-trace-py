@@ -33,8 +33,7 @@ def _assert_and_get_version_agent_format(version_agent_format):
         ("", (0, 0, 0)),
     ],
 )
-def test_parse_version(version_str, expected):
-    # type: (str, tuple[int, int, int]) -> None
+def test_parse_version(version_str: str, expected: tuple[int, int, int]) -> None:
     """Ensure parse_version helper properly parses versions"""
     assert parse_version(version_str) == expected
 
@@ -58,8 +57,7 @@ def test_default_version_agent_format():
         ("2.0.0.dev", "2.0.0-dev"),
     ],
 )
-def test_version_agent_format(version_str, expected):
-    # type: (str, tuple[int, int, int]) -> None
+def test_version_agent_format(version_str: str, expected: tuple[int, int, int]) -> None:
     version_agent_format = _pep440_to_semver(version_str)
     assert version_agent_format == expected
     _assert_and_get_version_agent_format(version_agent_format)

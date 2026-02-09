@@ -1,8 +1,6 @@
 import enum
 import os
-from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
-from typing import Set  # noqa:F401
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent

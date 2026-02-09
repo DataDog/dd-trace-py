@@ -87,8 +87,7 @@ config._add(
 config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import django
 
     return django.__version__

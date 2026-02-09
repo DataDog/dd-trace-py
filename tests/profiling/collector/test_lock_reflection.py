@@ -170,7 +170,7 @@ def test_reflection_detects_broken_delegation() -> None:
 
     # Verify normal delegation works (sanity check)
     # 'acquire_lock' is delegated via __getattr__ (not explicitly defined on _ProfiledLock)
-    original_methods: Set[str] = get_public_methods(original_lock)
+    original_methods: set[str] = get_public_methods(original_lock)
     assert "acquire_lock" in original_methods, "Original lock should have acquire_lock"
     assert is_accessible(profiled_lock, "acquire_lock"), "Profiled lock should delegate acquire_lock"
 
@@ -189,7 +189,7 @@ def test_reflection_detects_broken_delegation() -> None:
         assert not is_accessible(profiled_lock, "acquire_lock"), "acquire_lock should NOT be accessible after patch"
 
         # Verify detection catches the gap
-        missing: Set[str] = {m for m in original_methods if not is_accessible(profiled_lock, m)}
+        missing: set[str] = {m for m in original_methods if not is_accessible(profiled_lock, m)}
         assert "acquire_lock" in missing, f"Detection should find 'acquire_lock' missing, got: {missing}"
         assert "locked" not in missing, f"Detection should NOT report 'locked' as missing, got: {missing}"
     finally:

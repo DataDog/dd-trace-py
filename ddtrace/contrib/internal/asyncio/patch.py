@@ -10,8 +10,7 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 

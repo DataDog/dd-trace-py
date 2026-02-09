@@ -2,10 +2,7 @@ import platform
 import sys
 import sysconfig
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
 
 from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -17,14 +14,12 @@ from ddtrace.version import __version__
 from ..hostname import get_hostname
 
 
-def _format_version_info(vi):
-    # type: (sys._version_info) -> str
+def _format_version_info(vi: sys._version_info) -> str:
     """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 
-def _get_container_id():
-    # type: () -> str
+def _get_container_id() -> str:
     """Get ID from docker container"""
     container_info = get_container_info()
     if container_info:
@@ -32,8 +27,7 @@ def _get_container_id():
     return ""
 
 
-def _get_os_version():
-    # type: () -> str
+def _get_os_version() -> str:
     """Returns the os version for applications running on Mac or Windows 32-bit"""
     try:
         mver, _, _ = platform.mac_ver()
@@ -51,8 +45,7 @@ def _get_os_version():
 
 
 @cached()
-def _get_application(key):
-    # type: (tuple[str, str, str]) -> dict
+def _get_application(key: tuple[str, str, str]) -> dict:
     """
     This helper packs and unpacks get_application arguments to support caching.
     Cached() annotation only supports functions with one argument
@@ -97,8 +90,7 @@ def update_imported_dependencies(already_imported: dict[str, str], new_modules: 
     return deps
 
 
-def get_application(service, version, env):
-    # type: (str, str, str) -> dict
+def get_application(service: str, version: str, env: str) -> dict:
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
@@ -108,8 +100,7 @@ def get_application(service, version, env):
 _host_info = None
 
 
-def get_host_info():
-    # type: () -> dict
+def get_host_info() -> dict:
     """Creates a dictionary to store host data using the platform module"""
     global _host_info
     if _host_info is None:

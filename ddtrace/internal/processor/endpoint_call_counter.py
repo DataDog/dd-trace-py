@@ -24,16 +24,13 @@ class EndpointCallCounterProcessor(SpanProcessor):
     )
     _enabled: bool = field(default=False, repr=False, compare=False)
 
-    def enable(self):
-        # type: () -> None
+    def enable(self) -> None:
         self._enabled = True
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         pass
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         if not self._enabled:
             return
         if span._local_root == span and span.span_type == SpanTypes.WEB:

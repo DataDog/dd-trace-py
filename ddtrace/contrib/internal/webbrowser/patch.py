@@ -6,8 +6,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 

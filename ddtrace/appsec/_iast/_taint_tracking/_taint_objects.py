@@ -68,8 +68,7 @@ def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
     return pyobject
 
 
-def copy_ranges_to_iterable_with_strings(iterable, ranges):
-    # type: (Sequence[str], Sequence[TaintRange]) -> Sequence[str]
+def copy_ranges_to_iterable_with_strings(iterable: Sequence[str], ranges: Sequence[TaintRange]) -> Sequence[str]:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     iterable_type = type(iterable)
 

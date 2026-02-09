@@ -19,8 +19,7 @@ config._add(
 _WRAPPED_MESSAGE_CLASSES = []
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(protobuf, "__version__", "")
 
 

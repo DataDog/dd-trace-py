@@ -9,7 +9,7 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils import formats
 
 
-_GITMETADATA_TAGS = None  # type: typing.Optional[tuple[str, str, str]]
+_GITMETADATA_TAGS: typing.Optional[tuple[str, str, str]] = None
 
 log = get_logger(__name__)
 
@@ -36,8 +36,7 @@ class GitMetadataConfig(DDConfig):
 config = GitMetadataConfig()
 
 
-def _get_tags_from_env():
-    # type: () -> tuple[str, str, str]
+def _get_tags_from_env() -> tuple[str, str, str]:
     """
     Get git metadata from environment variables.
     Returns tuple (repository_url, commit_sha, main_package)
@@ -90,8 +89,7 @@ def _get_tags_from_package(main_package: str) -> tuple[str, str]:
         return "", ""
 
 
-def get_git_tags():
-    # type: () -> tuple[str, str, str]
+def get_git_tags() -> tuple[str, str, str]:
     """
     Returns git metadata tags tuple (repository_url, commit_sha, main_package)
     """
@@ -118,8 +116,7 @@ def get_git_tags():
         return "", "", ""
 
 
-def clean_tags(tags):
-    # type: (dict[str, str]) -> dict[str, str]
+def clean_tags(tags: dict[str, str]) -> dict[str, str]:
     """
     Cleanup tags from git metadata
     """

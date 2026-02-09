@@ -1,8 +1,6 @@
 from importlib import import_module
 import inspect
 import os
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 
 from wrapt import wrap_function_wrapper as _w
 

@@ -5,10 +5,7 @@ from multiprocessing import Process
 from multiprocessing import Value
 import os
 import time
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from urllib.parse import urljoin
 
 from ddtrace.ext import ci
@@ -78,16 +75,70 @@ FINISHED_METADATA_UPLOAD_STATUSES = [
 ]
 
 
+class CIVisibilityGitClientSerializerV1(object):
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
+
+    def search_commits_encode(self, repo_url: str, latest_commits: list[str]) -> str:
+        return json.dumps(
+            {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
+        )
+
+    def search_commits_decode(self, payload: str) -> list[str]:
+        res: list[str] = []
+        try:
+            if isinstance(payload, bytes):
+                parsed = json.loads(payload.decode())
+            else:
+                parsed = json.loads(payload)
+            return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
+        except KeyError:
+            log.warning("Expected information not found in search_commits response", exc_info=True)
+        except json.JSONDecodeError:
+            log.warning("Unexpected decode error in search_commits response", exc_info=True)
+
+        return res
+
+    def upload_packfile_encode(self, repo_url: str, sha: str, file_path: str) -> tuple[str, bytes]:
+        BOUNDARY = b"----------boundary------"
+        CRLF = b"\r\n"
+        body = []
+        metadata = {"data": {"id": sha, "type": "commit"}, "meta": {"repository_url": repo_url}}
+        body.extend(
+            [
+                b"--" + BOUNDARY,
+                b'Content-Disposition: form-data; name="pushedSha"',
+                b"Content-Type: application/json",
+                b"",
+                json.dumps(metadata).encode("utf-8"),
+            ]
+        )
+        file_name = os.path.basename(file_path)
+        f = open(file_path, "rb")
+        file_content = f.read()
+        f.close()
+        body.extend(
+            [
+                b"--" + BOUNDARY,
+                b'Content-Disposition: form-data; name="packfile"; filename="%s"' % file_name.encode("utf-8"),
+                b"Content-Type: application/octet-stream",
+                b"",
+                file_content,
+            ]
+        )
+        body.extend([b"--" + BOUNDARY + b"--", b""])
+        return "multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), CRLF.join(body)
+
+
 class CIVisibilityGitClient(object):
     def __init__(
         self,
-        api_key,
-        requests_mode=REQUESTS_MODE.AGENTLESS_EVENTS,
-        tracer=None,
-    ):
-        # type: (str, int, Optional[Tracer]) -> None
+        api_key: str,
+        requests_mode: int = REQUESTS_MODE.AGENTLESS_EVENTS,
+        tracer: Optional[Tracer] = None,
+    ) -> None:
         self._serializer = CIVisibilityGitClientSerializerV1(api_key)
-        self._worker = None  # type: Optional[Process]
+        self._worker: Optional[Process] = None
         self._response = RESPONSE
         self._requests_mode = requests_mode
         self._metadata_upload_status = Value(c_int, METADATA_UPLOAD_STATUS.PENDING, lock=True)
@@ -105,15 +156,13 @@ class CIVisibilityGitClient(object):
                 GIT_API_BASE_PATH,
             )
 
-    def _get_git_dir(self, cwd=None):
-        # type: (Optional[str]) -> Optional[str]
+    def _get_git_dir(self, cwd: Optional[str] = None) -> Optional[str]:
         try:
             return extract_workspace_path(cwd=cwd)
         except (FileNotFoundError, ValueError):
             return None
 
-    def upload_git_metadata(self, cwd=None):
-        # type: (Optional[str]) -> None
+    def upload_git_metadata(self, cwd: Optional[str] = None) -> None:
         if not self._get_git_dir(cwd=cwd):
             log.debug("Missing .git directory; skipping git metadata upload")
             self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
@@ -159,8 +208,7 @@ class CIVisibilityGitClient(object):
                 time.sleep(1)
         log.debug("git metadata upload completed, waited %s seconds", stopwatch.elapsed())
 
-    def wait_for_metadata_upload_status(self):
-        # type: () -> METADATA_UPLOAD_STATUS
+    def wait_for_metadata_upload_status(self) -> METADATA_UPLOAD_STATUS:
         self._wait_for_metadata_upload()
         return self._metadata_upload_status.value  # type: ignore
 
@@ -175,8 +223,7 @@ class CIVisibilityGitClient(object):
         _response=None,  # Optional[Response]
         cwd=None,  # Optional[str]
         log_level=0,  # int
-    ):
-        # type: (...) -> None
+    ) -> None:
         log.setLevel(log_level)
         _metadata_upload_status.value = METADATA_UPLOAD_STATUS.IN_PROCESS
         try:
@@ -246,8 +293,7 @@ class CIVisibilityGitClient(object):
             telemetry.telemetry_writer.periodic(force_flush=True)
 
     @classmethod
-    def _get_repository_url(cls, tags=None, cwd=None):
-        # type: (Optional[dict[str, str]], Optional[str]) -> str
+    def _get_repository_url(cls, tags: Optional[dict[str, str]] = None, cwd: Optional[str] = None) -> str:
         if tags is None:
             tags = {}
         result = tags.get(ci.git.REPOSITORY_URL, "")
@@ -256,8 +302,7 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    def _get_latest_commits(cls, cwd=None):
-        # type: (Optional[str]) -> list[str]
+    def _get_latest_commits(cls, cwd: Optional[str] = None) -> list[str]:
         latest_commits, stderr, duration, returncode = _extract_latest_commits_with_details(cwd=cwd)
         record_git_command(GIT_TELEMETRY_COMMANDS.GET_LOCAL_COMMITS, duration, returncode)
         if returncode == 0:
@@ -265,8 +310,15 @@ class CIVisibilityGitClient(object):
         raise ValueError(stderr)
 
     @classmethod
-    def _search_commits(cls, requests_mode, base_url, repo_url, latest_commits, serializer, _response):
-        # type: (int, str, str, list[str], CIVisibilityGitClientSerializerV1, Optional[Response]) -> Optional[list[str]]
+    def _search_commits(
+        cls,
+        requests_mode: int,
+        base_url: str,
+        repo_url: str,
+        latest_commits: list[str],
+        serializer: CIVisibilityGitClientSerializerV1,
+        _response: Optional[Response],
+    ) -> Optional[list[str]]:
         payload = serializer.search_commits_encode(repo_url, latest_commits)
         request_error = None
         with StopWatch() as stopwatch:
@@ -302,8 +354,16 @@ class CIVisibilityGitClient(object):
 
     @classmethod
     @fibonacci_backoff_with_jitter(attempts=5, until=lambda result: isinstance(result, Response))
-    def _do_request(cls, requests_mode, base_url, endpoint, payload, serializer, headers=None, timeout=DEFAULT_TIMEOUT):
-        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[dict], int) -> Response
+    def _do_request(
+        cls,
+        requests_mode: int,
+        base_url: str,
+        endpoint: str,
+        payload: str,
+        serializer: CIVisibilityGitClientSerializerV1,
+        headers: Optional[dict] = None,
+        timeout: int = DEFAULT_TIMEOUT,
+    ) -> Response:
         url = "{}/repository{}".format(base_url, endpoint)
         _headers = {
             AGENTLESS_API_KEY_HEADER_NAME: serializer.api_key,
@@ -328,8 +388,9 @@ class CIVisibilityGitClient(object):
         return result
 
     @classmethod
-    def _get_filtered_revisions(cls, excluded_commits, included_commits=None, cwd=None):
-        # type: (list[str], Optional[list[str]], Optional[str]) -> str
+    def _get_filtered_revisions(
+        cls, excluded_commits: list[str], included_commits: Optional[list[str]] = None, cwd: Optional[str] = None
+    ) -> str:
         filtered_revisions, _, duration, returncode = _get_rev_list_with_details(
             excluded_commits, included_commits, cwd=cwd
         )
@@ -337,9 +398,16 @@ class CIVisibilityGitClient(object):
         return filtered_revisions
 
     @classmethod
-    def _upload_packfiles(cls, requests_mode, base_url, repo_url, packfiles_prefix, serializer, _response, cwd=None):
-        # type: (int, str, str, str, CIVisibilityGitClientSerializerV1, Optional[Response], Optional[str]) -> bool
-
+    def _upload_packfiles(
+        cls,
+        requests_mode: int,
+        base_url: str,
+        repo_url: str,
+        packfiles_prefix: str,
+        serializer: CIVisibilityGitClientSerializerV1,
+        _response: Optional[Response],
+        cwd: Optional[str] = None,
+    ) -> bool:
         sha = extract_commit_sha(cwd=cwd)
         parts = packfiles_prefix.split("/")
         directory = "/".join(parts[:-1])
@@ -446,62 +514,3 @@ class CIVisibilityGitClient(object):
         log.debug("Unshallowing to upstream %s", upstream)
         _unshallow_repository(cwd=cwd, repo=remote, refspec=upstream)
         log.debug("Unshallowing to upstream")
-
-
-class CIVisibilityGitClientSerializerV1(object):
-    def __init__(self, api_key):
-        # type: (str) -> None
-        self.api_key = api_key
-
-    def search_commits_encode(self, repo_url, latest_commits):
-        # type: (str, list[str]) -> str
-        return json.dumps(
-            {"meta": {"repository_url": repo_url}, "data": [{"id": sha, "type": "commit"} for sha in latest_commits]}
-        )
-
-    def search_commits_decode(self, payload):
-        # type: (str) -> list[str]
-        res = []  # type: list[str]
-        try:
-            if isinstance(payload, bytes):
-                parsed = json.loads(payload.decode())
-            else:
-                parsed = json.loads(payload)
-            return [item["id"] for item in parsed["data"] if item["type"] == "commit"]
-        except KeyError:
-            log.warning("Expected information not found in search_commits response", exc_info=True)
-        except json.JSONDecodeError:
-            log.warning("Unexpected decode error in search_commits response", exc_info=True)
-
-        return res
-
-    def upload_packfile_encode(self, repo_url, sha, file_path):
-        # type: (str, str, str) -> tuple[str, bytes]
-        BOUNDARY = b"----------boundary------"
-        CRLF = b"\r\n"
-        body = []
-        metadata = {"data": {"id": sha, "type": "commit"}, "meta": {"repository_url": repo_url}}
-        body.extend(
-            [
-                b"--" + BOUNDARY,
-                b'Content-Disposition: form-data; name="pushedSha"',
-                b"Content-Type: application/json",
-                b"",
-                json.dumps(metadata).encode("utf-8"),
-            ]
-        )
-        file_name = os.path.basename(file_path)
-        f = open(file_path, "rb")
-        file_content = f.read()
-        f.close()
-        body.extend(
-            [
-                b"--" + BOUNDARY,
-                b'Content-Disposition: form-data; name="packfile"; filename="%s"' % file_name.encode("utf-8"),
-                b"Content-Type: application/octet-stream",
-                b"",
-                file_content,
-            ]
-        )
-        body.extend([b"--" + BOUNDARY + b"--", b""])
-        return "multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), CRLF.join(body)

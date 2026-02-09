@@ -72,8 +72,7 @@ class CGroupInfo:
         )
 
     @classmethod
-    def from_line(cls, line):
-        # type: (str) -> Optional[CGroupInfo]
+    def from_line(cls, line: str) -> Optional["CGroupInfo"]:
         """
         Parse a new :class:`CGroupInfo` from the provided line
 

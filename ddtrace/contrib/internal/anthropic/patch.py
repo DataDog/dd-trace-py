@@ -17,8 +17,7 @@ from ddtrace.llmobs._integrations import AnthropicIntegration
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(anthropic, "__version__", "")
 
 

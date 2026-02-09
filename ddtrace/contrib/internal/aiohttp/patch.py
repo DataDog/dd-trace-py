@@ -51,8 +51,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return aiohttp.__version__
 
 
@@ -82,8 +81,8 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
 
 @with_traced_module
 async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
-    method = get_argument_value(args, kwargs, 0, "method")  # type: str
-    url = URL(get_argument_value(args, kwargs, 1, "url"))  # type: URL
+    method: str = get_argument_value(args, kwargs, 0, "method")
+    url: URL = URL(get_argument_value(args, kwargs, 1, "url"))
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
 
@@ -117,7 +116,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             query=query,
             request_headers=headers,
         )
-        resp = await func(*args, **kwargs)  # type: aiohttp.ClientResponse
+        resp: aiohttp.ClientResponse = await func(*args, **kwargs)
         set_http_meta(
             span, config.aiohttp_client, response_headers=resp.headers, status_code=resp.status, status_msg=resp.reason
         )
