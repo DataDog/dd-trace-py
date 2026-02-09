@@ -284,7 +284,7 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
 
 
 def _get_benchmark_class_name(suite_name: str) -> str:
-    contents = ("benchmarks" / suite_name / "scenario.py").read_text()
+    contents = Path(f"benchmarks/{suite_name}/scenario.py").read_text()
     for line in contents.split("\n"):
         match = re.match(BENCHMARK_CLASS_REGEX, line)
         if match:
