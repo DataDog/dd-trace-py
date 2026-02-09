@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Lock profiler correctly identifies gevent greenlet ids and names.
