@@ -326,7 +326,6 @@ class LLMObs(Service):
             "meta": {"input": {}, "output": {}},
             "metrics": {},
             "tags": tags,
-            "ml_app": ml_app,
             "span_links": [],
             "_dd": {
                 "span_id": str(span.span_id),
@@ -531,7 +530,7 @@ class LLMObs(Service):
             "version": config.version or "",
             "env": config.env or "",
             "service": span.service or "",
-            "source": "integration",
+            "source": "integration", # FIXME
             "ml_app": ml_app,
             "ddtrace.version": __version__,
             "language": "python",

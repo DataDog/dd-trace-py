@@ -85,10 +85,8 @@ class LLMObsSpanData(TypedDict, total=False):
     meta: _Meta
     metrics: Dict[str, Any]
     session_id: str
-    ml_app: str
     span_links: List[_SpanLink]
-    span_kind: str
-    integration: str
+    _dd: Dict[str, str]
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
