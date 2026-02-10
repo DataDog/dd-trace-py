@@ -55,6 +55,7 @@ suites:
       - '@claude_agent_sdk'
       - '@llmobs'
       - tests/contrib/claude_agent_sdk/*
+      - tests/snapshots/tests.contrib.claude_agent_sdk.*
     runner: riot
     snapshot: true
   google_adk:
