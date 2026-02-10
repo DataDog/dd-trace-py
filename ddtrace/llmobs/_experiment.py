@@ -3,6 +3,7 @@ from copy import deepcopy
 import itertools
 import sys
 import traceback
+import time
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -490,6 +491,12 @@ class Experiment:
         self._tags["run_iteration"] = str(run._run_iteration)
         task_results = self._run_task(jobs, run, raise_errors, None)
         run_result = self._merge_results(run, task_results, {}, [])
+        evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
+        run_result = self._merge_results(run, task_results, evaluations, [])
+        experiment_evals = self._generate_metrics_from_exp_results(run_result)
+        self._llmobs_instance._dne_client.experiment_eval_post(
+            self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+        )
         run_results.append(run_result)
 
         experiment_result: ExperimentResult = {
@@ -747,6 +754,49 @@ class Experiment:
                     summary_evals[name] = eval_data
 
         return ExperimentRun(run, summary_evals, experiment_results)
+
+    def _submit_eval_metric(
+        self,
+        eval_name: str,
+        eval_value: JSONType,
+        span: Optional[dict] = None,
+        timestamp_ms: Optional[int] = None,
+        is_summary_eval: Optional[bool] = None,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[Dict[str, str]] = None,
+    ):
+        if not self._is_distributed:
+            raise ValueError("this method is only used for distributed experiments")
+
+        if not is_summary_eval and (
+            not isinstance(span, dict)
+            or not isinstance(span.get("span_id"), str)
+            or not isinstance(span.get("trace_id"), str)
+        ):
+            raise TypeError(
+                "`span` must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+
+        timestamp_ns = int(time.time() * 1e9)
+
+        eval = self._generate_metric_from_evaluation(
+            eval_name,
+            eval_value,
+            None,
+            span.get("span_id", "") if span else "",
+            span.get("trace_id", "") if span else "",
+            timestamp_ns,
+            "summary" if is_summary_eval else "custom",
+            reasoning,
+            assessment,
+            metadata,
+            tags,
+        )
+
+        self._llmobs_instance._dne_client.experiment_eval_post(self._id, [eval], convert_tags_dict_to_list(self._tags))
 
     def _generate_metric_from_evaluation(
         self,
