@@ -8,62 +8,73 @@ from .. import _threading
 from ddtrace.internal.settings.profiling import config
 
 
-if (is_stack := config.stack.enabled):
-
-    @when_imported("gevent")
-    def _(gevent):
-        from .. import _gevent
-
-        _gevent.patch()
-
-else:
-    _gevent_tracer = None
+is_stack = config.stack.enabled
+_gevent_tracer = None
+_gevent_support_initialized = False
 
 
-    @when_imported("gevent")
-    def install_greenlet_tracer(gevent):
-        global _gevent_tracer
+def _install_gevent_patch(gevent):
+    from .. import _gevent
 
-        try:
-            import gevent.hub
-            import gevent.thread
-            from greenlet import getcurrent
-            from greenlet import greenlet
-            from greenlet import settrace
-        except ImportError:
-            # We don't seem to have the required dependencies.
-            return
+    _gevent.patch()
 
-        class DDGreenletTracer(object):
-            def __init__(self, gevent):
-                # type: (ModuleType) -> None
-                self.gevent = gevent
 
-                self.previous_trace_function = settrace(self)
-                self.greenlets = weakref.WeakValueDictionary()
-                self.active_greenlet = getcurrent()
-                self._store_greenlet(self.active_greenlet)
+def install_greenlet_tracer(gevent):
+    global _gevent_tracer
 
-            def _store_greenlet(
-                    self,
-                    greenlet,  # type: greenlet.greenlet
-            ):
-                # type: (...) -> None
-                self.greenlets[gevent.thread.get_ident(greenlet)] = greenlet
+    try:
+        import gevent.hub
+        import gevent.thread
+        from greenlet import getcurrent
+        from greenlet import greenlet
+        from greenlet import settrace
+    except ImportError:
+        # We don't seem to have the required dependencies.
+        return
 
-            def __call__(self, event, args):
-                if event in ('switch', 'throw'):
-                    # Do not trace gevent Hub: the Hub is a greenlet but we want to know the latest active greenlet *before*
-                    # the application yielded back to the Hub. There's no point showing the Hub most of the time to the
-                    # users as that does not give any information about user code.
-                    if not isinstance(args[1], gevent.hub.Hub):
-                        self.active_greenlet = args[1]
-                        self._store_greenlet(args[1])
+    class DDGreenletTracer(object):
+        def __init__(self, gevent):
+            # type: (ModuleType) -> None
+            self.gevent = gevent
 
-                if self.previous_trace_function is not None:
-                    self.previous_trace_function(event, args)
+            self.previous_trace_function = settrace(self)
+            self.greenlets = weakref.WeakValueDictionary()
+            self.active_greenlet = getcurrent()
+            self._store_greenlet(self.active_greenlet)
 
-        _gevent_tracer = DDGreenletTracer(gevent)
+        def _store_greenlet(
+                self,
+                greenlet,  # type: greenlet.greenlet
+        ):
+            # type: (...) -> None
+            self.greenlets[gevent.thread.get_ident(greenlet)] = greenlet
+
+        def __call__(self, event, args):
+            if event in ('switch', 'throw'):
+                # Do not trace gevent Hub: the Hub is a greenlet but we want to know the latest active greenlet *before*
+                # the application yielded back to the Hub. There's no point showing the Hub most of the time to the
+                # users as that does not give any information about user code.
+                if not isinstance(args[1], gevent.hub.Hub):
+                    self.active_greenlet = args[1]
+                    self._store_greenlet(args[1])
+
+            if self.previous_trace_function is not None:
+                self.previous_trace_function(event, args)
+
+    _gevent_tracer = DDGreenletTracer(gevent)
+
+
+cpdef initialize_gevent_support():
+    global _gevent_support_initialized
+
+    if _gevent_support_initialized:
+        return
+    _gevent_support_initialized = True
+
+    if is_stack:
+        when_imported("gevent")(_install_gevent_patch)
+    else:
+        when_imported("gevent")(install_greenlet_tracer)
 
 
 cdef _asyncio_task_get_frame(task):

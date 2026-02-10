@@ -455,6 +455,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
+        _task.initialize_gevent_support()
         self.patch()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
