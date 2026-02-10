@@ -389,7 +389,7 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_start(PeriodicThread* self)
+PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
@@ -500,7 +500,7 @@ PeriodicThread_start(PeriodicThread* self)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_awake(PeriodicThread* self, PyObject* args)
+PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     if (self->_thread == nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread not started");
@@ -521,7 +521,7 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* args)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_stop(PeriodicThread* self)
+PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     if (self->_thread == nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread not started");
@@ -584,11 +584,11 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__atexit(PeriodicThread* self)
+PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_atexit = true;
 
-    if (PeriodicThread_stop(self) == NULL)
+    if (PeriodicThread_stop(self, NULL) == NULL)
         return NULL;
 
     if (PeriodicThread_join(self, NULL, NULL) == NULL)
@@ -599,7 +599,7 @@ PeriodicThread__atexit(PeriodicThread* self)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__after_fork(PeriodicThread* self)
+PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_thread = nullptr;
 
@@ -613,18 +613,18 @@ PeriodicThread__after_fork(PeriodicThread* self)
     self->_stopped->clear();
     self->_served->clear();
 
-    PeriodicThread_start(self);
+    PeriodicThread_start(self, NULL);
 
     Py_RETURN_NONE;
 }
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__before_fork(PeriodicThread* self)
+PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_skip_shutdown = true;
 
-    PeriodicThread_stop(self);
+    PeriodicThread_stop(self, NULL);
 
     Py_RETURN_NONE;
 }

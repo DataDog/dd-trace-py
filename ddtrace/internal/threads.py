@@ -122,11 +122,15 @@ class ThreadRestartTimer(PeriodicThread):
                     thread_start()
                 _threads_to_start_after_fork.clear()
 
-                # We no longer need this thread so we stop it and clear the
-                # instance.
-                self.stop()
+                # We no longer need this thread so we clear it.
+                self.clear()
 
-                self._instance = None
+    @classmethod
+    def clear(cls):
+        """Clear the timer and stop it if it is running."""
+        if cls._instance is not None:
+            cls._instance.stop()
+            cls._instance = None
 
     @classmethod
     def touch(cls):
