@@ -146,7 +146,7 @@ impl SpanData {
         trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
         span_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
         parent_id: Option<&Bound<'p, PyAny>>,
-        start: Option<&Bound<'p, PyAny>>,    // USED: in seconds (float or int)
+        start: Option<&Bound<'p, PyAny>>, // USED: in seconds (float or int)
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
