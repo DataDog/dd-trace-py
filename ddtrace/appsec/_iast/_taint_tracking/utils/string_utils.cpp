@@ -212,3 +212,22 @@ PyReMatch_Check(const PyObject* obj)
         return false;
     }
 }
+
+bool
+PyTemplate_Check(const PyObject* obj)
+{
+    if (!obj)
+        return false;
+
+        // Template strings are only available in Python 3.14+
+#if PY_VERSION_HEX >= 0x030E0000
+    try {
+        return py::isinstance((PyObject*)obj, safe_import("string.templatelib", "Template"));
+    } catch (py::error_already_set& err) {
+        PyErr_Clear();
+        return false;
+    }
+#else
+    return false;
+#endif
+}

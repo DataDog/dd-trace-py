@@ -14,6 +14,11 @@ from _pytest.runner import runtestprotocol
 import pluggy
 import pytest
 
+from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
+from ddtrace.contrib.internal.coverage.patch import stop_coverage
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -266,10 +271,28 @@ class TestOptPlugin:
             # Propagate number of skipped tests to the main process.
             session.config.workeroutput["tests_skipped_by_itr"] = self.session.tests_skipped_by_itr
 
+        # If coverage report upload is enabled, generate and upload the report
+        if self.manager.settings.coverage_report_upload_enabled:
+            # Create upload function wrapper for manager
+            def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
+                return self.manager.upload_coverage_report(
+                    coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
+                )
+
+            handle_coverage_report(
+                config=session.config,
+                upload_func=upload_func,
+                is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
+                stop_coverage_func=stop_coverage,
+            )
+
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
             self.session.metrics[TestTag.CODE_COVERAGE_LINES_PCT] = coverage_percentage
             uninstall_coverage_percentage()
+
+            # Clean up external coverage instance registration
+            clear_coverage_instance()
 
         self.session.finish()
 
@@ -295,7 +318,7 @@ class TestOptPlugin:
         """
         for item in session.items:
             test_ref = item_to_test_ref(item)
-            test_module, test_suite, test = self._discover_test(item, test_ref)
+            self.manager.collected_tests.add(test_ref)
 
         self.manager.finish_collection()
 
@@ -941,7 +964,14 @@ def pytest_load_initial_conftests(
 
     early_config.stash[SESSION_MANAGER_STASH_KEY] = session_manager
 
-    if session_manager.settings.coverage_enabled:
+    # AIDEV-NOTE: Coverage collection decision tree:
+    # - coverage_report_upload_enabled: Use coverage.py (external) to generate uploadable reports
+    # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal)
+    # When coverage_report_upload_enabled, we rely on pytest-cov to run coverage.py if available,
+    # or start it ourselves if not. The actual coverage.py startup is handled later in pytest_configure
+    # when we know if pytest-cov is available.
+    if session_manager.settings.coverage_enabled and not session_manager.settings.coverage_report_upload_enabled:
+        # Only use our own coverage collector if report upload is not enabled
         setup_coverage_collection()
 
     yield
@@ -984,8 +1014,20 @@ def pytest_configure(config: pytest.Config) -> None:
 
     ddtrace.testing.internal.tracer_api.pytest_hooks.pytest_configure(config)
 
-    if _is_pytest_cov_enabled(config):
-        install_coverage_percentage()
+    # AIDEV-NOTE: Coverage.py integration when report upload is enabled
+    # If coverage_report_upload_enabled and pytest-cov is NOT running, we need to start coverage.py ourselves
+    if session_manager.settings.coverage_report_upload_enabled and not _is_pytest_cov_enabled(config):
+        # Start coverage.py ourselves for report generation
+        from ddtrace.contrib.internal.coverage.patch import start_coverage
+
+        workspace_path = get_workspace_path()
+        start_coverage(source=[str(workspace_path)])
+        log.debug("Started coverage.py collection for report upload (pytest-cov not enabled)")
+
+    # Patch coverage.py to capture percentage if it's available and (enabled OR needed for report upload)
+    if _is_pytest_cov_available(config):
+        if _is_pytest_cov_enabled(config) or session_manager.settings.coverage_report_upload_enabled:
+            install_coverage_percentage()
 
 
 def _get_test_command(config: pytest.Config) -> str:
@@ -1079,18 +1121,6 @@ def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
             tags[key] = str(value)
 
     return tags
-
-
-def _is_pytest_cov_enabled(config) -> bool:
-    if not config.pluginmanager.get_plugin("pytest_cov"):
-        return False
-    cov_option = config.getoption("--cov", default=False)
-    nocov_option = config.getoption("--no-cov", default=False)
-    if nocov_option is True:
-        return False
-    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
-        return True
-    return cov_option
 
 
 @pytest.fixture(scope="session")

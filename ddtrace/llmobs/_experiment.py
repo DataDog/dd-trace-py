@@ -173,7 +173,7 @@ class BaseEvaluator(ABC):
 
     Example (simple return)::
 
-        class SemanticSimilarity(BaseEvaluator):
+        class SemanticSimilarityEvaluator(BaseEvaluator):
             def __init__(self, threshold=0.8):
                 super().__init__(name="semantic_similarity")
                 self.threshold = threshold
@@ -185,7 +185,7 @@ class BaseEvaluator(ABC):
 
     Example (with EvaluatorResult)::
 
-        class SemanticSimilarity(BaseEvaluator):
+        class SemanticSimilarityEvaluator(BaseEvaluator):
             def __init__(self, threshold=0.8):
                 super().__init__(name="semantic_similarity")
                 self.threshold = threshold
@@ -200,6 +200,9 @@ class BaseEvaluator(ABC):
                     metadata={"threshold": self.threshold},
                     tags={"type": "semantic"}
                 )
+
+    Note: The ``evaluate`` method may be called concurrently from multiple threads.
+    Avoid modifying instance attributes inside ``evaluate()``; use local variables instead.
     """
 
     def __init__(self, name: Optional[str] = None):
@@ -713,6 +716,16 @@ class Experiment:
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
     ) -> ExperimentResult:
+        """Run the experiment by executing the task on all dataset records and evaluating the results.
+
+        :param jobs: Maximum number of concurrent task and evaluator executions (default: 1)
+        :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
+        :param sample_size: Optional number of dataset records to sample for testing
+                            (default: None, uses full dataset)
+        :return: ExperimentResult containing evaluation results and metadata
+        """
+        if jobs < 1:
+            raise ValueError("jobs must be at least 1")
         if self._is_distributed:
             raise TypeError("run is not supported for a distributed experiment")
         self._init_experiment(True)
@@ -723,8 +736,8 @@ class Experiment:
             self._tags["run_id"] = str(run._id)
             self._tags["run_iteration"] = str(run._run_iteration)
             task_results = self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors)
+            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
             experiment_evals = self._generate_metrics_from_exp_results(run_result)
             self._llmobs_instance._dne_client.experiment_eval_post(
@@ -884,22 +897,25 @@ class Experiment:
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
-    def _run_evaluators(self, task_results: List[TaskResult], raise_errors: bool = False) -> Dict[int, EvaluationResult]:
-        """Run evaluators on task results.
+    def _run_evaluators(
+        self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 1
+    ) -> Dict[int, EvaluationResult]:
+        """Run evaluators on task results with concurrent execution using ThreadPoolExecutor.
 
         Supports both class-based (BaseEvaluator) and literal function evaluators.
 
         :param task_results: List of task results to evaluate
         :param raise_errors: Whether to raise exceptions on evaluation errors
+        :param jobs: Maximum number of concurrent evaluator executions (default: 1)
         """
-        evaluations: Dict[int, EvaluationResult] = {}
-        for idx, task_result in enumerate(task_results):
-            output_data = task_result["output"]
+        def _evaluate_row(idx: int, task_result: TaskResult) -> Dict[str, Dict[str, JSONType]]:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
+            output_data = task_result["output"]
             expected_output = record["expected_output"]
             metadata = record.get("metadata", {})
-            evals_dict: Dict[str, Dict[str, JSONType]] = {}
+
+            row_results: Dict[str, Dict[str, JSONType]] = {}
 
             for evaluator in self._evaluators:
                 eval_result_value: JSONType = None
@@ -942,6 +958,7 @@ class Experiment:
                         eval_result_value = eval_result.value
                     else:
                         eval_result_value = eval_result
+
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -954,13 +971,20 @@ class Experiment:
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
-                evals_dict[evaluator_name] = {
+                row_results[evaluator_name] = {
                     "value": eval_result_value,
                     "error": eval_err,
                     **extra_return_values,
                 }
-            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
-            evaluations[idx] = evaluation
+            return row_results
+
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
+            results = list(executor.map(_evaluate_row, range(len(task_results)), task_results))
+
+        evaluations: Dict[int, EvaluationResult] = {
+            idx: {"idx": idx, "evaluations": row_results} for idx, row_results in enumerate(results)
+        }
+
         return evaluations
 
     def _run_summary_evaluators(
@@ -968,13 +992,12 @@ class Experiment:
         task_results: List[TaskResult],
         eval_results: Dict[int, EvaluationResult],
         raise_errors: bool = False,
+        jobs: int = 1,
     ) -> List[EvaluationResult]:
-        evaluations: List[EvaluationResult] = []
         inputs: List[DatasetRecordInputType] = []
         outputs: List[JSONType] = []
         expected_outputs: List[JSONType] = []
         metadata_list: List[Dict[str, Any]] = []
-        evals_dict = {}
 
         # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
         # this is being computed so that the user can use the evaluation results in its original form
@@ -994,14 +1017,14 @@ class Experiment:
 
                 eval_results_by_name[name].append(eval_value.get("value"))
 
-        for idx, summary_evaluator in enumerate(self._summary_evaluators):
-            eval_result: JSONType = None
+        def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, Dict[str, JSONType]]:
+            eval_result_value: JSONType = None
             eval_err: JSONType = None
             evaluator_name = ""
 
             try:
                 if _is_class_summary_evaluator(summary_evaluator):
-                    evaluator_name = summary_evaluator.name  # type: ignore[union-attr]
+                    evaluator_name = summary_evaluator.name
                     context = SummaryEvaluatorContext(
                         inputs=inputs,
                         outputs=outputs,
@@ -1009,12 +1032,11 @@ class Experiment:
                         evaluation_results=eval_results_by_name,
                         metadata=metadata_list,
                     )
-                    eval_result = summary_evaluator.evaluate(context)  # type: ignore[union-attr]
+                    eval_result = summary_evaluator.evaluate(context)
                 else:
-                    evaluator_name = summary_evaluator.__name__  # type: ignore[union-attr]
-                    eval_result = summary_evaluator(  # type: ignore[operator]
-                        inputs, outputs, expected_outputs, eval_results_by_name
-                    )
+                    evaluator_name = summary_evaluator.__name__
+                    eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
+                eval_result_value = eval_result
             except Exception as e:
                 exc_type, exc_value, exc_tb = sys.exc_info()
                 exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
@@ -1026,12 +1048,24 @@ class Experiment:
                 }
                 if raise_errors:
                     raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
-            evals_dict[evaluator_name] = {
-                "value": eval_result,
-                "error": eval_err,
-            }
-            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
-            evaluations.append(evaluation)
+
+            return (
+                evaluator_name,
+                {
+                    "value": eval_result_value,
+                    "error": eval_err,
+                },
+            )
+
+        evaluations: List[EvaluationResult] = []
+        evals_dict: Dict[str, Dict[str, JSONType]] = {}
+
+        with ThreadPoolExecutor(max_workers=jobs) as executor:
+            results = list(executor.map(_evaluate_summary_single, self._summary_evaluators))
+
+        for idx, (evaluator_name, eval_data) in enumerate(results):
+            evals_dict[evaluator_name] = eval_data
+            evaluations.append({"idx": idx, "evaluations": evals_dict})
 
         return evaluations
 
@@ -1136,6 +1170,8 @@ class Experiment:
             metric_type = "boolean"
         elif isinstance(eval_value, (int, float)):
             metric_type = "score"
+        elif isinstance(eval_value, dict):
+            metric_type = "json"
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()

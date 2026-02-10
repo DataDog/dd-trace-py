@@ -727,6 +727,7 @@ venv = Venv(
                 "kombu": ">=4.2.0,<4.3.0",
                 "pymssql": latest,
                 "pytest-randomly": latest,
+                "redis": latest,
                 "requests": latest,
             },
             env={
@@ -3280,7 +3281,7 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
-                "riot": "==0.20.1",
+                "riot": "==0.21.0",
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
@@ -3329,8 +3330,7 @@ venv = Venv(
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
-                # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
-                "PYTHONWARNINGS": "ignore::UserWarning:ddtrace.internal.module,ignore::UserWarning:gevent.events",
+                "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
             },
             pkgs={
                 "gunicorn": latest,

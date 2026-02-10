@@ -102,6 +102,7 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     categorical_value: str
     score_value: float
     boolean_value: bool
+    json_value: Dict[str, JSONType]
     error: Optional[Dict[str, str]]
     tags: List[str]
     experiment_id: str
