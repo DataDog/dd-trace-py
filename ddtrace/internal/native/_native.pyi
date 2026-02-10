@@ -524,7 +524,7 @@ class SpanData:
     error: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
-    parent_id: Optional[int]
+    parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
 
     def __new__(
         cls: Type[_SpanDataT],
