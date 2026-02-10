@@ -17,7 +17,7 @@ def invoke_ext_hashes():
     for line in output.decode().splitlines():
         if not line.startswith("#EXTHASH:"):
             continue
-        ext_name, ext_hash, ext_target = t.cast(tuple[str, str, str], eval(line.split(":", 1)[-1].strip()))
+        ext_name, ext_hash, ext_target = t.cast(t.Tuple[str, str, str], eval(line.split(":", 1)[-1].strip()))
         results.append((ext_name, ext_hash, ext_target))
     return results
 

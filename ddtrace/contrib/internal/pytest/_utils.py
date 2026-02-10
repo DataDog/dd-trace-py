@@ -103,7 +103,7 @@ def _get_test_parameters_json(item) -> t.Optional[str]:
     if callspec is None:
         return None
 
-    parameters: dict[str, dict[str, str]] = {"arguments": {}, "metadata": {}}
+    parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
     for param_name, param_val in item.callspec.params.items():
         try:
             parameters["arguments"][param_name] = _encode_test_parameter(param_val)
@@ -153,7 +153,7 @@ def _get_source_file_info(item, item_path) -> t.Optional[TestSourceFileInfo]:
         return None
 
 
-def _get_pytest_version_tuple() -> tuple[int, ...]:
+def _get_pytest_version_tuple() -> t.Tuple[int, ...]:
     if hasattr(pytest, "version_tuple"):
         return pytest.version_tuple
     return tuple(map(int, pytest.__version__.split(".")))

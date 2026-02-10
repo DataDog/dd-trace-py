@@ -1,3 +1,5 @@
+from typing import Dict
+
 import azure.servicebus as azure_servicebus
 import azure.servicebus.aio as azure_servicebus_aio
 from wrapt import wrap_function_wrapper as _w
@@ -28,7 +30,7 @@ def get_version() -> str:
     return getattr(azure_servicebus, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"azure.servicebus": ">=7.14.0"}
 
 

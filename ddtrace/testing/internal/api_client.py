@@ -30,9 +30,9 @@ class APIClient:
         self,
         service: str,
         env: str,
-        env_tags: dict[str, str],
+        env_tags: t.Dict[str, str],
         itr_skipping_level: ITRSkippingLevel,
-        configurations: dict[str, str],
+        configurations: t.Dict[str, str],
         connector_setup: BackendConnectorSetup,
         telemetry_api: TelemetryAPI,
     ) -> None:
@@ -101,7 +101,7 @@ class APIClient:
         self.telemetry_api.record_settings(settings)
         return settings
 
-    def get_known_tests(self) -> set[TestRef]:
+    def get_known_tests(self) -> t.Set[TestRef]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -110,7 +110,7 @@ class APIClient:
         )
 
         try:
-            request_data: dict[str, t.Any] = {
+            request_data: t.Dict[str, t.Any] = {
                 "data": {
                     "id": str(uuid.uuid4()),
                     "type": "ci_app_libraries_tests_request",
@@ -155,7 +155,7 @@ class APIClient:
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
         return known_test_ids
 
-    def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
+    def get_test_management_properties(self) -> t.Dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="test_management_tests.request",
             duration="test_management_tests.request_ms",
@@ -195,7 +195,7 @@ class APIClient:
             return {}
 
         try:
-            test_properties: dict[TestRef, TestProperties] = {}
+            test_properties: t.Dict[TestRef, TestProperties] = {}
             modules = result.parsed_response["data"]["attributes"]["modules"]
 
             for module_name, module_data in modules.items():
@@ -221,7 +221,7 @@ class APIClient:
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
         return test_properties
 
-    def get_known_commits(self, latest_commits: list[str]) -> list[str]:
+    def get_known_commits(self, latest_commits: t.List[str]) -> t.List[str]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="git_requests.search_commits",
             duration="git_requests.search_commits_ms",
@@ -313,7 +313,7 @@ class APIClient:
 
         return len(content)
 
-    def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+    def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
@@ -351,7 +351,7 @@ class APIClient:
             return set(), None
 
         try:
-            skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
+            skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
 
             for item in result.parsed_response["data"]:
                 if item["type"] in ("test", "suite"):
@@ -375,7 +375,7 @@ class APIClient:
         return skippable_items, correlation_id
 
     def upload_coverage_report(
-        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
     ) -> bool:
         """
         Upload a coverage report to Datadog CI Intake.

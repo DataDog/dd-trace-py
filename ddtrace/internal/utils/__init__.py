@@ -1,6 +1,9 @@
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Protocol  # noqa:F401
+from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 
@@ -12,8 +15,8 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args: Union[tuple[Any], list[Any]],
-    kwargs: dict[str, Any],
+    args: Union[Tuple[Any], List[Any]],
+    kwargs: Dict[str, Any],
     pos: int,
     kw: str,
     optional: bool = False,
@@ -44,13 +47,13 @@ def get_argument_value(
 
 
 def set_argument_value(
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
     pos: int,
     kw: str,
     value: Any,
     override_unset: bool = False,
-) -> tuple[tuple[Any, ...], dict[str, Any]]:
+) -> Tuple[Tuple[Any, ...], Dict[str, Any]]:
     """
     Returns a new args, kwargs with the given value updated
     :param args: Positional arguments
@@ -70,7 +73,8 @@ def set_argument_value(
     return args, kwargs
 
 
-def _get_metas_to_propagate(context: Any) -> list[tuple[str, str]]:
+def _get_metas_to_propagate(context):
+    # type: (Any) -> List[Tuple[str, str]]
     # Using list comprehension for improved performance and memory efficiency
     return [(k, v) for k, v in context._meta.items() if isinstance(k, str) and k.startswith("_dd.p.")]
 
@@ -100,7 +104,7 @@ def get_blocked() -> Optional[Block_config]:
     return None
 
 
-def set_blocked(block_settings: Optional[dict[str, Any]] = None) -> None:
+def set_blocked(block_settings: Optional[Dict[str, Any]] = None) -> None:
     # local imports to avoid circular dependency
     from ddtrace.internal import core
     from ddtrace.internal.constants import STATUS_403_TYPE_AUTO

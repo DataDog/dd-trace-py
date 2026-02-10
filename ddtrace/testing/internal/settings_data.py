@@ -15,7 +15,7 @@ class EarlyFlakeDetectionSettings:
     faulty_session_threshold: int = 30
 
     @classmethod
-    def from_attributes(cls, efd_attributes: dict[str, t.Any]) -> EarlyFlakeDetectionSettings:
+    def from_attributes(cls, efd_attributes: t.Dict[str, t.Any]) -> EarlyFlakeDetectionSettings:
         efd_settings = cls(
             enabled=efd_attributes["enabled"],
             slow_test_retries_5s=efd_attributes["slow_test_retries"]["5s"],
@@ -39,7 +39,7 @@ class TestManagementSettings:
     attempt_to_fix_retries: int = 20
 
     @classmethod
-    def from_attributes(cls, test_management_attributes: dict[str, t.Any]) -> TestManagementSettings:
+    def from_attributes(cls, test_management_attributes: t.Dict[str, t.Any]) -> TestManagementSettings:
         test_management_settings = cls(
             enabled=test_management_attributes["enabled"],
             attempt_to_fix_retries=test_management_attributes["attempt_to_fix_retries"],
@@ -61,9 +61,9 @@ class Settings:
     coverage_report_upload_enabled: bool = False
 
     @classmethod
-    def from_attributes(cls, attributes: dict[str, t.Any]) -> Settings:
-        efd_attributes: dict[str, t.Any] = t.cast(dict[str, t.Any], attributes.get("early_flake_detection"))
-        test_management_attributes: dict[str, t.Any] = t.cast(dict[str, t.Any], attributes.get("test_management"))
+    def from_attributes(cls, attributes: t.Dict[str, t.Any]) -> Settings:
+        efd_attributes: t.Dict[str, t.Any] = t.cast(t.Dict[str, t.Any], attributes.get("early_flake_detection"))
+        test_management_attributes: t.Dict[str, t.Any] = t.cast(t.Dict[str, t.Any], attributes.get("test_management"))
         efd_settings = EarlyFlakeDetectionSettings.from_attributes(efd_attributes)
         test_management_settings = TestManagementSettings.from_attributes(
             test_management_attributes=test_management_attributes

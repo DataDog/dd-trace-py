@@ -3,6 +3,7 @@ import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import httpretty
@@ -737,7 +738,8 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 )
 
 
-def test_app_heartbeat_event_periodic(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
+def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
+    # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat when periodc() is called"""
     # Ensure telemetry writer is initialized to send periodic events
     telemetry_writer._is_periodic = True
@@ -757,7 +759,8 @@ def test_app_heartbeat_event_periodic(mock_time: mock.Mock, telemetry_writer: An
     assert len(heartbeat_events) == 1
 
 
-def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
+def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
+    # type: (mock.Mock, Any, Any) -> None
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.periodic(force_flush=True)
@@ -765,7 +768,8 @@ def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_a
     assert len(events) > 0
 
 
-def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
+def test_app_product_change_event(mock_time, telemetry_writer, test_agent_session):
+    # type: (mock.Mock, Any, Any) -> None
     """asserts that enabling or disabling an APM Product triggers a valid telemetry request"""
 
     # Assert that the default product status is disabled
@@ -803,7 +807,8 @@ def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, t
     }
 
 
-def validate_request_body(received_body: dict, payload: dict, payload_type: str, seq_id: Optional[int] = None) -> dict:
+def validate_request_body(received_body, payload, payload_type, seq_id=None):
+    # type: (Dict, Dict, str, Optional[int]) -> Dict
     """used to test the body of requests received by the testagent"""
     assert len(received_body) == 9
     assert received_body["tracer_time"] == time.time()

@@ -4,6 +4,7 @@ Datadog trace code for flask_cache
 
 import logging
 import typing
+from typing import Dict
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -35,7 +36,8 @@ CACHE_BACKEND = "flask_cache.backend"
 CONTACT_POINTS = "flask_cache.contact_points"
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     try:
         import flask_caching
 
@@ -44,7 +46,7 @@ def get_version() -> str:
         return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"flask_cache": ">=0.13"}
 
 
@@ -85,7 +87,8 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
         _datadog_service = service
         _datadog_meta = meta
 
-        def __trace(self: str, cmd: bool) -> "Span":
+        def __trace(self, cmd):
+            # type: (str, bool) -> Span
             """
             Start a tracing with default attributes and tags
             """

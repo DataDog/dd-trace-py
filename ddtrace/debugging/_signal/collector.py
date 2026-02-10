@@ -1,6 +1,9 @@
 import os
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Tuple
 
 from ddtrace.debugging._encoding import BufferedEncoder
 from ddtrace.debugging._metrics import metrics
@@ -13,7 +16,7 @@ from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 
 
-CaptorType = Callable[[list[tuple[str, Any]], list[tuple[str, Any]], ExcInfoType, int], Any]
+CaptorType = Callable[[List[Tuple[str, Any]], List[Tuple[str, Any]], ExcInfoType, int], Any]
 
 log = get_logger(__name__)
 meter = metrics.get_meter("signal.collector")
@@ -28,7 +31,7 @@ class SignalCollector(object):
     encoded, or the signal status indicate it should be skipped.
     """
 
-    def __init__(self, tracks: dict[SignalTrack, BufferedEncoder]) -> None:
+    def __init__(self, tracks: Dict[SignalTrack, BufferedEncoder]) -> None:
         self._tracks = tracks
 
     def _enqueue(self, log_signal: LogSignal) -> None:

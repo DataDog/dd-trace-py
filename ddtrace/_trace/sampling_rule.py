@@ -1,5 +1,7 @@
 from typing import Any
+from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -24,7 +26,7 @@ class SamplingRule(object):
         service: Optional[str] = None,
         name: Optional[str] = None,
         resource: Optional[str] = None,
-        tags: Optional[dict[str, Any]] = None,
+        tags: Optional[Dict[str, Any]] = None,
         provenance: str = "default",
     ) -> None:
         """
@@ -76,7 +78,7 @@ class SamplingRule(object):
         self._sampling_id_threshold = sample_rate * MAX_UINT_64BITS
 
     @cachedmethod()
-    def name_match(self, key: tuple[Optional[str], str, Optional[str]]) -> bool:
+    def name_match(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         service, name, resource = key
         for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource)):
             # perf: If a pattern is not matched we can skip the rest of the checks and return False

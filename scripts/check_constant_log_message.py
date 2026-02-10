@@ -8,6 +8,8 @@ Exceptions can be specified in the EXCEPTIONS set using:
 import ast
 import pathlib
 import sys
+from typing import List
+from typing import Tuple
 
 
 # Line-specific exceptions to exclude from checking
@@ -16,17 +18,17 @@ EXCEPTIONS = {
     # only constant message can be log.error()
     "ddtrace/internal/telemetry/logging.py:21",
     # log.exception calls use constant messages
-    "ddtrace/contrib/internal/aws_lambda/patch.py:34",
+    "ddtrace/contrib/internal/aws_lambda/patch.py:36",
     # log.error in _probe/registry.py ends up with a log.debug()
-    "ddtrace/debugging/_probe/registry.py:135",
-    "ddtrace/debugging/_probe/registry.py:144",
+    "ddtrace/debugging/_probe/registry.py:137",
+    "ddtrace/debugging/_probe/registry.py:146",
     # we added a constant check for the wrapping method of add_error_log
-    "ddtrace/appsec/_iast/_metrics.py:52",
+    "ddtrace/appsec/_iast/_metrics.py:53",
     # we added a constant check for the wrapping method of iast_error
     "ddtrace/appsec/_iast/_logs.py:41",
     "ddtrace/appsec/_iast/_logs.py:45",
     # the non constant part is an object type
-    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:74",
+    "ddtrace/appsec/_iast/_taint_tracking/_taint_objects_base.py:75",
     # _safelog wrapper function dispatches to log methods with variable message
     "ddtrace/internal/writer/writer.py:103",
 }
@@ -35,7 +37,7 @@ EXCEPTIONS = {
 class LogMessageChecker(ast.NodeVisitor):
     def __init__(self, filepath: str):
         self.filepath = filepath
-        self.errors: list[tuple[int, int]] = []
+        self.errors: List[Tuple[int, int]] = []
 
     def _has_send_to_telemetry_false(self, node: ast.Call) -> bool:
         """Check if the call has extra={'send_to_telemetry': False}."""
@@ -84,7 +86,7 @@ class LogMessageChecker(ast.NodeVisitor):
         return f"{str(self.filepath)}:{line_no}" in EXCEPTIONS
 
 
-def check_file(filepath: pathlib.Path) -> list[tuple[int, int]]:
+def check_file(filepath: pathlib.Path) -> List[Tuple[int, int]]:
     try:
         source = filepath.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(filepath))

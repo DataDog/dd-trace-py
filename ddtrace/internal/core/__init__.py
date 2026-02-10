@@ -103,6 +103,8 @@ import logging
 import types
 import typing
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from . import event_hub  # noqa:F401
@@ -135,8 +137,8 @@ class ExecutionContext(object):
 
     def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
         self.identifier: str = identifier
-        self._data: dict[str, Any] = {}
-        self._suppress_exceptions: list[type] = []
+        self._data: Dict[str, Any] = {}
+        self._suppress_exceptions: List[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
@@ -207,11 +209,11 @@ class ExecutionContext(object):
             raise KeyError
         return value
 
-    def find_items(self, data_keys: list[str]) -> list[Optional[Any]]:
+    def find_items(self, data_keys: List[str]) -> List[Optional[Any]]:
         """Find multiple items by their keys, traversing up the context tree for each key."""
         return [self.find_item(key) for key in data_keys]
 
-    def get_items(self, data_keys: list[str]) -> list[Optional[Any]]:
+    def get_items(self, data_keys: List[str]) -> List[Optional[Any]]:
         """Return multiple items by their keys, only in the local context."""
         return [self.get_item(key) for key in data_keys]
 
@@ -223,7 +225,7 @@ class ExecutionContext(object):
             raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
         return self.set_item(data_key, data_value)
 
-    def set_items(self, keys_values: dict[str, Optional[Any]]) -> None:
+    def set_items(self, keys_values: Dict[str, Optional[Any]]) -> None:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
@@ -299,12 +301,12 @@ def get_item(data_key: str, default: Optional[Any] = None) -> Any:
     return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
 
 
-def find_items(data_keys: list[str]) -> list[Optional[Any]]:
+def find_items(data_keys: List[str]) -> List[Optional[Any]]:
     """Find multiple items by their keys, traversing up the context tree for each key."""
     return _CURRENT_CONTEXT.get().find_items(data_keys)
 
 
-def get_items(data_keys: list[str]) -> list[Optional[Any]]:
+def get_items(data_keys: List[str]) -> List[Optional[Any]]:
     """Return multiple items by their keys, only in the local context."""
     return _CURRENT_CONTEXT.get().get_items(data_keys)
 
@@ -318,7 +320,7 @@ def set_item(data_key: str, data_value: Optional[Any]) -> None:
     _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
-def set_items(keys_values: dict[str, Optional[Any]]) -> None:
+def set_items(keys_values: Dict[str, Optional[Any]]) -> None:
     _CURRENT_CONTEXT.get().set_items(keys_values)
 
 

@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 
 
@@ -70,8 +72,8 @@ def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
     return None
 
 
-def _set_or_update_tags(span: Span, tags: dict[str, str]) -> None:
-    existing_tags: Optional[dict[str, str]] = span._get_ctx_item(TAGS)
+def _set_or_update_tags(span: Span, tags: Dict[str, str]) -> None:
+    existing_tags: Optional[Dict[str, str]] = span._get_ctx_item(TAGS)
     if existing_tags is not None:
         existing_tags.update(tags)
     else:
@@ -109,7 +111,7 @@ class MCPIntegration(BaseLLMIntegration):
             input_schema["properties"][TELEMETRY_KEY] = dd_trace_input_schema()
             input_schema["required"].append(INTENT_KEY)
 
-    def _parse_mcp_text_content(self, item: Any) -> dict[str, Any]:
+    def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
         annotations = _get_attr(item, "annotations", None)
         annotations_dict = {}
@@ -128,8 +130,8 @@ class MCPIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -144,7 +146,7 @@ class MCPIntegration(BaseLLMIntegration):
         elif operation == "session":
             self._llmobs_set_tags_session(span, args, kwargs, response)
 
-    def _llmobs_set_tags_client(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_client(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
         tool_name = args[0] if len(args) > 0 else kwargs.get("name", "unknown_tool")
         span_name = "MCP Client Tool Call: {}".format(tool_name)
@@ -183,7 +185,7 @@ class MCPIntegration(BaseLLMIntegration):
         output_value = {"content": processed_content, "isError": is_error}
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
-    def _llmobs_set_tags_initialize(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_initialize(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         span._set_ctx_items(
             {
                 NAME: "MCP Client Initialize",
@@ -262,7 +264,7 @@ class MCPIntegration(BaseLLMIntegration):
             del arguments[TELEMETRY_KEY]
 
     def _llmobs_set_tags_request_responder_respond(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
     ) -> None:
         try:
             from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
@@ -315,19 +317,19 @@ class MCPIntegration(BaseLLMIntegration):
         if CallToolRequest and request_root and isinstance(request_root, CallToolRequest):
             self._set_call_tool_request_overrides(span, request_root, response_root)
 
-    def _llmobs_set_tags_list_tools(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_list_tools(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         cursor = get_argument_value(args, kwargs, 0, "cursor", optional=True)
 
         span._set_ctx_items(
             {
-                NAME: "MCP Client list Tools",
+                NAME: "MCP Client List Tools",
                 SPAN_KIND: "task",
                 INPUT_VALUE: safe_json({"cursor": cursor}),
                 OUTPUT_VALUE: safe_json(response),
             }
         )
 
-    def _llmobs_set_tags_session(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_session(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         read_stream = kwargs.get("read_stream", None)
         write_stream = kwargs.get("write_stream", None)
 

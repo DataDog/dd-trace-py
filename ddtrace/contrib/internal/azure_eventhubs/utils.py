@@ -1,5 +1,7 @@
 from typing import Any
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 from uuid import UUID
 
@@ -38,7 +40,7 @@ def create_context(
 def handle_event_hubs_event_data_context(
     span: Span,
     event_data_arg_value: Union[
-        EventData, AmqpAnnotatedMessage, list[Union[EventData, AmqpAnnotatedMessage]], EventDataBatch
+        EventData, AmqpAnnotatedMessage, List[Union[EventData, AmqpAnnotatedMessage]], EventDataBatch
     ],
 ):
     if isinstance(event_data_arg_value, (EventData, AmqpAnnotatedMessage)):
@@ -94,9 +96,9 @@ def inject_context(span: Span, event_data: Union[EventData, AmqpAnnotatedMessage
 
 def handle_event_data_attributes(
     event_data_arg_value: Union[
-        EventData, AmqpAnnotatedMessage, list[Union[EventData, AmqpAnnotatedMessage]], EventDataBatch
+        EventData, AmqpAnnotatedMessage, List[Union[EventData, AmqpAnnotatedMessage]], EventDataBatch
     ],
-) -> tuple[Union[str, None], Union[str, None]]:
+) -> Tuple[Union[str, None], Union[str, None]]:
     if isinstance(event_data_arg_value, EventData):
         batch_count = None
         message_id = event_data_arg_value.message_id

@@ -46,11 +46,11 @@ _PYTEST_SUPPORTS_ITR = _pytest_version_supports_itr()
 
 
 def _get_spans_from_list(
-    spans: list[ddtrace.trace.Span],
+    spans: t.List[ddtrace.trace.Span],
     span_type: str,
     name: t.Optional[str] = None,
     status: t.Optional[str] = None,
-) -> list[ddtrace.trace.Span]:
+) -> t.List[ddtrace.trace.Span]:
     _names_map = {
         "session": ("test_session_end",),
         "module": ("test_module_end", "test.module"),
@@ -142,7 +142,7 @@ class PytestTestCaseBase(TracerTestCase):
         with _ci_override_env(_test_env, replace_os_env=True):
             return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
-    def subprocess_run(self, *args, env: t.Optional[dict[str, str]] = None):
+    def subprocess_run(self, *args, env: t.Optional[t.Dict[str, str]] = None):
         """Execute test script with test tracer."""
         _base_env = dict(DD_API_KEY="foobar.baz")
         if env is not None:
