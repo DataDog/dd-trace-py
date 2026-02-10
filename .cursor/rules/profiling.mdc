@@ -10,6 +10,14 @@ globs:
 # Profiling Code Guardrails
 
 These rules are derived from real production incidents and bugs fixed in dd-trace-py's profiling subsystem since May 2024 (~89 `fix(profiling)` PRs, plus related `fix(internal)` incidents). Each rule exists because its absence caused crashes, data corruption, deadlocks, or incorrect profiling data for customers.
+This guidance applies primarily to profiling/native runtime paths; use engineering judgment for unrelated code paths.
+
+## Maintenance and Human Review
+
+- Last updated: 2026-02-10
+- Staleness check basis: compare today's calendar date against "Last updated" in this file.
+- If this document is more than 3 months old from "Last updated", agents should ask a human reviewer to refresh it with recent `fix(profiling)` / `fix(internal)` PRs and re-review existing guidance.
+- If guidance here is unclear, or an agent has a viable fix that might conflict with this document, escalate to human review before finalizing. Humans should review the proposal thoroughly and may request revisiting/updating this document.
 
 ## 1. Fork Safety
 
@@ -24,7 +32,7 @@ Register `pthread_atfork` child handlers that reset/clear every piece of native 
 - If yes, is it reset via an existing higher-level object registered in `pthread_atfork` (preferred), or via a dedicated child handler when necessary?
 - Prefer a small number of centralized atfork handlers; many independent handlers are hard to reason about for init/free ordering and can introduce sequencing bugs.
 - Does this change add or reorder fork handlers? If so, what is the full handler execution order, and can any handler access state freed by an earlier handler?
-- Has this been tested with a multi-threaded parent that forks (uwsgi workers, gunicorn prefork, `subprocess.Popen`)?
+- Has this been tested with a multi-threaded parent that forks (uWSGI workers, gunicorn prefork, `subprocess.Popen`)?
 - After fork in the child process, is any native state used before handlers run?
 - If running under uWSGI, does this behavior respect `--skip-atexit` requirements (especially with `--lazy` / `--lazy-apps`)?
 - Are we registering Python `atexit` handlers in environments where native teardown can happen before Python-level cleanup?
@@ -260,10 +268,10 @@ Use `git checkout` to switch to the relevant version tag (e.g., `v3.12.0`, `v3.1
 1. **Never** loop over CPython internal linked lists without a hard upper bound
 2. **Never** call Python-level functions from lock/memalloc instrumentation hot paths unless explicitly proven non-reentrant and safe
 3. **Never** return pointers or references from mutex-protected sections; return copies
-4. **Never** add native state without a `pthread_atfork` child handler to reset it
+4. **Never** add native state without an atfork-reset path (prefer centralized higher-level `pthread_atfork` ownership)
 5. **Never** use a valid timestamp value as a sentinel (e.g., `0`); use an impossible sentinel (`None` or explicit invalid-state marker)
 6. **Never** assume a preprocessor fix works without verifying the compiled output
 7. **Never** assume in-tree build behavior matches release wheel behavior
 8. **Never** omit return values from patched/wrapped functions
 9. **Never** trust racy runtime checks (`is_running`, `is_alive`) for correctness-critical decisions
-10. **Never** ship a fix without attempting to produce a reproducer/regression test; when a deterministic reproducer is not feasible (e.g., limited customer signal or highly timing-dependent crashes), document why, add the strongest practical stress/targeted test coverage, and get explicit reviewer sign-off on the exception
+10. **Never** ship a fix without attempting to produce a reproducer/regression test. When a deterministic reproducer is not feasible (e.g., limited customer signal or highly timing-dependent crashes), document why, add the strongest practical stress/targeted test coverage, and get explicit reviewer sign-off on the exception
