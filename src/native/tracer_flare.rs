@@ -342,27 +342,11 @@ impl TracerFlareManagerPy {
     ///     ZipError: If zipping fails or directory doesn't exist
     ///     SendError: If sending fails
     fn zip_and_send(&self, directory: &str, send_action: FlareActionPy) -> PyResult<()> {
-        let rust_action: FlareAction = send_action.inner;
+        let manager = self.manager.as_ref();
 
-        let manager_arc = self.manager.clone();
-
-        // Create a new tokio runtime to run the async code.
-        // Use current_thread runtime to avoid multi-threaded I/O driver issues.
-        // Enable time for timeout support in libdatadog's HTTP operations.
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .enable_io()
-            .build()
-            .map_err(|e| PyException::new_err(format!("Failed to create tokio runtime: {e}")))?;
-
-        rt.block_on(async move {
-            let manager = manager_arc.as_ref();
-
-            manager
-                .zip_and_send(vec![directory.to_string()], rust_action)
-                .await
-                .map_err(|e| FlareErrorPy::from(e).into())
-        })
+        manager
+            .zip_and_send_sync(vec![directory.to_string()], send_action.inner)
+            .map_err(|e| FlareErrorPy::from(e).into())
     }
 
     fn __repr__(&self) -> String {
