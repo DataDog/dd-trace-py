@@ -285,7 +285,7 @@ def _get_source_str(obj: Union[str, Source, Document]) -> str:
     """
     if isinstance(obj, str):
         source_str = obj
-    elif isinstance(obj, "Source"):
+    elif isinstance(obj, Source):
         source_str = obj.body
     elif isinstance(obj, Document) and obj.loc is not None:
         source_str = obj.loc.source.body
@@ -295,7 +295,7 @@ def _get_source_str(obj: Union[str, Source, Document]) -> str:
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _validate_error_extensions(error: "GraphQLError", error_extension_fields: list) -> dict:
+def _validate_error_extensions(error: GraphQLError, error_extension_fields: list) -> dict:
     """Validate user-provided extensions format and return the formatted extensions.
     All extensions values MUST be stringified, EXCEPT for numeric values and
     boolean values, which remain in their original type.
@@ -311,7 +311,7 @@ def _validate_error_extensions(error: "GraphQLError", error_extension_fields: li
     return error_extensions
 
 
-def _set_span_errors(errors: list["GraphQLError"], span: Span) -> None:
+def _set_span_errors(errors: list[GraphQLError], span: Span) -> None:
     """
     Set tags on error span and set span events on each error.
     """
