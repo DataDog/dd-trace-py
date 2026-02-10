@@ -266,4 +266,4 @@ Use `git checkout` to switch to the relevant version tag (e.g., `v3.12.0`, `v3.1
 7. **Never** assume in-tree build behavior matches release wheel behavior
 8. **Never** omit return values from patched/wrapped functions
 9. **Never** trust racy runtime checks (`is_running`, `is_alive`) for correctness-critical decisions
-10. **Never** ship a fix without a test that fails without the fix and passes with it
+10. **Never** ship a fix without attempting to produce a reproducer/regression test; when a deterministic reproducer is not feasible (e.g., limited customer signal or highly timing-dependent crashes), document why, add the strongest practical stress/targeted test coverage, and get explicit reviewer sign-off on the exception
