@@ -173,8 +173,13 @@ class Span(SpanData):
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        # Set mode flag — controls whether getter returns full 128-bit or lower 64 bits
-        self._trace_id_128bit_mode = config._128_bit_trace_id_enabled
+        # Determine 128-bit mode based on the trace_id value:
+        # - Explicit trace_id: mode based on whether value exceeds u64
+        # - Auto-generated: mode based on config
+        if trace_id is not None:
+            self._trace_id_128bit_mode = trace_id > _MAX_UINT_64BITS
+        else:
+            self._trace_id_128bit_mode = config._128_bit_trace_id_enabled
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
