@@ -1,4 +1,7 @@
 from typing import Any
+from typing import Dict
+from typing import List
+from typing import Set
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.utils_botocore.span_pointers.dynamodb import _DynamoDBItemFieldName
@@ -20,12 +23,12 @@ log = get_logger(__name__)
 
 
 def extract_span_pointers_from_successful_botocore_response(
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     endpoint_name: str,
     operation_name: str,
-    request_parameters: dict[str, Any],
-    response: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    request_parameters: Dict[str, Any],
+    response: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     result = []
 
     try:

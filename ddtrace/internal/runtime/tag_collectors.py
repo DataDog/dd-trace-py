@@ -1,3 +1,6 @@
+from typing import List  # noqa:F401
+from typing import Tuple  # noqa:F401
+
 from ddtrace.internal.runtime import get_runtime_id
 
 from ...constants import ENV_KEY
@@ -14,7 +17,7 @@ from .constants import TRACER_VERSION
 
 class RuntimeTagCollector(ValueCollector):
     periodic = False
-    value = []  # type: list[tuple[str, str]]
+    value = []  # type: List[Tuple[str, str]]
 
 
 class TracerTagCollector(RuntimeTagCollector):

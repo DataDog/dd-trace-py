@@ -1,9 +1,10 @@
 import enum
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
-MetricTagType = Optional[tuple[tuple[str, str], ...]]
+MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
 
 class MetricType(str, enum.Enum):
     DISTRIBUTION = "distributions"

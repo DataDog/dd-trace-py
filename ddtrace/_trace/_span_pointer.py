@@ -2,6 +2,7 @@ from enum import Enum
 from hashlib import sha256
 import random
 from typing import Any
+from typing import Dict
 from typing import NamedTuple
 from typing import Optional
 
@@ -37,7 +38,7 @@ class _SpanPointerDescription(NamedTuple):
     pointer_kind: str
     pointer_direction: _SpanPointerDirection
     pointer_hash: str
-    extra_attributes: dict[str, Any]
+    extra_attributes: Dict[str, Any]
 
 
 class _SpanPointer(SpanLink):
@@ -46,7 +47,7 @@ class _SpanPointer(SpanLink):
         pointer_kind: str,
         pointer_direction: _SpanPointerDirection,
         pointer_hash: str,
-        extra_attributes: Optional[dict[str, Any]] = None,
+        extra_attributes: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             trace_id=_SPAN_POINTER_SPAN_LINK_TRACE_ID,

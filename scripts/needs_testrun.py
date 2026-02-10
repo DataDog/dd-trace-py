@@ -106,7 +106,7 @@ def github_api(path: str, query: t.Optional[dict] = None) -> t.Any:
 
 
 @cache
-def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> set[str]:
+def get_changed_files(pr_number: int, sha: t.Optional[str] = None) -> t.Set[str]:
     """Get the files changed in a PR
 
     Try with the GitHub REST API for the most accurate result. If that fails,
@@ -217,7 +217,7 @@ def _get_pr_number() -> int:
     raise RuntimeError("Could not determine PR number")
 
 
-def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None], git_selections: set[str]):
+def for_each_testrun_needed(suites: t.List[str], action: t.Callable[[str], None], git_selections: t.Set[str]):
     try:
         pr_number = _get_pr_number()
     except Exception:
@@ -231,7 +231,7 @@ def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None], 
             action(suite)
 
 
-def pr_matches_patterns(patterns: set[str]) -> bool:
+def pr_matches_patterns(patterns: t.Set[str]) -> bool:
     try:
         changed_files = get_changed_files(_get_pr_number())
     except Exception:
@@ -240,7 +240,7 @@ def pr_matches_patterns(patterns: set[str]) -> bool:
     return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
 
 
-def extract_git_commit_selections(git_commit_message: str) -> set[str]:
+def extract_git_commit_selections(git_commit_message: str) -> t.Set[str]:
     """Extract the selected suites from git commit message."""
     suites = set()
     for token in git_commit_message.split():

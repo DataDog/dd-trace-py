@@ -1,3 +1,5 @@
+from typing import Dict
+
 import pyramid
 import pyramid.config  # noqa: F401
 import wrapt
@@ -28,7 +30,7 @@ def get_version() -> str:
     return str(importlib_metadata.version(pyramid.__package__))
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"pyramid": ">=1.10"}
 
 

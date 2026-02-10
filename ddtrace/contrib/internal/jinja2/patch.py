@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import jinja2
 from wrapt import wrap_function_wrapper as _w
@@ -25,11 +26,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(jinja2, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"jinja2": ">=2.10"}
 
 

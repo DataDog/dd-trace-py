@@ -6,6 +6,7 @@ import re
 import socket
 import textwrap
 import time
+from typing import Set
 
 import mock
 import msgpack
@@ -1455,7 +1456,7 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip: set[ext_api.TestId] = _make_fqdn_test_ids(
+    test_level_tests_to_skip: Set[ext_api.TestId] = _make_fqdn_test_ids(
         [
             ("module_1", "module_1_suite_1.py", "test_1"),
             ("module_1", "module_1_suite_1.py", "test_2"),
@@ -1472,7 +1473,7 @@ class TestIsITRSkippable:
         ]
     )
 
-    suite_level_test_suites_to_skip: set[ext_api.TestSuiteId] = _make_fqdn_suite_ids(
+    suite_level_test_suites_to_skip: Set[ext_api.TestSuiteId] = _make_fqdn_suite_ids(
         [
             ("module_1", "module_1_suite_1.py"),
             ("module_2", "module_2_suite_1.py"),

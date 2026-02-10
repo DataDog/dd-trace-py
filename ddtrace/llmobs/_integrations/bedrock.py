@@ -1,6 +1,9 @@
 from typing import Any
+from typing import Dict
 from typing import Generator
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -42,14 +45,14 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
-    _spans: dict[str, LLMObsSpanEvent] = {}  # Maps LLMObs span ID to LLMObs span events
-    _active_span_by_step_id: dict[str, LLMObsSpanEvent] = {}  # Maps trace step ID to currently active span
+    _spans: Dict[str, LLMObsSpanEvent] = {}  # Maps LLMObs span ID to LLMObs span events
+    _active_span_by_step_id: Dict[str, LLMObsSpanEvent] = {}  # Maps trace step ID to currently active span
 
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -108,7 +111,7 @@ class BedrockIntegration(BaseLLMIntegration):
             self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )
 
-        output_messages: list[Message] = [Message(content="")]
+        output_messages: List[Message] = [Message(content="")]
         if not span.error and response is not None:
             if ctx["resource"] == "Converse":
                 output_messages = self._extract_output_message_for_converse(response)
@@ -190,7 +193,7 @@ class BedrockIntegration(BaseLLMIntegration):
         self._active_span_by_step_id.clear()
 
     @staticmethod
-    def _extract_input_message_for_converse(prompt: list[dict[str, Any]]) -> list[Message]:
+    def _extract_input_message_for_converse(prompt: List[Dict[str, Any]]) -> List[Message]:
         """Extract input messages from the stored prompt for converse
 
         `prompt` is an array of `message` objects. Each `message` has a role and content field.
@@ -203,7 +206,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [Message(content="")]
-        input_messages: list[Message] = []
+        input_messages: List[Message] = []
         for message in prompt:
             if not isinstance(message, dict):
                 continue
@@ -215,7 +218,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message_for_converse(response: dict[str, Any]):
+    def _extract_output_message_for_converse(response: Dict[str, Any]):
         """Extract output messages from the stored prompt for converse
 
         `response` contains an `output` field that stores a nested `message` field.
@@ -225,7 +228,7 @@ class BedrockIntegration(BaseLLMIntegration):
         For more info, see bedrock converse response syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#API_runtime_Converse_ResponseSyntax
         """
-        default_content: list[Message] = [Message(content="")]
+        default_content: List[Message] = [Message(content="")]
         message = response.get("output", {}).get("message", {})
         if not message:
             return default_content
@@ -238,8 +241,8 @@ class BedrockIntegration(BaseLLMIntegration):
     @staticmethod
     def _converse_output_stream_processor() -> Generator[
         None,
-        dict[str, Any],
-        tuple[list[Message], dict[str, str], dict[str, int]],
+        Dict[str, Any],
+        Tuple[List[Message], Dict[str, str], Dict[str, int]],
     ]:
         """
         Listens for output chunks from a converse streamed response and builds a
@@ -254,14 +257,14 @@ class BedrockIntegration(BaseLLMIntegration):
         For more info, see bedrock converse response stream response syntax:
         https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_ConverseStream.html#API_runtime_ConverseStream_ResponseSyntax
         """
-        usage_metrics: dict[str, int] = {}
-        metadata: dict[str, str] = {}
-        messages: list[Message] = []
+        usage_metrics: Dict[str, int] = {}
+        metadata: Dict[str, str] = {}
+        messages: List[Message] = []
 
-        text_content_blocks: dict[int, str] = {}
-        tool_content_blocks: dict[int, dict[str, Any]] = {}
+        text_content_blocks: Dict[int, str] = {}
+        tool_content_blocks: Dict[int, Dict[str, Any]] = {}
 
-        current_message: Optional[dict[str, Any]] = None
+        current_message: Optional[Dict[str, Any]] = None
 
         chunk = yield
 
@@ -339,7 +342,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return messages, metadata, usage_metrics
 
     @staticmethod
-    def _extract_input_message(prompt) -> list[Message]:
+    def _extract_input_message(prompt) -> List[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
@@ -348,7 +351,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not isinstance(prompt, list):
             log.warning("Bedrock input is not a list of messages or a string.")
             return [Message(content="")]
-        input_messages: list[Message] = []
+        input_messages: List[Message] = []
         for p in prompt:
             content = p.get("content", "")
             if isinstance(content, list) and isinstance(content[0], dict):
@@ -363,7 +366,7 @@ class BedrockIntegration(BaseLLMIntegration):
         return input_messages
 
     @staticmethod
-    def _extract_output_message(response) -> list[Message]:
+    def _extract_output_message(response) -> List[Message]:
         """Extract output messages from the stored response.
         Anthropic allows for chat messages, which requires some special casing.
         """
@@ -377,7 +380,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [Message(content=resp_text[0].get("text", ""))]
         return []
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")
         endpoint = getattr(instance, "_endpoint", None)
         endpoint_host = getattr(endpoint, "host", None) if endpoint else None
@@ -388,7 +391,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if self._is_instrumented_proxy_url(base_url):
             ctx.set_item(PROXY_REQUEST, True)
 
-    def _extract_tool_definitions(self, tool_config: dict[str, Any]) -> list[ToolDefinition]:
+    def _extract_tool_definitions(self, tool_config: Dict[str, Any]) -> List[ToolDefinition]:
         """Extract tool definitions from the stored tool config."""
         tools = _get_attr(tool_config, "tools", [])
         tool_definitions = []

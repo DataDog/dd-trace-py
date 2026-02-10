@@ -1,3 +1,6 @@
+from typing import Dict
+from typing import List
+
 from langchain_core.pydantic_v1 import BaseModel
 from langchain_core.pydantic_v1 import Field
 
@@ -27,19 +30,19 @@ class StatementFaithfulnessAnswer(BaseModel):
 
 
 class StatementFaithfulnessAnswers(BaseModel):
-    __root__: list[StatementFaithfulnessAnswer]
+    __root__: List[StatementFaithfulnessAnswer]
 
-    def dicts(self) -> list[dict]:
+    def dicts(self) -> List[Dict]:
         return self.dict()["__root__"]
 
 
 class Statements(BaseModel):
     sentence_index: int = Field(..., description="Index of the sentence from the statement list")
-    simpler_statements: list[str] = Field(..., description="the simpler statements")
+    simpler_statements: List[str] = Field(..., description="the simpler statements")
 
 
 class StatementsAnswers(BaseModel):
-    __root__: list[Statements]
+    __root__: List[Statements]
 
-    def dicts(self) -> list[dict]:
+    def dicts(self) -> List[Dict]:
         return self.dict()["__root__"]

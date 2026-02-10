@@ -48,7 +48,7 @@ class Instruction:
         self.offset = offset
         self.opcode = opcode
         self.arg = arg
-        self.targets: list["Branch"] = []
+        self.targets: t.List["Branch"] = []
 
 
 class Branch:
@@ -65,7 +65,7 @@ EXTENDED_ARG = dis.EXTENDED_ARG
 NO_OFFSET = -1
 
 
-def instr_with_arg(opcode: int, arg: int) -> list[Instruction]:
+def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
     instructions = [Instruction(NO_OFFSET, opcode, arg & 0xFF)]
     arg >>= 8
     while arg:
@@ -118,7 +118,9 @@ def consume_varint(stream: t.Iterable[int]) -> bytes:
 consume_signed_varint = consume_varint  # They are the same thing for our purposes
 
 
-def update_location_data(code: CodeType, trap_map: dict[int, int], ext_arg_offsets: list[tuple[int, int]]) -> bytes:
+def update_location_data(
+    code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]]
+) -> bytes:
     # DEV: We expect the original offsets in the trap_map
     new_data = bytearray()
 
@@ -202,7 +204,7 @@ def parse_exception_table(code: CodeType):
         return
 
 
-def compile_exception_table(exc_table: list[ExceptionTableEntry]) -> bytes:
+def compile_exception_table(exc_table: t.List[ExceptionTableEntry]) -> bytes:
     table = bytearray()
     for entry in exc_table:
         size = entry.end.offset - entry.start.offset + 2
@@ -227,7 +229,7 @@ IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 EMPTY_BYTECODE = bytes([RESUME, 0, LOAD_CONST, 0, RETURN_VALUE, 0])
 
 
-def trap_call(trap_index: int, arg_index: int) -> tuple[Instruction, ...]:
+def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
     return (
         Instruction(NO_OFFSET, PUSH_NULL, 0),
         *instr_with_arg(LOAD_CONST, trap_index),
@@ -246,11 +248,11 @@ def trap_call(trap_index: int, arg_index: int) -> tuple[Instruction, ...]:
 SKIP_LINES = frozenset([dis.opmap["END_ASYNC_FOR"]])
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
     # TODO[perf]: Check if we really need to << and >> everywhere
     trap_func, trap_arg = hook, path
 
-    instructions: list[Instruction] = []
+    instructions: t.List[Instruction] = []
 
     new_consts = list(code.co_consts)
     trap_index = len(new_consts)
@@ -263,8 +265,8 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     offset_map = {}
 
     # Collect all the original jumps
-    jumps: dict[int, Jump] = {}
-    traps: dict[int, int] = {}  # DEV: This uses the original offsets
+    jumps: t.Dict[int, Jump] = {}
+    traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
     line_map = {}
     line_starts = dict(dis.findlinestarts(code))
 
@@ -380,7 +382,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
         instr.offset = new_offset
 
     # Adjust all the jumps, neglecting any EXTENDED_ARGs for now
-    branches: list[Branch] = []
+    branches: t.List[Branch] = []
     for jump in jumps.values():
         new_start = offset_map[jump.start]
         new_end = offset_map[jump.end]
@@ -402,7 +404,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
     # Process all the branching instructions to adjust the arguments. We
     # need to add EXTENDED_ARGs if the argument is too large.
     process_branches = True
-    exts: list[tuple[Instruction, int]] = []
+    exts: t.List[t.Tuple[Instruction, int]] = []
     while process_branches:
         process_branches = False
         for branch in branches:

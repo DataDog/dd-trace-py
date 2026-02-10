@@ -9,7 +9,7 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils import formats
 
 
-_GITMETADATA_TAGS: typing.Optional[tuple[str, str, str]] = None
+_GITMETADATA_TAGS = None  # type: typing.Optional[typing.Tuple[str, str, str]]
 
 log = get_logger(__name__)
 
@@ -36,7 +36,8 @@ class GitMetadataConfig(DDConfig):
 config = GitMetadataConfig()
 
 
-def _get_tags_from_env() -> tuple[str, str, str]:
+def _get_tags_from_env():
+    # type: () -> typing.Tuple[str, str, str]
     """
     Get git metadata from environment variables.
     Returns tuple (repository_url, commit_sha, main_package)
@@ -59,7 +60,7 @@ def _get_tags_from_env() -> tuple[str, str, str]:
     return filtered_git_url, commit_sha, main_package
 
 
-def _get_tags_from_package(main_package: str) -> tuple[str, str]:
+def _get_tags_from_package(main_package: str) -> typing.Tuple[str, str]:
     """
     Extracts git metadata from python package's medatada field Project-URL:
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
@@ -89,7 +90,8 @@ def _get_tags_from_package(main_package: str) -> tuple[str, str]:
         return "", ""
 
 
-def get_git_tags() -> tuple[str, str, str]:
+def get_git_tags():
+    # type: () -> typing.Tuple[str, str, str]
     """
     Returns git metadata tags tuple (repository_url, commit_sha, main_package)
     """
@@ -116,7 +118,8 @@ def get_git_tags() -> tuple[str, str, str]:
         return "", "", ""
 
 
-def clean_tags(tags: dict[str, str]) -> dict[str, str]:
+def clean_tags(tags):
+    # type: (typing.Dict[str, str]) -> typing.Dict[str, str]
     """
     Cleanup tags from git metadata
     """

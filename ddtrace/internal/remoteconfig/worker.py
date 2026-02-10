@@ -1,6 +1,8 @@
 import enum
 import os
+from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
+from typing import Set  # noqa:F401
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
@@ -32,7 +34,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._state = self._agent_check
         self._parent_id = os.getpid()
         self._products_to_restart_on_fork = set()
-        self._capabilities_map: dict[enum.IntFlag, str] = dict()
+        self._capabilities_map: Dict[enum.IntFlag, str] = dict()
 
     def _agent_check(self) -> None:
         try:
@@ -95,7 +97,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             str(self._products_to_restart_on_fork),
         )
 
-    def start_subscribers_by_product(self, products: set[str]) -> None:
+    def start_subscribers_by_product(self, products: Set[str]) -> None:
         self._client.start_products(products)
 
     def _poll_data(self):

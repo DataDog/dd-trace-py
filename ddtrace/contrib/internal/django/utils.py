@@ -1,6 +1,8 @@
 import io
 import json
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Mapping  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
@@ -50,7 +52,7 @@ REQUEST_DEFAULT_RESOURCE = "__django_request"
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 _quantize_text = Union[Text, bytes]
-_quantize_param = Union[_quantize_text, list[_quantize_text], dict[_quantize_text, Any], Any]
+_quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
 
 
 def resource_from_cache_prefix(resource: str, cache: Any) -> str:
@@ -66,7 +68,8 @@ def resource_from_cache_prefix(resource: str, cache: Any) -> str:
     return name.lower()
 
 
-def quantize_key_values(keys: _quantize_param) -> Text:
+def quantize_key_values(keys):
+    # type: (_quantize_param) -> Text
     """
     Used for Django cache key normalization.
 
@@ -76,9 +79,9 @@ def quantize_key_values(keys: _quantize_param) -> Text:
 
     If text is provided we convert to text.
     """
-    args: list[Union[Text, bytes, Any]] = []
+    args = []  # type: List[Union[Text, bytes, Any]]
 
-    # Normalize input values into a list[Text, bytes]
+    # Normalize input values into a List[Text, bytes]
     if isinstance(keys, dict):
         args = list(keys.keys())
     elif isinstance(keys, (list, tuple)):
@@ -294,11 +297,12 @@ def _remake_body(request):
             log.debug("Failed to remake Django request body", exc_info=True)
 
 
-def _get_request_headers(request: Any) -> Mapping[str, str]:
+def _get_request_headers(request):
+    # type: (Any) -> Mapping[str, str]
     if DJANGO22:
-        request_headers: Mapping[str, str] = request.headers
+        request_headers = request.headers  # type: Mapping[str, str]
     else:
-        request_headers: Mapping[str, str] = {}
+        request_headers = {}  # type: Mapping[str, str]
         for header, value in request.META.items():
             name = from_wsgi_header(header)
             if name:
