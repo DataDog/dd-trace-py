@@ -2058,6 +2058,8 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
     def test_chat_completion_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        from typing import List
+
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2065,7 +2067,7 @@ MUL: "*"
             output: str
 
         class MathResponse(BaseModel):
-            steps: list[Step]
+            steps: List[Step]
             final_answer: str
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_parse.yaml"):
@@ -2106,6 +2108,8 @@ MUL: "*"
         parse_version(openai_module.version.VERSION) < (1, 92), reason="Parse method only available in openai >= 1.92"
     )
     def test_response_parse(self, openai, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        from typing import List
+
         from pydantic import BaseModel
 
         class Step(BaseModel):
@@ -2113,7 +2117,7 @@ MUL: "*"
             output: str
 
         class MathResponse(BaseModel):
-            steps: list[Step]
+            steps: List[Step]
             final_answer: str
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_parse.yaml"):

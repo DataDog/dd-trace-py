@@ -1,3 +1,4 @@
+from typing import List
 from typing import Optional
 from urllib import parse
 
@@ -5,7 +6,7 @@ from ddtrace.vendor.dogstatsd import DogStatsd
 from ddtrace.vendor.dogstatsd import base
 
 
-def get_dogstatsd_client(url: str, namespace: Optional[str] = None, tags: Optional[list[str]] = None) -> DogStatsd:
+def get_dogstatsd_client(url: str, namespace: Optional[str] = None, tags: Optional[List[str]] = None) -> DogStatsd:
     # url can be either of the form `udp://<host>:<port>` or `unix://<path>`
     # also support without url scheme included
     if url.startswith("/"):

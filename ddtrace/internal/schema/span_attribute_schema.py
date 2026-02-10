@@ -1,5 +1,6 @@
 from enum import Enum
 import sys
+from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
@@ -116,7 +117,7 @@ _SPAN_ATTRIBUTE_TO_FUNCTION = {
 
 _inferred_base_service: Optional[str] = detect_service(sys.argv)
 
-_DEFAULT_SPAN_SERVICE_NAMES: dict[str, Optional[str]] = {
+_DEFAULT_SPAN_SERVICE_NAMES: Dict[str, Optional[str]] = {
     "v0": _inferred_base_service or None,
     "v1": _inferred_base_service or DEFAULT_SERVICE_NAME,
 }

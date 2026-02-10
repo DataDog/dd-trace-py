@@ -7,6 +7,8 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import ClassVar
+from typing import Dict
+from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import cast
@@ -51,7 +53,7 @@ def _capture_context(
     throwable: ExcInfoType,
     retval: Any = _NOTSET,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
         def timeout(_):
@@ -88,9 +90,9 @@ def _capture_context(
 
 
 def _capture_expressions(
-    exprs: list[CaptureExpression],
+    exprs: List[CaptureExpression],
     scope: Mapping[str, Any],
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
         def timeout(_):
@@ -111,7 +113,7 @@ def _capture_expressions(
         }
 
 
-_EMPTY_CAPTURED_CONTEXT: dict[str, Any] = {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None}
+_EMPTY_CAPTURED_CONTEXT: Dict[str, Any] = {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None}
 
 
 @dataclass

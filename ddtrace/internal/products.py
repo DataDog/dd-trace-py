@@ -23,17 +23,17 @@ log = get_logger(__name__)
 
 if sys.version_info >= (3, 10):
 
-    def get_product_entry_points() -> list[t.Any]:
+    def get_product_entry_points() -> t.List[t.Any]:
         return list(entry_points(group="ddtrace.products"))
 
 else:
 
-    def get_product_entry_points() -> list[t.Any]:
+    def get_product_entry_points() -> t.List[t.Any]:
         return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
 
 
 class Product(Protocol):
-    requires: list[str]
+    requires: t.List[str]
 
     def post_preload(self) -> None: ...
 
@@ -47,11 +47,11 @@ class Product(Protocol):
 
 
 class ProductManager:
-    __products__: dict[str, Product] = {}  # All discovered products
+    __products__: t.Dict[str, Product] = {}  # All discovered products
 
     def __init__(self) -> None:
-        self._products: t.Optional[list[tuple[str, Product]]] = None  # Topologically sorted products
-        self._failed: set[str] = set()
+        self._products: t.Optional[t.List[t.Tuple[str, Product]]] = None  # Topologically sorted products
+        self._failed: t.Set[str] = set()
 
     def _load_products(self) -> None:
         for product_plugin in get_product_entry_points():
@@ -74,11 +74,11 @@ class ProductManager:
 
             self.__products__[name] = product
 
-    def _sort_products(self) -> list[tuple[str, Product]]:
+    def _sort_products(self) -> t.List[t.Tuple[str, Product]]:
         # Data structures for topological sorting
-        q: deque[str] = deque()  # Queue of products with no dependencies
+        q: t.Deque[str] = deque()  # Queue of products with no dependencies
         g = defaultdict(list)  # Graph of dependencies
-        f: dict[str, set] = {}  # Remaining dependencies for each product
+        f: t.Dict[str, set] = {}  # Remaining dependencies for each product
 
         # Include failed products in the graph to avoid reporting false circular
         # dependencies when a product fails to load
@@ -110,13 +110,13 @@ class ProductManager:
         return [(name, self.__products__[name]) for name in ordering if name not in f and name in self.__products__]
 
     @property
-    def products(self) -> list[tuple[str, Product]]:
+    def products(self) -> t.List[t.Tuple[str, Product]]:
         if self._products is None:
             self._products = self._sort_products()
         return self._products
 
     def start_products(self) -> None:
-        failed: set[str] = set()
+        failed: t.Set[str] = set()
 
         for name, product in self.products:
             # Check that no required products have failed
@@ -147,7 +147,7 @@ class ProductManager:
                 log.exception("Failed to execute before-fork hook for product '%s'", name)
 
     def restart_products(self, join: bool = False) -> None:
-        failed: set[str] = set()
+        failed: t.Set[str] = set()
 
         for name, product in self.products:
             failed_requirements = failed & set(getattr(product, "requires", []))

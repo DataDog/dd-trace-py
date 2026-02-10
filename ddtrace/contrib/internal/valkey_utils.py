@@ -1,3 +1,5 @@
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -45,7 +47,7 @@ def _extract_conn_tags(conn_kwargs):
         return {}
 
 
-def determine_row_count(valkey_command: str, result: Optional[Union[list, dict, str]]) -> int:
+def determine_row_count(valkey_command: str, result: Optional[Union[List, Dict, str]]) -> int:
     empty_results = [b"", [], {}, None]
     # result can be an empty list / dict / string
     if result not in empty_results:

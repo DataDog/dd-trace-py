@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import Optional
 
 from ddtrace import config
@@ -29,7 +30,7 @@ SERVICE_MAP = {
 
 
 # Helper to build AWS hostname from service, region and parameters
-def _derive_peer_hostname(service: str, region: str, params: Optional[dict[str, Any]] = None) -> Optional[str]:
+def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, Any]] = None) -> Optional[str]:
     """Return hostname for given AWS service according to Datadog peer hostname rules.
 
     Only returns hostnames for specific AWS services:
@@ -102,7 +103,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
 
 
 def set_botocore_response_metadata_tags(
-    span: Span, result: dict[str, Any], is_error_code_fn: Optional[Callable] = None
+    span: Span, result: Dict[str, Any], is_error_code_fn: Optional[Callable] = None
 ) -> None:
     if not result or not result.get("ResponseMetadata"):
         return

@@ -22,14 +22,15 @@ Unacceptable formats:
 - package (no version specified)
 """
 
-from pathlib import Path
 import sys
+import tomllib
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 from packaging.specifiers import SpecifierSet
-import tomllib
 
 
-def load_pyproject() -> dict:
+def load_pyproject() -> Dict:
     """Load and parse pyproject.toml from the current directory."""
     pyproject_path = Path("pyproject.toml")
     if not pyproject_path.exists():
@@ -58,7 +59,7 @@ def has_upper_bound(spec_set: SpecifierSet) -> bool:
     return False
 
 
-def is_well_defined(spec_string: str) -> tuple[bool, str]:
+def is_well_defined(spec_string: str) -> Tuple[bool, str]:
     """
     Check if a version specifier is well-defined.
 
@@ -92,7 +93,7 @@ def is_well_defined(spec_string: str) -> tuple[bool, str]:
     return True, ""
 
 
-def check_dependencies(data: dict) -> list[str]:
+def check_dependencies(data: Dict) -> List[str]:
     """
     Check all project dependencies for well-defined version ranges.
 
@@ -124,7 +125,7 @@ def check_dependencies(data: dict) -> list[str]:
     return violations
 
 
-def check_dependency_section(deps: list[str], section_name: str) -> list[str]:
+def check_dependency_section(deps: List[str], section_name: str) -> List[str]:
     """Check a single dependency section for violations."""
     violations = []
 
@@ -156,7 +157,9 @@ def check_dependency_section(deps: list[str], section_name: str) -> list[str]:
         is_valid, reason = is_well_defined(version_spec)
 
         if not is_valid:
-            violations.append(f"{section_name}: '{package_name}' has {reason} (specifier: '{version_spec}')")
+            violations.append(
+                f"{section_name}: '{package_name}' has {reason} (specifier: '{version_spec}')"
+            )
 
     return violations
 

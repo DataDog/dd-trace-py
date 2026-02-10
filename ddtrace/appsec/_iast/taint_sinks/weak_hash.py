@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from typing import Callable
+from typing import Set
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -25,7 +26,7 @@ from ._base import VulnerabilityBase
 log = get_logger(__name__)
 
 
-def get_weak_hash_algorithms() -> set:
+def get_weak_hash_algorithms() -> Set:
     CONFIGURED_WEAK_HASH_ALGORITHMS = None
     DD_IAST_WEAK_HASH_ALGORITHMS = os.getenv("DD_IAST_WEAK_HASH_ALGORITHMS")
     if DD_IAST_WEAK_HASH_ALGORITHMS:

@@ -1,5 +1,6 @@
 import json
 from typing import Any
+from typing import Dict
 
 import botocore.exceptions
 
@@ -41,7 +42,7 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
         params["input"] = input_json_str
 
 
-def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, function_vars: dict):
+def patched_stepfunction_api_call(original_func, instance, args, kwargs: Dict, function_vars: Dict):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
     pin = function_vars.get("pin")

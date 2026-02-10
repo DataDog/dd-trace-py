@@ -1,7 +1,10 @@
 import json
 from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
 
@@ -26,7 +29,8 @@ class _EncoderBase(object):
     Encoder interface that provides the logic to encode traces and service.
     """
 
-    def encode_traces(self, traces: list[list["Span"]]) -> str:
+    def encode_traces(self, traces):
+        # type: (List[List[Span]]) -> str
         """
         Encodes a list of traces, expecting a list of items where each items
         is a list of spans. Before dumping the string in a serialized format all
@@ -37,7 +41,8 @@ class _EncoderBase(object):
         """
         raise NotImplementedError()
 
-    def encode(self, obj: list[list[Any]]) -> tuple[str, int]:
+    def encode(self, obj):
+        # type: (List[List[Any]]) -> Tuple[str, int]
         """
         Defines the underlying format used during traces or services encoding.
         This method must be implemented and should only be used by the internal
@@ -46,8 +51,9 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _span_to_dict(span: "Span") -> dict[str, Any]:
-        d: dict[str, Any] = {
+    def _span_to_dict(span):
+        # type: (Span) -> Dict[str, Any]
+        d = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
             "span_id": span.span_id,
@@ -55,7 +61,7 @@ class _EncoderBase(object):
             "resource": span.resource,
             "name": span.name,
             "error": span.error,
-        }
+        }  # type: Dict[str, Any]
 
         # a common mistake is to set the error field to a boolean instead of an
         # int. let's special case that here, because it's sure to happen in
@@ -125,12 +131,14 @@ class JSONEncoderV2(JSONEncoder):
 
     content_type = "application/json"
 
-    def encode_traces(self, traces: list[list["Span"]]) -> str:
+    def encode_traces(self, traces):
+        # type: (List[List[Span]]) -> str
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
         return self.encode({"traces": normalized_traces})[0]
 
     @staticmethod
-    def _convert_span(span: "Span") -> dict[str, Any]:
+    def _convert_span(span):
+        # type: (Span) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
@@ -139,7 +147,8 @@ class JSONEncoderV2(JSONEncoder):
         return sp
 
     @staticmethod
-    def _encode_id_to_hex(dd_id: Optional[int]) -> str:
+    def _encode_id_to_hex(dd_id):
+        # type: (Optional[int]) -> str
         if not dd_id:
             return "0000000000000000"
         return "%0.16X" % int(dd_id)

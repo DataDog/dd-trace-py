@@ -3,6 +3,7 @@ import os.path
 from platform import machine
 from platform import system
 import sys
+from typing import List
 from typing import Optional
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -35,7 +36,7 @@ def _validate_percentage(r: float) -> None:
         raise ValueError("percentage value must be between 0 and 100")
 
 
-def _parse_options(options: list[str]):
+def _parse_options(options: List[str]):
     def parse(str_in: str) -> str:
         for o in options:
             if o.startswith(str_in.lower()):

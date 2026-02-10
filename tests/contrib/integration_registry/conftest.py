@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 import re
 from typing import Any
+from typing import Dict
+from typing import List
+from typing import Set
 
 import pytest
 import yaml
@@ -156,8 +159,8 @@ def riot_venvs() -> set[str]:
 def riot_venv_names() -> set[str]:
     """Finds all Venv names defined in riotfile.py."""
 
-    names: set[str] = set()
-    nodes_to_visit: list[Any] = [riotfile.venv]
+    names: Set[str] = set()
+    nodes_to_visit: List[Any] = [riotfile.venv]
 
     while nodes_to_visit:
         current_node = nodes_to_visit.pop()
@@ -179,7 +182,7 @@ def docs_index_path(project_root: Path) -> Path:
 
 
 @pytest.fixture(scope="module")
-def dependency_to_integration_mapping() -> dict[str, str]:
+def dependency_to_integration_mapping() -> Dict[str, str]:
     """Returns the dependency to integration mapping from the registry mappings."""
     from ddtrace.contrib.integration_registry.mappings import DEPENDENCY_TO_INTEGRATION_MAPPING
 
@@ -187,7 +190,7 @@ def dependency_to_integration_mapping() -> dict[str, str]:
 
 
 @pytest.fixture(scope="module")
-def documented_versions(docs_index_path: Path, dependency_to_integration_mapping: dict[str, str]) -> dict[str, str]:
+def documented_versions(docs_index_path: Path, dependency_to_integration_mapping: Dict[str, str]) -> Dict[str, str]:
     """Parse the supported versions table from docs/index.rst."""
     if not docs_index_path.exists():
         pytest.fail(f"Documentation file not found: {docs_index_path}")

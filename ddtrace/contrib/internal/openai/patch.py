@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 from openai import version
 
@@ -25,7 +26,7 @@ def get_version() -> str:
     return version.VERSION
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"openai": ">=1.0"}
 
 

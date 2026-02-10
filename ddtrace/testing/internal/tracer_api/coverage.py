@@ -35,9 +35,9 @@ def install_coverage(workspace_path: Path) -> None:
 
 class CoverageData:
     def __init__(self) -> None:
-        self._covered_lines: t.Optional[dict[str, CoverageLines]] = None
+        self._covered_lines: t.Optional[t.Dict[str, CoverageLines]] = None
 
-    def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[tuple[str, bytes]]:
+    def get_coverage_bitmaps(self, relative_to: Path) -> t.Iterable[t.Tuple[str, bytes]]:
         if not self._covered_lines:
             return
 

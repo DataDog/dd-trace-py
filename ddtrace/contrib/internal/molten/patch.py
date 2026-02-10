@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 from urllib.parse import urlencode
 
 import molten
@@ -36,7 +37,7 @@ def get_version() -> str:
     return getattr(molten, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"molten": ">=1.0"}
 
 

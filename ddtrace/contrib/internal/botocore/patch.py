@@ -5,6 +5,9 @@ Trace queries to aws api done via botocore client
 import collections
 import json
 import os
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Set  # noqa:F401
 from typing import Union  # noqa:F401
 
 from botocore import __version__
@@ -44,7 +47,7 @@ from .utils import update_client_context
 from .utils import update_eventbridge_detail
 
 
-_PATCHED_SUBMODULES: set[str] = set()
+_PATCHED_SUBMODULES = set()  # type: Set[str]
 
 # Original botocore client class
 _Botocore_client = botocore.client.BaseClient
@@ -70,7 +73,7 @@ ENDPOINTS_TO_PATCH_FUNCTIONS = {
 log = get_logger(__name__)
 
 
-def _load_dynamodb_primary_key_names_for_tables() -> dict[str, set[str]]:
+def _load_dynamodb_primary_key_names_for_tables() -> Dict[str, Set[str]]:
     try:
         encoded_table_primary_keys = os.getenv("DD_BOTOCORE_DYNAMODB_TABLE_PRIMARY_KEYS", "{}")
         raw_table_primary_keys = json.loads(encoded_table_primary_keys)
@@ -128,11 +131,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return __version__
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"botocore": "*"}
 
 
@@ -157,7 +161,8 @@ def unpatch():
         unwrap(botocore.client.BaseClient, "_make_api_call")
 
 
-def patch_submodules(submodules: Union[list[str], bool]) -> None:
+def patch_submodules(submodules):
+    # type: (Union[List[str], bool]) -> None
     if isinstance(submodules, bool) and submodules:
         _PATCHED_SUBMODULES.clear()
     elif isinstance(submodules, list):

@@ -68,7 +68,7 @@ def git_repo(git_repo_empty: str) -> str:
 
 
 @pytest.fixture
-def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> tuple[str, str]:
+def git_shallow_repo(git_repo: str, tmpdir: t.Any) -> t.Tuple[str, str]:
     """Create temporary shallow git directory.
 
     Returns the shallow repo dir and the commit sha one level deeper than HEAD.
