@@ -4,7 +4,7 @@ use pyo3::{
 };
 use std::time::SystemTime;
 
-use crate::py_string::PyBackedString;
+use crate::py_string::{PyBackedString, PyTraceData};
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -71,7 +71,7 @@ impl SpanLinkData {
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
-    data: libdd_trace_utils::span::Span<PyBackedString>,
+    data: libdd_trace_utils::span::v04::Span<PyTraceData>,
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.

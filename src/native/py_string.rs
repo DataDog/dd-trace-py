@@ -9,7 +9,9 @@ use pyo3::{
     Py, PyAny, PyErr, Python,
 };
 
-use libdd_trace_utils::span::SpanText;
+use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
+use serde::Serialize;
+use std::borrow::Borrow;
 
 /// A Python bytes/str backed utf-8 string we can read without needing access to the GIL
 /// that can be put in a libdatadog span.
@@ -211,4 +213,26 @@ impl SpanText for PyBackedString {
             storage: None,
         }
     }
+}
+
+#[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
+pub struct PyBytes(Vec<u8>);
+
+impl SpanBytes for PyBytes {
+    fn from_static_bytes(value: &'static [u8]) -> Self {
+        Self(value.to_vec())
+    }
+}
+
+impl Borrow<[u8]> for PyBytes {
+    fn borrow(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct PyTraceData;
+impl TraceData for PyTraceData {
+    type Text = PyBackedString;
+    type Bytes = PyBytes;
 }
