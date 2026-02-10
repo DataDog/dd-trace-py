@@ -83,6 +83,7 @@ except Exception as e:
     )
     assert "profiling.config.enabled=True" in stdout, f"profiling.config.enabled should be True.\nstdout:\n{stdout}"
 
+
 def test_profiling_enabled_with_auto_value(test_venv, mock_telemetry_forwarder):
     """
     Tests that DD_PROFILING_ENABLED=auto enables profiling.
