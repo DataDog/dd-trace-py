@@ -1,5 +1,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <cstdio>
 #include <frameobject.h>
 #include <string_view>
 
@@ -9,30 +10,76 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
-/* RAII helper to save and restore Python error state */
+/* RAII helper to preserve the raised C-level exception indicator while sampling.
+ *
+ * The allocator hook can run in contexts where CPython already has a raised
+ * exception in flight (PyErr_Occurred() != NULL). During sampling, we call
+ * C-API functions that may set or clear the indicator on failure.
+ *
+ * CPython uses this same save/restore pattern in sensitive paths (for example,
+ * frame-object creation) and documents that callbacks entered with a pending
+ * exception must preserve it unless they intentionally replace it.
+ *
+ * Important: this only preserves the raised C-level indicator, not the handled
+ * exception state used by sys.exception()/except blocks.
+ */
 class PythonErrorRestorer
 {
   public:
     PythonErrorRestorer()
     {
 #ifdef _PY312_AND_LATER
+        PyObject* pending_type = PyErr_Occurred();
+        const char* pending_type_name = pending_type ? ((PyTypeObject*)pending_type)->tp_name : "<none>";
+
         // Python 3.12+: Use the new API that returns a single exception object
         saved_exception = PyErr_GetRaisedException();
+
+        const char* saved_exception_name = saved_exception ? Py_TYPE(saved_exception)->tp_name : "<none>";
+        if (saved_exception != NULL) {
+            fprintf(stderr,
+                    "PythonErrorRestorer ctor [py>=3.12]: pending=%s saved_exception=%s (%p)\n",
+                    pending_type_name,
+                    saved_exception_name,
+                    (void*)saved_exception);
+        }
 #else
+        PyObject* pending_type = PyErr_Occurred();
+        const char* pending_type_name = pending_type ? ((PyTypeObject*)pending_type)->tp_name : "<none>";
+
         // Python < 3.12: Use the old API with separate type, value, traceback
         PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
+
+        const char* saved_type_name = "<none>";
+        if (saved_exc_type != NULL) {
+            if (PyType_Check(saved_exc_type)) {
+                saved_type_name = ((PyTypeObject*)saved_exc_type)->tp_name;
+            } else {
+                saved_type_name = Py_TYPE(saved_exc_type)->tp_name;
+            }
+        }
+
+        if (saved_exc_type != NULL) {
+            fprintf(stderr,
+                    "PythonErrorRestorer ctor [py<3.12]: pending=%s saved_type=%s (type=%p value=%p tb=%p)\n",
+                    pending_type_name,
+                    saved_type_name,
+                    (void*)saved_exc_type,
+                    (void*)saved_exc_value,
+                    (void*)saved_exc_traceback);
+        }
 #endif
     }
 
     ~PythonErrorRestorer()
     {
-        // Restore original exception if one was pending on entry.
-        // Otherwise clear any internal error raised while sampling.
-        // Currently, we explicitly clear error right after calling C APIs that
-        // can set error, PyUnicode_AsUTF8AndSize and PyFrame_GetBack. We just
-        // be cautious of any new C APIs that can set error in the future. But
-        // this might not be enough when we call C APIs with an error set, so
-        // manual clear after calling C APIs might still be needed.
+        // Restore the raised C-level exception indicator that was active on
+        // entry, so allocator-hook sampling does not clobber caller state.
+        //
+        // We still clear transient local failures at call sites where we
+        // continue after an API failure (for example, PyUnicode_AsUTF8AndSize
+        // and PyFrame_GetBack), because some C-API paths are not safe to keep
+        // running with an error set.
 #ifdef _PY312_AND_LATER
         if (saved_exception != NULL) {
             PyErr_SetRaisedException(saved_exception);
@@ -194,6 +241,10 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
+    // Preserve any raised C-level exception already in flight before touching
+    // CPython C-API from inside the allocator hook.
+    PythonErrorRestorer error_restorer;
+
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0
