@@ -21,7 +21,8 @@ Register `pthread_atfork` child handlers that reset/clear every piece of native 
 
 ### Review checklist
 - Does this change introduce or modify any native state (mutex, atomic, map, pool, queue)?
-- If yes, is there a corresponding `pthread_atfork` child handler that resets it?
+- If yes, is it reset via an existing higher-level object registered in `pthread_atfork` (preferred), or via a dedicated child handler when necessary?
+- Prefer a small number of centralized atfork handlers; many independent handlers are hard to reason about for init/free ordering and can introduce sequencing bugs.
 - Does this change add or reorder fork handlers? If so, what is the full handler execution order, and can any handler access state freed by an earlier handler?
 - Has this been tested with a multi-threaded parent that forks (uwsgi workers, gunicorn prefork, `subprocess.Popen`)?
 - After fork in the child process, is any native state used before handlers run?
