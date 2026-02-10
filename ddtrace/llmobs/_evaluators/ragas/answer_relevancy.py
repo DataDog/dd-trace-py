@@ -1,6 +1,5 @@
 import math
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -64,7 +63,7 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
             ragas_answer_relevancy_instance.embeddings = self.ragas_dependencies.embedding_factory()
         return ragas_answer_relevancy_instance
 
-    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
+    def evaluate(self, span_event: dict) -> tuple[Union[float, str], Optional[dict]]:
         """
         Performs a answer relevancy evaluation on an llm span event, returning either
             - answer relevancy score (float) OR failure reason (str)

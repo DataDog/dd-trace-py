@@ -1,7 +1,6 @@
 import dis
 import sys
 from types import CodeType
-import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
@@ -16,6 +15,6 @@ IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 RESUME = dis.opmap["RESUME"]
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
     # No-op
     return code, CoverageLines()

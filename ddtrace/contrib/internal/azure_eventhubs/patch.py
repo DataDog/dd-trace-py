@@ -1,5 +1,3 @@
-from typing import Dict
-
 import azure.eventhub as azure_eventhub
 import azure.eventhub.aio as azure_eventhub_aio
 from wrapt import wrap_function_wrapper as _w
@@ -31,7 +29,7 @@ def get_version() -> str:
     return getattr(azure_eventhub, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"azure.eventhub": ">=5.12.0"}
 
 
