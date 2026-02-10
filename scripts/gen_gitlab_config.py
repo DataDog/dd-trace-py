@@ -244,6 +244,10 @@ def gen_required_suites() -> None:
 def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
+    # XXX workaround for the case where no benchmark suites are required
+    # but the slo-check job still runs
+    if not required_suites:
+        required_suites = list(suites.keys())
 
     MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
 
