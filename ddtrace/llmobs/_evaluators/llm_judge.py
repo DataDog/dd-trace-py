@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+import copy
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
@@ -215,7 +216,7 @@ def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) ->
         if system:
             kwargs["system"] = system
         if json_schema:
-            schema_copy = json.loads(json.dumps(json_schema))
+            schema_copy = copy.deepcopy(json_schema)
             for prop_val in schema_copy.get("properties", {}).values():
                 if not isinstance(prop_val, dict):
                     continue
@@ -316,7 +317,7 @@ def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> L
         if json_schema:
             # Bedrock doesn't support minimum/maximum for number properties in json schema.
             # The range should be described in the description instead.
-            schema_copy = json.loads(json.dumps(json_schema))
+            schema_copy = copy.deepcopy(json_schema)
             for prop_val in schema_copy.get("properties", {}).values():
                 if not isinstance(prop_val, dict):
                     continue
