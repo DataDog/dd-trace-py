@@ -4,7 +4,6 @@ import random
 import re
 import subprocess
 from typing import Optional
-from typing import Tuple
 
 import anyio
 from pydantic import BaseModel
@@ -54,7 +53,7 @@ class AspectModel(BaseModel):
 
 class Aspectvalidation(BaseModel):
     timestamp: datetime
-    tuple_strings: Tuple[str, str]
+    tuple_strings: tuple[str, str]
     dictionary_strs: dict[str, str]
     tag: Optional[str] = None
     author: Optional[str] = None

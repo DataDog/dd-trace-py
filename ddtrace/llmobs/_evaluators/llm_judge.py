@@ -6,8 +6,6 @@ import json
 import os
 import re
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Literal
 from typing import Optional
 from typing import Protocol
@@ -23,10 +21,10 @@ class LLMClient(Protocol):
     def __call__(
         self,
         provider: Optional[str],
-        messages: List[Dict[str, str]],
-        json_schema: Optional[Dict[str, Any]],
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
         model: str,
-        model_params: Optional[Dict[str, Any]],
+        model_params: Optional[dict[str, Any]],
     ) -> str: ...
 
 
@@ -43,12 +41,12 @@ class BaseStructuredOutput(ABC):
         """Return the label key for the evaluation result."""
 
     @abstractmethod
-    def to_json_schema(self) -> Dict[str, Any]:
+    def to_json_schema(self) -> dict[str, Any]:
         """Return the JSON schema for structured output."""
 
-    def _build_schema(self, label_schema: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_schema(self, label_schema: dict[str, Any]) -> dict[str, Any]:
         """Build JSON schema with the label property and optional reasoning."""
-        properties: Dict[str, Any] = {self.label: label_schema}
+        properties: dict[str, Any] = {self.label: label_schema}
         required = [self.label]
         if self.reasoning:
             properties["reasoning"] = {
@@ -75,7 +73,7 @@ class BooleanStructuredOutput(BaseStructuredOutput):
     def label(self) -> str:
         return "boolean_eval"
 
-    def to_json_schema(self) -> Dict[str, Any]:
+    def to_json_schema(self) -> dict[str, Any]:
         return self._build_schema({"type": "boolean", "description": self.description})
 
 
@@ -101,7 +99,7 @@ class ScoreStructuredOutput(BaseStructuredOutput):
     def label(self) -> str:
         return "score_eval"
 
-    def to_json_schema(self) -> Dict[str, Any]:
+    def to_json_schema(self) -> dict[str, Any]:
         return self._build_schema(
             {
                 "type": "number",
@@ -116,29 +114,30 @@ class ScoreStructuredOutput(BaseStructuredOutput):
 class CategoricalStructuredOutput(BaseStructuredOutput):
     """Categorical structured output selecting from predefined categories.
 
+    Categories are provided as a dict mapping category values to their descriptions.
     Use ``pass_values`` to define which categories count as passing.
     """
 
-    description: str
-    categories: List[str]
+    categories: dict[str, str]
     reasoning: bool = False
     reasoning_description: Optional[str] = None
-    pass_values: Optional[List[str]] = None
+    pass_values: Optional[list[str]] = None
 
     @property
     def label(self) -> str:
         return "categorical_eval"
 
-    def to_json_schema(self) -> Dict[str, Any]:
-        return self._build_schema({"type": "string", "description": self.description, "enum": self.categories})
+    def to_json_schema(self) -> dict[str, Any]:
+        any_of = [{"const": value, "description": desc} for value, desc in self.categories.items()]
+        return self._build_schema({"type": "string", "anyOf": any_of})
 
 
 StructuredOutput = Union[
-    BooleanStructuredOutput, ScoreStructuredOutput, CategoricalStructuredOutput, Dict[str, JSONType]
+    BooleanStructuredOutput, ScoreStructuredOutput, CategoricalStructuredOutput, dict[str, JSONType]
 ]
 
 
-def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -154,12 +153,12 @@ def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LL
 
     def call(
         provider: Optional[str],
-        messages: List[Dict[str, str]],
-        json_schema: Optional[Dict[str, Any]],
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
         model: str,
-        model_params: Optional[Dict[str, Any]],
+        model_params: Optional[dict[str, Any]],
     ) -> str:
-        kwargs: Dict[str, Any] = {"model": model, "messages": messages}
+        kwargs: dict[str, Any] = {"model": model, "messages": messages}
         if model_params:
             kwargs.update(model_params)
         if json_schema:
@@ -177,7 +176,7 @@ def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LL
     return call
 
 
-def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -194,10 +193,10 @@ def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) ->
 
     def call(
         provider: Optional[str],
-        messages: List[Dict[str, str]],
-        json_schema: Optional[Dict[str, Any]],
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
         model: str,
-        model_params: Optional[Dict[str, Any]],
+        model_params: Optional[dict[str, Any]],
     ) -> str:
         system_msgs = []
         user_msgs = []
@@ -208,22 +207,27 @@ def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) ->
                 user_msgs.append(msg)
         system = "\n".join(system_msgs) if system_msgs else None
 
-        kwargs: Dict[str, Any] = {"model": model, "max_tokens": 4096, "messages": user_msgs}
+        kwargs: dict[str, Any] = {"model": model, "max_tokens": 4096, "messages": user_msgs}
         if model_params:
             kwargs.update(model_params)
         if system:
             kwargs["system"] = system
         if json_schema:
-            # Anthropic doesn't support minimum/maximum for number properties in json schema.
-            # The range should be described in the description instead.
             schema_copy = json.loads(json.dumps(json_schema))
             for prop_val in schema_copy.get("properties", {}).values():
-                if isinstance(prop_val, dict) and prop_val.get("type") == "number":
+                if not isinstance(prop_val, dict):
+                    continue
+                # Anthropic doesn't support minimum/maximum for number properties in json schema.
+                # The range should be described in the description instead.
+                if prop_val.get("type") == "number":
                     min_val = prop_val.pop("minimum", None)
                     max_val = prop_val.pop("maximum", None)
                     if min_val is not None or max_val is not None:
                         range_str = f" (range: {min_val} to {max_val})"
                         prop_val["description"] = prop_val.get("description", "") + range_str
+                # Anthropic doesn't support 'type' on properties that use 'anyOf'.
+                if "anyOf" in prop_val:
+                    prop_val.pop("type", None)
             # Use beta API for structured outputs
             kwargs["extra_headers"] = {"anthropic-beta": "structured-outputs-2025-11-13"}
             kwargs["extra_body"] = {"output_format": {"type": "json_schema", "schema": schema_copy}}
@@ -253,10 +257,10 @@ class LLMJudge(BaseEvaluator):
         structured_output: Optional[StructuredOutput] = None,
         provider: Optional[Literal["openai", "anthropic"]] = None,
         model: Optional[str] = None,
-        model_params: Optional[Dict[str, Any]] = None,
+        model_params: Optional[dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
         name: Optional[str] = None,
-        client_options: Optional[Dict[str, Any]] = None,
+        client_options: Optional[dict[str, Any]] = None,
     ):
         """Initialize an LLMJudge evaluator.
 
@@ -268,7 +272,7 @@ class LLMJudge(BaseEvaluator):
             - ``BooleanStructuredOutput``: Returns True/False with optional pass/fail assessment.
             - ``ScoreStructuredOutput``: Returns a numeric score within a defined range with optional thresholds.
             - ``CategoricalStructuredOutput``: Returns one of predefined categories with optional pass values.
-            - ``Dict[str, JSONType]``: Custom JSON schema for arbitrary structured responses.
+            - ``dict[str, JSONType]``: Custom JSON schema for arbitrary structured responses.
 
         Template Variables:
             Prompts support ``{{field.path}}`` syntax to inject context from the evaluated span:
@@ -334,8 +338,11 @@ class LLMJudge(BaseEvaluator):
                     model="gpt-5-mini",
                     user_prompt="Classify the sentiment: {{output_data}}",
                     structured_output=CategoricalStructuredOutput(
-                        description="Sentiment classification",
-                        categories=["positive", "neutral", "negative"],
+                        categories={
+                            "positive": "The response has a positive sentiment",
+                            "neutral": "The response has a neutral sentiment",
+                            "negative": "The response has a negative sentiment",
+                        },
                         pass_values=["positive", "neutral"],
                     ),
                 )
@@ -364,7 +371,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt = self._render(self._user_prompt, context)
         system_prompt = self._system_prompt
 
-        messages: List[Dict[str, str]] = []
+        messages: list[dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_prompt})
