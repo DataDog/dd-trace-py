@@ -376,6 +376,62 @@ def _create_experiment(
     return experiment_id, run_name
 
 
+def _format_error(e: Exception) -> dict[str, JSONType]:
+    """Format an exception into an error dictionary.
+
+    :param e: The exception to format
+    :return: Dictionary with message, type, and stack keys
+    """
+    exc_type, exc_value, exc_tb = sys.exc_info()
+    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
+    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    return {
+        "message": str(exc_value),
+        "type": exc_type_name,
+        "stack": exc_stack,
+    }
+
+
+def _extract_evaluator_result(
+    eval_result: Union[JSONType, "EvaluatorResult"],
+) -> tuple[JSONType, dict[str, JSONType]]:
+    """Extract value and extra fields from an evaluator result.
+
+    :param eval_result: The raw evaluator result (JSONType or EvaluatorResult)
+    :return: Tuple of (result_value, extra_return_values dict)
+    """
+    extra_return_values: dict[str, JSONType] = {}
+    if isinstance(eval_result, EvaluatorResult):
+        if eval_result.reasoning:
+            extra_return_values["reasoning"] = eval_result.reasoning
+        if eval_result.assessment:
+            extra_return_values["assessment"] = eval_result.assessment
+        if eval_result.metadata:
+            extra_return_values["metadata"] = eval_result.metadata
+        if eval_result.tags:
+            extra_return_values["tags"] = eval_result.tags
+        return eval_result.value, extra_return_values
+    return eval_result, extra_return_values
+
+
+def _infer_metric_type(value: JSONType) -> tuple[str, JSONType]:
+    """Infer the metric type from a value.
+
+    :param value: The evaluation value
+    :return: Tuple of (metric_type, typed_value)
+    """
+    if value is None:
+        return "categorical", value
+    elif isinstance(value, bool):
+        return "boolean", value
+    elif isinstance(value, (int, float)):
+        return "score", value
+    elif isinstance(value, dict):
+        return "json", value
+    else:
+        return "categorical", str(value).lower()
+
+
 class Project(TypedDict):
     name: str
     _id: str
@@ -672,6 +728,27 @@ class Dataset:
         return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 
+def _create_dataset_subset(dataset: Dataset, sample_size: int) -> Dataset:
+    """Create a subset of the dataset for testing purposes.
+
+    :param dataset: The original dataset
+    :param sample_size: The number of records to include in the subset
+    :return: A new Dataset containing only the first sample_size records
+    """
+    subset_records = [deepcopy(record) for record in dataset._records[:sample_size]]
+    subset_name = "[Test subset of {} records] {}".format(sample_size, dataset.name)
+    return Dataset(
+        name=subset_name,
+        project=dataset.project,
+        dataset_id=dataset._id,
+        records=subset_records,
+        description=dataset.description,
+        latest_version=dataset._latest_version,
+        version=dataset._version,
+        _dne_client=dataset._dne_client,
+    )
+
+
 class Experiment:
     def __init__(
         self,
@@ -850,18 +927,7 @@ class Experiment:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         if sample_size is not None and sample_size < len(self._dataset):
-            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
-            subset_dataset = Dataset(
-                name=subset_name,
-                project=self._dataset.project,
-                dataset_id=self._dataset._id,
-                records=subset_records,
-                description=self._dataset.description,
-                latest_version=self._dataset._latest_version,
-                version=self._dataset._version,
-                _dne_client=self._dataset._dne_client,
-            )
+            subset_dataset = _create_dataset_subset(self._dataset, sample_size)
         else:
             subset_dataset = self._dataset
         task_results = []
@@ -936,28 +1002,10 @@ class Experiment:
                         evaluator_name = str(evaluator)
                         eval_result = None
 
-                    if isinstance(eval_result, EvaluatorResult):
-                        if eval_result.reasoning:
-                            extra_return_values["reasoning"] = eval_result.reasoning
-                        if eval_result.assessment:
-                            extra_return_values["assessment"] = eval_result.assessment
-                        if eval_result.metadata:
-                            extra_return_values["metadata"] = eval_result.metadata
-                        if eval_result.tags:
-                            extra_return_values["tags"] = eval_result.tags
-                        eval_result_value = eval_result.value
-                    else:
-                        eval_result_value = eval_result
+                    eval_result_value, extra_return_values = _extract_evaluator_result(eval_result)
 
                 except Exception as e:
-                    exc_type, exc_value, exc_tb = sys.exc_info()
-                    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                    eval_err = {
-                        "message": str(exc_value),
-                        "type": exc_type_name,
-                        "stack": exc_stack,
-                    }
+                    eval_err = _format_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
@@ -1028,14 +1076,7 @@ class Experiment:
                     eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
                 eval_result_value = eval_result
             except Exception as e:
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                eval_err = {
-                    "message": str(exc_value),
-                    "type": exc_type_name,
-                    "stack": exc_stack,
-                }
+                eval_err = _format_error(e)
                 if raise_errors:
                     raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
 
@@ -1110,17 +1151,7 @@ class Experiment:
         metadata: Optional[dict[str, JSONType]] = None,
         tags: Optional[dict[str, str]] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
-        if eval_value is None:
-            metric_type = "categorical"
-        elif isinstance(eval_value, bool):
-            metric_type = "boolean"
-        elif isinstance(eval_value, (int, float)):
-            metric_type = "score"
-        elif isinstance(eval_value, dict):
-            metric_type = "json"
-        else:
-            metric_type = "categorical"
-            eval_value = str(eval_value).lower()
+        metric_type, eval_value = _infer_metric_type(eval_value)
         eval_metric: "LLMObsExperimentEvalMetricEvent" = {
             "metric_source": source,
             "span_id": span_id,

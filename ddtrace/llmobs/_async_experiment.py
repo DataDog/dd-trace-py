@@ -3,9 +3,7 @@
 from abc import ABC
 from abc import abstractmethod
 import asyncio
-from copy import deepcopy
 import sys
-import traceback
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Awaitable
@@ -28,9 +26,13 @@ from ddtrace.llmobs._experiment import ExperimentRun
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
+from ddtrace.llmobs._experiment import _create_dataset_subset
 from ddtrace.llmobs._experiment import _create_experiment
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
+from ddtrace.llmobs._experiment import _extract_evaluator_result
+from ddtrace.llmobs._experiment import _format_error
 from ddtrace.llmobs._experiment import _get_or_create_project
+from ddtrace.llmobs._experiment import _infer_metric_type
 from ddtrace.llmobs._experiment import _is_class_evaluator
 from ddtrace.llmobs._experiment import _is_class_summary_evaluator
 from ddtrace.llmobs._experiment import _validate_evaluator_name
@@ -162,18 +164,6 @@ def _is_async_class_summary_evaluator(evaluator: Any) -> bool:
     return isinstance(evaluator, BaseAsyncSummaryEvaluator)
 
 
-def _format_error(e: Exception) -> dict[str, JSONType]:
-    """Format an exception into an error dictionary."""
-    exc_type, exc_value, exc_tb = sys.exc_info()
-    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    return {
-        "message": str(exc_value),
-        "type": exc_type_name,
-        "stack": exc_stack,
-    }
-
-
 def _get_evaluator_name(evaluator: Any) -> str:
     """Get the name of an evaluator."""
     if _is_async_class_evaluator(evaluator) or _is_class_evaluator(evaluator):
@@ -274,18 +264,7 @@ class AsyncExperiment:
 
         # Resolve dataset (handle sample_size)
         if sample_size is not None and sample_size < len(self._dataset):
-            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
-            subset_dataset = Dataset(
-                name=subset_name,
-                project=self._dataset.project,
-                dataset_id=self._dataset._id,
-                records=subset_records,
-                description=self._dataset.description,
-                latest_version=self._dataset._latest_version,
-                version=self._dataset._version,
-                _dne_client=self._dataset._dne_client,
-            )
+            subset_dataset = _create_dataset_subset(self._dataset, sample_size)
         else:
             subset_dataset = self._dataset
 
@@ -526,18 +505,7 @@ class AsyncExperiment:
                     eval_result = await asyncio.to_thread(evaluator, input_data, output, expected_output)  # type: ignore[arg-type]
 
                 # Extract EvaluatorResult if applicable
-                if isinstance(eval_result, EvaluatorResult):
-                    if eval_result.reasoning:
-                        extra_return_values["reasoning"] = eval_result.reasoning
-                    if eval_result.assessment:
-                        extra_return_values["assessment"] = eval_result.assessment
-                    if eval_result.metadata:
-                        extra_return_values["metadata"] = eval_result.metadata
-                    if eval_result.tags:
-                        extra_return_values["tags"] = eval_result.tags
-                    eval_result_value = eval_result.value
-                else:
-                    eval_result_value = eval_result
+                eval_result_value, extra_return_values = _extract_evaluator_result(eval_result)
 
             except Exception as e:
                 eval_err = _format_error(e)
@@ -697,21 +665,7 @@ class AsyncExperiment:
         value = eval_result.get("value")
 
         # Infer metric type
-        if value is None:
-            metric_type = "categorical"
-            typed_value: Any = value
-        elif isinstance(value, bool):
-            metric_type = "boolean"
-            typed_value = value
-        elif isinstance(value, (int, float)):
-            metric_type = "score"
-            typed_value = value
-        elif isinstance(value, dict):
-            metric_type = "json"
-            typed_value = value
-        else:
-            metric_type = "categorical"
-            typed_value = str(value).lower()
+        metric_type, typed_value = _infer_metric_type(value)
 
         eval_metric: "LLMObsExperimentEvalMetricEvent" = {
             "experiment_id": self._id,
