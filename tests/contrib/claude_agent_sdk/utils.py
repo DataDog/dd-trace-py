@@ -29,6 +29,24 @@ EXPECTED_SYSTEM_MESSAGE_DATA = {
     "claude_code_version": "2.0.62",
 }
 
+def expected_agent_manifest(max_iterations=None):
+    """Helper to build expected agent manifest."""
+    manifest = {
+        "framework": "Claude Agent SDK",
+        "model": MOCK_MODEL,
+        "tools": [
+            {"name": "Task"},
+            {"name": "Bash"},
+            {"name": "Read"},
+            {"name": "Write"},
+            {"name": "Grep"},
+        ],
+        "dependencies": {"mcp_servers": []},
+    }
+    if max_iterations is not None:
+        manifest["max_iterations"] = max_iterations
+    return manifest
+
 
 def create_mock_system_message(
     session_id: str = "test-session-id",

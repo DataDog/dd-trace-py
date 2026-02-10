@@ -9,7 +9,10 @@ from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_BASH_TOOL_INPUT
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_ID
 from tests.contrib.claude_agent_sdk.utils import MOCK_GREP_TOOL_INPUT
+from tests.contrib.claude_agent_sdk.utils import MOCK_MODEL
 from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
+from tests.contrib.claude_agent_sdk.utils import MOCK_READ_TOOL_ID
+from tests.contrib.claude_agent_sdk.utils import expected_agent_manifest
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
@@ -38,7 +41,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={},
+            metadata={"agent_manifest": expected_agent_manifest()},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -69,7 +72,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={"max_turns": 3},
+            metadata={"max_turns": 3, "agent_manifest": expected_agent_manifest(max_iterations=3)},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -94,7 +97,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json([{"content": ""}]),
-            metadata={},
+            metadata={"agent_manifest": {"framework": "Claude Agent SDK"}},
             token_metrics={},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
             error="builtins.ValueError",
@@ -130,6 +133,7 @@ class TestLLMObsClaudeAgentSdk:
             metadata={
                 "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
                 "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                "agent_manifest": expected_agent_manifest(),
             },
             token_metrics={
                 "input_tokens": 14599,
@@ -150,11 +154,23 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in claude_agent_sdk.query(prompt=prompt):
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        assert len(llmobs_events) == 2
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        agent_span = spans[0]
+        tool_span = spans[1]
+
+        expected_tool_event = _expected_llmobs_non_llm_span_event(
+            tool_span,
+            span_kind="tool",
+            input_value=safe_json({"file_path": "/etc/hostname"}),
+            output_value="",
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+        )
+        assert llmobs_events[0] == expected_tool_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json(
@@ -178,12 +194,11 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={},
+            metadata={"agent_manifest": expected_agent_manifest()},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_query_with_bash_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_bash_tool, test_spans
@@ -192,11 +207,23 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in claude_agent_sdk.query(prompt=prompt):
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        assert len(llmobs_events) == 2
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        agent_span = spans[0]
+        tool_span = spans[1]
+
+        expected_tool_event = _expected_llmobs_non_llm_span_event(
+            tool_span,
+            span_kind="tool",
+            input_value=safe_json(MOCK_BASH_TOOL_INPUT),
+            output_value="",
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+        )
+        assert llmobs_events[0] == expected_tool_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json(
@@ -220,12 +247,11 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={},
+            metadata={"agent_manifest": expected_agent_manifest()},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
 
     async def test_llmobs_query_with_grep_tool_use(
         self, claude_agent_sdk, llmobs_events, mock_internal_client_grep_tool, test_spans
@@ -234,11 +260,23 @@ class TestLLMObsClaudeAgentSdk:
         async for _ in claude_agent_sdk.query(prompt=prompt):
             pass
 
-        span = test_spans.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
+        spans = test_spans.pop_traces()[0]
+        assert len(llmobs_events) == 2
 
-        expected_event = _expected_llmobs_non_llm_span_event(
-            span,
+        agent_span = spans[0]
+        tool_span = spans[1]
+
+        expected_tool_event = _expected_llmobs_non_llm_span_event(
+            tool_span,
+            span_kind="tool",
+            input_value=safe_json(MOCK_GREP_TOOL_INPUT),
+            output_value="",
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+        )
+        assert llmobs_events[0] == expected_tool_event
+
+        expected_agent_event = _expected_llmobs_non_llm_span_event(
+            agent_span,
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json(
@@ -262,9 +300,8 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={},
+            metadata={"agent_manifest": expected_agent_manifest()},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
-
-        assert llmobs_events[0] == expected_event
+        assert llmobs_events[1] == expected_agent_event
