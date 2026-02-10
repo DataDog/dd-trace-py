@@ -1,3 +1,5 @@
+from typing import Dict
+
 import structlog
 
 import ddtrace
@@ -14,11 +16,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(structlog, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"structlog": ">=20.2.0"}
 
 
@@ -37,7 +40,7 @@ def _w_get_logger(func, instance, args, kwargs):
         - List: default use case which has been accounted for
         - Tuple: patched via list conversion
         - Set: ignored because structlog processors care about order notably the last value to be a Renderer
-        - dict: because keys are ignored, this essentially becomes a List
+        - Dict: because keys are ignored, this essentially becomes a List
     """
 
     dd_processor = [_tracer_injection]

@@ -2,7 +2,10 @@ from copy import deepcopy
 from enum import Enum
 import itertools
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Set
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -41,17 +44,17 @@ _DynamoDBItemTypeTag = str
 
 # _DynamoDBItemValueObject is shaped like {"S": "something"}, the form that the
 # lower level DynamoDB API expects.
-_DynamoDBItemValueObject = dict[_DynamoDBItemTypeTag, Any]
+_DynamoDBItemValueObject = Dict[_DynamoDBItemTypeTag, Any]
 # _DynamoDBItemValueDeserialized is the python-native form of the value. The
 # resource-based boto3 APIs for DynamoDB accept this form and handle the
 # serialization into something like the _DyanmoDBItemValueObject using the
 # TypeSerializer.
 _DynamoDBItemValueDeserialized = Any
 _DynamoDBItemValue = Union[_DynamoDBItemValueObject, _DynamoDBItemValueDeserialized]
-_DynamoDBItem = dict[_DynamoDBItemFieldName, _DynamoDBItemValue]
+_DynamoDBItem = Dict[_DynamoDBItemFieldName, _DynamoDBItemValue]
 
-_DynamoDBItemPrimaryKeyValue = dict[_DynamoDBItemTypeTag, str]  # must be length 1
-_DynamoDBItemPrimaryKey = dict[_DynamoDBItemFieldName, _DynamoDBItemPrimaryKeyValue]
+_DynamoDBItemPrimaryKeyValue = Dict[_DynamoDBItemTypeTag, str]  # must be length 1
+_DynamoDBItemPrimaryKey = Dict[_DynamoDBItemFieldName, _DynamoDBItemPrimaryKeyValue]
 
 
 class _DynamoDBPutRequest(TypedDict):
@@ -126,11 +129,11 @@ _OPERATION_BASE = "DynamoDB."
 
 
 def _extract_span_pointers_for_dynamodb_response(
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     operation_name: str,
-    request_parameters: dict[str, Any],
-    response: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    request_parameters: Dict[str, Any],
+    response: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     if operation_name == "PutItem":
         return _extract_span_pointers_for_dynamodb_putitem_response(
             dynamodb_primary_key_names_for_tables, request_parameters
@@ -160,9 +163,9 @@ def _extract_span_pointers_for_dynamodb_response(
 
 
 def _extract_span_pointers_for_dynamodb_putitem_response(
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
-    request_parameters: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    request_parameters: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     operation = _OPERATION_BASE + "PutItem"
 
     try:
@@ -219,9 +222,9 @@ def _extract_span_pointers_for_dynamodb_putitem_response(
 
 def _extract_primary_key_names_from_configuration(
     operation: str,
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     table_name: _DynamoDBTableName,
-) -> Optional[set[_DynamoDBItemFieldName]]:
+) -> Optional[Set[_DynamoDBItemFieldName]]:
     try:
         return dynamodb_primary_key_names_for_tables[table_name]
     except KeyError as e:
@@ -240,8 +243,8 @@ def _extract_primary_key_names_from_configuration(
 
 def _extract_span_pointers_for_dynamodb_keyed_operation_response(
     operation_name: str,
-    request_parmeters: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    request_parmeters: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     operation = _OPERATION_BASE + operation_name
 
     try:
@@ -281,10 +284,10 @@ def _extract_span_pointers_for_dynamodb_keyed_operation_response(
 
 
 def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
-    request_parameters: dict[str, Any],
-    response: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    request_parameters: Dict[str, Any],
+    response: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     operation = _OPERATION_BASE + "BatchWriteItem"
 
     try:
@@ -342,9 +345,9 @@ def _extract_span_pointers_for_dynamodb_batchwriteitem_response(
 
 
 def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
-    request_parameters: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
+    request_parameters: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     operation = _OPERATION_BASE + "TransactWriteItems"
     try:
         return list(
@@ -368,9 +371,9 @@ def _extract_span_pointers_for_dynamodb_transactwriteitems_response(
 
 
 def _identify_dynamodb_batch_write_item_processed_items(
-    requested_items: dict[_DynamoDBTableName, list[_DynamoDBWriteRequest]],
-    unprocessed_items: dict[_DynamoDBTableName, list[_DynamoDBWriteRequest]],
-) -> Optional[dict[_DynamoDBTableName, list[_DynamoDBWriteRequest]]]:
+    requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
+    unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]],
+) -> Optional[Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]]:
     operation = _OPERATION_BASE + "BatchWriteItem"
 
     processed_items = {}
@@ -414,7 +417,7 @@ def _identify_dynamodb_batch_write_item_processed_items(
 
 def _aws_dynamodb_item_primary_key_from_item(
     operation: str,
-    primary_key_field_names: set[_DynamoDBItemFieldName],
+    primary_key_field_names: Set[_DynamoDBItemFieldName],
     item: _DynamoDBItem,
 ) -> Optional[_DynamoDBItemPrimaryKey]:
     if len(primary_key_field_names) not in (1, 2):
@@ -438,7 +441,7 @@ def _aws_dynamodb_item_primary_key_from_item(
 
 
 def _aws_dynamodb_item_primary_key_from_write_request(
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     table_name: _DynamoDBTableName,
     write_request: _DynamoDBWriteRequest,
 ) -> Optional[_DynamoDBItemPrimaryKey]:
@@ -490,9 +493,9 @@ def _aws_dynamodb_item_primary_key_from_write_request(
 
 
 def _aws_dynamodb_item_span_pointer_description_for_transactwrite_request(
-    dynamodb_primary_key_names_for_tables: dict[_DynamoDBTableName, set[_DynamoDBItemFieldName]],
+    dynamodb_primary_key_names_for_tables: Dict[_DynamoDBTableName, Set[_DynamoDBItemFieldName]],
     transact_write_request: _DynamoDBTransactWriteItem,
-) -> list[_SpanPointerDescription]:
+) -> List[_SpanPointerDescription]:
     operation = _OPERATION_BASE + "TransactWriteItems"
 
     if len(transact_write_request) != 1:

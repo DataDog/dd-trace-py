@@ -6,6 +6,7 @@ If a sanitizer returns a value, we mark that value as secure for specific vulner
 
 from typing import Any
 from typing import Callable
+from typing import List
 from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
@@ -13,7 +14,7 @@ from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 
 
 def create_sanitizer(
-    vulnerability_types: list[VulnerabilityType], wrapped: Callable, instance: Any, args: Sequence, kwargs: dict
+    vulnerability_types: List[VulnerabilityType], wrapped: Callable, instance: Any, args: Sequence, kwargs: dict
 ) -> Callable:
     """Create a sanitizer function wrapper that marks return values as secure for a specific vulnerability type."""
     # Apply the sanitizer function

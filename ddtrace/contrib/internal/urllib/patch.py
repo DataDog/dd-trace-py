@@ -1,3 +1,4 @@
+from typing import Dict
 import urllib.request
 
 from wrapt import wrap_function_wrapper as _w
@@ -6,11 +7,12 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"urllib": "*"}
 
 

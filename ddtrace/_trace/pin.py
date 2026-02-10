@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 import ddtrace
@@ -34,14 +35,14 @@ class Pin(object):
     def __init__(
         self,
         service: Optional[str] = None,
-        tags: Optional[dict[str, str]] = None,
-        _config: Optional[dict[str, Any]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        _config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.tags = tags or {}
         self._target: Optional[int] = None
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
-        self._config: dict[str, Any] = _config or {}
+        self._config: Dict[str, Any] = _config or {}
         # [Backward compatibility]: service argument updates the `Pin` config
         self._config["service_name"] = service
         self._initialized = True
@@ -110,7 +111,7 @@ class Pin(object):
         cls,
         obj: Any,
         service: Optional[str] = None,
-        tags: Optional[dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> None:
         """Override an object with the given attributes.
 
@@ -167,7 +168,7 @@ class Pin(object):
     def clone(
         self,
         service: Optional[str] = None,
-        tags: Optional[dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
     ) -> "Pin":
         """Return a clone of the pin with the given attributes replaced."""
         if not tags and self.tags:

@@ -5,6 +5,7 @@ except AttributeError:
     from dogpile import cache as dogpile_cache
     from dogpile import lock as dogpile_lock
 
+from typing import Dict
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -23,11 +24,12 @@ _get_or_create_multi = dogpile_cache.region.CacheRegion.get_or_create_multi
 _lock_ctor = dogpile_lock.Lock.__init__
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(dogpile_cache, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"dogpile.cache": "*"}
 
 

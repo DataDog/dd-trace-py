@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import aiobotocore.client
 import wrapt
@@ -48,11 +49,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return aiobotocore_version_str
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"aiobotocore": ">=1.0.0"}
 
 

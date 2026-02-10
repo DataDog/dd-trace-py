@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 import wrapt
@@ -29,7 +30,7 @@ def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"coverage": "*"}
 
 
@@ -269,7 +270,7 @@ def get_coverage_percentage() -> Optional[float]:
     return _cached_coverage_percentage
 
 
-def get_coverage_data() -> dict[str, Any]:
+def get_coverage_data() -> Dict[str, Any]:
     """
     Get coverage metadata dict (for backwards compatibility).
 

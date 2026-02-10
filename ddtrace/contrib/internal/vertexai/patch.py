@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 import vertexai
 
@@ -20,11 +21,12 @@ from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model
 config._add("vertexai", {})
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(vertexai, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"vertexai": ">=1.71.1"}
 
 

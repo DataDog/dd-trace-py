@@ -1,5 +1,7 @@
 from collections import defaultdict
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import cast
 
@@ -64,7 +66,7 @@ class ProbeRegistry(dict):
         self.logger = status_logger
 
         # Used to keep track of probes pending installation
-        self._pending: dict[str, list[Probe]] = defaultdict(list)
+        self._pending: Dict[str, List[Probe]] = defaultdict(list)
 
         self._lock = forksafe.RLock()
 
@@ -179,7 +181,7 @@ class ProbeRegistry(dict):
                 return True
         return False
 
-    def unregister(self, *probes: Probe) -> list[Probe]:
+    def unregister(self, *probes: Probe) -> List[Probe]:
         """Unregister a collection of probes.
 
         This also ensures that any pending probes are removed if they haven't
@@ -199,7 +201,7 @@ class ProbeRegistry(dict):
                     unregistered_probes.append(probe)
         return unregistered_probes
 
-    def get_pending(self, location: str) -> list[Probe]:
+    def get_pending(self, location: str) -> List[Probe]:
         """Get the currently pending probes by location."""
         return self._pending[location].copy()
 

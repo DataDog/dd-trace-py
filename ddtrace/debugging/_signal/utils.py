@@ -15,8 +15,12 @@ from types import MethodWrapperType
 from types import TracebackType
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import Iterable
+from typing import List
 from typing import Optional
+from typing import Tuple
+from typing import Type
 
 from wrapt.wrappers import BoundFunctionWrapper
 from wrapt.wrappers import FunctionWrapper
@@ -60,7 +64,7 @@ CALLABLE_TYPES = (
 
 
 @cached()
-def qualname(_type: type) -> str:
+def qualname(_type: Type) -> str:
     try:
         return _type.__qualname__
     except AttributeError:
@@ -130,7 +134,7 @@ def serialize(
     )
 
 
-def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
+def capture_stack(top_frame: FrameType, max_height: int = 4096) -> List[dict]:
     frame: Optional[FrameType] = top_frame
     stack = []
     h = 0
@@ -148,7 +152,7 @@ def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
     return stack
 
 
-def capture_traceback(tb: TracebackType, max_height: int = 4096) -> list[dict]:
+def capture_traceback(tb: TracebackType, max_height: int = 4096) -> List[dict]:
     stack = []
     h = 0
     _tb: Optional[TracebackType] = tb
@@ -167,7 +171,7 @@ def capture_traceback(tb: TracebackType, max_height: int = 4096) -> list[dict]:
     return stack
 
 
-def capture_exc_info(exc_info: ExcInfoType) -> Optional[dict[str, Any]]:
+def capture_exc_info(exc_info: ExcInfoType) -> Optional[Dict[str, Any]]:
     _type, value, tb = exc_info
     if _type is None or value is None:
         return None
@@ -188,13 +192,13 @@ def redacted_type(t: Any) -> dict:
 
 
 def capture_pairs(
-    pairs: Iterable[tuple[str, Any]],
+    pairs: Iterable[Tuple[str, Any]],
     level: int = MAXLEVEL,
     maxlen: int = MAXLEN,
     maxsize: int = MAXSIZE,
     maxfields: int = MAXFIELDS,
     stopping_cond: Optional[Callable[[Any], bool]] = None,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     return {
         n: (capture_value(v, level, maxlen, maxsize, maxfields, stopping_cond) if not redact(n) else redacted_value(v))
         for n, v in pairs
@@ -208,7 +212,7 @@ def capture_value(
     maxsize: int = MAXSIZE,
     maxfields: int = MAXFIELDS,
     stopping_cond: Optional[Callable[[Any], bool]] = None,
-) -> dict[str, Any]:
+) -> Dict[str, Any]:
     cond = stopping_cond if stopping_cond is not None else (lambda _: False)
 
     _type = type(value)
@@ -254,7 +258,7 @@ def capture_value(
                 "size": len(value),
             }
 
-        collection: Optional[list[Any]] = None
+        collection: Optional[List[Any]] = None
         if _type in BUILTIN_MAPPING_TYPES:
             # Mapping
             collection = [

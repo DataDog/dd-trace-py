@@ -4,9 +4,13 @@ from types import CodeType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
+from typing import Dict
 from typing import Iterator
+from typing import List
 from typing import Optional
 from typing import Protocol
+from typing import Tuple
+from typing import Type
 from typing import Union
 from typing import cast
 
@@ -26,9 +30,9 @@ from ddtrace.internal.wrapping import get_function_code
 
 log = get_logger(__name__)
 
-FunctionContainerType = Union[type, property, classmethod, staticmethod, tuple, ModuleType]
+FunctionContainerType = Union[type, property, classmethod, staticmethod, Tuple, ModuleType]
 
-ContainerKey = Union[str, int, type[staticmethod], type[classmethod]]
+ContainerKey = Union[str, int, Type[staticmethod], Type[classmethod]]
 
 CONTAINER_TYPES = (type, property, classmethod, staticmethod)
 
@@ -59,7 +63,7 @@ class ContainerIterator(Iterator, FullyNamedFunction):
     def __init__(
         self,
         container: FunctionContainerType,
-        origin: Optional[Union[tuple["ContainerIterator", ContainerKey], tuple[FullyNamedFunction, str]]] = None,
+        origin: Optional[Union[Tuple["ContainerIterator", ContainerKey], Tuple[FullyNamedFunction, str]]] = None,
     ) -> None:
         if isinstance(container, (type, ModuleType)):
             # DEV: A module object could be partially initialised, therefore
@@ -93,10 +97,10 @@ class ContainerIterator(Iterator, FullyNamedFunction):
         else:
             self.__fullname__ = self.__name__
 
-    def __iter__(self) -> Iterator[tuple[ContainerKey, Any]]:
+    def __iter__(self) -> Iterator[Tuple[ContainerKey, Any]]:
         return self._iter
 
-    def __next__(self) -> tuple[ContainerKey, Any]:
+    def __next__(self) -> Tuple[ContainerKey, Any]:
         return next(self._iter)
 
     next = __next__
@@ -170,7 +174,7 @@ class _FunctionCodePair:
         return f
 
 
-def _collect_functions(module: ModuleType) -> dict[str, _FunctionCodePair]:
+def _collect_functions(module: ModuleType) -> Dict[str, _FunctionCodePair]:
     """Collect functions from a given module.
 
     All the collected functions are augmented with a ``__fullname__`` attribute
@@ -251,8 +255,8 @@ class FunctionDiscovery(defaultdict):
 
         self._module = module
         if PYTHON_VERSION_INFO < (3, 11):
-            self._name_index: dict[str, list[_FunctionCodePair]] = defaultdict(list)
-        self._cached: dict[int, list[FullyNamedFunction]] = {}
+            self._name_index: Dict[str, List[_FunctionCodePair]] = defaultdict(list)
+        self._cached: Dict[int, List[FullyNamedFunction]] = {}
 
         # Create the line to function mapping
         if hasattr(module, "__dd_code__"):
@@ -290,7 +294,7 @@ class FunctionDiscovery(defaultdict):
                         self[lineno].append(_FunctionCodePair(function=cast(FunctionType, function)))
                 seen_functions.add(function)
 
-    def at_line(self, line: int) -> list[FullyNamedFunction]:
+    def at_line(self, line: int) -> List[FullyNamedFunction]:
         """Get the functions at the given line.
 
         Note that, in general, there can be multiple copies of the same

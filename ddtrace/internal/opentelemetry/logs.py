@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from typing import Optional
+from typing import Type
 
 import opentelemetry.version
 
@@ -105,7 +106,7 @@ def _build_resource() -> Optional[Any]:
         return None
 
 
-def _dd_logs_exporter(otel_exporter: type[Any], protocol: str, encoding: str) -> type[Any]:
+def _dd_logs_exporter(otel_exporter: Type[Any], protocol: str, encoding: str) -> Type[Any]:
     """Create a custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
 
     class DDLogsExporter(otel_exporter):

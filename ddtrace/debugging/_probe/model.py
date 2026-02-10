@@ -6,8 +6,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Mapping
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
@@ -74,7 +77,7 @@ class Probe(abc.ABC):
 
     probe_id: str
     version: int
-    tags: dict[str, Any] = field(compare=False)
+    tags: Dict[str, Any] = field(compare=False)
 
     def update(self, other: "Probe") -> None:
         """Update the mutable fields from another probe."""
@@ -140,7 +143,7 @@ class ProbeConditionMixin(AbstractProbeMixIn):
 
 @dataclass
 class ProbeLocationMixin(AbstractProbeMixIn):
-    def location(self) -> tuple[Optional[str], Optional[Union[str, int]]]:
+    def location(self) -> Tuple[Optional[str], Optional[Union[str, int]]]:
         """Return a tuple of (location, sublocation) for the probe.
         For example, line probe returns the (file, line) and method probe return (module, method)
         """
@@ -231,7 +234,7 @@ class ExpressionTemplateSegment(TemplateSegment):
 @dataclass
 class StringTemplate:
     template: str
-    segments: list[TemplateSegment]
+    segments: List[TemplateSegment]
 
     def render(self, scope: Mapping[str, Any], serializer: Callable[[Any], str]) -> str:
         def _to_str(value):
@@ -250,9 +253,9 @@ class CaptureExpression:
 @dataclass
 class LogProbeMixin(AbstractProbeMixIn):
     template: str
-    segments: list[TemplateSegment]
+    segments: List[TemplateSegment]
     take_snapshot: bool
-    capture_expressions: list[CaptureExpression]
+    capture_expressions: List[CaptureExpression]
     limits: CaptureLimits = field(compare=False)
 
     @property
@@ -296,13 +299,13 @@ class SpanDecorationTag:
 @dataclass
 class SpanDecoration:
     when: Optional[DDExpression]
-    tags: list[SpanDecorationTag]
+    tags: List[SpanDecorationTag]
 
 
 @dataclass
 class SpanDecorationMixin:
     target_span: SpanDecorationTargetSpan
-    decorations: list[SpanDecoration]
+    decorations: List[SpanDecoration]
 
 
 @dataclass(eq=False)

@@ -1,5 +1,7 @@
 import asyncio
 import os
+from typing import List
+from typing import Tuple
 
 import pytest
 
@@ -31,7 +33,7 @@ pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only
         ("module.method;module.method", []),
     ],
 )
-def test_trace_methods_parse(dd_trace_methods: str, expected_output: list[tuple[str, str]]):
+def test_trace_methods_parse(dd_trace_methods: str, expected_output: List[Tuple[str, str]]):
     from ddtrace.internal.tracemethods import _parse_trace_methods
 
     assert _parse_trace_methods(dd_trace_methods) == expected_output

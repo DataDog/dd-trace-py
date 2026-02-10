@@ -50,6 +50,7 @@ Configuration
 """
 
 import os
+from typing import Dict
 
 import valkey
 import wrapt
@@ -83,7 +84,7 @@ def get_version():
     return getattr(valkey, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"valkey": ">=6.0.0"}
 
 

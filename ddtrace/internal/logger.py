@@ -37,7 +37,10 @@ import logging
 import os
 import time
 import traceback
+from typing import DefaultDict
+from typing import Dict
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 
@@ -51,7 +54,7 @@ DAY = 24 * HOUR
 class LoggerPrefix:
     prefix: str
     level: Optional[int] = None
-    children: dict[str, "LoggerPrefix"] = field(default_factory=dict)
+    children: Dict[str, "LoggerPrefix"] = field(default_factory=dict)
 
     def lookup(self, name: str) -> Optional[int]:
         """
@@ -146,12 +149,12 @@ class LoggingBucket:
         return False
 
 
-# dict to keep track of the current time bucket per name/level/pathname/lineno
+# Dict to keep track of the current time bucket per name/level/pathname/lineno
 
 _MINF = float("-inf")
 
-key_type = Union[tuple[str, int, str, int], str]
-_buckets: collections.defaultdict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
+key_type = Union[Tuple[str, int, str, int], str]
+_buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
 
 # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
 # Allow configuring via `DD_TRACE_LOGGING_RATE`

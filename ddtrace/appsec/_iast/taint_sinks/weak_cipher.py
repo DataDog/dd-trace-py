@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from typing import Callable
+from typing import Set
 from typing import Text
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -25,7 +26,7 @@ from ._base import VulnerabilityBase
 log = get_logger(__name__)
 
 
-def get_weak_cipher_algorithms() -> set:
+def get_weak_cipher_algorithms() -> Set:
     CONFIGURED_WEAK_CIPHER_ALGORITHMS = None
     DD_IAST_WEAK_CIPHER_ALGORITHMS = os.getenv("DD_IAST_WEAK_CIPHER_ALGORITHMS")
     if DD_IAST_WEAK_CIPHER_ALGORITHMS:

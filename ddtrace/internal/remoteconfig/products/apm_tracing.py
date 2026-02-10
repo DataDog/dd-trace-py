@@ -50,7 +50,7 @@ class APMTracingAdapter(PubSub):
         self._subscriber = self.__subscriber_class__(self.__shared_data__, self.rc_callback, "APM_TRACING")
 
         # Configuration overrides
-        self.config_map: dict[str, Payload] = {}
+        self.config_map: t.Dict[str, Payload] = {}
 
     def get_chained_lib_config(self) -> t.ChainMap:
         # Get items in insertion order, then sort by precedence while preserving order for ties
