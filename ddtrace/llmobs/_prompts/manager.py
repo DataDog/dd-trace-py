@@ -194,12 +194,20 @@ class PromptManager:
             conn = get_connection(self._base_url, timeout=timeout)
             conn.request("GET", self._build_path(prompt_id, label), headers=self._headers)
             response = conn.getresponse()
+            status = response.status
 
-            if response.status == 200:
-                body = response.read().decode("utf-8")
+            body = response.read().decode("utf-8")
+
+            if status == 200:
                 return self._parse_response(body, prompt_id, label), False
-            return None, response.status == 404
-        except Exception:
+
+            if status == 404:
+                log.debug("Prompt not found: prompt_id=%s label=%s: %s", prompt_id, label, body)
+            else:
+                log.warning("Prompt fetch failed: prompt_id=%s label=%s status=%d: %s", prompt_id, label, status, body)
+            return None, status == 404
+        except Exception as e:
+            log.warning("Prompt fetch exception: prompt_id=%s label=%s: %s", prompt_id, label, e)
             return None, False
         finally:
             if conn is not None:
