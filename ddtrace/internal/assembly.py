@@ -39,7 +39,7 @@ def relocate(instrs: bc.Bytecode, lineno: int) -> bc.Bytecode:
     return new_instrs
 
 
-def transform_instruction(opcode: str, arg: t.Any) -> tuple[str, t.Any]:
+def transform_instruction(opcode: str, arg: t.Any) -> t.Tuple[str, t.Any]:
     # Handle pseudo-instructions
     if sys.version_info >= (3, 12):
         if opcode.upper() == "LOAD_METHOD":
@@ -58,7 +58,7 @@ class BindOpArg(bc.Label):
         self.arg = arg
         self.lineno = lineno
 
-    def __call__(self, bind_args: dict[str, t.Any], lineno: t.Optional[int] = None) -> bc.Instr:
+    def __call__(self, bind_args: t.Dict[str, t.Any], lineno: t.Optional[int] = None) -> bc.Instr:
         return bc.Instr(self.name, bind_args[self.arg], lineno=lineno if lineno is not None else self.lineno)
 
 
@@ -66,14 +66,14 @@ class Assembly:
     def __init__(
         self, name: t.Optional[str] = None, filename: t.Optional[str] = None, lineno: t.Optional[int] = None
     ) -> None:
-        self._labels: dict[str, bc.Label] = {}
-        self._ref_labels: dict[str, bc.Label] = {}
+        self._labels: t.Dict[str, bc.Label] = {}
+        self._ref_labels: t.Dict[str, bc.Label] = {}
         self._tb: t.Optional[bc.TryBegin] = None
         self._instrs = bc.Bytecode()
         self._instrs.name = name or "<assembly>"
         self._instrs.filename = filename or __file__
         self._lineno = lineno
-        self._bind_opargs: dict[int, BindOpArg] = {}
+        self._bind_opargs: t.Dict[int, BindOpArg] = {}
 
     def parse_ident(self, text: str) -> str:
         if not text.isidentifier():
@@ -239,7 +239,7 @@ class Assembly:
 
         self._validate()
 
-    def bind(self, bind_args: t.Optional[dict[str, t.Any]] = None, lineno: t.Optional[int] = None) -> bc.Bytecode:
+    def bind(self, bind_args: t.Optional[t.Dict[str, t.Any]] = None, lineno: t.Optional[int] = None) -> bc.Bytecode:
         if not self._bind_opargs:
             if lineno is not None:
                 return relocate(self._instrs, lineno)
@@ -258,7 +258,7 @@ class Assembly:
 
         return relocate(instrs, lineno) if lineno is not None else instrs
 
-    def compile(self, bind_args: t.Optional[dict[str, t.Any]] = None, lineno: t.Optional[int] = None) -> CodeType:
+    def compile(self, bind_args: t.Optional[t.Dict[str, t.Any]] = None, lineno: t.Optional[int] = None) -> CodeType:
         return self.bind(bind_args, lineno=lineno).to_code()
 
     def _label_ident(self, label: bc.Label) -> str:

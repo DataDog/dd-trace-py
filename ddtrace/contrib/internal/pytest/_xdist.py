@@ -36,7 +36,7 @@ def parse_worker_value(val: str) -> t.Union[int, str]:
         return XDIST_UNSET
 
 
-def _parse_xdist_args_from_cmd(args: list[str]) -> tuple[t.Union[int, str], str]:
+def _parse_xdist_args_from_cmd(args: t.List[str]) -> t.Tuple[t.Union[int, str], str]:
     """
     Parse xdist-related arguments from command line args.
 

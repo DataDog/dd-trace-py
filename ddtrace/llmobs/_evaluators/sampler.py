@@ -1,6 +1,7 @@
 import json
 from json.decoder import JSONDecodeError
 import os
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -57,7 +58,7 @@ class EvaluatorRunnerSampler:
                 return rule.sample(span)
         return True
 
-    def parse_rules(self) -> list[EvaluatorRunnerSamplingRule]:
+    def parse_rules(self) -> List[EvaluatorRunnerSamplingRule]:
         rules = []
 
         sampling_rules_str = os.getenv(self.SAMPLING_RULES_ENV_VAR)

@@ -15,9 +15,10 @@ class ServiceStatus(enum.Enum):
 class ServiceStatusError(RuntimeError):
     def __init__(
         self,
-        service_cls: "type[Service]",
-        current_status: ServiceStatus,
-    ) -> None:
+        service_cls,  # type: typing.Type[Service]
+        current_status,  # type: ServiceStatus
+    ):
+        # type: (...) -> None
         self.current_status = current_status
         super(ServiceStatusError, self).__init__(
             "%s is already in status %s" % (service_cls.__name__, current_status.value)

@@ -79,7 +79,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
     __enabled__ = False
     __priority__ = 199
 
-    def __init__(self, uploader: type[SignalUploader], f: FunctionType) -> None:
+    def __init__(self, uploader: t.Type[SignalUploader], f: FunctionType) -> None:
         super().__init__(f)
 
         self.uploader = uploader
@@ -171,7 +171,7 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: list = []
+    _pending: t.List = []
     _lock = Lock()
 
     @classmethod

@@ -1,4 +1,5 @@
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -38,9 +39,9 @@ def _span_pointer_count_to_tag(span_pointer_count: int) -> str:
 
 
 def record_span_pointer_calculation_issue(
-    context: str, additional_tags: Optional[tuple[tuple[str, str], ...]] = None
+    context: str, additional_tags: Optional[Tuple[Tuple[str, str], ...]] = None
 ) -> None:
-    tags: tuple[tuple[str, str], ...] = (("context", context),)
+    tags: Tuple[Tuple[str, str], ...] = (("context", context),)
     if additional_tags:
         tags += additional_tags
 

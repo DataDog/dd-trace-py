@@ -1,4 +1,5 @@
 from hashlib import sha256
+from typing import List
 from typing import NamedTuple
 
 import pytest
@@ -10,7 +11,7 @@ from ddtrace._trace._span_pointer import _standard_hashing_function
 class TestStandardHashingFunction:
     class HashingCase(NamedTuple):
         name: str
-        elements: list[bytes]
+        elements: List[bytes]
         result: str
 
     @pytest.mark.parametrize(

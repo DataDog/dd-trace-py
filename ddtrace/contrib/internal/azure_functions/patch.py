@@ -1,3 +1,5 @@
+from typing import Dict
+
 import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
@@ -29,7 +31,7 @@ def get_version() -> str:
     return getattr(azure_functions, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"azure.functions": ">=1.10.1"}
 
 

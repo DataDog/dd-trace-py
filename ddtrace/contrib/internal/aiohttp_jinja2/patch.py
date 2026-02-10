@@ -1,3 +1,5 @@
+from typing import Dict
+
 import aiohttp_jinja2
 
 from ddtrace import config
@@ -17,11 +19,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(aiohttp_jinja2, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"aiohttp_jinja2": ">=1.5.0"}
 
 

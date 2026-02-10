@@ -17,20 +17,20 @@ class Library:
         kind: str,
         name: str,
         version: str,
-        paths: set[str],
+        paths: t.Set[str],
     ) -> None:
         self.kind = kind
         self.name = name
         self.version = version
         self.paths = paths
 
-    def to_dict(self) -> dict[str, t.Any]:
+    def to_dict(self) -> t.Dict[str, t.Any]:
         return {"kind": self.kind, "name": self.name, "version": self.version, "paths": list(self.paths)}
 
 
 class CodeProvenance:
     def __init__(self) -> None:
-        self.libraries: list[Library] = []
+        self.libraries: t.List[Library] = []
 
         python_stdlib = Library(
             kind="standard library",
@@ -66,9 +66,9 @@ class CodeProvenance:
 
         self.libraries.append(python_stdlib)
 
-        module_to_distribution: dict[str, Distribution] = _package_for_root_module_mapping() or {}
+        module_to_distribution: t.Dict[str, Distribution] = _package_for_root_module_mapping() or {}
 
-        libraries: dict[str, Library] = {}
+        libraries: t.Dict[str, Library] = {}
 
         site_packages = Path(sysconfig.get_path("purelib"))
         for module, dist in module_to_distribution.items():
@@ -99,7 +99,7 @@ class CodeProvenance:
 
         self.libraries.extend(libraries.values())
 
-    def to_dict(self) -> dict[str, t.Any]:
+    def to_dict(self) -> t.Dict[str, t.Any]:
         return {"v1": [lib.to_dict() for lib in self.libraries]}
 
 
