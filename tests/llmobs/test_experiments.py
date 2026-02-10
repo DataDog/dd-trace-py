@@ -10,6 +10,7 @@ and must have the test agent (>=1.27.0) running locally and configured to use th
 eg. VCR_CASSETTES_DIRECTORY=tests/cassettes ddapm-test-agent ...
 """
 
+import asyncio
 import os
 import re
 import tempfile
@@ -24,6 +25,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.llmobs._experiment import AsyncExperiment
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import EvaluatorResult
@@ -75,6 +77,37 @@ def dummy_summary_evaluator(inputs, outputs, expected_outputs, evaluators_result
 
 def dummy_summary_evaluator_using_missing_eval_results(inputs, outputs, expected_outputs, evaluators_results):
     return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["non_existent_evaluator"])
+
+
+# Async test helpers
+async def async_dummy_task(input_data, config):
+    return input_data
+
+
+async def async_faulty_task(input_data, config):
+    raise ValueError("This is a test error")
+
+
+async def async_dummy_evaluator(input_data, output_data, expected_output):
+    return int(output_data == expected_output)
+
+
+async def async_dummy_evaluator_with_extra_return_values(input_data, output_data, expected_output):
+    return EvaluatorResult(
+        value=expected_output == output_data,
+        reasoning="it matches" if expected_output == output_data else "it doesn't match",
+        assessment="pass" if expected_output == output_data else "fail",
+        metadata={"difficulty": "easy"},
+        tags={"task": "question_answering"},
+    )
+
+
+async def async_faulty_evaluator(input_data, output_data, expected_output):
+    raise ValueError("This is a test error in evaluator")
+
+
+def async_dummy_summary_evaluator(inputs, outputs, expected_outputs, evaluators_results):
+    return len(inputs) + len(outputs) + len(expected_outputs) + len(evaluators_results["async_dummy_evaluator"])
 
 
 DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
@@ -1293,6 +1326,93 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
         )
 
 
+# async_experiment validation tests
+
+
+def test_async_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
+    with pytest.raises(TypeError, match="task must be an async function."):
+        llmobs.async_experiment("test_experiment", 123, test_dataset_one_record, [async_dummy_evaluator])
+
+
+def test_async_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_record):
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+
+        async def my_task(not_input):
+            pass
+
+        llmobs.async_experiment("test_experiment", my_task, test_dataset_one_record, [async_dummy_evaluator])
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+
+        async def my_task(input_data, not_config):
+            pass
+
+        llmobs.async_experiment("test_experiment", my_task, test_dataset_one_record, [async_dummy_evaluator])
+
+
+def test_async_experiment_invalid_dataset_raises(llmobs):
+    with pytest.raises(TypeError, match="Dataset must be an LLMObs Dataset object."):
+        llmobs.async_experiment("test_experiment", async_dummy_task, 123, [async_dummy_evaluator])
+
+
+def test_async_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_record):
+    with pytest.raises(TypeError, match="Evaluators must be a list of async callable functions"):
+        llmobs.async_experiment("test_experiment", async_dummy_task, test_dataset_one_record, [])
+    with pytest.raises(TypeError, match="Evaluators must be a list of async callable functions"):
+        llmobs.async_experiment("test_experiment", async_dummy_task, test_dataset_one_record, [123])
+
+
+def test_async_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_record):
+    expected_err = "Evaluator function must have parameters ('input_data', 'output_data', 'expected_output')."
+    with pytest.raises(TypeError, match=re.escape(expected_err)):
+
+        async def my_evaluator_missing_expected_output(input_data, output_data):
+            pass
+
+        llmobs.async_experiment(
+            "test_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [my_evaluator_missing_expected_output],
+        )
+    with pytest.raises(TypeError, match=re.escape(expected_err)):
+
+        async def my_evaluator_missing_input(output_data, expected_output):
+            pass
+
+        llmobs.async_experiment(
+            "test_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [my_evaluator_missing_input],
+        )
+    with pytest.raises(TypeError, match=re.escape(expected_err)):
+
+        async def my_evaluator_missing_output(input_data, expected_output):
+            pass
+
+        llmobs.async_experiment(
+            "test_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [my_evaluator_missing_output],
+        )
+
+
+def test_async_experiment_init(llmobs, test_dataset_one_record):
+    exp = llmobs.async_experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
+        description="lorem ipsum",
+    )
+    assert exp.name == "test_async_experiment"
+    assert exp._task == async_dummy_task
+    assert exp._dataset == test_dataset_one_record
+    assert exp._evaluators == [async_dummy_evaluator]
+    assert exp._description == "lorem ipsum"
+
+
 def test_project_name_set(run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
@@ -2076,3 +2196,250 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
     # Successful evaluator completed
     assert summary_evals_dict["successful_summary_evaluator"]["value"] == 100
     assert summary_evals_dict["successful_summary_evaluator"]["error"] is None
+
+
+# AsyncExperiment tests
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_task(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    assert task_results[0] == {
+        "idx": 0,
+        "span_id": mock.ANY,
+        "trace_id": mock.ANY,
+        "timestamp": mock.ANY,
+        "output": {"prompt": "What is the capital of France?"},
+        "metadata": {
+            "dataset_record_index": 0,
+            "experiment_name": "test_async_experiment",
+            "dataset_name": "test-dataset-123",
+        },
+        "error": mock.ANY,
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_task_error(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_faulty_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    assert task_results == [
+        {
+            "idx": 0,
+            "span_id": mock.ANY,
+            "trace_id": mock.ANY,
+            "timestamp": mock.ANY,
+            "output": None,
+            "metadata": {
+                "dataset_record_index": 0,
+                "experiment_name": "test_async_experiment",
+                "dataset_name": "test-dataset-123",
+            },
+            "error": mock.ANY,
+        }
+    ]
+    assert task_results[0]["error"]["message"] == "This is a test error"
+    assert task_results[0]["error"]["stack"] is not None
+    assert task_results[0]["error"]["type"] == "builtins.ValueError"
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_faulty_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+    )
+    with pytest.raises(
+        RuntimeError,
+        match=re.compile(
+            "Error on record 0: This is a test error\n.*ValueError.*in async_faulty_task.*",
+            flags=re.DOTALL,
+        ),
+    ):
+        await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(asyncio.Semaphore(1), task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"async_dummy_evaluator": {"value": False, "error": None}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator_with_extra_return_values],
+        project_name="default",
+        _llmobs_instance=llmobs,
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(asyncio.Semaphore(1), task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {
+            "async_dummy_evaluator_with_extra_return_values": dict(
+                value=False,
+                error=None,
+                reasoning="it doesn't match",
+                assessment="fail",
+                metadata={"difficulty": "easy"},
+                tags={"task": "question_answering"},
+            )
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+        summary_evaluators=[async_dummy_summary_evaluator],
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(asyncio.Semaphore(1), task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"async_dummy_evaluator": {"value": False, "error": None}},
+    }
+    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    assert len(summary_eval_results) == 1
+    assert summary_eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"async_dummy_summary_evaluator": {"value": 4, "error": None}},
+    }
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_faulty_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(asyncio.Semaphore(1), task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"async_faulty_evaluator": {"value": None, "error": mock.ANY}},
+    }
+    err = eval_results[0]["evaluations"]["async_faulty_evaluator"]["error"]
+    assert err["message"] == "This is a test error in evaluator"
+    assert err["type"] == "ValueError"
+    assert err["stack"] is not None
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_summary_evaluators_error(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+        summary_evaluators=[faulty_summary_evaluator],
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(asyncio.Semaphore(1), task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"async_dummy_evaluator": {"value": False, "error": None}},
+    }
+    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    assert summary_eval_results[0] == {
+        "idx": 0,
+        "evaluations": {"faulty_summary_evaluator": {"value": None, "error": mock.ANY}},
+    }
+    err = summary_eval_results[0]["evaluations"]["faulty_summary_evaluator"]["error"]
+    assert err["message"] == "This is a test error in a summary evaluator"
+    assert err["type"] == "ValueError"
+    assert err["stack"] is not None
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_faulty_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    with pytest.raises(RuntimeError, match="Evaluator async_faulty_evaluator failed on row 0"):
+        await exp._run_evaluators(asyncio.Semaphore(1), task_results, raise_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_async_experiment_run_summary_evaluators_error_raises(llmobs, test_dataset_one_record):
+    exp = AsyncExperiment(
+        name="test_async_experiment",
+        task=async_dummy_task,
+        dataset=test_dataset_one_record,
+        evaluators=[async_dummy_evaluator],
+        project_name="default",
+        _llmobs_instance=llmobs,
+        summary_evaluators=[faulty_summary_evaluator],
+    )
+    task_results = await exp._run_task(asyncio.Semaphore(1), run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(asyncio.Semaphore(1), task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    with pytest.raises(RuntimeError, match="Summary evaluator faulty_summary_evaluator failed"):
+        exp._run_summary_evaluators(task_results, eval_results, raise_errors=True)
