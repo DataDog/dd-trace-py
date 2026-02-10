@@ -16,7 +16,7 @@ EXCEPTIONS = {
     # only constant message can be log.error()
     "ddtrace/internal/telemetry/logging.py:21",
     # log.exception calls use constant messages
-    "ddtrace/contrib/internal/aws_lambda/patch.py:35",
+    "ddtrace/contrib/internal/aws_lambda/patch.py:34",
     # log.error in _probe/registry.py ends up with a log.debug()
     "ddtrace/debugging/_probe/registry.py:135",
     "ddtrace/debugging/_probe/registry.py:144",
