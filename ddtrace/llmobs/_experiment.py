@@ -46,6 +46,28 @@ NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONTyp
 ConfigType = dict[str, JSONType]
 DatasetRecordInputType = dict[str, NonNoneJSONType]
 
+# Task type alias for experiment task functions
+TaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType]
+
+# Evaluator type aliases - forward references resolved after class definitions
+EvaluatorType = Union[
+    Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, "EvaluatorResult"]],
+    "BaseEvaluator",
+]
+
+SummaryEvaluatorType = Union[
+    Callable[
+        [
+            list[DatasetRecordInputType],
+            list[JSONType],
+            list[JSONType],
+            dict[str, list[JSONType]],
+        ],
+        JSONType,
+    ],
+    "BaseSummaryEvaluator",
+]
+
 
 class EvaluatorResult:
     """Container for evaluator results with additional metadata.
@@ -304,6 +326,54 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     :return: True if it's a function evaluator, False otherwise
     """
     return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator)
+
+
+def _get_or_create_project(dne_client: "LLMObsExperimentsClient", project_name: str) -> str:
+    """Get or create a project and return the project_id.
+
+    :param dne_client: The LLMObs experiments client
+    :param project_name: The name of the project
+    :return: The project ID
+    :raises ValueError: If no project ID is returned
+    """
+    project = dne_client.project_create_or_get(project_name)
+    project_id = project.get("_id", "")
+    if not project_id:
+        raise ValueError("Failed to get or create project: no project ID returned")
+    return project_id
+
+
+def _create_experiment(
+    dne_client: "LLMObsExperimentsClient",
+    name: str,
+    dataset_id: str,
+    project_id: str,
+    dataset_version: int,
+    config: ConfigType,
+    tags: list[str],
+    description: str,
+    runs: int,
+) -> tuple[str, str]:
+    """Create an experiment and return (experiment_id, run_name).
+
+    :param dne_client: The LLMObs experiments client
+    :param name: The experiment name
+    :param dataset_id: The dataset ID
+    :param project_id: The project ID
+    :param dataset_version: The dataset version
+    :param config: The experiment configuration
+    :param tags: The experiment tags
+    :param description: The experiment description
+    :param runs: The number of runs
+    :return: Tuple of (experiment_id, run_name)
+    :raises ValueError: If no experiment ID is returned
+    """
+    experiment_id, run_name = dne_client.experiment_create(
+        name, dataset_id, project_id, dataset_version, config, tags, description, runs
+    )
+    if not experiment_id:
+        raise ValueError("Failed to create experiment: no experiment ID returned")
+    return experiment_id, run_name
 
 
 class Project(TypedDict):
@@ -606,35 +676,15 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: TaskType,
         dataset: Dataset,
-        evaluators: Sequence[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-            ]
-        ],
+        evaluators: Sequence[EvaluatorType],
         project_name: str,
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
-        summary_evaluators: Optional[
-            list[
-                Union[
-                    Callable[
-                        [
-                            list[DatasetRecordInputType],
-                            list[JSONType],
-                            list[JSONType],
-                            dict[str, list[JSONType]],
-                        ],
-                        JSONType,
-                    ],
-                    BaseSummaryEvaluator,
-                ]
-            ]
-        ] = None,
+        summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = None,
     ) -> None:
         self.name = name
@@ -687,14 +737,11 @@ class Experiment:
                 "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
             )
 
-        project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
-        self._project_id = project.get("_id", "")
+        self._project_id = _get_or_create_project(self._llmobs_instance._dne_client, self._project_name)
         self._tags["project_id"] = self._project_id
 
-        (
-            experiment_id,
-            experiment_run_name,
-        ) = self._llmobs_instance._dne_client.experiment_create(
+        experiment_id, run_name = _create_experiment(
+            self._llmobs_instance._dne_client,
             self.name,
             self._dataset._id,
             self._project_id,
@@ -706,7 +753,7 @@ class Experiment:
         )
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
-        self._run_name = experiment_run_name
+        self._run_name = run_name
         run_results = []
         # for backwards compatibility
         for run_iteration in range(self._runs):
