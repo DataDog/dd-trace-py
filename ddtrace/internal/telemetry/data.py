@@ -14,7 +14,7 @@ from ddtrace.version import __version__
 from ..hostname import get_hostname
 
 
-def _format_version_info(vi: sys._version_info) -> str:
+def _format_version_info(vi: "sys._version_info") -> str:
     """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
