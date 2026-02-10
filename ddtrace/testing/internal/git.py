@@ -104,7 +104,7 @@ class Git:
         self.git_command: str = git_command
         self.cwd = cwd
 
-    def _call_git(self, args: t.List[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
+    def _call_git(self, args: list[str], input_string: t.Optional[str] = None) -> _GitSubprocessDetails:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
@@ -127,7 +127,7 @@ class Git:
             elapsed_seconds=sw.elapsed(),
         )
 
-    def _git_output(self, args: t.List[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
+    def _git_output(self, args: list[str], telemetry_type: t.Optional[GitTelemetry] = None) -> str:
         result = self._call_git(args)
 
         if telemetry_type:
@@ -138,7 +138,7 @@ class Git:
             return ""
         return result.stdout
 
-    def get_git_version(self) -> t.Tuple[int, ...]:
+    def get_git_version(self) -> tuple[int, ...]:
         output = self._git_output(["--version"])  # "git version 1.2.3"
         try:
             version_string = output.split()[2]
@@ -192,13 +192,13 @@ class Git:
     def get_remote_name(self) -> str:
         return self._git_output(["config", "--default", "origin", "--get", "clone.defaultRemoteName"])
 
-    def get_latest_commits(self) -> t.List[str]:
+    def get_latest_commits(self) -> list[str]:
         output = self._git_output(
             ["log", "--format=%H", "-n", "1000", '--since="1 month ago"'], GitTelemetry.GET_LOCAL_COMMITS
         )
         return output.split("\n") if output else []
 
-    def get_filtered_revisions(self, excluded_commits: t.List[str], included_commits: t.List[str]) -> t.List[str]:
+    def get_filtered_revisions(self, excluded_commits: list[str], included_commits: list[str]) -> list[str]:
         exclusions = [f"^{sha}" for sha in excluded_commits]
         output = self._git_output(
             [
@@ -279,7 +279,7 @@ class Git:
             sw.stop()
             TelemetryAPI.get().record_git_command(GitTelemetry.UNSHALLOW, sw.elapsed(), return_code)
 
-    def pack_objects(self, revisions: t.List[str]) -> t.Iterable[Path]:
+    def pack_objects(self, revisions: list[str]) -> t.Iterable[Path]:
         base_name = str(random.randint(1, 1000000))  # nosec: B311
         revisions_text = "\n".join(revisions)
 
@@ -304,14 +304,14 @@ class Git:
                 yield packfile
 
 
-def get_git_tags_from_git_command() -> t.Dict[str, t.Optional[str]]:
+def get_git_tags_from_git_command() -> dict[str, t.Optional[str]]:
     try:
         git = Git()
     except RuntimeError as e:
         log.warning("Error getting git data: %s", e)
         return {}
 
-    tags: t.Dict[str, t.Optional[str]] = {
+    tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: git.get_repository_url(),
         GitTag.COMMIT_SHA: git.get_commit_sha(),
         GitTag.BRANCH: git.get_branch(),
@@ -333,7 +333,7 @@ def get_git_tags_from_git_command() -> t.Dict[str, t.Optional[str]]:
     return tags
 
 
-def get_git_head_tags_from_git_command(head_sha: str) -> t.Dict[str, t.Optional[str]]:
+def get_git_head_tags_from_git_command(head_sha: str) -> dict[str, t.Optional[str]]:
     try:
         git = Git()
     except RuntimeError as e:
@@ -343,7 +343,7 @@ def get_git_head_tags_from_git_command(head_sha: str) -> t.Dict[str, t.Optional[
     if git.is_shallow_repository():
         git.unshallow_repository(parent_only=True)
 
-    tags: t.Dict[str, t.Optional[str]] = {
+    tags: dict[str, t.Optional[str]] = {
         GitTag.COMMIT_HEAD_MESSAGE: git.get_commit_message(head_sha),
     }
 
@@ -382,7 +382,7 @@ def is_ref_a_tag(ref: t.Optional[str]) -> bool:
     return "tags/" in ref if ref else False
 
 
-def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Optional[str]]:
+def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract git commit metadata from user-provided env vars."""
     branch = normalize_ref(env.get("DD_GIT_BRANCH"))
     tag = normalize_ref(env.get("DD_GIT_TAG"))
@@ -392,7 +392,7 @@ def get_git_tags_from_dd_variables(env: t.MutableMapping[str, str]) -> t.Dict[st
         tag = branch
         branch = None
 
-    tags: t.Dict[str, t.Optional[str]] = {
+    tags: dict[str, t.Optional[str]] = {
         GitTag.REPOSITORY_URL: env.get("_CI_DD_GIT_REPOSITORY_URL") or env.get("DD_GIT_REPOSITORY_URL"),
         GitTag.COMMIT_SHA: env.get("DD_GIT_COMMIT_SHA"),
         GitTag.BRANCH: branch,
