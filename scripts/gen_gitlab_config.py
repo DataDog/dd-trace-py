@@ -244,7 +244,6 @@ def gen_required_suites() -> None:
 def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
-    required_suites = []
 
     if not required_suites:
         MICROBENCHMARKS_GEN.write_text(
