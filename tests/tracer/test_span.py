@@ -50,6 +50,22 @@ class SpanTestCase(TracerTestCase):
         trace_id64_binary = format(s._trace_id_64bits, "b")
         assert int(trace_id64_binary, 2) == int(trace_id_binary[-64:], 2)
 
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+    def test_128bit_trace_id_config_deprecation_warning(self):
+        """Test that setting DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED emits a deprecation warning."""
+        import warnings
+
+        from ddtrace.internal.settings._config import Config
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
+        warnings.simplefilter("always")
+        with warnings.catch_warnings(record=True) as warns:
+            Config()
+
+        deprecation_warns = [w for w in warns if issubclass(w.category, DDTraceDeprecationWarning)]
+        assert len(deprecation_warns) >= 1
+        assert "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated" in str(deprecation_warns[0].message)
+
     def test_tags(self):
         s = Span(name="test.span")
         s.set_tag("a", "a")
