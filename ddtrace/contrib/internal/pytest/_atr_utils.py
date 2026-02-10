@@ -1,3 +1,5 @@
+import typing as t
+
 import _pytest
 import pytest
 
@@ -36,13 +38,13 @@ class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
     ATR_FINAL_FAILED = "dd_quarantine_atr_final_failed"
 
 
-_FINAL_OUTCOMES: dict[TestStatus, str] = {
+_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
     TestStatus.PASS: _ATR_RETRY_OUTCOMES.PASSED,
     TestStatus.FAIL: _ATR_RETRY_OUTCOMES.FAILED,
 }
 
 
-_QUARANTINE_FINAL_OUTCOMES: dict[TestStatus, str] = {
+_QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
     TestStatus.PASS: _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
     TestStatus.FAIL: _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
 }
@@ -51,7 +53,7 @@ _QUARANTINE_FINAL_OUTCOMES: dict[TestStatus, str] = {
 def atr_handle_retries(
     test_id: TestId,
     item: pytest.Item,
-    test_reports: dict[str, pytest_TestReport],
+    test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
@@ -104,7 +106,7 @@ def atr_handle_retries(
     item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
-def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> list[pytest_TestReport]:
+def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:
     return terminalreporter.getreports(_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED)
 
 
@@ -133,8 +135,8 @@ def _atr_write_report_for_status(
     status_key: str,
     status_text: str,
     report_outcome: str,
-    raw_strings: list[str],
-    markedup_strings: list[str],
+    raw_strings: t.List[str],
+    markedup_strings: t.List[str],
     color: str,
     delete_reports: bool = True,
     retry_reason: str = RetryReason.AUTO_TEST_RETRY,
@@ -159,8 +161,8 @@ def _atr_prepare_attempts_strings(
     terminalreporter: _pytest.terminal.TerminalReporter,
     reports_key: str,
     reports_text: str,
-    raw_strings: list[str],
-    markedup_strings: list[str],
+    raw_strings: t.List[str],
+    markedup_strings: t.List[str],
     color: str,
     bold: bool = False,
 ):

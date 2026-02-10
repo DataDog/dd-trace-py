@@ -134,7 +134,7 @@ def _test_gunicorn(
         # when run on GitLab CI. We need to match either of these two.
         filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
 
-        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=9)
+        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=12)
 
         pprof_utils.assert_profile_has_sample(
             profile,

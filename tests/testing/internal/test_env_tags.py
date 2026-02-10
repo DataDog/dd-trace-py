@@ -18,7 +18,7 @@ from ddtrace.testing.internal.utils import _filter_sensitive_info
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "tracer" / "fixtures" / "ci"
 
 
-def _ci_fixtures() -> t.Iterable[tuple[str, int, dict[str, str], dict[str, str]]]:
+def _ci_fixtures() -> t.Iterable[t.Tuple[str, int, t.Dict[str, str], t.Dict[str, str]]]:
     for filepath in FIXTURES_DIR.glob("*.json"):
         with open(filepath) as fp:
             for i, [env_vars, expected_tags] in enumerate(json.load(fp)):
@@ -27,7 +27,7 @@ def _ci_fixtures() -> t.Iterable[tuple[str, int, dict[str, str], dict[str, str]]
 
 @pytest.mark.parametrize("name,i,environment,tags", _ci_fixtures())
 def test_ci_providers(
-    monkeypatch: pytest.MonkeyPatch, name: str, i: int, environment: dict[str, str], tags: dict[str, str]
+    monkeypatch: pytest.MonkeyPatch, name: str, i: int, environment: t.Dict[str, str], tags: t.Dict[str, str]
 ) -> None:
     """Make sure all provided environment variables from each CI provider are tagged correctly."""
     monkeypatch.setattr(os, "environ", environment)
@@ -216,7 +216,7 @@ def test_extract_git_user_provided_metadata_overwrites_ci(monkeypatch: pytest.Mo
     assert tags["git.commit.committer.date"] == "committer date"
 
 
-def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shallow_repo: tuple[str, str]) -> None:
+def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shallow_repo: t.Tuple[str, str]) -> None:
     git_repo, head_sha = git_shallow_repo
     github_sha = "abcd1234"
 

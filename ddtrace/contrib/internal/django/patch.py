@@ -10,6 +10,7 @@ specific Django apps like Django Rest Framework (DRF).
 from inspect import getmro
 from inspect import unwrap
 import os
+from typing import Dict
 from typing import cast
 
 import wrapt
@@ -87,13 +88,14 @@ config._add(
 config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     import django
 
     return django.__version__
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"django": ">=2.2.8"}
 
 

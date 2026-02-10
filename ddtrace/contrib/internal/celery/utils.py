@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Dict
 from weakref import WeakValueDictionary
 
 from ddtrace.contrib.internal.trace_utils import set_flattened_tags
@@ -38,7 +39,8 @@ TAG_KEYS = frozenset(
 )
 
 
-def should_skip_context_value(key: str, value: Any) -> bool:
+def should_skip_context_value(key, value):
+    # type: (str, Any) -> bool
     # Skip this key if it is not set
     if value is None or value == "":
         return True
@@ -55,7 +57,7 @@ def should_skip_context_value(key: str, value: Any) -> bool:
     return False
 
 
-def set_tags_from_context(span: Span, context: dict[str, Any]) -> None:
+def set_tags_from_context(span: Span, context: Dict[str, Any]) -> None:
     """Helper to extract meta values from a Celery Context"""
 
     context_tags = []

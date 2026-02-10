@@ -59,8 +59,8 @@ class CoverageCollectingMultiprocess(BaseProcess):
                         log.debug("Could not unpickle coverage data, not injecting coverage")
                         raise
 
-                    lines: dict[str, CoverageLines] = data.get("lines", {})
-                    covered: dict[str, CoverageLines] = data.get("covered", {})
+                    lines: t.Dict[str, CoverageLines] = data.get("lines", {})
+                    covered: t.Dict[str, CoverageLines] = data.get("covered", {})
 
                     ModuleCodeCollector.inject_coverage(lines, covered)
                 else:
@@ -105,7 +105,7 @@ class CoverageCollectingMultiprocess(BaseProcess):
 
     def __init__(self, *posargs, **kwargs) -> None:
         self._dd_coverage_enabled = False
-        self._dd_coverage_include_paths: list[Path] = []
+        self._dd_coverage_include_paths: t.List[Path] = []
 
         # If coverage is not enabled, the pipe used to communicate coverage data from child to parent is not needed
         self._parent_conn: t.Optional[Connection] = None
@@ -154,19 +154,19 @@ class Stowaway:
     ModuleCodeCollector in it leads to incomplete code coverage data.
     """
 
-    def __init__(self, include_paths: t.Optional[list[Path]] = None, dd_coverage_enabled: bool = True) -> None:
+    def __init__(self, include_paths: t.Optional[t.List[Path]] = None, dd_coverage_enabled: bool = True) -> None:
         self.dd_coverage_enabled: bool = dd_coverage_enabled
-        self.include_paths_strs: list[str] = []
+        self.include_paths_strs: t.List[str] = []
         if include_paths is not None:
             self.include_paths_strs = [str(include_path) for include_path in include_paths]
 
-    def __getstate__(self) -> dict[str, t.Any]:
+    def __getstate__(self) -> t.Dict[str, t.Any]:
         return {
             "include_paths_strs": json.dumps(self.include_paths_strs),
             "dd_coverage_enabled": self.dd_coverage_enabled,
         }
 
-    def __setstate__(self, state: dict[str, str]) -> None:
+    def __setstate__(self, state: t.Dict[str, str]) -> None:
         include_paths = [Path(include_path_str) for include_path_str in json.loads(state["include_paths_strs"])]
 
         if state["dd_coverage_enabled"]:
@@ -196,7 +196,7 @@ def _patch_multiprocessing():
         pass
     else:
 
-        def get_preparation_data_with_stowaway(name: str) -> dict[str, t.Any]:
+        def get_preparation_data_with_stowaway(name: str) -> t.Dict[str, t.Any]:
             """Make sure that the ModuleCodeCollector is installed as soon as possible, with the same include paths"""
             d = original_get_preparation_data(name)
             include_paths = (
