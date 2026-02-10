@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import aiohttp
 import wrapt
@@ -51,11 +52,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return aiohttp.__version__
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"aiohttp": ">=3.7"}
 
 
@@ -81,8 +83,8 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
 
 @with_traced_module
 async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwargs):
-    method: str = get_argument_value(args, kwargs, 0, "method")
-    url: URL = URL(get_argument_value(args, kwargs, 1, "url"))
+    method = get_argument_value(args, kwargs, 0, "method")  # type: str
+    url = URL(get_argument_value(args, kwargs, 1, "url"))  # type: URL
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
 
@@ -116,7 +118,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
             query=query,
             request_headers=headers,
         )
-        resp: aiohttp.ClientResponse = await func(*args, **kwargs)
+        resp = await func(*args, **kwargs)  # type: aiohttp.ClientResponse
         set_http_meta(
             span, config.aiohttp_client, response_headers=resp.headers, status_code=resp.status, status_msg=resp.reason
         )

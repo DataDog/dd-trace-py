@@ -6,6 +6,8 @@ import json
 import logging
 import typing
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -71,13 +73,13 @@ class DDWaf_result:
     def __init__(
         self,
         return_code: int,
-        data: list[dict[str, Any]],
-        actions: dict[str, Any],
+        data: List[Dict[str, Any]],
+        actions: Dict[str, Any],
         runtime: float,
         total_runtime: float,
         timeout: bool,
         truncation: _observator,
-        derivatives: dict[str, Any],
+        derivatives: Dict[str, Any],
         keep: bool = False,
     ) -> None:
         self.return_code = return_code
@@ -87,9 +89,9 @@ class DDWaf_result:
         self.total_runtime = total_runtime
         self.timeout = timeout
         self.truncation = truncation
-        self.metrics: dict[str, Union[int, float]] = {}
-        self.meta_tags: dict[str, str] = {}
-        self.api_security: dict[str, str] = {}
+        self.metrics: Dict[str, Union[int, float]] = {}
+        self.meta_tags: Dict[str, str] = {}
+        self.api_security: Dict[str, str] = {}
         for k, v in derivatives.items():
             if k.startswith("_dd.appsec.s."):
                 self.api_security[k] = v
@@ -136,9 +138,9 @@ class Truncation_result:
     __slots__ = ["string_length", "container_size", "container_depth"]
 
     def __init__(self) -> None:
-        self.string_length: list[int] = []
-        self.container_size: list[int] = []
-        self.container_depth: list[int] = []
+        self.string_length: List[int] = []
+        self.container_size: List[int] = []
+        self.container_depth: List[int] = []
 
 
 class Rasp_result:
@@ -149,10 +151,10 @@ class Rasp_result:
         self.sum_eval = 0
         self.duration = 0.0
         self.total_duration = 0.0
-        self.eval: dict[str, int] = collections.defaultdict(int)
-        self.match: dict[str, int] = collections.defaultdict(int)
-        self.timeout: dict[str, int] = collections.defaultdict(int)
-        self.durations: dict[str, float] = collections.defaultdict(float)
+        self.eval: Dict[str, int] = collections.defaultdict(int)
+        self.match: Dict[str, int] = collections.defaultdict(int)
+        self.timeout: Dict[str, int] = collections.defaultdict(int)
+        self.durations: Dict[str, float] = collections.defaultdict(float)
 
 
 class Block_config:

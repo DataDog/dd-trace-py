@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from collections import abc
 from typing import Any
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -28,7 +29,7 @@ class _DeepTaintCommand:
         source_key: str,
         obj: Any,
         store_struct: Union[list, dict],
-        key: Optional[list[str]] = None,
+        key: Optional[List[str]] = None,
         struct: Optional[Union[list, dict]] = None,
         is_key: bool = False,
     ):

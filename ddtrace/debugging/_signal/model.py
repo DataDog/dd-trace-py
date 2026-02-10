@@ -10,6 +10,8 @@ import time
 from types import FrameType
 from typing import Any
 from typing import ClassVar
+from typing import Dict
+from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import Union
@@ -83,7 +85,7 @@ class Signal(abc.ABC):
     thread: Thread
     trace_context: Optional[Union[Span, Context]] = None
     state: str = SignalState.NONE
-    errors: list[EvaluationError] = field(default_factory=list)
+    errors: List[EvaluationError] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
 
@@ -203,7 +205,7 @@ class Signal(abc.ABC):
             return
 
         frame = self.frame
-        extra: dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
+        extra: Dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
 
         exc = exc_info[1]
         if exc is not None:

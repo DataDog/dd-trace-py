@@ -2,9 +2,13 @@ from abc import ABC
 from abc import abstractmethod
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import Generic
+from typing import List
 from typing import Optional
 from typing import Sequence
+from typing import Tuple
+from typing import Type
 from typing import TypeVar
 from typing import Union
 
@@ -21,11 +25,11 @@ LOGGER = get_logger(__name__)
 T = TypeVar("T")
 
 
-DDWafRulesType = Union[None, int, str, list[Any], dict[str, Any]]
+DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
 
 
 class ddwaf_handle_capsule(Generic[T]):
-    def __init__(self, handle: type[T], free_fn: Callable[[type[T]], None]) -> None:
+    def __init__(self, handle: Type[T], free_fn: Callable[[Type[T]], None]) -> None:
         self.handle = handle
         self.free_fn = free_fn
 
@@ -42,7 +46,7 @@ class ddwaf_handle_capsule(Generic[T]):
 
 
 class ddwaf_context_capsule(Generic[T]):
-    def __init__(self, ctx: type[T], free_fn: Callable[[type[T]], None]) -> None:
+    def __init__(self, ctx: Type[T], free_fn: Callable[[Type[T]], None]) -> None:
         self.ctx = ctx
         self.free_fn = free_fn
         self.rc_products: str = ""
@@ -60,7 +64,7 @@ class ddwaf_context_capsule(Generic[T]):
 
 
 class ddwaf_builder_capsule(Generic[T]):
-    def __init__(self, builder: type[T], free_fn: Callable[[type[T]], None]) -> None:
+    def __init__(self, builder: Type[T], free_fn: Callable[[Type[T]], None]) -> None:
         self.builder = builder
         self.free_fn = free_fn
 
@@ -79,7 +83,7 @@ class ddwaf_builder_capsule(Generic[T]):
 class WAF(ABC):
     @property
     @abstractmethod
-    def required_data(self) -> list[str]:
+    def required_data(self) -> List[str]:
         pass
 
     @property
@@ -89,7 +93,7 @@ class WAF(ABC):
 
     @abstractmethod
     def update_rules(
-        self, removals: Sequence[tuple[str, str]], updates: Sequence[tuple[str, str, PayloadType]]
+        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
     ) -> bool:
         pass
 

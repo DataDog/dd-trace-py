@@ -4,6 +4,7 @@ from typing import Any
 from typing import Callable
 from typing import Coroutine
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace import config
@@ -36,8 +37,8 @@ def create_context(
 def wrap_function_with_tracing(
     func: Callable[..., Any],
     context_factory: Callable[[Any], core.ExecutionContext],
-    pre_dispatch: Optional[Callable[[core.ExecutionContext, Any], tuple[str, tuple[Any, ...]]]] = None,
-    post_dispatch: Optional[Callable[[core.ExecutionContext, Any], tuple[str, tuple[Any, ...]]]] = None,
+    pre_dispatch: Optional[Callable[[core.ExecutionContext, Any], Tuple[str, Tuple[Any, ...]]]] = None,
+    post_dispatch: Optional[Callable[[core.ExecutionContext, Any], Tuple[str, Tuple[Any, ...]]]] = None,
 ) -> Union[Callable[..., Any], Callable[..., Coroutine[Any, Any, Any]]]:
     if inspect.iscoroutinefunction(func):
 

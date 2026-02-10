@@ -134,14 +134,16 @@ def _(asyncio: ModuleType) -> None:
 
         @partial(wrap, sys.modules["asyncio"].tasks._wait)
         def _(
-            f: typing.Callable[..., tuple[set["aio.Future[typing.Any]"], set["aio.Future[typing.Any]"]]],
+            f: typing.Callable[
+                ..., typing.Tuple[typing.Set["aio.Future[typing.Any]"], typing.Set["aio.Future[typing.Any]"]]
+            ],
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
             try:
                 return f(*args, **kwargs)
             finally:
-                futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+                futures = typing.cast(typing.Set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
                 loop = typing.cast("aio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
 
                 # Link the parent gathering task to the gathered children
@@ -160,7 +162,7 @@ def _(asyncio: ModuleType) -> None:
 
             if parent is not None:
                 fs = typing.cast(typing.Iterable["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
-                futures: set["aio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                futures: typing.Set["aio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
                 for future in futures:
                     stack.link_tasks(parent, future)
 

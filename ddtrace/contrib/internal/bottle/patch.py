@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import bottle
 import wrapt
@@ -18,11 +19,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(bottle, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"bottle": ">=0.12"}
 
 

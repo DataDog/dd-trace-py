@@ -4,8 +4,8 @@ import typing as t
 class AppsecSpanProcessorProto(t.Protocol):
     def _update_rules(
         self,
-        removals: t.Sequence[tuple[str, str]],
-        updates: t.Sequence[tuple[str, str, t.Optional[dict[str, t.Any]]]],
+        removals: t.Sequence[t.Tuple[str, str]],
+        updates: t.Sequence[t.Tuple[str, str, t.Optional[t.Dict[str, t.Any]]]],
     ) -> bool: ...
 
     def on_span_start(self, span: t.Any) -> None: ...

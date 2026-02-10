@@ -2,6 +2,7 @@ import os
 import sys
 from time import time
 from time import time_ns
+from typing import Dict
 
 import confluent_kafka
 
@@ -51,11 +52,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(confluent_kafka, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"confluent_kafka": ">=1.9.2"}
 
 

@@ -1,5 +1,7 @@
 import os
+from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 from ._native import AgentError  # noqa: F401
 from ._native import BuilderError  # noqa: F401
@@ -21,7 +23,7 @@ from ._native import seed  # noqa: F401
 from ._native import store_metadata  # noqa: F401
 
 
-def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:
+def get_configuration_from_disk() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, Optional[str]]]:
     """
     Retrieves the tracer configuration from disk. Calls the PyConfigurator object
     to read the configuration from the disk using the libdatadog shared library

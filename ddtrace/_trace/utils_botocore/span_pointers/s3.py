@@ -1,6 +1,8 @@
 from enum import Enum
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import NamedTuple
 from typing import Optional
 
@@ -22,9 +24,9 @@ class _TelemetryIssueTags(Enum):
 
 def _extract_span_pointers_for_s3_response(
     operation_name: str,
-    request_parameters: dict[str, Any],
-    response: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    request_parameters: Dict[str, Any],
+    response: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     if operation_name in ("PutObject", "CompleteMultipartUpload"):
         return _extract_span_pointers_for_s3_response_with_helper(
             operation_name,
@@ -51,7 +53,7 @@ class _AWSS3ObjectHashingProperties(NamedTuple):
 
     @staticmethod
     def for_put_object_or_complete_multipart_upload(
-        request_parameters: dict[str, Any], response: dict[str, Any]
+        request_parameters: Dict[str, Any], response: Dict[str, Any]
     ) -> "_AWSS3ObjectHashingProperties":
         # Endpoint References:
         # https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
@@ -64,7 +66,7 @@ class _AWSS3ObjectHashingProperties(NamedTuple):
 
     @staticmethod
     def for_copy_object(
-        request_parameters: dict[str, Any], response: dict[str, Any]
+        request_parameters: Dict[str, Any], response: Dict[str, Any]
     ) -> "_AWSS3ObjectHashingProperties":
         # Endpoint References:
         # https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html
@@ -77,10 +79,10 @@ class _AWSS3ObjectHashingProperties(NamedTuple):
 
 def _extract_span_pointers_for_s3_response_with_helper(
     operation_name: str,
-    extractor: Callable[[dict[str, Any], dict[str, Any]], _AWSS3ObjectHashingProperties],
-    request_parameters: dict[str, Any],
-    response: dict[str, Any],
-) -> list[_SpanPointerDescription]:
+    extractor: Callable[[Dict[str, Any], Dict[str, Any]], _AWSS3ObjectHashingProperties],
+    request_parameters: Dict[str, Any],
+    response: Dict[str, Any],
+) -> List[_SpanPointerDescription]:
     operation = f"S3.{operation_name}"
 
     try:

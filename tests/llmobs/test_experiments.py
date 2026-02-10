@@ -15,6 +15,7 @@ import re
 import tempfile
 import time
 from typing import Generator
+from typing import List
 from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
@@ -88,7 +89,7 @@ def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _Ex
 
 
 @pytest.fixture
-def test_dataset_records() -> list[DatasetRecord]:
+def test_dataset_records() -> List[DatasetRecord]:
     return []
 
 

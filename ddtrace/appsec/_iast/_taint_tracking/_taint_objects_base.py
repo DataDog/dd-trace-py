@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
@@ -63,7 +64,7 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
         return pyobject
 
 
-def get_tainted_ranges(pyobject: Any) -> tuple:
+def get_tainted_ranges(pyobject: Any) -> Tuple:
     if not is_iast_request_enabled():
         return tuple()
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):

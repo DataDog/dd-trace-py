@@ -1,5 +1,6 @@
 import asyncio
 from typing import Any
+from typing import Dict
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
@@ -10,11 +11,12 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"asyncio": "*"}
 
 
@@ -47,7 +49,7 @@ def _wrapped_create_task(wrapped, args, kwargs):
         return wrapped(*args, **kwargs)
 
     # Get current trace context
-    task_data: dict[str, Any] = {}
+    task_data: Dict[str, Any] = {}
     core.dispatch("asyncio.create_task", (task_data,))
 
     dd_active = tracer.current_trace_context()

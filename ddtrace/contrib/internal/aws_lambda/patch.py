@@ -1,5 +1,6 @@
 from importlib import import_module
 import signal
+from typing import Dict
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -14,11 +15,12 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"datadog_lambda": "*"}
 
 

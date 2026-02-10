@@ -8,9 +8,13 @@ import sys
 import time
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Literal
 from typing import Optional
 from typing import Sequence
+from typing import Set
+from typing import Tuple
 from typing import Union
 from typing import cast
 
@@ -212,9 +216,9 @@ class LLMObsSpan:
             return span
     """
 
-    input: list[Message] = field(default_factory=list)
-    output: list[Message] = field(default_factory=list)
-    _tags: dict[str, str] = field(default_factory=dict)
+    input: List[Message] = field(default_factory=list)
+    output: List[Message] = field(default_factory=list)
+    _tags: Dict[str, str] = field(default_factory=dict)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
@@ -267,7 +271,7 @@ class LLMObs(Service):
         forksafe.register(self._child_after_fork)
 
         self._link_tracker = LinkTracker()
-        self._annotations: list[tuple[str, str, dict[str, Any]]] = []
+        self._annotations: List[Tuple[str, str, Dict[str, Any]]] = []
         self._annotation_context_lock = forksafe.RLock()
 
     def _on_span_start(self, span: Span) -> None:
@@ -354,7 +358,7 @@ class LLMObs(Service):
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
             input_type = "messages"
-            llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
+            llmobs_span.input = cast(List[Message], enforce_message_role(input_messages))
 
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
             output_type = "value"
@@ -368,7 +372,7 @@ class LLMObs(Service):
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "llm" and output_messages is not None:
             output_type = "messages"
-            llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
+            llmobs_span.output = cast(List[Message], enforce_message_role(output_messages))
 
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS) or []
@@ -406,7 +410,7 @@ class LLMObs(Service):
         if self._user_span_processor:
             error = False
             try:
-                llmobs_span._tags = cast(dict[str, str], span._get_ctx_item(TAGS))
+                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS))
                 user_llmobs_span = self._user_span_processor(llmobs_span)
                 if user_llmobs_span is None:
                     return None
@@ -483,7 +487,7 @@ class LLMObs(Service):
         return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> list[str]:
+    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
         dd_tags = config.tags
         tags = {
             **dd_tags,
@@ -623,7 +627,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
         agentless_enabled: Optional[bool] = None,
-        instrumented_proxy_urls: Optional[set[str]] = None,
+        instrumented_proxy_urls: Optional[Set[str]] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         app_key: Optional[str] = None,
@@ -638,8 +642,8 @@ class LLMObs(Service):
         Enable LLM Observability tracing.
 
         :param str ml_app: The name of your ml application.
-        :param bool integrations_enabled: set to `true` to enable LLM integrations.
-        :param bool agentless_enabled: set to `true` to disable sending data that requires a Datadog Agent.
+        :param bool integrations_enabled: Set to `true` to enable LLM integrations.
+        :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
@@ -792,11 +796,11 @@ class LLMObs(Service):
                     "enable LLMObs before importing other modules."
                 )
 
-    def _on_asyncio_create_task(self, task_data: dict[str, Any]) -> None:
+    def _on_asyncio_create_task(self, task_data: Dict[str, Any]) -> None:
         """Propagates llmobs active trace context across asyncio tasks."""
         task_data["llmobs_ctx"] = self._current_trace_context()
 
-    def _on_asyncio_execute_task(self, task_data: dict[str, Any]) -> None:
+    def _on_asyncio_execute_task(self, task_data: Dict[str, Any]) -> None:
         """Activates llmobs active trace context across asyncio task execution."""
         llmobs_ctx = task_data.get("llmobs_ctx")
         if llmobs_ctx is not None:
@@ -820,7 +824,7 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         description: str = "",
-        records: Optional[list[DatasetRecord]] = None,
+        records: Optional[List[DatasetRecord]] = None,
     ) -> Dataset:
         if records is None:
             records = []
@@ -836,9 +840,9 @@ class LLMObs(Service):
         cls,
         csv_path: str,
         dataset_name: str,
-        input_data_columns: list[str],
-        expected_output_columns: Optional[list[str]] = None,
-        metadata_columns: Optional[list[str]] = None,
+        input_data_columns: List[str],
+        expected_output_columns: Optional[List[str]] = None,
+        metadata_columns: Optional[List[str]] = None,
         csv_delimiter: str = ",",
         description: str = "",
         project_name: Optional[str] = None,
@@ -911,33 +915,33 @@ class LLMObs(Service):
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: list[
+        evaluators: List[
             Union[
                 Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
                 BaseEvaluator,
             ]
         ],
-        summary_evaluators: list[
+        summary_evaluators: List[
             Union[
                 Callable[
                     [
-                        list[DatasetRecordInputType],
-                        list[JSONType],
-                        list[JSONType],
-                        dict[str, list[JSONType]],
+                        List[DatasetRecordInputType],
+                        List[JSONType],
+                        List[JSONType],
+                        Dict[str, List[JSONType]],
                     ],
                     JSONType,
                 ],
                 BaseSummaryEvaluator,
             ]
         ],
-        labelization_function: Optional[Callable[[dict[str, Any]], str]],
-        compute_score: Callable[[dict[str, dict[str, Any]]], float],
+        labelization_function: Optional[Callable[[Dict[str, Any]], str]],
+        compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
         config: ConfigType,
         project_name: Optional[str] = None,
-        tags: Optional[dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
         max_iterations: int = 5,
-        stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
+        stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -960,10 +964,10 @@ class LLMObs(Service):
                           class-based evaluators (inheriting from BaseEvaluator) or function-based
                           evaluators that accept (input_data, output_data, expected_output) parameters.
                           Should return a JSON-serializable value or an EvaluatorResult with the evaluation results.
-        :param summary_evaluators: list of summary evaluators (REQUIRED). Can be either
+        :param summary_evaluators: List of summary evaluators (REQUIRED). Can be either
                                    class-based evaluators (inheriting from BaseSummaryEvaluator) or function-based
-                                   evaluators that accept (inputs: list, outputs: list, expected_outputs: list,
-                                   evaluations: dict) and return aggregated metrics.
+                                   evaluators that accept (inputs: List, outputs: List, expected_outputs: List,
+                                   evaluations: Dict) and return aggregated metrics.
         :param labelization_function: Function to generate labels from individual experiment results (REQUIRED).
                                      Takes an individual result dict (containing "evaluations" key) and returns
                                      a string label. Used to categorize examples shown to the optimization LLM.
@@ -1109,17 +1113,17 @@ class LLMObs(Service):
         ],
         description: str = "",
         project_name: Optional[str] = None,
-        tags: Optional[dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[
-            list[
+            List[
                 Union[
                     Callable[
                         [
-                            list[DatasetRecordInputType],
-                            list[JSONType],
-                            list[JSONType],
-                            dict[str, list[JSONType]],
+                            List[DatasetRecordInputType],
+                            List[JSONType],
+                            List[JSONType],
+                            Dict[str, List[JSONType]],
                         ],
                         JSONType,
                     ],
@@ -1266,10 +1270,10 @@ class LLMObs(Service):
     @classmethod
     def annotation_context(
         cls,
-        tags: Optional[dict[str, Any]] = None,
+        tags: Optional[Dict[str, Any]] = None,
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
-        _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
+        _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
         Sets specified attributes on all LLMObs spans created while the returned AnnotationContext is active.
@@ -1292,7 +1296,7 @@ class LLMObs(Service):
                                                         truth context information
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
-        :param name: set to override the span name for any spans annotated within the returned context.
+        :param name: Set to override the span name for any spans annotated within the returned context.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -1380,7 +1384,7 @@ class LLMObs(Service):
         """
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
-        integrations_to_patch: dict[str, Union[list[str], bool]] = {
+        integrations_to_patch: Dict[str, Union[List[str], bool]] = {
             integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
             for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
         }
@@ -1757,7 +1761,7 @@ class LLMObs(Service):
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
         span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
 
-        # set experiment_id in baggage if provided
+        # Set experiment_id in baggage if provided
         if experiment_id:
             span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
 
@@ -1788,12 +1792,12 @@ class LLMObs(Service):
         prompt: Optional[dict] = None,
         input_data: Optional[Any] = None,
         output_data: Optional[Any] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        metrics: Optional[dict[str, Any]] = None,
-        tags: Optional[dict[str, Any]] = None,
-        tool_definitions: Optional[list[dict[str, Any]]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        tags: Optional[Dict[str, Any]] = None,
+        tool_definitions: Optional[List[Dict[str, Any]]] = None,
         _name: Optional[str] = None,
-        _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
+        _linked_spans: Optional[List[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
     ) -> None:
         """
@@ -1841,7 +1845,7 @@ class LLMObs(Service):
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
-        :param tool_definitions: list of tool definition dictionaries for tool calling scenarios.
+        :param tool_definitions: List of tool definition dictionaries for tool calling scenarios.
                             - This argument is only applicable to LLM spans.
                             - Each tool definition is a dictionary containing a required "name" (string),
                                    and optional "description" (string) and "schema" (JSON serializable dictionary) keys.
@@ -1940,7 +1944,7 @@ class LLMObs(Service):
             telemetry.record_llmobs_annotate(span, error)
 
     @classmethod
-    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> Tuple[Optional[str], Optional[str]]:
         """Tags input/output messages for LLM-kind spans.
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
@@ -1965,7 +1969,7 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> Tuple[Optional[str], Optional[str]]:
         """Tags input documents and output text for embedding-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -1983,7 +1987,7 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> tuple[Optional[str], Optional[str]]:
+    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> Tuple[Optional[str], Optional[str]]:
         """Tags input text and output documents for retrieval-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -2024,7 +2028,7 @@ class LLMObs(Service):
             span._set_ctx_item(EXPERIMENTS_OUTPUT, output_value)
 
     @staticmethod
-    def _set_dict_attribute(span: Span, key, value: dict[str, Any]) -> None:
+    def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
         """Sets a given LLM Obs span attribute with a dictionary key/values.
         If the attribute is already set on the span, the new dict with be merged with the existing
         dict.
@@ -2040,11 +2044,11 @@ class LLMObs(Service):
         metric_type: str,
         value: Union[str, int, float, bool],
         span: Optional[dict] = None,
-        span_with_tag_value: Optional[dict[str, str]] = None,
-        tags: Optional[dict[str, str]] = None,
+        span_with_tag_value: Optional[Dict[str, str]] = None,
+        tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
-        metadata: Optional[dict[str, object]] = None,
+        metadata: Optional[Dict[str, object]] = None,
         assessment: Optional[str] = None,
         reasoning: Optional[str] = None,
     ) -> None:
@@ -2219,7 +2223,7 @@ class LLMObs(Service):
             telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
 
     @classmethod
-    def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
+    def _inject_llmobs_context(cls, span_context: Context, request_headers: Dict[str, str]) -> None:
         if cls.enabled is False:
             return
 
@@ -2246,7 +2250,7 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 
     @classmethod
-    def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
+    def inject_distributed_headers(cls, request_headers: Dict[str, str], span: Optional[Span] = None) -> Dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
         if cls.enabled is False:
             log.warning(
@@ -2276,12 +2280,12 @@ class LLMObs(Service):
             telemetry.record_inject_distributed_headers(error)
 
     @classmethod
-    def _activate_llmobs_distributed_context_soft_fail(cls, request_headers: dict[str, str], context: Context) -> None:
+    def _activate_llmobs_distributed_context_soft_fail(cls, request_headers: Dict[str, str], context: Context) -> None:
         cls._activate_llmobs_distributed_context(request_headers, context, _soft_fail=True)
 
     @classmethod
     def _activate_llmobs_distributed_context(
-        cls, request_headers: dict[str, str], context: Context, _soft_fail: bool = False
+        cls, request_headers: Dict[str, str], context: Context, _soft_fail: bool = False
     ) -> None:
         error = None
         try:
@@ -2322,7 +2326,7 @@ class LLMObs(Service):
             telemetry.record_activate_distributed_headers(error)
 
     @classmethod
-    def activate_distributed_headers(cls, request_headers: dict[str, str]) -> None:
+    def activate_distributed_headers(cls, request_headers: Dict[str, str]) -> None:
         """
         Activates distributed tracing headers for the current request.
 

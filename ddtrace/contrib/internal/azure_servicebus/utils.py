@@ -1,5 +1,7 @@
 from typing import Any
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 from uuid import UUID
 
@@ -41,7 +43,7 @@ def handle_service_bus_message_context(
     message_arg_value: Union[
         ServiceBusMessage,
         AmqpAnnotatedMessage,
-        list[Union[ServiceBusMessage, AmqpAnnotatedMessage]],
+        List[Union[ServiceBusMessage, AmqpAnnotatedMessage]],
         ServiceBusMessageBatch,
     ],
 ):
@@ -84,10 +86,10 @@ def handle_service_bus_message_attributes(
     message_arg_value: Union[
         ServiceBusMessage,
         AmqpAnnotatedMessage,
-        list[Union[ServiceBusMessage, AmqpAnnotatedMessage]],
+        List[Union[ServiceBusMessage, AmqpAnnotatedMessage]],
         ServiceBusMessageBatch,
     ],
-) -> tuple[Union[str, None], Union[str, None]]:
+) -> Tuple[Union[str, None], Union[str, None]]:
     if isinstance(message_arg_value, azure_servicebus.ServiceBusMessage):
         batch_count = None
         message_id = message_arg_value.message_id

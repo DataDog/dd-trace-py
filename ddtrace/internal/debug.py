@@ -5,6 +5,7 @@ import platform
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
@@ -26,7 +27,8 @@ logger = get_logger(__name__)
 architecture = callonce(lambda: platform.architecture())
 
 
-def in_venv() -> bool:
+def in_venv():
+    # type: () -> bool
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
@@ -36,12 +38,13 @@ def in_venv() -> bool:
     )
 
 
-def tags_to_str(tags: dict[str, Any]) -> str:
+def tags_to_str(tags):
+    # type: (Dict[str, Any]) -> str
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def collect() -> dict[str, Any]:
+def collect() -> Dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
@@ -72,7 +75,7 @@ def collect() -> dict[str, Any]:
     is_venv = in_venv()
 
     packages_available = {name: version for (name, version) in get_distributions().items()}
-    integration_configs: dict[str, Union[dict[str, Any], str]] = {}
+    integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.

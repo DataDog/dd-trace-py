@@ -1,12 +1,14 @@
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace.trace import Span  # noqa:F401
 
 
-def truncate_arg_value(value: Any, max_len: int = 1024) -> Any:
+def truncate_arg_value(value, max_len=1024):
+    # type: (Any, int) -> Any
     """Truncate values which are bytes and greater than `max_len`.
     Useful for parameters like 'Body' in `put_object` operations.
     """
@@ -16,7 +18,8 @@ def truncate_arg_value(value: Any, max_len: int = 1024) -> Any:
     return value
 
 
-def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str, Any]) -> None:
+def _add_api_param_span_tags(span, endpoint_name, params):
+    # type: (Span, str, Dict[str, Any]) -> None
     # Note: Only some boto3 requests will supply these params
     # i.e. that might explain why you see these tags being set to empty strings
     if endpoint_name == "cloudwatch":
@@ -79,7 +82,8 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
         span._set_tag_str("statemachinearn", state_machine_arn)
 
 
-def get_aws_partition(region_name: str) -> str:
+def get_aws_partition(region_name):
+    # type: (str) -> str
     """Determine AWS partition from region name."""
     if region_name.startswith("cn-"):
         return "aws-cn"
