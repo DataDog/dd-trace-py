@@ -3,8 +3,7 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.20.1",
-#     "setuptools<82",
+#     "riot>=0.21.0",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -18,12 +17,28 @@ file in .gitlab/tests.yml, add a function named gen_<name> to this
 file. The function will be called automatically when this script is run.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import os
 import re
 import subprocess
 import typing as t
+
+
+MAX_BENCHMARKS_PER_GROUP = 8
+BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
+BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
+
+
+@dataclass
+class BenchmarkSpec:
+    name: str
+    cpus_per_run: t.Optional[int] = 1
+    pattern: t.Optional[str] = None
+    paths: t.Optional[t.Set[str]] = None  # ignored
+    skip: bool = False
+    type: str = "benchmark"  # ignored
 
 
 @dataclass
@@ -44,6 +59,7 @@ class JobSpec:
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
     gpu: bool = False
+    type: str = "test"  # ignored
 
     def __str__(self) -> str:
         lines = []
@@ -200,7 +216,7 @@ def calculate_dynamic_parallelism(suite_name: str, suite_config: dict) -> t.Opti
 
 
 def gen_required_suites() -> None:
-    """Generate the list of test suites that need to be run."""
+    """Generate the list of test and benchmark suites that need to be run."""
     from needs_testrun import extract_git_commit_selections
     from needs_testrun import for_each_testrun_needed
     import suitespec
@@ -221,6 +237,85 @@ def gen_required_suites() -> None:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
 
+    _gen_tests(suites, required_suites)
+    _gen_benchmarks(suites, required_suites)
+
+
+def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
+    suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
+    required_suites = [a for a in required_suites if a in list(suites.keys())]
+
+    MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
+
+    for suite_name, suite_config in suites.items():
+        clean_name = suite_name.split("::")[-1]
+        suite_config["_clean_name"] = clean_name
+
+    groups = defaultdict(list)
+
+    benchmark_classnames = []
+
+    for suite in required_suites:
+        suite_config = suites[suite].copy()
+        clean_name = suite_config.pop("_clean_name", suite)
+        benchmark_classnames.append(_get_benchmark_class_name(clean_name))
+
+        jobspec = BenchmarkSpec(clean_name, **suite_config)
+        if jobspec.skip:
+            LOGGER.debug("Skipping suite %s", suite)
+            continue
+
+        groups[jobspec.cpus_per_run].append(jobspec)
+
+    with MICROBENCHMARKS_GEN.open("a") as f:
+        for cpus_per_run, jobspecs in groups.items():
+            print(f'      - CPUS_PER_RUN: "{cpus_per_run}"\n        SCENARIOS:', file=f)
+            jobspecs = sorted(jobspecs, key=lambda s: s.name)
+            # DEV: The organization into these groups is mostly arbitrary, based on observed runtimes and
+            #      trying to keep total runtime per job <10 minutes
+            for subgroup in [
+                jobspecs[i : i + MAX_BENCHMARKS_PER_GROUP] for i in range(0, len(jobspecs), MAX_BENCHMARKS_PER_GROUP)
+            ]:
+                names = [i.name for i in subgroup]
+                group_spec = f'        - "{" ".join(names)}"'
+                print(group_spec, file=f)
+
+    _filter_benchmarks_slos_file(benchmark_classnames)
+
+
+def _get_benchmark_class_name(suite_name: str) -> str:
+    contents = Path(f"benchmarks/{suite_name}/scenario.py").read_text()
+    for line in contents.split("\n"):
+        match = re.match(BENCHMARK_CLASS_REGEX, line)
+        if match:
+            return match.group(1).lower()
+
+
+def _filter_benchmarks_slos_file(classnames: t.List) -> None:
+    in_scenario_to_keep = True
+    new_contents = []
+    contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
+
+    for line in contents.split("\n")[1:]:
+        match = re.match(BENCHMARK_SCENARIO_REGEX, line)
+        if match:
+            class_on_line = match.group(1)
+            if class_on_line in classnames:
+                in_scenario_to_keep = True
+            else:
+                in_scenario_to_keep = False
+        if line.strip().startswith("#"):
+            in_scenario_to_keep = False
+        if in_scenario_to_keep:
+            new_contents.append(line)
+
+    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
+
+
+def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
+    suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
+    required_suites = [a for a in required_suites if a in list(suites.keys())]
+
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
 
@@ -228,11 +323,12 @@ def gen_required_suites() -> None:
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
         # Extract stage from suite name prefix if present
-        if "::" in suite_name:
-            stage, _, clean_name = suite_name.partition("::")
+        suite_parts = suite_name.split("::")[-2:]
+        if len(suite_parts) == 2:
+            stage, clean_name = suite_parts
         else:
             stage = "core"
-            clean_name = suite_name
+            clean_name = suite_parts[-1]
 
         stages.add(stage)
         # Store the stage in the suite config for later use
@@ -483,6 +579,9 @@ ROOT = Path(__file__).parents[1]
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
+MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
+MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
+MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
