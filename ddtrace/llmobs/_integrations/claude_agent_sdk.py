@@ -43,6 +43,30 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
+        if operation == "tool":
+            self._llmobs_set_tool_tags(span, kwargs)
+        else:
+            self._llmobs_set_agent_tags(span, args, kwargs, response)
+
+    def _llmobs_set_tool_tags(self, span: Span, kwargs: Dict[str, Any]) -> None:
+        tool_input = kwargs.get("tool_input", {})
+        tool_output = kwargs.get("tool_output", "")
+
+        span._set_ctx_items(
+            {
+                SPAN_KIND: "tool",
+                INPUT_VALUE: tool_input,
+                OUTPUT_VALUE: tool_output,
+            }
+        )
+
+    def _llmobs_set_agent_tags(
+        self,
+        span: Span,
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        response: Optional[Any] = None,
+    ) -> None:
         prompt = get_argument_value(args, kwargs, 0, "prompt", optional=True) or ""
         model = span.get_tag("claude_agent_sdk.request.model") or ""
 
@@ -149,11 +173,6 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         return result
 
     def _format_context(self, parameters: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
-        """Format context from kwargs.
-
-        Extracts category usage percentages and token counts from before and after context messages
-        and stores them in the parameters.
-        """
         after_context = kwargs.get("_dd_context")
         before_context = kwargs.get("_dd_before_context")
 
@@ -263,3 +282,4 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if cache_read:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read
         return metrics
+

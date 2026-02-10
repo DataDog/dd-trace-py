@@ -41,7 +41,7 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
 
     try:
         resp = func(*args, **kwargs)
-        return handle_streamed_response(integration, resp, args, kwargs, span, operation="query")
+        return handle_streamed_response(integration, resp, args, kwargs, span, operation="query", pin=pin)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="query")
@@ -103,7 +103,7 @@ def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs)
     try:
         resp = func(*args, **kwargs)
         return handle_streamed_response(
-            integration, resp, query_args, query_kwargs, span, operation="request", instance=instance
+            integration, resp, query_args, query_kwargs, span, operation="request", pin=pin, instance=instance
         )
     except Exception:
         span.set_exc_info(*sys.exc_info())
