@@ -152,7 +152,6 @@ microbenchmarks:
     include:
       - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
         job: tests-gen
-    artifacts: true
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
