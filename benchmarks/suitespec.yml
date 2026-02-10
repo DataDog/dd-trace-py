@@ -100,6 +100,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   tracer:
     paths:
       - '@bootstrap'
@@ -107,6 +108,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   core_api:
     paths:
       - '@bootstrap'
@@ -114,6 +116,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   set_http_meta:
     paths:
       - '@bootstrap'
@@ -121,6 +124,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   telemetry_add_metric:
     paths:
       - '@bootstrap'
@@ -128,6 +132,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   otel_span:
     paths:
       - '@bootstrap'
@@ -136,6 +141,7 @@ suites:
       - '@vendor'
       - '@opentelemetry'
     cpus_per_run: 1
+    type: 'microbenchmark'
   otel_sdk_span:
     paths:
       - '@bootstrap'
@@ -144,6 +150,7 @@ suites:
       - '@vendor'
       - '@opentelemetry'
     cpus_per_run: 1
+    type: 'microbenchmark'
   recursive_computation:
     paths:
       - '@bootstrap'
@@ -151,6 +158,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   sampling_rule_matches:
     paths:
       - '@bootstrap'
@@ -158,6 +166,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   http_propagation_extract:
     paths:
       - '@bootstrap'
@@ -165,6 +174,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   http_propagation_inject:
     paths:
       - '@bootstrap'
@@ -172,6 +182,7 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   rate_limiter:
     paths:
       - '@bootstrap'
@@ -179,12 +190,14 @@ suites:
       - '@tracing'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   appsec_iast_aspects:
     paths:
       - '@bootstrap'
       - '@core'
       - '@vendor'
     cpus_per_run: 1
+    type: 'microbenchmark'
   appsec_iast_aspects_ospath:
     paths:
       - '@bootstrap'
@@ -192,6 +205,7 @@ suites:
       - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
+    type: 'microbenchmark'
   appsec_iast_aspects_re_module:
     paths:
       - '@bootstrap'
@@ -199,6 +213,7 @@ suites:
       - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
+    type: 'microbenchmark'
   appsec_iast_aspects_split:
     paths:
       - '@bootstrap'
@@ -206,6 +221,7 @@ suites:
       - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
+    type: 'microbenchmark'
   appsec_iast_propagation:
     paths:
       - '@bootstrap'
@@ -213,14 +229,17 @@ suites:
       - '@vendor'
       - '@appsec_iast'
     cpus_per_run: 1
+    type: 'microbenchmark'
   packages_package_for_root_module_mapping:
     paths:
       - '@core'
     cpus_per_run: 1
+    type: 'microbenchmark'
   packages_update_imported_dependencies:
     paths:
       - '@core'
     cpus_per_run: 1
+    type: 'microbenchmark'
   django_simple:
     paths:
       - '@bootstrap'
@@ -229,6 +248,7 @@ suites:
       - '@vendor'
       - '@django'
     cpus_per_run: 2
+    type: 'microbenchmark'
   flask_simple:
     paths:
       - '@bootstrap'
@@ -237,6 +257,7 @@ suites:
       - '@vendor'
       - '@flask'
     cpus_per_run: 2
+    type: 'microbenchmark'
   flask_sqli:
     paths:
       - '@bootstrap'
@@ -245,6 +266,7 @@ suites:
       - '@vendor'
       - '@flask'
     cpus_per_run: 2
+    type: 'microbenchmark'
   errortracking_django_simple:
     paths:
       - '@bootstrap'
@@ -253,6 +275,7 @@ suites:
       - '@tracing'
       - '@django'
     cpus_per_run: 2
+    type: 'microbenchmark'
   errortracking_flask_sqli:
     paths:
       - '@bootstrap'
@@ -261,6 +284,7 @@ suites:
       - '@tracing'
       - '@flask'
     cpus_per_run: 2
+    type: 'microbenchmark'
   startup:
     paths:
       - '@bootstrap'
@@ -270,7 +294,9 @@ suites:
       - '@flask'
       - '@django'
     cpus_per_run: 2
+    type: 'microbenchmark'
   rand:
     paths:
       - 'src/native/rand.rs'
     cpus_per_run: 1
+    type: 'microbenchmark'
