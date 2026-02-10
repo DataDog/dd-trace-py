@@ -6,6 +6,7 @@ from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -76,20 +77,38 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         output_messages: List[Message] = [Message(content="")]
         metrics: Dict[str, int] = {}
+        init_system_message: Dict[str, Any] = {}
         if not span.error and response is not None:
-            output_messages, metrics = self._extract_output_data(response)
+            output_messages, metrics, init_system_message = self._extract_output_data(response)
+
+        agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
         span._set_ctx_items(
             {
                 SPAN_KIND: "agent",
                 MODEL_NAME: model or "",
-                MODEL_PROVIDER: "claude_agent_sdk",
                 INPUT_VALUE: input_messages,
                 METADATA: metadata,
                 OUTPUT_VALUE: output_messages,
                 METRICS: metrics,
+                AGENT_MANIFEST: agent_manifest,
             }
         )
+
+    def _build_agent_manifest(self, model: str, metadata: Dict[str, Any], init_system_message: Dict[str, Any]) -> Dict[str, Any]:
+        manifest: Dict[str, Any] = {}
+        manifest["framework"] = "Claude Agent SDK"
+        if model:
+            manifest["model"] = model
+        if init_system_message:
+            tools = init_system_message.get("tools", []) or []
+            manifest["tools"] = [{"name": tool} for tool in tools]
+        if init_system_message:
+            mcp_servers = init_system_message.get("mcp_servers", []) or []
+            manifest["dependencies"] = {"mcp_servers": mcp_servers}
+        if "max_turns" in metadata:
+            manifest["max_iterations"] = metadata["max_turns"]
+        return manifest
 
     def _extract_metadata(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         metadata = {}
@@ -233,12 +252,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(self, response: Any) -> Tuple[List[Message], Dict[str, int]]:
+    def _extract_output_data(self, response: Any) -> Tuple[List[Message], Dict[str, int], Dict[str, Any]]:
+        """Extract output data from response, including output messages, usage metrics, and init system message."""
         output_messages: List[Message] = []
         metrics: Dict[str, int] = {}
+        init_system_message: Dict[str, Any] = {}
 
         if not response or not isinstance(response, list):
-            return [Message(content="")], metrics
+            return [Message(content="")], metrics, init_system_message
 
         for msg in response:
             msg_type = type(msg).__name__
@@ -248,6 +269,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             elif msg_type == "SystemMessage":
                 data = _get_attr(msg, "data", {}) or {}
                 if data:
+                    init_system_message = data if isinstance(data, dict) else {}
                     content = safe_json(data) or ""
                     output_messages.append(Message(content=content, role="system"))
             elif msg_type == "UserMessage":
@@ -260,7 +282,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 if result:
                     output_messages.append(Message(content=str(result), role="system"))
 
-        return output_messages or [Message(content="")], metrics
+        return output_messages or [Message(content="")], metrics, init_system_message
 
     def _extract_result_message(self, message: Any) -> Dict[str, int]:
         metrics: Dict[str, int] = {}
