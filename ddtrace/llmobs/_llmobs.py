@@ -1139,18 +1139,26 @@ class LLMObs(Service):
         experiment_id: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset_records: List[DatasetRecord],
+        evaluators: List[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                Callable[[], Union[JSONType, EvaluatorResult]],
+            ]
+        ],
         jobs: int = 1,
         raise_errors: bool = False,
         run_iteration: Optional[int] = 1,
         tags: Optional[Dict[str, str]] = None,
-    ) -> ExperimentResult:
+    ) -> (Experiment, ExperimentResult):
         if not cls._instance or not cls._instance.enabled:
             raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` ")
         experiment = cls._instance._dne_client.experiment_get(experiment_id)
         experiment._llmobs_instance = cls._instance
         experiment._dataset._records = dataset_records
         experiment._task = task
-        return experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
+        experiment._evaluators = evaluators
+        results = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
+        return experiment, results
 
     @classmethod
     def experiment(
