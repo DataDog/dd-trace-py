@@ -196,6 +196,7 @@ check-slo-breaches:
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: tests-gen
+    - job: microbenchmarks
   artifacts:
     name: "artifacts"
     when: always
