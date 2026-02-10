@@ -13,6 +13,7 @@ from typing import List
 from typing import Sequence
 from typing import Set
 from typing import Union
+from typing import cast
 
 import pytest
 
@@ -215,6 +216,32 @@ def four(size: int) -> Union[tuple[None, ...], bytearray]:
 
 def _create_allocation(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+def _allocate_with_lone_surrogate_filename(nallocs: int = 2000) -> None:
+    """Allocate from a function whose co_filename cannot be UTF-8 encoded.
+
+    The filename contains a lone surrogate, which makes PyUnicode_AsUTF8AndSize()
+    fail when the memory collector serializes frame filenames.
+
+    This is used by memalloc tests to exercise the internal
+    PyUnicode_AsUTF8AndSize failure path in memalloc stack serialization.
+    """
+    namespace: Dict[str, object] = {}
+    compiled_code = compile(
+        "def _alloc_from_bad_filename(nallocs):\n    for _ in range(nallocs):\n        object()\n",
+        "\udcff_memalloc_bad_filename.py",
+        "exec",
+    )
+    with pytest.raises(UnicodeEncodeError):
+        compiled_code.co_filename.encode("utf-8", "strict")
+    exec(
+        compiled_code,
+        namespace,
+        namespace,
+    )
+    alloc = cast(Callable[[int], None], namespace["_alloc_from_bad_filename"])
+    alloc(nallocs)
 
 
 class HeapInfo:
@@ -737,6 +764,21 @@ def test_memory_collector_exception_handling(tmp_path: Path) -> None:
         _allocate_1k()
         profile = mc.snapshot_and_parse_pprof(output_filename)
         assert profile is not None
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1"))
+def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
+    from ddtrace.profiling.collector import _memalloc
+    from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
+
+    _memalloc.start(64, 1)
+    try:
+        # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
+        # memalloc frame serialization. The test passes if the subprocess
+        # exits cleanly (no leaked internal profiler exception).
+        _allocate_with_lone_surrogate_filename()
+    finally:
+        _memalloc.stop()
 
 
 def test_memory_collector_allocation_during_shutdown() -> None:
