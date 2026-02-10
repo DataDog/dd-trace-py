@@ -11,20 +11,6 @@ globs:
 
 These rules are derived from real production incidents and bugs fixed in dd-trace-py's profiling subsystem since May 2024 (~89 `fix(profiling)` PRs, plus related `fix(internal)` incidents). Each rule exists because its absence caused crashes, data corruption, deadlocks, or incorrect profiling data for customers.
 
-## CPython Source Reference
-
-When investigating CPython internal APIs, struct layouts, or behavior (e.g., what `PyObject_CallObject` does under the hood, whether a function releases the GIL, how `_Py_Dealloc` works), **read the actual CPython source code** rather than guessing or relying on documentation alone. Clone or use the CPython repo at `~/dd/cpython`. If it doesn't exist yet, clone it:
-
-```bash
-git clone https://github.com/python/cpython.git ~/dd/cpython
-```
-
-Use `git checkout` to switch to the relevant version tag (e.g., `v3.12.0`, `v3.13.0`, `v3.14.0a1`) and read the actual C source. **Check the supported Python version range in `pyproject.toml` (`requires-python`)** — currently `>=3.9,<3.15` — and verify behavior across all supported versions, not just one. Struct layouts, internal APIs, and GIL behavior can differ between minor versions. This is especially important for:
-- Verifying whether a C API function can release the GIL or enter the eval loop
-- Understanding internal struct field layouts that profiling code accesses
-- Checking what changed between Python versions (use the `compare-cpython-versions` skill or `git diff v3.12.0..v3.13.0 -- Include/`)
-- Confirming behavior of undocumented or internal APIs (`_Py_*`, `_PyFrame_*`, etc.)
-
 ## 1. Fork Safety
 
 ### What goes wrong
@@ -249,6 +235,22 @@ Fixes that appear correct in code review but don't actually work: dead code from
 - Rust rate limiter mutex fix **reverted** because it didn't solve the thread safety problem under real concurrency; went back to pure Python ([#10176](https://github.com/DataDog/dd-trace-py/pull/10176), [#10225](https://github.com/DataDog/dd-trace-py/pull/10225))
 - GC disable fix was **dead code** because of a missing `#include`; compiled without errors but did nothing ([#15388](https://github.com/DataDog/dd-trace-py/pull/15388))
 - Logging rate limiter move had to be reverted because affected suites were not run in CI; re-landed later with broader validation ([#12243](https://github.com/DataDog/dd-trace-py/pull/12243), [#12275](https://github.com/DataDog/dd-trace-py/pull/12275), [#12293](https://github.com/DataDog/dd-trace-py/pull/12293))
+
+---
+
+## CPython Source Reference
+
+When investigating CPython internal APIs, struct layouts, or behavior (e.g., what `PyObject_CallObject` does under the hood, whether a function releases the GIL, how `_Py_Dealloc` works), **read the actual CPython source code** rather than guessing or relying on documentation alone. Clone or use the CPython repo at `~/dd/cpython`. If it doesn't exist yet, clone it:
+
+```bash
+git clone https://github.com/python/cpython.git ~/dd/cpython
+```
+
+Use `git checkout` to switch to the relevant version tag (e.g., `v3.12.0`, `v3.13.0`, `v3.14.0a1`) and read the actual C source. **Check the supported Python version range in `pyproject.toml` (`requires-python`)** — currently `>=3.9,<3.15` — and verify behavior across all supported versions, not just one. Struct layouts, internal APIs, and GIL behavior can differ between minor versions. This is especially important for:
+- Verifying whether a C API function can release the GIL or enter the eval loop
+- Understanding internal struct field layouts that profiling code accesses
+- Checking what changed between Python versions (use the `compare-cpython-versions` skill or `git diff v3.12.0..v3.13.0 -- Include/`)
+- Confirming behavior of undocumented or internal APIs (`_Py_*`, `_PyFrame_*`, etc.)
 
 ---
 
