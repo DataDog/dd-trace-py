@@ -245,6 +245,19 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
+    if not required_suites:
+        MICROBENCHMARKS_GEN.write_text(
+            """
+noop:
+  image: $GITHUB_CLI_IMAGE
+  tags: [ "arch:amd64" ]
+  script: |
+    echo "noop"
+
+"""
+        )
+        return
+
     MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
 
     for suite_name, suite_config in suites.items():
