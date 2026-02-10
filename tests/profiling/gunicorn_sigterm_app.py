@@ -15,8 +15,6 @@ from typing import Callable
 from typing import List
 from typing import Tuple
 
-from ddtrace.profiling import Profiler  # noqa: F401 — triggers greenlet tracer
-
 
 def app(
     environ: dict[str, str],

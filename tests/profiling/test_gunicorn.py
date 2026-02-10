@@ -164,6 +164,8 @@ def test_gunicorn_gevent_sigterm_graceful_shutdown(monkeypatch: pytest.MonkeyPat
     """
     pytest.importorskip("gevent")
 
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+
     bind_addr = "127.0.0.1:7645"
     cmd = [
         "ddtrace-run",
