@@ -259,6 +259,17 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
         or "us-central1"
     )
 
+    credentials = client_options.get("credentials")
+    if credentials is None:
+        try:
+            import google.auth
+
+            credentials, default_project = google.auth.default()
+            if not project:
+                project = default_project
+        except Exception:
+            pass
+
     if not project:
         raise ValueError(
             "Google Cloud project not provided. "
@@ -272,7 +283,7 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
     except ImportError:
         raise ImportError("google-cloud-aiplatform package required: pip install google-cloud-aiplatform")
 
-    vertexai.init(project=project, location=location, credentials=client_options.get("credentials"))
+    vertexai.init(project=project, location=location, credentials=credentials)
 
     def call(
         provider: Optional[str],
@@ -366,10 +377,13 @@ class LLMJudge(BaseEvaluator):
 
                 **Vertex AI:**
                     - ``project``: Google Cloud project ID. Falls back to
-                      ``GOOGLE_CLOUD_PROJECT`` or ``GCLOUD_PROJECT`` env var.
+                      ``GOOGLE_CLOUD_PROJECT`` or ``GCLOUD_PROJECT`` env var,
+                      or the project inferred from default credentials.
                     - ``location``: Region (default: "us-central1"). Falls back to
                       ``GOOGLE_CLOUD_REGION`` or ``GOOGLE_CLOUD_LOCATION``.
                     - ``credentials``: Optional service account credentials object.
+                      Falls back to Application Default Credentials (ADC), which
+                      respects the ``GOOGLE_APPLICATION_CREDENTIALS`` env var.
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.

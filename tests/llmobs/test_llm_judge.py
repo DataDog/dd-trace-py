@@ -226,11 +226,60 @@ class TestLLMJudge:
 
 
 class TestVertexAIClient:
+    @staticmethod
+    def _mock_google_auth(default_return=None, default_side_effect=None):
+        """Create mock google and google.auth modules with linked attributes."""
+        mock_google_auth = mock.MagicMock()
+        if default_return is not None:
+            mock_google_auth.default.return_value = default_return
+        if default_side_effect is not None:
+            mock_google_auth.default.side_effect = default_side_effect
+        mock_google = mock.MagicMock()
+        mock_google.auth = mock_google_auth
+        return {"google": mock_google, "google.auth": mock_google_auth}
+
     def test_missing_project_raises(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
         monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
-        with pytest.raises(ValueError, match="Google Cloud project not provided"):
+        modules = self._mock_google_auth(default_side_effect=Exception("no credentials"))
+        with mock.patch.dict("sys.modules", modules):
+            with pytest.raises(ValueError, match="Google Cloud project not provided"):
+                _create_vertexai_client()
+
+    def test_project_from_default_credentials(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+
+        mock_credentials = mock.MagicMock()
+        mock_vertexai_module = mock.MagicMock()
+        mock_generative_models = mock.MagicMock()
+
+        modules = self._mock_google_auth(default_return=(mock_credentials, "adc-project"))
+        modules["vertexai"] = mock_vertexai_module
+        modules["vertexai.generative_models"] = mock_generative_models
+
+        with mock.patch.dict("sys.modules", modules):
             _create_vertexai_client()
+            mock_vertexai_module.init.assert_called_once_with(
+                project="adc-project", location="us-central1", credentials=mock_credentials
+            )
+
+    def test_explicit_project_overrides_adc(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "env-project")
+
+        mock_credentials = mock.MagicMock()
+        mock_vertexai_module = mock.MagicMock()
+        mock_generative_models = mock.MagicMock()
+
+        modules = self._mock_google_auth(default_return=(mock_credentials, "adc-project"))
+        modules["vertexai"] = mock_vertexai_module
+        modules["vertexai.generative_models"] = mock_generative_models
+
+        with mock.patch.dict("sys.modules", modules):
+            _create_vertexai_client()
+            mock_vertexai_module.init.assert_called_once_with(
+                project="env-project", location="us-central1", credentials=mock_credentials
+            )
 
     def test_client_call(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
@@ -257,13 +306,11 @@ class TestVertexAIClient:
         mock_generative_models.GenerativeModel.return_value = mock_model_instance
         mock_generative_models.GenerationConfig.return_value = mock_generation_config
 
-        with mock.patch.dict(
-            "sys.modules",
-            {
-                "vertexai": mock_vertexai_module,
-                "vertexai.generative_models": mock_generative_models,
-            },
-        ):
+        modules = self._mock_google_auth(default_return=(mock.MagicMock(), "test-project"))
+        modules["vertexai"] = mock_vertexai_module
+        modules["vertexai.generative_models"] = mock_generative_models
+
+        with mock.patch.dict("sys.modules", modules):
             client = _create_vertexai_client()
             result = client(
                 provider="vertexai",
