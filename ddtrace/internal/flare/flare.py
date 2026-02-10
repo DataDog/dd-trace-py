@@ -167,7 +167,7 @@ class Flare:
             log.debug("Sending tracer flare using native implementation")
 
             # Use native zip_and_send
-            self.native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)  # type: ignore
+            self.native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
             log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
 
     def clean_up_files(self):
