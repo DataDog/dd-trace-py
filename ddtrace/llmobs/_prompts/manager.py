@@ -18,6 +18,7 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs.types import PromptFallback
 
@@ -201,10 +202,13 @@ class PromptManager:
             if status == 200:
                 return self._parse_response(body, prompt_id, label), False
 
+            detail = extract_error_detail(body)
             if status == 404:
-                log.debug("Prompt not found: prompt_id=%s label=%s: %s", prompt_id, label, body)
+                log.debug('Prompt not found: prompt_id=%s label=%s detail="%s"', prompt_id, label, detail)
             else:
-                log.warning("Prompt fetch failed: prompt_id=%s label=%s status=%d: %s", prompt_id, label, status, body)
+                log.warning(
+                    'Prompt fetch failed: prompt_id=%s label=%s status=%d detail="%s"', prompt_id, label, status, detail
+                )
             return None, status == 404
         except Exception as e:
             log.warning("Prompt fetch exception: prompt_id=%s label=%s: %s", prompt_id, label, e)
