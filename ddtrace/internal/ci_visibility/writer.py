@@ -244,7 +244,7 @@ class CIVisibilityWriter(HTTPWriter):
             itr_suite_skipping_mode=self._itr_suite_skipping_mode,
         )
 
-    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
+    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> "Response":
         request_error: Optional[REQUEST_ERROR_TYPE] = None
 
         with StopWatch() as sw:

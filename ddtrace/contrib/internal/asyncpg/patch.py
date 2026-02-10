@@ -1,5 +1,6 @@
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:I001
+from typing import Union
 
 import asyncpg
 import wrapt
@@ -27,8 +28,6 @@ from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Union  # noqa:F401
-
     from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
 
 
@@ -149,7 +148,7 @@ async def _traced_query(pin, method, query, args, kwargs):
 
 @with_traced_module
 async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
-    state: Union[str, PreparedStatement] = get_argument_value(args, kwargs, 0, "state")
+    state: Union[str, "PreparedStatement"] = get_argument_value(args, kwargs, 0, "state")
     query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
     return await _traced_query(pin, func, query, args, kwargs)
 

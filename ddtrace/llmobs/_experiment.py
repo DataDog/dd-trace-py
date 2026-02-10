@@ -1074,7 +1074,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        eval_metric: LLMObsExperimentEvalMetricEvent = {
+        eval_metric: "LLMObsExperimentEvalMetricEvent" = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,

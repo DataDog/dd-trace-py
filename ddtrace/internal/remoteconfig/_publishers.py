@@ -1,6 +1,8 @@
 import abc
+from collections.abc import Callable
 import os
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
@@ -9,9 +11,6 @@ from ddtrace.internal.remoteconfig import PayloadType
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
-    from typing import Optional  # noqa:F401
-
     from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
     from ddtrace.internal.remoteconfig._pubsub import PubSub
 
@@ -21,10 +20,10 @@ log = get_logger(__name__)
 
 
 class RemoteConfigPublisherBase(metaclass=abc.ABCMeta):
-    _preprocess_results_func: Optional[PreprocessFunc] = None
+    _preprocess_results_func: Optional["PreprocessFunc"] = None
 
     def __init__(
-        self, data_connector: PublisherSubscriberConnector, preprocess_func: Optional[PreprocessFunc] = None
+        self, data_connector: "PublisherSubscriberConnector", preprocess_func: Optional["PreprocessFunc"] = None
     ) -> None:
         self._data_connector = data_connector
         self._preprocess_results_func = preprocess_func
@@ -42,7 +41,7 @@ class RemoteConfigPublisher(RemoteConfigPublisherBase):
     """
 
     def __init__(
-        self, data_connector: PublisherSubscriberConnector, preprocess_func: Optional[PreprocessFunc] = None
+        self, data_connector: "PublisherSubscriberConnector", preprocess_func: Optional["PreprocessFunc"] = None
     ) -> None:
         super(RemoteConfigPublisher, self).__init__(data_connector, preprocess_func)
         self._config_and_metadata: list[Payload] = []

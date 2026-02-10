@@ -131,7 +131,7 @@ def connector(url: str, **kwargs: Any) -> Connector:
     """
 
     @contextmanager
-    def _connector_context() -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]:
+    def _connector_context() -> Generator[Union["httplib.HTTPConnection", "httplib.HTTPSConnection"], None, None]:
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()

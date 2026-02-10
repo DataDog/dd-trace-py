@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import TextIO
@@ -52,8 +53,6 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -153,7 +152,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def write(self, spans: Optional[list[Span]] = None) -> None:
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -181,7 +180,7 @@ class LogWriter(TraceWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         return
 
-    def write(self, spans: Optional[list[Span]] = None) -> None:
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
@@ -236,7 +235,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional[ConnectionType] = None
+        self._conn: Optional["ConnectionType"] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
@@ -406,7 +405,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[list[Span]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
         if spans is None:
             return
 

@@ -1,21 +1,12 @@
+from collections.abc import Callable
+from collections.abc import Iterable
 from io import StringIO
 import os
 import re
 import sys
 import traceback
-from typing import TYPE_CHECKING
 from typing import Optional
-
-from ddtrace.internal import core
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.trace import Span
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
-    from typing import Iterable  # noqa:F401
-    from typing import Union  # noqa:F401
-
+from typing import Union
 
 import graphql
 from graphql import MiddlewareManager
@@ -31,9 +22,11 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -41,6 +34,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
 
@@ -286,12 +280,12 @@ def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kw
 
 def _get_source_str(obj: Union[str, Source, Document]) -> str:
     """
-    Parses graphql Documents and Source objects to retrieve
+    Parses graphql Documents and "Source" objects to retrieve
     the graphql source input for a request.
     """
     if isinstance(obj, str):
         source_str = obj
-    elif isinstance(obj, Source):
+    elif isinstance(obj, "Source"):
         source_str = obj.body
     elif isinstance(obj, Document) and obj.loc is not None:
         source_str = obj.loc.source.body
@@ -301,7 +295,7 @@ def _get_source_str(obj: Union[str, Source, Document]) -> str:
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _validate_error_extensions(error: GraphQLError, error_extension_fields: list) -> dict:
+def _validate_error_extensions(error: "GraphQLError", error_extension_fields: list) -> dict:
     """Validate user-provided extensions format and return the formatted extensions.
     All extensions values MUST be stringified, EXCEPT for numeric values and
     boolean values, which remain in their original type.
@@ -317,7 +311,7 @@ def _validate_error_extensions(error: GraphQLError, error_extension_fields: list
     return error_extensions
 
 
-def _set_span_errors(errors: list[GraphQLError], span: Span) -> None:
+def _set_span_errors(errors: list["GraphQLError"], span: Span) -> None:
     """
     Set tags on error span and set span events on each error.
     """
