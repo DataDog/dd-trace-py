@@ -3,8 +3,7 @@
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
-#     "riot>=0.20.1",
-#     "setuptools<82",
+#     "riot>=0.21.0",
 #     "ruamel.yaml>=0.17.21",
 # ]
 # ///
