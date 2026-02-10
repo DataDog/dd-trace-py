@@ -182,9 +182,7 @@ def _create_azure_openai_client(client_options: Optional[Dict[str, Any]] = None)
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("AZURE_OPENAI_API_KEY")
     azure_endpoint = client_options.get("azure_endpoint") or os.environ.get("AZURE_OPENAI_ENDPOINT")
-    api_version = (
-        client_options.get("api_version") or os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-02-15-preview"
-    )
+    api_version = client_options.get("api_version") or os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
 
     if not api_key:
         raise ValueError(
@@ -361,7 +359,7 @@ class LLMJudge(BaseEvaluator):
                 **Azure OpenAI:**
                     - ``api_key``: API key. Falls back to ``AZURE_OPENAI_API_KEY`` env var.
                     - ``azure_endpoint``: Endpoint URL. Falls back to ``AZURE_OPENAI_ENDPOINT``.
-                    - ``api_version``: API version (default: "2024-02-15-preview").
+                    - ``api_version``: API version (default: "2024-10-21").
                       Falls back to ``AZURE_OPENAI_API_VERSION``.
                     - ``azure_deployment``: Deployment name. Falls back to
                       ``AZURE_OPENAI_DEPLOYMENT`` or uses ``model`` param.
