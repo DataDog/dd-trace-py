@@ -39,10 +39,10 @@ _USE_FILE_LEVEL_COVERAGE = asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
 # Store: (hook, path, import_names_by_line)
-_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}
+_CODE_HOOKS: dict[CodeType, tuple[HookType, str, dict[int, tuple[str, t.Optional[tuple[str]]]]]] = {}
 
 
-def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> t.Tuple[CodeType, CoverageLines]:
+def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
     """
     Instrument code for coverage tracking using Python 3.12's monitoring API.
 
@@ -117,7 +117,7 @@ def _register_monitoring():
 
 def _instrument_with_monitoring(
     code: CodeType, hook: HookType, path: str, package: str
-) -> t.Tuple[CodeType, CoverageLines]:
+) -> tuple[CodeType, CoverageLines]:
     """
     Instrument code using either LINE events for detailed line-by-line coverage or PY_START for file-level.
     """
@@ -155,7 +155,7 @@ def _instrument_with_monitoring(
 
 def _extract_lines_and_imports(
     code: CodeType, package: str, track_lines: bool = True
-) -> t.Tuple[CoverageLines, t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]]]:
+) -> tuple[CoverageLines, dict[int, tuple[str, tuple[str, ...]]]]:
     """
     Extract line numbers and import information from bytecode.
 
@@ -172,7 +172,7 @@ def _extract_lines_and_imports(
         Tuple of (CoverageLines with executable lines, dict mapping lines to imports)
     """
     lines = CoverageLines()
-    import_names: t.Dict[int, t.Tuple[str, t.Tuple[str, ...]]] = {}
+    import_names: dict[int, tuple[str, tuple[str, ...]]] = {}
 
     # The previous two arguments are kept in order to track the depth of the IMPORT_NAME
     # For example, from ...package import module
