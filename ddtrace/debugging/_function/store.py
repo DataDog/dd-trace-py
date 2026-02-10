@@ -2,10 +2,7 @@ from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Set
 from typing import cast
 
 from ddtrace.debugging._function.discovery import FullyNamed
@@ -38,9 +35,9 @@ class FunctionStore(object):
     removed when the functions are restored.
     """
 
-    def __init__(self, extra_attrs: Optional[List[str]] = None) -> None:
-        self._code_map: Dict[FunctionType, CodeType] = {}
-        self._wrapper_map: Dict[FunctionType, WrappingContext] = {}
+    def __init__(self, extra_attrs: Optional[list[str]] = None) -> None:
+        self._code_map: dict[FunctionType, CodeType] = {}
+        self._wrapper_map: dict[FunctionType, WrappingContext] = {}
         self._extra_attrs = ["__dd_context_wrapped__"]
         if extra_attrs:
             self._extra_attrs.extend(extra_attrs)
@@ -55,7 +52,7 @@ class FunctionStore(object):
         if function not in self._code_map:
             self._code_map[function] = get_function_code(function)
 
-    def inject_hooks(self, function: FullyNamedContextWrappedFunction, hooks: List[HookInfoType]) -> Set[str]:
+    def inject_hooks(self, function: FullyNamedContextWrappedFunction, hooks: list[HookInfoType]) -> set[str]:
         """Bulk-inject hooks into a function.
 
         Returns the set of probe IDs for those probes that failed to inject.
@@ -67,7 +64,7 @@ class FunctionStore(object):
         self._store(f)
         return {p.probe_id for _, _, p in inject_hooks(f, hooks)}
 
-    def eject_hooks(self, function: FunctionType, hooks: List[HookInfoType]) -> Set[str]:
+    def eject_hooks(self, function: FunctionType, hooks: list[HookInfoType]) -> set[str]:
         """Bulk-eject hooks from a function.
 
         Returns the set of probe IDs for those probes that failed to eject.
