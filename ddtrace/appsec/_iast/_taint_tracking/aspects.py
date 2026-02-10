@@ -10,9 +10,12 @@ from types import BuiltinFunctionType
 from types import ModuleType
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import Iterator
+from typing import List
 from typing import Optional
 from typing import Text
+from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec._constants import IAST
@@ -230,18 +233,18 @@ def bytearray_extend_aspect(orig_function: Optional[Callable], flag_added_args: 
         return op1.extend(op2)
 
 
-def build_string_aspect(*args: list[Any]) -> TEXT_TYPES:
+def build_string_aspect(*args: List[Any]) -> TEXT_TYPES:
     return join_aspect("".join, 1, "", args)
 
 
 def _template_string_build_parts(
-    args: tuple[Any, ...],
+    args: Tuple[Any, ...],
     interpolation_type: Any,
     use_str_aspect_for_format_spec: bool,
     collect_taint_info: bool,
-) -> tuple[list[Any], list[tuple[int, Any]]]:
-    template_parts: list[Any] = []
-    taint_info: list[tuple[int, Any]] = []
+) -> Tuple[List[Any], List[Tuple[int, Any]]]:
+    template_parts: List[Any] = []
+    taint_info: List[Tuple[int, Any]] = []
 
     current_offset = 0
     for arg in args:
@@ -290,7 +293,7 @@ def _template_string_build_parts(
     return template_parts, taint_info
 
 
-def template_string_aspect(*args: list[Any]) -> Any:
+def template_string_aspect(*args: List[Any]) -> Any:
     """
     Aspect for PEP-750 template strings (t-strings).
 
@@ -409,7 +412,7 @@ def zfill_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
         prefix = candidate_text[0] in ("-", "+")
 
         difflen = len(result) - len(candidate_text)
-        ranges_new: list[TaintRange] = []
+        ranges_new: List[TaintRange] = []
         ranges_new_append = ranges_new.append
         ranges_new_extend = ranges_new.extend
 
@@ -727,16 +730,16 @@ def lower_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
 
 
 def _distribute_ranges_and_escape(
-    split_elements: list[Optional[TEXT_TYPES]],
+    split_elements: List[Optional[TEXT_TYPES]],
     len_separator: int,
-    ranges: tuple[TaintRange, ...],
-) -> list[Optional[TEXT_TYPES]]:
+    ranges: Tuple[TaintRange, ...],
+) -> List[Optional[TEXT_TYPES]]:
     # FIXME: converts to set, and then to list again, probably to remove
     # duplicates. This should be removed once the ranges values on the
     # taint dictionary are stored in a set.
     range_set = set(ranges)
     range_set_remove = range_set.remove
-    formatted_elements: list[Optional[TEXT_TYPES]] = []
+    formatted_elements: List[Optional[TEXT_TYPES]] = []
     formatted_elements_append = formatted_elements.append
     element_start = 0
     extra = 0
@@ -751,7 +754,7 @@ def _distribute_ranges_and_escape(
         else:
             len_element = len(element)
         element_end = element_start + len_element
-        new_ranges: dict[TaintRange, TaintRange] = {}
+        new_ranges: Dict[TaintRange, TaintRange] = {}
 
         for taint_range in ranges:
             if (taint_range.start + taint_range.length) <= (element_start + extra):
@@ -814,7 +817,7 @@ def aspect_replace_api(
     empty = b"" if isinstance(candidate_text, (bytes, bytearray)) else ""
 
     if old_value:
-        elements: list[Any] = candidate_text.split(old_value, count)
+        elements: List[Any] = candidate_text.split(old_value, count)
     else:
         if count == -1:
             # Convert candidate_text to list of chars/bytes
@@ -854,7 +857,7 @@ def aspect_replace_api(
                 if len(elements) == count and elements[-1] != b"":
                     elements.append(empty)
     i = 0
-    new_elements: list[Optional[TEXT_TYPES]] = []
+    new_elements: List[Optional[TEXT_TYPES]] = []
     new_elements_append = new_elements.append
 
     # if new value is blank, _distribute_ranges_and_escape function doesn't
@@ -1079,7 +1082,7 @@ def empty_func(*args, **kwargs):
 
 def re_findall_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES, tuple[TEXT_TYPES, int]]:
+) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -1189,7 +1192,7 @@ def re_sub_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
 
 def re_subn_aspect(
     orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any
-) -> Union[TEXT_TYPES, tuple[TEXT_TYPES, int]]:
+) -> Union[TEXT_TYPES, Tuple[TEXT_TYPES, int]]:
     if orig_function is not None and (not flag_added_args or not args):
         # This patch is unexpected, so we fallback
         # to executing the original function
@@ -1500,7 +1503,7 @@ def rstrip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args
         return result
 
     try:
-        ranges_new: list[TaintRange] = []
+        ranges_new: List[TaintRange] = []
         ranges_new_append = ranges_new.append
 
         ranges = get_ranges(candidate_text)
@@ -1551,7 +1554,7 @@ def strip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
 
 
 def _strip_lstrip_aspect(candidate_text, result) -> None:
-    ranges_new: list[TaintRange] = []
+    ranges_new: List[TaintRange] = []
     ranges = get_ranges(candidate_text)
     start_pos = candidate_text.index(result)
     len_result = len(result)

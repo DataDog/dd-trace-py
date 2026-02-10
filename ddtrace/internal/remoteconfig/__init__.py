@@ -1,5 +1,6 @@
 import dataclasses
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 
@@ -19,7 +20,7 @@ class ConfigMetadata:
 
 
 # None means the configuration is deleted
-PayloadType = Optional[dict[str, Any]]
+PayloadType = Optional[Dict[str, Any]]
 
 
 @dataclasses.dataclass

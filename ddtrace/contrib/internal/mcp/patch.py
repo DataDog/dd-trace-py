@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import TYPE_CHECKING
+from typing import Dict
 from typing import Optional
 
 import mcp
@@ -46,7 +47,7 @@ def get_version() -> str:
     return version("mcp")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
@@ -90,7 +91,7 @@ def _set_distributed_headers_into_mcp_request(pin: Pin, request: "ClientRequest"
         return request
 
 
-def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[dict[str, str]]:
+def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[Dict[str, str]]:
     """Extract distributed tracing headers from MCP request params.meta field."""
     request_params = _get_attr(request_root, "params", None)
     meta = _get_attr(request_params, "meta", None) if request_params else None

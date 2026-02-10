@@ -1,4 +1,6 @@
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -7,7 +9,7 @@ from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL
 from ddtrace.llmobs._utils import _get_attr
 
 
-def _join_chunks(chunks: list[Any]) -> Optional[dict[str, Any]]:
+def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
     """
     Consolidates streamed response GenerateContentResponse chunks into a single dictionary representing the response.
     All chunks should have the same role since one generation call produces consistent content type.

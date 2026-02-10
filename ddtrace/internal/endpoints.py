@@ -1,7 +1,11 @@
 import dataclasses
 from time import monotonic
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Sequence
+from typing import Set
+from typing import Tuple
 
 
 @dataclasses.dataclass(frozen=True)
@@ -25,14 +29,14 @@ class HttpEndPoint:
         return self._hash
 
 
-def _dict_factory(lst: list[tuple[str, Any]]) -> dict[str, Any]:
+def _dict_factory(lst: List[Tuple[str, Any]]) -> Dict[str, Any]:
     return {k: v for k, v in lst if v not in ((), [], None)}
 
 
 class Singleton(type):
     """Singleton Class."""
 
-    _instances: dict[type, object] = {}
+    _instances: Dict[type, object] = {}
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
@@ -48,7 +52,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
     It maintains a maximum size and drops endpoints after a certain time period in case of a hot reload of the server.
     """
 
-    endpoints: set[HttpEndPoint] = dataclasses.field(default_factory=set, init=False)
+    endpoints: Set[HttpEndPoint] = dataclasses.field(default_factory=set, init=False)
     is_first: bool = dataclasses.field(default=True, init=False)
     drop_time_seconds: float = dataclasses.field(default=90.0, init=False)
     last_modification_time: float = dataclasses.field(default_factory=monotonic, init=False)
@@ -103,7 +107,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
         """
         Flush the endpoints to a payload, returning the first `max` endpoints.
         """
-        endpoints_res: list[dict] = []
+        endpoints_res: List[dict] = []
         while self.endpoints and len(endpoints_res) < max_length:
             endpoints_res.append(dataclasses.asdict(self.endpoints.pop(), dict_factory=_dict_factory))
         res = {"is_first": self.is_first, "endpoints": endpoints_res}

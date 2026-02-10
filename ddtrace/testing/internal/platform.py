@@ -1,4 +1,5 @@
 import platform
+import typing as t
 
 
 class PlatformTag:
@@ -18,7 +19,7 @@ class PlatformTag:
     RUNTIME_VERSION = "runtime.version"
 
 
-def get_platform_tags() -> dict[str, str]:
+def get_platform_tags() -> t.Dict[str, str]:
     """Extract configuration facet tags for OS and Python runtime."""
     return {
         PlatformTag.OS_ARCHITECTURE: platform.machine(),

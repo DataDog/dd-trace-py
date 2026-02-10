@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Dict
 from typing import Optional
 
 from ddtrace.ext import test
@@ -33,14 +34,14 @@ class TestVisibilityModule(
         name: str,
         session_settings: TestVisibilitySessionSettings,
         module_path: Optional[Path] = None,
-        initial_tags: Optional[dict[str, str]] = None,
+        initial_tags: Optional[Dict[str, str]] = None,
     ):
         super().__init__(name, session_settings, session_settings.module_operation_name, initial_tags)
 
         self._module_path = module_path.absolute() if module_path else None
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
-    def _get_hierarchy_tags(self) -> dict[str, str]:
+    def _get_hierarchy_tags(self) -> Dict[str, str]:
         # Module path is set for module and below
         module_path: str
         if self._module_path:

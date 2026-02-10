@@ -1,4 +1,5 @@
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
@@ -38,7 +39,8 @@ def is_otlp_export(request: requests.models.Request) -> bool:
     return False
 
 
-def _extract_hostname_and_path(uri: str) -> str:
+def _extract_hostname_and_path(uri):
+    # type: (str) -> str
     parsed_uri = parse.urlparse(uri)
     hostname = parsed_uri.hostname
     try:
@@ -50,7 +52,8 @@ def _extract_hostname_and_path(uri: str) -> str:
     return hostname, parsed_uri.path
 
 
-def _extract_query_string(uri: str) -> Optional[str]:
+def _extract_query_string(uri):
+    # type: (str) -> Optional[str]
     start = uri.find("?") + 1
     if start == 0:
         return None
@@ -83,7 +86,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg: dict[str, Any] = {}
+    cfg: Dict[str, Any] = {}
     pin = Pin.get_from(instance)
     if pin:
         cfg = pin._config

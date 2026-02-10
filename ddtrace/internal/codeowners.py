@@ -1,6 +1,8 @@
 import os
 import re
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 
 def path_to_regex(pattern: str) -> re.Pattern:
@@ -121,7 +123,7 @@ class Codeowners(object):
 
         :param path: path to CODEOWNERS file otherwise try to use any from known locations
         """
-        self.patterns: list[tuple[re.Pattern, list[str]]] = []
+        self.patterns: List[Tuple[re.Pattern, List[str]]] = []
         self.path: Optional[str] = None
 
         path = path or self.location(cwd)
@@ -187,7 +189,7 @@ class Codeowners(object):
             patterns.reverse()
             self.patterns = patterns
 
-    def of(self, path: str) -> list[str]:
+    def of(self, path: str) -> List[str]:
         """Return code owners for a given path.
 
         :param path: path to check

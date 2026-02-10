@@ -2,6 +2,8 @@ from inspect import iscoroutinefunction
 from inspect import isfunction
 from types import FunctionType
 from typing import Any
+from typing import Dict
+from typing import Tuple
 from typing import cast
 
 import ddtrace
@@ -28,7 +30,7 @@ config_django: IntegrationConfig = cast(IntegrationConfig, ddtrace.config.django
 def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
     event_name: str = f"django.middleware.{hook}"
 
-    def wrapped_middleware(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+    def wrapped_middleware(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         self = args[0]
         resource = f"{func_name(self)}.{hook}"
 
@@ -51,7 +53,7 @@ def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
     return wrapped_middleware
 
 
-def traced_process_exception(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     self = args[0]
 
     resource = f"{func_name(self)}.process_exception"
@@ -75,7 +77,7 @@ def traced_process_exception(func: FunctionType, args: tuple[Any], kwargs: dict[
         return resp
 
 
-def traced_auth_middleware_process_request(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     self = args[0]
 
     resource = f"{func_name(self)}.process_request"
@@ -125,7 +127,7 @@ def traced_auth_middleware_process_request(func: FunctionType, args: tuple[Any],
                     )
 
 
-def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     middleware = func(*args, **kwargs)
 
     if not isfunction(middleware):
@@ -158,7 +160,7 @@ def traced_middleware_factory(func: FunctionType, args: tuple[Any], kwargs: dict
         return traced_async_middleware_func
     else:
         # Handle sync middleware - use original wrapping approach
-        def traced_middleware_func(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
+        def traced_middleware_func(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
             # The first argument for all middleware is the request object
             # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
             # DEV: This is a function, so no `self` argument, so request is at position 0

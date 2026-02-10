@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 from ddtrace.ext import test
@@ -38,7 +39,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
     def __init__(
         self,
         session_settings: TestVisibilitySessionSettings,
-        initial_tags: Optional[dict[str, str]] = None,
+        initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
         log.debug("Initializing Test Visibility session")
         super().__init__(
@@ -54,7 +55,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
-    def _get_hierarchy_tags(self) -> dict[str, Any]:
+    def _get_hierarchy_tags(self) -> Dict[str, Any]:
         return {
             SESSION_ID: str(self.get_span_id()),
         }

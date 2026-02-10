@@ -8,6 +8,7 @@ Format: CONTROL_TYPE:VULNERABILITY_TYPES:MODULE:METHOD[:PARAMETER_POSITIONS]
 Example: INPUT_VALIDATOR:COMMAND_INJECTION,XSS:shlex:quote
 """
 
+from typing import List
 from typing import Optional
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
@@ -47,16 +48,16 @@ class SecurityControl:
     def __init__(
         self,
         control_type: str,
-        vulnerability_types: list[VulnerabilityType],
+        vulnerability_types: List[VulnerabilityType],
         module_path: str,
         method_name: str,
-        parameters: Optional[list[int]] = None,
+        parameters: Optional[List[int]] = None,
     ):
         """Initialize a security control configuration.
 
         Args:
             control_type: Either SC_VALIDATOR or SC_SANITIZER
-            vulnerability_types: list of vulnerability types this control applies to
+            vulnerability_types: List of vulnerability types this control applies to
             module_path: Python module path (e.g., "shlex", "django.utils.http")
             method_name: Name of the method to wrap
             parameters: Optional list of parameter types for overloaded methods
@@ -78,14 +79,14 @@ class SecurityControl:
         )
 
 
-def parse_vulnerability_types(vuln_string: str) -> list[VulnerabilityType]:
+def parse_vulnerability_types(vuln_string: str) -> List[VulnerabilityType]:
     """Parse comma-separated vulnerability types or '*' for all types.
 
     Args:
         vuln_string: Comma-separated vulnerability type names or '*'
 
     Returns:
-        list of VulnerabilityType enum values
+        List of VulnerabilityType enum values
 
     Raises:
         ValueError: If an unknown vulnerability type is specified
@@ -103,14 +104,14 @@ def parse_vulnerability_types(vuln_string: str) -> list[VulnerabilityType]:
     return vulnerability_types
 
 
-def parse_parameters(positions_string: str) -> list[int]:
+def parse_parameters(positions_string: str) -> List[int]:
     """Parse comma-separated parameter positions.
 
     Args:
         positions_string: Comma-separated parameter positions (e.g., "0,1,3")
 
     Returns:
-        list of integer positions
+        List of integer positions
 
     Raises:
         ValueError: If positions cannot be parsed as integers
@@ -124,7 +125,7 @@ def parse_parameters(positions_string: str) -> list[int]:
         raise ValueError(f"Invalid parameter positions: {positions_string}") from e
 
 
-def parse_security_controls_config(config_string: str) -> list[SecurityControl]:
+def parse_security_controls_config(config_string: str) -> List[SecurityControl]:
     """Parse the DD_IAST_SECURITY_CONTROLS_CONFIGURATION environment variable.
 
     Args:
@@ -132,7 +133,7 @@ def parse_security_controls_config(config_string: str) -> list[SecurityControl]:
                       CONTROL_TYPE:VULNERABILITY_TYPES:MODULE:METHOD[:PARAMETERS][:PARAMETER_POSITIONS]
 
     Returns:
-        list of SecurityControl objects
+        List of SecurityControl objects
 
     Raises:
         ValueError: If the configuration format is invalid
@@ -184,11 +185,11 @@ def parse_security_controls_config(config_string: str) -> list[SecurityControl]:
     return security_controls
 
 
-def get_security_controls_from_env() -> list[SecurityControl]:
+def get_security_controls_from_env() -> List[SecurityControl]:
     """Get security controls configuration from DD_IAST_SECURITY_CONTROLS_CONFIGURATION environment variable.
 
     Returns:
-        list of SecurityControl objects parsed from the environment variable
+        List of SecurityControl objects parsed from the environment variable
     """
     config_string = asm_config._iast_security_controls
     if not config_string:

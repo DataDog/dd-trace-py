@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import redis
 import wrapt
@@ -31,7 +32,7 @@ def get_version() -> str:
     return getattr(redis, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"redis": "*"}
 
 
