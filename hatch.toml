@@ -16,7 +16,7 @@ dependencies = [
     "ddapm-test-agent>=1.2.0",
     "packaging==23.1",
     "pygments==2.16.1",
-    "riot==0.20.1",
+    "riot==0.21.0",
     "ruff==0.14.10",
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
@@ -211,4 +211,3 @@ dependencies = [
 view = [
     "python scripts/ci_visibility/view_snapshot.py {args:}",
 ]
-
