@@ -247,7 +247,7 @@ def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     required_suites = []
 
     if not required_suites:
-        MICROBENCHMARKS_GEN.write_text("")
+        MICROBENCHMARKS_GEN.write_text("workflow:\n  auto_cancel:\n    on_new_commit:\n      interruptible ")
         return
 
     MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
