@@ -140,7 +140,7 @@ static PyMethodDef Frame_methods[] = {
 
 // ----------------------------------------------------------------------------
 static PyTypeObject FrameType = {
-    .ob_base = PyObject_HEAD_INIT(NULL).tp_name = "ddtrace.internal._inspection.Frame",
+    .ob_base = PyVarObject_HEAD_INIT(NULL, 0).tp_name = "ddtrace.internal._inspection.Frame",
     .tp_basicsize = sizeof(Frame),
     .tp_itemsize = 0,
     .tp_dealloc = (destructor)Frame_dealloc,
