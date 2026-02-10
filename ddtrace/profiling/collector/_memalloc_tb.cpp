@@ -123,6 +123,15 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         PyFrameObject* back = PyFrame_GetBack(frame);
         Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
                           // from GetBack are also new references
+        if (back == NULL) {
+            if (PyErr_Occurred()) {
+                // In this case, PyFrame_GetBack returned a NULL frame, and set
+                // MemoryError. We'd better clear it here to avoid propagating
+                // it to the caller.
+                PyErr_Clear();
+            }
+            break;
+        }
         frame = back;
         memalloc_debug_gil_release();
     }
