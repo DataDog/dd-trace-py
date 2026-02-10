@@ -247,7 +247,16 @@ def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     required_suites = []
 
     if not required_suites:
-        MICROBENCHMARKS_GEN.write_text("workflow:\n  auto_cancel:\n    on_new_commit:\n      interruptible ")
+        MICROBENCHMARKS_GEN.write_text(
+            """
+noop:
+  image: $GITHUB_CLI_IMAGE
+  tags: [ "arch:amd64" ]
+  script: |
+    echo "noop"
+
+"""
+        )
         return
 
     MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
