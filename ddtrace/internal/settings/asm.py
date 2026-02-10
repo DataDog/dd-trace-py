@@ -3,7 +3,6 @@ import os.path
 from platform import machine
 from platform import system
 import sys
-from typing import List
 from typing import Optional
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -36,7 +35,7 @@ def _validate_percentage(r: float) -> None:
         raise ValueError("percentage value must be between 0 and 100")
 
 
-def _parse_options(options: List[str]):
+def _parse_options(options: list[str]):
     def parse(str_in: str) -> str:
         for o in options:
             if o.startswith(str_in.lower()):
@@ -68,7 +67,7 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
-    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_UNKNOWN
+    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -305,11 +304,6 @@ class ASMConfig(DDConfig):
 
     @property
     def asm_enabled_origin(self):
-        if self._asm_enabled:
-            if self._asm_enabled_origin == APPSEC.ENABLED_ORIGIN_RC:
-                return APPSEC.ENABLED_ORIGIN_RC
-            if tracer_config._lib_was_injected is True:
-                return APPSEC.ENABLED_ORIGIN_SSI
         if APPSEC_ENV in os.environ:
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin

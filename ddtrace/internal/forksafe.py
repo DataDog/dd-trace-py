@@ -16,9 +16,9 @@ from ddtrace.internal import _unpatched
 log = logging.getLogger(__name__)
 
 
-_registry = []  # type: typing.List[typing.Callable[[], None]]
-_registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
-_registry_after_parent = []  # type: typing.List[typing.Callable[[], None]]
+_registry: list[typing.Callable[[], None]] = []
+_registry_before_fork: list[typing.Callable[[], None]] = []
+_registry_after_parent: list[typing.Callable[[], None]] = []
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -41,8 +41,7 @@ def has_forked():
     return _forked
 
 
-def run_hooks(registry):
-    # type: (typing.List[typing.Callable[[], None]]) -> None
+def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
     for hook in list(registry):
         try:
             hook()
@@ -68,8 +67,7 @@ register_after_parent = functools.partial(register_hook, _registry_after_parent)
 register_after_parent(set_forked)
 
 
-def unregister(after_in_child):
-    # type: (typing.Callable[[], None]) -> None
+def unregister(after_in_child: typing.Callable[[], None]) -> None:
     try:
         _registry.remove(after_in_child)
     except ValueError:
@@ -83,8 +81,7 @@ def unregister_parent(after_in_parent: typing.Callable[[], None]) -> None:
         log.info("after_in_parent hook %s was unregistered without first being registered", after_in_parent.__name__)
 
 
-def unregister_before_fork(before_fork):
-    # type: (typing.Callable[[], None]) -> None
+def unregister_before_fork(before_fork: typing.Callable[[], None]) -> None:
     try:
         _registry_before_fork.remove(before_fork)
     except ValueError:
@@ -97,21 +94,6 @@ if hasattr(os, "register_at_fork"):
     os.register_at_fork(
         before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=ddtrace_after_in_parent
     )
-
-_resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
-
-
-def _reset_objects():
-    # type: (...) -> None
-    for obj in list(_resetable_objects):
-        try:
-            obj._reset_object()
-        except Exception:
-            log.exception("Exception ignored in object reset forksafe hook %r", obj)
-
-
-register(_reset_objects)
-
 
 _T = typing.TypeVar("_T")
 
@@ -127,16 +109,28 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
 
     def __init__(
         self,
-        wrapped_class,  # type: typing.Type[_T]
-    ):
-        # type: (...) -> None
+        wrapped_class: type[_T],
+    ) -> None:
         super(ResetObject, self).__init__(wrapped_class())
         self._self_wrapped_class = wrapped_class
         _resetable_objects.add(self)
 
-    def _reset_object(self):
-        # type: (...) -> None
+    def _reset_object(self) -> None:
         self.__wrapped__ = self._self_wrapped_class()
+
+
+_resetable_objects: weakref.WeakSet[ResetObject] = weakref.WeakSet()
+
+
+def _reset_objects() -> None:
+    for obj in list(_resetable_objects):
+        try:
+            obj._reset_object()
+        except Exception:
+            log.exception("Exception ignored in object reset forksafe hook %r", obj)
+
+
+register(_reset_objects)
 
 
 def Lock() -> _unpatched.threading_Lock:

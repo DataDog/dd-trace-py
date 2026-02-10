@@ -5,11 +5,8 @@ import traceback
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Text
-from typing import Type
 from typing import Union
 from typing import cast
 
@@ -61,7 +58,7 @@ class SpanEvent(SpanEventData):
     def __init__(
         self,
         name: str,
-        attributes: Optional[Dict[str, _AttributeValueType]] = None,
+        attributes: Optional[dict[str, _AttributeValueType]] = None,
         time_unix_nano: Optional[int] = None,
     ):
         super().__init__(name, attributes, time_unix_nano)
@@ -113,13 +110,9 @@ class Span(SpanData):
         "parent_id",
         "_meta",
         "_meta_struct",
-        "error",
         "context",
         "_metrics",
         "_store",
-        "span_type",
-        "start_ns",
-        "duration_ns",
         # Internal attributes
         "_parent_context",
         "_local_root_value",
@@ -143,9 +136,9 @@ class Span(SpanData):
         parent_id: Optional[int] = None,
         start: Optional[int] = None,
         context: Optional[Context] = None,
-        on_finish: Optional[List[Callable[["Span"], None]]] = None,
+        on_finish: Optional[list[Callable[["Span"], None]]] = None,
         span_api: str = SPAN_API_DATADOG,
-        links: Optional[List[SpanLink]] = None,
+        links: Optional[list[SpanLink]] = None,
     ) -> None:
         """
         Create a new span. Call `finish` once the traced operation is over.
@@ -182,17 +175,12 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        self.span_type = span_type
         self._span_api = span_api
 
-        self._meta: Dict[str, str] = {}
-        self.error = 0
-        self._metrics: Dict[str, NumericType] = {}
+        self._meta: dict[str, str] = {}
+        self._metrics: dict[str, NumericType] = {}
 
-        self._meta_struct: Dict[str, Dict[str, Any]] = {}
-
-        self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
+        self._meta_struct: dict[str, dict[str, Any]] = {}
 
         if trace_id is not None:
             self.trace_id: int = trace_id
@@ -211,17 +199,17 @@ class Span(SpanData):
             else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
         )
 
-        self._links: List[Union[SpanLink, _SpanPointer]] = []
+        self._links: list[Union[SpanLink, _SpanPointer]] = []
         if links:
             for new_link in links:
                 self._set_link_or_append_pointer(new_link)
 
-        self._events: List[SpanEvent] = []
+        self._events: list[SpanEvent] = []
         self._parent: Optional["Span"] = None
-        self._ignored_exceptions: Optional[List[Type[Exception]]] = None
+        self._ignored_exceptions: Optional[list[type[Exception]]] = None
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
-        self._store: Optional[Dict[str, Any]] = None
+        self._store: Optional[dict[str, Any]] = None
 
     def _update_tags_from_context(self) -> None:
         with self.context:
@@ -230,7 +218,7 @@ class Span(SpanData):
             for metric in self.context._metrics:
                 self._metrics.setdefault(metric, self.context._metrics[metric])
 
-    def _ignore_exception(self, exc: Type[Exception]) -> None:
+    def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
             self._ignored_exceptions = [exc]
         else:
@@ -241,7 +229,7 @@ class Span(SpanData):
             self._store = {}
         self._store[key] = val
 
-    def _set_ctx_items(self, items: Dict[str, Any]) -> None:
+    def _set_ctx_items(self, items: dict[str, Any]) -> None:
         if not self._store:
             self._store = {}
         self._store.update(items)
@@ -254,30 +242,6 @@ class Span(SpanData):
     @property
     def _trace_id_64bits(self) -> int:
         return _get_64_lowest_order_bits_as_int(self.trace_id)
-
-    @property
-    def start(self) -> float:
-        """The start timestamp in Unix epoch seconds."""
-        return self.start_ns / 1e9
-
-    @start.setter
-    def start(self, value: Union[int, float]) -> None:
-        self.start_ns = int(value * 1e9)
-
-    @property
-    def finished(self) -> bool:
-        return self.duration_ns is not None
-
-    @property
-    def duration(self) -> Optional[float]:
-        """The span duration in seconds."""
-        if self.duration_ns is not None:
-            return self.duration_ns / 1e9
-        return None
-
-    @duration.setter
-    def duration(self, value: float) -> None:
-        self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
@@ -382,14 +346,14 @@ class Span(SpanData):
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
-    def _set_struct_tag(self, key: str, value: Dict[str, Any]) -> None:
+    def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None:
         """
         Set a tag key/value pair on the span meta_struct
         Currently it will only be exported with V4 encoding
         """
         self._meta_struct[key] = value
 
-    def _get_struct_tag(self, key: str) -> Optional[Dict[str, Any]]:
+    def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]:
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
@@ -409,11 +373,11 @@ class Span(SpanData):
         """Return the given tag or None if it doesn't exist."""
         return self._meta.get(key, None)
 
-    def get_tags(self) -> Dict[str, str]:
+    def get_tags(self) -> dict[str, str]:
         """Return all tags."""
         return self._meta.copy()
 
-    def set_tags(self, tags: Dict[str, str]) -> None:
+    def set_tags(self, tags: dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
         must be strings (or stringable)
         """
@@ -451,7 +415,7 @@ class Span(SpanData):
             del self._meta[key]
         self._metrics[key] = value
 
-    def set_metrics(self, metrics: Dict[str, NumericType]) -> None:
+    def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
         must be strings (or stringable). Values must be numeric.
         """
@@ -464,7 +428,7 @@ class Span(SpanData):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
     ) -> None:
         self._events.append(SpanEvent(name, attributes, timestamp))
 
@@ -472,7 +436,7 @@ class Span(SpanData):
         """Add an errortracking related callback to the on_finish_callback array"""
         self._on_finish_callbacks.insert(0, callback)
 
-    def get_metrics(self) -> Dict[str, NumericType]:
+    def get_metrics(self) -> dict[str, NumericType]:
         """Return all metrics."""
         return self._metrics.copy()
 
@@ -494,7 +458,7 @@ class Span(SpanData):
 
     def _get_traceback(
         self,
-        exc_type: Type[BaseException],
+        exc_type: type[BaseException],
         exc_val: BaseException,
         exc_tb: Optional[TracebackType],
         limit: Optional[int] = None,
@@ -538,7 +502,7 @@ class Span(SpanData):
 
     def set_exc_info(
         self,
-        exc_type: Type[BaseException],
+        exc_type: type[BaseException],
         exc_val: BaseException,
         exc_tb: Optional[TracebackType],
         limit: Optional[int] = None,
@@ -581,7 +545,7 @@ class Span(SpanData):
     def record_exception(
         self,
         exception: BaseException,
-        attributes: Optional[Dict[str, _AttributeValueType]] = None,
+        attributes: Optional[dict[str, _AttributeValueType]] = None,
     ) -> None:
         """
         Records an exception as a span event. Multiple exceptions can be recorded on a span.
@@ -593,7 +557,7 @@ class Span(SpanData):
         """
         tb = self._get_traceback(type(exception), exception, exception.__traceback__)
 
-        attrs: Dict[str, _AttributeValueType] = {
+        attrs: dict[str, _AttributeValueType] = {
             "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
             "exception.message": str(exception),
             "exception.stacktrace": tb,
@@ -674,7 +638,7 @@ class Span(SpanData):
     def _service_entry_span(self) -> None:
         del self._service_entry_span_value
 
-    def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
+    def link_span(self, context: Context, attributes: Optional[dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
         if not context.trace_id or not context.span_id:
             msg = f"Invalid span or trace id. trace_id:{context.trace_id} span_id:{context.span_id}"
@@ -698,7 +662,7 @@ class Span(SpanData):
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Dict[str, Any]] = None,
+        attributes: Optional[dict[str, Any]] = None,
     ) -> None:
         if attributes is None:
             attributes = dict()
@@ -718,7 +682,7 @@ class Span(SpanData):
         pointer_kind: str,
         pointer_direction: _SpanPointerDirection,
         pointer_hash: str,
-        extra_attributes: Optional[Dict[str, Any]] = None,
+        extra_attributes: Optional[dict[str, Any]] = None,
     ) -> None:
         # This is a Private API for now.
 
@@ -767,7 +731,7 @@ class Span(SpanData):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> None:

@@ -75,7 +75,7 @@ jobs:
           pip install packaging
           pip install requests
           pip install pip-tools==7.5.2
-          pip install riot==0.20.1
+          pip install riot==0.21.0
           pip install hatch==1.14.2
           pip install PyYAML
           pip install ddtrace

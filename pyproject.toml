@@ -149,7 +149,9 @@ exclude = [
     "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
-    "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"
+    "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
+    "tests/appsec/iast/aspects/test_template_string_aspect.py",  # Python 3.14+ syntax (t-strings)
+    "benchmarks/bm/iast_fixtures/template_strings.py",  # Python 3.14+ syntax (t-strings)
 ]
 lint.ignore = [
     "A003",
@@ -192,6 +194,7 @@ lint.select = [
     "G",
     "I",
     "PLW0244",  # redefined-slots-in-subclass
+    "UP006",  # non-pep585-annotation (use builtin generics like list instead of typing.List)
     "W",
 ]
 lint.unfixable =[

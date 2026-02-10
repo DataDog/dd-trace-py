@@ -8,10 +8,7 @@ import threading
 from tracemalloc import Statistic
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Sequence
-from typing import Set
 from typing import Union
 
 import pytest
@@ -35,7 +32,7 @@ PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
-def _allocate_1k() -> List[object]:
+def _allocate_1k() -> list[object]:
     return [object() for _ in range(1000)]
 
 
@@ -118,7 +115,11 @@ def test_memory_collector(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
             thread_id=threading.main_thread().ident,
             locations=[
                 pprof_utils.StackLocation(
@@ -249,16 +250,16 @@ def has_function_in_profile_sample(
 
 def get_tracemalloc_stats_per_func(
     stats: Sequence[Statistic], funcs: Sequence[Callable]
-) -> tuple[Dict[str, int], Dict[str, int]]:
-    source_to_func: Dict[str, str] = {}
+) -> tuple[dict[str, int], dict[str, int]]:
+    source_to_func: dict[str, str] = {}
 
     for f in funcs:
         file = inspect.getsourcefile(f)
         line = inspect.getsourcelines(f)[1] + 1
         source_to_func[str(file) + str(line)] = f.__name__
 
-    actual_sizes: Dict[str, int] = {}
-    actual_counts: Dict[str, int] = {}
+    actual_sizes: dict[str, int] = {}
+    actual_counts: dict[str, int] = {}
     for stat in stats:
         f = stat.traceback[0]
         key = f.filename + str(f.lineno)
@@ -322,7 +323,7 @@ def test_memalloc_data_race_regression() -> None:
     p = Profiler()
     p.start()
 
-    threads: List[threading.Thread] = []
+    threads: list[threading.Thread] = []
     ev = threading.Event()
     for i in range(4):
         t = threading.Thread(target=lotsa_allocs, args=(ev,))
@@ -366,7 +367,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
                 junk.append(three(3 * size))
                 junk.append(four(4 * size))
 
-            stats: List[Statistic] = tracemalloc.take_snapshot().statistics("traceback")
+            stats: list[Statistic] = tracemalloc.take_snapshot().statistics("traceback")
             tracemalloc.stop()
 
             del junk
@@ -419,7 +420,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
 
     def get_allocation_info_from_profile(
         profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
-    ) -> Dict[str, HeapInfo]:
+    ) -> dict[str, HeapInfo]:
         got = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
@@ -556,14 +557,14 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
     mc = memalloc.MemoryCollector(heap_sample_size=32)
 
     with mc:
-        first_batch: List[Union[tuple[None, ...], bytearray]] = []
+        first_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(20):
             first_batch.append(one(256))
 
         # We're taking a snapshot here to ensure that in the next snapshot, we don't see any "one" allocations
         mc.snapshot_and_parse_pprof(output_filename)
 
-        second_batch: List[Union[tuple[None, ...], bytearray]] = []
+        second_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(15):
             second_batch.append(two(512))
 
@@ -632,13 +633,13 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         # Take initial snapshot to reset allocation tracking (may have no samples)
         mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
 
-        first_batch: List[Union[tuple[None, ...], bytearray]] = []
+        first_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(20):
             first_batch.append(one(256))
 
         after_first_batch_profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        second_batch: List[Union[tuple[None, ...], bytearray]] = []
+        second_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(15):
             second_batch.append(two(512))
 
@@ -781,11 +782,11 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
     deep_alloc_func = None
 
     num_threads = 10
-    thread_ids: Set[int] = set()
+    thread_ids: set[int] = set()
     thread_ids_lock = threading.Lock()
 
     with mc:
-        threads: List[threading.Thread] = []
+        threads: list[threading.Thread] = []
         barrier = threading.Barrier(num_threads)
 
         def allocate_with_traceback() -> None:
@@ -823,7 +824,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
 
         deep_alloc_total_count = 0
         max_stack_depth = 0
-        sampled_thread_ids: Set[int] = set()
+        sampled_thread_ids: set[int] = set()
 
         for sample in profile.sample:
             # Buffer pool test: All samples should have stack frames
@@ -869,7 +870,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
     worker_func = None
 
     with mc:
-        threads: List[threading.Thread] = []
+        threads: list[threading.Thread] = []
 
         def worker():
             for i in range(10):
@@ -957,7 +958,7 @@ def test_heap_stress() -> None:
     # This should run for a few seconds, and is enough to spot potential segfaults.
     _memalloc.start(64, 1024)
     try:
-        x: List[object] = []
+        x: list[object] = []
 
         for _ in range(20):
             for _ in range(1000):
@@ -1001,7 +1002,7 @@ def test_memalloc_speed(benchmark, heap_sample_size) -> None:
     ),
 )
 def test_memalloc_sample_size(
-    enabled: bool, predicates: List[Callable[[int], bool]], monkeypatch: pytest.MonkeyPatch
+    enabled: bool, predicates: list[Callable[[int], bool]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("DD_PROFILING_HEAP_ENABLED", str(enabled).lower())
     config = ProfilingConfig()
@@ -1134,7 +1135,12 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
+            thread_id=threading.main_thread().ident,
             locations=[
                 loc("inner_frame"),
                 loc("middle_frame"),
