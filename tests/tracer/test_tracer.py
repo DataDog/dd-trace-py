@@ -1081,9 +1081,9 @@ def test_enable():
     err=b"Shutting down tracer with 2 spans. "
     b"These spans will not be sent to Datadog: "
     b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
-    b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
+    b"resource=my_resource1 started=1234567890.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
-    b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
+    b"resource=my_resource1 started=1987654321.0 sampling_priority=2\n"
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
@@ -1097,12 +1097,12 @@ def test_unfinished_span_warning_log():
     span1.trace_id = 123
     span1.parent_id = 0
     span1.span_id = 456
-    span1.start = 46121775360
+    span1.start = 1234567890  # Fri Feb 13 2009 23:31:30 GMT (realistic Unix timestamp)
     span1.set_tag(MANUAL_KEEP_KEY)
     span2.trace_id = 123
     span2.parent_id = 456
     span2.span_id = 666
-    span2.start = 167232131231
+    span2.start = 1987654321  # Wed Oct 17 2033 11:32:01 GMT (future but realistic)
     span2.set_tag(MANUAL_KEEP_KEY)
 
 

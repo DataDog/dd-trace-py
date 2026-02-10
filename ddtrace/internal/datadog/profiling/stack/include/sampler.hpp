@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 #include "constants.hpp"
 
@@ -25,6 +27,11 @@ class Sampler
     // transactions upon the sampling threads (usually starts + stops). This allows threads to be
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
+
+    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit
+    std::atomic<bool> thread_running{ false };
+    std::mutex thread_exit_mutex;
+    std::condition_variable thread_exit_cv;
 
     // This is a singleton, so no public constructor
     Sampler();
