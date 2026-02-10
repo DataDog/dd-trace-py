@@ -139,3 +139,53 @@ def test_class_based_handlers(context, handler, function_name):
     with override_env_and_patch(env):
         result = datadog(handler)({}, context())
         assert result == {"success": True}
+
+
+class TestTimeoutChannelSignalRestoration:
+    def test_user_signal_handler_restored_after_stop(self, context):
+        import signal
+
+        from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
+
+        def user_handler(signum, frame):
+            pass
+
+        signal.signal(signal.SIGALRM, user_handler)
+
+        tc = TimeoutChannel(context())
+        tc._start()
+        assert signal.getsignal(signal.SIGALRM) != user_handler
+        tc.stop()
+
+        assert signal.getsignal(signal.SIGALRM) == user_handler
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+    def test_default_handler_restored_when_no_prior_handler(self, context):
+        import signal
+
+        from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
+
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+
+        tc = TimeoutChannel(context())
+        tc._start()
+        tc.stop()
+
+        assert signal.getsignal(signal.SIGALRM) == signal.SIG_DFL
+
+    def test_user_handler_restored_after_crash_flush(self, context):
+        import signal
+
+        from ddtrace.contrib.internal.aws_lambda.patch import TimeoutChannel
+
+        def user_handler(signum, frame):
+            pass
+
+        signal.signal(signal.SIGALRM, user_handler)
+
+        tc = TimeoutChannel(context())
+        tc._start()
+        tc._crash_flush(None, None)
+
+        assert signal.getsignal(signal.SIGALRM) == user_handler
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)

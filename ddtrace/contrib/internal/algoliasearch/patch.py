@@ -1,5 +1,3 @@
-from typing import Dict
-
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -13,6 +11,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -41,7 +40,7 @@ def get_version() -> str:
     return VERSION
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"algoliasearch": ">=2.6.3"}
 
 
@@ -123,7 +122,7 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
     if not pin or not pin.enabled():
         return func(*wrapt_args, **wrapt_kwargs)
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
         service=trace_utils.ext_service(pin, config.algoliasearch),
         span_type=SpanTypes.HTTP,

@@ -33,12 +33,14 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Since this file is currently only loaded as a subdirectory, we need to propagate certain libdatadog variables up to
 # the parent scope.
-set(Datadog_INCLUDE_DIRS
-    ${Datadog_INCLUDE_DIRS}
-    PARENT_SCOPE)
-set(Datadog_LIBRARIES
-    ${Datadog_LIBRARIES}
-    PARENT_SCOPE)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(Datadog_INCLUDE_DIRS
+        ${Datadog_INCLUDE_DIRS}
+        PARENT_SCOPE)
+    set(Datadog_LIBRARIES
+        ${Datadog_LIBRARIES}
+        PARENT_SCOPE)
+endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -53,7 +55,6 @@ add_library(
     src/code_provenance.cpp
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
-    src/libdatadog_helpers.cpp
     src/profile.cpp
     src/profile_borrow.cpp
     src/profiler_stats.cpp

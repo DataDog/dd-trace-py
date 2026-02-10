@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import MySQLdb
 from wrapt import wrap_function_wrapper as _w
@@ -22,6 +21,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import tracer
 
 
 config._add(
@@ -44,12 +44,11 @@ KWPOS_BY_TAG = {
 }
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ".".join(map(str, MySQLdb.version_info[0:3]))
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"mysqldb": "*"}
 
 
@@ -99,7 +98,7 @@ def _connect(func, instance, args, kwargs):
     if not pin or not pin.enabled() or not config.mysqldb.trace_connect:
         conn = func(*args, **kwargs)
     else:
-        with pin.tracer.trace(
+        with tracer.trace(
             "MySQLdb.connection.connect", service=ext_service(pin, config.mysqldb), span_type=SpanTypes.SQL
         ) as span:
             span._set_tag_str(COMPONENT, config.mysqldb.integration_name)

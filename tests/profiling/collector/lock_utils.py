@@ -1,10 +1,9 @@
 from collections import namedtuple
 import sys
-from typing import Dict
 
 
 LineNo = namedtuple("LineNo", ["create", "acquire", "release"])
-lock_locs: Dict[str, LineNo] = {}
+lock_locs: dict[str, LineNo] = {}
 loc_type_map = {
     "!CREATE!": "create",
     "!ACQUIRE!": "acquire",

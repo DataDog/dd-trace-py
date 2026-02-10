@@ -5,7 +5,6 @@ Integration tests are in tests/test_integration.py.
 """
 
 import os
-import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -977,6 +976,8 @@ class TestSessionLifecycleMethods:
         # Mock session with normal exit
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.OK
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -1000,6 +1001,8 @@ class TestSessionLifecycleMethods:
         # Mock session with test failures
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.TESTS_FAILED
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -1021,6 +1024,8 @@ class TestSessionLifecycleMethods:
         mock_session = Mock()
         mock_session.exitstatus = pytest.ExitCode.OK
         mock_session.config = Mock(workeroutput={})
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
 
         plugin.pytest_sessionfinish(mock_session)
 
@@ -1058,7 +1063,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        reports: t.Dict[str, Mock] = {}
+        reports: dict[str, Mock] = {}
 
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 

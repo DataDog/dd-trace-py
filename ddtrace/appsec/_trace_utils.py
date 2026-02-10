@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -19,6 +18,7 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -271,7 +271,7 @@ def track_user_signup_event(
         )
 
 
-def track_custom_event(tracer: Any, event_name: str, metadata: Dict[str, Any]) -> None:
+def track_custom_event(tracer: Any, event_name: str, metadata: dict[str, Any]) -> None:
     """
     Add a new custom tracking event.
 
@@ -322,7 +322,7 @@ def should_block_user(tracer: Any, userid: str, session_id: Optional[str] = None
     # Early check to avoid calling the WAF if the request is already blockedxw
     if get_blocked():
         return True
-    custom_data: Dict[str, Any] = {}
+    custom_data: dict[str, Any] = {}
     if userid is not None:
         custom_data["REQUEST_USER_ID"] = str(userid)
     if session_id is not None:
@@ -345,16 +345,13 @@ def block_request() -> None:
     _asm_request_context.block_request()
 
 
-def block_request_if_user_blocked(
-    tracer: Any, userid: str, mode: str = "sdk", session_id: Optional[str] = None
-) -> None:
+def block_request_if_user_blocked(userid: str, mode: str = "sdk", session_id: Optional[str] = None) -> None:
     """
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.
 
     This should only be called with set_user from the sdk API
 
-    :param tracer: tracer instance to use
     :param userid: the ID of the user as registered by `set_user`
     :param mode: the mode of the login event ("sdk" by default, "auto" to simulate auto instrumentation)
     """
@@ -387,7 +384,7 @@ def _on_django_login(pin, request, user, mode, info_retriever, django_config):
             name=django_config.include_user_realname,
         )
         if user_is_authenticated(user):
-            with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+            with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
                 session_key = getattr(getattr(request, "session", None), "session_key", None)
                 track_user_login_success_event(
                     None,
@@ -419,7 +416,7 @@ def _on_django_auth(result_user, mode, kwargs, pin, info_retriever, django_confi
         user_id = None
 
     if not result_user:
-        with pin.tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
+        with tracer.trace("django.contrib.auth.login", span_type=SpanTypes.AUTH):
             exists = info_retriever.user_exists()
             user_id_found, user_extra = info_retriever.get_user_info(
                 login=django_config.include_user_login,

@@ -5,10 +5,7 @@ import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
@@ -50,7 +47,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
-        self._metadata: Dict[str, Dict[str, str]] = {}
+        self._metadata: dict[str, dict[str, str]] = {}
         self._lock = threading.RLock()
         self._is_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is not None
         self._init_buffer()
@@ -59,7 +56,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         with self._lock:
             return len(self.buffer)
 
-    def set_metadata(self, event_type: str, metadata: Dict[str, str]):
+    def set_metadata(self, event_type: str, metadata: dict[str, str]):
         self._metadata.setdefault(event_type, {}).update(metadata)
 
     def _init_buffer(self):
@@ -76,7 +73,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         """
         raise NotImplementedError()
 
-    def encode(self) -> List[Tuple[Optional[bytes], int]]:
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
             if not self.buffer:
                 return []
@@ -87,14 +84,14 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self._init_buffer()
             return payloads
 
-    def _get_parent_session(self, traces: List[List[Span]]) -> int:
+    def _get_parent_session(self, traces: list[list["Span"]]) -> int:
         for trace in traces:
             for span in trace:
                 if span.get_tag(EVENT_TYPE) == SESSION_TYPE and span.parent_id is not None and span.parent_id != 0:
                     return span.parent_id
         return 0
 
-    def _build_payload(self, traces: List[List[Span]]) -> List[Tuple[Optional[bytes], int]]:
+    def _build_payload(self, traces: list[list["Span"]]) -> list[tuple[Optional[bytes], int]]:
         """
         Build multiple payloads from traces, splitting when necessary to stay under size limits.
         Uses index-based recursive approach to avoid copying slices.
@@ -109,8 +106,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return self._build_payloads_recursive(traces, 0, len(traces), new_parent_session_span_id)
 
     def _build_payloads_recursive(
-        self, traces: List[List[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
-    ) -> List[Tuple[Optional[bytes], int]]:
+        self, traces: list[list["Span"]], start_idx: int, end_idx: int, new_parent_session_span_id: int
+    ) -> list[tuple[Optional[bytes], int]]:
         """
         Recursively build payloads using start/end indexes to avoid slice copying.
 
@@ -121,7 +118,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             new_parent_session_span_id: Parent session span ID
 
         Returns:
-            List of (payload_bytes, trace_count) tuples
+            list of (payload_bytes, trace_count) tuples
         """
         if start_idx >= end_idx:
             return []
@@ -159,8 +156,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             return left_payloads + right_payloads
 
     def _convert_traces_to_spans_indexed(
-        self, traces: List[List[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
-    ) -> List[Tuple[int, List[Dict[str, Any]]]]:
+        self, traces: list[list["Span"]], start_idx: int, end_idx: int, new_parent_session_span_id: int
+    ) -> list[tuple[int, list[dict[str, Any]]]]:
         """Convert traces to spans with xdist filtering applied, using indexes to avoid slicing."""
         all_spans_with_trace_info = []
         for trace_idx in range(start_idx, end_idx):
@@ -174,7 +171,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         return all_spans_with_trace_info
 
-    def _create_payload_from_spans(self, spans: List[Dict[str, Any]]) -> bytes:
+    def _create_payload_from_spans(self, spans: list[dict[str, Any]]) -> bytes:
         """Create a payload from the given spans."""
         return CIVisibilityEncoderV01._pack_payload(
             {
@@ -189,8 +186,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return msgpack_packb(payload)
 
     def _convert_span(
-        self, span: Span, dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
-    ) -> Dict[str, Any]:
+        self, span: "Span", dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
+    ) -> dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
@@ -273,7 +270,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
-    def _build_coverage_attachment(self, data: bytes) -> List[bytes]:
+    def _build_coverage_attachment(self, data: bytes) -> list[bytes]:
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"',
@@ -282,7 +279,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             data,
         ]
 
-    def _build_event_json_attachment(self) -> List[bytes]:
+    def _build_event_json_attachment(self) -> list[bytes]:
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="event"; filename="event.json"',
@@ -291,14 +288,14 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             b'{"dummy":true}',
         ]
 
-    def _build_body(self, data: bytes) -> List[bytes]:
+    def _build_body(self, data: bytes) -> list[bytes]:
         return (
             self._build_coverage_attachment(data)
             + self._build_event_json_attachment()
             + [b"--%s--" % self.boundary.encode("utf-8")]
         )
 
-    def _build_data(self, traces: List[List[Span]]) -> Optional[bytes]:
+    def _build_data(self, traces: list[list["Span"]]) -> Optional[bytes]:
         new_parent_session_span_id = self._get_parent_session(traces)
         normalized_covs = [
             self._convert_span(span, new_parent_session_span_id=new_parent_session_span_id)
@@ -312,15 +309,15 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
-    def _build_payload(self, traces: List[List[Span]]) -> List[Tuple[Optional[bytes], int]]:
+    def _build_payload(self, traces: list[list["Span"]]) -> list[tuple[Optional[bytes], int]]:
         data = self._build_data(traces)
         if not data:
             return []
         return [(b"\r\n".join(self._build_body(data)), len(data))]
 
     def _convert_span(
-        self, span: Span, dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
-    ) -> Dict[str, Any]:
+        self, span: "Span", dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
+    ) -> dict[str, Any]:
         # DEV: new_parent_session_span_id is unused here, but it is used in super class
         files: dict[str, Any] = {}
 
@@ -342,3 +339,106 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         log.debug("Span converted to coverage event: %s", converted_span)
 
         return converted_span
+
+
+class CIVisibilityCoverageReportEncoder:
+    """Simple encoder specifically for coverage report uploads.
+
+    This encoder handles a single coverage report upload per session,
+    creating multipart form data with the compressed report and metadata.
+
+    Note: This encoder is called directly via encode_coverage_report() by the recorder,
+    not through the put()/encode() BufferedEncoder pattern. However, it still needs
+    to implement the encoder interface methods for compatibility with the writer's
+    generic code paths.
+    """
+
+    content_type = "multipart/form-data"
+    ENDPOINT_TYPE = ENDPOINT.COVERAGE_REPORT
+
+    def __init__(self):
+        self.boundary = uuid4().hex
+        self.content_type = f"multipart/form-data; boundary={self.boundary}"
+
+    def __len__(self) -> int:
+        """Return 0 as this encoder doesn't use a buffer.
+
+        This encoder handles coverage reports differently from standard encoders:
+        - Standard encoders: buffer spans via put(), then encode() on periodic flush
+        - Coverage encoder: direct upload via encode_coverage_report() for immediate synchronous delivery
+
+        The no-op implementation satisfies the writer's generic interface (which iterates
+        over all clients and checks len(encoder)), while the actual upload happens through
+        the custom encode_coverage_report() method called directly by the recorder.
+        """
+        return 0
+
+    def put(self, item) -> None:
+        """No-op: Coverage reports are uploaded directly, not buffered.
+
+        This method exists for interface compatibility but is not used. Coverage reports
+        require immediate synchronous upload at session finish (before process exit),
+        so they bypass the standard put()/encode() buffering pattern.
+
+        Args:
+            item: Unused - coverage reports are uploaded via encode_coverage_report()
+        """
+        pass
+
+    def encode(self) -> list:
+        """Return empty list as this encoder doesn't buffer items.
+
+        Coverage reports are uploaded immediately via encode_coverage_report() rather than
+        being buffered and flushed periodically. This ensures synchronous delivery before
+        the test session ends.
+
+        Returns:
+            Empty list - no buffered payloads to encode
+        """
+        return []
+
+    def encode_coverage_report(self, report_bytes: bytes, coverage_format: str, event_data: dict) -> bytes:
+        """Encode coverage report as multipart form data.
+
+        Args:
+            report_bytes: The raw coverage report content
+            coverage_format: The format of the report (e.g., 'lcov')
+            event_data: Metadata about the coverage report (git info, service, timestamp, etc.)
+
+        Returns:
+            The encoded multipart form data as bytes
+        """
+        import gzip
+
+        # Compress the report
+        compressed_report = gzip.compress(report_bytes)
+
+        # Build multipart form data
+        parts = []
+
+        # Coverage file part
+        parts.extend(
+            [
+                f"--{self.boundary}",
+                f'Content-Disposition: form-data; name="coverage"; filename="coverage.{coverage_format}.gz"',
+                "Content-Type: application/gzip",
+                "",
+            ]
+        )
+
+        # Add binary data (we'll handle this separately)
+        parts_text = "\r\n".join(parts) + "\r\n"
+
+        # Event metadata part
+        event_parts = [
+            f"--{self.boundary}",
+            'Content-Disposition: form-data; name="event"; filename="event.json"',
+            "Content-Type: application/json",
+            "",
+            json.dumps(event_data),
+            f"--{self.boundary}--",
+        ]
+        event_text = "\r\n".join(event_parts)
+
+        # Combine all parts
+        return parts_text.encode() + compressed_report + b"\r\n" + event_text.encode()

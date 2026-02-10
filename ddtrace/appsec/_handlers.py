@@ -1,10 +1,7 @@
 import io
 import json
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.span import Span
@@ -40,7 +37,8 @@ from ddtrace.internal.utils.http import parse_form_multipart
 import ddtrace.vendor.xmltodict as xmltodict
 
 
-log = get_logger(__name__)
+logger = get_logger(__name__)
+
 _BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
@@ -102,15 +100,15 @@ def _on_set_http_meta(
 # AWS Lambda
 def _on_lambda_start_request(
     span: Span,
-    request_headers: Dict[str, str],
+    request_headers: dict[str, str],
     request_ip: Optional[str],
     body: Optional[str],
     is_body_base64: bool,
     raw_uri: str,
     route: str,
     method: str,
-    parsed_query: Dict[str, Any],
-    request_path_parameters: Optional[Dict[str, Any]],
+    parsed_query: dict[str, Any],
+    request_path_parameters: Optional[dict[str, Any]],
 ):
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
@@ -141,7 +139,7 @@ def _on_lambda_start_request(
 def _on_lambda_start_response(
     span: Span,
     status_code: str,
-    response_headers: Dict[str, str],
+    response_headers: dict[str, str],
 ):
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
@@ -169,7 +167,7 @@ def _on_lambda_start_response(
 
 
 def _on_lambda_parse_body(
-    response_body: Optional[Union[str, Dict[str, Any]]],
+    response_body: Optional[Union[str, dict[str, Any]]],
 ):
     if asm_config._api_security_feature_active:
         if response_body:
@@ -272,7 +270,7 @@ def _on_request_span_modifier(
                 # no raw body
                 req_body = None
         except Exception:
-            log.debug("Failed to parse request body", exc_info=True)
+            logger.debug("Failed to parse request body", exc_info=True)
         finally:
             # Reset wsgi input to the beginning
             if wsgi_input:
@@ -303,7 +301,7 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
         set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
 
 
-def _wsgi_make_block_content(ctx, construct_url) -> Tuple[int, List[Tuple[str, str]], bytes]:
+def _wsgi_make_block_content(ctx, construct_url) -> tuple[int, list[tuple[str, str]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -337,12 +335,12 @@ def _wsgi_make_block_content(ctx, construct_url) -> Tuple[int, List[Tuple[str, s
         if user_agent:
             req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
 
-def _asgi_make_block_content(ctx, url) -> Tuple[int, List[Tuple[bytes, bytes]], bytes]:
+def _asgi_make_block_content(ctx, url) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -378,7 +376,7 @@ def _asgi_make_block_content(ctx, url) -> Tuple[int, List[Tuple[bytes, bytes]], 
         if user_agent:
             req_span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
     return status, resp_headers, content
 
@@ -399,7 +397,7 @@ def _on_flask_blocked_request(span):
         if user_agent:
             span._set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))
+        logger.warning("Could not set some span tags on blocked request: %s", str(e))
 
 
 def _on_start_response_blocked(ctx, flask_config, response_headers, status):
@@ -418,7 +416,7 @@ def _on_telemetry_periodic():
             ]
         )
     except Exception:
-        log.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
+        logger.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
 
 
 # Stripe
@@ -469,7 +467,7 @@ def _on_checkout_session_create(session):
 
         call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
     except AttributeError:
-        log.debug("can't extract payment creation data from Session object", exc_info=True)
+        logger.debug("can't extract payment creation data from Session object", exc_info=True)
 
 
 def _on_payment_intent_create(payment_intent):
@@ -489,7 +487,7 @@ def _on_payment_intent_create(payment_intent):
 
         call_waf_callback({"PAYMENT_CREATION": payment_creation_data})
     except AttributeError:
-        log.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
+        logger.debug("can't extract payment creation data from PaymentIntent object", exc_info=True)
 
 
 def _on_payment_intent_event(event):
@@ -529,7 +527,7 @@ def _on_payment_intent_event(event):
 
         call_waf_callback({waf_data_name: payment_intent_webhook_data})
     except AttributeError:
-        log.debug("can't extract payment_intent event data from Event object", exc_info=True)
+        logger.debug("can't extract payment_intent event data from Event object", exc_info=True)
 
 
 # HTTPX

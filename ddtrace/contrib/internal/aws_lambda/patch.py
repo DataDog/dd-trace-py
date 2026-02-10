@@ -1,6 +1,5 @@
 from importlib import import_module
 import signal
-from typing import Dict
 
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -15,12 +14,11 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"datadog_lambda": "*"}
 
 
@@ -47,6 +45,7 @@ class TimeoutChannel:
     def __init__(self, context):
         self.crashed = False
         self.context = context
+        self._original_signal = None
 
     def _handle_signal(self, sig, f):
         """
@@ -56,19 +55,19 @@ class TimeoutChannel:
         Else, wraps the given signal with the previously defined one,
         so no signals are overridden.
         """
-        old_signal = signal.getsignal(sig)
+        self._original_signal = signal.getsignal(sig)
 
         def wrap_signals(*args, **kwargs):
-            if old_signal is not None:
-                old_signal(*args, **kwargs)
+            if self._original_signal is not None:
+                self._original_signal(*args, **kwargs)
             f(*args, **kwargs)
 
         # Return the incoming signal if any of the following cases happens:
-        # - old signal does not exist,
-        # - old signal is the same as the incoming, or
-        # - old signal is our wrapper.
+        # - _original_signal does not exist,
+        # - _original_signal is the same as the incoming, or
+        # - _original_signal is our wrapper.
         # This avoids multiple signal calling and infinite wrapping.
-        if not callable(old_signal) or old_signal == f or old_signal == wrap_signals:
+        if not callable(self._original_signal) or self._original_signal == f or self._original_signal == wrap_signals:
             return signal.signal(sig, f)
 
         return signal.signal(sig, wrap_signals)
@@ -106,9 +105,12 @@ class TimeoutChannel:
             current_span._finish_with_ancestors()
 
     def _remove_alarm_signal(self):
-        """Removes the handler set for the signal `SIGALRM`."""
+        """Removes the handler set for the signal `SIGALRM` and restores the original handler."""
         signal.alarm(0)
-        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        if self._original_signal is not None:
+            signal.signal(signal.SIGALRM, self._original_signal)
+        else:
+            signal.signal(signal.SIGALRM, signal.SIG_DFL)
 
     def stop(self):
         self._remove_alarm_signal()

@@ -2,13 +2,13 @@ from urllib.parse import urlparse
 
 from tornado import template
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
 from ddtrace.contrib.internal.tornado.stack_context import context_provider
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.trace import tracer
 
 
 def tracer_config(__init__, app, args, kwargs):
@@ -21,7 +21,6 @@ def tracer_config(__init__, app, args, kwargs):
 
     # default settings
     settings = {
-        "tracer": ddtrace.tracer,
         "default_service": schematize_service_name(config._get_service("tornado-web")),
         "distributed_tracing": None,
     }
@@ -32,7 +31,6 @@ def tracer_config(__init__, app, args, kwargs):
         settings.update(user_settings)
 
     app.settings[CONFIG_KEY] = settings
-    tracer = settings["tracer"]
     service = settings["default_service"]
 
     # extract extra settings
@@ -61,5 +59,4 @@ def tracer_config(__init__, app, args, kwargs):
         tracer.set_tags(tags)
 
     pin = Pin(service=service)
-    pin._tracer = tracer
     pin.onto(template)

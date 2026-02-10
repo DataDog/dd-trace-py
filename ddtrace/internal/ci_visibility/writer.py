@@ -2,7 +2,6 @@ from http.client import RemoteDisconnected
 import os
 import socket
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
@@ -26,10 +25,13 @@ from ..writer import WriterClientBase
 from .constants import AGENTLESS_BASE_URL
 from .constants import AGENTLESS_COVERAGE_BASE_URL
 from .constants import AGENTLESS_COVERAGE_ENDPOINT
+from .constants import AGENTLESS_COVERAGE_REPORT_BASE_URL
 from .constants import AGENTLESS_DEFAULT_SITE
 from .constants import AGENTLESS_ENDPOINT
+from .constants import COVERAGE_REPORT_UPLOAD_ENDPOINT
 from .constants import EVP_PROXY_COVERAGE_ENDPOINT
 from .encoder import CIVisibilityCoverageEncoderV02
+from .encoder import CIVisibilityCoverageReportEncoder
 from .encoder import CIVisibilityEncoderV01
 from .telemetry.payload import REQUEST_ERROR_TYPE
 from .telemetry.payload import record_endpoint_payload_bytes
@@ -39,8 +41,6 @@ from .telemetry.payload import record_endpoint_payload_request_time
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import List  # noqa:F401
-
     from ddtrace.internal.utils.http import Response  # noqa:F401
 
 
@@ -59,7 +59,7 @@ class CIVisibilityEventClient(WriterClientBase):
         )
         super(CIVisibilityEventClient, self).__init__(encoder)
 
-    def set_metadata(self, event_type: str, metadata: Dict[str, str]) -> None:
+    def set_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         if isinstance(self.encoder, CIVisibilityEncoderV01):
             self.encoder.set_metadata(event_type, metadata)
 
@@ -87,6 +87,30 @@ class CIVisibilityAgentlessCoverageClient(CIVisibilityCoverageClient):
     ENDPOINT = AGENTLESS_COVERAGE_ENDPOINT
 
 
+class CIVisibilityCoverageReportClient(WriterClientBase):
+    """Client specifically for coverage report uploads."""
+
+    def __init__(self, intake_url, headers=None):
+        encoder = CIVisibilityCoverageReportEncoder()
+        self._intake_url = intake_url
+        if headers:
+            self._headers = headers
+        super(CIVisibilityCoverageReportClient, self).__init__(encoder)
+
+    @property
+    def coverage_encoder(self) -> CIVisibilityCoverageReportEncoder:
+        """Get the properly typed coverage report encoder."""
+        return self.encoder  # type: ignore[return-value]
+
+
+class CIVisibilityAgentlessCoverageReportClient(CIVisibilityCoverageReportClient):
+    ENDPOINT = COVERAGE_REPORT_UPLOAD_ENDPOINT
+
+
+class CIVisibilityProxiedCoverageReportClient(CIVisibilityCoverageReportClient):
+    ENDPOINT = COVERAGE_REPORT_UPLOAD_ENDPOINT
+
+
 class CIVisibilityAgentlessEventClient(CIVisibilityEventClient):
     ENDPOINT = AGENTLESS_ENDPOINT
 
@@ -102,18 +126,19 @@ class CIVisibilityWriter(HTTPWriter):
 
     def __init__(
         self,
-        intake_url="",  # type: str
-        processing_interval=None,  # type: Optional[float]
-        timeout=None,  # type: Optional[float]
-        dogstatsd=None,  # type: Optional[DogStatsd]
-        sync_mode=False,  # type: bool
-        report_metrics=False,  # type: bool
-        reuse_connections=None,  # type: Optional[bool]
-        headers=None,  # type: Optional[Dict[str, str]]
-        use_evp=False,  # type: bool
-        coverage_enabled=False,  # type: bool
-        itr_suite_skipping_mode=False,  # type: bool
-        use_gzip=False,  # type: bool
+        intake_url: str = "",
+        processing_interval: Optional[float] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional[DogStatsd] = None,
+        sync_mode: bool = False,
+        report_metrics: bool = False,
+        reuse_connections: Optional[bool] = None,
+        headers: Optional[dict[str, str]] = None,
+        use_evp: bool = False,
+        coverage_enabled: bool = False,
+        coverage_report_upload_enabled: bool = False,
+        itr_suite_skipping_mode: bool = False,
+        use_gzip: bool = False,
     ):
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -130,9 +155,13 @@ class CIVisibilityWriter(HTTPWriter):
             intake_url = "%s.%s" % (AGENTLESS_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
 
         self._use_evp = use_evp
-        clients = [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]  # type: List[WriterClientBase]
+        clients: list[WriterClientBase] = (
+            [CIVisibilityProxiedEventClient()] if self._use_evp else [CIVisibilityAgentlessEventClient()]
+        )
         self._coverage_enabled = coverage_enabled
+        self._coverage_report_upload_enabled = coverage_report_upload_enabled
         self._itr_suite_skipping_mode = itr_suite_skipping_mode
+
         if self._coverage_enabled:
             if not intake_cov_url:
                 intake_cov_url = "%s.%s" % (AGENTLESS_COVERAGE_BASE_URL, os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE))
@@ -145,6 +174,39 @@ class CIVisibilityWriter(HTTPWriter):
                 if use_evp
                 else CIVisibilityAgentlessCoverageClient(
                     intake_url=intake_cov_url, itr_suite_skipping_mode=itr_suite_skipping_mode
+                )
+            )
+
+        # Add coverage report upload client only if enabled
+        if coverage_report_upload_enabled:
+            # For coverage reports, we need to use the special ci-intake URL (not citestcov-intake)
+            if use_evp:
+                # For EVP, use the same URL as events but with coverage subdomain header
+                coverage_report_url = intake_url
+            elif intake_url:
+                # Use provided intake URL if specified
+                coverage_report_url = intake_url
+            else:
+                # For agentless, use the ci-intake URL for coverage reports
+                coverage_report_url = "%s.%s" % (
+                    AGENTLESS_COVERAGE_REPORT_BASE_URL,
+                    os.getenv("DD_SITE", AGENTLESS_DEFAULT_SITE),
+                )
+
+            # For coverage reports in EVP mode, we need the coverage subdomain
+            coverage_report_headers = headers.copy() if headers else {}
+            if use_evp:
+                coverage_report_headers[EVP_SUBDOMAIN_HEADER_NAME] = EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
+
+            clients.append(
+                CIVisibilityProxiedCoverageReportClient(
+                    intake_url=coverage_report_url,
+                    headers=coverage_report_headers,
+                )
+                if use_evp
+                else CIVisibilityAgentlessCoverageReportClient(
+                    intake_url=coverage_report_url,
+                    headers=coverage_report_headers,
                 )
             )
 
@@ -178,12 +240,12 @@ class CIVisibilityWriter(HTTPWriter):
             headers=self._headers,
             use_evp=self._use_evp,
             coverage_enabled=self._coverage_enabled,
+            coverage_report_upload_enabled=self._coverage_report_upload_enabled,
             itr_suite_skipping_mode=self._itr_suite_skipping_mode,
         )
 
-    def _put(self, data, headers, client, no_trace):
-        # type: (bytes, Dict[str, str], WriterClientBase, bool) -> Response
-        request_error = None  # type: Optional[REQUEST_ERROR_TYPE]
+    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> "Response":
+        request_error: Optional[REQUEST_ERROR_TYPE] = None
 
         with StopWatch() as sw:
             try:

@@ -4,10 +4,7 @@ import json
 import os
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterable
-from typing import List
-from typing import Tuple
 from typing import Union
 
 from wrapt import FunctionWrapper
@@ -29,7 +26,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-_DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
+_DD_ORIGINAL_ATTRIBUTES: dict[Any, Any] = {}
 
 _is_patched = False
 
@@ -58,6 +55,7 @@ def patch_common_modules():
     try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("builtins", "open", wrapped_open_CFDDB7ABBA9081B6)
+    try_wrap_function_wrapper("pathlib", "Path.open", wrapped_path_open_rasp_lfi)
     try_wrap_function_wrapper("urllib.request", "OpenerDirector.open", wrapped_open_ED4CF71136E15EBF)
     try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request)
     try_wrap_function_wrapper("http.client", "HTTPConnection.getresponse", wrapped_response)
@@ -78,6 +76,7 @@ def unpatch_common_modules():
     try_unwrap("urllib3._request_methods", "RequestMethods.request")
     try_unwrap("urllib3.request", "RequestMethods.request")
     try_unwrap("builtins", "open")
+    try_unwrap("pathlib", "Path.open")
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("http.client", "HTTPConnection.request")
     try_unwrap("http.client", "HTTPConnection.getresponse")
@@ -157,8 +156,46 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
         )
 
 
-def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[str]]]:
-    res: Dict[str, Union[str, List[str]]] = {}
+def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs):
+    """
+    wrapper for pathlib.Path.open() method
+    """
+    if _get_rasp_capability("lfi"):
+        try:
+            from ddtrace.appsec._asm_request_context import call_waf_callback
+            from ddtrace.appsec._asm_request_context import in_asm_context
+        except ImportError:
+            # Path methods can be used during module initialization
+            return original_method_callable(*args, **kwargs)
+
+        try:
+            filename = os.fspath(instance)
+        except Exception:
+            filename = ""
+        if filename:
+            if in_asm_context():
+                res = call_waf_callback(
+                    {EXPLOIT_PREVENTION.ADDRESS.LFI: filename},
+                    crop_trace="wrapped_path_open_rasp_lfi",
+                    rule_type=EXPLOIT_PREVENTION.TYPE.LFI,
+                )
+                if res and _must_block(res.actions):
+                    raise BlockingException(
+                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.LFI, filename
+                    )
+            else:
+                _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.LFI, False)
+    try:
+        return original_method_callable(*args, **kwargs)
+    except Exception as e:
+        previous_frame = e.__traceback__.tb_frame.f_back
+        raise e.with_traceback(
+            e.__traceback__.__class__(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno)
+        )
+
+
+def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[str]]]:
+    res: dict[str, Union[str, list[str]]] = {}
     for a, b in lst:
         if a in res:
             v = res[a]
@@ -410,7 +447,7 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
             _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
 
 
-def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
+def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
     """
     listener for subprocess.Popen class
     """

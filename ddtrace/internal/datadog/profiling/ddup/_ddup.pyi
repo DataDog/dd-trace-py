@@ -1,4 +1,3 @@
-from typing import Dict
 from typing import Mapping
 from typing import Optional
 from typing import Union
@@ -27,7 +26,7 @@ def init(
     service: str,
     env: str,
     version: str,
-    tags: Optional[Dict[Union[str, bytes], Union[str, bytes]]] = None,
+    tags: Optional[dict[Union[str, bytes], Union[str, bytes]]] = None,
     max_nframes: Optional[int] = None,
     timeline_enabled: Optional[bool] = None,
     output_filename: Optional[str] = None,

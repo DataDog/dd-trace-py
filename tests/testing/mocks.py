@@ -11,6 +11,8 @@ for testing the ddtrace.testing framework. The design emphasizes:
 from __future__ import annotations
 
 import contextlib
+import gzip
+import json
 import os
 from pathlib import Path
 import typing as t
@@ -23,6 +25,7 @@ from ddtrace.testing.internal.http import BackendConnectorSetup
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import ErrorType
 from ddtrace.testing.internal.session_manager import SessionManager
+from ddtrace.testing.internal.session_manager import get_env_tags
 from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
 from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
 from ddtrace.testing.internal.settings_data import Settings
@@ -75,7 +78,7 @@ class MockDefaults:
         )
 
     @staticmethod
-    def test_environment() -> t.Dict[str, str]:
+    def test_environment() -> dict[str, str]:
         """Create default test environment variables."""
         return {
             "DD_API_KEY": "test-api-key",
@@ -102,13 +105,13 @@ class SessionManagerMockBuilder:
 
     def __init__(self) -> None:
         self._settings = MockDefaults.settings()
-        self._skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = set()
-        self._test_properties: t.Dict[TestRef, TestProperties] = {}
-        self._known_tests: t.Set[TestRef] = set()
-        self._known_commits: t.List[str] = []
+        self._skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
+        self._test_properties: dict[TestRef, TestProperties] = {}
+        self._known_tests: set[TestRef] = set()
+        self._known_commits: list[str] = []
         self._workspace_path = "/fake/workspace"
-        self._retry_handlers: t.List[Mock] = []
-        self._env_tags: t.Dict[str, str] = {}
+        self._retry_handlers: list[Mock] = []
+        self._env_tags: dict[str, str] = {}
 
     def with_settings(self, settings: Settings) -> "SessionManagerMockBuilder":
         """Set custom settings."""
@@ -129,17 +132,17 @@ class SessionManagerMockBuilder:
         )
         return self
 
-    def with_skippable_items(self, items: t.Set[t.Union[TestRef, SuiteRef]]) -> "SessionManagerMockBuilder":
+    def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> "SessionManagerMockBuilder":
         """Set skippable test/suite items."""
         self._skippable_items = items
         return self
 
-    def with_test_properties(self, properties: t.Dict[TestRef, TestProperties]) -> "SessionManagerMockBuilder":
+    def with_test_properties(self, properties: dict[TestRef, TestProperties]) -> "SessionManagerMockBuilder":
         """Set test properties."""
         self._test_properties = properties
         return self
 
-    def with_known_tests(self, tests: t.Set[TestRef]) -> "SessionManagerMockBuilder":
+    def with_known_tests(self, tests: set[TestRef]) -> "SessionManagerMockBuilder":
         """Set known tests."""
         self._known_tests = tests
         return self
@@ -149,7 +152,7 @@ class SessionManagerMockBuilder:
         self._workspace_path = path
         return self
 
-    def with_env_tags(self, tags: t.Dict[str, str]) -> "SessionManagerMockBuilder":
+    def with_env_tags(self, tags: dict[str, str]) -> "SessionManagerMockBuilder":
         """Set tags extracted from environment."""
         self._env_tags = tags
         return self
@@ -173,7 +176,7 @@ class SessionManagerMockBuilder:
 
         return mock_manager
 
-    def build_real_with_mocks(self, test_env: t.Optional[t.Dict[str, str]] = None) -> SessionManager:
+    def build_real_with_mocks(self, test_env: t.Optional[dict[str, str]] = None) -> SessionManager:
         """Build a real SessionManager with mocked dependencies.
 
         NOTE: This creates the SessionManager with mocked dependencies during initialization.
@@ -216,7 +219,7 @@ class TestMockBuilder:
         self._is_attempt_to_fix = False
         self._is_disabled = False
         self._is_quarantined = False
-        self._test_runs: t.List[Mock] = []
+        self._test_runs: list[Mock] = []
         self._start_ns = 1000000000
         self._last_test_run = Mock()
 
@@ -235,7 +238,7 @@ class TestMockBuilder:
         self._is_quarantined = is_quarantined
         return self
 
-    def with_test_runs(self, test_runs: t.List[Mock]) -> "TestMockBuilder":
+    def with_test_runs(self, test_runs: list[Mock]) -> "TestMockBuilder":
         """Set test runs."""
         self._test_runs = test_runs
         return self
@@ -258,18 +261,18 @@ class PytestItemMockBuilder:
 
     def __init__(self, nodeid: str):
         self._nodeid = nodeid
-        self._user_properties: t.List[t.Tuple[str, t.Any]] = []
-        self._keywords: t.Dict[str, t.Any] = {}
+        self._user_properties: list[tuple[str, t.Any]] = []
+        self._keywords: dict[str, t.Any] = {}
         self._path = Mock()
         self._location = ("/fake/path.py", 10, "test_name")
-        self._additional_attrs: t.Dict[str, t.Any] = {}
+        self._additional_attrs: dict[str, t.Any] = {}
 
-    def with_user_properties(self, properties: t.List[t.Tuple[str, t.Any]]) -> "PytestItemMockBuilder":
+    def with_user_properties(self, properties: list[tuple[str, t.Any]]) -> "PytestItemMockBuilder":
         """Set user properties."""
         self._user_properties = properties
         return self
 
-    def with_keywords(self, keywords: t.Dict[str, t.Any]) -> "PytestItemMockBuilder":
+    def with_keywords(self, keywords: dict[str, t.Any]) -> "PytestItemMockBuilder":
         """Set keywords."""
         self._keywords = keywords
         return self
@@ -347,8 +350,9 @@ class APIClientMockBuilder:
         self._efd_enabled = False
         self._test_management_enabled = False
         self._known_tests_enabled = False
-        self._skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = set()
-        self._known_tests: t.Set[TestRef] = set()
+        self._coverage_report_upload_enabled = False
+        self._skippable_items: set[t.Union[TestRef, SuiteRef]] = set()
+        self._known_tests: set[TestRef] = set()
 
     def with_skipping_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
         """Enable/disable test skipping."""
@@ -375,16 +379,19 @@ class APIClientMockBuilder:
         self._test_management_enabled = enabled
         return self
 
-    def with_known_tests(
-        self, enabled: bool = True, tests: t.Optional[t.Set[TestRef]] = None
-    ) -> "APIClientMockBuilder":
+    def with_coverage_report_upload_enabled(self, enabled: bool = True) -> "APIClientMockBuilder":
+        """Enable/disable coverage report upload."""
+        self._coverage_report_upload_enabled = enabled
+        return self
+
+    def with_known_tests(self, enabled: bool = True, tests: t.Optional[set[TestRef]] = None) -> "APIClientMockBuilder":
         """Configure known tests."""
         self._known_tests_enabled = enabled
         if tests is not None:
             self._known_tests = tests
         return self
 
-    def with_skippable_items(self, items: t.Set[t.Union[TestRef, SuiteRef]]) -> "APIClientMockBuilder":
+    def with_skippable_items(self, items: set[t.Union[TestRef, SuiteRef]]) -> "APIClientMockBuilder":
         """Set skippable test items."""
         self._skippable_items = items
         return self
@@ -402,6 +409,7 @@ class APIClientMockBuilder:
             auto_test_retries=AutoTestRetriesSettings(enabled=self._auto_retries_enabled),
             known_tests_enabled=self._known_tests_enabled,
             coverage_enabled=self._coverage_enabled,
+            coverage_report_upload_enabled=self._coverage_report_upload_enabled,
             skipping_enabled=self._skipping_enabled,
             require_git=False,
             itr_enabled=self._skipping_enabled,
@@ -416,6 +424,9 @@ class APIClientMockBuilder:
             "correlation-123" if self._skippable_items else None,
         )
 
+        # Always add upload_coverage_report method that returns True (mocked success)
+        mock_client.upload_coverage_report = Mock(return_value=True)
+
         return mock_client
 
 
@@ -423,10 +434,10 @@ class BackendConnectorMockBuilder:
     """Builder for creating BackendConnector mocks that prevent real HTTP calls."""
 
     def __init__(self) -> None:
-        self._post_json_responses: t.Dict[str, t.Any] = {}
-        self._get_json_responses: t.Dict[str, t.Any] = {}
-        self._request_responses: t.Dict[str, t.Any] = {}
-        self._post_files_responses: t.Dict[str, t.Any] = {}
+        self._post_json_responses: dict[str, t.Any] = {}
+        self._get_json_responses: dict[str, t.Any] = {}
+        self._request_responses: dict[str, t.Any] = {}
+        self._post_files_responses: dict[str, t.Any] = {}
 
     def with_post_json_response(self, endpoint: str, response_data: t.Any) -> "BackendConnectorMockBuilder":
         """Mock a specific POST JSON endpoint response."""
@@ -453,23 +464,23 @@ class BackendConnectorMockBuilder:
         mock_connector = Mock()
 
         # Mock methods to prevent real HTTP calls
-        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> t.Tuple[Mock, t.Any]:
+        def mock_post_json(endpoint: str, data: t.Any, telemetry: t.Any = None) -> tuple[Mock, t.Any]:
             if endpoint in self._post_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._post_json_responses[endpoint])
             return self._make_404_response()
 
-        def mock_get_json(endpoint: str, max_attempts: int = 0) -> t.Tuple[Mock, t.Any]:
+        def mock_get_json(endpoint: str, max_attempts: int = 0) -> tuple[Mock, t.Any]:
             if endpoint in self._get_json_responses:
                 return BackendResult(response=Mock(status=200), parsed_response=self._get_json_responses[endpoint])
             return self._make_404_response()
 
-        def mock_request(method: str, path: str, **kwargs: t.Any) -> t.Tuple[Mock, t.Any]:
+        def mock_request(method: str, path: str, **kwargs: t.Any) -> tuple[Mock, t.Any]:
             key = f"{method}:{path}"
             if key in self._request_responses:
                 BackendResult(response=Mock(status=200), parsed_response=self._request_responses[key])
             return self._make_404_response()
 
-        def mock_post_files(path: str, files: t.Any, **kwargs: t.Any) -> t.Tuple[Mock, t.Dict[str, t.Any]]:
+        def mock_post_files(path: str, files: t.Any, **kwargs: t.Any) -> tuple[Mock, dict[str, t.Any]]:
             return BackendResult(response=Mock(status=200))
 
         mock_connector.post_json.side_effect = mock_post_json
@@ -530,8 +541,10 @@ def mock_api_client_settings(
     efd_enabled: bool = False,
     test_management_enabled: bool = False,
     known_tests_enabled: bool = False,
-    skippable_items: t.Optional[t.Set[t.Union[TestRef, SuiteRef]]] = None,
-    known_tests: t.Optional[t.Set[TestRef]] = None,
+    coverage_report_upload_enabled: bool = False,
+    skippable_items: t.Optional[set[t.Union[TestRef, SuiteRef]]] = None,
+    known_tests: t.Optional[set[TestRef]] = None,
+    coverage_upload_capture: t.Optional["CoverageReportUploadCapture"] = None,
 ) -> Mock:
     """Create a comprehensive API client mock - convenience function."""
     builder: "APIClientMockBuilder" = APIClientMockBuilder()
@@ -546,12 +559,20 @@ def mock_api_client_settings(
         builder = builder.with_early_flake_detection()
     if test_management_enabled:
         builder = builder.with_test_management()
+    if coverage_report_upload_enabled:
+        builder = builder.with_coverage_report_upload_enabled()
     if known_tests_enabled:
         builder = builder.with_known_tests(enabled=True, tests=known_tests)
     if skippable_items:
         builder = builder.with_skippable_items(skippable_items)
 
-    return builder.build()
+    mock_client = builder.build()
+
+    # Override the upload_coverage_report method if a capture object is provided
+    if coverage_upload_capture is not None:
+        mock_client.upload_coverage_report = Mock(side_effect=coverage_upload_capture.create_upload_handler())
+
+    return mock_client
 
 
 def mock_backend_connector() -> "BackendConnectorMockBuilder":
@@ -673,13 +694,122 @@ class EventCapture:
             raise AssertionError(f"Expected event with test name {test_name!r}, found none")
 
 
+class CoverageReportUploadCapture:
+    """
+    Utilities for capturing coverage report uploads during a test run.
+
+    This works by being passed directly to mock_api_client_settings() for clean composition.
+    """
+
+    def __init__(self) -> None:
+        self.upload_calls: list[dict[str, t.Any]] = []
+
+    def create_upload_handler(self) -> t.Callable:
+        """
+        Create an upload handler function that captures calls.
+
+        Used internally by mock_api_client_settings().
+        """
+
+        def capture_upload_coverage_report(
+            coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
+        ):
+            # Create mock event data similar to what the real method would create
+            event_data = {
+                "type": "coverage_report",
+                "format": coverage_format,
+            }
+            if tags:
+                event_data.update(tags)
+
+            for k, v in get_env_tags().items():
+                if k.startswith("git"):
+                    event_data[k] = v
+
+            # Create mock file objects with the proper attributes
+            coverage_mock = Mock()
+            coverage_mock.name = "coverage"
+            coverage_mock.filename = f"coverage.{coverage_format}.gz"
+            coverage_mock.content_type = "application/gzip"
+            coverage_mock.data = gzip.compress(coverage_report_bytes)
+
+            event_mock = Mock()
+            event_mock.name = "event"
+            event_mock.filename = "event.json"
+            event_mock.content_type = "application/json"
+            event_mock.data = json.dumps(event_data).encode("utf-8")
+
+            # Store the call information in the format expected by the test
+            self.upload_calls.append({"endpoint": "/api/v2/cicovreprt", "files": [coverage_mock, event_mock]})
+            # Return True to indicate successful upload
+            return True
+
+        return capture_upload_coverage_report
+
+    @classmethod
+    @contextlib.contextmanager
+    def capture(cls) -> t.Generator["CoverageReportUploadCapture", None, None]:
+        """
+        Create a CoverageReportUploadCapture instance for use in tests.
+
+        Returns a context manager that provides an instance you can pass to mock_api_client_settings().
+
+        Example usage:
+            with CoverageReportUploadCapture.capture() as upload_capture:
+                mock_client = mock_api_client_settings(
+                    coverage_report_upload_enabled=True,
+                    coverage_upload_capture=upload_capture
+                )
+                with patch("ddtrace.testing.internal.session_manager.APIClient",
+                          return_value=mock_client):
+                    # Run test code...
+                    result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+            uploads = upload_capture.get_coverage_report_uploads()
+            assert len(uploads) == 1
+        """
+        instance = cls()
+        yield instance
+
+    def get_all_uploads(self) -> list[dict[str, t.Any]]:
+        """Get all file uploads (all endpoints)."""
+        return self.upload_calls
+
+    def get_coverage_report_uploads(self) -> list[dict[str, t.Any]]:
+        """Get only coverage report uploads (to /api/v2/cicovreprt)."""
+        all_uploads = self.get_all_uploads()
+        return [u for u in all_uploads if u["endpoint"] == "/api/v2/cicovreprt"]
+
+    def get_lcov_content(self, upload: dict[str, t.Any]) -> str:
+        """Extract and decompress LCOV content from an upload."""
+        import gzip
+
+        files = upload["files"]
+        coverage_file = next((f for f in files if f.name == "coverage"), None)
+        if coverage_file is None:
+            raise AssertionError("No coverage file found in upload")
+
+        return gzip.decompress(coverage_file.data).decode("utf-8")
+
+    def get_event_data(self, upload: dict[str, t.Any]) -> dict[str, t.Any]:
+        """Extract and parse event JSON from an upload."""
+        import json
+
+        files = upload["files"]
+        event_file = next((f for f in files if f.name == "event"), None)
+        if event_file is None:
+            raise AssertionError("No event file found in upload")
+
+        return json.loads(event_file.data.decode("utf-8"))
+
+
 def test_report(
     nodeid: str = "foo.py::test_foo",
-    location: t.Tuple[str, int, str] = ("foo.py", 42, "foo"),
+    location: tuple[str, int, str] = ("foo.py", 42, "foo"),
     outcome: str = "passed",
     longrepr: t.Any = None,
     when: str = "call",
-    keywords: t.Optional[t.Dict[str, str]] = None,
+    keywords: t.Optional[dict[str, str]] = None,
     wasxfail: t.Any = None,
 ):
     report = TestReport(

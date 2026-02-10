@@ -4,11 +4,9 @@ import os
 import time
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Optional
-from typing import Type
+from typing import cast
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._config import di_config
@@ -17,6 +15,7 @@ from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_SNAPSHOT_PROBE_RATE
 from ddtrace.debugging._probe.model import DEFAULT_TRIGGER_PROBE_RATE
+from ddtrace.debugging._probe.model import CaptureExpression
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._probe.model import ExpressionTemplateSegment
 from ddtrace.debugging._probe.model import FunctionProbe
@@ -51,7 +50,7 @@ from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 log = get_logger(__name__)
 
 
-def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
+def xlate_keys(d: dict[str, Any], mapping: dict[str, str]) -> dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
@@ -83,15 +82,15 @@ def _filter_by_env_and_version(f: Callable[..., Iterable[Probe]]) -> Callable[..
 
 
 class ProbeFactory(object):
-    __line_class__: Optional[Type[LineProbe]] = None
-    __function_class__: Optional[Type[FunctionProbe]] = None
+    __line_class__: Optional[type[LineProbe]] = None
+    __function_class__: Optional[type[FunctionProbe]] = None
 
     @classmethod
     def update_args(cls, args, attribs):
         raise NotImplementedError()
 
     @classmethod
-    def build(cls, args: Dict[str, Any], attribs: Dict[str, Any]) -> Any:
+    def build(cls, args: dict[str, Any], attribs: dict[str, Any]) -> Any:
         cls.update_args(args, attribs)
 
         where = attribs["where"]
@@ -146,6 +145,7 @@ class LogProbeFactory(ProbeFactory):
             else DEFAULT_CAPTURE_LIMITS,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
             take_snapshot=take_snapshot,
+            capture_expressions=[CaptureExpression(**_) for _ in attribs.get("captureExpressions", [])],
             template=attribs.get("template"),
             segments=[_compile_segment(segment) for segment in attribs.get("segments", [])],
         )
@@ -235,7 +235,7 @@ PROBE_FACTORY = {
 }
 
 
-def build_probe(attribs: Dict[str, Any]) -> Probe:
+def build_probe(attribs: dict[str, Any]) -> Probe:
     """
     Create a new Probe instance.
     """
@@ -292,12 +292,12 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     def __init__(
         self,
         data_connector: PublisherSubscriberConnector,
-        callback: Callable[[ProbePollerEvent, List[Probe]], None],
+        callback: Callable[[ProbePollerEvent, list[Probe]], None],
         name: str,
         status_logger: ProbeStatusLogger,
     ) -> None:
         super().__init__(data_connector, lambda _: None, name)
-        self._configs: Dict[str, Dict[str, Probe]] = {}
+        self._configs: dict[str, dict[str, Probe]] = {}
         self._status_timestamp_sequence = count(
             time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval
         )
@@ -337,7 +337,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
         self._debugger_callback(ProbePollerEvent.STATUS_UPDATE, [])
 
-    def _dispatch_probe_events(self, prev_probes: Dict[str, Probe], next_probes: Dict[str, Probe]) -> None:
+    def _dispatch_probe_events(self, prev_probes: dict[str, Probe], next_probes: dict[str, Probe]) -> None:
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
         modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and p != prev_probes[_]]
@@ -350,8 +350,8 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             self._debugger_callback(ProbePollerEvent.NEW_PROBES, new_probes)
 
     def _update_probes_for_config(self, config_id: str, config: Any) -> None:
-        prev_probes: Dict[str, Probe] = self._configs.get(config_id, {})
-        next_probes: Dict[str, Probe] = (
+        prev_probes: dict[str, Probe] = self._configs.get(config_id, {})
+        next_probes: dict[str, Probe] = (
             {probe.probe_id: probe for probe in get_probes(config, self._status_logger)}
             if config not in (None, False)
             else {}
@@ -364,6 +364,12 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         else:
             self._configs.pop(config_id, None)
 
+    def _send_delete_all_probes(self) -> None:
+        for prev_probes in self._configs.values():
+            self._dispatch_probe_events(prev_probes, {})
+
+        self._configs.clear()
+
 
 class ProbeRCAdapter(PubSub):
     __publisher_class__ = RemoteConfigPublisher
@@ -373,3 +379,6 @@ class ProbeRCAdapter(PubSub):
     def __init__(self, _preprocess_results, callback, status_logger):
         self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
         self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "DEBUGGER", status_logger)
+
+    def delete_all_probes(self):
+        cast(DebuggerRemoteConfigSubscriber, self._subscriber)._send_delete_all_probes()

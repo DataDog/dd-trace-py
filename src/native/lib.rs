@@ -7,6 +7,7 @@ mod ddsketch;
 mod ffe;
 mod library_config;
 mod log;
+mod py_string;
 mod span;
 
 use pyo3::prelude::*;

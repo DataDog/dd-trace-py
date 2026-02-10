@@ -531,7 +531,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.15.0",
+        "max_tracer_supported": "4.16.0",
         "auto-instrumented": true
     },
     {
@@ -646,7 +646,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.48.0",
+        "max_tracer_supported": "0.52.1",
         "auto-instrumented": true
     },
     {

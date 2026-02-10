@@ -1,8 +1,6 @@
 from collections.abc import Iterable
 import json
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from weakref import WeakKeyDictionary
 
@@ -26,6 +24,7 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -45,15 +44,15 @@ class CrewAIIntegration(BaseLLMIntegration):
     _integration_name = "crewai"
     # the CrewAI integration's task span linking relies on keeping track of an internal Datadog crew ID,
     # which follows the format "crew_{trace_id}_{root_span_id}".
-    _crews_to_task_span_ids: Dict[str, List[str]] = {}  # maps crew ID to list of task span_ids
-    _crews_to_tasks: Dict[str, Dict[str, Any]] = {}  # maps crew ID to dictionary of task_id to span_id and span_links
-    _planning_crew_ids: List[str] = []  # list of crew IDs that correspond to planning crew instances
-    _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, Dict[str, Dict[str, Any]]] = WeakKeyDictionary()
+    _crews_to_task_span_ids: dict[str, list[str]] = {}  # maps crew ID to list of task span_ids
+    _crews_to_tasks: dict[str, dict[str, Any]] = {}  # maps crew ID to dictionary of task_id to span_id and span_links
+    _planning_crew_ids: list[str] = []  # list of crew IDs that correspond to planning crew instances
+    _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, dict[str, dict[str, Any]]] = WeakKeyDictionary()
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
-            pin.tracer.context_provider.activate(tracer_ctx)
+            tracer.context_provider.activate(tracer_ctx)  # type: ignore[arg-type]
             if self.llmobs_enabled and llmobs_ctx:
                 core.dispatch("threading.execution", (llmobs_ctx,))
 
@@ -85,7 +84,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _get_current_ctx(self, pin):
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
-        curr_trace_ctx = pin.tracer.current_trace_context()
+        curr_trace_ctx = tracer.current_trace_context()
         if self.llmobs_enabled:
             curr_llmobs_ctx = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "threading.submit", ()
@@ -96,8 +95,8 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -437,7 +436,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         crew_id = _get_crew_id(span, "crew")
         is_planning_crew_instance = crew_id in self._planning_crew_ids
         queued_task_node = self._crews_to_tasks.get(crew_id, {}).setdefault(str(queued_task_id), {})
-        span_links: List[_SpanLink] = []
+        span_links: list[_SpanLink] = []
 
         if isinstance(getattr(queued_task, "context", None), Iterable):
             for finished_task in queued_task.context:

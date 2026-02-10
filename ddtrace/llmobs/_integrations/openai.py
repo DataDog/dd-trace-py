@@ -1,6 +1,4 @@
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace._trace.pin import Pin
@@ -52,7 +50,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._openai = openai
         self._client = None
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
         traced_operations = (
             "createCompletion",
             "createChatCompletion",
@@ -91,8 +89,8 @@ class OpenAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof "completion", "chat", "embedding", "response"
     ) -> None:
@@ -104,7 +102,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             if operation in OPENAI_LLM_OPERATIONS
             else operation
         )
-        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model")
+        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
 
         model_provider = "openai"
         if self._is_provider(span, "azure"):
@@ -124,11 +122,11 @@ class OpenAIIntegration(BaseLLMIntegration):
         update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         span._set_ctx_items(
-            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+            {SPAN_KIND: span_kind, MODEL_NAME: model_name, MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
 
     @staticmethod
-    def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: Dict[str, Any], resp: Any) -> None:
+    def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: dict[str, Any], resp: Any) -> None:
         """Extract prompt tags from an embedding and set them as temporary "_ml_obs.meta.*" tags."""
         encoding_format = kwargs.get("encoding_format") or "float"
         metadata = {"encoding_format": encoding_format}
@@ -138,7 +136,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         embedding_inputs = kwargs.get("input", "")
         if isinstance(embedding_inputs, str) or isinstance(embedding_inputs[0], int):
             embedding_inputs = [embedding_inputs]
-        input_documents: List[Document] = []
+        input_documents: list[Document] = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
         span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})
@@ -153,7 +151,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
-    def _llmobs_set_tags_from_tool(span: Span, kwargs: Dict[str, Any], response: Any) -> None:
+    def _llmobs_set_tags_from_tool(span: Span, kwargs: dict[str, Any], response: Any) -> None:
         """Extract tool name, arguments, and output from the request and response to be submitted to LLMObs."""
         tool_id = kwargs.get("tool_id", "unknown_tool_id")
         tool_name = kwargs.get("name", "unknown_tool")
@@ -175,8 +173,8 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     @staticmethod
     def _extract_llmobs_metrics_tags(
-        span: Span, resp: Any, span_kind: str, kwargs: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+        span: Span, resp: Any, span_kind: str, kwargs: dict[str, Any]
+    ) -> Optional[dict[str, Any]]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         if span_kind == "workflow":
             return None
@@ -229,7 +227,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             }
         return None
 
-    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None

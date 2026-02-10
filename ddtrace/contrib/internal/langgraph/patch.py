@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 import langgraph
 
@@ -13,6 +12,7 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
+from ddtrace.trace import tracer
 
 
 def get_version():
@@ -43,7 +43,7 @@ def _get_module_name(module_name: str) -> str:
     return LANGGRAPH_MODULE_MAP.get(module_name, module_name)
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"langgraph": "*"}
 
 
@@ -211,7 +211,7 @@ async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance,
     output = await func(*args, **kwargs)
 
     if integration.llmobs_enabled:
-        span = pin.tracer.current_span()
+        span = tracer.current_span()
         if not span:
             return output
 

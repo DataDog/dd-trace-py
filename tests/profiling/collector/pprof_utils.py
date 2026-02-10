@@ -4,10 +4,8 @@ import glob
 import os
 import re
 from typing import TYPE_CHECKING
-from typing import List
 from typing import Optional
 from typing import Sequence
-from typing import Tuple
 from typing import Union
 from typing import cast
 
@@ -20,7 +18,7 @@ UINT64_MAX = (1 << 64) - 1
 DEBUG_TEST = False
 
 
-def _protobuf_version() -> Tuple[int, int, int]:
+def _protobuf_version() -> tuple[int, int, int]:
     """Check if protobuf version is post 3.12"""
     import google.protobuf
 
@@ -143,6 +141,100 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
+def merge_profiles(profiles: list[pprof_pb2.Profile]) -> pprof_pb2.Profile:
+    """Merge multiple pprof profiles into one.
+
+    This combines string tables, locations, functions, and samples from all profiles.
+    Samples with identical stacks are NOT aggregated - they're kept separate.
+    """
+    if not profiles:
+        raise ValueError("No profiles to merge")
+    if len(profiles) == 1:
+        return profiles[0]
+
+    merged = pprof_pb2.Profile()
+
+    # Maps: (old_profile_idx, old_id) -> new_id
+    string_map: dict[tuple[int, int], int] = {}
+    function_map: dict[tuple[int, int], int] = {}
+    location_map: dict[tuple[int, int], int] = {}
+
+    # String table: index 0 must be empty string
+    merged.string_table.append("")
+    string_map_global: dict[str, int] = {"": 0}
+
+    def get_or_add_string(profile_idx: int, old_idx: int, old_string_table: Sequence[str]) -> int:
+        key = (profile_idx, old_idx)
+        if key in string_map:
+            return string_map[key]
+        s = old_string_table[old_idx]
+        if s in string_map_global:
+            new_idx = string_map_global[s]
+        else:
+            new_idx = len(merged.string_table)
+            merged.string_table.append(s)
+            string_map_global[s] = new_idx
+        string_map[key] = new_idx
+        return new_idx
+
+    # First pass: merge sample_types from first profile (assume all have same types)
+    first = profiles[0]
+    for st in first.sample_type:
+        new_st = merged.sample_type.add()
+        new_st.type = get_or_add_string(0, st.type, first.string_table)
+        new_st.unit = get_or_add_string(0, st.unit, first.string_table)
+
+    # Merge each profile
+    for pidx, profile in enumerate(profiles):
+        # Merge functions
+        for func in profile.function:
+            new_func = merged.function.add()
+            new_func.id = len(merged.function)
+            new_func.name = get_or_add_string(pidx, func.name, profile.string_table)
+            new_func.system_name = get_or_add_string(pidx, func.system_name, profile.string_table)
+            new_func.filename = get_or_add_string(pidx, func.filename, profile.string_table)
+            new_func.start_line = func.start_line
+            function_map[(pidx, func.id)] = new_func.id
+
+        # Merge locations
+        for loc in profile.location:
+            new_loc = merged.location.add()
+            new_loc.id = len(merged.location)
+            new_loc.address = loc.address
+            for line in loc.line:
+                new_line = new_loc.line.add()
+                new_line.function_id = function_map[(pidx, line.function_id)]
+                new_line.line = line.line
+            location_map[(pidx, loc.id)] = new_loc.id
+
+        # Merge samples
+        for sample in profile.sample:
+            new_sample = merged.sample.add()
+            for loc_id in sample.location_id:
+                new_sample.location_id.append(location_map[(pidx, loc_id)])
+            for val in sample.value:
+                new_sample.value.append(val)
+            for label in sample.label:
+                new_label = new_sample.label.add()
+                new_label.key = get_or_add_string(pidx, label.key, profile.string_table)
+                if label.str:
+                    new_label.str = get_or_add_string(pidx, label.str, profile.string_table)
+                new_label.num = label.num
+                if label.num_unit:
+                    new_label.num_unit = get_or_add_string(pidx, label.num_unit, profile.string_table)
+
+    return merged
+
+
+def parse_profile(filename: str) -> pprof_pb2.Profile:
+    with open(filename, "rb") as fp:
+        dctx = zstd.ZstdDecompressor()
+        serialized_data = dctx.stream_reader(fp).read()
+    profile = pprof_pb2.Profile()
+    profile.ParseFromString(serialized_data)
+    return profile
+
+
 def parse_newest_profile(
     filename_prefix: str, assert_samples: bool = True, allow_penultimate: bool = False
 ) -> pprof_pb2.Profile:
@@ -152,6 +244,12 @@ def parse_newest_profile(
     the newest profile that has given filename prefix.
     """
     files = glob.glob(filename_prefix + ".*.pprof")
+
+    if not files:
+        raise FileNotFoundError(
+            f"No profile files found for {filename_prefix}, all pprof files: {glob.glob('*.pprof') or '(none)'}"
+        )
+
     # Sort files by logical timestamp (i.e. the sequence number, which is monotonically increasing);
     # this approach is more reliable than filesystem timestamps, especially when files are created rapidly.
     files.sort(key=lambda f: int(f.rsplit(".", 2)[-2]))
@@ -159,6 +257,7 @@ def parse_newest_profile(
     with open(filename, "rb") as fp:
         dctx = zstd.ZstdDecompressor()
         serialized_data = dctx.stream_reader(fp).read()
+
     profile = pprof_pb2.Profile()
     profile.ParseFromString(serialized_data)
 
@@ -186,12 +285,12 @@ def get_sample_type_index(profile: pprof_pb2.Profile, value_type: str) -> int:
     )
 
 
-def get_samples_with_value_type(profile: pprof_pb2.Profile, value_type: str) -> List[pprof_pb2.Sample]:
+def get_samples_with_value_type(profile: pprof_pb2.Profile, value_type: str) -> list[pprof_pb2.Sample]:
     value_type_idx = get_sample_type_index(profile, value_type)
     return [sample for sample in profile.sample if sample.value[value_type_idx] > 0]
 
 
-def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> List[pprof_pb2.Sample]:
+def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> list[pprof_pb2.Sample]:
     return [sample for sample in profile.sample if get_label_with_key(profile.string_table, sample, key)]
 
 
@@ -234,8 +333,8 @@ def assert_lock_events_of_type(
     samples = get_samples_with_value_type(
         profile, "lock-acquire" if event_type == LockEventType.ACQUIRE else "lock-release"
     )
-    assert len(samples) >= len(expected_events), "Expected at least {} samples, found only {}".format(
-        len(expected_events), len(samples)
+    assert len(samples) >= len(expected_events), (
+        f"Expected at least {len(expected_events)} samples, found only {len(samples)}"
     )
 
     # sort the samples and expected events by lock name, which is <filename>:<line>:<lock_name>
@@ -251,10 +350,10 @@ def assert_lock_events_of_type(
     }
     for expected_event in expected_events:
         if expected_event.lock_name is None:
-            key = "{}:{}".format(expected_event.filename, expected_event.linenos.create)
+            key = f"{expected_event.filename}:{expected_event.linenos.create}"
         else:
-            key = "{}:{}:{}".format(expected_event.filename, expected_event.linenos.create, expected_event.lock_name)
-        assert key in samples_dict, "Expected lock event {} not found".format(key)
+            key = f"{expected_event.filename}:{expected_event.linenos.create}:{expected_event.lock_name}"
+        assert key in samples_dict, f"Expected lock event {key} not found"
         assert_lock_event(profile, samples_dict[key], expected_event)
 
 
@@ -262,11 +361,18 @@ def assert_lock_events(
     profile: pprof_pb2.Profile,
     expected_acquire_events: Union[Sequence[LockEvent], None] = None,
     expected_release_events: Union[Sequence[LockEvent], None] = None,
-):
-    if expected_acquire_events:
-        assert_lock_events_of_type(profile, expected_acquire_events, LockEventType.ACQUIRE)
-    if expected_release_events:
-        assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
+    print_samples_on_failure: bool = False,
+) -> None:
+    try:
+        if expected_acquire_events:
+            assert_lock_events_of_type(profile, expected_acquire_events, LockEventType.ACQUIRE)
+        if expected_release_events:
+            assert_lock_events_of_type(profile, expected_release_events, LockEventType.RELEASE)
+    except AssertionError as e:
+        if print_samples_on_failure:
+            print_all_samples(profile)
+
+        raise e
 
 
 def assert_str_label(string_table: Sequence[str], sample, key: str, expected_value: Optional[str]):
@@ -440,6 +546,13 @@ def print_all_samples(profile: pprof_pb2.Profile) -> None:
     """Print all samples in the profile with function name, filename, and line number."""
     for sample_idx, sample in enumerate(profile.sample):
         print(f"Sample {sample_idx}:")
+        print("Non-zero values:")
+        for i, val in enumerate(sample.value):
+            if val != 0:
+                st = profile.sample_type[i]
+                type_name = profile.string_table[st.type]
+                unit = profile.string_table[st.unit]
+                print(f"  {type_name} ({unit}): {val}")
         print("Labels:")
         for label in sample.label:
             print(f"  {profile.string_table[label.key]}: {profile.string_table[label.str]}")

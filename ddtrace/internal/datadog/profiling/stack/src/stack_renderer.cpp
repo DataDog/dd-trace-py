@@ -1,21 +1,13 @@
 #include "stack_renderer.hpp"
 
+#include "sampler.hpp"
 #include "thread_span_links.hpp"
 
 #include "dd_wrapper/include/sample_manager.hpp"
 
-#include "echion/strings.h"
-#include <ddup_interface.hpp>
-#include <unordered_map>
+#include "echion/echion_sampler.h"
 
 using namespace Datadog;
-
-void
-StackRenderer::render_message(std::string_view msg)
-{
-    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
-    (void)msg;
-}
 
 void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
@@ -116,7 +108,7 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
 }
 
 void
-StackRenderer::render_stack_begin(long long, long long, const std::string&)
+StackRenderer::render_stack_begin()
 {
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
@@ -139,35 +131,18 @@ StackRenderer::render_frame(Frame& frame)
 
     auto line = frame.location.line;
 
-    string_id name_id;
-    auto maybe_name_id = string_id_cache.find(frame.name);
-    if (maybe_name_id == string_id_cache.end()) {
-        std::string_view name_str;
-        auto maybe_name_str = string_table.lookup(frame.name);
-        if (maybe_name_str) {
-            name_str = maybe_name_str->get();
-        } else {
-            name_str = missing_name;
-        }
-
-        name_id = Datadog::intern_string(name_str);
-        string_id_cache.insert({ frame.name, name_id });
+    std::string_view name_str;
+    auto maybe_name_str = Sampler::get().get_echion().string_table().lookup(frame.name);
+    if (maybe_name_str) {
+        name_str = maybe_name_str->get();
     } else {
-        name_id = maybe_name_id->second;
+        name_str = missing_name;
     }
 
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
     if (line == 0) {
         if (!pushed_task_name) {
-            std::string_view name_str;
-            auto maybe_name_str = string_table.lookup(frame.name);
-            if (maybe_name_str) {
-                name_str = maybe_name_str->get();
-            } else {
-                name_str = missing_name;
-            }
-
             sample->push_task_name(name_str);
             pushed_task_name = true;
         }
@@ -176,33 +151,15 @@ StackRenderer::render_frame(Frame& frame)
         return;
     }
 
-    string_id filename_id;
-    auto maybe_filename_id = string_id_cache.find(frame.filename);
-    if (maybe_filename_id == string_id_cache.end()) {
-        std::string_view filename_str;
-        auto maybe_filename_str = string_table.lookup(frame.filename);
-        if (maybe_filename_str) {
-            filename_str = maybe_filename_str->get();
-        } else {
-            filename_str = missing_filename;
-        }
-
-        filename_id = Datadog::intern_string(filename_str);
-        string_id_cache.insert({ frame.filename, filename_id });
+    std::string_view filename_str;
+    auto maybe_filename_str = Sampler::get().get_echion().string_table().lookup(frame.filename);
+    if (maybe_filename_str) {
+        filename_str = maybe_filename_str->get();
     } else {
-        filename_id = maybe_filename_id->second;
+        filename_str = missing_filename;
     }
 
-    function_id function_id;
-    auto maybe_function_id = function_id_cache.find({ name_id, filename_id });
-    if (maybe_function_id == function_id_cache.end()) {
-        function_id = Datadog::intern_function(name_id, filename_id);
-        function_id_cache.insert({ { static_cast<void*>(name_id), static_cast<void*>(filename_id) }, function_id });
-    } else {
-        function_id = maybe_function_id->second;
-    }
-
-    sample->push_frame(function_id, 0, line);
+    sample->push_frame(name_str, filename_str, 0, line);
 }
 
 void
@@ -220,7 +177,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 }
 
 void
-StackRenderer::render_stack_end(MetricType, uint64_t)
+StackRenderer::render_stack_end()
 {
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;
@@ -231,32 +188,4 @@ StackRenderer::render_stack_end(MetricType, uint64_t)
     sample->flush_sample();
     SampleManager::drop_sample(sample);
     sample = nullptr;
-}
-
-bool
-StackRenderer::is_valid()
-{
-    // In general, echion may need to check whether the extension has invalid state before calling into it,
-    // but in this case it doesn't matter
-    return true;
-}
-
-Result<void>
-Datadog::StackRenderer::open()
-{
-    function_id_cache.reserve(100'000);
-    function_id_cache.max_load_factor(0.7f);
-    string_id_cache.reserve(100'000);
-    string_id_cache.max_load_factor(0.7f);
-
-    return Result<void>::ok();
-}
-
-void
-Datadog::StackRenderer::postfork_child()
-{
-    // Clear the caches to avoid using stale interned string/function IDs
-    // from the parent process's dictionary
-    string_id_cache.clear();
-    function_id_cache.clear();
 }

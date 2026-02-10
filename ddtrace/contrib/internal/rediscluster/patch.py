@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 # 3p
 import rediscluster
@@ -24,6 +23,7 @@ from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 
 
 # DEV: In `2.0.0` `__version__` is a string and `VERSION` is a tuple,
@@ -40,12 +40,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(rediscluster, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"rediscluster": ">=2.0"}
 
 
@@ -96,7 +95,6 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         stringify_cache_args(c.args, cmd_max_len=config.rediscluster.cmd_max_length) for c in instance.command_stack
     ]
     resource = "\n".join(cmds)
-    tracer = pin.tracer
     with tracer.trace(
         schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,

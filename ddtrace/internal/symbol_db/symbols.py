@@ -5,7 +5,6 @@ import dis
 from enum import Enum
 import gzip
 from hashlib import sha1
-from http.client import HTTPResponse
 from inspect import CO_VARARGS
 from inspect import CO_VARKEYWORDS
 from inspect import isasyncgenfunction
@@ -28,9 +27,11 @@ from ddtrace import config
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
+from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
+from ddtrace.internal.periodic import Timer
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
@@ -83,7 +84,7 @@ def func_origin(f: FunctionType) -> t.Optional[str]:
     return filename if Path(filename).exists() else None
 
 
-def get_fields(cls: type) -> t.Set[str]:
+def get_fields(cls: type) -> set[str]:
     # If the class has a __slots__ attribute, return it.
     try:
         return set(object.__getattribute__(cls, "__slots__"))
@@ -121,7 +122,7 @@ class Symbol:
     type: t.Optional[str] = None
 
     @classmethod
-    def from_code(cls, code: CodeType) -> t.List["Symbol"]:
+    def from_code(cls, code: CodeType) -> list["Symbol"]:
         nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
         arg_names = code.co_varnames[:nargs]
         locals_names = code.co_varnames[nargs:]
@@ -146,7 +147,7 @@ class ScopeType(str, Enum):
 @dataclass
 class ScopeData:
     origin: Path
-    seen: t.Set[t.Any]
+    seen: set[t.Any]
 
 
 @dataclass
@@ -158,8 +159,8 @@ class Scope:
     source_file: str
     start_line: int
     end_line: int
-    symbols: t.List[Symbol]
-    scopes: t.List["Scope"]
+    symbols: list[Symbol]
+    scopes: list["Scope"]
 
     language_specifics: dict = field(default_factory=dict)
 
@@ -463,8 +464,11 @@ class Scope:
 
 
 class ScopeContext:
-    def __init__(self, scopes: t.Optional[t.List[Scope]] = None) -> None:
-        self._scopes: t.List[Scope] = scopes if scopes is not None else []
+    __scope_limit__: int = 400
+
+    def __init__(self, scopes: t.Optional[list[Scope]] = None) -> None:
+        self._scopes: list[Scope] = scopes if scopes is not None else []
+        self._scopes_lock = RLock()
 
         self._event_data = {
             "ddsource": "python",
@@ -473,20 +477,56 @@ class ScopeContext:
             "type": "symdb",
         }
 
+        self._timer: t.Optional[Timer] = None
+        self._timer_lock = RLock()
+
+    def _set_timer(self) -> None:
+        with self._timer_lock:
+            if self._timer is None:
+
+                class BatchTimer(Timer):
+                    def timeout(_timer) -> None:
+                        log.debug(
+                            "[PID %d] SymDB: Flushing batch of %d module scopes due to timeout",
+                            os.getpid(),
+                            len(self._scopes),
+                        )
+                        self.upload()
+
+                        with self._timer_lock:
+                            self._timer = None
+
+                self._timer = BatchTimer(1.0)  # 1 second batch timer
+                self._timer.start()
+
+            else:
+                self._timer.reset()
+
     def add_scope(self, scope: Scope) -> None:
-        self._scopes.append(scope)
+        with self._scopes_lock:
+            # Flush the scopes if we reached the size limit.
+            if (n := len(self._scopes)) >= self.__scope_limit__:
+                log.debug("[PID %d] SymDB: Flushing batch of %d module scopes due to size limit", os.getpid(), n)
+                self.upload()
+
+            # Add the new scope.
+            self._scopes.append(scope)
+
+            # Set the timer to upload after a short delay.
+            self._set_timer()
 
     def to_json(self) -> dict:
-        return {
-            "schema_version": 1,
-            "service": config.service or DEFAULT_SERVICE_NAME,
-            "env": config.env or "",
-            "version": config.version or "",
-            "language": "python",
-            "scopes": [_.to_json() for _ in self._scopes],
-        }
+        with self._scopes_lock:
+            return {
+                "schema_version": 1,
+                "service": config.service or DEFAULT_SERVICE_NAME,
+                "env": config.env or "",
+                "version": config.version or "",
+                "language": "python",
+                "scopes": [_.to_json() for _ in self._scopes],
+            }
 
-    def upload(self) -> HTTPResponse:
+    def upload(self) -> None:
         body, headers = multipart(
             parts=[
                 FormData(
@@ -504,22 +544,34 @@ class ScopeContext:
             ]
         )
 
+        with self._scopes_lock:
+            payload = self.to_json()
+            n = len(self._scopes)
+            self._scopes.clear()
+
         # DEV: The as_bytes method ends up writing the data line by line, which
         # breaks the final payload. We add a placeholder instead and manually
         # replace it with the compressed JSON.
-        body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(self.to_json()).encode("utf-8")))
+        body = body.replace(b"[symbols_placeholder]", gzip.compress(json.dumps(payload).encode("utf-8")))
 
         with connector(agent_config.trace_agent_url, timeout=5.0)() as conn:
             log.debug("[PID %d] SymDB: Uploading symbols payload", os.getpid())
             conn.request("POST", "/symdb/v1/input", body, headers)
 
-            return conn.getresponse()
+            try:
+                log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), n)
+                if (result := conn.getresponse()).status // 100 != 2:
+                    log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
+            except Exception:
+                log.exception("[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n)
 
     def __bool__(self) -> bool:
-        return bool(self._scopes)
+        with self._scopes_lock:
+            return bool(self._scopes)
 
     def __len__(self) -> int:
-        return len(self._scopes)
+        with self._scopes_lock:
+            return len(self._scopes)
 
 
 def is_module_included(module: ModuleType) -> bool:
@@ -549,7 +601,6 @@ def is_module_included(module: ModuleType) -> bool:
 
 
 class SymbolDatabaseUploader(BaseModuleWatchdog):
-    __scope_limit__: int = 400
     __file_number_limit__: int = 10000
 
     shallow: bool = True
@@ -557,9 +608,11 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
 
-        self._seen_modules: t.Set[str] = set()
+        self._seen_modules: set[str] = set()
         self._update_called = False
         self._processed_files_count = 0
+
+        self._context = ScopeContext()
 
         self._process_unseen_loaded_modules()
 
@@ -568,7 +621,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         # installed and upload the symbols that are marked for inclusion.
         recursive = not self.shallow
 
-        context = ScopeContext()
         for name, module in list(sys.modules.items()):
             if self._processed_files_count >= self.__file_number_limit__:
                 log.debug("[PID %d] SymDB: Reached file limit of %d", os.getpid(), self.__file_number_limit__)
@@ -598,31 +650,8 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
 
             if scope is not None:
                 log.debug("[PID %d] SymDB: Adding Symbol DB module scope %r", os.getpid(), scope.name)
-                context.add_scope(scope)
+                self._context.add_scope(scope)
                 self._processed_files_count += 1
-
-            # Batching: send at most 100 module scopes at a time
-            n = len(context)
-            if n >= self.__scope_limit__:
-                log.debug("[PID %d] SymDB: Flushing batch of %d module scopes", os.getpid(), n)
-                try:
-                    self._upload_context(context)
-                except Exception:
-                    log.error(
-                        "[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), n, exc_info=True
-                    )
-                    return
-                context = ScopeContext()
-
-        try:
-            self._upload_context(context)
-        except Exception:
-            log.error(
-                "[PID %d] SymDB: Failed to upload symbols context with %d scopes",
-                os.getpid(),
-                len(context),
-                exc_info=True,
-            )
 
     def after_import(self, module: ModuleType) -> None:
         if self._processed_files_count >= self.__file_number_limit__:
@@ -633,9 +662,8 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             log.debug("[PID %d] SymDB: Excluding imported module %s from symbol database", os.getpid(), module.__name__)
             return
 
-        scope = Scope.from_module(module, recursive=not self.shallow)
-        if scope is not None:
-            self._upload_context(ScopeContext([scope]))
+        if (scope := Scope.from_module(module, recursive=not self.shallow)) is not None:
+            self._context.add_scope(scope)
             self._processed_files_count += 1
 
     @classmethod
@@ -652,22 +680,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         instance._process_unseen_loaded_modules()
 
         instance._update_called = True
-
-    @staticmethod
-    def _upload_context(context: ScopeContext) -> None:
-        if not context:
-            return
-
-        try:
-            log.debug("[PID %d] SymDB: Uploading symbols context with %d scopes", os.getpid(), len(context._scopes))
-            result = context.upload()
-            if result.status // 100 != 2:
-                log.error("[PID %d] SymDB: Bad response while uploading symbols: %s", os.getpid(), result.status)
-
-        except Exception:
-            log.exception(
-                "[PID %d] SymDB: Failed to upload symbols context with %d scopes", os.getpid(), len(context._scopes)
-            )
 
     @classmethod
     def install(cls, shallow=True):

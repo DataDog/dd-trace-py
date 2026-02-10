@@ -1,6 +1,5 @@
 import copyreg
 import os
-from typing import Dict
 
 import fastapi
 import fastapi.routing
@@ -22,6 +21,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -88,12 +88,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(fastapi, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"fastapi": ">=0.64.0"}
 
 
@@ -122,7 +121,7 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    with pin.tracer.trace("fastapi.serialize_response"):
+    with tracer.trace("fastapi.serialize_response"):
         return await wrapped(*args, **kwargs)
 
 
