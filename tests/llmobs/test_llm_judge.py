@@ -322,3 +322,65 @@ class TestVertexAIClient:
 
         assert result == '{"result": "positive"}'
         mock_generative_models.GenerativeModel.assert_called_once_with("gemini-1.5-pro", system_instruction="Judge")
+
+    def test_anyof_converted_to_enum(self, monkeypatch):
+        """Vertex AI doesn't support 'const' in anyOf. Verify it gets converted to enum."""
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+
+        mock_part = mock.MagicMock()
+        mock_part.text = '{"categorical_eval": "positive"}'
+
+        mock_content = mock.MagicMock()
+        mock_content.parts = [mock_part]
+
+        mock_candidate = mock.MagicMock()
+        mock_candidate.content = mock_content
+
+        mock_response = mock.MagicMock()
+        mock_response.candidates = [mock_candidate]
+
+        mock_model_instance = mock.MagicMock()
+        mock_model_instance.generate_content.return_value = mock_response
+
+        mock_vertexai_module = mock.MagicMock()
+        mock_generative_models = mock.MagicMock()
+        mock_generative_models.GenerativeModel.return_value = mock_model_instance
+        mock_generative_models.GenerationConfig.return_value = mock.MagicMock()
+
+        modules = self._mock_google_auth(default_return=(mock.MagicMock(), "test-project"))
+        modules["vertexai"] = mock_vertexai_module
+        modules["vertexai.generative_models"] = mock_generative_models
+
+        schema_with_anyof = {
+            "type": "object",
+            "properties": {
+                "categorical_eval": {
+                    "type": "string",
+                    "anyOf": [
+                        {"const": "positive", "description": "Positive sentiment"},
+                        {"const": "negative", "description": "Negative sentiment"},
+                    ],
+                }
+            },
+            "required": ["categorical_eval"],
+            "additionalProperties": False,
+        }
+
+        with mock.patch.dict("sys.modules", modules):
+            client = _create_vertexai_client()
+            client(
+                provider="vertexai",
+                messages=[{"role": "user", "content": "classify"}],
+                json_schema=schema_with_anyof,
+                model="gemini-1.5-pro",
+                model_params=None,
+            )
+
+        gen_config_call = mock_generative_models.GenerationConfig.call_args
+        passed_schema = gen_config_call.kwargs["response_schema"]
+        # anyOf with const should be converted to enum
+        cat_prop = passed_schema["properties"]["categorical_eval"]
+        assert "anyOf" not in cat_prop
+        assert cat_prop["enum"] == ["positive", "negative"]
+        # Original schema should not be mutated
+        assert "anyOf" in schema_with_anyof["properties"]["categorical_eval"]

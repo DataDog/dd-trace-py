@@ -1,3 +1,4 @@
+import copy
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import asdict
@@ -6,6 +7,8 @@ import json
 import os
 import re
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Literal
 from typing import Optional
 from typing import Protocol
@@ -305,8 +308,18 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
 
         generation_config_params = model_params.copy() if model_params else {}
         if json_schema:
+            schema_copy = copy.deepcopy(json_schema)
+            for prop_val in schema_copy.get("properties", {}).values():
+                if not isinstance(prop_val, dict):
+                    continue
+                # Vertex AI doesn't support 'const' in anyOf. Convert to enum.
+                if "anyOf" in prop_val:
+                    enum_values = [item.pop("const") for item in prop_val["anyOf"] if "const" in item]
+                    if enum_values:
+                        prop_val.pop("anyOf")
+                        prop_val["enum"] = enum_values
             generation_config_params["response_mime_type"] = "application/json"
-            generation_config_params["response_schema"] = json_schema
+            generation_config_params["response_schema"] = schema_copy
 
         generation_config = GenerationConfig(**generation_config_params) if generation_config_params else None
         response = model_instance.generate_content(contents, generation_config=generation_config)
