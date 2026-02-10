@@ -9,6 +9,60 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
+/* RAII helper to save and restore Python error state */
+class PythonErrorRestorer
+{
+  public:
+    PythonErrorRestorer()
+    {
+#ifdef _PY312_AND_LATER
+        // Python 3.12+: Use the new API that returns a single exception object
+        saved_exception = PyErr_GetRaisedException();
+#else
+        // Python < 3.12: Use the old API with separate type, value, traceback
+        PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
+#endif
+    }
+
+    ~PythonErrorRestorer()
+    {
+        // Restore original exception if one was pending on entry.
+        // Otherwise clear any internal error raised while sampling.
+        // Currently, we explicitly clear error right after calling C APIs that
+        // can set error, PyUnicode_AsUTF8AndSize and PyFrame_GetBack. We just
+        // be cautious of any new C APIs that can set error in the future. But
+        // this might not be enough when we call C APIs with an error set, so
+        // manual clear after calling C APIs might still be needed.
+#ifdef _PY312_AND_LATER
+        if (saved_exception != NULL) {
+            PyErr_SetRaisedException(saved_exception);
+        } else if (PyErr_Occurred()) {
+            PyErr_Clear();
+        }
+#else
+        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
+            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
+        } else if (PyErr_Occurred()) {
+            PyErr_Clear();
+        }
+#endif
+    }
+
+    // Non-copyable, non-movable
+    PythonErrorRestorer(const PythonErrorRestorer&) = delete;
+    PythonErrorRestorer& operator=(const PythonErrorRestorer&) = delete;
+    PythonErrorRestorer(PythonErrorRestorer&&) = delete;
+    PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
+
+  private:
+#ifdef _PY312_AND_LATER
+    PyObject* saved_exception;
+#else
+    PyObject* saved_exc_type;
+    PyObject* saved_exc_value;
+    PyObject* saved_exc_traceback;
+#endif
+};
 /* Helper function to convert PyUnicode object to string_view
  * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
  * The pointer remains valid as long as the PyObject is alive */
