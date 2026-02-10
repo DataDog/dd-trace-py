@@ -193,6 +193,9 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: tests-gen
   artifacts:
     name: "artifacts"
     when: always
