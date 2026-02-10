@@ -4,7 +4,10 @@ import json
 import os
 import tempfile
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -55,26 +58,26 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     session_id: str
     service: str
     status_message: str
-    collection_errors: list[str]
-    span_links: list[_SpanLink]
+    collection_errors: List[str]
+    span_links: List[_SpanLink]
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     span_id: str
     trace_id: str
     parent_id: str
-    tags: list[str]
+    tags: List[str]
     name: str
     start_ns: int
     duration: int
     status: str
     meta: _Meta
-    metrics: dict[str, Any]
-    _dd: dict[str, str]
+    metrics: Dict[str, Any]
+    _dd: Dict[str, str]
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):
-    join_on: dict[str, dict[str, str]]
+    join_on: Dict[str, Dict[str, str]]
     metric_type: str
     label: str
     categorical_value: str
@@ -83,7 +86,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     boolean_value: bool
     ml_app: str
     timestamp_ms: int
-    tags: list[str]
+    tags: List[str]
     assessment: str
     reasoning: str
 
@@ -98,13 +101,13 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     categorical_value: str
     score_value: float
     boolean_value: bool
-    json_value: dict[str, JSONType]
-    error: Optional[dict[str, str]]
-    tags: list[str]
+    json_value: Dict[str, JSONType]
+    error: Optional[Dict[str, str]]
+    tags: List[str]
     experiment_id: str
     reasoning: str
     assessment: str
-    metadata: dict[str, JSONType]
+    metadata: Dict[str, JSONType]
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -112,7 +115,7 @@ def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) 
     if user_defined_agentless_enabled is not None:
         return user_defined_agentless_enabled
 
-    agent_info: Optional[dict[str, Any]]
+    agent_info: Optional[Dict[str, Any]]
 
     try:
         agent_info = agent.info()
@@ -149,7 +152,7 @@ class BaseLLMObsWriter(PeriodicService):
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer: list[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
+        self._buffer: List[Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent]] = []
         self._buffer_size: int = 0
         self._timeout: float = timeout
         self._api_key: str = _api_key or config._dd_api_key
@@ -171,7 +174,7 @@ class BaseLLMObsWriter(PeriodicService):
             # to form http://localhost:8080/foo/bar/buz/baz
             self._endpoint = self.ENDPOINT.lstrip("/")
 
-        self._headers: dict[str, str] = {"Content-Type": "application/json"}
+        self._headers: Dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
             if self._app_key:
@@ -318,7 +321,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         event_size = len(safe_json(event))
         self._enqueue(event, event_size)
 
-    def _data(self, events: list[LLMObsEvaluationMetricEvent]) -> dict[str, Any]:
+    def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
 
 
@@ -438,7 +441,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             metadata = {} if record["metadata"] is None else record["metadata"]
 
         rj: JSONType = {
-            "input": cast(dict[str, JSONType], record.get("input_data")),
+            "input": cast(Dict[str, JSONType], record.get("input_data")),
             "expected_output": expected_output,
             "metadata": metadata,
         }
@@ -451,10 +454,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def dataset_batch_update(
         self,
         dataset_id: str,
-        insert_records: list[DatasetRecordRaw],
-        update_records: list[UpdatableDatasetRecord],
-        delete_record_ids: list[str],
-    ) -> tuple[int, list[str]]:
+        insert_records: List[DatasetRecordRaw],
+        update_records: List[UpdatableDatasetRecord],
+        delete_record_ids: List[str],
+    ) -> Tuple[int, List[str]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
@@ -477,7 +480,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
-        new_record_ids: list[str] = [r["id"] for r in data] if data else []
+        new_record_ids: List[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
 
     def dataset_get_with_records(
@@ -508,7 +511,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
 
         has_next_page = True
-        class_records: list[DatasetRecord] = []
+        class_records: List[DatasetRecord] = []
         page_num = 0
         url_options = {}
         while has_next_page:
@@ -554,7 +557,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             _dne_client=self,
         )
 
-    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord]):
+    def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -648,11 +651,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_id: str,
         project_id: str,
         dataset_version: int = 0,
-        exp_config: Optional[dict[str, JSONType]] = None,
-        tags: Optional[list[str]] = None,
+        exp_config: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[List[str]] = None,
         description: Optional[str] = None,
         runs: Optional[int] = 1,
-    ) -> tuple[str, str]:
+    ) -> Tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
             "POST",
@@ -682,7 +685,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return experiment_id, experiment_run_name
 
     def experiment_eval_post(
-        self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
+        self, experiment_id: str, events: List[LLMObsExperimentEvalMetricEvent], tags: List[str]
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
         resp = self.request(
@@ -693,8 +696,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "type": "experiments",
                     "attributes": {
                         "scope": "experiments",
-                        "metrics": cast(list[JSONType], events),
-                        "tags": cast(list[JSONType], tags),
+                        "metrics": cast(List[JSONType], events),
+                        "tags": cast(List[JSONType], tags),
                     },
                 }
             },
@@ -730,7 +733,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         telemetry.record_span_event_size(event, truncated_event_size or raw_event_size)
         self._enqueue(event, truncated_event_size or raw_event_size)
 
-    def _data(self, events: list[LLMObsSpanEvent]) -> list[dict[str, Any]]:
+    def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
         payload = []
         for event in events:
             event_data = {

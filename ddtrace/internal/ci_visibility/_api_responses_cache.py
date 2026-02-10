@@ -24,7 +24,7 @@ def _get_cache_file_path(cache_key: str) -> str:
     return os.path.join(_API_RESPONSE_CACHE_DIR, f"{cache_key}.json")
 
 
-def _get_normalized_cache_key(method: str, endpoint: str, payload: dict[str, t.Any]) -> str:
+def _get_normalized_cache_key(method: str, endpoint: str, payload: t.Dict[str, t.Any]) -> str:
     """Generate a cache key by normalizing payload to remove dynamic UUID"""
     cache_data_dict = {"type": payload["data"].get("type"), "attributes": payload["data"]["attributes"]}
     # Convert to JSON string with sorted keys for consistent hashing
@@ -33,7 +33,7 @@ def _get_normalized_cache_key(method: str, endpoint: str, payload: dict[str, t.A
     return hashlib.sha256(cache_key_data.encode()).hexdigest()
 
 
-def _read_from_cache(cache_key: str) -> t.Optional[dict]:
+def _read_from_cache(cache_key: str) -> t.Optional[t.Dict]:
     """Read cached response if it exists"""
     if not cache_key or not _is_response_cache_enabled():
         return None

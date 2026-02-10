@@ -51,7 +51,7 @@ if sys.version_info < (3, 10):
             self.offset = offset
             self.opcode = opcode
             self.arg = arg
-            self.targets: list["Branch"] = []
+            self.targets: t.List["Branch"] = []
 
     class Branch(ABC):
         def __init__(self, start: Instruction, end: Instruction) -> None:
@@ -75,7 +75,7 @@ if sys.version_info < (3, 10):
     EXTENDED_ARG = dis.EXTENDED_ARG
     NO_OFFSET = -1
 
-    def instr_with_arg(opcode: int, arg: int) -> list[Instruction]:
+    def instr_with_arg(opcode: int, arg: int) -> t.List[Instruction]:
         instructions = [Instruction(-1, opcode, arg & 0xFF)]
         arg >>= 8
         while arg:
@@ -83,7 +83,9 @@ if sys.version_info < (3, 10):
             arg >>= 8
         return instructions
 
-    def update_location_data(code: CodeType, trap_map: dict[int, int], ext_arg_offsets: list[tuple[int, int]]) -> bytes:
+    def update_location_data(
+        code: CodeType, trap_map: t.Dict[int, int], ext_arg_offsets: t.List[t.Tuple[int, int]]
+    ) -> bytes:
         # Some code objects do not have co_lnotab data (eg: certain lambdas)
         if code.co_lnotab == b"":
             return code.co_lnotab
@@ -154,7 +156,7 @@ if sys.version_info < (3, 10):
     IMPORT_NAME = dis.opmap["IMPORT_NAME"]
     IMPORT_FROM = dis.opmap["IMPORT_FROM"]
 
-    def trap_call(trap_index: int, arg_index: int) -> tuple[Instruction, ...]:
+    def trap_call(trap_index: int, arg_index: int) -> t.Tuple[Instruction, ...]:
         return (
             *instr_with_arg(LOAD_CONST, trap_index),
             *instr_with_arg(LOAD_CONST, arg_index),
@@ -162,11 +164,13 @@ if sys.version_info < (3, 10):
             Instruction(NO_OFFSET, POP_TOP, 0),
         )
 
-    def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
+    def instrument_all_lines(
+        code: CodeType, hook: HookType, path: str, package: str
+    ) -> t.Tuple[CodeType, CoverageLines]:
         # TODO[perf]: Check if we really need to << and >> everywhere
         trap_func, trap_arg = hook, path
 
-        instructions: list[Instruction] = []
+        instructions: t.List[Instruction] = []
 
         new_consts = list(code.co_consts)
         trap_index = len(new_consts)
@@ -177,8 +181,8 @@ if sys.version_info < (3, 10):
         offset_map = {}
 
         # Collect all the original jumps
-        jumps: dict[int, Jump] = {}
-        traps: dict[int, int] = {}  # DEV: This uses the original offsets
+        jumps: t.Dict[int, Jump] = {}
+        traps: t.Dict[int, int] = {}  # DEV: This uses the original offsets
         line_map = {}
         line_starts = dict(dis.findlinestarts(code))
 
@@ -283,7 +287,7 @@ if sys.version_info < (3, 10):
             instr.offset = new_offset
 
         # Adjust all the jumps, neglecting any EXTENDED_ARGs for now
-        branches: list[Branch] = []
+        branches: t.List[Branch] = []
         for jump in jumps.values():
             new_start = offset_map[jump.start]
             new_end = offset_map[jump.end]
@@ -303,7 +307,7 @@ if sys.version_info < (3, 10):
         # Process all the branching instructions to adjust the arguments. We
         # need to add EXTENDED_ARGs if the argument is too large.
         process_branches = True
-        exts: list[tuple[Instruction, int]] = []
+        exts: t.List[t.Tuple[Instruction, int]] = []
         while process_branches:
             process_branches = False
             for branch in branches:

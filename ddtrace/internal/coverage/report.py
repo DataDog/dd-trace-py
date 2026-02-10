@@ -16,11 +16,11 @@ except OSError:
 
 NOCOVER_PRAGMA_RE = re.compile(r"^\s*(?P<command>.*)\s*#.*\s+pragma\s*:\s*no\s?cover.*$")
 
-ast_cache: dict[str, t.Any] = {}
+ast_cache: t.Dict[str, t.Any] = {}
 
 
-def _get_relative_path_strings(executable_lines, workspace_path: Path) -> dict[str, str]:
-    relative_path_strs: dict[str, str] = {}
+def _get_relative_path_strings(executable_lines, workspace_path: Path) -> t.Dict[str, str]:
+    relative_path_strs: t.Dict[str, str] = {}
 
     for path in executable_lines:
         path_obj = Path(path)
@@ -59,7 +59,7 @@ def find_statement_for_line(node, line):
     return None
 
 
-def no_cover(path, src_line) -> t.Optional[tuple[int, int]]:
+def no_cover(path, src_line) -> t.Optional[t.Tuple[int, int]]:
     """Returns the start and end lines of statements to ignore the line includes pragma nocover.
 
     If the line ends with a :, parse the AST and return the block the line belongs to.
@@ -88,7 +88,7 @@ def print_coverage_report(executable_lines, covered_lines, workspace_path: Path,
         print("No Datadog line coverage recorded.")
         return
 
-    relative_path_strs: dict[str, str] = _get_relative_path_strings(executable_lines, workspace_path)
+    relative_path_strs: t.Dict[str, str] = _get_relative_path_strings(executable_lines, workspace_path)
 
     n = max(len(path_str) for path_str in relative_path_strs.values()) + 4
 
@@ -153,9 +153,9 @@ def gen_json_report(
 
     Paths are relative to workspace_path if provided, and are absolute otherwise.
     """
-    output: dict[str, dict[str, dict[str, list[int]]]] = {"files": {}}
+    output: t.Dict[str, t.Dict[str, t.Dict[str, t.List[int]]]] = {"files": {}}
 
-    relative_path_strs: dict[str, str] = {}
+    relative_path_strs: t.Dict[str, str] = {}
     if workspace_path is not None:
         relative_path_strs.update(_get_relative_path_strings(executable_lines, workspace_path))
 
@@ -183,7 +183,7 @@ def gen_json_report(
     return json.dumps(output)
 
 
-def compare_coverage_reports(coverage_py_filename: str, dd_coverage_filename: str) -> dict[str, t.Any]:
+def compare_coverage_reports(coverage_py_filename: str, dd_coverage_filename: str) -> t.Dict[str, t.Any]:
     """Compare two JSON-formatted coverage reports and return a dictionary of the differences."""
     with open(coverage_py_filename, "r") as coverage_py_f:
         coverage_py_data = json.load(coverage_py_f)
@@ -191,7 +191,7 @@ def compare_coverage_reports(coverage_py_filename: str, dd_coverage_filename: st
     with open(dd_coverage_filename, "r") as dd_coverage_f:
         dd_coverage_data = json.load(dd_coverage_f)
 
-    compared_data: dict[str, t.Any] = {
+    compared_data: t.Dict[str, t.Any] = {
         "coverage_py_missed_files": [f for f in dd_coverage_data["files"] if f not in coverage_py_data["files"]],
         "coverage_py_missed_executed_lines": {},
         "coverage_py_missed_missing_lines": {},

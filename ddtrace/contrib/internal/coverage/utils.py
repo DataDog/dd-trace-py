@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 import tempfile
 from typing import Callable
+from typing import List
 from typing import Optional
 
 from ddtrace.contrib.internal.coverage.data import _original_sys_argv_command
@@ -43,7 +44,7 @@ def _is_coverage_patched():
     return getattr(sys.modules["coverage"], "_datadog_patch", False)
 
 
-def _command_invokes_coverage_run(sys_argv_command: list[str]) -> bool:
+def _command_invokes_coverage_run(sys_argv_command: List[str]) -> bool:
     return "coverage run -m" in " ".join(sys_argv_command)
 
 

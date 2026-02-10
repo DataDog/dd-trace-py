@@ -1,5 +1,7 @@
 from typing import Any
+from typing import Dict
 from typing import Iterable
+from typing import List
 from typing import Optional
 
 from ddtrace.internal.utils import ArgumentError
@@ -29,7 +31,7 @@ class VertexAIIntegration(BaseLLMIntegration):
     _integration_name = "vertexai"
 
     def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
+        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         if provider is not None:
             span._set_tag_str("vertexai.request.provider", provider)
@@ -39,8 +41,8 @@ class VertexAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -57,7 +59,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, history, system_instruction)
 
-        output_messages: list[Message] = [Message(content="")]
+        output_messages: List[Message] = [Message(content="")]
         if response is not None:
             output_messages = self._extract_output_message(response)
             metrics = self._extract_metrics_from_response(response)
@@ -114,10 +116,10 @@ class VertexAIIntegration(BaseLLMIntegration):
             metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = thoughts_tokens
         return metrics
 
-    def _extract_input_message(self, contents, history, system_instruction=None) -> list[Message]:
+    def _extract_input_message(self, contents, history, system_instruction=None) -> List[Message]:
         from vertexai.generative_models._generative_models import Part
 
-        messages: list[Message] = []
+        messages: List[Message] = []
         if system_instruction:
             for instruction in system_instruction:
                 messages.append(Message(content=instruction or "", role="system"))
@@ -144,8 +146,8 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.extend(self._extract_messages_from_content(content))
         return messages
 
-    def _extract_output_message(self, generations) -> list[Message]:
-        output_messages: list[Message] = []
+    def _extract_output_message(self, generations) -> List[Message]:
+        output_messages: List[Message] = []
         # streamed responses will be a list of chunks
         if isinstance(generations, list):
             message_content = ""
@@ -169,8 +171,8 @@ class VertexAIIntegration(BaseLLMIntegration):
         return output_messages
 
     @staticmethod
-    def _extract_messages_from_content(content) -> list[Message]:
-        messages: list[Message] = []
+    def _extract_messages_from_content(content) -> List[Message]:
+        messages: List[Message] = []
         role = _get_attr(content, "role", "")
         parts = _get_attr(content, "parts", [])
         if not parts or not isinstance(parts, Iterable):

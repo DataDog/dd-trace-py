@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 import litellm
 
@@ -24,7 +25,7 @@ def get_version() -> str:
     return getattr(version_module, "version", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"litellm": "*"}
 
 

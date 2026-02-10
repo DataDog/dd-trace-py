@@ -1,6 +1,8 @@
 import os
 import sysconfig
 from typing import Optional
+from typing import Set
+from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec._deduplications import deduplication
@@ -112,7 +114,7 @@ class VulnerabilityBase:
         return True
 
     @classmethod
-    def _compute_file_line(cls) -> tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
+    def _compute_file_line(cls) -> Tuple[Optional[str], Optional[int], Optional[str], Optional[str]]:
         file_name = line_number = function_name = class_name = None
         frame_info = get_info_frame()
         if not frame_info or frame_info[0] in ("", -1):
@@ -192,7 +194,7 @@ class VulnerabilityBase:
         return result
 
     @classmethod
-    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES, origins_to_exclude: set[OriginType] = set()) -> bool:
+    def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES, origins_to_exclude: Set[OriginType] = set()) -> bool:
         """Check if a string contains tainted ranges that are not marked as secure and don't come exclusively
         from excluded origins.
 

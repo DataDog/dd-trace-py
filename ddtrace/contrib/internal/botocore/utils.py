@@ -5,7 +5,9 @@ Trace queries monitoring to aws api done via botocore client
 import base64
 import json
 from typing import Any
+from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -20,7 +22,7 @@ MAX_EVENTBRIDGE_DETAIL_SIZE = TWOFIFTYSIX_KB
 LINE_BREAK = "\n"
 
 
-def get_json_from_str(data_str: str) -> tuple[str, Optional[dict[str, Any]]]:
+def get_json_from_str(data_str: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     data_obj = json.loads(data_str)
 
     if data_str.endswith(LINE_BREAK):
@@ -28,7 +30,7 @@ def get_json_from_str(data_str: str) -> tuple[str, Optional[dict[str, Any]]]:
     return None, data_obj
 
 
-def get_kinesis_data_object(data: str) -> tuple[Optional[str], Optional[dict[str, Any]]]:
+def get_kinesis_data_object(data: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
     """
     :data: the data from a kinesis stream
     The data from a kinesis stream comes as a string (could be json, base64 encoded, etc.)

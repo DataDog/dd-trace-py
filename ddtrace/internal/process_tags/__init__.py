@@ -4,7 +4,9 @@ import re
 import struct
 import sys
 from typing import Callable
+from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.process_tags import process_tags_config as config
@@ -58,7 +60,7 @@ def _compute_process_tag(key: str, compute_value: Callable):
         return None
 
 
-def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
+def generate_process_tags() -> Tuple[Optional[str], Optional[List[str]]]:
     if not config.enabled:
         return None, None
 

@@ -1,7 +1,9 @@
+from typing import List
+
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-def _get_source_index(sources: list, source) -> int:
+def _get_source_index(sources: List, source) -> int:
     i = 0
     for source_ in sources:
         if hash(source_) == hash(source):

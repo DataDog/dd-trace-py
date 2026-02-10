@@ -1,6 +1,8 @@
 import inspect
 import os
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import starlette
@@ -56,7 +58,8 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(starlette, "__version__", "")
 
 
@@ -64,7 +67,7 @@ _STARLETTE_VERSION = parse_version(get_version())
 _STARLETTE_VERSION_LTE_0_33_0 = _STARLETTE_VERSION <= parse_version("0.33.0")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"starlette": ">=0.14.0"}
 
 
@@ -139,7 +142,7 @@ def unpatch():
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
-    scope: Optional[dict[str, Any]] = get_argument_value(args, kwargs, 0, "scope")
+    scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
     if not scope:
         return wrapped(*args, **kwargs)
 
@@ -156,8 +159,8 @@ def traced_handler(wrapped, instance, args, kwargs):
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
 
-    request_spans: list[Span] = scope["datadog"].get("request_spans", [])
-    resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
+    request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
+    resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
 
     if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each

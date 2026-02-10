@@ -1,7 +1,10 @@
 from collections import defaultdict
 import json
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 from weakref import WeakKeyDictionary
 
@@ -101,7 +104,7 @@ def _extract_instance(instance):
     return instance
 
 
-def _flattened_chain_steps(steps: list[Any], nested: bool = True) -> list[Any]:
+def _flattened_chain_steps(steps: List[Any], nested: bool = True) -> List[Any]:
     """
     Flattens the contents of a chain into non-RunnableBindings and non-RunnableParallel steps.
     RunnableParrallel steps are extracted and can either be nested into sublists or flattened.
@@ -149,7 +152,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if parent_instance is None or not _is_chain_instance(parent_instance):
             return
 
-        spans: dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
+        spans: Dict[int, Span] = getattr(parent_instance, "_datadog_spans", {})
         spans[id(instance)] = span
 
         try:
@@ -160,8 +163,8 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # oneof SUPPORTED_OPERATIONS
     ) -> None:
@@ -232,7 +235,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._clear_instance_recordings(instance)
 
-    def _get_invoker_spans(self, instance, parent_span: Span) -> tuple[list[Span], bool]:
+    def _get_invoker_spans(self, instance, parent_span: Span) -> Tuple[List[Span], bool]:
         """
         Gets a list of invoker spans, and whether the current instance is from the output of the invoker spans.
         Will return:
@@ -282,7 +285,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return [chain_spans[id(invoker_steps)]], True
 
-    def _set_input_links(self, span: Span, invoker_spans: list[Span], from_output: bool):
+    def _set_input_links(self, span: Span, invoker_spans: List[Span], from_output: bool):
         """Sets the input links for the given span (to: input)"""
         self._set_span_links(
             span=span,
@@ -291,13 +294,13 @@ class LangChainIntegration(BaseLLMIntegration):
             link_to="input",
         )
 
-    def _set_output_links(self, span: Span, parent_span: Span, invoker_spans: list[Span], from_output: bool) -> None:
+    def _set_output_links(self, span: Span, parent_span: Span, invoker_spans: List[Span], from_output: bool) -> None:
         """
         Sets the output links for the parent span of the given span (to: output)
         This is done by removing span links of previous steps in the chain from the parent span (if it is a chain).
         We add output->output span links at every step.
         """
-        parent_links: list[_SpanLink] = parent_span._get_ctx_item(SPAN_LINKS) or []
+        parent_links: List[_SpanLink] = parent_span._get_ctx_item(SPAN_LINKS) or []
         pop_indices = self._get_popped_span_link_indices(parent_span, parent_links, invoker_spans, from_output)
 
         self._set_span_links(
@@ -309,8 +312,8 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
     def _get_popped_span_link_indices(
-        self, parent_span: Span, parent_links: list[_SpanLink], invoker_spans: list[Span], from_output: bool
-    ) -> list[int]:
+        self, parent_span: Span, parent_links: List[_SpanLink], invoker_spans: List[Span], from_output: bool
+    ) -> List[int]:
         """
         Returns a list of indices to pop from the parent span links list
         This is determined by if the parent span represents a chain, and if there are steps before the step
@@ -333,18 +336,18 @@ class LangChainIntegration(BaseLLMIntegration):
     def _set_span_links(
         self,
         span: Span,
-        from_spans: list[Span],
+        from_spans: List[Span],
         link_from: str,
         link_to: str,
-        popped_span_link_indices: Optional[list[int]] = None,
+        popped_span_link_indices: Optional[List[int]] = None,
     ) -> None:
         """Sets the span links on the given span along with the existing links."""
-        existing_links: list[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
+        existing_links: List[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
 
         if popped_span_link_indices:
             existing_links = [link for i, link in enumerate(existing_links) if i not in popped_span_link_indices]
 
-        links: list[_SpanLink] = [
+        links: List[_SpanLink] = [
             _SpanLink(
                 trace_id=format_trace_id(from_span.trace_id),
                 span_id=str(from_span.span_id),
@@ -393,7 +396,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return f"{module_name}.{variable_name}"
 
-    def _llmobs_set_metadata(self, span: Span, kwargs: dict[str, Any]) -> None:
+    def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
         identifying_params = kwargs.pop("_dd.identifying_params", None)
         if not identifying_params:
             return
@@ -408,8 +411,8 @@ class LangChainIntegration(BaseLLMIntegration):
         if metadata:
             span._set_ctx_item(METADATA, metadata)
 
-    def _llmobs_extract_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        metadata: dict[str, Any] = {}
+    def _llmobs_extract_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
         max_tokens = None
         temperature = None
         if "temperature" in parameters:
@@ -426,7 +429,7 @@ class LangChainIntegration(BaseLLMIntegration):
         return metadata
 
     def _llmobs_set_tags_from_llm(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], completions: Any, is_workflow: bool = False
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
     ) -> None:
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
@@ -473,8 +476,8 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_from_chat_model(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         chat_completions: Any,
         is_workflow: bool = False,
     ) -> None:
@@ -492,7 +495,7 @@ class LangChainIntegration(BaseLLMIntegration):
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
 
-        input_messages: list[Message] = []
+        input_messages: List[Message] = []
         if stream:
             chat_messages = get_argument_value(args, kwargs, 0, "input")
             input_messages = self._handle_stream_input_messages(chat_messages)
@@ -522,7 +525,7 @@ class LangChainIntegration(BaseLLMIntegration):
             span._set_ctx_item(output_tag_key, [Message(content="")])
             return
 
-        output_messages: list[Message] = []
+        output_messages: List[Message] = []
         if stream:
             content = chat_completions.content
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
@@ -536,7 +539,7 @@ class LangChainIntegration(BaseLLMIntegration):
             input_tokens, output_tokens, total_tokens = self.check_token_usage_chat_or_llm_result(chat_completions)
             tokens_set_top_level = total_tokens > 0
 
-        tokens_per_choice_run_id: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for message_set in getattr(chat_completions, "generations", []):
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
@@ -588,10 +591,10 @@ class LangChainIntegration(BaseLLMIntegration):
             }
             span._set_ctx_item(METRICS, metrics)
 
-    def _extract_tool_calls(self, chat_completion_msg: Any) -> list[ToolCall]:
+    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[ToolCall]:
         """Extracts tool calls from a langchain chat completion."""
         tool_calls = getattr(chat_completion_msg, "tool_calls", None)
-        tool_calls_info: list[ToolCall] = []
+        tool_calls_info: List[ToolCall] = []
         if tool_calls:
             if not isinstance(tool_calls, list):
                 tool_calls = [tool_calls]
@@ -604,8 +607,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
 
-    def _handle_stream_input_messages(self, inputs) -> list[Message]:
-        input_messages: list[Message] = []
+    def _handle_stream_input_messages(self, inputs) -> List[Message]:
+        input_messages: List[Message] = []
         if hasattr(inputs, "to_messages"):  # isinstance(inputs, langchain_core.prompt_values.PromptValue)
             inputs = inputs.to_messages()
         elif not isinstance(inputs, list):
@@ -645,9 +648,9 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_embedding(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
-        output_embedding: Union[list[float], list[list[float]], None],
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        output_embedding: Union[List[float], List[List[float]], None],
         is_workflow: bool = False,
     ) -> None:
         span._set_ctx_items(
@@ -675,7 +678,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 else:
                     if isinstance(input_texts, str):
                         input_texts = [input_texts]
-                    input_documents: list[Document] = [Document(text=str(doc)) for doc in input_texts]
+                    input_documents: List[Document] = [Document(text=str(doc)) for doc in input_texts]
                     span._set_ctx_item(input_tag_key, input_documents)
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
@@ -702,9 +705,9 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_meta_tags_from_similarity_search(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
-        output_documents: Union[list[Any], None],
+        args: List[Any],
+        kwargs: Dict[str, Any],
+        output_documents: Union[List[Any], None],
         is_workflow: bool = False,
     ) -> None:
         span._set_ctx_items(
@@ -724,7 +727,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if is_workflow:
             span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
             return
-        documents: list[Document] = []
+        documents: List[Document] = []
         for d in output_documents:
             doc = Document(text=d.page_content)
             doc["id"] = getattr(d, "id", "")
@@ -735,7 +738,7 @@ class LangChainIntegration(BaseLLMIntegration):
         # we set the value as well to ensure that the UI would display it in case the span was the root
         span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 
-    def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:
+    def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: Dict[str, Any], tool_output: object) -> None:
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
         formatted_input = ""
         if tool_inputs is not None:
@@ -762,7 +765,7 @@ class LangChainIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_meta_tags_from_runnable_lambda(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any
     ) -> None:
         inputs = get_argument_value(args, kwargs, 0, "inputs")
 
@@ -789,7 +792,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if model is not None:
             span._set_tag_str(MODEL, model)
 
-    def _extract_tool_call_args_from_inputs(self, tool_inputs: dict[str, Any]) -> tuple[str, str, str]:
+    def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
         """
         Extract tool name, tool id, and tool args from a tool call input.
 
@@ -825,7 +828,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return input_tokens, output_tokens, total_tokens
 
-    def check_token_usage_ai_message(self, ai_message) -> tuple[tuple[int, int, int], Optional[str]]:
+    def check_token_usage_ai_message(self, ai_message) -> Tuple[Tuple[int, int, int], Optional[str]]:
         """Checks for token usage on an AI message object"""
         # depending on the provider + langchain-core version, the usage metadata can be in different places
         # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
@@ -846,14 +849,14 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
 
-    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")
         base_url = None
         for field in LANGCHAIN_BASE_URL_FIELDS:
             base_url = getattr(instance, field, None) or base_url
         return str(base_url) if base_url else None
 
-    def handle_prompt_template_invoke(self, instance, result, args: list[Any], kwargs: dict[str, Any]):
+    def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
         """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
         chat_template, template, variables = None, None, None
         if hasattr(instance, "template") and isinstance(instance.template, str):
@@ -933,7 +936,7 @@ class LangChainIntegration(BaseLLMIntegration):
         except (AttributeError, TypeError):
             log.warning("Could not attach prompt metadata to resulting prompt")
 
-    def handle_llm_invoke(self, instance, args: list[Any], kwargs: dict[str, Any]):
+    def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
         """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
         template = None
         prompt_input = get_argument_value(args, kwargs, 0, "input", optional=True)

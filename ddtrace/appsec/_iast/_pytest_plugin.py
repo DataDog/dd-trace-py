@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import dataclasses
 import json
+from typing import List
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast.reporter import Vulnerability
@@ -57,7 +58,7 @@ except ImportError:
     log.debug("pytest not imported")
 
 
-vuln_data: list[VulnerabilityFoundInTest] = []
+vuln_data: List[VulnerabilityFoundInTest] = []
 
 
 def extract_code_snippet(filepath, line_number, context=3):

@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 # 3p
 import kombu
@@ -33,7 +34,8 @@ from .utils import get_exchange_from_args
 from .utils import get_routing_key_from_args
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return str(kombu.__version__)
 
 
@@ -50,7 +52,7 @@ config._add(
 propagator = HTTPPropagator
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"kombu": ">=4.6.6"}
 
 
