@@ -20,6 +20,7 @@ import glob
 import os
 import subprocess
 import sys
+from typing import List
 
 import requests
 
@@ -97,13 +98,13 @@ def _is_executable(file_path: str) -> bool:
     return os.path.isfile(file_path) and os.access(file_path, os.X_OK)
 
 
-def discover_build_scripts(repo_root: str) -> list[str]:
+def discover_build_scripts(repo_root: str) -> List[str]:
     """
     Discover fuzz build scripts by looking for '**/fuzz/build.sh'
 
     This allows for "0 click onboarding" for new fuzz harnesses.
     """
-    build_scripts: list[str] = []
+    build_scripts: List[str] = []
     for build_script in glob.glob(os.path.join(repo_root, "**/fuzz/build.sh"), recursive=True):
         print(f"Found build script: {build_script}")
         build_scripts.append(build_script)
@@ -142,13 +143,13 @@ def run_build_script(build_script: str) -> None:
     print(f"✅ Built fuzzers from {build_script}")
 
 
-def read_manifest(manifest_path: str) -> list[FuzzBinary]:
+def read_manifest(manifest_path: str) -> List[FuzzBinary]:
     """
     Read the manifest file created by build scripts to discover built binaries.
 
     Each build script appends its binary path(s) to this file.
     """
-    binaries: list[FuzzBinary] = []
+    binaries: List[FuzzBinary] = []
 
     if not os.path.isfile(manifest_path):
         print(f"⚠️ No manifest file found at {manifest_path}")

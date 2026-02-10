@@ -1,6 +1,8 @@
 import os
 from typing import Any
+from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 import httpx
 from wrapt import BoundFunctionWrapper
@@ -41,7 +43,7 @@ config._add(
 )
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"httpx": ">=0.25"}
 
 
@@ -58,7 +60,7 @@ def _get_service_name(request: httpx.Request) -> Optional[str]:
 
 
 def _wrapped_sync_send_single_request(
-    wrapped: BoundFunctionWrapper, instance: httpx.Client, args: tuple[httpx.Request], kwargs: dict[str, Any]
+    wrapped: BoundFunctionWrapper, instance: httpx.Client, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ) -> httpx.Response:
     req = get_argument_value(args, kwargs, 0, "request")
     with core.context_with_data(
@@ -74,7 +76,7 @@ def _wrapped_sync_send_single_request(
 
 
 async def _wrapped_async_send_single_request(
-    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
+    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
     req = get_argument_value(args, kwargs, 0, "request")
     with core.context_with_data(
@@ -90,7 +92,7 @@ async def _wrapped_async_send_single_request(
 
 
 async def _wrapped_async_send(
-    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
+    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
     req = get_argument_value(args, kwargs, 0, "request")
 
@@ -112,7 +114,7 @@ async def _wrapped_async_send(
 
 
 def _wrapped_sync_send(
-    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
+    wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: Tuple[httpx.Request], kwargs: Dict[str, Any]
 ):
     req = get_argument_value(args, kwargs, 0, "request")
 

@@ -1,7 +1,10 @@
 import io
 import json
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.span import Span
@@ -100,15 +103,15 @@ def _on_set_http_meta(
 # AWS Lambda
 def _on_lambda_start_request(
     span: Span,
-    request_headers: dict[str, str],
+    request_headers: Dict[str, str],
     request_ip: Optional[str],
     body: Optional[str],
     is_body_base64: bool,
     raw_uri: str,
     route: str,
     method: str,
-    parsed_query: dict[str, Any],
-    request_path_parameters: Optional[dict[str, Any]],
+    parsed_query: Dict[str, Any],
+    request_path_parameters: Optional[Dict[str, Any]],
 ):
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
@@ -139,7 +142,7 @@ def _on_lambda_start_request(
 def _on_lambda_start_response(
     span: Span,
     status_code: str,
-    response_headers: dict[str, str],
+    response_headers: Dict[str, str],
 ):
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
@@ -167,7 +170,7 @@ def _on_lambda_start_response(
 
 
 def _on_lambda_parse_body(
-    response_body: Optional[Union[str, dict[str, Any]]],
+    response_body: Optional[Union[str, Dict[str, Any]]],
 ):
     if asm_config._api_security_feature_active:
         if response_body:
@@ -301,7 +304,7 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
         set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
 
 
-def _wsgi_make_block_content(ctx, construct_url) -> tuple[int, list[tuple[str, str]], bytes]:
+def _wsgi_make_block_content(ctx, construct_url) -> Tuple[int, List[Tuple[str, str]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -340,7 +343,7 @@ def _wsgi_make_block_content(ctx, construct_url) -> tuple[int, list[tuple[str, s
     return status, resp_headers, content
 
 
-def _asgi_make_block_content(ctx, url) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
+def _asgi_make_block_content(ctx, url) -> Tuple[int, List[Tuple[bytes, bytes]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")

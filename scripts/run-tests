@@ -24,7 +24,10 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from typing import Dict
+from typing import List
 from typing import NamedTuple
+from typing import Set
 
 
 # Add project root and tests to Python path to import suitespec and riotfile
@@ -52,7 +55,7 @@ class RiotVenv(NamedTuple):
     suite_name: str = ""  # Track which suite this venv belongs to
     command: str = ""  # The actual test command (e.g., pytest tests/contrib/flask/)
 
-    def _normalize_package_name(self, name: str) -> list[str]:
+    def _normalize_package_name(self, name: str) -> List[str]:
         """Generate possible package name variations from venv name component.
 
         Examples:
@@ -78,7 +81,7 @@ class RiotVenv(NamedTuple):
 
         return variants
 
-    def _extract_package_versions_for_venv_name(self, venv_name: str, packages: str) -> list[str]:
+    def _extract_package_versions_for_venv_name(self, venv_name: str, packages: str) -> List[str]:
         """Extract package versions that match the venv name components.
 
         Args:
@@ -125,16 +128,16 @@ class RiotVenv(NamedTuple):
 class TestRunner:
     def __init__(self):
         self.root = ROOT
-        self.changed_files: set[str] = set()
-        self.matching_suites: dict[str, dict] = {}
-        self.required_services: set[str] = set()
+        self.changed_files: Set[str] = set()
+        self.matching_suites: Dict[str, dict] = {}
+        self.required_services: Set[str] = set()
 
-    def _run_git_command(self, cmd: list[str]) -> set[str]:
+    def _run_git_command(self, cmd: List[str]) -> Set[str]:
         """Helper to run a git command and return set of file paths."""
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root)
         return set(result.stdout.strip().split()) if result.stdout.strip() else set()
 
-    def get_git_changed_files(self, base_ref: str = "HEAD") -> set[str]:
+    def get_git_changed_files(self, base_ref: str = "HEAD") -> Set[str]:
         """Get files changed in git since base_ref.
 
         For HEAD (default): returns staged + unstaged + untracked files
@@ -154,7 +157,7 @@ class TestRunner:
             print("Warning: Failed to get git changes, using all suites")
             return set()
 
-    def find_matching_suites(self, files: set[str]) -> dict[str, dict]:
+    def find_matching_suites(self, files: Set[str]) -> Dict[str, dict]:
         """Find test suites that match the given files."""
         suites = get_suites()
         matching = {}
@@ -191,7 +194,7 @@ class TestRunner:
 
         return matching
 
-    def extract_required_services(self, suites: dict[str, dict]) -> set[str]:
+    def extract_required_services(self, suites: Dict[str, dict]) -> Set[str]:
         """Extract all required services from selected suites."""
         services = set()
         needs_testagent = False
@@ -210,7 +213,7 @@ class TestRunner:
 
         return services
 
-    def get_riot_venvs(self, pattern: str, suite_name: str = "") -> list[RiotVenv]:
+    def get_riot_venvs(self, pattern: str, suite_name: str = "") -> List[RiotVenv]:
         """Get available riot venvs for a pattern, deduplicated by hash.
 
         Returns one venv per unique hash. When riot expands environment variable arrays,
@@ -269,7 +272,7 @@ class TestRunner:
             print(f"Warning: Failed to get riot venvs for pattern '{pattern}': {e}")
             return []
 
-    def start_services(self, services: set[str]) -> bool:
+    def start_services(self, services: Set[str]) -> bool:
         """Start required Docker services."""
         if not services:
             return True
@@ -283,7 +286,7 @@ class TestRunner:
             print(f"❌ Failed to start services: {e}")
             return False
 
-    def stop_services(self, services: set[str]) -> bool:
+    def stop_services(self, services: Set[str]) -> bool:
         """Stop and remove Docker services."""
         if not services:
             return True
@@ -297,7 +300,7 @@ class TestRunner:
             print(f"⚠️  Warning: Failed to stop services: {e}")
             return False  # Don't fail the whole run if cleanup fails
 
-    def _parse_selection(self, selection: str, max_items: int) -> set[int]:
+    def _parse_selection(self, selection: str, max_items: int) -> Set[int]:
         """Parse user selection string into set of indices.
 
         Handles formats like: '1', '1,3,5', '1-5', '2-4,7,9-11'
@@ -315,7 +318,7 @@ class TestRunner:
                     indices.add(idx)
         return indices
 
-    def _interactive_select(self, items: list, item_type: str, format_fn=None) -> list:
+    def _interactive_select(self, items: List, item_type: str, format_fn=None) -> List:
         """Generic interactive selection for any list of items.
 
         Args:
@@ -359,7 +362,7 @@ class TestRunner:
             except (ValueError, IndexError):
                 print("❌ Invalid selection. Please use format like '1,3', 'all', or 'none'")
 
-    def select_riot_suites(self, matching_suites: dict[str, dict]) -> dict[str, dict]:
+    def select_riot_suites(self, matching_suites: Dict[str, dict]) -> Dict[str, dict]:
         """Let user select which riot suites to run."""
         riot_suites = {name: config for name, config in matching_suites.items() if config.get("runner") == "riot"}
 
@@ -376,7 +379,7 @@ class TestRunner:
             return {name: riot_suites[name] for name in selected}
         return {}
 
-    def select_venvs_for_suites(self, selected_suites: dict[str, dict]) -> list[RiotVenv]:
+    def select_venvs_for_suites(self, selected_suites: Dict[str, dict]) -> List[RiotVenv]:
         """Let user select specific venvs for each suite."""
         selected_venvs = []
 
@@ -406,7 +409,7 @@ class TestRunner:
 
         return selected_venvs
 
-    def interactive_venv_selection(self, matching_suites: dict[str, dict]) -> list[RiotVenv]:
+    def interactive_venv_selection(self, matching_suites: Dict[str, dict]) -> List[RiotVenv]:
         """Provide interactive venv selection with granular control."""
         if not matching_suites:
             print("❌ No matching test suites found for the changed files.")
@@ -422,9 +425,9 @@ class TestRunner:
 
     def run_tests(
         self,
-        selected_venvs: list[RiotVenv],
-        matching_suites: dict[str, dict],
-        riot_args: list[str] = None,
+        selected_venvs: List[RiotVenv],
+        matching_suites: Dict[str, dict],
+        riot_args: List[str] = None,
         dry_run: bool = False,
     ) -> bool:
         """Execute the selected venvs, grouped by suite with per-suite service management."""
@@ -434,8 +437,8 @@ class TestRunner:
 
         # Group venvs by suite, then deduplicate by hash within each suite
         # This prevents running the same hash multiple times when riot expands env var arrays
-        venvs_by_suite: dict[str, list[RiotVenv]] = {}
-        all_venvs_by_suite: dict[str, list[RiotVenv]] = {}  # Track all variants for display
+        venvs_by_suite: Dict[str, List[RiotVenv]] = {}
+        all_venvs_by_suite: Dict[str, List[RiotVenv]] = {}  # Track all variants for display
 
         for venv in selected_venvs:
             suite_name = venv.suite_name
@@ -566,7 +569,7 @@ class TestRunner:
         print("\n🎉 All selected suites completed successfully!")
         return True
 
-    def output_suites_json(self, matching_suites: dict[str, dict]) -> None:
+    def output_suites_json(self, matching_suites: Dict[str, dict]) -> None:
         """Output matching suites and venvs as JSON for AI agent consumption."""
         suites_data = []
 
@@ -601,7 +604,7 @@ class TestRunner:
         output = {"suites": suites_data}
         print(json.dumps(output, indent=2))
 
-    def select_venvs_by_hash(self, matching_suites: dict[str, dict], venv_hashes: list[str]) -> list[RiotVenv]:
+    def select_venvs_by_hash(self, matching_suites: Dict[str, dict], venv_hashes: List[str]) -> List[RiotVenv]:
         """Select specific venvs by their hashes from matching suites."""
         selected_venvs = []
         venv_hashes_set = set(venv_hashes)
@@ -619,7 +622,7 @@ class TestRunner:
 
         return selected_venvs
 
-    def get_venvs_by_hash_direct(self, venv_hashes: list[str]) -> list[RiotVenv]:
+    def get_venvs_by_hash_direct(self, venv_hashes: List[str]) -> List[RiotVenv]:
         """Get specific venvs by their hashes, deduplicated (consistent with CI approach).
 
         Deduplicates hashes to avoid running the same hash multiple times when riot

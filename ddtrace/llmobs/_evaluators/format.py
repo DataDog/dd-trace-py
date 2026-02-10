@@ -3,6 +3,8 @@
 import json
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -156,12 +158,12 @@ class JSONEvaluator(BaseEvaluator):
     def __init__(
         self,
         required_keys: Optional[list] = None,
-        output_extractor: Optional[Callable[[Any], Union[str, dict, list, None]]] = None,
+        output_extractor: Optional[Callable[[Any], Union[str, Dict, List, None]]] = None,
         name: Optional[str] = None,
     ):
         """Initialize the JSONEvaluator evaluator.
 
-        :param required_keys: list of keys that must be present in the parsed JSON
+        :param required_keys: List of keys that must be present in the parsed JSON
         :param output_extractor: Optional function to extract/transform output_data before validation.
                                  Must return a str, dict, list, or None.
         :param name: Optional custom name for the evaluator

@@ -1,6 +1,7 @@
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_package_version
+from typing import Dict
 from urllib import parse
 
 from wrapt import wrap_function_wrapper as _w
@@ -63,15 +64,17 @@ def get_version_tuple(elasticsearch):
     return getattr(elasticsearch, "__version__", "")
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"elasticsearch": ">=1.10"}
 
 
-def get_versions() -> dict[str, str]:
+def get_versions():
+    # type: () -> Dict[str, str]
     if not ES_MODULE_VERSIONS:
         for es_module in ES_PACKAGE_TO_MODULE_NAME.keys():
             try:

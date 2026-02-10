@@ -1,6 +1,8 @@
 import sys
 from typing import Any
+from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 import langchain_core
 
@@ -27,7 +29,7 @@ def get_version() -> str:
     return getattr(langchain_core, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"langchain_core": ">=0.1"}
 
 
@@ -42,7 +44,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     return None
 
 
-def _raising_dispatch(event_id: str, args: tuple[Any, ...] = ()):
+def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
     result = core.dispatch_with_results(event_id, args)  # ast-grep-ignore: core-dispatch-with-results
     if len(result) > 0:
         for event in result.values():

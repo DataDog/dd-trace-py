@@ -19,7 +19,7 @@ LOG = logging.getLogger(__name__)
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 
-_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, list[str]]] = None
+_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None
 
 
 @callonce
@@ -40,7 +40,7 @@ def get_distributions() -> t.Mapping[str, str]:
     return pkgs
 
 
-def get_package_distributions() -> t.Mapping[str, list[str]]:
+def get_package_distributions() -> t.Mapping[str, t.List[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
@@ -55,11 +55,11 @@ def get_package_distributions() -> t.Mapping[str, list[str]]:
 
 
 @cached(maxsize=1024)
-def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, str]]:
+def get_module_distribution_versions(module_name: str) -> t.Optional[t.Tuple[str, str]]:
     if not module_name:
         return None
 
-    names: list[str] = []
+    names: t.List[str] = []
     pkgs = get_package_distributions()
     dist_map = get_distributions()
     while names == []:
@@ -101,10 +101,10 @@ def _effective_root(rel_path: Path, parent: Path) -> str:
 
 # DEV: Since we can't lock on sys.path, these operations can be racy.
 _SYS_PATH_HASH: t.Optional[int] = None
-_RESOLVED_SYS_PATH: list[Path] = []
+_RESOLVED_SYS_PATH: t.List[Path] = []
 
 
-def resolve_sys_path() -> list[Path]:
+def resolve_sys_path() -> t.List[Path]:
     global _SYS_PATH_HASH, _RESOLVED_SYS_PATH
 
     if (h := hash(tuple(sys.path))) != _SYS_PATH_HASH:
@@ -153,10 +153,10 @@ def _root_module(path: Path) -> str:
 
 
 @callonce
-def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
+def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
     import importlib.metadata as importlib_metadata
 
-    namespaces: dict[str, bool] = {}
+    namespaces: t.Dict[str, bool] = {}
 
     def is_namespace(f: importlib_metadata.PackagePath):
         root = f.parts[0]
@@ -309,7 +309,7 @@ def is_distribution_available(name: str) -> bool:
 # ----
 
 
-def _packages_distributions() -> t.Mapping[str, list[str]]:
+def _packages_distributions() -> t.Mapping[str, t.List[str]]:
     """
     Return a mapping of top-level packages to their
     distributions.

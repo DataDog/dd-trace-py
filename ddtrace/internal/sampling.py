@@ -1,5 +1,7 @@
 import json
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import TypedDict
 
@@ -59,8 +61,8 @@ SpanSamplingRules = TypedDict(
 
 
 def validate_sampling_decision(
-    meta: dict[str, str],
-) -> dict[str, str]:
+    meta: Dict[str, str],
+) -> Dict[str, str]:
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
@@ -101,14 +103,16 @@ class SpanSamplingRule:
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
 
-    def sample(self, span: Span) -> bool:
+    def sample(self, span):
+        # type: (Span) -> bool
         if self._sample(span):
             if self._limiter.is_allowed():
                 self.apply_span_sampling_tags(span)
                 return True
         return False
 
-    def _sample(self, span: Span) -> bool:
+    def _sample(self, span):
+        # type: (Span) -> bool
         if self._sample_rate == 1:
             return True
         elif self._sample_rate == 0:
@@ -116,7 +120,8 @@ class SpanSamplingRule:
 
         return ((span.span_id * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
-    def match(self, span: Span) -> bool:
+    def match(self, span):
+        # type: (Span) -> bool
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
@@ -141,7 +146,8 @@ class SpanSamplingRule:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
 
-    def apply_span_sampling_tags(self, span: Span) -> None:
+    def apply_span_sampling_tags(self, span):
+        # type: (Span) -> None
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1
@@ -149,7 +155,7 @@ class SpanSamplingRule:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
-def get_span_sampling_rules() -> list[SpanSamplingRule]:
+def get_span_sampling_rules() -> List[SpanSamplingRule]:
     json_rules = _get_span_sampling_json()
     sampling_rules = []
     for rule in json_rules:
@@ -180,7 +186,7 @@ def get_span_sampling_rules() -> list[SpanSamplingRule]:
     return sampling_rules
 
 
-def _get_span_sampling_json() -> list[dict[str, Any]]:
+def _get_span_sampling_json() -> List[Dict[str, Any]]:
     env_json_rules = _get_env_json()
     file_json_rules = _get_file_json()
 
@@ -195,7 +201,7 @@ def _get_span_sampling_json() -> list[dict[str, Any]]:
     return env_json_rules or file_json_rules or []
 
 
-def _get_file_json() -> Optional[list[dict[str, Any]]]:
+def _get_file_json() -> Optional[List[Dict[str, Any]]]:
     file_json_raw = config._sampling_rules_file
     if file_json_raw:
         with open(file_json_raw) as f:
@@ -203,14 +209,14 @@ def _get_file_json() -> Optional[list[dict[str, Any]]]:
     return None
 
 
-def _get_env_json() -> Optional[list[dict[str, Any]]]:
+def _get_env_json() -> Optional[List[Dict[str, Any]]]:
     env_json_raw = config._sampling_rules
     if env_json_raw:
         return _load_span_sampling_json(env_json_raw)
     return None
 
 
-def _load_span_sampling_json(raw_json_rules: str) -> list[dict[str, Any]]:
+def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
     try:
         json_rules = json.loads(raw_json_rules)
         if not isinstance(json_rules, list):
@@ -261,7 +267,7 @@ def _inherit_sampling_tags(target: Span, source: Span):
     target._set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
-def _get_highest_precedence_rule_matching(span: Span, rules: list[SamplingRule]) -> Optional[SamplingRule]:
+def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 

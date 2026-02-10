@@ -1,5 +1,6 @@
 import math
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -62,7 +63,7 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
             ragas_context_precision_instance.llm = self.ragas_dependencies.llm_factory()
         return ragas_context_precision_instance
 
-    def evaluate(self, span_event: dict) -> tuple[Union[float, str], Optional[dict]]:
+    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
         """
         Performs a context precision evaluation on an llm span event, returning either
             - context precision score (float) OR failure reason (str)

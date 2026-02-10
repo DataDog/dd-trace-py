@@ -1,5 +1,7 @@
 import traceback
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 from ddtrace import config
@@ -86,7 +88,7 @@ def _get_ml_app_for_ragas_trace(span_event: dict) -> str:
     The `ml_app` spans generated from traces of ragas will be named as `dd-ragas-<ml_app>`
     or `dd-ragas` if `ml_app` is not present in the span event.
     """
-    tags: list[str] = span_event.get("tags", [])
+    tags: List[str] = span_event.get("tags", [])
     ml_app = None
     for tag in tags:
         if isinstance(tag, str) and tag.startswith("ml_app:"):
@@ -175,7 +177,7 @@ class BaseRagasEvaluator:
                 metadata=metric_metadata,
             )
 
-    def evaluate(self, span_event: dict) -> tuple[Union[float, str], Optional[dict]]:
+    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
         raise NotImplementedError("evaluate method must be implemented by individual evaluators")
 
     def _extract_evaluation_inputs_from_span(self, span_event: dict) -> Optional[dict]:

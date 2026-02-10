@@ -1,8 +1,11 @@
 from decimal import Decimal
 import logging
 import re
+from typing import Dict
+from typing import List
 from typing import NamedTuple
 from typing import Optional
+from typing import Set
 from typing import Union
 
 import mock
@@ -70,7 +73,7 @@ class TestDynamodbItemPointer:
     class HashingCase(NamedTuple):
         name: str
         table_name: str
-        primary_key: dict[str, Union[dict[str, str], str, Decimal, bytes]]
+        primary_key: Dict[str, Union[Dict[str, str], str, Decimal, bytes]]
         pointer_hash: str
 
     @pytest.mark.parametrize(
@@ -160,7 +163,7 @@ class TestBotocoreSpanPointers:
         operation_name: str
         request_parameters: dict
         response: dict
-        expected_pointers: list[_SpanPointerDescription]
+        expected_pointers: List[_SpanPointerDescription]
         expected_logger_regex: Optional[str]
 
     @pytest.mark.parametrize(
@@ -1097,7 +1100,7 @@ class TestDynamoDBWriteRequestLogic:
         name: str
         table_name: str
         write_request: _DynamoDBWriteRequest
-        primary_key: Optional[dict[str, dict[str, str]]]
+        primary_key: Optional[Dict[str, Dict[str, str]]]
         expected_logger_regex: Optional[str]
 
     @pytest.mark.parametrize(
@@ -1198,9 +1201,9 @@ class TestDynamoDBWriteRequestLogic:
 
     class ProcessedWriteRequestCase(NamedTuple):
         name: str
-        requested_items: dict[_DynamoDBTableName, list[_DynamoDBWriteRequest]]
-        unprocessed_items: dict[_DynamoDBTableName, list[_DynamoDBWriteRequest]]
-        expected_processed_items: Optional[dict[_DynamoDBTableName, list[_DynamoDBWriteRequest]]]
+        requested_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]
+        unprocessed_items: Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]
+        expected_processed_items: Optional[Dict[_DynamoDBTableName, List[_DynamoDBWriteRequest]]]
         expected_logger_regex: Optional[str]
 
     @pytest.mark.parametrize(
@@ -1415,7 +1418,7 @@ class TestDynamoDBWriteRequestLogic:
 
                 return
 
-        def collect_all_ids(thing: object, accumulator: set[int]) -> None:
+        def collect_all_ids(thing: object, accumulator: Set[int]) -> None:
             if isinstance(thing, dict):
                 accumulator.add(id(thing))
                 for value in thing.values():
@@ -1434,10 +1437,10 @@ class TestDynamoDBWriteRequestLogic:
             else:
                 raise ValueError(f"unknown type of thing: {type(thing)}")
 
-        processed_items_ids: set[int] = set()
+        processed_items_ids: Set[int] = set()
         collect_all_ids(processed_items, processed_items_ids)
 
-        expected_processed_items_ids: set[int] = set()
+        expected_processed_items_ids: Set[int] = set()
         collect_all_ids(test_case.expected_processed_items, expected_processed_items_ids)
 
         assert not (processed_items_ids & expected_processed_items_ids), "the objects should be distinct"

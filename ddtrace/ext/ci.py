@@ -7,6 +7,8 @@ import logging
 import os
 import platform
 import re
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import MutableMapping  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -80,7 +82,8 @@ _RE_URL = re.compile(r"(https?://|ssh://)[^/]*@")
 log = get_logger(__name__)
 
 
-def _filter_sensitive_info(url: Optional[str]) -> Optional[str]:
+def _filter_sensitive_info(url):
+    # type: (Optional[str]) -> Optional[str]
     return _RE_URL.sub("\\1", url) if url is not None else None
 
 
@@ -95,10 +98,11 @@ def _get_runtime_and_os_metadata():
     }
 
 
-def tags(env: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = None) -> dict[str, str]:
+def tags(env=None, cwd=None):
+    # type: (Optional[MutableMapping[str, str]], Optional[str]) -> Dict[str, str]
     """Extract and set tags from provider environ, as well as git metadata."""
     env = os.environ if env is None else env
-    tags: dict[str, Optional[str]] = {}
+    tags = {}  # type: Dict[str, Optional[str]]
     for key, extract in PROVIDERS:
         if key in env:
             tags = extract(env)
@@ -159,16 +163,17 @@ def tags(env: Optional[MutableMapping[str, str]] = None, cwd: Optional[str] = No
     return {k: v for k, v in tags.items() if v is not None}
 
 
-def extract_appveyor(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_appveyor(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Appveyor environ."""
     url = "https://ci.appveyor.com/project/{0}/builds/{1}".format(
         env.get("APPVEYOR_REPO_NAME"), env.get("APPVEYOR_BUILD_ID")
     )
     if env.get("APPVEYOR_REPO_PROVIDER") == "github":
-        repository: Optional[str] = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))
-        commit: Optional[str] = env.get("APPVEYOR_REPO_COMMIT")
+        repository = "https://github.com/{0}.git".format(env.get("APPVEYOR_REPO_NAME"))  # type: Optional[str]
+        commit = env.get("APPVEYOR_REPO_COMMIT")  # type: Optional[str]
         branch: Optional[str] = env.get("APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH", env.get("APPVEYOR_REPO_BRANCH"))
-        tag: Optional[str] = env.get("APPVEYOR_REPO_TAG_NAME")
+        tag = env.get("APPVEYOR_REPO_TAG_NAME")  # type: Optional[str]
     else:
         repository = commit = branch = tag = None
 
@@ -196,13 +201,14 @@ def extract_appveyor(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     }
 
 
-def extract_azure_pipelines(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_azure_pipelines(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Azure pipelines environ."""
     if env.get("SYSTEM_TEAMFOUNDATIONSERVERURI") and env.get("SYSTEM_TEAMPROJECTID") and env.get("BUILD_BUILDID"):
         base_url = "{0}{1}/_build/results?buildId={2}".format(
             env.get("SYSTEM_TEAMFOUNDATIONSERVERURI"), env.get("SYSTEM_TEAMPROJECTID"), env.get("BUILD_BUILDID")
         )
-        pipeline_url: Optional[str] = base_url
+        pipeline_url = base_url  # type: Optional[str]
         job_url: Optional[str] = base_url + "&view=logs&j={0}&t={1}".format(
             env.get("SYSTEM_JOBID"), env.get("SYSTEM_TASKINSTANCEID")
         )
@@ -239,7 +245,8 @@ def extract_azure_pipelines(env: MutableMapping[str, str]) -> dict[str, Optional
     }
 
 
-def extract_bitbucket(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_bitbucket(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Bitbucket environ."""
     url = "https://bitbucket.org/{0}/addon/pipelines/home#!/results/{1}".format(
         env.get("BITBUCKET_REPO_FULL_NAME"), env.get("BITBUCKET_BUILD_NUMBER")
@@ -259,10 +266,11 @@ def extract_bitbucket(env: MutableMapping[str, str]) -> dict[str, Optional[str]]
     }
 
 
-def extract_buildkite(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_buildkite(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Buildkite environ."""
     # Get all keys which start with BUILDKITE_AGENT_META_DATA_x
-    node_label_list: list[str] = []
+    node_label_list = []  # type: List[str]
     buildkite_agent_meta_data_prefix = "BUILDKITE_AGENT_META_DATA_"
     for env_variable in env:
         if env_variable.startswith(buildkite_agent_meta_data_prefix):
@@ -299,7 +307,8 @@ def extract_buildkite(env: MutableMapping[str, str]) -> dict[str, Optional[str]]
     }
 
 
-def extract_circle_ci(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_circle_ci(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from CircleCI environ."""
     return {
         git.BRANCH: env.get("CIRCLE_BRANCH"),
@@ -324,7 +333,8 @@ def extract_circle_ci(env: MutableMapping[str, str]) -> dict[str, Optional[str]]
     }
 
 
-def extract_codefresh(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_codefresh(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Codefresh environ."""
     build_id = env.get("CF_BUILD_ID")
     return {
@@ -341,7 +351,8 @@ def extract_codefresh(env: MutableMapping[str, str]) -> dict[str, Optional[str]]
     }
 
 
-def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_github_actions(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Github environ."""
 
     github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
@@ -393,11 +404,12 @@ def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[
     }
 
 
-def extract_gitlab(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_gitlab(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Gitlab environ."""
     author = env.get("CI_COMMIT_AUTHOR")
-    author_name: Optional[str] = None
-    author_email: Optional[str] = None
+    author_name = None  # type: Optional[str]
+    author_email = None  # type: Optional[str]
     if author:
         # Extract name and email from `author` which is in the form "name <email>"
         author_name, author_email = author.strip("> ").split(" <")
@@ -434,7 +446,8 @@ def extract_gitlab(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     }
 
 
-def extract_jenkins(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_jenkins(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Jenkins environ."""
     branch = env.get("GIT_BRANCH", "")
     name = env.get("JOB_NAME")
@@ -442,8 +455,8 @@ def extract_jenkins(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
         name = re.sub("/{0}".format(git.normalize_ref(branch)), "", name)
     if name:
         name = "/".join((v for v in name.split("/") if v and "=" not in v))
-    node_labels_list: list[str] = []
-    node_labels_env: Optional[str] = env.get("NODE_LABELS")
+    node_labels_list = []  # type:  List[str]
+    node_labels_env = env.get("NODE_LABELS")  # type: Optional[str]
     if node_labels_env:
         node_labels_list = node_labels_env.split()
     return {
@@ -467,7 +480,8 @@ def extract_jenkins(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     }
 
 
-def extract_teamcity(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_teamcity(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Teamcity environ."""
     return {
         JOB_URL: env.get("BUILD_URL"),
@@ -476,7 +490,8 @@ def extract_teamcity(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     }
 
 
-def extract_travis(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_travis(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Travis environ."""
     return {
         git.BRANCH: env.get("TRAVIS_PULL_REQUEST_BRANCH") or env.get("TRAVIS_BRANCH"),
@@ -494,12 +509,13 @@ def extract_travis(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     }
 
 
-def extract_bitrise(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_bitrise(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Bitrise environ."""
     commit = env.get("BITRISE_GIT_COMMIT") or env.get("GIT_CLONE_COMMIT_HASH")
     branch = env.get("BITRISEIO_GIT_BRANCH_DEST") or env.get("BITRISE_GIT_BRANCH")
     if env.get("BITRISE_GIT_MESSAGE"):
-        message: Optional[str] = env.get("BITRISE_GIT_MESSAGE")
+        message = env.get("BITRISE_GIT_MESSAGE")  # type: Optional[str]
     elif env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT") or env.get("GIT_CLONE_COMMIT_MESSAGE_BODY"):
         message = "{0}:\n{1}".format(
             env.get("GIT_CLONE_COMMIT_MESSAGE_SUBJECT"), env.get("GIT_CLONE_COMMIT_MESSAGE_BODY")
@@ -526,7 +542,8 @@ def extract_bitrise(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     }
 
 
-def extract_buddy(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_buddy(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from Buddy environ."""
     return {
         PROVIDER_NAME: "buddy",
@@ -544,7 +561,8 @@ def extract_buddy(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     }
 
 
-def extract_codebuild(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
+def extract_codebuild(env):
+    # type: (MutableMapping[str, str]) -> Dict[str, Optional[str]]
     """Extract CI tags from codebuild environments."""
 
     tags = {}
