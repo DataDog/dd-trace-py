@@ -1,4 +1,6 @@
 import types
 import typing
 
+def initialize_gevent_support() -> None: ...
+
 def get_task() -> typing.Tuple[typing.Optional[int], typing.Optional[str], typing.Optional[types.FrameType]]: ...
