@@ -1,7 +1,6 @@
 import atexit
 import http.client as httplib
 import json
-from typing import List  # noqa:F401
 from typing import TypedDict  # noqa:F401
 
 from ddtrace.internal import forksafe
@@ -40,18 +39,17 @@ class V2LogWriter(PeriodicService):
         - https://docs.datadoghq.com/api/v2/logs/#send-logs
     """
 
-    def __init__(self, site, api_key, interval, timeout):
-        # type: (str, str, float, float) -> None
+    def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
         super(V2LogWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer = []  # type: List[V2LogEvent]
+        self._buffer: list[V2LogEvent] = []
         # match the API limit
         self._buffer_limit = 1000
-        self._timeout = timeout  # type: float
-        self._api_key = api_key  # type: str
-        self._endpoint = "/api/v2/logs"  # type: str
-        self._site = site  # type: str
-        self._intake = "http-intake.logs.%s" % self._site  # type: str
+        self._timeout: float = timeout
+        self._api_key: str = api_key
+        self._endpoint: str = "/api/v2/logs"
+        self._site: str = site
+        self._intake: str = "http-intake.logs.%s" % self._site
         self._headers = {
             "DD-API-KEY": self._api_key,
             "Content-Type": "application/json",
@@ -62,8 +60,7 @@ class V2LogWriter(PeriodicService):
         super(V2LogWriter, self).start()
         atexit.register(self.on_shutdown)
 
-    def enqueue(self, log):
-        # type: (V2LogEvent) -> None
+    def enqueue(self, log: V2LogEvent) -> None:
         with self._lock:
             if len(self._buffer) >= self._buffer_limit:
                 logger.warning("log buffer full (limit is %d), dropping log", self._buffer_limit)
@@ -74,12 +71,10 @@ class V2LogWriter(PeriodicService):
         self.periodic()
 
     @property
-    def _url(self):
-        # type: () -> str
+    def _url(self) -> str:
         return "https://%s%s" % (self._intake, self._endpoint)
 
-    def periodic(self):
-        # type: () -> None
+    def periodic(self) -> None:
         with self._lock:
             if not self._buffer:
                 return
