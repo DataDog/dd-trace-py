@@ -949,7 +949,7 @@ def _value():
     [
         {"trace_id": "trace_id"},
         {"span_id": "span_id"},
-        {"parent_id": "parent_id"},
+        # {"parent_id": "parent_id"},  # Now handled gracefully by Rust (invalid types ignored)
         # {"service": True},  # Now handled gracefully by Rust (converts to None)
         # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
         # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
@@ -961,7 +961,7 @@ def _value():
 def test_encoding_invalid_data_raises(data):
     """Test that invalid data types for certain fields raise during encoding.
 
-    Note: name, service, resource, start_ns, and duration_ns are now validated at the
+    Note: name, service, resource, start_ns, duration_ns, and parent_id are now validated at the
     Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
     """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)

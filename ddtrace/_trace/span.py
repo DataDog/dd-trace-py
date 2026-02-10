@@ -107,7 +107,6 @@ class Span(SpanData):
         "_span_api",
         "span_id",
         "trace_id",
-        "parent_id",
         "_meta",
         "_meta_struct",
         "context",
@@ -189,7 +188,6 @@ class Span(SpanData):
         else:
             self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
         self.span_id: int = span_id or _rand64bits()
-        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context

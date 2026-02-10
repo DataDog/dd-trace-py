@@ -521,6 +521,7 @@ class SpanData:
     error: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    parent_id: Optional[int]
 
     def __new__(
         cls: type[_SpanDataT],
@@ -530,7 +531,7 @@ class SpanData:
         span_type: Optional[str] = None,
         trace_id: Optional[int] = None,  # placeholder for Span.__init__
         span_id: Optional[int] = None,  # placeholder for Span.__init__
-        parent_id: Optional[int] = None,  # placeholder for Span.__init__
+        parent_id: Optional[int] = None,
         start: Optional[float] = None,
     ) -> _SpanDataT: ...
     @property

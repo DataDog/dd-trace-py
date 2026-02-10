@@ -665,3 +665,93 @@ def test_start_ns_invalid_value_falls_back_to_current_time():
     span = SpanData(name="test", start="invalid")
     after = time.time_ns()
     assert before <= span.start_ns <= after
+
+
+# =============================================================================
+# Parent ID Property Tests
+# =============================================================================
+
+
+def test_parent_id_default_is_none():
+    """parent_id defaults to None (0 in Rust → None in Python)."""
+    span = SpanData(name="test")
+    assert span.parent_id is None
+
+
+def test_parent_id_constructor_with_value():
+    """parent_id can be set via constructor."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span = SpanData(name="test", parent_id=9999999999)
+    assert span.parent_id == 9999999999
+
+
+def test_parent_id_constructor_with_none():
+    """parent_id can be explicitly set to None via constructor."""
+    span = SpanData(name="test", parent_id=None)
+    assert span.parent_id is None
+
+
+def test_parent_id_setter_with_int():
+    """parent_id setter accepts int values."""
+    span = SpanData(name="test")
+    assert span.parent_id is None
+
+    span.parent_id = 456
+    assert span.parent_id == 456
+
+    span.parent_id = 7777777777
+    assert span.parent_id == 7777777777
+
+
+def test_parent_id_setter_with_none():
+    """parent_id setter accepts None and returns None."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span.parent_id = None
+    assert span.parent_id is None
+
+
+def test_parent_id_setter_with_zero():
+    """parent_id setter with 0 returns None (0 means no parent)."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span.parent_id = 0
+    assert span.parent_id is None
+
+
+def test_parent_id_constructor_with_zero():
+    """parent_id constructor with 0 returns None."""
+    span = SpanData(name="test", parent_id=0)
+    assert span.parent_id is None
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_NUMERIC_VALUES)
+def test_parent_id_setter_invalid_types_keep_current_value(invalid_value):
+    """parent_id setter with invalid types keeps current value."""
+    span = SpanData(name="test", parent_id=123)
+    assert span.parent_id == 123
+
+    span.parent_id = invalid_value
+    assert span.parent_id == 123  # Should keep the original value
+
+
+def test_parent_id_setter_invalid_types_on_none():
+    """parent_id setter with invalid types keeps None if that was the current value."""
+    span = SpanData(name="test")
+    assert span.parent_id is None
+
+    span.parent_id = "invalid"
+    assert span.parent_id is None  # Should keep None
+
+
+def test_parent_id_constructor_invalid_types_default_to_none():
+    """parent_id constructor with invalid types defaults to None (0)."""
+    span = SpanData(name="test", parent_id="invalid")
+    assert span.parent_id is None
+
+    span = SpanData(name="test", parent_id=["list"])
+    assert span.parent_id is None
