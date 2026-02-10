@@ -247,18 +247,18 @@ def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
 
     MICROBENCHMARKS_GEN.write_text((GITLAB / "benchmarks/microbenchmarks.yml").read_text())
 
-    benchmark_classnames = []
-
     for suite_name, suite_config in suites.items():
         clean_name = suite_name.split("::")[-1]
         suite_config["_clean_name"] = clean_name
-        benchmark_classnames.append(_get_benchmark_class_name(clean_name))
 
     groups = defaultdict(list)
+
+    benchmark_classnames = []
 
     for suite in required_suites:
         suite_config = suites[suite].copy()
         clean_name = suite_config.pop("_clean_name", suite)
+        benchmark_classnames.append(_get_benchmark_class_name(clean_name))
 
         jobspec = BenchmarkSpec(clean_name, **suite_config)
         if jobspec.skip:
