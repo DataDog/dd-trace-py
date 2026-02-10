@@ -1,6 +1,5 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
-#include <cstdio>
 #include <frameobject.h>
 #include <string_view>
 
@@ -29,45 +28,11 @@ class PythonErrorRestorer
     PythonErrorRestorer()
     {
 #ifdef _PY312_AND_LATER
-        PyObject* pending_type = PyErr_Occurred();
-        const char* pending_type_name = pending_type ? ((PyTypeObject*)pending_type)->tp_name : "<none>";
-
         // Python 3.12+: Use the new API that returns a single exception object
         saved_exception = PyErr_GetRaisedException();
-
-        const char* saved_exception_name = saved_exception ? Py_TYPE(saved_exception)->tp_name : "<none>";
-        if (saved_exception != NULL) {
-            fprintf(stderr,
-                    "PythonErrorRestorer ctor [py>=3.12]: pending=%s saved_exception=%s (%p)\n",
-                    pending_type_name,
-                    saved_exception_name,
-                    (void*)saved_exception);
-        }
 #else
-        PyObject* pending_type = PyErr_Occurred();
-        const char* pending_type_name = pending_type ? ((PyTypeObject*)pending_type)->tp_name : "<none>";
-
         // Python < 3.12: Use the old API with separate type, value, traceback
         PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
-
-        const char* saved_type_name = "<none>";
-        if (saved_exc_type != NULL) {
-            if (PyType_Check(saved_exc_type)) {
-                saved_type_name = ((PyTypeObject*)saved_exc_type)->tp_name;
-            } else {
-                saved_type_name = Py_TYPE(saved_exc_type)->tp_name;
-            }
-        }
-
-        if (saved_exc_type != NULL) {
-            fprintf(stderr,
-                    "PythonErrorRestorer ctor [py<3.12]: pending=%s saved_type=%s (type=%p value=%p tb=%p)\n",
-                    pending_type_name,
-                    saved_type_name,
-                    (void*)saved_exc_type,
-                    (void*)saved_exc_value,
-                    (void*)saved_exc_traceback);
-        }
 #endif
     }
 
