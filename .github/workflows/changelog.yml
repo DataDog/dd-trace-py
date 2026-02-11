@@ -28,13 +28,9 @@ jobs:
         if: github.event_name == 'pull_request'
         run: scripts/check-releasenotes
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        name: Install Python
+      - uses: ./.github/actions/setup-ci-deps
         with:
           python-version: '3.13'
-
-      - name: Install Dependencies
-        run: pip install reno docutils
 
       - name: Lint changelog notes
         run: reno lint
