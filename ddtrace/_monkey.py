@@ -55,6 +55,7 @@ PATCH_MODULES = {
     "httpx": True,
     "kafka": True,
     "langgraph": True,
+    "llama_index": True,
     "litellm": True,
     "mysql": True,
     "mysqldb": True,
@@ -171,6 +172,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph.graph",
         "langgraph.prebuilt",
     ),
+    "llama_index": ("llama_index",),
     "openai_agents": ("agents",),
 }
 

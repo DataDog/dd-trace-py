@@ -3007,6 +3007,24 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="llama_index",
+            command="pytest {cmdargs} tests/contrib/llama_index",
+            pkgs={
+                "pytest-asyncio": latest,
+                "vcrpy": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={"llama_index": "~=0.1.0"},
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={"llama_index": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="anthropic",
             command="pytest {cmdargs} tests/contrib/anthropic",
             pkgs={
