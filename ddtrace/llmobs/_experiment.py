@@ -935,6 +935,16 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
 
+    @property
+    def url(self) -> str:
+        """Return the URL to view this experiment in the Datadog UI.
+
+        Note: This property is only valid after the experiment has been run.
+        """
+        if not self._id:
+            return ""
+        return f"{_get_base_url()}/llm/experiments/{self._id}"
+
     def run(
         self,
         jobs: int = 1,
@@ -1256,7 +1266,7 @@ class Experiment:
                     eval_result = await evaluator(input_data, output, expected_output)
                 else:
                     # Sync function evaluator - run in thread
-                    eval_result = await asyncio.to_thread(evaluator, input_data, output, expected_output)  # noqa: E501  # type: ignore[arg-type]
+                    eval_result = await asyncio.to_thread(evaluator, input_data, output, expected_output)  # type: ignore
 
                 # Extract EvaluatorResult if applicable
                 eval_result_value, extra_return_values = _extract_evaluator_result(eval_result)
@@ -1339,7 +1349,7 @@ class Experiment:
                             evaluation_results=eval_results_by_name,
                             metadata=metadata_list,
                         )
-                        eval_result_value = await asyncio.to_thread(summary_evaluator.evaluate, context)  # noqa: E501  # type: ignore[union-attr, arg-type]
+                        eval_result_value = await asyncio.to_thread(summary_evaluator.evaluate, context)  # type: ignore
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         # Async function summary evaluator
                         eval_result_value = await summary_evaluator(

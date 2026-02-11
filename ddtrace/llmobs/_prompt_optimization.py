@@ -677,7 +677,7 @@ class PromptOptimization:
             task=self._task,
             evaluators=self._evaluators,
             summary_evaluators=self._summary_evaluators,
-            _llmobs_instance=self._llmobs_instance,
+            _llmobs_instance=self._llmobs_instance,  # type: ignore[arg-type]
             config=experiment_config,
             runs=runs_int,
         )
