@@ -4,10 +4,6 @@
 
 #include "pymacro.hpp"
 
-// Forward declaration of Python types used in public C++ interfaces.
-struct _frame;
-typedef struct _frame PyFrameObject;
-
 /* RAII helper to preserve the raised C-level exception indicator.
  *
  * The allocator hook can run in contexts where CPython already has a raised

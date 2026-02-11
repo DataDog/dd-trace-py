@@ -4,12 +4,17 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "python_helpers.hpp"
-
 // Forward declarations
 namespace Datadog {
 class Sample;
 } // namespace Datadog
+
+// Forward declaration of Python types.
+// We avoid including Python.h in this public C++ header because CPython headers
+// use old-style casts and our build treats old-style casts as errors. Keep
+// Python includes in implementation files when full API access is required.
+struct _frame;
+typedef struct _frame PyFrameObject;
 
 #ifdef __cplusplus
 extern "C"

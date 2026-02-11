@@ -3,7 +3,6 @@
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "profile_borrow.hpp"
-#include "python_helpers.hpp"
 #include "types.hpp"
 
 #include <string>
@@ -14,6 +13,13 @@ extern "C"
 {
 #include "datadog/profiling.h"
 }
+
+// Forward declaration of Python types.
+// We avoid including Python.h in this public C++ header because CPython headers
+// use old-style casts and our build treats old-style casts as errors. Keep
+// Python includes in implementation files when full API access is required.
+struct _frame;
+typedef struct _frame PyFrameObject;
 
 namespace Datadog {
 
