@@ -561,7 +561,7 @@ Application & API Security
      default: 1
      description: Maximum number of downstream requests per request whose (request and response) bodies will be analyzed by the WAF
 
-   DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE:
+   DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE:
      type: Float
      default: 0.5 (between 0. and 1.)
      description: sampling rate for body analysis of downstream requests. Default value is 50%.
@@ -892,9 +892,21 @@ Logs
 
          Can be used with `DD_TRACE_LOG_FILE` to route logs to a file.
 
+         Takes precedence over ``DD_TRACE_LOG_LEVEL``.
+
      version_added:
        v0.41.0: |
            Formerly named ``DATADOG_TRACE_DEBUG``
+
+   DD_TRACE_LOG_LEVEL:
+     type: String
+     default: None
+
+     description: |
+         Sets the log level for the ddtrace logger, overriding inheritance from the root logger.
+         Valid values are ``NOTSET``, ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, and ``CRITICAL``
+         (case-insensitive). Setting NOTSET will cause the ddtrace logger to inherit from the root logger.
+         ``DD_TRACE_DEBUG=true`` takes precedence over ``DD_TRACE_LOG_LEVEL``.
 
    DD_TRACE_LOG_FILE:
      description: |

@@ -15,7 +15,6 @@ ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/datadog/profiling/ddup/_ddup.cpp
 ddtrace/internal/_encoding.c
-ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c
 ddtrace/internal/telemetry/metrics_namespaces.c
 pygoat/*
@@ -209,3 +208,6 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 # Rust build artifacts
 src/native/target*
+
+# Fuzzing corpus, output and artifacts
+.fuzz/

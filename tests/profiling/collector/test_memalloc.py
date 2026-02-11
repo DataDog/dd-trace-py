@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import gc
 import inspect
 import os
 from pathlib import Path
 import sys
 import threading
 from tracemalloc import Statistic
+from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
@@ -14,6 +14,7 @@ from typing import List
 from typing import Sequence
 from typing import Set
 from typing import Union
+from typing import cast
 
 import pytest
 
@@ -119,7 +120,11 @@ def test_memory_collector(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
             thread_id=threading.main_thread().ident,
             locations=[
                 pprof_utils.StackLocation(
@@ -165,10 +170,7 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
     env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="8", DD_PROFILING_OUTPUT_PPROF="/tmp/test_heap_profiler_large_heap_overhead")
 )
 def test_heap_profiler_large_heap_overhead() -> None:
-    # TODO(nick): this test case used to crash due to integer arithmetic bugs.
-    # Now it doesn't crash, but it takes far too long to run to be useful in CI.
-    # Un-skip this test if/when we improve the worst-case performance of the
-    # heap profiler for large heaps
+    # NOTE: A regression test for integer arithmetic bugs.
     from ddtrace.profiling import Profiler
     from tests.profiling.collector.test_memalloc import one
 
@@ -215,6 +217,30 @@ def four(size: int) -> Union[tuple[None, ...], bytearray]:
 
 def _create_allocation(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+def _allocate_with_lone_surrogate_filename(nallocs: int = 2_000) -> None:
+    """Allocate from a function whose co_filename cannot be UTF-8 encoded.
+
+    The filename contains a lone surrogate, which makes PyUnicode_AsUTF8AndSize()
+    fail when the memory collector serializes frame filenames.
+
+    This is used by memalloc tests to exercise the internal
+    PyUnicode_AsUTF8AndSize failure path in memalloc stack serialization.
+    """
+    namespace: Dict[str, object] = {}
+    compiled_code: CodeType = compile(
+        "def _alloc_from_bad_filename(nallocs):\n    for _ in range(nallocs):\n        object()\n",
+        "\udcff_memalloc_bad_filename.py",
+        "exec",
+    )
+    with pytest.raises(UnicodeEncodeError):
+        compiled_code.co_filename.encode("utf-8", "strict")
+    # NOTE: exec defines the function in the namespace, so that we can call it
+    # later.
+    exec(compiled_code, namespace)
+    alloc = cast(Callable[[int], None], namespace["_alloc_from_bad_filename"])
+    alloc(nallocs)
 
 
 class HeapInfo:
@@ -284,6 +310,7 @@ def get_tracemalloc_stats_per_func(
     ),
 )
 def test_memalloc_data_race_regression() -> None:
+    import gc
     import threading
     import time
 
@@ -738,6 +765,21 @@ def test_memory_collector_exception_handling(tmp_path: Path) -> None:
         assert profile is not None
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1"))
+def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
+    from ddtrace.profiling.collector import _memalloc
+    from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
+
+    _memalloc.start(64, 1)
+    try:
+        # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
+        # memalloc frame serialization. The test passes if the subprocess
+        # exits cleanly (no leaked internal profiler exception).
+        _allocate_with_lone_surrogate_filename()
+    finally:
+        _memalloc.stop()
+
+
 def test_memory_collector_allocation_during_shutdown() -> None:
     """Test that verifies that when _memalloc.stop() is called while allocations are still
     happening in another thread, the shutdown process completes without deadlocks or crashes.
@@ -1015,6 +1057,83 @@ def test_memalloc_sample_size(
         assert predicate(_derive_default_heap_sample_size(config.heap, default))
 
 
+def test_no_duplicate_dropped_frames_indicator(tmp_path: Path) -> None:
+    """Regression test for duplicate dropped frames indicator bug.
+
+    This test verifies that when export_sample() is called multiple times on the same
+    sample with dropped frames, the "<N frame(s) omitted>" indicator frame is only
+    added once, not multiple times.
+
+    The bug occurred when:
+    1. A sample had dropped frames (deep stack > max_nframes)
+    2. export_sample() was called, adding the indicator frame
+    3. export_sample() was called again before clear_buffers()
+    4. Another indicator frame was incorrectly added
+
+    This test creates allocations from a very deep stack to trigger frame dropping,
+    calls snapshot twice in a row, and checks that no sample has duplicate
+    "<N frame(s) omitted>" frames.
+    """
+    from ddtrace.internal.settings.profiling import config
+
+    output_filename = _setup_profiling_prelude(tmp_path, "test_no_duplicate_dropped_frames_indicator")
+
+    # Stack depth that should exceed max_nframes to trigger frame dropping
+    DEEP_STACK_DEPTH = 100
+
+    # Verify that max_nframes is less than our deep stack depth
+    # config.max_frames corresponds to DD_PROFILING_MAX_FRAMES (default 64)
+    assert config.max_frames < DEEP_STACK_DEPTH, (
+        f"Test requires DD_PROFILING_MAX_FRAMES ({config.max_frames}) < {DEEP_STACK_DEPTH} to trigger frame dropping"
+    )
+
+    # Create a very deep call stack to trigger frame dropping
+    def make_deep_stack(depth: int):
+        """Recursively creates a call stack of given depth."""
+        if depth == 0:
+            # Allocate at the leaf to create a sample
+            return [object() for _ in range(100)]
+        return make_deep_stack(depth - 1)
+
+    mc = memalloc.MemoryCollector(heap_sample_size=64)
+
+    # Keep allocated objects alive throughout both snapshots
+    junk = []
+
+    with mc:
+        # Create allocations from a deep stack to trigger frame dropping
+        for _ in range(10):
+            junk.append(make_deep_stack(DEEP_STACK_DEPTH))
+
+        # Call snapshot twice in a row to potentially export the same sample multiple times
+        # The objects in junk remain alive, so the samples persist across both exports
+        mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
+        profile = mc.snapshot_and_parse_pprof(output_filename)
+
+    # Check each sample for duplicate dropped frames indicators
+    for sample_idx, sample in enumerate(profile.sample):
+        omitted_frame_count = 0
+        omitted_frame_locations = []
+
+        for location_id in sample.location_id:
+            location = pprof_utils.get_location_with_id(profile, location_id)
+            if location.line:
+                function = pprof_utils.get_function_with_id(profile, location.line[0].function_id)
+                function_name = profile.string_table[function.name]
+
+                # Check if this is a dropped frames indicator
+                # The format is: "<N frame(s) omitted>" or "<N frames omitted>"
+                if "omitted>" in function_name and function_name.startswith("<"):
+                    omitted_frame_count += 1
+                    omitted_frame_locations.append(function_name)
+
+        # Assert that we don't have duplicate dropped frames indicators
+        assert omitted_frame_count <= 1, (
+            f"Sample {sample_idx} has {omitted_frame_count} dropped frames indicators "
+            f"(expected at most 1). Found: {omitted_frame_locations}"
+        )
+
+
 def test_memory_collector_stack_order(tmp_path: Path) -> None:
     """Test that stack frames are reported in leaf-to-root order (innermost to outermost).
 
@@ -1060,7 +1179,12 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
+            thread_id=threading.main_thread().ident,
             locations=[
                 loc("inner_frame"),
                 loc("middle_frame"),
@@ -1069,3 +1193,57 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+@pytest.mark.subprocess()
+def test_memalloc_allocator_hook_does_not_release_gil() -> None:
+    """Regression test for IR-49169: memory profiler crash from GIL release during allocator hook.
+
+    The allocator hook calls PyObject_CallObject(threading.current_thread()) which
+    re-enters the eval loop. _Py_HandlePending can then release the GIL (when other
+    threads are waiting) or trigger GC, corrupting partially-constructed objects.
+    If the bug is present, this test segfaults.
+    """
+    import threading
+    import time
+
+    from ddtrace.profiling.collector import _memalloc
+
+    # sample_size=1: sample nearly every allocation so the hook fires
+    # during dictresize's internal malloc while the dict is inconsistent.
+    _memalloc.start(64, 1)
+
+    stop = threading.Event()
+    shared: dict = {}
+
+    def mutate(tid: int) -> None:
+        i = 0
+        while not stop.is_set():
+            for j in range(100):
+                shared[f"{tid}_{i}_{j}"] = [0] * 10
+            i += 1
+            if i % 5 == 0:
+                shared.clear()
+
+    def read() -> None:
+        while not stop.is_set():
+            try:
+                list(shared.items())
+            except RuntimeError:
+                pass
+
+    threads = []
+    for i in range(4):
+        threads.append(threading.Thread(target=mutate, args=(i,)))
+    for _ in range(4):
+        threads.append(threading.Thread(target=read))
+    for t in threads:
+        t.start()
+
+    time.sleep(5)
+    stop.set()
+
+    for t in threads:
+        t.join(timeout=10)
+
+    _memalloc.stop()

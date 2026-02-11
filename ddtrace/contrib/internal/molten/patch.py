@@ -87,7 +87,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
             service=trace_utils.int_service(pin, config.molten),
             resource=resource,
             tags={},
-            tracer=pin.tracer,
             distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
             integration_config=config.molten,
             allow_default_resource=True,

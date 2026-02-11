@@ -37,8 +37,6 @@ from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
-from ddtrace.internal._rand import rand64bits as _rand64bits
-from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
@@ -49,6 +47,8 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import generate_128bit_trace_id
+from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native._native import SpanEventData
 from ddtrace.internal.settings._config import config
@@ -107,22 +107,15 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "service",
-        "name",
-        "resource",
         "_span_api",
         "span_id",
         "trace_id",
         "parent_id",
         "_meta",
         "_meta_struct",
-        "error",
         "context",
         "_metrics",
         "_store",
-        "span_type",
-        "start_ns",
-        "duration_ns",
         # Internal attributes
         "_parent_context",
         "_local_root_value",
@@ -185,30 +178,20 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        super().__init__(name, service, resource, span_type, trace_id, span_id, parent_id, start, span_api, links)
-
-        self.name = name
-        self.service = service
-        self.resource = resource or name
-        self.span_type = span_type
         self._span_api = span_api
 
         self._meta: Dict[str, str] = {}
-        self.error = 0
         self._metrics: Dict[str, NumericType] = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
-        self.duration_ns: Optional[int] = None
-
         if trace_id is not None:
             self.trace_id: int = trace_id
         elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
+            self.trace_id: int = generate_128bit_trace_id()  # type: ignore[no-redef]
         else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or _rand64bits()
+            self.trace_id: int = rand64bits()  # type: ignore[no-redef]
+        self.span_id: int = span_id or rand64bits()
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
@@ -262,30 +245,6 @@ class Span(SpanData):
     @property
     def _trace_id_64bits(self) -> int:
         return _get_64_lowest_order_bits_as_int(self.trace_id)
-
-    @property
-    def start(self) -> float:
-        """The start timestamp in Unix epoch seconds."""
-        return self.start_ns / 1e9
-
-    @start.setter
-    def start(self, value: Union[int, float]) -> None:
-        self.start_ns = int(value * 1e9)
-
-    @property
-    def finished(self) -> bool:
-        return self.duration_ns is not None
-
-    @property
-    def duration(self) -> Optional[float]:
-        """The span duration in seconds."""
-        if self.duration_ns is not None:
-            return self.duration_ns / 1e9
-        return None
-
-    @duration.setter
-    def duration(self, value: float) -> None:
-        self.duration_ns = int(value * 1e9)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
@@ -788,6 +747,10 @@ class Span(SpanData):
 
     def __repr__(self) -> str:
         """Return a detailed string representation of a span."""
+        meta = {
+            k: v.keys() if isinstance(v, dict) else f"wrong type [{type(v).__name__}]"
+            for k, v in self._meta_struct.items()
+        }
         return (
             f"Span(name='{self.name}', "
             f"span_id={self.span_id}, "
@@ -805,7 +768,8 @@ class Span(SpanData):
             f"links={self._links}, "
             f"events={self._events}, "
             f"context={self.context}, "
-            f"service_entry_span_name={self._service_entry_span.name})"
+            f"service_entry_span_name={self._service_entry_span.name}), "
+            f"metastruct={meta}"
         )
 
     def __str__(self) -> str:
