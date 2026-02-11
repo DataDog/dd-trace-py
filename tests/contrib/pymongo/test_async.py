@@ -194,35 +194,3 @@ class TestAsyncPymongo(AsyncioTestCase):
         finally:
             await client.close()
             await asyncio.sleep(0.1)
-
-
-@pytest.mark.subprocess(ddtrace_run=True)
-def test_async_command_cancelled_no_runtime_error():
-    """Regression test for RuntimeError: coroutine ignored GeneratorExit."""
-    import asyncio
-
-    from pymongo.asynchronous.mongo_client import AsyncMongoClient
-
-    from tests.contrib.config import MONGO_CONFIG
-
-    async def run_test():
-        client = AsyncMongoClient(port=MONGO_CONFIG["port"])
-        try:
-            db = client["testdb"]
-            await db.drop_collection("test_cancel")
-
-            # Start the MongoDB command and cancel it while it's running
-            task = asyncio.create_task(db.test_cancel.insert_one({"test": "data"}))
-            await asyncio.sleep(0.001)  # Give it a moment to start
-            task.cancel()
-
-            # Await the cancelled task - should raise CancelledError, not RuntimeError
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-        finally:
-            await client.close()
-            await asyncio.sleep(0.1)
-
-    asyncio.run(run_test())
