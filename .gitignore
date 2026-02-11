@@ -212,3 +212,6 @@ src/native/target*
 
 # Fuzzing corpus, output and artifacts
 .fuzz/
+
+# Analysis artifacts
+.analysis/
