@@ -61,6 +61,7 @@ class Subdomain(str, Enum):
     API = "api"
     CITESTCYCLE = "citestcycle-intake"
     CITESTCOV = "citestcov-intake"
+    CICOVREPRT = "ci-intake"
 
 
 RETRIABLE_ERRORS = {ErrorType.TIMEOUT, ErrorType.NETWORK, ErrorType.CODE_5XX, ErrorType.BAD_JSON}
@@ -89,11 +90,11 @@ class BackendConnectorSetup:
         Detect which backend connection mode to use and return a configured instance of the corresponding subclass.
         """
         if asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
-            log.info("Connecting to backend in agentless mode")
+            log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup()
 
         else:
-            log.info("Connecting to backend through agent in EVP proxy mode")
+            log.debug("Connecting to backend through agent in EVP proxy mode")
             return cls._detect_evp_proxy_setup()
 
     @classmethod
@@ -298,7 +299,7 @@ class BackendConnector(threading.local):
         except Exception as e:
             result.error_type = ErrorType.UNKNOWN
             result.error_description = str(e)
-            log.exception("Error requesting %s %s", method, path)
+            log.warning("Error requesting %s %s", method, path)
         finally:
             result.elapsed_seconds = time.perf_counter() - start_time
 
@@ -309,7 +310,7 @@ class BackendConnector(threading.local):
                 result.error_type = ErrorType.BAD_JSON
                 result.error_description = str(e)
             except Exception as e:
-                log.exception("Error parsing response for %s %s", method, path)
+                log.warning("Error parsing response for %s %s", method, path)
                 result.error_type = ErrorType.UNKNOWN
                 result.error_description = str(e)
 

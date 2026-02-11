@@ -12,6 +12,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.trace import tracer
 
 from .constants import DEFAULT_TEMPLATE_NAME
 
@@ -66,7 +67,7 @@ def _wrap_render(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = str(instance.name or DEFAULT_TEMPLATE_NAME)
-    with pin.tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with tracer.trace("jinja2.render", pin.service, span_type=SpanTypes.TEMPLATE) as span:
         span._set_tag_str(COMPONENT, config.jinja2.integration_name)
 
         # PERF: avoid setting via Span.set_tag
@@ -88,7 +89,7 @@ def _wrap_compile(wrapped, instance, args, kwargs):
     except ArgumentError:
         template_name = DEFAULT_TEMPLATE_NAME
 
-    with pin.tracer.trace("jinja2.compile", pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with tracer.trace("jinja2.compile", pin.service, span_type=SpanTypes.TEMPLATE) as span:
         try:
             return wrapped(*args, **kwargs)
         finally:
@@ -104,7 +105,7 @@ def _wrap_load_template(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     template_name = get_argument_value(args, kwargs, 0, "name")
-    with pin.tracer.trace("jinja2.load", pin.service, span_type=SpanTypes.TEMPLATE) as span:
+    with tracer.trace("jinja2.load", pin.service, span_type=SpanTypes.TEMPLATE) as span:
         template = None
         try:
             template = wrapped(*args, **kwargs)

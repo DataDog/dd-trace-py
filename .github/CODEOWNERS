@@ -243,6 +243,7 @@ tests/openfeature/                        @DataDog/feature-flagging-and-experime
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities-python
+ddtrace/_trace/span.py                             @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # File commonly updated for integrations, widen ownership to help with PR review
 ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities-python
@@ -304,3 +305,8 @@ tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-
 tests/**/*appsec*               @DataDog/asm-python
 tests/**/*iast*                 @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
+
+# Fuzzing
+.gitlab/fuzz.yml                  @DataDog/chaos-platform @DataDog/profiling-python
+.gitlab/scripts/fuzz_infra.py     @DataDog/chaos-platform @DataDog/profiling-python
+docker/Dockerfile.fuzz            @DataDog/chaos-platform @DataDog/profiling-python

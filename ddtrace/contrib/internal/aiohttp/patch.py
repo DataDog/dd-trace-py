@@ -25,6 +25,7 @@ from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -66,16 +67,14 @@ class _WrappedConnectorClass(wrapt.ObjectProxy):
         pin.onto(self)
 
     async def connect(self, req, *args, **kwargs):
-        pin = Pin.get_from(self)
-        with pin.tracer.trace("%s.connect" % self.__class__.__name__) as span:
+        with tracer.trace("%s.connect" % self.__class__.__name__) as span:
             # set component tag equal to name of integration
             span.set_tag(COMPONENT, config.aiohttp.integration_name)
             result = await self.__wrapped__.connect(req, *args, **kwargs)
             return result
 
     async def _create_connection(self, req, *args, **kwargs):
-        pin = Pin.get_from(self)
-        with pin.tracer.trace("%s._create_connection" % self.__class__.__name__) as span:
+        with tracer.trace("%s._create_connection" % self.__class__.__name__) as span:
             # set component tag equal to name of integration
             span.set_tag(COMPONENT, config.aiohttp.integration_name)
             result = await self.__wrapped__._create_connection(req, *args, **kwargs)
@@ -89,7 +88,7 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     params = kwargs.get("params")
     headers = kwargs.get("headers") or {}
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.HTTP,
         service=ext_service(pin, config.aiohttp_client),

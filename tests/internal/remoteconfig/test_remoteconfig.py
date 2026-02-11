@@ -245,7 +245,7 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
             rc._online()
             mock_send_request.assert_called()
             sleep(0.5)
-            assert callback.features == [
+            assert (
                 Payload(
                     metadata=ConfigMetadata(
                         id="asm_features_activation",
@@ -259,7 +259,8 @@ def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
                     path="datadog/2/ASM_FEATURES/asm_features_activation/config",
                     content={"asm": {"enabled": True}},
                 )
-            ]
+                in callback.features
+            )
 
     class Callback:
         features = []

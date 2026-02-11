@@ -24,6 +24,7 @@ from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
+from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -96,9 +97,7 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     # When using a pool, there's a connection_class args
     is_pool_context = "connection_class" in kwargs
 
-    with pin.tracer.trace(
-        "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
-    ) as span:
+    with tracer.trace("postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)) as span:
         span._set_tag_str(COMPONENT, config.asyncpg.integration_name)
         span._set_tag_str(db.SYSTEM, DBMS_NAME)
 
@@ -125,7 +124,7 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
 
 
 async def _traced_query(pin, method, query, args, kwargs):
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_database_operation("postgres.query", database_provider="postgresql"),
         resource=query,
         service=ext_service(pin, config.asyncpg),

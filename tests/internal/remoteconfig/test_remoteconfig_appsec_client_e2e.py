@@ -108,7 +108,7 @@ def test_remote_config_client_steps(mock_preprocess_results, mock_send_request, 
 
     mock_callback = mock.MagicMock()
 
-    def _mock_appsec_callback(features, test_tracer=None):
+    def _mock_appsec_callback(features):
         mock_callback(features)
 
     class Capabilities(enum.IntFlag):

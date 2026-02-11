@@ -105,8 +105,6 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
         integration_config=config_django,
         distributed_headers=request_headers,
         activate_distributed_headers=True,
-        # TODO: Migrate all tests to snapshot tests and remove this
-        tracer=config_django._tracer,
     ) as ctx:
         core.dispatch(
             "django.traced_get_response.pre",

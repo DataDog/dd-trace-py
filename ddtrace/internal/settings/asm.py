@@ -68,7 +68,7 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
-    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_UNKNOWN
+    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -196,9 +196,7 @@ class ASMConfig(DDConfig):
 
     # DOWNSTREAM REQUESTS INSTRUMENTATION
     # sample rate for body analysis
-    _dr_sample_rate: float = DDConfig.var(
-        float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", default=0.5
-    )
+    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5)
     # max number of downstream requests analysis  with bodies per request
     _dr_body_limit_per_request: int = DDConfig.var(
         int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1
@@ -305,11 +303,6 @@ class ASMConfig(DDConfig):
 
     @property
     def asm_enabled_origin(self):
-        if self._asm_enabled:
-            if self._asm_enabled_origin == APPSEC.ENABLED_ORIGIN_RC:
-                return APPSEC.ENABLED_ORIGIN_RC
-            if tracer_config._lib_was_injected is True:
-                return APPSEC.ENABLED_ORIGIN_SSI
         if APPSEC_ENV in os.environ:
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin

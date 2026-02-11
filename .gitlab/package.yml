@@ -44,6 +44,7 @@ variables:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
       - "debugwheelhouse/*.log"
+      - "debugwheelhouse/*.zip"
 
 .upload_wheels_base:
   tags: ["arch:amd64"]
@@ -153,7 +154,7 @@ variables:
       apk add curl git gcc g++ musl-dev libffi-dev openssl-dev bash cargo make cmake patchelf
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       export PATH="$HOME/.cargo/bin:$PATH"
-      pip install twine readme_renderer[md] "cmarkgfm<2025.10.20"
+      pip install 'twine>=5.0,<7' 'readme-renderer[md]>=44.0,<45' 'cmarkgfm>=2024,<2025.10.20'  # ci-deps: allow
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
@@ -263,7 +264,7 @@ download_dependency_wheels:
     - "download windows wheels"
     - "package version"
   script:
-    - pip install packaging
+    - pip install 'packaging>=24.0,<26'  # ci-deps: allow
     - .gitlab/validate-ddtrace-package.py pywheels
   artifacts:
     paths:
