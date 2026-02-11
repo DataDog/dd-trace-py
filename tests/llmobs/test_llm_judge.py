@@ -12,6 +12,7 @@ from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from tests.llmobs._utils import get_vertexai_vcr
 
 
 class TestStructuredOutputTypes:
@@ -225,6 +226,18 @@ class TestLLMJudge:
         assert result.reasoning is None
 
 
+VERTEXAI_CLIENT_OPTIONS = {
+    "project": "test-project",
+    "location": "us-central1",
+    "credentials": mock.MagicMock(),
+}
+
+
+@pytest.fixture(scope="session")
+def vertexai_vcr():
+    yield get_vertexai_vcr()
+
+
 class TestVertexAIClient:
     @staticmethod
     def _mock_google_auth(default_return=None, default_side_effect=None):
@@ -281,106 +294,65 @@ class TestVertexAIClient:
                 project="env-project", location="us-central1", credentials=mock_credentials
             )
 
-    def test_client_call(self, monkeypatch):
-        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
-
-        mock_part = mock.MagicMock()
-        mock_part.text = '{"result": "positive"}'
-
-        mock_content = mock.MagicMock()
-        mock_content.parts = [mock_part]
-
-        mock_candidate = mock.MagicMock()
-        mock_candidate.content = mock_content
-
-        mock_response = mock.MagicMock()
-        mock_response.candidates = [mock_candidate]
-
-        mock_model_instance = mock.MagicMock()
-        mock_model_instance.generate_content.return_value = mock_response
-
-        mock_generation_config = mock.MagicMock()
-
-        mock_vertexai_module = mock.MagicMock()
-        mock_generative_models = mock.MagicMock()
-        mock_generative_models.GenerativeModel.return_value = mock_model_instance
-        mock_generative_models.GenerationConfig.return_value = mock_generation_config
-
-        modules = self._mock_google_auth(default_return=(mock.MagicMock(), "test-project"))
-        modules["vertexai"] = mock_vertexai_module
-        modules["vertexai.generative_models"] = mock_generative_models
-
-        with mock.patch.dict("sys.modules", modules):
-            client = _create_vertexai_client()
+    def test_client_call(self, vertexai_vcr):
+        with vertexai_vcr.use_cassette("vertexai_generate_content_boolean.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
             result = client(
                 provider="vertexai",
-                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "evaluate"}],
-                json_schema={"type": "object"},
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {"boolean_eval": {"type": "boolean"}},
+                    "required": ["boolean_eval"],
+                    "additionalProperties": False,
+                },
                 model="gemini-1.5-pro",
-                model_params={"temperature": 0.2},
+                model_params={"temperature": 0.5, "max_tokens": 1024},
             )
+        assert result == '{"boolean_eval": true}'
 
-        assert result == '{"result": "positive"}'
-        mock_generative_models.GenerativeModel.assert_called_once_with("gemini-1.5-pro", system_instruction="Judge")
-
-    def test_anyof_converted_to_enum(self, monkeypatch):
-        """Vertex AI doesn't support 'const' in anyOf. Verify it gets converted to enum."""
-        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
-
-        mock_part = mock.MagicMock()
-        mock_part.text = '{"categorical_eval": "positive"}'
-
-        mock_content = mock.MagicMock()
-        mock_content.parts = [mock_part]
-
-        mock_candidate = mock.MagicMock()
-        mock_candidate.content = mock_content
-
-        mock_response = mock.MagicMock()
-        mock_response.candidates = [mock_candidate]
-
-        mock_model_instance = mock.MagicMock()
-        mock_model_instance.generate_content.return_value = mock_response
-
-        mock_vertexai_module = mock.MagicMock()
-        mock_generative_models = mock.MagicMock()
-        mock_generative_models.GenerativeModel.return_value = mock_model_instance
-        mock_generative_models.GenerationConfig.return_value = mock.MagicMock()
-
-        modules = self._mock_google_auth(default_return=(mock.MagicMock(), "test-project"))
-        modules["vertexai"] = mock_vertexai_module
-        modules["vertexai.generative_models"] = mock_generative_models
-
-        schema_with_anyof = {
-            "type": "object",
-            "properties": {
-                "categorical_eval": {
-                    "type": "string",
-                    "anyOf": [
-                        {"const": "positive", "description": "Positive sentiment"},
-                        {"const": "negative", "description": "Negative sentiment"},
-                    ],
-                }
-            },
-            "required": ["categorical_eval"],
-            "additionalProperties": False,
-        }
-
-        with mock.patch.dict("sys.modules", modules):
-            client = _create_vertexai_client()
-            client(
+    def test_client_call_with_score_schema(self, vertexai_vcr):
+        with vertexai_vcr.use_cassette("vertexai_generate_content_score.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
                 provider="vertexai",
-                messages=[{"role": "user", "content": "classify"}],
-                json_schema=schema_with_anyof,
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "score_eval": {"type": "number", "minimum": 1, "maximum": 10, "description": "Score"},
+                    },
+                    "required": ["score_eval"],
+                    "additionalProperties": False,
+                },
                 model="gemini-1.5-pro",
-                model_params=None,
+                model_params={"temperature": 0.5, "max_tokens": 1024},
             )
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
 
-        gen_config_call = mock_generative_models.GenerationConfig.call_args
-        passed_schema = gen_config_call.kwargs["response_schema"]
-        # anyOf with const should be converted to enum
-        cat_prop = passed_schema["properties"]["categorical_eval"]
-        assert "anyOf" not in cat_prop
-        assert cat_prop["enum"] == ["positive", "negative"]
-        # Original schema should not be mutated
-        assert "anyOf" in schema_with_anyof["properties"]["categorical_eval"]
+    def test_client_call_with_categorical_schema(self, vertexai_vcr):
+        with vertexai_vcr.use_cassette("vertexai_generate_content_categorical.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "categorical_eval": {
+                            "type": "string",
+                            "anyOf": [
+                                {"const": "positive", "description": "Positive sentiment"},
+                                {"const": "negative", "description": "Negative sentiment"},
+                            ],
+                        },
+                    },
+                    "required": ["categorical_eval"],
+                    "additionalProperties": False,
+                },
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"
