@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Generate human-readable backtraces from core dump files.
-# Produces a .bt.txt file alongside each core.* file.
+# Produces a .bt.txt file alongside each core file.
+#
+# Assumes core files are named core.* (i.e. kernel.core_pattern = "core.%p").
+# This matches the CI testrunner configuration.
 
 set -o pipefail
 
@@ -12,8 +15,9 @@ for core_file in core.*; do
     output="${core_file}.bt.txt"
     echo "Processing $core_file ..."
 
-    # Extract the executable path recorded in the core file
-    exe=$(file "$core_file" | grep -oP "execfn: '\K[^']+")
+    # Extract the executable path from the core file's ELF auxiliary vector via gdb
+    exe=$(gdb -batch -ex "core-file $core_file" -ex "info auxv" 2>/dev/null \
+        | grep AT_EXECFN | grep -oP '"\K[^"]+')
     if [ -z "$exe" ] || [ ! -f "$exe" ]; then
         echo "Could not find executable for $core_file (exe=${exe:-<not found>})" > "$output"
         continue
