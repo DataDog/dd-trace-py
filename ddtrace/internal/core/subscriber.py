@@ -44,9 +44,7 @@ class Subscriber:
         cls._event_handlers = tuple(
             base_cls.on_event
             for base_cls in reversed(cls.__mro__[:-1])
-            if issubclass(base_cls, Subscriber)
-            and "on_event" in base_cls.__dict__
-            and base_cls is not Subscriber
+            if issubclass(base_cls, Subscriber) and "on_event" in base_cls.__dict__ and base_cls is not Subscriber
         )
 
         if "event_name" not in cls.__dict__:
