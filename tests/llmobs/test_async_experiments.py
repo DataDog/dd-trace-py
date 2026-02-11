@@ -182,6 +182,7 @@ async def stable_experiment_run(exp: AsyncExperiment):
     """Context manager that fixes non-deterministic values for stable cassette recordings.
 
     Patches:
+    - ddtrace.version tag (to prevent cassette hash mismatches across versions)
     - Run UUIDs (via _ExperimentRunInfo)
     - Span/Trace IDs and timestamps (via _run_task_for_record wrapper)
     - Metrics posting (mocked to avoid timestamp validation while still returning results)
@@ -192,6 +193,9 @@ async def stable_experiment_run(exp: AsyncExperiment):
         async with stable_experiment_run(exp):
             result = await exp.run(jobs=1)
     """
+    # Fix ddtrace.version to a stable value to ensure deterministic cassette hashes
+    exp._tags["ddtrace.version"] = "1.2.3"
+
     original_run_task = exp._run_task_for_record
 
     async def patched_run_task(record, idx, run, iteration_tags, semaphore, raise_errors):
