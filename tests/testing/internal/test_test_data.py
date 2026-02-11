@@ -14,7 +14,7 @@ from ddtrace.testing.internal.test_data import TestStatus
 
 
 class TestImmutableRef:
-    """Tests for _ImmutableRef base class behavior (immutability of ModuleRef, SuiteRef, TestRef)."""
+    """Tests for immutability of ModuleRef, SuiteRef, and TestRef (no shared base class)."""
 
     def test_module_ref_immutable_raises_attribute_error(self) -> None:
         """Test that assigning to ModuleRef raises AttributeError with 'immutable' message."""

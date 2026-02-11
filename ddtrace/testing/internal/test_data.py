@@ -16,25 +16,23 @@ from ddtrace.testing.internal.utils import _gen_item_id
 
 # AIDEV-NOTE: ModuleRef, SuiteRef, TestRef are plain classes with __slots__ (not dataclasses) to reduce
 # heap allocation (dataclass codegen was a significant contributor in memray _create_fn; see memory footprint work).
+# No shared base class: each ref type is standalone and uses a module-level helper for immutability.
 
 
-class _ImmutableRef:
-    """Base for immutable ref types. Subclasses must use object.__setattr__ in __init__ to set attributes."""
-
-    __slots__ = ()
-
-    def __setattr__(self, name: str, value: t.Any) -> None:
-        raise AttributeError(f"{type(self).__name__!r} is immutable")
+def _immutable_setattr(self: t.Any, name: str, value: t.Any) -> None:
+    raise AttributeError(f"{type(self).__name__!r} is immutable")
 
 
-class ModuleRef(_ImmutableRef):
+class ModuleRef:
     __slots__ = ("name",)
-    __test__ = False
 
     name: str
 
     def __init__(self, name: str) -> None:
         object.__setattr__(self, "name", name)
+
+    def __setattr__(self, name: str, value: t.Any) -> None:
+        _immutable_setattr(self, name, value)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, ModuleRef):
@@ -45,9 +43,8 @@ class ModuleRef(_ImmutableRef):
         return hash(self.name)
 
 
-class SuiteRef(_ImmutableRef):
+class SuiteRef:
     __slots__ = ("module", "name")
-    __test__ = False
 
     module: ModuleRef
     name: str
@@ -55,6 +52,9 @@ class SuiteRef(_ImmutableRef):
     def __init__(self, module: ModuleRef, name: str) -> None:
         object.__setattr__(self, "module", module)
         object.__setattr__(self, "name", name)
+
+    def __setattr__(self, name: str, value: t.Any) -> None:
+        _immutable_setattr(self, name, value)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, SuiteRef):
@@ -65,9 +65,8 @@ class SuiteRef(_ImmutableRef):
         return hash((self.module, self.name))
 
 
-class TestRef(_ImmutableRef):
+class TestRef:
     __slots__ = ("suite", "name")
-    __test__ = False
 
     suite: SuiteRef
     name: str
@@ -75,6 +74,9 @@ class TestRef(_ImmutableRef):
     def __init__(self, suite: SuiteRef, name: str) -> None:
         object.__setattr__(self, "suite", suite)
         object.__setattr__(self, "name", name)
+
+    def __setattr__(self, name: str, value: t.Any) -> None:
+        _immutable_setattr(self, name, value)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, TestRef):
