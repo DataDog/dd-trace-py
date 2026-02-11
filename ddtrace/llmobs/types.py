@@ -1,12 +1,14 @@
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import TypedDict
 from typing import Union
 
 
-JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONType"]]
-NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONType]]
-ExperimentConfigType = dict[str, JSONType]
-DatasetRecordInputType = dict[str, NonNoneJSONType]
+JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
+NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
+ExperimentConfigType = Dict[str, JSONType]
+DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
 class ExportedLLMObsSpan(TypedDict):
@@ -23,7 +25,7 @@ class Document(TypedDict, total=False):
 
 class ToolCall(TypedDict, total=False):
     name: str
-    arguments: dict[str, Any]
+    arguments: Dict[str, Any]
     tool_id: str
     type: str
 
@@ -38,15 +40,15 @@ class ToolResult(TypedDict, total=False):
 class ToolDefinition(TypedDict, total=False):
     name: str
     description: str
-    schema: dict[str, Any]
+    schema: Dict[str, Any]
 
 
 class Message(TypedDict, total=False):
     id: str
     role: str
     content: str
-    tool_calls: list[ToolCall]
-    tool_results: list[ToolResult]
+    tool_calls: List[ToolCall]
+    tool_results: List[ToolResult]
     tool_id: str
 
 
@@ -65,34 +67,34 @@ class Prompt(TypedDict, total=False):
     A Prompt object that contains the information needed to render a prompt.
         id: str - the id of the prompt set by the user. Should be unique per ml_app.
         version: str - user tag for the version of the prompt.
-        variables: dict[str, str] - a dictionary of variables that will be used to render the prompt
-        chat_template: Optional[Union[list[dict[str, str]], list[Message]]]
+        variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
+        chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
             - A list of dicts of (role,template)
             where role is the role of the prompt and template is the template string
         template: Optional[str]
             - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
-        tags: Optional[dict[str, str]]
-            - list of tags to add to the prompt run.
-        rag_context_variables: list[str] - a list of variable key names that contain ground truth context information
-        rag_query_variables: list[str] - a list of variable key names that contains query information
+        tags: Optional[Dict[str, str]]
+            - List of tags to add to the prompt run.
+        rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
+        rag_query_variables: List[str] - a list of variable key names that contains query information
     """
 
     version: str
     id: str
     template: str
-    chat_template: Union[list[dict[str, str]], list[Message]]
-    variables: dict[str, str]
-    tags: dict[str, str]
-    rag_context_variables: list[str]
-    rag_query_variables: list[str]
+    chat_template: Union[List[Dict[str, str]], List[Message]]
+    variables: Dict[str, str]
+    tags: Dict[str, str]
+    rag_context_variables: List[str]
+    rag_query_variables: List[str]
 
 
 class _MetaIO(TypedDict, total=False):
-    parameters: dict[str, Any]
+    parameters: Dict[str, Any]
     value: str
-    messages: list[Message]
+    messages: List[Message]
     prompt: Prompt
-    documents: list[Document]
+    documents: List[Document]
 
 
 class _Meta(TypedDict, total=False):
@@ -100,16 +102,16 @@ class _Meta(TypedDict, total=False):
     model_provider: str
     span: _SpanField
     error: _ErrorField
-    metadata: dict[str, Any]
+    metadata: Dict[str, Any]
     input: _MetaIO
     output: _MetaIO
     expected_output: _MetaIO
     evaluations: Any
-    tool_definitions: list[ToolDefinition]
+    tool_definitions: List[ToolDefinition]
     intent: str
 
 
 class _SpanLink(TypedDict):
     span_id: str
     trace_id: str
-    attributes: dict[str, str]
+    attributes: Dict[str, str]

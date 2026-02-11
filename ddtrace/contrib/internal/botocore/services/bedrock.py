@@ -1,6 +1,8 @@
 import json
 import sys
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace import config
@@ -84,7 +86,7 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
 
 
 class BotocoreConverseStreamHandler(StreamHandler):
-    def process_chunk(self, chunk: dict[str, Any], iterator=None):
+    def process_chunk(self, chunk: Dict[str, Any], iterator=None):
         stream_processor = self.options.get("stream_processor", None)
         if stream_processor:
             stream_processor.send(chunk)
@@ -167,7 +169,7 @@ def _set_llmobs_usage(
         ctx.set_item("llmobs.usage", llmobs_usage)
 
 
-def _extract_request_params_for_converse(params: dict[str, Any]) -> dict[str, Any]:
+def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
         for converse and converse_stream.
@@ -190,7 +192,7 @@ def _extract_request_params_for_converse(params: dict[str, Any]) -> dict[str, An
     }
 
 
-def _extract_request_params_for_invoke(params: dict[str, Any], provider: str) -> dict[str, Any]:
+def _extract_request_params_for_invoke(params: Dict[str, Any], provider: str) -> Dict[str, Any]:
     """
     Extracts request parameters including prompt, temperature, top_p, max_tokens, and stop_sequences
         for invoke.
@@ -257,7 +259,7 @@ def _extract_request_params_for_invoke(params: dict[str, Any], provider: str) ->
     return {}
 
 
-def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: dict[str, Any]) -> dict[str, list[str]]:
+def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: Dict[str, Any]) -> Dict[str, List[str]]:
     text, finish_reason = "", ""
     model_name = ctx["model_name"]
     provider = ctx["model_provider"]
@@ -301,7 +303,7 @@ def _extract_text_and_response_reason(ctx: core.ExecutionContext, body: dict[str
     return {"text": text, "finish_reason": finish_reason}
 
 
-def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: list[dict[str, Any]]) -> dict[str, list[str]]:
+def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     text, finish_reason = "", ""
     model_name = ctx["model_name"]
     provider = ctx["model_provider"]
@@ -357,8 +359,8 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: list[d
 
 
 def _extract_streamed_response_metadata(
-    ctx: core.ExecutionContext, streamed_body: list[dict[str, Any]]
-) -> dict[str, Any]:
+    ctx: core.ExecutionContext, streamed_body: List[Dict[str, Any]]
+) -> Dict[str, Any]:
     """
     Returns token usage metadata from streamed response, sets it in the context for LLMObs, and returns it.
     """
@@ -398,8 +400,8 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
 
 def handle_bedrock_response(
     ctx: core.ExecutionContext,
-    result: dict[str, Any],
-) -> dict[str, Any]:
+    result: Dict[str, Any],
+) -> Dict[str, Any]:
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 

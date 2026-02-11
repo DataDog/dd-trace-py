@@ -1,5 +1,6 @@
 import re
 from typing import Any
+from typing import List
 from typing import NamedTuple
 from typing import Optional
 
@@ -34,7 +35,7 @@ def create_taint_range_with_format(text_input: Any, fn_origin: str = "") -> Any:
     if isinstance(text_input, bytearray):
         text_output = bytearray(text_output)
 
-    ranges_: list[TaintRange] = []
+    ranges_: List[TaintRange] = []
     acc_input_id = 0
     for i, match in enumerate(taint_format_pattern.finditer(text_input)):  # type: ignore[attr-defined]
         match_start = match.start() - (i * 6) - acc_input_id
@@ -73,7 +74,7 @@ def _to_tainted_string_with_origin(text: TEXT_TYPE) -> TEXT_TYPE:
     # CAVEAT: the sequences ":+-" and "-+:" can be escaped with  "::++--" and "--+*::"
     elements = re.split(r"(\:\+-<[0-9a-zA-Z\-]+>|<[0-9a-zA-Z\-]+>-\+\:)", text)
 
-    ranges: list[TaintRange] = []
+    ranges: List[TaintRange] = []
     ranges_append = ranges.append
     new_text = text.__class__()
     context: Optional[EscapeContext] = None

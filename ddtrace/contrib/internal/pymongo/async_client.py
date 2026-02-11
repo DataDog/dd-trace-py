@@ -2,6 +2,8 @@
 import contextlib
 from types import FunctionType
 from typing import Any
+from typing import Dict
+from typing import Tuple
 
 import pymongo
 from pymongo.asynchronous.mongo_client import AsyncMongoClient
@@ -35,14 +37,14 @@ log = get_logger(__name__)
 VERSION = pymongo.version_tuple
 
 
-def trace_async_mongo_client_init(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+def trace_async_mongo_client_init(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
     """Wrapper for AsyncMongoClient.__init__ to set up pin handling."""
     func(*args, **kwargs)
     client = get_argument_value(args, kwargs, 0, "self")
     setup_mongo_client_pin(client)
 
 
-async def trace_async_topology_select_server(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+async def trace_async_topology_select_server(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     """Wrapper for AsyncTopology.select_server to propagate pin to selected server."""
     server = await func(*args, **kwargs)
     topology_instance = get_argument_value(args, kwargs, 0, "self")
@@ -50,7 +52,7 @@ async def trace_async_topology_select_server(func: FunctionType, args: tuple[Any
     return server
 
 
-async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+async def trace_async_server_run_operation(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     """Wrapper for AsyncServer.run_operation to trace operations."""
     server_instance = get_argument_value(args, kwargs, 0, "self")
     operation = get_argument_value(args, kwargs, 2, "operation")
@@ -64,7 +66,7 @@ async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, 
         return process_server_operation_result(span, operation, result)
 
 
-async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+async def trace_async_server_checkout(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     """Wrapper for AsyncServer.checkout to trace socket checkout.
 
     AsyncServer.checkout() returns an async context manager. We wrap it to add tracing.
@@ -86,7 +88,7 @@ async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...],
     return traced_cm()
 
 
-async def trace_async_socket_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+async def trace_async_socket_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     """Wrapper for AsyncConnection.command to trace command operations."""
     parsed = parse_socket_command_spec(args, kwargs)
     if parsed is None:
@@ -98,7 +100,7 @@ async def trace_async_socket_command(func: FunctionType, args: tuple[Any, ...], 
         return await func(*args, **kwargs)
 
 
-async def trace_async_socket_write_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     """Wrapper for AsyncConnection.write_command to trace write command operations."""
     parsed = parse_socket_write_command_msg(args, kwargs)
     if parsed is None:

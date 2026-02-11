@@ -81,17 +81,17 @@ class TelemetryAPI:
     def finish(self) -> None:
         self.writer.periodic(force_flush=True)
 
-    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[dict[str, t.Any]] = None) -> None:
+    def add_count_metric(self, metric_name: str, value: int, tags: t.Optional[t.Dict[str, t.Any]] = None) -> None:
         log.debug("Recording Test Optimization telemetry count: %r %r %r", metric_name, value, tags)
         self.writer.add_count_metric(self.namespace, metric_name, value, self._make_tags(tags))
 
     def add_distribution_metric(
-        self, metric_name: str, value: float, tags: t.Optional[dict[str, t.Any]] = None
+        self, metric_name: str, value: float, tags: t.Optional[t.Dict[str, t.Any]] = None
     ) -> None:
         log.debug("Recording Test Optimization telemetry distribution: %r %r %r", metric_name, value, tags)
         self.writer.add_distribution_metric(self.namespace, metric_name, value, self._make_tags(tags))
 
-    def _make_tags(self, tags: t.Optional[dict[str, t.Any]]) -> tuple[tuple[str, str], ...]:
+    def _make_tags(self, tags: t.Optional[t.Dict[str, t.Any]]) -> t.Tuple[t.Tuple[str, str], ...]:
         """
         Convert a tag dictionary into a tag tuple.
 
@@ -101,7 +101,7 @@ class TelemetryAPI:
         if not tags:
             return ()
 
-        tag_list: list[tuple[str, str]] = []
+        tag_list: t.List[t.Tuple[str, str]] = []
         for key, value in tags.items():
             if value is None or value is False:
                 continue

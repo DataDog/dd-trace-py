@@ -1,5 +1,6 @@
 from pathlib import Path
 from random import random
+import typing as t
 
 from _config import config as expl_config
 from debugger import ExplorationDebugger
@@ -18,7 +19,7 @@ from ddtrace.internal.module import origin
 
 
 # Track all instrumented functions and their call count.
-_tracked_funcs: dict[str, int] = {}
+_tracked_funcs: t.Dict[str, int] = {}
 
 
 class FunctionCollector(ModuleCollector):

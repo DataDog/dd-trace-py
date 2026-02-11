@@ -6,6 +6,8 @@ from enum import IntEnum
 from platform import machine
 from platform import system
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
@@ -18,7 +20,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-DDWafRulesType = Union[None, int, str, list[Any], dict[str, Any]]
+DDWafRulesType = Union[None, int, str, List[Any], Dict[str, Any]]
 
 log = get_logger(__name__)
 
@@ -331,7 +333,7 @@ ddwaf_known_addresses = ctypes.CFUNCTYPE(
 )
 
 
-def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> list[str]:
+def py_ddwaf_known_addresses(handle: ddwaf_handle_capsule) -> List[str]:
     size = ctypes.c_uint32()
     obj = ddwaf_known_addresses(handle.handle, size)
     return [obj[i].decode("UTF-8") for i in range(size.value)]

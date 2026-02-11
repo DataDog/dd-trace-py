@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 import vllm
@@ -78,7 +79,7 @@ def traced_processor_process_inputs(vllm, pin, func, instance, args, kwargs):
 def _capture_request_states(
     instance: "OutputProcessor",
     engine_core_outputs: Any,
-) -> dict[str, dict[str, Any]]:
+) -> Dict[str, Dict[str, Any]]:
     """Capture request state data before original function removes them.
 
     Returns dict mapping request_id -> captured_data.
@@ -106,7 +107,7 @@ def _create_finished_spans(
     integration: VLLMIntegration,
     model_name: Optional[str],
     instance: "OutputProcessor",
-    spans_data: dict[str, dict[str, Any]],
+    spans_data: Dict[str, Dict[str, Any]],
 ) -> None:
     """Create and finish spans for completed requests."""
     for req_id, span_info in spans_data.items():

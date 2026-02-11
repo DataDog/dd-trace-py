@@ -8,6 +8,8 @@ import socket
 import sys
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Optional
 
 import ray
@@ -58,7 +60,7 @@ def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     return old_sig.replace(parameters=sorted_params)
 
 
-def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
+def _inject_context_in_kwargs(context: Context, kwargs: Dict[str, Any]) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
     if "kwargs" not in kwargs or kwargs["kwargs"] is None:
@@ -185,7 +187,7 @@ def redact_paths(s: str) -> str:
     return "".join(part if part.strip() == "" else _redact_token(part) for part in parts)
 
 
-def flatten_metadata_dict(data: dict) -> dict[str, Any]:
+def flatten_metadata_dict(data: dict) -> Dict[str, Any]:
     """
     Converts a JSON (or Python dictionary) structure into a dict mapping
     dot-notation paths to leaf values, with keys prefixed once by RAY_METADATA_PREFIX.
@@ -266,7 +268,7 @@ def get_signature(func: Any) -> inspect.Signature:
     return inspect.signature(func)
 
 
-def extract_signature(func: Any, ignore_first: bool = False) -> list[Parameter]:
+def extract_signature(func: Any, ignore_first: bool = False) -> List[Parameter]:
     """Extract the function signature from the function.
 
     Args:
@@ -275,7 +277,7 @@ def extract_signature(func: Any, ignore_first: bool = False) -> list[Parameter]:
             be used when func is a method of a class.
 
     Returns:
-        list of Parameter objects representing the function signature.
+        List of Parameter objects representing the function signature.
     """
     signature_parameters = list(get_signature(func).parameters.values())
 

@@ -144,7 +144,9 @@ def test_process_tags_enabled():
 
 @pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true"})
 def test_process_tag_class():
+    from typing import List
+
     from ddtrace.internal.runtime.runtime_metrics import ProcessTags
 
-    process_tags: list[str] = list(ProcessTags())
+    process_tags: List[str] = list(ProcessTags())
     assert len(process_tags) >= 4

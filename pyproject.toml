@@ -194,7 +194,6 @@ lint.select = [
     "G",
     "I",
     "PLW0244",  # redefined-slots-in-subclass
-    "UP006",  # non-pep585-annotation (use builtin generics like list instead of typing.List)
     "W",
 ]
 lint.unfixable =[
