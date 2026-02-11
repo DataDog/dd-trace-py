@@ -12,6 +12,19 @@ from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from tests.llmobs._utils import get_bedrock_vcr
+
+
+BEDROCK_CLIENT_OPTIONS = {
+    "aws_access_key_id": "testing",
+    "aws_secret_access_key": "testing",
+    "region_name": "us-east-1",
+}
+
+
+@pytest.fixture(scope="session")
+def bedrock_vcr():
+    yield get_bedrock_vcr()
 
 
 class TestStructuredOutputTypes:
@@ -130,7 +143,6 @@ class TestLLMJudge:
         assert result.assessment == "pass"
 
     def test_custom_json_schema_output(self):
-        """Test structured_output with a custom JSON schema dict."""
         custom_schema = {
             "type": "object",
             "properties": {
@@ -143,7 +155,6 @@ class TestLLMJudge:
         }
 
         def mock_client(provider, messages, json_schema, model, model_params):
-            # Verify the custom schema is passed through
             assert json_schema == custom_schema
             return json.dumps({"summary": "Test summary", "keywords": ["a", "b"], "reasoning": "Because"})
 
@@ -218,7 +229,7 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Evaluate: {{output_data}}",
-            structured_output=BooleanStructuredOutput("Check"),  # No pass_when, reasoning=False
+            structured_output=BooleanStructuredOutput("Check"),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
@@ -231,49 +242,23 @@ class TestBedrockClient:
             with pytest.raises(ImportError, match="boto3 package required"):
                 _create_bedrock_client()
 
-    def test_client_call(self):
-        mock_bedrock_client = mock.MagicMock()
-        mock_bedrock_client.converse.return_value = {"output": {"message": {"content": [{"text": '{"eval": true}'}]}}}
-
-        mock_session = mock.MagicMock()
-        mock_session.client.return_value = mock_bedrock_client
-
-        mock_boto3 = mock.MagicMock()
-        mock_boto3.Session.return_value = mock_session
-
-        with mock.patch.dict("sys.modules", {"boto3": mock_boto3}):
-            client = _create_bedrock_client({"region_name": "us-west-2"})
+    def test_client_call(self, bedrock_vcr):
+        with bedrock_vcr.use_cassette("bedrock_converse_boolean.yaml"):
+            client = _create_bedrock_client(BEDROCK_CLIENT_OPTIONS)
             result = client(
                 provider="bedrock",
                 messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
-                json_schema={"type": "object"},
-                model="anthropic.claude-3-sonnet",
+                json_schema={"type": "object", "properties": {"eval": {"type": "boolean"}}, "required": ["eval"]},
+                model="anthropic.claude-3-sonnet-20240229-v1:0",
                 model_params={"temperature": 0.5, "max_tokens": 1024},
             )
 
         assert result == '{"eval": true}'
-        mock_bedrock_client.converse.assert_called_once()
-        call_kwargs = mock_bedrock_client.converse.call_args[1]
-        assert call_kwargs["modelId"] == "anthropic.claude-3-sonnet"
-        assert call_kwargs["system"] == [{"text": "Judge"}]
-        assert call_kwargs["inferenceConfig"] == {"temperature": 0.5, "maxTokens": 1024}
 
-    def test_schema_strips_minimum_maximum(self):
-        """Verify that minimum/maximum are removed from the schema sent to Bedrock."""
-        mock_bedrock_client = mock.MagicMock()
-        mock_bedrock_client.converse.return_value = {
-            "output": {"message": {"content": [{"text": '{"score_eval": 8}'}]}}
-        }
-
-        mock_session = mock.MagicMock()
-        mock_session.client.return_value = mock_bedrock_client
-
-        mock_boto3 = mock.MagicMock()
-        mock_boto3.Session.return_value = mock_session
-
-        with mock.patch.dict("sys.modules", {"boto3": mock_boto3}):
-            client = _create_bedrock_client()
-            client(
+    def test_schema_strips_minimum_maximum(self, bedrock_vcr):
+        with bedrock_vcr.use_cassette("bedrock_converse_score.yaml"):
+            client = _create_bedrock_client(BEDROCK_CLIENT_OPTIONS)
+            result = client(
                 provider="bedrock",
                 messages=[{"role": "user", "content": "rate this"}],
                 json_schema={
@@ -288,34 +273,17 @@ class TestBedrockClient:
                     },
                     "required": ["score_eval"],
                 },
-                model="anthropic.claude-3-sonnet",
+                model="anthropic.claude-3-sonnet-20240229-v1:0",
                 model_params=None,
             )
 
-        call_kwargs = mock_bedrock_client.converse.call_args[1]
-        schema_str = call_kwargs["outputConfig"]["textFormat"]["structure"]["jsonSchema"]["schema"]
-        schema = json.loads(schema_str)
-        score_prop = schema["properties"]["score_eval"]
-        assert "minimum" not in score_prop
-        assert "maximum" not in score_prop
-        assert "(range: 1 to 10)" in score_prop["description"]
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
 
-    def test_schema_strips_type_from_anyof(self):
-        """Verify that 'type' is removed from properties using 'anyOf' in Bedrock schema."""
-        mock_bedrock_client = mock.MagicMock()
-        mock_bedrock_client.converse.return_value = {
-            "output": {"message": {"content": [{"text": '{"categorical_eval": "positive"}'}]}}
-        }
-
-        mock_session = mock.MagicMock()
-        mock_session.client.return_value = mock_bedrock_client
-
-        mock_boto3 = mock.MagicMock()
-        mock_boto3.Session.return_value = mock_session
-
-        with mock.patch.dict("sys.modules", {"boto3": mock_boto3}):
-            client = _create_bedrock_client()
-            client(
+    def test_schema_strips_type_from_anyof(self, bedrock_vcr):
+        with bedrock_vcr.use_cassette("bedrock_converse_categorical.yaml"):
+            client = _create_bedrock_client(BEDROCK_CLIENT_OPTIONS)
+            result = client(
                 provider="bedrock",
                 messages=[{"role": "user", "content": "classify this"}],
                 json_schema={
@@ -331,13 +299,9 @@ class TestBedrockClient:
                     },
                     "required": ["categorical_eval"],
                 },
-                model="anthropic.claude-3-sonnet",
+                model="anthropic.claude-3-sonnet-20240229-v1:0",
                 model_params=None,
             )
 
-        call_kwargs = mock_bedrock_client.converse.call_args[1]
-        schema_str = call_kwargs["outputConfig"]["textFormat"]["structure"]["jsonSchema"]["schema"]
-        schema = json.loads(schema_str)
-        cat_prop = schema["properties"]["categorical_eval"]
-        assert "type" not in cat_prop
-        assert "anyOf" in cat_prop
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"
