@@ -3,6 +3,7 @@
 #include "libdatadog_helpers.hpp"
 #include "profile.hpp"
 #include "profile_borrow.hpp"
+#include "python_helpers.hpp"
 #include "types.hpp"
 
 #include <string>
@@ -13,10 +14,6 @@ extern "C"
 {
 #include "datadog/profiling.h"
 }
-
-// Forward declaration of Python types
-struct _frame;
-typedef struct _frame PyFrameObject;
 
 namespace Datadog {
 
