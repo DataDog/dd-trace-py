@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import dataclass
 from enum import Enum
 import json
 import os
@@ -15,22 +14,75 @@ from ddtrace.testing.internal.utils import TestContext
 from ddtrace.testing.internal.utils import _gen_item_id
 
 
-@dataclass(frozen=True)
-class ModuleRef:
+# AIDEV-NOTE: ModuleRef, SuiteRef, TestRef are plain classes with __slots__ (not dataclasses) to reduce
+# heap allocation (dataclass codegen was a significant contributor in memray _create_fn; see memory footprint work).
+
+
+class _ImmutableRef:
+    """Base for immutable ref types. Subclasses must use object.__setattr__ in __init__ to set attributes."""
+
+    __slots__ = ()
+
+    def __setattr__(self, name: str, value: t.Any) -> None:
+        raise AttributeError(f"{type(self).__name__!r} is immutable")
+
+
+class ModuleRef(_ImmutableRef):
+    __slots__ = ("name",)
+    __test__ = False
+
     name: str
 
+    def __init__(self, name: str) -> None:
+        object.__setattr__(self, "name", name)
 
-@dataclass(frozen=True)
-class SuiteRef:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ModuleRef):
+            return NotImplemented
+        return self.name == other.name
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+
+class SuiteRef(_ImmutableRef):
+    __slots__ = ("module", "name")
+    __test__ = False
+
     module: ModuleRef
     name: str
 
+    def __init__(self, module: ModuleRef, name: str) -> None:
+        object.__setattr__(self, "module", module)
+        object.__setattr__(self, "name", name)
 
-@dataclass(frozen=True)
-class TestRef:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, SuiteRef):
+            return NotImplemented
+        return self.module == other.module and self.name == other.name
+
+    def __hash__(self) -> int:
+        return hash((self.module, self.name))
+
+
+class TestRef(_ImmutableRef):
+    __slots__ = ("suite", "name")
+    __test__ = False
+
     suite: SuiteRef
     name: str
-    __test__ = False
+
+    def __init__(self, suite: SuiteRef, name: str) -> None:
+        object.__setattr__(self, "suite", suite)
+        object.__setattr__(self, "name", name)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, TestRef):
+            return NotImplemented
+        return self.suite == other.suite and self.name == other.name
+
+    def __hash__(self) -> int:
+        return hash((self.suite, self.name))
 
 
 class TestStatus(Enum):
