@@ -7,6 +7,8 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.vendor.debtcollector import deprecate
 
 
 CONFIG_KEY = "datadog_trace"
@@ -27,7 +29,6 @@ async def trace_middleware(app, handler):
 
     async def attach_context(request):
         # application configs
-        tracer = app[CONFIG_KEY]["tracer"]
         service = app[CONFIG_KEY]["service"]
         # Create a new context based on the propagated information.
 
@@ -37,7 +38,6 @@ async def trace_middleware(app, handler):
             span_type=SpanTypes.WEB,
             service=service,
             tags={},
-            tracer=tracer,
             distributed_headers=request.headers,
             integration_config=config.aiohttp,
             activate_distributed_headers=True,
@@ -142,13 +142,12 @@ async def on_prepare(request, response):
     finish_request_span(request, response)
 
 
-def trace_app(app, tracer, service="aiohttp-web"):
+def trace_app(app, tracer=None, service="aiohttp-web"):
     """
     Tracing function that patches the ``aiohttp`` application so that it will be
-    traced using the given ``tracer``.
+    traced using the global tracer.
 
     :param app: aiohttp application to trace
-    :param tracer: tracer instance to use
     :param service: service name of tracer
     """
 
@@ -157,9 +156,15 @@ def trace_app(app, tracer, service="aiohttp-web"):
         return
     app.__datadog_trace = True
 
+    if tracer is not None:
+        deprecate(
+            "The tracer parameter is deprecated",
+            message="The global tracer will be used instead.",
+            category=DDTraceDeprecationWarning,
+            removal_version="5.0.0",
+        )
     # configure datadog settings
     app[CONFIG_KEY] = {
-        "tracer": tracer,
         "service": config._get_service(default=service),
         "distributed_tracing_enabled": None,
     }
