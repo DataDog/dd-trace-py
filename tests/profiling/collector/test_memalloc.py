@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import threading
 from tracemalloc import Statistic
+from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
@@ -218,7 +219,7 @@ def _create_allocation(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
-def _allocate_with_lone_surrogate_filename(nallocs: int = 2000) -> None:
+def _allocate_with_lone_surrogate_filename(nallocs: int = 2_000) -> None:
     """Allocate from a function whose co_filename cannot be UTF-8 encoded.
 
     The filename contains a lone surrogate, which makes PyUnicode_AsUTF8AndSize()
@@ -228,18 +229,16 @@ def _allocate_with_lone_surrogate_filename(nallocs: int = 2000) -> None:
     PyUnicode_AsUTF8AndSize failure path in memalloc stack serialization.
     """
     namespace: Dict[str, object] = {}
-    compiled_code = compile(
+    compiled_code: CodeType = compile(
         "def _alloc_from_bad_filename(nallocs):\n    for _ in range(nallocs):\n        object()\n",
         "\udcff_memalloc_bad_filename.py",
         "exec",
     )
     with pytest.raises(UnicodeEncodeError):
         compiled_code.co_filename.encode("utf-8", "strict")
-    exec(
-        compiled_code,
-        namespace,
-        namespace,
-    )
+    # NOTE: exec defines the function in the namespace, so that we can call it
+    # later.
+    exec(compiled_code, namespace)
     alloc = cast(Callable[[int], None], namespace["_alloc_from_bad_filename"])
     alloc(nallocs)
 
