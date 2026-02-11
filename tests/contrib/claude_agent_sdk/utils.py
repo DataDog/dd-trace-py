@@ -29,6 +29,7 @@ EXPECTED_SYSTEM_MESSAGE_DATA = {
     "claude_code_version": "2.0.62",
 }
 
+
 def expected_agent_manifest(max_iterations=None):
     """Helper to build expected agent manifest."""
     manifest = {

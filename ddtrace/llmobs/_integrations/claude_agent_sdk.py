@@ -95,7 +95,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             }
         )
 
-    def _build_agent_manifest(self, model: str, metadata: Dict[str, Any], init_system_message: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_agent_manifest(
+        self, model: str, metadata: Dict[str, Any], init_system_message: Dict[str, Any]
+    ) -> Dict[str, Any]:
         manifest: Dict[str, Any] = {}
         manifest["framework"] = "Claude Agent SDK"
         if model:
@@ -304,4 +306,3 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             if cache_read:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read
         return metrics
-

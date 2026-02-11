@@ -15,7 +15,9 @@ log = get_logger(__name__)
 def handle_streamed_response(integration, resp, args, kwargs, span, operation, pin, instance=None):
     return make_traced_stream(
         resp,
-        ClaudeAgentSdkAsyncStreamHandler(integration, span, args, kwargs, operation=operation, pin=pin, instance=instance),
+        ClaudeAgentSdkAsyncStreamHandler(
+            integration, span, args, kwargs, operation=operation, pin=pin, instance=instance
+        ),
     )
 
 
