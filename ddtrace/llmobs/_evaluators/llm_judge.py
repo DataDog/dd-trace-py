@@ -302,16 +302,16 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
         model: str,
         model_params: Optional[Dict[str, Any]],
     ) -> str:
-        system_instruction = None
         contents = []
+        system_msgs = []
         for msg in messages:
             if msg["role"] == "system":
-                system_instruction = msg["content"]
+                system_msgs.append(msg["content"])
             else:
                 role = "user" if msg["role"] == "user" else "model"
                 contents.append({"role": role, "parts": [{"text": msg["content"]}]})
 
-        model_instance = GenerativeModel(model, system_instruction=system_instruction)
+        model_instance = GenerativeModel(model, system_instruction="\n".join(system_msgs))
 
         generation_config_params = model_params.copy() if model_params else {}
         if json_schema:
