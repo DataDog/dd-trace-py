@@ -5,7 +5,7 @@ import ast
 import copy
 import os
 import sys
-from typing import Any
+from typing import Any, List
 from typing import Text
 
 from ..._constants import IAST
@@ -846,12 +846,12 @@ class AstVisitor(ast.NodeTransformer):
                 # Best effort to avoid converting type definitions
                 if assign_node.value.value.id in (
                     "Callable",
-                    "dict",
+                    "Dict",
                     "Generator",
-                    "list",
+                    "List",
                     "Optional",
                     "Sequence",
-                    "tuple",
+                    "Tuple",
                     "Type",
                     "TypeVar",
                     "Union",
@@ -863,7 +863,7 @@ class AstVisitor(ast.NodeTransformer):
                 # We can't assign to a function call, which is anyway going to rewrite
                 # the index destination so we just ignore that target
                 target.avoid_convert = True  # type: ignore[attr-defined]
-            elif isinstance(target, (list, ast.Tuple)):
+            elif isinstance(target, (List, list, ast.Tuple)):
                 # Same for lists/tuples on the left side of the assignment
                 for element in target.elts:
                     if isinstance(element, ast.Subscript):
