@@ -3,9 +3,10 @@
 Tests verify that LLMObs span events are correctly recorded when
 calling llama_index methods with LLMObs enabled.
 """
-import pytest
 
 from llama_index.core.base.llms.types import ChatMessage
+import pytest
+
 from tests.contrib.llama_index.utils import MockEmbedding
 from tests.contrib.llama_index.utils import MockErrorLLM
 from tests.contrib.llama_index.utils import MockLLM
@@ -27,9 +28,7 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 class TestLLMObsLlamaIndex:
     """LLMObs tests for llama_index integration."""
 
-    def test_llmobs_chat(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_llmobs_chat(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that LLMObs records chat calls correctly."""
         llm = MockLLM()
         messages = [ChatMessage(role="user", content="Hello, world!")]
@@ -49,9 +48,7 @@ class TestLLMObsLlamaIndex:
             )
         )
 
-    def test_llmobs_complete(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_llmobs_complete(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that LLMObs records complete calls correctly."""
         llm = MockLLM()
         llm.complete("Hello, world!")
@@ -70,9 +67,7 @@ class TestLLMObsLlamaIndex:
             )
         )
 
-    def test_llmobs_chat_error(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_llmobs_chat_error(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that LLMObs records errors correctly."""
         llm = MockErrorLLM()
 
@@ -96,9 +91,7 @@ class TestLLMObsLlamaIndex:
             )
         )
 
-    def test_llmobs_query(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_llmobs_query(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that LLMObs records query engine calls correctly."""
         qe = MockQueryEngine()
         qe.query("What is the meaning of life?")
@@ -117,9 +110,7 @@ class TestLLMObsLlamaIndex:
             )
         )
 
-    def test_llmobs_retrieve(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_llmobs_retrieve(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that LLMObs records retriever calls correctly."""
         ret = MockRetriever()
         ret.retrieve("test query")
@@ -138,9 +129,7 @@ class TestLLMObsLlamaIndex:
             )
         )
 
-    def test_llmobs_embedding(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_llmobs_embedding(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that LLMObs records embedding calls correctly."""
         emb = MockEmbedding()
         emb.get_query_embedding("test query")
@@ -159,12 +148,10 @@ class TestLLMObsLlamaIndex:
             )
         )
 
-    def test_llmobs_stream_chat(
-        self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans
-    ):
+    def test_llmobs_stream_chat(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
         """Test that LLMObs records streaming chat calls correctly."""
         llm = MockLLM()
-        chunks = list(llm.stream_chat([ChatMessage(role="user", content="Hello!")]))
+        list(llm.stream_chat([ChatMessage(role="user", content="Hello!")]))
 
         span = test_spans.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1

@@ -1,6 +1,7 @@
 from ddtrace.contrib.internal.llama_index.patch import get_version
 from ddtrace.contrib.internal.llama_index.patch import patch
 
+
 try:
     from ddtrace.contrib.internal.llama_index.patch import unpatch
 except ImportError:
