@@ -1,4 +1,6 @@
 ---
 features:
   - |
-    LLM Observability: Introduces the LLMObs.async_experiment() method for running experiments with async task functions and mixed sync/async evaluators.
+    LLM Observability: The ``Experiment`` class now supports both sync and async tasks and evaluators.
+    Use ``run()`` for synchronous execution or ``arun()`` for asynchronous execution.
+    Sync tasks and evaluators are automatically run in a thread pool when using ``arun()``.
