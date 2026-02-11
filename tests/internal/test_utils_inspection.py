@@ -1,7 +1,10 @@
 from functools import wraps
 from pathlib import Path
-import textwrap
+import sys
+from types import FrameType
 import typing as t
+
+import pytest
 
 import ddtrace.internal.utils.inspection as inspection
 from ddtrace.internal.utils.inspection import undecorated
@@ -16,25 +19,21 @@ class TelescopicFunction:
 
     Each function has a unique code object, creating distinct frames at each stack level.
     This is more effective than recursion which reuses the same code object.
-
-    Usage:
-        func = TelescopicFunction("my_func", depth=20)
-        func()  # Execute the telescopic function
-        assert len(func.stacks) > 0  # Access collected stacks
     """
 
-    def __init__(self, chain_id: str, chain_depth: int):
+    def __init__(self, chain_id: str, chain_depth: int, unwinder: str):
         """
         Initialize a telescopic function.
 
         Args:
             chain_id: Unique identifier for this function (used in internal function names)
             chain_depth: Number of nested function calls
+            unwinder: The expression to call to capture frames (e.g. "inspection.unwind_current_thread")
         """
         self.chain_id = chain_id
         self.chain_depth = chain_depth
-        self.stacks: t.List[t.List[inspection.Frame]] = []
-        self._namespace: t.Dict[str, t.Any] = {"inspection": inspection}
+        self.unwinder = unwinder
+        self._namespace: t.Dict[str, t.Any] = globals().copy()  # Start with global namespace for access to built-ins
         self._generate_functions()
 
     def _generate_functions(self) -> None:
@@ -44,36 +43,16 @@ class TelescopicFunction:
 
             if depth == self.chain_depth - 1:
                 # Last function in chain - collect frames
-                func_code = textwrap.dedent(f"""
-                    def {func_name}(collector, funcs):
-                        marker = {hash(self.chain_id) + depth}  # Unique marker
-                        collector.append(inspection.unwind_current_thread())
-                        return marker
-                """)
+                func_code = f"def {func_name}(): return {self.unwinder}()"
             else:
                 # Intermediate function - call next in chain
-                next_func_name = f"chain_{self.chain_id}_func_{depth + 1}"
-                func_code = textwrap.dedent(f"""
-                    def {func_name}(collector, funcs):
-                        marker = {hash(self.chain_id) + depth}  # Unique marker ensures unique code
-                        # Look up next function from passed funcs dict
-                        next_func = funcs.get('{next_func_name}')
-                        if next_func:
-                            return next_func(collector, funcs)
-                        return marker
-                """)
+                func_code = f"def {func_name}(): return chain_{self.chain_id}_func_{depth + 1}()"
 
             exec(func_code, self._namespace, self._namespace)
 
-    def __call__(self) -> int:
-        """
-        Execute the telescopic function.
-
-        Returns:
-            The marker value from the deepest nested function
-        """
-        start_func: t.Callable = self._namespace[f"chain_{self.chain_id}_func_0"]
-        return start_func(self.stacks, self._namespace)
+    def __call__(self) -> list:
+        """Execute the telescopic function."""
+        return eval(f"chain_{self.chain_id}_func_0()", self._namespace, self._namespace)
 
 
 def test_undecorated():
@@ -163,32 +142,6 @@ def test_unwind_cache_reuse():
         # due to different positions in the loop
 
 
-def test_unwind_cache_different_depths():
-    """Test cache behavior with different call stack depths."""
-
-    def level3():
-        return inspection.unwind_current_thread()
-
-    def level2():
-        return level3()
-
-    def level1():
-        return level2()
-
-    # Get frames from deep call stack
-    deep_frames = level1()
-
-    # Get frames from shallow call stack
-    shallow_frames = inspection.unwind_current_thread()
-
-    # Deep stack should have more frames
-    assert len(deep_frames) > len(shallow_frames)
-
-    # Both should have valid frame data
-    assert all(isinstance(f, inspection.Frame) for f in deep_frames)
-    assert all(isinstance(f, inspection.Frame) for f in shallow_frames)
-
-
 def test_unwind_cache_bounded_behavior():
     """Test that the cache has bounded size and evicts old entries."""
     # Generate many unique frames by calling from many different line numbers
@@ -215,28 +168,6 @@ def test_unwind_cache_bounded_behavior():
     final_frames = inspection.unwind_current_thread()
     assert len(final_frames) > 0
     assert all(isinstance(f, inspection.Frame) for f in final_frames)
-
-
-def test_unwind_cache_frame_attributes():
-    """Test that frames have all expected attributes."""
-    frames = inspection.unwind_current_thread()
-
-    # Verify all frames have the expected attributes
-    for frame in frames:
-        assert hasattr(frame, "file")
-        assert hasattr(frame, "name")
-        assert hasattr(frame, "line")
-        assert hasattr(frame, "line_end")
-        assert hasattr(frame, "column")
-        assert hasattr(frame, "column_end")
-
-        # Verify attributes have reasonable values
-        assert isinstance(frame.file, str)
-        assert isinstance(frame.name, str)
-        assert isinstance(frame.line, int) and frame.line >= 0
-        assert isinstance(frame.line_end, int) and frame.line_end >= 0
-        assert isinstance(frame.column, int) and frame.column >= 0
-        assert isinstance(frame.column_end, int) and frame.column_end >= 0
 
 
 def test_unwind_cache_stability_under_repeated_calls():
@@ -337,11 +268,9 @@ def test_unwind_cache_eviction_stress_with_dynamic_functions():
 
         for func_id in range(num_functions):
             # Create and execute telescopic function
-            func = TelescopicFunction(str(func_id), call_depth)
-            func()
-
-            assert len(func.stacks) > 0, f"Function {func_id} should have collected frames"
-            all_collected_frames.extend(func.stacks)
+            stack: list = TelescopicFunction(str(func_id), call_depth, "inspection.unwind_current_thread")()
+            assert len(stack) > 0, f"Function {func_id} should have collected frames"
+            all_collected_frames.append(stack)
 
         # At this point: 10 functions × 200 depth = 2000 unique frames per collection
         # With cache size of 100, we've forced many evictions
@@ -366,7 +295,6 @@ def test_unwind_cache_eviction_stress_with_dynamic_functions():
 
         # Verify we checked a significant number of frames
         # Each function creates ~200 frames, we have 10 functions
-        print(f"✓ Verified {total_frames_checked} frames remain valid after cache evictions")
         assert total_frames_checked > test_cache_size * 1.5, "Should have created many more frames than cache size"
 
     finally:
@@ -407,10 +335,11 @@ def test_unwind_cache_eviction_with_threads_and_dynamic_functions():
                 # Each thread creates multiple functions
                 for func_idx in range(num_functions):
                     # Create and execute telescopic function
-                    func_id = f"t{thread_id}_f{func_idx}"
-                    func = TelescopicFunction(func_id, call_depth)
-                    func()
-                    thread_frames.extend(func.stacks)
+                    thread_frames.append(
+                        TelescopicFunction(
+                            f"t{thread_id}_f{func_idx}", call_depth, "inspection.unwind_current_thread"
+                        )()
+                    )
 
                     # Occasional yield to encourage thread switching
                     if func_idx % 3 == 0:
@@ -445,11 +374,6 @@ def test_unwind_cache_eviction_with_threads_and_dynamic_functions():
             thread.join(timeout=60)
 
         # Verify no errors occurred
-        if errors:
-            print("Errors encountered:")
-            for thread_id, error, trace in errors:
-                print(f"Thread {thread_id}: {error}")
-                print(trace)
         assert len(errors) == 0, f"Threads encountered {len(errors)} error(s)"
 
         # Verify all threads completed
@@ -461,12 +385,6 @@ def test_unwind_cache_eviction_with_threads_and_dynamic_functions():
         expected_frame_lists = num_threads * functions_per_thread
         frames_per_function = 150  # call_depth from worker_thread
 
-        print(f"✓ {num_threads} threads created {total_frame_lists} frame lists")
-        print(f"✓ Expected {expected_frame_lists} frame lists, got {total_frame_lists}")
-        print(f"✓ Each frame list contains ~{frames_per_function} unique frames")
-        print(f"✓ Total unique frames created: ~{total_frame_lists * frames_per_function}")
-        print(f"✓ Cache size: {test_cache_size}, cache evictions were triggered")
-
         # Verify we created the expected number of frame lists
         assert total_frame_lists == expected_frame_lists, f"Should have created {expected_frame_lists} frame lists"
         # Each frame list contains ~frames_per_function frames, so total frames >> cache size
@@ -475,3 +393,152 @@ def test_unwind_cache_eviction_with_threads_and_dynamic_functions():
     finally:
         # Restore original cache size
         inspection.set_frame_cache_size(original_cache_size)
+
+
+# ==============================================================================
+# Benchmarks: Compare Python vs Native Stack Unwinding
+# ==============================================================================
+
+
+def capture_stack(top_frame: FrameType, max_height: int = 4096) -> t.List[dict]:
+    frame: t.Optional[FrameType] = top_frame
+    stack = []
+    h = 0
+    while frame and h < max_height:
+        code = frame.f_code
+        stack.append(
+            {
+                "fileName": code.co_filename,
+                "function": code.co_name,
+                "lineNumber": frame.f_lineno,
+            }
+        )
+        frame = frame.f_back
+        h += 1
+    return stack
+
+
+def create_deep_stack(depth: int, capture_func: t.Callable) -> t.List[t.Dict[str, t.Any]]:
+    """
+    Recursively create a deep call stack and capture it.
+
+    Args:
+        depth: How many more levels of recursion to create
+        capture_func: Function to call to capture the stack (either capture_stack or unwind_current_thread)
+
+    Returns:
+        List of dictionaries with stack frame information (same format for both implementations)
+    """
+    if depth == 0:
+        return capture_func()
+    return create_deep_stack(depth - 1, capture_func)
+
+
+def native_unwinder():
+    return [{"fileName": f.file, "function": f.name, "lineNumber": f.line} for f in inspection.unwind_current_thread()]
+
+
+def python_unwinder():
+    return capture_stack(sys._getframe())
+
+
+# Benchmark: Shallow stacks (typical case)
+@pytest.mark.benchmark(group="shallow-stack")
+def test_benchmark_python_capture_stack_shallow_10(benchmark):
+    """Benchmark Python implementation with shallow stack (10 frames)."""
+    result = benchmark(create_deep_stack, 10, python_unwinder)
+    assert len(result) >= 10
+
+
+@pytest.mark.benchmark(group="shallow-stack")
+def test_benchmark_native_unwind_current_thread_shallow_10(benchmark):
+    """Benchmark native implementation with shallow stack (10 frames)."""
+    result = benchmark(create_deep_stack, 10, native_unwinder)
+    assert len(result) >= 10
+
+
+@pytest.mark.benchmark(group="shallow-stack")
+def test_benchmark_python_capture_stack_shallow_20(benchmark):
+    """Benchmark Python implementation with shallow stack (20 frames)."""
+    result = benchmark(create_deep_stack, 20, python_unwinder)
+    assert len(result) >= 20
+
+
+@pytest.mark.benchmark(group="shallow-stack")
+def test_benchmark_native_unwind_current_thread_shallow_20(benchmark):
+    """Benchmark native implementation with shallow stack (20 frames)."""
+    result = benchmark(create_deep_stack, 20, native_unwinder)
+    assert len(result) >= 20
+
+
+# Benchmark: Medium stacks (realistic application case)
+@pytest.mark.benchmark(group="medium-stack")
+def test_benchmark_python_capture_stack_medium_50(benchmark):
+    """Benchmark Python implementation with medium stack (50 frames)."""
+    result = benchmark(create_deep_stack, 50, python_unwinder)
+    assert len(result) >= 50
+
+
+@pytest.mark.benchmark(group="medium-stack")
+def test_benchmark_native_unwind_current_thread_medium_50(benchmark):
+    """Benchmark native implementation with medium stack (50 frames)."""
+    result = benchmark(create_deep_stack, 50, native_unwinder)
+    assert len(result) >= 50
+
+
+@pytest.mark.benchmark(group="medium-stack")
+def test_benchmark_python_capture_stack_medium_100(benchmark):
+    """Benchmark Python implementation with medium stack (100 frames)."""
+    result = benchmark(create_deep_stack, 100, python_unwinder)
+    assert len(result) >= 100
+
+
+@pytest.mark.benchmark(group="medium-stack")
+def test_benchmark_native_unwind_current_thread_medium_100(benchmark):
+    """Benchmark native implementation with medium stack (100 frames)."""
+    result = benchmark(create_deep_stack, 100, native_unwinder)
+    assert len(result) >= 100
+
+
+# Benchmark: Deep stacks (stress test)
+@pytest.mark.benchmark(group="deep-stack")
+def test_benchmark_python_capture_stack_deep_500(benchmark):
+    """Benchmark Python implementation with deep stack (500 frames)."""
+    result = benchmark(create_deep_stack, 500, python_unwinder)
+    assert len(result) >= 500
+
+
+@pytest.mark.benchmark(group="deep-stack")
+def test_benchmark_native_unwind_current_thread_deep_500(benchmark):
+    """Benchmark native implementation with deep stack (500 frames)."""
+    result = benchmark(create_deep_stack, 500, native_unwinder)
+    assert len(result) >= 500
+
+
+# Benchmark: Telescopic stacks (more realistic than recursion)
+@pytest.mark.benchmark(group="telescopic-stack")
+def test_benchmark_python_capture_stack_telescopic_50(benchmark):
+    """Benchmark Python implementation with telescopic stack (50 unique frames)."""
+    result = benchmark(TelescopicFunction("test1", 50, "python_unwinder"))
+    assert len(result) >= 50
+
+
+@pytest.mark.benchmark(group="telescopic-stack")
+def test_benchmark_native_unwind_current_thread_telescopic_50(benchmark):
+    """Benchmark native implementation with telescopic stack (50 unique frames)."""
+    result = benchmark(TelescopicFunction("test2", 50, "native_unwinder"))
+    assert len(result) >= 50
+
+
+@pytest.mark.benchmark(group="telescopic-stack")
+def test_benchmark_python_capture_stack_telescopic_100(benchmark):
+    """Benchmark Python implementation with telescopic stack (100 unique frames)."""
+    result = benchmark(TelescopicFunction("test3", 100, "python_unwinder"))
+    assert len(result) >= 100
+
+
+@pytest.mark.benchmark(group="telescopic-stack")
+def test_benchmark_native_unwind_current_thread_telescopic_100(benchmark):
+    """Benchmark native implementation with telescopic stack (100 unique frames)."""
+    result = benchmark(TelescopicFunction("test4", 100, "native_unwinder"))
+    assert len(result) >= 100

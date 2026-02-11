@@ -510,21 +510,17 @@ set_frame_cache_size(PyObject* module, PyObject* args)
         return NULL;
     }
 
-    // If shrinking the cache, evict excess entries
+    // If shrinking the cache, clear it entirely and reset state
+    // Cache resizing is rare (mainly in tests), so this simple approach is acceptable
     if (new_size < state->cache_size) {
-        while (state->cache_map->size() > new_size) {
-            // Evict the oldest entry
-            uintptr_t evict_key = (*state->cache_ring)[state->ring_pos];
-            if (evict_key != 0) {
-                auto evict_it = state->cache_map->find(evict_key);
-                if (evict_it != state->cache_map->end()) {
-                    Py_DECREF(evict_it->second);
-                    state->cache_map->erase(evict_it);
-                }
-                (*state->cache_ring)[state->ring_pos] = 0;
-            }
-            state->ring_pos = (state->ring_pos + 1) % state->cache_size;
+        // Decrement refcounts for all cached frames
+        for (auto& pair : *state->cache_map) {
+            Py_DECREF(pair.second);
         }
+        // Clear the cache and reset state
+        state->cache_map->clear();
+        std::fill(state->cache_ring->begin(), state->cache_ring->end(), 0);
+        state->ring_pos = 0;
     }
 
     // Resize ring buffer if needed
