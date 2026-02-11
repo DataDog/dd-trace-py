@@ -30,11 +30,6 @@ tests/telemetry                     @DataDog/apm-python
 
 # Guild
 # Root level config files
-AGENTS.md                           @DataDog/python-guild
-CODE_REVIEW.md                      @DataDog/python-guild
-MESSAGE.md                          @DataDog/python-guild
-PR_DESCRIPTION.md                   @DataDog/python-guild
-SECURITY.md                         @DataDog/python-guild
 conftest.py                         @DataDog/python-guild
 docker-compose.gpu.yml              @DataDog/python-guild
 docker-compose.yml                  @DataDog/python-guild
