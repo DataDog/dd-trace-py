@@ -4,7 +4,7 @@ import typing as t
 from ddtrace.internal.settings._core import DDConfig
 
 
-def parse_modules(value: t.Union[str, None]) -> list[str]:
+def parse_modules(value: t.Union[str, None]) -> t.List[str]:
     if not isinstance(value, str):
         return []
 
@@ -32,7 +32,7 @@ class ErrorTrackingConfig(DDConfig):
         """
         HANDLED_EXCEPTIONS_MONITORING_ID = 3
 
-    _configured_modules: list[str] = list()
+    _configured_modules: t.List[str] = list()
     _instrument_user_code = False
     _instrument_third_party_code = False
     _instrument_all = False
