@@ -139,7 +139,7 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.azure_cosmos),
         span_type=SpanTypes.HTTP,
     ) as span:
-        log.debug("in the span")
+        '''log.debug("in the span")
         #span kind
         span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         #replacement for db.type, is db.system
@@ -185,9 +185,9 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
                     if parts[2].lower() == "colls":
                         #container id
                         span._set_tag_str("cosmosdb.container", parts[3])
-        
+        '''
         result = await wrapped(*args, **kwargs)
-        (res, headers) = result
+        '''(res, headers) = result
 
         log.debug("RESULT")
         log.debug(str(result))
@@ -198,7 +198,7 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
         #span._set_tag_str(http.STATUS_CODE, res["statusCode"])
         #self-explanatory
         #span._set_tag_str("cosmosdb.response.sub_status_code", headers[azure_cosmos.http_constants.HttpHeaders.SubStatus])
-
+        '''
         return result
 
 

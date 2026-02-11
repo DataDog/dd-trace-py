@@ -36,7 +36,6 @@ __all__ = [
     "DDTraceDeprecationWarning",
 ]
 
-
 def check_supported_python_version():
     if PYTHON_VERSION_INFO < (3, 10):
         deprecation_message = (
