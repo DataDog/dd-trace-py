@@ -19,7 +19,7 @@ LOG = logging.getLogger(__name__)
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 
-_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, list[str]]] = None
+_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
 
 @callonce

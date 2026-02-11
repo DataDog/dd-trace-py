@@ -15,10 +15,11 @@ from ddtrace.internal import _unpatched
 
 log = logging.getLogger(__name__)
 
-
-_registry: list[typing.Callable[[], None]] = []
-_registry_before_fork: list[typing.Callable[[], None]] = []
-_registry_after_parent: list[typing.Callable[[], None]] = []
+# IMPORTANT: Do not change typing.List to list until minimum Python version is 3.11+
+# Module-level list[...] in Python 3.10 affects import timing. See packages.py for details.
+_registry: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
+_registry_before_fork: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
+_registry_after_parent: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
