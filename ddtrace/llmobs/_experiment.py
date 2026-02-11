@@ -800,6 +800,10 @@ class Experiment:
             experiment_name=self.name,
         ) as span:
             span_context = self._llmobs_instance.export_span(span=span)
+            # store the span IDs so that the user doesn't need to track the span for post run eval submission
+            if self._is_distributed:
+                self.experiment_span = span_context
+
             if span_context:
                 span_id = span_context.get("span_id", "")
                 trace_id = span_context.get("trace_id", "")
@@ -1122,7 +1126,7 @@ class Experiment:
         if not self._is_distributed:
             raise ValueError("this method is only used for distributed experiments")
 
-        if not is_summary_eval and (
+        if span is not None and (
             not isinstance(span, dict)
             or not isinstance(span.get("span_id"), str)
             or not isinstance(span.get("trace_id"), str)
@@ -1131,6 +1135,12 @@ class Experiment:
                 "`span` must be a dictionary containing both span_id and trace_id keys. "
                 "LLMObs.export_span() can be used to generate this dictionary from a given span."
             )
+
+        if span is None and not is_summary_eval and self.experiment_span is None:
+            raise TypeError("unexpected state, must supply span or must run the experiment first")
+
+        if span is None and not is_summary_eval:
+            span = self.experiment_span
 
         timestamp_ns = int(time.time() * 1e9)
 
