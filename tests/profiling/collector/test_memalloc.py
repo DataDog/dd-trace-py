@@ -1193,3 +1193,57 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+@pytest.mark.subprocess()
+def test_memalloc_allocator_hook_does_not_release_gil() -> None:
+    """Regression test for IR-49169: memory profiler crash from GIL release during allocator hook.
+
+    The allocator hook calls PyObject_CallObject(threading.current_thread()) which
+    re-enters the eval loop. _Py_HandlePending can then release the GIL (when other
+    threads are waiting) or trigger GC, corrupting partially-constructed objects.
+    If the bug is present, this test segfaults.
+    """
+    import threading
+    import time
+
+    from ddtrace.profiling.collector import _memalloc
+
+    # sample_size=1: sample nearly every allocation so the hook fires
+    # during dictresize's internal malloc while the dict is inconsistent.
+    _memalloc.start(64, 1)
+
+    stop = threading.Event()
+    shared: dict = {}
+
+    def mutate(tid: int) -> None:
+        i = 0
+        while not stop.is_set():
+            for j in range(100):
+                shared[f"{tid}_{i}_{j}"] = [0] * 10
+            i += 1
+            if i % 5 == 0:
+                shared.clear()
+
+    def read() -> None:
+        while not stop.is_set():
+            try:
+                list(shared.items())
+            except RuntimeError:
+                pass
+
+    threads = []
+    for i in range(4):
+        threads.append(threading.Thread(target=mutate, args=(i,)))
+    for _ in range(4):
+        threads.append(threading.Thread(target=read))
+    for t in threads:
+        t.start()
+
+    time.sleep(5)
+    stop.set()
+
+    for t in threads:
+        t.join(timeout=10)
+
+    _memalloc.stop()
