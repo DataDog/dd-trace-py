@@ -154,7 +154,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mysqldb",
         "pynamodb",
         "anthropic",
-    "llama_index": {},  # TODO: Add config options
+        "llama_index",
         "aiopg",
         "dogpile_cache",
         "pylibmc",
