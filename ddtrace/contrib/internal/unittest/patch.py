@@ -1,5 +1,6 @@
 import inspect
 import os
+from typing import Dict
 from typing import Optional
 from typing import Union
 import unittest
@@ -67,11 +68,12 @@ config._add(
 )
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return ""
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"unittest": "*"}
 
 

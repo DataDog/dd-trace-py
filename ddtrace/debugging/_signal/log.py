@@ -32,11 +32,11 @@ class LogSignal(Signal):
         pass
 
     @property
-    def data(self) -> dict[str, t.Any]:
+    def data(self) -> t.Dict[str, t.Any]:
         """Extra data to include in the snapshot portion of the log message."""
         return {}
 
-    def _probe_details(self) -> dict[str, t.Any]:
+    def _probe_details(self) -> t.Dict[str, t.Any]:
         probe = self.probe
         if isinstance(probe, LineLocationMixin):
             location = {
@@ -58,7 +58,7 @@ class LogSignal(Signal):
         }
 
     @property
-    def snapshot(self) -> dict[str, t.Any]:
+    def snapshot(self) -> t.Dict[str, t.Any]:
         full_data = {
             "id": self.uuid,
             "timestamp": int(self.timestamp * 1e3),  # milliseconds

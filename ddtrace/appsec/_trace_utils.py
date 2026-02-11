@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -271,7 +272,7 @@ def track_user_signup_event(
         )
 
 
-def track_custom_event(tracer: Any, event_name: str, metadata: dict[str, Any]) -> None:
+def track_custom_event(tracer: Any, event_name: str, metadata: Dict[str, Any]) -> None:
     """
     Add a new custom tracking event.
 
@@ -322,7 +323,7 @@ def should_block_user(tracer: Any, userid: str, session_id: Optional[str] = None
     # Early check to avoid calling the WAF if the request is already blockedxw
     if get_blocked():
         return True
-    custom_data: dict[str, Any] = {}
+    custom_data: Dict[str, Any] = {}
     if userid is not None:
         custom_data["REQUEST_USER_ID"] = str(userid)
     if session_id is not None:

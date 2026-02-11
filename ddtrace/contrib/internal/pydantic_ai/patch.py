@@ -1,4 +1,5 @@
 import sys
+from typing import Dict
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
@@ -21,7 +22,7 @@ def get_version() -> str:
     return getattr(pydantic_ai, "__version__", "0.0.0")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"pydantic_ai": "*"}
 
 

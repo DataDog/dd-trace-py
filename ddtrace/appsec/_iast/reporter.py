@@ -4,7 +4,11 @@ import json
 import operator
 import os
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Set
+from typing import Tuple
 import zlib
 
 from ddtrace.appsec._constants import STACK_TRACE
@@ -50,8 +54,8 @@ class NotNoneDictable:
 class Evidence(NotNoneDictable):
     dialect: Optional[str] = None
     value: Optional[str] = None
-    _ranges: list[dict] = dataclasses.field(default_factory=list)
-    valueParts: Optional[list] = None
+    _ranges: List[Dict] = dataclasses.field(default_factory=list)
+    valueParts: Optional[List] = None
 
     def _valueParts_hash(self):
         if not self.valueParts:
@@ -154,8 +158,8 @@ class IastSpanReporter(NotNoneDictable):
     """
 
     stacktrace_id: int = 0
-    sources: list[Source] = dataclasses.field(default_factory=list)
-    vulnerabilities: set[Vulnerability] = dataclasses.field(default_factory=set)
+    sources: List[Source] = dataclasses.field(default_factory=list)
+    vulnerabilities: Set[Vulnerability] = dataclasses.field(default_factory=set)
 
     def __hash__(self) -> int:
         """
@@ -208,7 +212,7 @@ class IastSpanReporter(NotNoneDictable):
         self._merge(other)
         self.stacktrace_id = other.stacktrace_id
 
-    def _merge_dict(self, data: dict[str, Any]) -> None:
+    def _merge_dict(self, data: Dict[str, Any]) -> None:
         """
         Merges the current IAST span reporter with another IAST span reporter from a dictionary.
 
@@ -244,7 +248,7 @@ class IastSpanReporter(NotNoneDictable):
                         part["source"] = part["source"] + offset
             self.vulnerabilities.add(vuln)
 
-    def _from_dict(self, data: dict[str, Any]):
+    def _from_dict(self, data: Dict[str, Any]):
         """Initializes the IAST span reporter from a dictionary."""
         from ._taint_tracking import str_to_origin
 
@@ -292,7 +296,7 @@ class IastSpanReporter(NotNoneDictable):
         }
 
     @staticmethod
-    def taint_ranges_as_evidence_info(pyobject: Any) -> tuple[list[Source], list[dict]]:
+    def taint_ranges_as_evidence_info(pyobject: Any) -> Tuple[List[Source], List[Dict]]:
         """
         Extracts tainted ranges as evidence information.
 
@@ -300,7 +304,7 @@ class IastSpanReporter(NotNoneDictable):
         - pyobject (Any): Python object.
 
         Returns:
-        - tuple[set[Source], list[dict]]: Set of Source objects and list of tainted ranges as dictionaries.
+        - Tuple[Set[Source], List[Dict]]: Set of Source objects and list of tainted ranges as dictionaries.
         """
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 
@@ -333,12 +337,12 @@ class IastSpanReporter(NotNoneDictable):
             if source not in self.sources:
                 self.sources = self.sources + [source]
 
-    def build_and_scrub_value_parts(self) -> dict[str, Any]:
+    def build_and_scrub_value_parts(self) -> Dict[str, Any]:
         """
         Builds and scrubs value parts of vulnerabilities.
 
         Returns:
-        - dict[str, Any]: Dictionary representation of the IAST span reporter.
+        - Dict[str, Any]: Dictionary representation of the IAST span reporter.
         """
         if not is_iast_request_enabled():
             log.debug(
@@ -370,17 +374,17 @@ class IastSpanReporter(NotNoneDictable):
                 vuln.evidence.value = None
         return self._to_dict()
 
-    def get_unredacted_value_parts(self, evidence_value: str, ranges: list[dict], sources: list[Any]) -> list[dict]:
+    def get_unredacted_value_parts(self, evidence_value: str, ranges: List[dict], sources: List[Any]) -> List[dict]:
         """
         Gets unredacted value parts of evidence.
 
         Args:
         - evidence_value (str): Evidence value.
-        - ranges (list[dict]): list of tainted ranges.
-        - sources (list[Any]): list of sources.
+        - ranges (List[Dict]): List of tainted ranges.
+        - sources (List[Any]): List of sources.
 
         Returns:
-        - list[dict]: list of unredacted value parts.
+        - List[Dict]: List of unredacted value parts.
         """
         value_parts = []
         from_index = 0

@@ -2,6 +2,7 @@ from pathlib import Path
 import sys
 from types import CodeType
 from types import ModuleType
+from typing import Set
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.internal.module import ModuleHookType
@@ -9,7 +10,7 @@ from ddtrace.internal.module import ModuleWatchdog
 
 
 class DebuggerModuleWatchdog(ModuleWatchdog):
-    _locations: set[str] = set()
+    _locations: Set[str] = set()
 
     def transform(self, code: CodeType, module: ModuleType) -> CodeType:
         return FunctionDiscovery.transformer(code, module)

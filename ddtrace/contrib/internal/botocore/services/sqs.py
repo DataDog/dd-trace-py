@@ -1,5 +1,6 @@
 import json
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import botocore.client  # noqa: F401
@@ -36,7 +37,7 @@ def _encode_data(data):
 
 
 def add_dd_attributes_to_message(
-    data_to_add: dict[str, str], entry: dict[str, Any], endpoint_service: Optional[str] = None
+    data_to_add: Dict[str, str], entry: Dict[str, Any], endpoint_service: Optional[str] = None
 ) -> None:
     entry.setdefault("MessageAttributes", {})
     if len(entry["MessageAttributes"]) >= MAX_INJECTION_DATA_ATTRIBUTES:

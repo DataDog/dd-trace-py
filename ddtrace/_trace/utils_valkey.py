@@ -3,6 +3,7 @@ Some utils used by the dogtrace valkey integration
 """
 
 from contextlib import contextmanager
+from typing import List
 from typing import Optional
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -24,7 +25,7 @@ format_command_args = stringify_cache_args
 
 
 def _set_span_tags(
-    span, pin, config_integration, args: Optional[list], instance, query: Optional[list], is_cluster: bool = False
+    span, pin, config_integration, args: Optional[List], instance, query: Optional[List], is_cluster: bool = False
 ):
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span._set_tag_str(COMPONENT, config_integration.integration_name)

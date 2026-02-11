@@ -1,13 +1,16 @@
 from collections import defaultdict
 import pathlib
+from typing import DefaultDict
+from typing import Dict
+from typing import List
 from typing import Optional
 
 import yaml
 
 
-def get_integration_to_dependency_map(special_cases: Optional[dict[str, str]] = None) -> defaultdict[str, set]:
+def get_integration_to_dependency_map(special_cases: Optional[Dict[str, str]] = None) -> DefaultDict[str, set]:
     REGISTRY_YAML_PATH = pathlib.Path("ddtrace/contrib/integration_registry/registry.yaml")
-    dependency_map: defaultdict[str, set] = defaultdict(set)
+    dependency_map: DefaultDict[str, set] = defaultdict(set)
 
     with open(REGISTRY_YAML_PATH, "r", encoding="utf-8") as f:
         registry_content = yaml.safe_load(f)
@@ -31,8 +34,8 @@ def get_integration_to_dependency_map(special_cases: Optional[dict[str, str]] = 
     return dependency_map
 
 
-def invert_integration_to_dependency_map(integration_to_deps: dict[str, list[str]]) -> dict[str, str]:
-    dependency_to_integration_map: dict[str, str] = {}
+def invert_integration_to_dependency_map(integration_to_deps: Dict[str, List[str]]) -> Dict[str, str]:
+    dependency_to_integration_map: Dict[str, str] = {}
     for integration, dependency_list in integration_to_deps.items():
         for dependency in dependency_list:
             dependency_to_integration_map[dependency.lower()] = integration.lower()
