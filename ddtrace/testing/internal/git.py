@@ -145,7 +145,7 @@ class Git:
             version_tuple = tuple(int(part) for part in version_string.split("."))
             return version_tuple
         except (IndexError, ValueError):
-            log.error("Could not parse git --version output: %s", output)
+            log.warning("Could not parse git --version output: %s", output)
             return (0, 0, 0)
 
     def get_repository_url(self) -> str:
