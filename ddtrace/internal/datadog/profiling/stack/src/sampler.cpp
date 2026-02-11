@@ -1,5 +1,6 @@
 #include "sampler.hpp"
 
+#include "constants.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -153,6 +154,9 @@ Sampler::adapt_sampling_interval()
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
+    // Mark thread as running
+    thread_running.store(true);
+
     // Re-install SIGSEGV/SIGBUS handlers here, after Python initialization.
     // The handlers may have been installed during static init, but Python or
     // libraries (faulthandler, Django, FastAPI) can overwrite them afterwards.
@@ -176,7 +180,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // Perform the sample
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, interp.id, tstate, wall_time_us);
+                auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -184,7 +188,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
         });
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
-        Sample::profile_borrow().stats().set_string_table_count(string_table.size());
+        Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -205,6 +209,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // systems.
         std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
     }
+
+    // Signal that the thread is exiting
+    {
+        std::lock_guard<std::mutex> lock(thread_exit_mutex);
+        thread_running.store(false);
+    }
+    thread_exit_cv.notify_all();
 }
 
 void
@@ -216,8 +227,7 @@ Sampler::set_interval(double new_interval_s)
 }
 
 Sampler::Sampler()
-  : echion{ std::make_unique<EchionSampler>() }
-  , renderer_ptr{ std::make_shared<StackRenderer>() }
+  : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {
 }
 
@@ -233,6 +243,12 @@ Sampler::postfork_child()
 {
     // Clear stale task/greenlet entries from parent process.
     // No lock needed: only one thread exists in child immediately after fork.
+
+    // The sampling thread from the parent doesn't exist in the child.
+    // Reset the flag so stop() doesn't wait for a non-existent thread.
+    thread_running.store(false);
+    new (&thread_exit_mutex) std::mutex();
+    new (&thread_exit_cv) std::condition_variable();
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
@@ -280,10 +296,6 @@ _stack_atfork_child()
 
     // Clear renderer caches to avoid using stale interned IDs
     Sampler::get().postfork_child();
-
-    // Reset the string_table mutex to avoid deadlock if fork happened while it was held
-    // Note: task_link_map_lock and greenlet_info_map_lock are handled in EchionSampler::postfork_child
-    string_table.postfork_child();
 }
 
 __attribute__((constructor)) void
@@ -295,15 +307,10 @@ _stack_init()
 void
 Sampler::one_time_setup()
 {
-    init_frame_cache(echion_frame_cache_size);
-
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the atfork handler to ensure that we're tracking the correct process
     _stack_atfork_child();
     pthread_atfork(nullptr, nullptr, _stack_atfork_child);
-
-    // Register our rendering callbacks with echion's Renderer singleton
-    Renderer::get().set_renderer(renderer_ptr);
 }
 
 void
@@ -360,9 +367,12 @@ Sampler::start()
     // We might as well get the default stack size and use that
     rlimit stack_sz = {};
     getrlimit(RLIMIT_STACK, &stack_sz);
-    if (create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num) == 0) {
+    auto thread_id = create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num);
+    if (thread_id == 0) {
         return false;
     }
+
+    pthread_detach(thread_id);
 #else
     try {
         std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
@@ -378,8 +388,16 @@ void
 Sampler::stop()
 {
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
-    // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
+    // a sampling loop.
     ++thread_seq_num;
+
+    // Wait for the sampling thread to actually exit (with timeout to avoid hanging forever)
+    std::unique_lock<std::mutex> lock(thread_exit_mutex);
+    constexpr auto timeout = std::chrono::seconds(3);
+    bool exited = thread_exit_cv.wait_for(lock, timeout, [this]() { return !thread_running.load(); });
+    if (!exited) {
+        std::cerr << "Failed to stop sampling thread after timeout, exiting forcefully." << std::endl;
+    }
 }
 
 void

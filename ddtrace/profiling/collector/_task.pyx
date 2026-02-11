@@ -1,4 +1,3 @@
-import sys
 from types import ModuleType
 import weakref
 
@@ -82,15 +81,14 @@ cdef _asyncio_task_get_frame(task):
     return None
 
 
-cpdef get_task(thread_id):
-    """Return the task id and name for a thread."""
+cpdef get_task():
+    """Return the task id, name, and frame for the current task."""
     task_id = None
     task_name = None
     frame = None
 
-    loop = _asyncio.get_event_loop_for_thread(thread_id)
-    if loop is not None:
-        task = _asyncio.current_task(loop)
+    if _asyncio.get_running_loop() is not None:
+        task = _asyncio.current_task()
         if task is not None:
             task_id = id(task)
             task_name = _asyncio._task_get_name(task)

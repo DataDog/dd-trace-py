@@ -18,6 +18,7 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs.types import PromptFallback
 
@@ -194,12 +195,23 @@ class PromptManager:
             conn = get_connection(self._base_url, timeout=timeout)
             conn.request("GET", self._build_path(prompt_id, label), headers=self._headers)
             response = conn.getresponse()
+            status = response.status
 
-            if response.status == 200:
-                body = response.read().decode("utf-8")
+            body = response.read().decode("utf-8")
+
+            if status == 200:
                 return self._parse_response(body, prompt_id, label), False
-            return None, response.status == 404
-        except Exception:
+
+            detail = extract_error_detail(body)
+            if status == 404:
+                log.debug('Prompt not found: prompt_id=%s label=%s detail="%s"', prompt_id, label, detail)
+            else:
+                log.warning(
+                    'Prompt fetch failed: prompt_id=%s label=%s status=%d detail="%s"', prompt_id, label, status, detail
+                )
+            return None, status == 404
+        except Exception as e:
+            log.warning("Prompt fetch exception: prompt_id=%s label=%s: %s", prompt_id, label, e)
             return None, False
         finally:
             if conn is not None:
@@ -234,6 +246,9 @@ class PromptManager:
         """Parse the API response into a ManagedPrompt."""
         try:
             data = json.loads(body)
+            if not isinstance(data, dict):
+                log.warning("Failed to parse prompt response: expected object, got %s", type(data).__name__)
+                return None
             return ManagedPrompt(
                 id=data.get("prompt_id", prompt_id),
                 version=data.get("version", "unknown"),

@@ -1,3 +1,4 @@
+import json
 import re
 from typing import Any
 from typing import Dict
@@ -28,6 +29,13 @@ def safe_substitute(template: str, variables: Dict[str, str]) -> str:
         return str(variables.get(var_name, match.group(0)))
 
     return _VARIABLE_PATTERN.sub(replace_var, template)
+
+
+def extract_error_detail(body: str) -> str:
+    try:
+        return json.loads(body).get("detail", body)
+    except Exception:
+        return body
 
 
 def render_chat(messages: List[Message], variables: Dict[str, str]) -> List[Message]:

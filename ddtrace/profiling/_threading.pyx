@@ -1,24 +1,9 @@
 from __future__ import absolute_import
 
 import sys
-import typing
-import weakref
 
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
-
-
-from cpython cimport PyLong_FromLong
-
-
-cdef extern from "<Python.h>":
-    # This one is provided as an opaque struct from Cython's
-    # cpython/pystate.pxd, but we need to access some of its fields so we
-    # redefine it here.
-    ctypedef struct PyThreadState:
-        unsigned long thread_id
-
-    PyThreadState* PyThreadState_Get()
 
 
 cpdef get_thread_by_id(thread_id):
@@ -56,64 +41,3 @@ cpdef get_thread_native_id(thread_id):
         return thread_id
 
     return thread.native_id
-
-
-# cython does not play well with mypy
-if typing.TYPE_CHECKING:
-    _T = typing.TypeVar("_T")
-    _thread_link_base = typing.Generic[_T]
-    _weakref_type = weakref.ReferenceType[_T]
-else:
-    _thread_link_base = object
-    _weakref_type = typing.Any
-
-
-class _ThreadLink(_thread_link_base):
-    """Link a thread with an object.
-
-    Object is removed when the thread disappears.
-    """
-
-    __slots__ = ('_thread_id_to_object',)
-
-    def __init__(self):
-        # Key is a thread_id
-        # Value is a weakref to an object
-        self._thread_id_to_object: typing.Dict[int, _weakref_type] = {}
-
-    def link_object(
-            self,
-            obj  # type: _T
-    ):
-        # type: (...) -> None
-        """Link an object to the current running thread."""
-        # Because threads might become tasks with some frameworks (e.g. gevent),
-        # we retrieve the thread ID using the C API instead of the Python API.
-        self._thread_id_to_object[<object>PyLong_FromLong(PyThreadState_Get().thread_id)] = weakref.ref(obj)
-
-    def clear_threads(self,
-                      existing_thread_ids,  # type: typing.Set[int]
-                      ):
-        """Clean up the thread linking map.
-
-        We remove all threads that are not in the existing thread IDs.
-
-        :param existing_thread_ids: A set of thread ids to keep.
-        """
-        self._thread_id_to_object = {
-            k: v for k, v in self._thread_id_to_object.items() if k in existing_thread_ids
-        }
-
-    def get_object(
-            self,
-            thread_id  # type: int
-    ):
-        # type: (...) -> typing.Optional[_T]
-        """Return the object attached to thread.
-
-        :param thread_id: The thread id.
-        :return: The attached object.
-        """
-        obj_ref = self._thread_id_to_object.get(thread_id)
-        if obj_ref is not None:
-            return obj_ref()

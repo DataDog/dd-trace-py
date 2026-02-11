@@ -73,8 +73,6 @@ def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, An
         service=get_service_name(config_django.cache_service_name),
         resource=resource,
         tags=tags,
-        # TODO: Migrate all tests to snapshot tests and remove this
-        tracer=config_django._tracer,
     ) as ctx:
         result = func(*args, **kwargs)
 
