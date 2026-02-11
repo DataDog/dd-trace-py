@@ -2,12 +2,14 @@ import dataclasses
 import enum
 from typing import Any
 from typing import Callable
+from typing import Dict  # noqa: UP006
 from typing import Optional
+from typing import Tuple  # noqa: UP006
 
 from ddtrace.internal.settings._config import config
 
 
-_listeners: dict[str, dict[Any, Callable[..., Any]]] = {}
+_listeners: Dict[str, Dict[Any, Callable[..., Any]]] = {}  # noqa: UP006
 
 
 class ResultType(enum.Enum):
@@ -30,7 +32,7 @@ class EventResult:
 _MissingEvent = EventResult()
 
 
-class EventResultDict(dict[str, EventResult]):
+class EventResultDict(Dict[str, EventResult]):  # noqa: UP006
     def __missing__(self, key: str) -> EventResult:
         return _MissingEvent
 
@@ -73,7 +75,7 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
             del _listeners[event_id]
 
 
-def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
+def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:  # noqa: UP006
     """Call all hooks for the provided event_id with the provided args"""
     global _listeners
 
@@ -88,7 +90,7 @@ def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
                 raise
 
 
-def dispatch_with_results(event_id: str, args: tuple[Any, ...] = ()) -> EventResultDict:
+def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventResultDict:  # noqa: UP006
     """Call all hooks for the provided event_id with the provided args
     returning the results and exceptions from the called hooks
     """

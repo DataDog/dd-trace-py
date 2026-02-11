@@ -1,3 +1,4 @@
+from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.settings._core import DDConfig
@@ -15,7 +16,7 @@ class ProfilingConfig(DDConfig):
     max_time_usage_pct: float
     api_timeout_ms: int
     timeline_enabled: bool
-    tags: dict[str, str]
+    tags: Dict[str, str]  # noqa: UP006
     enable_asserts: bool
     sample_pool_capacity: int
     stack: ProfilingConfigStack
