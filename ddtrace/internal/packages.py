@@ -101,7 +101,11 @@ def _effective_root(rel_path: Path, parent: Path) -> str:
 
 # DEV: Since we can't lock on sys.path, these operations can be racy.
 _SYS_PATH_HASH: t.Optional[int] = None
-_RESOLVED_SYS_PATH: list[Path] = []
+# IMPORTANT: Do not change t.List to list until minimum Python version is 3.11+
+# In Python 3.10, using list[Path] as a module-level annotation causes the subscript
+# operation to be evaluated at import time, which affects import order and timing.
+# This creates a race condition with IAST patching of psycopg3 in the appsec test suite.
+_RESOLVED_SYS_PATH: t.List[Path] = []  # noqa: UP006
 
 
 def resolve_sys_path() -> list[Path]:
