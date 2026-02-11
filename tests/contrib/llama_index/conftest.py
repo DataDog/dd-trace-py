@@ -1,18 +1,11 @@
-"""Pytest fixtures for llama_index LLMObs tests.
-
-These fixtures follow the pattern from tests/contrib/anthropic/conftest.py.
-"""
-import os
-
+"""Pytest fixtures for llama_index integration tests."""
 import mock
 import pytest
 
 from ddtrace.contrib.internal.llama_index.patch import patch
 from ddtrace.contrib.internal.llama_index.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from tests.contrib.llama_index.utils import get_request_vcr
 from tests.utils import override_config
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -59,19 +52,8 @@ def llama_index(ddtrace_global_config, ddtrace_config_llama_index):
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
         with override_config("llama_index", ddtrace_config_llama_index):
-            with override_env(
-                dict(
-                    # TODO: Set the appropriate API key env var for this library
-                    # LLAMA_INDEX_API_KEY=os.getenv("LLAMA_INDEX_API_KEY", "<not-a-real-key>"),
-                )
-            ):
-                patch()
-                import llama_index
+            patch()
+            import llama_index.core
 
-                yield llama_index
-                unpatch()
-
-
-@pytest.fixture(scope="session")
-def request_vcr():
-    yield get_request_vcr()
+            yield llama_index.core
+            unpatch()

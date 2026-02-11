@@ -172,7 +172,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph.graph",
         "langgraph.prebuilt",
     ),
-    "llama_index": ("llama_index",),
+    "llama_index": ("llama_index.core",),
     "openai_agents": ("agents",),
 }
 
