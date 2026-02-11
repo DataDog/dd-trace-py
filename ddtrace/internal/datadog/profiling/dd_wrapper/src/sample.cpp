@@ -108,6 +108,9 @@ unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unkn
     if (ptr) {
         return std::string_view(ptr, len);
     }
+    // PyUnicode_AsUTF8AndSize sets an error on failure. Clear it because
+    // frame sampling may continue and callers preserve/restore prior state.
+    PyErr_Clear();
     return fallback;
 }
 
@@ -120,10 +123,8 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
      * Note: The caller retains ownership of the initial frame. We only take ownership
      * of subsequent frames obtained from PyFrame_GetBack(). */
 
-    // Save and restore Python error state
-    // PyFrame_GetBack() in Python 3.14+ may set a spurious "TypeError: bad argument type"
-    // but still return a valid result. PythonErrorRestorer will clear this error on destruction
-    // if there was no error before we started.
+    // Preserve any raised C-level exception already in flight. Some frame APIs
+    // may also set transient local errors while returning usable results.
     PythonErrorRestorer error_restorer;
 
     bool is_initial_frame = true;
@@ -166,9 +167,21 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         // push_frame copies the strings immediately into its StringArena
         push_frame(name_sv, filename_sv, 0, lineno_val);
 
-        // Python 3.9+: PyFrame_GetBack() and PyFrame_GetCode() return new references
+        // Python 3.9+: PyFrame_GetBack() and PyFrame_GetCode() return new references.
         PyFrameObject* back = PyFrame_GetBack(f);
         Py_XDECREF(code); // Release code reference from PyFrame_GetCode
+
+        if (back == nullptr) {
+            if (PyErr_Occurred()) {
+                // PyFrame_GetBack can return NULL with an error set in some edge
+                // cases; clear it since we're done walking the chain.
+                PyErr_Clear();
+            }
+            if (!is_initial_frame) {
+                Py_DECREF(f);
+            }
+            break;
+        }
 
         // Only DECREF frames we own (from PyFrame_GetBack), not the initial frame passed by caller
         if (!is_initial_frame) {

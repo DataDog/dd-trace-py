@@ -4,11 +4,18 @@
 
 #include "pymacro.hpp"
 
-/* RAII helper to save and restore Python error state
+/* RAII helper to preserve the raised C-level exception indicator.
  *
- * This is useful when calling Python C API functions that may set errors
- * but we want to preserve any existing error state. The error state is
- * automatically restored when the object goes out of scope.
+ * The allocator hook can run in contexts where CPython already has a raised
+ * exception in flight (PyErr_Occurred() != NULL). During sampling, we call
+ * C-API functions that may set or clear the indicator on failure.
+ *
+ * CPython uses this same save/restore pattern in sensitive paths (for example,
+ * frame-object creation) and documents that callbacks entered with a pending
+ * exception must preserve it unless they intentionally replace it.
+ *
+ * Important: this only preserves the raised C-level indicator, not the handled
+ * exception state used by sys.exception()/except blocks.
  *
  * Common Python C API functions used with this guard that can set errors:
  * - Frame operations: PyFrame_GetBack() (can set spurious TypeError in Python 3.14+),
@@ -43,14 +50,25 @@ class PythonErrorRestorer
 
     ~PythonErrorRestorer()
     {
+        // Restore the raised C-level exception indicator that was active on
+        // entry, so allocator-hook sampling does not clobber caller state.
+        //
+        // We still clear transient local failures at call sites where we
+        // continue after an API failure (for example, PyUnicode_AsUTF8AndSize
+        // and PyFrame_GetBack), because some C-API paths are not safe to keep
+        // running with an error set.
 #ifdef _PY312_AND_LATER
-        // Python 3.12+: Restore using the new API
-        // Pass nullptr to clear the error indicator if there was no error before
-        PyErr_SetRaisedException(saved_exception);
+        if (saved_exception != NULL) {
+            PyErr_SetRaisedException(saved_exception);
+        } else if (PyErr_Occurred()) {
+            PyErr_Clear();
+        }
 #else
-        // Python < 3.12: Restore using the old API
-        // If type is nullptr, the error indicator is cleared
-        PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
+        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
+            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
+        } else if (PyErr_Occurred()) {
+            PyErr_Clear();
+        }
 #endif
     }
 

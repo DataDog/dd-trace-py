@@ -1213,11 +1213,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
-                "ddtrace.internal._rand",
-                sources=["ddtrace/internal/_rand.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
