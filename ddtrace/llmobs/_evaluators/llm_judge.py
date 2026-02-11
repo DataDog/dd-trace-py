@@ -1,6 +1,6 @@
-import copy
 from abc import ABC
 from abc import abstractmethod
+import copy
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
@@ -251,18 +251,20 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
 
 
 def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    try:
+        import vertexai
+        from vertexai.generative_models import GenerationConfig
+        from vertexai.generative_models import GenerativeModel
+    except ImportError:
+        raise ImportError("google-cloud-aiplatform package required: pip install google-cloud-aiplatform")
+
     client_options = client_options or {}
+
+    credentials = client_options.get("credentials")
     project = (
         client_options.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT")
     )
-    location = (
-        client_options.get("location")
-        or os.environ.get("GOOGLE_CLOUD_REGION")
-        or os.environ.get("GOOGLE_CLOUD_LOCATION")
-        or "us-central1"
-    )
 
-    credentials = client_options.get("credentials")
     if credentials is None:
         try:
             import google.auth
@@ -271,20 +273,25 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
             if not project:
                 project = default_project
         except Exception:
-            pass
+            raise ValueError(
+                "Google Cloud credentials not provided and Application Default Credentials (ADC) "
+                "could not be resolved. Pass 'credentials' in client_options or set the "
+                "GOOGLE_APPLICATION_CREDENTIALS environment variable."
+            )
 
     if not project:
         raise ValueError(
             "Google Cloud project not provided. "
-            "Pass 'project' in client_options or set GOOGLE_CLOUD_PROJECT environment variable"
+            "Pass 'project' in client_options or set GOOGLE_CLOUD_PROJECT environment variable."
         )
 
-    try:
-        import vertexai
-        from vertexai.generative_models import GenerationConfig
-        from vertexai.generative_models import GenerativeModel
-    except ImportError:
-        raise ImportError("google-cloud-aiplatform package required: pip install google-cloud-aiplatform")
+    # Vertex AI uses "location" to refer to a GCP region (e.g. "us-central1")
+    location = (
+        client_options.get("location")
+        or os.environ.get("GOOGLE_CLOUD_REGION")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or "us-central1"
+    )
 
     vertexai.init(project=project, location=location, credentials=credentials)
 
