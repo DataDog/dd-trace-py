@@ -25,20 +25,13 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        name: Install Python
+      - uses: ./.github/actions/setup-ci-deps
         with:
           python-version: '3.12'
 
       - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
       - name: Install latest stable toolchain and rustfmt
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
-
-      - name: Install hatch
-        run: pip install hatch==1.12.0
-
-      - name: Install PyTorch
-        run: pip install torch
 
       - name: Run tests
         run: hatch run profiling_pytorch:test
