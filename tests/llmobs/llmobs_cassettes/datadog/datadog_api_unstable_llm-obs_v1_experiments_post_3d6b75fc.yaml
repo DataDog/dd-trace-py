@@ -26,7 +26,7 @@ interactions:
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
   response:
     body:
-      string: '{"data":{"id":"8b5772ac-c8ee-4881-aedb-91e3a2b7c9b9","type":"experiments","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"config":{},"created_at":"2026-02-11T19:48:26.585364461Z","dataset_id":"108d1c0d-0fda-4d3f-8bba-de3075e0ee15","dataset_version":1,"description":"","experiment":"test_experiment_sample","metadata":{"tags":["ddtrace.version:1.2.3","project_name:test-project","dataset_name:async-test-dataset-multiple","experiment_name:test_experiment_sample","project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"]},"name":"test_experiment_sample-1770839306585","project_id":"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9","run_count":1,"updated_at":"2026-02-11T19:48:26.585364534Z"}}}'
+      string: '{"data":{"id":"461e4948-6c78-4352-b55b-11197d053f88","type":"experiments","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"config":{},"created_at":"2026-02-11T20:24:39.613943205Z","dataset_id":"108d1c0d-0fda-4d3f-8bba-de3075e0ee15","dataset_version":1,"description":"","experiment":"test_experiment_sample","metadata":{"tags":["ddtrace.version:1.2.3","project_name:test-project","dataset_name:async-test-dataset-multiple","experiment_name:test_experiment_sample","project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"]},"name":"test_experiment_sample-1770841479613","project_id":"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9","run_count":1,"updated_at":"2026-02-11T20:24:39.613943295Z"}}}'
     headers:
       content-length:
       - '696'
@@ -35,7 +35,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 11 Feb 2026 19:48:26 GMT
+      - Wed, 11 Feb 2026 20:24:39 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

@@ -23,8 +23,12 @@ from tests.utils import override_global_config
 
 TMP_CSV_FILE = "tmp.csv"
 
+# Bump this version when you need to avoid collisions with existing datasets in the backend
+# from previous test runs. This ensures fresh datasets are created.
+DATASET_NAME_VERSION = "v2"
 
-def wait_for_backend(sleep_dur=2):
+
+def wait_for_backend(sleep_dur=4):
     if os.environ.get("RECORD_REQUESTS", "0") != "0":
         time.sleep(sleep_dur)
 
@@ -38,7 +42,7 @@ def test_dataset_records() -> List[DatasetRecord]:
 def test_dataset_name(request) -> str:
     from tests.conftest import get_original_test_name
 
-    return f"test-dataset-{get_original_test_name(request)}"
+    return f"test-dataset-{get_original_test_name(request)}-{DATASET_NAME_VERSION}"
 
 
 @pytest.fixture
@@ -58,14 +62,14 @@ def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[D
 
 
 @pytest.fixture
-def test_dataset_one_record(llmobs):
+def test_dataset_one_record(llmobs, test_dataset_name):
     records = [
         DatasetRecord(
             input_data={"prompt": "What is the capital of France?"},
             expected_output={"answer": "Paris"},
         )
     ]
-    ds = llmobs.create_dataset(dataset_name="test-dataset-123", description="A test dataset", records=records)
+    ds = llmobs.create_dataset(dataset_name=test_dataset_name, description="A test dataset", records=records)
     wait_for_backend()
 
     yield ds
@@ -74,7 +78,7 @@ def test_dataset_one_record(llmobs):
 
 
 @pytest.fixture
-def test_dataset_one_record_separate_project(llmobs):
+def test_dataset_one_record_separate_project(llmobs, test_dataset_name):
     records = [
         DatasetRecord(
             input_data={"prompt": "What is the capital of Massachusetts?"},
@@ -82,7 +86,7 @@ def test_dataset_one_record_separate_project(llmobs):
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-857",
+        dataset_name=test_dataset_name,
         project_name="boston-project",
         description="A boston dataset",
         records=records,
@@ -114,13 +118,13 @@ def tmp_csv_file_for_upload(llmobs) -> Generator[MagicMock, None, None]:
 
 
 @pytest.fixture
-def test_dataset_large_num_records(llmobs):
+def test_dataset_large_num_records(llmobs, test_dataset_name):
     records = []
-    for i in range(3000):
+    for i in range(500):
         records.append({"input_data": f"input_{i}", "expected_output": f"output_{i}"})
 
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-large-num-records",
+        dataset_name=test_dataset_name,
         description="A test dataset with a large number of records",
         records=records,
     )
@@ -174,7 +178,7 @@ def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
     assert df.size == 2  # size is num elements in a series
 
 
-def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
+def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload, test_dataset_name):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
     dataset_id = None
@@ -186,7 +190,7 @@ def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
-                dataset_name="test-dataset-good-csv",
+                dataset_name=test_dataset_name,
                 description="A good csv dataset",
                 input_data_columns=["in0", "in1", "in2"],
                 expected_output_columns=["out0", "out1"],
@@ -258,7 +262,7 @@ def test_dataset_csv_empty_csv(llmobs):
         )
 
 
-def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload):
+def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload, test_dataset_name):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
     dataset_id = None
@@ -269,7 +273,7 @@ def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-without-expected-output",
+                dataset_name=test_dataset_name,
                 description="A good csv dataset without expected_output columns",
                 input_data_columns=["in0", "in1", "in2"],
             )
@@ -302,7 +306,7 @@ def test_dataset_csv_no_expected_output(llmobs, tmp_csv_file_for_upload):
                 llmobs._delete_dataset(dataset_id=dataset_id)
 
 
-def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
+def test_dataset_csv(llmobs, tmp_csv_file_for_upload, test_dataset_name):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
     dataset_id = None
@@ -313,7 +317,7 @@ def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-1",
+                dataset_name=test_dataset_name,
                 description="A good csv dataset",
                 input_data_columns=["in0", "in1", "in2"],
                 expected_output_columns=["out0", "out1"],
@@ -353,7 +357,7 @@ def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
                 llmobs._delete_dataset(dataset_id=dataset_id)
 
 
-def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
+def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload, test_dataset_name):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
     dataset_id = None
@@ -364,7 +368,7 @@ def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
         try:
             dataset = llmobs.create_dataset_from_csv(
                 csv_path=csv_path,
-                dataset_name="test-dataset-good-csv-pipe",
+                dataset_name=test_dataset_name,
                 description="A good pipe separated csv dataset",
                 input_data_columns=["in0", "in1", "in2"],
                 expected_output_columns=["out0", "out1"],

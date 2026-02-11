@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "45f86a2d-47aa-4361-b1a8-d6e3fdff10f9",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of France?"}, "expected_output": {"answer": "Paris"}, "metadata": null}, {"input":
+      {"prompt": "What is the capital of Italy?"}, "expected_output": {"answer": "Rome"},
+      "metadata": null}], "update_records": [], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '384'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/45f86a2d-47aa-4361-b1a8-d6e3fdff10f9/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"4a1673a3-dd41-4ab6-9051-f2928d9c5188","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"8a89e0d1-b69c-400c-a8b3-f922a1d0b79b","created_at":"2026-02-11T20:53:43.088331Z","dataset_id":"45f86a2d-47aa-4361-b1a8-d6e3fdff10f9","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"tags":[],"updated_at":"2026-02-11T20:53:43.088331Z","version":1}},{"id":"285063e5-0ad4-4e5f-a340-6ca5f95c6a74","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"9aec8d72-78e5-4d0f-b001-29a6a6452273","created_at":"2026-02-11T20:53:43.088331Z","dataset_id":"45f86a2d-47aa-4361-b1a8-d6e3fdff10f9","expected_output":{"answer":"Rome"},"input":{"prompt":"What
+        is the capital of Italy?"},"tags":[],"updated_at":"2026-02-11T20:53:43.088331Z","version":1}}]}'
+    headers:
+      content-length:
+      - '882'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:53:43 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

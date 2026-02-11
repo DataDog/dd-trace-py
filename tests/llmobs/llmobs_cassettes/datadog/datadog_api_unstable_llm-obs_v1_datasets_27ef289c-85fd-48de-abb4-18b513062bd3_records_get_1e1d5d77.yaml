@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/27ef289c-85fd-48de-abb4-18b513062bd3/records
+  response:
+    body:
+      string: '{"data":[{"id":"c66d3738-f72c-4a4c-b299-61c654be8767","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"a256f519-9a87-4204-8717-f88d9f7ba920","created_at":"2026-02-11T20:45:46.821855Z","dataset_id":"27ef289c-85fd-48de-abb4-18b513062bd3","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"updated_at":"2026-02-11T20:45:46.821855Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '445'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:45:53 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

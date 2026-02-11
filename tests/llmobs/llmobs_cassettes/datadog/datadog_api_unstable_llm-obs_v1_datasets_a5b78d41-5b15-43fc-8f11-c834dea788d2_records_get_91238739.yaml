@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/a5b78d41-5b15-43fc-8f11-c834dea788d2/records
+  response:
+    body:
+      string: '{"data":[{"id":"2246d242-808e-40a7-b9b3-d3064d2b28e3","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"df3df8fa-64cf-46c7-961d-a81d64b53500","created_at":"2026-02-11T20:51:40.050196Z","dataset_id":"a5b78d41-5b15-43fc-8f11-c834dea788d2","expected_output":{"answer":"Berlin"},"input":{"prompt":"What
+        is the capital of Germany?"},"updated_at":"2026-02-11T20:51:40.050196Z"}},{"id":"e30d781f-52bc-46d3-9892-e9230f32e250","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"58cf180e-11c0-41c7-a0ef-02e52973c3b4","created_at":"2026-02-11T20:51:40.050219Z","dataset_id":"a5b78d41-5b15-43fc-8f11-c834dea788d2","expected_output":"","input":{"prompt":"What
+        is the capital of Mexico?"},"metadata":{"difficulty":"easy"},"updated_at":"2026-02-11T20:51:40.050219Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '879'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:51:44 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

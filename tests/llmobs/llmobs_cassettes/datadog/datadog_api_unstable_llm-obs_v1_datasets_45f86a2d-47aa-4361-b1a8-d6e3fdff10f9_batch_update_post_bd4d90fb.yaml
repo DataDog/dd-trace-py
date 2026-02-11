@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "45f86a2d-47aa-4361-b1a8-d6e3fdff10f9",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of Sweden?"}, "expected_output": null, "metadata": null}], "update_records":
+      [], "delete_records": ["4a1673a3-dd41-4ab6-9051-f2928d9c5188"]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '294'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/45f86a2d-47aa-4361-b1a8-d6e3fdff10f9/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"8997f388-9570-4abc-a36e-5602a171231e","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"b80f5a49-9950-4157-9ad9-b0c7b6fe8759","created_at":"2026-02-11T20:53:51.213504544Z","dataset_id":"45f86a2d-47aa-4361-b1a8-d6e3fdff10f9","input":{"prompt":"What
+        is the capital of Sweden?"},"tags":[],"updated_at":"2026-02-11T20:53:51.213504544Z","version":2}}]}'
+    headers:
+      content-length:
+      - '416'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:53:51 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

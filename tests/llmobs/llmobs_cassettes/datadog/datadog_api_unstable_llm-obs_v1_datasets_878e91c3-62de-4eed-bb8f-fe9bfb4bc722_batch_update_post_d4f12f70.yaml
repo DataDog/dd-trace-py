@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "878e91c3-62de-4eed-bb8f-fe9bfb4bc722",
+      "attributes": {"insert_records": [], "update_records": [{"input": {"prompt":
+      "What is the capital of Germany?"}, "expected_output": {"answer": "Berlin"},
+      "metadata": null, "id": "77a0ee10-d3a3-4652-a00d-964782706498"}], "delete_records":
+      []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '319'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/878e91c3-62de-4eed-bb8f-fe9bfb4bc722/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"e378461c-3857-4c63-be0a-47d7c18d0381","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"472c2b03-f0ba-46d3-a0ef-954ab6da0872","created_at":"2026-02-11T20:51:49.623615815Z","dataset_id":"878e91c3-62de-4eed-bb8f-fe9bfb4bc722","expected_output":{"answer":"Berlin"},"input":{"prompt":"What
+        is the capital of Germany?"},"tags":[],"updated_at":"2026-02-11T20:51:49.623615897Z","version":2}}]}'
+    headers:
+      content-length:
+      - '455'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:51:49 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

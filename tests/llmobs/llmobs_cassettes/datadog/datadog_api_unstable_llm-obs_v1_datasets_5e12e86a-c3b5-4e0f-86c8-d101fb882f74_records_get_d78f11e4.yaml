@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/5e12e86a-c3b5-4e0f-86c8-d101fb882f74/records
+  response:
+    body:
+      string: '{"data":[{"id":"4d411189-d140-4244-8815-ba2a7e44724d","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"bace4858-3eab-4270-a767-efbc534b722c","created_at":"2026-02-11T20:52:31.093631Z","dataset_id":"5e12e86a-c3b5-4e0f-86c8-d101fb882f74","expected_output":{"answer":"Rome"},"input":{"prompt":"What
+        is the capital of Italy?"},"updated_at":"2026-02-11T20:52:31.093631Z"}},{"id":"400269ee-0c3d-42f3-bd02-23d893a2686b","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"cd90dc17-bd0f-4688-8359-ddf14f3075f0","created_at":"2026-02-11T20:52:22.878666Z","dataset_id":"5e12e86a-c3b5-4e0f-86c8-d101fb882f74","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"updated_at":"2026-02-11T20:52:22.878666Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '858'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:52:35 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

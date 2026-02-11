@@ -1,0 +1,51 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "a5b78d41-5b15-43fc-8f11-c834dea788d2",
+      "attributes": {"insert_records": [], "update_records": [{"input": {"prompt":
+      "What is the capital of Germany?"}, "expected_output": {"answer": "Berlin"},
+      "metadata": null, "id": "d933288d-177e-4fd2-abcc-eef437a4db9c"}, {"input": {"prompt":
+      "What is the capital of Mexico?"}, "expected_output": "", "metadata": {"difficulty":
+      "easy"}, "id": "26070d92-e740-40e4-a0c8-9503e62f41a6"}], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '481'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/a5b78d41-5b15-43fc-8f11-c834dea788d2/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"2246d242-808e-40a7-b9b3-d3064d2b28e3","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"df3df8fa-64cf-46c7-961d-a81d64b53500","created_at":"2026-02-11T20:51:40.050196744Z","dataset_id":"a5b78d41-5b15-43fc-8f11-c834dea788d2","expected_output":{"answer":"Berlin"},"input":{"prompt":"What
+        is the capital of Germany?"},"tags":[],"updated_at":"2026-02-11T20:51:40.050196826Z","version":2}},{"id":"e30d781f-52bc-46d3-9892-e9230f32e250","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"58cf180e-11c0-41c7-a0ef-02e52973c3b4","created_at":"2026-02-11T20:51:40.050219243Z","dataset_id":"a5b78d41-5b15-43fc-8f11-c834dea788d2","expected_output":"","input":{"prompt":"What
+        is the capital of Mexico?"},"metadata":{"difficulty":"easy"},"tags":[],"updated_at":"2026-02-11T20:51:40.050219317Z","version":2}}]}'
+    headers:
+      content-length:
+      - '915'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:51:40 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

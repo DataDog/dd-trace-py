@@ -46,11 +46,6 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._experiment import AsyncEvaluatorType
-from ddtrace.llmobs._experiment import AsyncSummaryEvaluatorType
-from ddtrace.llmobs._experiment import AsyncTaskType
-from ddtrace.llmobs._experiment import BaseAsyncEvaluator
-from ddtrace.llmobs._experiment import BaseAsyncSummaryEvaluator
 from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
@@ -102,6 +97,11 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._experiment import AsyncEvaluatorType
+from ddtrace.llmobs._experiment import AsyncSummaryEvaluatorType
+from ddtrace.llmobs._experiment import AsyncTaskType
+from ddtrace.llmobs._experiment import BaseAsyncEvaluator
+from ddtrace.llmobs._experiment import BaseAsyncSummaryEvaluator
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType

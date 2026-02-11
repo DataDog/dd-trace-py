@@ -26,7 +26,7 @@ interactions:
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
   response:
     body:
-      string: '{"data":{"id":"c1bf4839-5f4c-4b4d-9dbf-1765dfd93148","type":"experiments","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"config":{},"created_at":"2026-02-11T19:48:13.948969279Z","dataset_id":"4df8ea9c-65df-4b55-b968-5efb88f64c53","dataset_version":1,"description":"","experiment":"test_experiment_arun_sync_task","metadata":{"tags":["ddtrace.version:1.2.3","project_name:test-project","dataset_name:async-test-dataset-one","experiment_name:test_experiment_arun_sync_task","project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"]},"name":"test_experiment_arun_sync_task-1770839293948","project_id":"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9","run_count":1,"updated_at":"2026-02-11T19:48:13.948969353Z"}}}'
+      string: '{"data":{"id":"d643e326-3954-4ee7-93dc-026305d6ab3a","type":"experiments","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"config":{},"created_at":"2026-02-11T20:24:27.391395268Z","dataset_id":"4df8ea9c-65df-4b55-b968-5efb88f64c53","dataset_version":1,"description":"","experiment":"test_experiment_arun_sync_task","metadata":{"tags":["ddtrace.version:1.2.3","project_name:test-project","dataset_name:async-test-dataset-one","experiment_name:test_experiment_arun_sync_task","project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"]},"name":"test_experiment_arun_sync_task-1770841467391","project_id":"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9","run_count":1,"updated_at":"2026-02-11T20:24:27.391395358Z"}}}'
     headers:
       content-length:
       - '715'
@@ -35,7 +35,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 11 Feb 2026 19:48:13 GMT
+      - Wed, 11 Feb 2026 20:24:27 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

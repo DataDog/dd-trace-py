@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "e0af2dff-8b56-4965-a0ee-72b6c92f7279",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of France?"}, "expected_output": {"answer": "Paris"}, "metadata": null}], "update_records":
+      [], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '271'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/e0af2dff-8b56-4965-a0ee-72b6c92f7279/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"38cc7ed1-0278-43cf-9d7e-cf208642e224","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"a45ebe2e-8000-42dc-a08e-26e530280dbd","created_at":"2026-02-11T20:50:33.075501809Z","dataset_id":"e0af2dff-8b56-4965-a0ee-72b6c92f7279","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"tags":[],"updated_at":"2026-02-11T20:50:33.075501809Z","version":1}}]}'
+    headers:
+      content-length:
+      - '453'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:50:33 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/8e7c21cf-bcf2-432c-bccd-20789cca6954/records
+  response:
+    body:
+      string: '{"data":[{"id":"61013aa6-d22b-4a51-a94b-cddfa475db52","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-11T20:45:31.231767Z","dataset_id":"8e7c21cf-bcf2-432c-bccd-20789cca6954","expected_output":{},"input":{"in0":"r1v1","in1":"r1v2","in2":"r1v3"},"metadata":{},"updated_at":"2026-02-11T20:45:31.231767Z"}},{"id":"125d0e00-75a3-4685-9b8a-7189b51658ee","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-11T20:45:31.231767Z","dataset_id":"8e7c21cf-bcf2-432c-bccd-20789cca6954","expected_output":{},"input":{"in0":"r0v1","in1":"r0v2","in2":"r0v3"},"metadata":{},"updated_at":"2026-02-11T20:45:31.231767Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '850'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:45:35 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

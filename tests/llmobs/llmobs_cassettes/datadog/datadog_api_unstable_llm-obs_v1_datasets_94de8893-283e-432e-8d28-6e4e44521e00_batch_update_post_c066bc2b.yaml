@@ -18,22 +18,22 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.3
+      - python-requests/2.32.5
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/94de8893-283e-432e-8d28-6e4e44521e00/batch_update
   response:
     body:
-      string: '{"data":[{"id":"56dbf170-a8fa-47cb-ba11-3abb35ac9dba","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:32:59.717597999Z","dataset_id":"94de8893-283e-432e-8d28-6e4e44521e00","expected_output":{"answer":"Paris"},"input":{"prompt":"What
-        is the capital of France?"},"updated_at":"2025-09-09T04:32:59.717597999Z","version":1}}]}'
+      string: '{"data":[{"id":"74fa9131-b7e9-4660-9922-2a39330ea40c","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"4719eaac-fc8e-47a6-9e43-ebf675822b10","created_at":"2026-02-11T20:28:12.402340764Z","dataset_id":"94de8893-283e-432e-8d28-6e4e44521e00","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"tags":[],"updated_at":"2026-02-11T20:28:12.402340764Z","version":3}}]}'
     headers:
       content-length:
-      - '389'
+      - '453'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 09 Sep 2025 04:33:00 GMT
+      - Wed, 11 Feb 2026 20:28:12 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

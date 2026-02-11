@@ -19,23 +19,22 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.3
+      - python-requests/2.32.5
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/847deb0c-39c5-4e15-89d6-a232092624b5/batch_update
   response:
     body:
-      string: '{"data":[{"id":"b6c73a01-e105-4aa9-ba27-27581556ad1c","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:34:23.999850259Z","dataset_id":"847deb0c-39c5-4e15-89d6-a232092624b5","expected_output":{"answer":"Paris"},"input":{"prompt":"What
-        is the capital of France?"},"updated_at":"2025-09-09T04:34:23.999850259Z","version":1}},{"id":"debdb5c9-f5d5-4bec-bad0-4876baff75a1","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-09T04:34:23.999850259Z","dataset_id":"847deb0c-39c5-4e15-89d6-a232092624b5","expected_output":{"answer":"Rome"},"input":{"prompt":"What
-        is the capital of Italy?"},"updated_at":"2025-09-09T04:34:23.999850259Z","version":1}}]}'
+      string: '{"data":[{"id":"e5787dc6-4274-40ed-8e11-da24ee52129c","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"09575e0b-300a-4e2b-a21c-bb62c8e0ff9b","created_at":"2026-02-11T20:28:19.483789136Z","dataset_id":"847deb0c-39c5-4e15-89d6-a232092624b5","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"tags":[],"updated_at":"2026-02-11T20:28:19.483789136Z","version":3}}]}'
     headers:
       content-length:
-      - '766'
+      - '453'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 09 Sep 2025 04:34:24 GMT
+      - Wed, 11 Feb 2026 20:28:19 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

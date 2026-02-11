@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "3a4daef7-474a-43ff-9334-7e7f8a167609",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of Massachusetts?"}, "expected_output": {"answer": "Boston"}, "metadata": null}],
+      "update_records": [], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '279'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/3a4daef7-474a-43ff-9334-7e7f8a167609/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"cb047c06-3610-4d0d-900e-0422b0248a90","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"3f786916-3a9a-4df8-a373-da9631557ebf","created_at":"2026-02-11T20:46:02.921088841Z","dataset_id":"3a4daef7-474a-43ff-9334-7e7f8a167609","expected_output":{"answer":"Boston"},"input":{"prompt":"What
+        is the capital of Massachusetts?"},"tags":[],"updated_at":"2026-02-11T20:46:02.921088841Z","version":1}}]}'
+    headers:
+      content-length:
+      - '461'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:46:02 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

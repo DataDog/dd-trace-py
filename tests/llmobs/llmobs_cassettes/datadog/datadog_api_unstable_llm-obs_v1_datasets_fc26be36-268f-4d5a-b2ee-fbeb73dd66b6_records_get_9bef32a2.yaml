@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/fc26be36-268f-4d5a-b2ee-fbeb73dd66b6/records
+  response:
+    body:
+      string: '{"data":[{"id":"12a07060-b13e-4ab7-b45c-87a3bd67ba9f","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"3628de54-9879-4b42-ae3d-6492ae932850","created_at":"2026-02-11T20:52:44.080052Z","dataset_id":"fc26be36-268f-4d5a-b2ee-fbeb73dd66b6","expected_output":{"answer":"Rome"},"input":{"prompt":"What
+        is the capital of Italy?"},"updated_at":"2026-02-11T20:52:44.080052Z"}},{"id":"c5099304-f52e-49e2-b066-6e3991f19867","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"c9f6c5ac-cec3-4717-9bb8-03068e5573ea","created_at":"2026-02-11T20:52:44.080052Z","dataset_id":"fc26be36-268f-4d5a-b2ee-fbeb73dd66b6","expected_output":{"answer":"Stockholm"},"input":{"prompt":"What
+        is the capital of Sweden?"},"updated_at":"2026-02-11T20:52:44.080052Z"}},{"id":"b6ddc551-d4da-41e1-b772-c850d9204fb9","type":"datasets","attributes":{"author":{"id":"422c9d15-2e5e-11ef-99c3-7291dac01325"},"canonical_id":"761deb8d-e849-4249-a412-2582ab43faf1","created_at":"2026-02-11T20:52:35.905923Z","dataset_id":"fc26be36-268f-4d5a-b2ee-fbeb73dd66b6","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"updated_at":"2026-02-11T20:52:35.905923Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '1277'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 11 Feb 2026 20:52:48 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

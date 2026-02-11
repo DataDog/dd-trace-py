@@ -16,22 +16,21 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.3
+      - python-requests/2.32.5
     method: GET
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/0bb93ae7-43c4-48ff-91e4-d2817fee85fe/records?filter%5Bversion%5D=420
   response:
     body:
-      string: '{"errors":[{"title":"Generic Error","detail":"invalid version: version
-        is greater than the current version or negative"}]}'
+      string: '{"errors":[{"status":"404","title":"Not Found"}]}'
     headers:
       content-length:
-      - '122'
+      - '49'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 21 Oct 2025 18:26:27 GMT
+      - Wed, 11 Feb 2026 20:28:10 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
@@ -41,6 +40,6 @@ interactions:
       x-frame-options:
       - SAMEORIGIN
     status:
-      code: 400
-      message: Bad Request
+      code: 404
+      message: Not Found
 version: 1

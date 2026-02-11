@@ -20,21 +20,21 @@ interactions:
       - Content-Type
       : - multipart/form-data; boundary=----------boundary------
       User-Agent:
-      - python-requests/2.32.3
+      - python-requests/2.32.5
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/d03155ea-cd68-4b58-9463-ca3aa41a0b68/records/upload
   response:
     body:
-      string: ''
+      string: '{"data":{"id":"c912e0e5-47c7-4d11-95dc-c2fc9257a6ef","type":"dataset_version","attributes":{"dataset_id":"d03155ea-cd68-4b58-9463-ca3aa41a0b68","last_used":"2026-02-11T20:28:04.934544057Z","version_number":3}}}'
     headers:
       content-length:
-      - '0'
+      - '210'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 09 Sep 2025 04:32:25 GMT
+      - Wed, 11 Feb 2026 20:28:04 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
