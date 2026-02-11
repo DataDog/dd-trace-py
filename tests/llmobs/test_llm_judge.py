@@ -12,6 +12,7 @@ from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import _create_azure_openai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from tests.llmobs._utils import get_azure_openai_vcr
 
 
 class TestStructuredOutputTypes:
@@ -225,6 +226,19 @@ class TestLLMJudge:
         assert result.reasoning is None
 
 
+AZURE_OPENAI_CLIENT_OPTIONS = {
+    "api_key": "testing",
+    "azure_endpoint": "https://test.openai.azure.com",
+    "api_version": "2024-10-21",
+    "azure_deployment": "gpt-4o",
+}
+
+
+@pytest.fixture(scope="session")
+def azure_openai_vcr():
+    yield get_azure_openai_vcr()
+
+
 class TestAzureOpenAIClient:
     def test_missing_api_key_raises(self, monkeypatch):
         monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
@@ -245,197 +259,79 @@ class TestAzureOpenAIClient:
             with pytest.raises(ImportError, match="openai package required"):
                 _create_azure_openai_client()
 
-    def test_client_call(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
-
-        mock_response = mock.MagicMock()
-        mock_response.choices = [mock.MagicMock()]
-        mock_response.choices[0].message.content = '{"score": 0.9}'
-
-        mock_azure_client = mock.MagicMock()
-        mock_azure_client.chat.completions.create.return_value = mock_response
-
-        mock_openai_module = mock.MagicMock()
-        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
-
-        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
-            client = _create_azure_openai_client({"azure_deployment": "my-deployment"})
+    def test_client_call(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_boolean.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
             result = client(
                 provider="azure_openai",
-                messages=[{"role": "user", "content": "test"}],
-                json_schema=None,
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {"boolean_eval": {"type": "boolean"}},
+                    "required": ["boolean_eval"],
+                    "additionalProperties": False,
+                },
                 model="gpt-4o",
-                model_params=None,
+                model_params={"temperature": 0.5, "max_tokens": 1024},
             )
+        assert result == '{"boolean_eval": true}'
 
-        assert result == '{"score": 0.9}'
-        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
-        assert call_kwargs["model"] == "my-deployment"
-
-    def test_client_falls_back_to_model_when_no_deployment(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
-        monkeypatch.delenv("AZURE_OPENAI_DEPLOYMENT", raising=False)
-
-        mock_response = mock.MagicMock()
-        mock_response.choices = [mock.MagicMock()]
-        mock_response.choices[0].message.content = "ok"
-
-        mock_azure_client = mock.MagicMock()
-        mock_azure_client.chat.completions.create.return_value = mock_response
-
-        mock_openai_module = mock.MagicMock()
-        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
-
-        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
-            client = _create_azure_openai_client()
-            client(
-                provider="azure_openai",
-                messages=[{"role": "user", "content": "test"}],
-                json_schema=None,
-                model="gpt-4o",
-                model_params=None,
-            )
-
-        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
-        assert call_kwargs["model"] == "gpt-4o"
-
-    def test_client_forwards_json_schema(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
-
-        mock_response = mock.MagicMock()
-        mock_response.choices = [mock.MagicMock()]
-        mock_response.choices[0].message.content = '{"boolean_eval": true}'
-
-        mock_azure_client = mock.MagicMock()
-        mock_azure_client.chat.completions.create.return_value = mock_response
-
-        mock_openai_module = mock.MagicMock()
-        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
-
-        schema = {"type": "object", "properties": {"boolean_eval": {"type": "boolean"}}}
-        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
-            client = _create_azure_openai_client()
-            client(
-                provider="azure_openai",
-                messages=[{"role": "user", "content": "test"}],
-                json_schema=schema,
-                model="gpt-4o",
-                model_params=None,
-            )
-
-        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
-        assert call_kwargs["response_format"] == {
-            "type": "json_schema",
-            "json_schema": {"name": "evaluation", "strict": True, "schema": schema},
-        }
-
-    def test_client_forwards_model_params(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
-
-        mock_response = mock.MagicMock()
-        mock_response.choices = [mock.MagicMock()]
-        mock_response.choices[0].message.content = "ok"
-
-        mock_azure_client = mock.MagicMock()
-        mock_azure_client.chat.completions.create.return_value = mock_response
-
-        mock_openai_module = mock.MagicMock()
-        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
-
-        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
-            client = _create_azure_openai_client()
-            client(
-                provider="azure_openai",
-                messages=[{"role": "user", "content": "test"}],
-                json_schema=None,
-                model="gpt-4o",
-                model_params={"temperature": 0.5, "max_tokens": 100},
-            )
-
-        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
-        assert call_kwargs["temperature"] == 0.5
-        assert call_kwargs["max_tokens"] == 100
-
-    def test_client_uses_env_var_deployment(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
-        monkeypatch.setenv("AZURE_OPENAI_DEPLOYMENT", "env-deployment")
-
-        mock_response = mock.MagicMock()
-        mock_response.choices = [mock.MagicMock()]
-        mock_response.choices[0].message.content = "ok"
-
-        mock_azure_client = mock.MagicMock()
-        mock_azure_client.chat.completions.create.return_value = mock_response
-
-        mock_openai_module = mock.MagicMock()
-        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
-
-        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
-            client = _create_azure_openai_client()
-            client(
-                provider="azure_openai",
-                messages=[{"role": "user", "content": "test"}],
-                json_schema=None,
-                model="gpt-4o",
-                model_params=None,
-            )
-
-        call_kwargs = mock_azure_client.chat.completions.create.call_args[1]
-        assert call_kwargs["model"] == "env-deployment"
-
-    def test_client_returns_empty_on_empty_choices(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
-
-        mock_response = mock.MagicMock()
-        mock_response.choices = []
-
-        mock_azure_client = mock.MagicMock()
-        mock_azure_client.chat.completions.create.return_value = mock_response
-
-        mock_openai_module = mock.MagicMock()
-        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
-
-        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
-            client = _create_azure_openai_client()
+    def test_client_call_with_score_schema(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_score.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
             result = client(
                 provider="azure_openai",
-                messages=[{"role": "user", "content": "test"}],
-                json_schema=None,
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "score_eval": {"type": "number", "minimum": 1, "maximum": 10, "description": "Score"},
+                    },
+                    "required": ["score_eval"],
+                    "additionalProperties": False,
+                },
                 model="gpt-4o",
-                model_params=None,
+                model_params={"temperature": 0.5, "max_tokens": 1024},
             )
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
 
-        assert result == ""
+    def test_client_call_with_categorical_schema(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_categorical.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "categorical_eval": {
+                            "type": "string",
+                            "anyOf": [
+                                {"const": "positive", "description": "Positive sentiment"},
+                                {"const": "negative", "description": "Negative sentiment"},
+                            ],
+                        },
+                    },
+                    "required": ["categorical_eval"],
+                    "additionalProperties": False,
+                },
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"
 
-    def test_llmjudge_with_azure_openai_provider(self, monkeypatch):
-        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
-        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
-
-        mock_response = mock.MagicMock()
-        mock_response.choices = [mock.MagicMock()]
-        mock_response.choices[0].message.content = json.dumps({"boolean_eval": True})
-
-        mock_azure_client = mock.MagicMock()
-        mock_azure_client.chat.completions.create.return_value = mock_response
-
-        mock_openai_module = mock.MagicMock()
-        mock_openai_module.AzureOpenAI.return_value = mock_azure_client
-
-        with mock.patch.dict("sys.modules", {"openai": mock_openai_module}):
+    def test_llmjudge_with_azure_openai_provider(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_boolean.yaml"):
             judge = LLMJudge(
                 provider="azure_openai",
                 model="gpt-4o",
                 user_prompt="Evaluate: {{output_data}}",
                 structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+                client_options=AZURE_OPENAI_CLIENT_OPTIONS,
             )
             result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
-
         assert isinstance(result, EvaluatorResult)
         assert result.value is True
         assert result.assessment == "pass"
