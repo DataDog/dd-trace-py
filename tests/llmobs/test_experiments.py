@@ -126,9 +126,7 @@ def test_dataset_one_record(llmobs):
     ]
     ds = llmobs.create_dataset(dataset_name="test-dataset-123", description="A test dataset", records=records)
     wait_for_backend()
-
     yield ds
-
     llmobs._delete_dataset(dataset_id=ds._id)
 
 
@@ -533,6 +531,76 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     assert dataset.description == test_dataset_one_record.description
     assert dataset.latest_version == test_dataset_one_record.latest_version == 1
     assert dataset.version == test_dataset_one_record.version == 1
+
+
+def test_dataset_pull_with_tags(llmobs, test_dataset_one_record):
+    """Test that pull_dataset properly passes tags parameter and stores them in the returned Dataset."""
+    wait_for_backend(4)
+    tags = ["env:prod", "version:1.0"]
+    dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record.name, tags=tags)
+
+    # Verify basic dataset properties
+    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("_id")
+    assert len(dataset) == 1
+    assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert dataset.name == test_dataset_one_record.name
+    assert dataset.description == test_dataset_one_record.description
+    assert dataset.latest_version == test_dataset_one_record.latest_version == 1
+    assert dataset.version == test_dataset_one_record.version == 1
+
+    # Verify tags are stored in the Dataset object
+    assert dataset.tags == tags
+    assert len(dataset.tags) == 2
+    assert "env:prod" in dataset.tags
+    assert "version:1.0" in dataset.tags
+
+
+def test_dataset_pull_with_single_tag(llmobs, test_dataset_one_record):
+    """Test pull_dataset with a single tag."""
+    wait_for_backend(4)
+    tags = ["env:staging"]
+    dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record.name, tags=tags)
+
+    # Verify basic dataset properties
+    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("_id")
+    assert len(dataset) == 1
+    assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert dataset[0]["expected_output"] == {"answer": "Paris"}
+
+    # Verify single tag is stored
+    assert dataset.tags == tags
+    assert len(dataset.tags) == 1
+    assert "env:staging" in dataset.tags
+
+
+def test_dataset_pull_with_tags_and_project(llmobs, test_dataset_one_record_separate_project):
+    """Test pull_dataset with tags and custom project name."""
+    tags = ["team:ml", "priority:high"]
+    dataset = llmobs.pull_dataset(
+        dataset_name=test_dataset_one_record_separate_project.name,
+        project_name="boston-project",
+        tags=tags,
+    )
+
+    # Verify dataset is from the correct project
+    assert dataset.project.get("name") == "boston-project"
+    assert dataset.project.get("_id")
+    assert len(dataset) == 1
+    assert dataset[0]["input_data"] == {"prompt": "What is the capital of Massachusetts?"}
+    assert dataset[0]["expected_output"] == {"answer": "Boston"}
+    assert dataset.name == test_dataset_one_record_separate_project.name
+    assert dataset.description == test_dataset_one_record_separate_project.description
+    assert dataset.latest_version == test_dataset_one_record_separate_project.latest_version == 1
+    assert dataset.version == test_dataset_one_record_separate_project.version == 1
+
+    # Verify tags are stored
+    assert dataset.tags == tags
+    assert len(dataset.tags) == 2
+    assert "team:ml" in dataset.tags
+    assert "priority:high" in dataset.tags
 
 
 @pytest.mark.parametrize(
