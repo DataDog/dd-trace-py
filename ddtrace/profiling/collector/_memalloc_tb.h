@@ -25,6 +25,14 @@ class traceback_t
      * _invokes_cpython suffix: calls CPython APIs which may release the GIL during frame collection */
     void init_sample_invokes_cpython(size_t size, size_t weighted_size);
 
+    /* Initialize traceback module (creates interned strings)
+     * Returns true on success, false otherwise
+     * NOTE: Invokes CPython APIs */
+    [[nodiscard]] static bool init_invokes_cpython();
+    /* Deinitialize traceback module
+     * NOTE: Invokes CPython APIs */
+    static void deinit_invokes_cpython();
+
     // Non-copyable, non-movable
     traceback_t(const traceback_t&) = delete;
     traceback_t& operator=(const traceback_t&) = delete;
