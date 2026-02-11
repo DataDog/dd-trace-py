@@ -39,7 +39,9 @@ _USE_FILE_LEVEL_COVERAGE = asbool(os.getenv("_DD_COVERAGE_FILE_LEVEL", "false"))
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
 # Store: (hook, path, import_names_by_line)
-_CODE_HOOKS: dict[CodeType, tuple[HookType, str, dict[int, tuple[str, t.Optional[tuple[str]]]]]] = {}
+# IMPORTANT: Do not change t.Dict/t.Tuple to dict/tuple until minimum Python version is 3.11+
+# Module-level dict[...]/tuple[...] in Python 3.10 affects import timing. See packages.py for details.
+_CODE_HOOKS: t.Dict[CodeType, t.Tuple[HookType, str, t.Dict[int, t.Tuple[str, t.Optional[t.Tuple[str]]]]]] = {}  # noqa: UP006
 
 
 def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str) -> tuple[CodeType, CoverageLines]:
