@@ -5,7 +5,7 @@ import ast
 import copy
 import os
 import sys
-from typing import Any, List
+from typing import Any
 from typing import Text
 
 from ..._constants import IAST
