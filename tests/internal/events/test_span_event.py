@@ -1,3 +1,5 @@
+from dataclasses import InitVar
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional
 from typing import Tuple
@@ -10,7 +12,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import SpanContextEvent
-from ddtrace.internal.core.events import context_event
 from ddtrace.internal.core.events import event_field
 from ddtrace.trace import tracer
 
@@ -25,7 +26,7 @@ def reset_event_hub():
 def test_basic_span_context_event(test_spans):
     """Test that SpanContextEvent creates a span with required attributes"""
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.span"
         span_name = "test.operation"
@@ -50,10 +51,11 @@ def test_basic_span_context_event(test_spans):
 def test_span_context_event_missing_required_field(test_spans):
     """Test that missing a required attribute raises AttributeError."""
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.span"
         span_name = "test.operation"
+        # Missing service_type
         span_kind = "client"
         component = "component"
 
@@ -70,7 +72,7 @@ def test_span_context_event_missing_required_field(test_spans):
 def test_span_context_event_with_service_and_resource(test_spans):
     """Test that service and resource are properly set on the span"""
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.span"
         span_name = "test.operation"
@@ -95,24 +97,33 @@ def test_span_context_event_post_init(test_spans):
     This test also shows than a required attribute can be assigned during post_init
     """
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.span"
         span_name = "test.operation"
         span_type = "test"
         span_kind = "client"
 
-        url: str
-        something: str
+        url: InitVar[str] = event_field()
+        something: InitVar[str] = event_field()
+        method: str = event_field()
 
-        def __post_init__(self):
-            self.component = self.something
-            self.tags["my_url"] = self.url
+        def __post_init__(self, url, something):
+            self.component = something
+            self.tags["my_url"] = url
+
+            super().__post_init__()
 
     class TestSpanSubscriber(SpanTracingSubscriber):
         event_name = TestSpanEvent.event_name
 
-    with core.context_with_event(TestSpanEvent(url="http://", something="foo")):
+        @classmethod
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
+            event = ctx.event
+            assert getattr(event, "url", None) is None
+            assert event.method == "test"
+
+    with core.context_with_event(TestSpanEvent(method="test", url="http://", service="test", something="foo")):
         pass
 
     test_spans.assert_span_count(1)
@@ -124,7 +135,7 @@ def test_span_context_event_post_init(test_spans):
 def test_span_context_event_with_custom_fields(test_spans):
     """Test that custom fields can be added and accessed in handlers"""
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.span"
         span_name = "test.operation"
@@ -132,16 +143,16 @@ def test_span_context_event_with_custom_fields(test_spans):
         span_kind = "client"
         component = "test_component"
 
-        url: str = event_field(in_context=True)
-        status_code: int = event_field(in_context=True)
+        url: str = event_field()
+        status_code: int = event_field()
 
     class TestSpanSubscriber(SpanTracingSubscriber):
         event_name = TestSpanEvent.event_name
 
         @classmethod
-        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
             span = ctx.span
-            span._set_tag_str("http.url", ctx.get_item("url"))
+            span._set_tag_str("http.url", ctx.event.url)
 
         @classmethod
         def on_ended(
@@ -150,7 +161,7 @@ def test_span_context_event_with_custom_fields(test_spans):
             exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
         ) -> None:
             span = ctx.span
-            span.set_metric("http.status_code", ctx.get_item("status_code"))
+            span.set_metric("http.status_code", ctx.event.status_code)
 
     with core.context_with_event(TestSpanEvent(url="http://example.com", status_code=200)):
         pass
@@ -164,7 +175,7 @@ def test_span_context_event_with_custom_fields(test_spans):
 def test_span_context_event_inheritance(test_spans):
     """Test that SpanContextEvent can be inherited and extended"""
 
-    @context_event
+    @dataclass
     class BaseHTTPEvent(SpanContextEvent):
         event_name = "http.base"
         span_name = "http.request"
@@ -172,7 +183,7 @@ def test_span_context_event_inheritance(test_spans):
         span_kind = "client"
         component = "http"
 
-        url: str = event_field(in_context=True)
+        url: str = event_field()
 
     class BaseHTTPSubscriber(SpanTracingSubscriber):
         event_name = BaseHTTPEvent.event_name
@@ -180,13 +191,13 @@ def test_span_context_event_inheritance(test_spans):
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
             span = ctx.span
-            span._set_tag_str("http.url", ctx.get_item("url"))
+            span._set_tag_str("http.url", ctx.event.url)
 
-    @context_event
+    @dataclass
     class HTTPClientEvent(BaseHTTPEvent):
         event_name = "http.client"
 
-        method: str = event_field(in_context=True)
+        method: str = event_field()
 
     class HTTPClientSubscriber(BaseHTTPSubscriber):
         event_name = HTTPClientEvent.event_name
@@ -209,7 +220,7 @@ def test_span_context_event_inheritance(test_spans):
 def test_span_context_event_with_exception(test_spans):
     """Test that exceptions are properly handled and the span is finished"""
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.span"
         span_name = "test.operation"
@@ -234,7 +245,7 @@ def test_span_context_event_with_exception(test_spans):
 def test_span_context_event_call_trace_false_with_distributed_context(test_spans):
     """Test that call_trace=False with distributed_context properly set parent"""
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.distributed"
         span_name = "remote.operation"
@@ -259,7 +270,7 @@ def test_span_context_event_call_trace_false_with_distributed_context(test_spans
 def test_span_context_event_end_span_false(test_spans):
     """Test that _end_span=False prevents automatic span finishing"""
 
-    @context_event
+    @dataclass
     class TestSpanEvent(SpanContextEvent):
         event_name = "test.span"
         span_name = "test.operation"

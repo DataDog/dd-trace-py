@@ -1,3 +1,5 @@
+from dataclasses import InitVar
+from dataclasses import dataclass
 import sys
 from types import TracebackType
 from typing import Optional
@@ -7,8 +9,7 @@ import pytest
 
 from ddtrace.internal import core
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import ContextEvent
-from ddtrace.internal.core.events import context_event
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import BaseContextSubscriber
 
@@ -24,15 +25,14 @@ def test_basic_context_event():
     """Test that ContextEvent triggers on_started and on_ended hooks via subscriber."""
     called = []
 
-    @context_event
-    class TestContextEvent(ContextEvent):
+    class TestContextEvent(Event):
         event_name = "test.event"
 
     class TestSubscriber(BaseContextSubscriber):
         event_name = TestContextEvent.event_name
 
         @classmethod
-        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
             called.append("started")
 
         @classmethod
@@ -57,17 +57,17 @@ def test_context_event_enforce_kwargs_error():
     """
     called = []
 
-    @context_event
-    class TestContextEvent(ContextEvent):
+    @dataclass
+    class TestContextEvent(Event):
         event_name = "test.event"
-        foo: str
-        bar: int
+        foo: str = event_field()
+        bar: int = event_field()
 
     class TestSubscriber(BaseContextSubscriber):
         event_name = TestContextEvent.event_name
 
         @classmethod
-        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
             called.append("started")
 
         @classmethod
@@ -89,23 +89,24 @@ def test_context_event_event_field():
     """Test that event_field with in_context=True stores data in context."""
     called = []
 
-    @context_event
-    class TestContextEvent(ContextEvent):
+    @dataclass
+    class TestContextEvent(Event):
         event_name = "test.event"
-        foo: str = event_field(in_context=True)
-        not_in_context: int
-        with_default: str = event_field(default="test", in_context=True)
+        foo: str = event_field()
+        not_in_context: InitVar[int] = event_field()
+        with_default: str = "test"
 
     class TestSubscriber(BaseContextSubscriber):
         event_name = TestContextEvent.event_name
 
         @classmethod
-        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
             called.append("started")
-            called.append(ctx.get_item("foo"))
-            called.append(ctx.get_item("with_default"))
+            event: TestContextEvent = ctx.event
+            called.append(event.foo)
+            called.append(event.with_default)
 
-            assert ctx.get_item("not_in_context") is None
+            assert getattr(event, "not_in_context", None) is None
 
     with core.context_with_event(TestContextEvent(foo="toto", not_in_context=0)):
         pass
@@ -117,16 +118,16 @@ def test_content_event_inheriting_context_event():
     """Test that child ContextEvent inherits and extends parent's hooks via subscribers."""
     called = []
 
-    @context_event
-    class TestContextEvent(ContextEvent):
+    @dataclass
+    class TestContextEvent(Event):
         event_name = "test.event"
-        foo: str = event_field(in_context=True)
+        foo: str = event_field()
 
     class TestSubscriber(BaseContextSubscriber):
         event_name = TestContextEvent.event_name
 
         @classmethod
-        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
             called.append("base_started")
 
         @classmethod
@@ -137,7 +138,7 @@ def test_content_event_inheriting_context_event():
         ) -> None:
             called.append("base_ended")
 
-    @context_event
+    @dataclass
     class ChildTestContextEvent(TestContextEvent):
         event_name = "test.child.event"
 
@@ -145,7 +146,7 @@ def test_content_event_inheriting_context_event():
         event_name = ChildTestContextEvent.event_name
 
         @classmethod
-        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
             called.append("child_started")
 
         @classmethod
@@ -155,7 +156,7 @@ def test_content_event_inheriting_context_event():
             exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
         ) -> None:
             called.append("child_ended")
-            called.append(ctx.get_item("foo"))
+            called.append(ctx.event.foo)
 
     with core.context_with_event(ChildTestContextEvent(foo="toto")):
         pass
@@ -167,8 +168,8 @@ def test_context_event_with_exception():
     """Test that exception info is properly passed to on_ended via subscriber."""
     called = []
 
-    @context_event
-    class TestContextEvent(ContextEvent):
+    @dataclass
+    class TestContextEvent(Event):
         event_name = "test.event"
 
     class TestSubscriber(BaseContextSubscriber):
@@ -194,16 +195,16 @@ def test_context_event_compatible_with_core_api():
     """Test that the subscriber pattern is compatible with traditional core.on() listeners."""
     called = []
 
-    @context_event
-    class TestContextEvent(ContextEvent):
+    @dataclass
+    class TestContextEvent(Event):
         event_name = "test.compatibility"
-        data: str = event_field(in_context=True)
+        data: str = event_field()
 
     class TestSubscriber(BaseContextSubscriber):
         event_name = TestContextEvent.event_name
 
         @classmethod
-        def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+        def on_started(cls, ctx: core.ExecutionContext) -> None:
             called.append("subscriber_started")
 
         @classmethod
@@ -220,7 +221,7 @@ def test_context_event_compatible_with_core_api():
 
     def on_traditional_ended(ctx, exc_info):
         called.append("core_api_ended")
-        called.append(ctx.get_item("data"))
+        called.append(ctx.event.data)
 
     core.on(f"context.started.{TestContextEvent.event_name}", on_traditional_started)
     core.on(f"context.ended.{TestContextEvent.event_name}", on_traditional_ended)

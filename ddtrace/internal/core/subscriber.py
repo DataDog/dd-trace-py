@@ -1,8 +1,18 @@
 from types import TracebackType
+from typing import TYPE_CHECKING
+from typing import Generic
 from typing import Optional
 from typing import Tuple
+from typing import TypeVar
 
 from ddtrace.internal import core
+
+
+if TYPE_CHECKING:
+    from ddtrace.internal.core.events import Event
+
+
+_EventType = TypeVar("_EventType", bound="Event")
 
 
 class BaseSubscriber:
@@ -71,7 +81,7 @@ class BaseSubscriber:
             handler(event_instance)
 
 
-class BaseContextSubscriber:
+class BaseContextSubscriber(Generic[_EventType]):
     """Base class for context event subscribers.
 
     Subclasses that define ``event_name`` automatically register themselves to handle context lifecycle events:
@@ -90,7 +100,7 @@ class BaseContextSubscriber:
             event_name = "my.context"
 
             @classmethod
-            def on_started(cls, ctx, call_trace=True, **kwargs):
+            def on_started(cls, ctx):
                 user_id = ctx.get_item("user_id")
                 print(f"Context started for user {user_id}")
 
@@ -140,18 +150,20 @@ class BaseContextSubscriber:
         )
 
     @classmethod
-    def on_started(cls, ctx, call_trace=True, **kwargs):
+    def on_started(cls, ctx: core.ExecutionContext[_EventType]):
         """Override this method in child classes to handle context start events.
 
         Args:
             ctx: The ExecutionContext instance
-            call_trace: Whether to trace the call
-            **kwargs: Additional event-specific arguments
         """
         pass
 
     @classmethod
-    def on_ended(cls, ctx, exc_info):
+    def on_ended(
+        cls,
+        ctx: core.ExecutionContext[_EventType],
+        exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ):
         """Override this method in child classes to handle context end events.
 
         Args:
@@ -161,15 +173,15 @@ class BaseContextSubscriber:
         pass
 
     @classmethod
-    def _on_context_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    def _on_context_started(cls, ctx: core.ExecutionContext[_EventType]) -> None:
         """Internal handler that calls all _on_context_started methods from parent to children"""
         for handler in cls._started_handlers:
-            handler(ctx, call_trace, **kwargs)
+            handler(ctx)
 
     @classmethod
     def _on_context_ended(
         cls,
-        ctx: core.ExecutionContext,
+        ctx: core.ExecutionContext[_EventType],
         exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         """Internal handler that calls all _on_context_ended methods from parent to children"""
