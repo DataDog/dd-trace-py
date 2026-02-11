@@ -634,3 +634,8 @@ WSGI
 yaaredis
 ^^^^^^^^
 .. automodule:: ddtrace.contrib.internal.yaaredis
+
+.. automodule:: ddtrace.contrib.internal.llama_index
+    :members:
+    :undoc-members:
+    :show-inheritance:

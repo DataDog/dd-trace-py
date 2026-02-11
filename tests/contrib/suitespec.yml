@@ -190,6 +190,8 @@ components:
   wsgi:
     - ddtrace/contrib/wsgi.py
     - ddtrace/contrib/internal/wsgi/*
+  llama_index:
+    - ddtrace/contrib/internal/llama_index/*
 suites:
   aiobotocore:
     paths:
@@ -1311,4 +1313,17 @@ suites:
     services:
       - valkeycluster
       - valkey
+    snapshot: true
+  llama_index:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@llama_index'
+      - '@llmobs'
+      - tests/contrib/llama_index/*
+      - tests/snapshots/tests.contrib.llama_index.*
+    runner: riot
     snapshot: true
