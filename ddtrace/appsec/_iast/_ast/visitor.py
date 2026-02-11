@@ -863,7 +863,7 @@ class AstVisitor(ast.NodeTransformer):
                 # We can't assign to a function call, which is anyway going to rewrite
                 # the index destination so we just ignore that target
                 target.avoid_convert = True  # type: ignore[attr-defined]
-            elif isinstance(target, (List, list, ast.Tuple)):
+            elif isinstance(target, (ast.List, ast.Tuple)):
                 # Same for lists/tuples on the left side of the assignment
                 for element in target.elts:
                     if isinstance(element, ast.Subscript):
