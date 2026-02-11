@@ -3,6 +3,7 @@
 Provides mock implementations of llama_index base classes for testing
 without requiring real API keys or external services.
 """
+
 from typing import Any
 from typing import Dict
 from typing import List
@@ -27,6 +28,7 @@ class MockLLM(BaseLLM):
     """Concrete mock LLM for testing. Implements all abstract methods."""
 
     model: str = "mock-model"
+    api_base: Optional[str] = None
 
     @property
     def metadata(self) -> LLMMetadata:

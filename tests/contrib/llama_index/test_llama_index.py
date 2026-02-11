@@ -3,11 +3,13 @@
 Tests verify that spans are created correctly when wrapping llama_index
 base class methods (BaseLLM, BaseQueryEngine, BaseRetriever, BaseEmbedding).
 """
+
+from llama_index.core.base.llms.types import ChatMessage
 import pytest
 
 from ddtrace.contrib.internal.llama_index.patch import patch
 from ddtrace.contrib.internal.llama_index.patch import unpatch
-from llama_index.core.base.llms.types import ChatMessage
+from ddtrace.ext import SpanKind
 from tests.contrib.llama_index.utils import MockEmbedding
 from tests.contrib.llama_index.utils import MockErrorLLM
 from tests.contrib.llama_index.utils import MockLLM
@@ -429,3 +431,150 @@ class TestEmbedding:
         assert span.name == "llama_index.request"
         assert span.resource == "MockEmbedding.aget_query_embedding"
         assert span.error == 1
+
+
+class TestPeerService:
+    """Tests for peer service tagging on llama_index spans."""
+
+    def test_span_kind_set_on_llm_span(self, test_spans):
+        """Verify span.kind is set to client on LLM spans."""
+        llm = MockLLM()
+        llm.chat([ChatMessage(role="user", content="Hello")])
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("span.kind") == SpanKind.CLIENT
+
+    def test_component_tag_set_on_llm_span(self, test_spans):
+        """Verify component tag is set to llama_index on LLM spans."""
+        llm = MockLLM()
+        llm.chat([ChatMessage(role="user", content="Hello")])
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("component") == "llama_index"
+
+    def test_out_host_set_from_api_base(self, test_spans):
+        """Verify out.host is extracted from instance api_base URL."""
+        llm = MockLLM(api_base="https://api.openai.com/v1")
+        llm.chat([ChatMessage(role="user", content="Hello")])
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("out.host") == "api.openai.com"
+
+    def test_out_host_not_set_without_api_base(self, test_spans):
+        """Verify out.host is not set when api_base is not available."""
+        llm = MockLLM()
+        llm.chat([ChatMessage(role="user", content="Hello")])
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("out.host") is None
+
+    def _enable_peer_service(self):
+        """Enable peer service defaults on the tracer's PeerServiceProcessor."""
+        from ddtrace.internal.peer_service.processor import PeerServiceProcessor
+        from ddtrace.trace import tracer
+
+        for proc in tracer._span_aggregator.dd_processors:
+            if isinstance(proc, PeerServiceProcessor):
+                proc._set_defaults_enabled = True
+                return proc
+        return None
+
+    def _restore_peer_service(self, processor, enabled, mapping=None):
+        """Restore PeerServiceProcessor to its original state."""
+        if processor is not None:
+            processor._set_defaults_enabled = enabled
+            if mapping is not None:
+                processor._mapping = mapping
+
+    def test_peer_service_computed_from_out_host(self, test_spans):
+        """Verify peer.service is computed from out.host when peer service defaults are enabled."""
+        proc = self._enable_peer_service()
+        original = False
+        try:
+            llm = MockLLM(api_base="https://api.openai.com/v1")
+            llm.chat([ChatMessage(role="user", content="Hello")])
+
+            spans = test_spans.pop_traces()
+            span = spans[0][0]
+            assert span.get_tag("peer.service") == "api.openai.com"
+            assert span.get_tag("_dd.peer.service.source") == "out.host"
+        finally:
+            self._restore_peer_service(proc, original)
+
+    def test_peer_service_remapping(self, test_spans):
+        """Verify peer service remapping works."""
+        proc = self._enable_peer_service()
+        original_mapping = proc._mapping if proc else {}
+        original_config_mapping = proc._config._peer_service_mapping if proc else {}
+        mapping = {"api.openai.com": "my-openai-service"}
+        proc._mapping = mapping
+        proc._config._peer_service_mapping = mapping
+        try:
+            llm = MockLLM(api_base="https://api.openai.com/v1")
+            llm.chat([ChatMessage(role="user", content="Hello")])
+
+            spans = test_spans.pop_traces()
+            span = spans[0][0]
+            assert span.get_tag("peer.service") == "my-openai-service"
+            assert span.get_tag("_dd.peer.service.remapped_from") == "api.openai.com"
+        finally:
+            if proc:
+                proc._mapping = original_mapping
+                proc._config._peer_service_mapping = original_config_mapping
+            self._restore_peer_service(proc, False)
+
+    def test_span_kind_set_on_embedding_span(self, test_spans):
+        """Verify span.kind is set to client on embedding spans."""
+        emb = MockEmbedding()
+        emb.get_query_embedding("test query")
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("span.kind") == SpanKind.CLIENT
+
+    def test_span_kind_set_on_query_engine_span(self, test_spans):
+        """Verify span.kind is set to client on query engine spans."""
+        qe = MockQueryEngine()
+        qe.query("test query")
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("span.kind") == SpanKind.CLIENT
+
+    def test_span_kind_set_on_retriever_span(self, test_spans):
+        """Verify span.kind is set to client on retriever spans."""
+        ret = MockRetriever()
+        ret.retrieve("test query")
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("span.kind") == SpanKind.CLIENT
+
+    @pytest.mark.asyncio
+    async def test_span_kind_set_on_async_llm_span(self, test_spans):
+        """Verify span.kind is set to client on async LLM spans."""
+        llm = MockLLM()
+        await llm.achat([ChatMessage(role="user", content="Hello")])
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("span.kind") == SpanKind.CLIENT
+
+    def test_peer_service_with_custom_api_base(self, test_spans):
+        """Verify peer.service works with custom API base URLs."""
+        proc = self._enable_peer_service()
+        try:
+            llm = MockLLM(api_base="https://my-proxy.internal.company.com/llm/v1")
+            llm.chat([ChatMessage(role="user", content="Hello")])
+
+            spans = test_spans.pop_traces()
+            span = spans[0][0]
+            assert span.get_tag("out.host") == "my-proxy.internal.company.com"
+            assert span.get_tag("peer.service") == "my-proxy.internal.company.com"
+            assert span.get_tag("_dd.peer.service.source") == "out.host"
+        finally:
+            self._restore_peer_service(proc, False)

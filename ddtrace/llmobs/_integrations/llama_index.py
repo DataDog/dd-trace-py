@@ -2,7 +2,12 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from urllib.parse import urlparse
 
+from ddtrace.constants import SPAN_KIND as APM_SPAN_KIND
+from ddtrace.ext import SpanKind
+from ddtrace.ext import net
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -37,9 +42,26 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         model: Optional[str] = None,
         **kwargs: Dict[str, Any],
     ) -> None:
-        """Set base level tags that should be present on all llama_index spans."""
+        """Set base level tags that should be present on all llama_index spans.
+
+        Sets APM span.kind to CLIENT for peer service detection and extracts
+        the API host from the instance's api_base attribute when available.
+        """
         if model is not None:
             span._set_tag_str(MODEL_TAG, model)
+        span._set_tag_str(APM_SPAN_KIND, SpanKind.CLIENT)
+        span._set_tag_str(COMPONENT, self._integration_name)
+
+        instance = kwargs.get("instance")
+        if instance is not None:
+            api_base = getattr(instance, "api_base", None)
+            if api_base:
+                try:
+                    host = urlparse(api_base).hostname
+                    if host:
+                        span._set_tag_str(net.TARGET_HOST, host)
+                except Exception:
+                    log.debug("Failed to parse api_base URL for peer service: %s", api_base)
 
     def _llmobs_set_tags(
         self,
@@ -95,9 +117,7 @@ class LlamaIndexIntegration(BaseLLMIntegration):
                     if isinstance(part, dict):
                         part_type = _get_attr(part, "type", "")
                         if part_type == "text":
-                            input_messages.append(
-                                Message(content=str(_get_attr(part, "text", "")), role=str(role))
-                            )
+                            input_messages.append(Message(content=str(_get_attr(part, "text", "")), role=str(role)))
                         elif part_type == "image":
                             input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
         return input_messages
@@ -141,14 +161,8 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         usage = _get_attr(response, "usage", None)
         if usage:
             # Try different token field names
-            input_tokens = (
-                _get_attr(usage, "input_tokens", None)
-                or _get_attr(usage, "prompt_tokens", None)
-            )
-            output_tokens = (
-                _get_attr(usage, "output_tokens", None)
-                or _get_attr(usage, "completion_tokens", None)
-            )
+            input_tokens = _get_attr(usage, "input_tokens", None) or _get_attr(usage, "prompt_tokens", None)
+            output_tokens = _get_attr(usage, "output_tokens", None) or _get_attr(usage, "completion_tokens", None)
 
             if input_tokens is not None:
                 metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
