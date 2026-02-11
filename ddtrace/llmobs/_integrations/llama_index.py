@@ -79,6 +79,12 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             parameters["max_tokens"] = kwargs.get("max_tokens")
 
         messages = kwargs.get("messages", [])
+        if not messages and args:
+            first_arg = args[0]
+            if isinstance(first_arg, str):
+                messages = [{"role": "user", "content": first_arg}]
+            elif isinstance(first_arg, (list, tuple)):
+                messages = first_arg
         input_messages = self._extract_input_messages(messages)
 
         output_messages: List[Message] = [Message(content="")]
@@ -99,58 +105,53 @@ class LlamaIndexIntegration(BaseLLMIntegration):
             }
         )
 
-    def _extract_input_messages(self, messages: List[Dict[str, Any]]) -> List[Message]:
-        """Extract input messages from request.
-
-        TODO: Customize this method based on the library's message format.
-        """
+    def _extract_input_messages(self, messages: List[Any]) -> List[Message]:
+        """Extract input messages from llama_index ChatMessage objects or dicts."""
         input_messages: List[Message] = []
         for message in messages:
             content = _get_attr(message, "content", "")
             role = _get_attr(message, "role", "user")
+            # llama_index uses MessageRole enum; extract the string value
+            role_str = role.value if hasattr(role, "value") else str(role)
 
             if isinstance(content, str):
-                input_messages.append(Message(content=content, role=str(role)))
+                input_messages.append(Message(content=content, role=role_str))
             elif isinstance(content, list):
-                # Handle multi-part messages (text, images, etc.)
                 for part in content:
                     if isinstance(part, dict):
                         part_type = _get_attr(part, "type", "")
                         if part_type == "text":
-                            input_messages.append(Message(content=str(_get_attr(part, "text", "")), role=str(role)))
+                            input_messages.append(Message(content=str(_get_attr(part, "text", "")), role=role_str))
                         elif part_type == "image":
-                            input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
+                            input_messages.append(Message(content="([IMAGE DETECTED])", role=role_str))
         return input_messages
 
     def _extract_output_messages(self, response: Any) -> List[Message]:
-        """Extract output messages from response.
+        """Extract output messages from llama_index response objects.
 
-        TODO: Customize this method based on the library's response format.
+        Handles ChatResponse (.message.content), CompletionResponse (.text),
+        and Response (.response) types from llama_index.
         """
-        output_messages: List[Message] = []
+        # ChatResponse: response.message.content
+        message = _get_attr(response, "message", None)
+        if message is not None:
+            content = _get_attr(message, "content", "")
+            role = _get_attr(message, "role", "assistant")
+            role_str = role.value if hasattr(role, "value") else str(role)
+            if content:
+                return [Message(content=str(content), role=role_str)]
 
-        # Try common response patterns
-        # Pattern 1: response.content (Anthropic style)
-        content = _get_attr(response, "content", None)
-        if content:
-            if isinstance(content, str):
-                return [Message(content=content, role="assistant")]
-            elif isinstance(content, list):
-                for item in content:
-                    text = _get_attr(item, "text", None)
-                    if text:
-                        output_messages.append(Message(content=str(text), role="assistant"))
+        # CompletionResponse: response.text
+        text = _get_attr(response, "text", None)
+        if text:
+            return [Message(content=str(text), role="assistant")]
 
-        # Pattern 2: response.choices[0].message.content (OpenAI style)
-        choices = _get_attr(response, "choices", None)
-        if choices and len(choices) > 0:
-            message = _get_attr(choices[0], "message", None)
-            if message:
-                msg_content = _get_attr(message, "content", "")
-                if msg_content:
-                    output_messages.append(Message(content=str(msg_content), role="assistant"))
+        # Response (query engine): response.response
+        resp_text = _get_attr(response, "response", None)
+        if resp_text:
+            return [Message(content=str(resp_text), role="assistant")]
 
-        return output_messages if output_messages else [Message(content="")]
+        return [Message(content="")]
 
     def _extract_usage(self, response: Any) -> Dict[str, int]:
         """Extract token usage from response.

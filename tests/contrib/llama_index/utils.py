@@ -24,6 +24,14 @@ from llama_index.core.schema import QueryBundle
 from llama_index.core.schema import TextNode
 
 
+class _MockUsage:
+    """Mock usage object for token metrics testing."""
+
+    def __init__(self, prompt_tokens: int, completion_tokens: int):
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+
+
 class MockLLM(BaseLLM):
     """Concrete mock LLM for testing. Implements all abstract methods."""
 
@@ -57,6 +65,57 @@ class MockLLM(BaseLLM):
 
     async def acomplete(self, prompt: str, formatted: bool = False, **kwargs: Any) -> CompletionResponse:
         return CompletionResponse(text="Mock async completion response")
+
+    async def astream_chat(self, messages: Sequence[ChatMessage], **kwargs: Any):
+        yield ChatResponse(
+            message=ChatMessage(role="assistant", content="Mock async stream chat response"),
+        )
+
+    async def astream_complete(self, prompt: str, formatted: bool = False, **kwargs: Any):
+        yield CompletionResponse(text="Mock async stream completion response")
+
+
+class MockLLMWithUsage(BaseLLM):
+    """Mock LLM that includes token usage in responses."""
+
+    model: str = "mock-model-with-usage"
+    api_base: Optional[str] = None
+
+    @property
+    def metadata(self) -> LLMMetadata:
+        return LLMMetadata(model_name=self.model)
+
+    def chat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatResponse:
+        resp = ChatResponse(
+            message=ChatMessage(role="assistant", content="Mock chat response with usage"),
+        )
+        resp.usage = _MockUsage(prompt_tokens=10, completion_tokens=20)  # type: ignore[attr-defined]
+        return resp
+
+    def complete(self, prompt: str, formatted: bool = False, **kwargs: Any) -> CompletionResponse:
+        resp = CompletionResponse(text="Mock completion response with usage")
+        resp.usage = _MockUsage(prompt_tokens=5, completion_tokens=15)  # type: ignore[attr-defined]
+        return resp
+
+    def stream_chat(self, messages: Sequence[ChatMessage], **kwargs: Any):
+        yield ChatResponse(
+            message=ChatMessage(role="assistant", content="Mock stream chat response"),
+        )
+
+    def stream_complete(self, prompt: str, formatted: bool = False, **kwargs: Any):
+        yield CompletionResponse(text="Mock stream completion response")
+
+    async def achat(self, messages: Sequence[ChatMessage], **kwargs: Any) -> ChatResponse:
+        resp = ChatResponse(
+            message=ChatMessage(role="assistant", content="Mock async chat response with usage"),
+        )
+        resp.usage = _MockUsage(prompt_tokens=10, completion_tokens=20)  # type: ignore[attr-defined]
+        return resp
+
+    async def acomplete(self, prompt: str, formatted: bool = False, **kwargs: Any) -> CompletionResponse:
+        resp = CompletionResponse(text="Mock async completion response with usage")
+        resp.usage = _MockUsage(prompt_tokens=5, completion_tokens=15)  # type: ignore[attr-defined]
+        return resp
 
     async def astream_chat(self, messages: Sequence[ChatMessage], **kwargs: Any):
         yield ChatResponse(

@@ -10,6 +10,7 @@ import pytest
 from tests.contrib.llama_index.utils import MockEmbedding
 from tests.contrib.llama_index.utils import MockErrorLLM
 from tests.contrib.llama_index.utils import MockLLM
+from tests.contrib.llama_index.utils import MockLLMWithUsage
 from tests.contrib.llama_index.utils import MockQueryEngine
 from tests.contrib.llama_index.utils import MockRetriever
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -41,7 +42,7 @@ class TestLLMObsLlamaIndex:
                 span,
                 model_name="",
                 model_provider="llama_index",
-                input_messages=[{"content": ""}],
+                input_messages=[{"content": "Hello, world!", "role": "user"}],
                 output_messages=[{"content": "Mock chat response", "role": "assistant"}],
                 metadata={},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
@@ -60,7 +61,7 @@ class TestLLMObsLlamaIndex:
                 span,
                 model_name="",
                 model_provider="llama_index",
-                input_messages=[{"content": ""}],
+                input_messages=[{"content": "Hello, world!", "role": "user"}],
                 output_messages=[{"content": "Mock completion response", "role": "assistant"}],
                 metadata={},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
@@ -81,7 +82,7 @@ class TestLLMObsLlamaIndex:
                 span,
                 model_name="",
                 model_provider="llama_index",
-                input_messages=[{"content": ""}],
+                input_messages=[{"content": "Hello!", "role": "user"}],
                 output_messages=[{"content": ""}],
                 metadata={},
                 error="builtins.ValueError",
@@ -103,7 +104,7 @@ class TestLLMObsLlamaIndex:
                 span,
                 model_name="",
                 model_provider="llama_index",
-                input_messages=[{"content": ""}],
+                input_messages=[{"content": "What is the meaning of life?", "role": "user"}],
                 output_messages=[{"content": "Mock query response", "role": "assistant"}],
                 metadata={},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
@@ -122,7 +123,7 @@ class TestLLMObsLlamaIndex:
                 span,
                 model_name="",
                 model_provider="llama_index",
-                input_messages=[{"content": ""}],
+                input_messages=[{"content": "test query", "role": "user"}],
                 output_messages=[{"content": ""}],
                 metadata={},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
@@ -141,7 +142,7 @@ class TestLLMObsLlamaIndex:
                 span,
                 model_name="",
                 model_provider="llama_index",
-                input_messages=[{"content": ""}],
+                input_messages=[{"content": "test query", "role": "user"}],
                 output_messages=[{"content": ""}],
                 metadata={},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
@@ -160,9 +161,52 @@ class TestLLMObsLlamaIndex:
                 span,
                 model_name="",
                 model_provider="llama_index",
-                input_messages=[{"content": ""}],
+                input_messages=[{"content": "Hello!", "role": "user"}],
                 output_messages=[{"content": ""}],
                 metadata={},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            )
+        )
+
+    def test_llmobs_chat_with_metadata(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that LLMObs captures temperature and max_tokens metadata."""
+        llm = MockLLM()
+        llm.chat(
+            [ChatMessage(role="user", content="Hello!")],
+            temperature=0.7,
+            max_tokens=100,
+        )
+
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="",
+                model_provider="llama_index",
+                input_messages=[{"content": "Hello!", "role": "user"}],
+                output_messages=[{"content": "Mock chat response", "role": "assistant"}],
+                metadata={"temperature": 0.7, "max_tokens": 100},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+            )
+        )
+
+    def test_llmobs_chat_with_token_usage(self, llama_index, ddtrace_global_config, mock_llmobs_writer, test_spans):
+        """Test that LLMObs captures token usage metrics when available in response."""
+        llm = MockLLMWithUsage()
+        llm.chat([ChatMessage(role="user", content="Hello!")])
+
+        span = test_spans.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="",
+                model_provider="llama_index",
+                input_messages=[{"content": "Hello!", "role": "user"}],
+                output_messages=[{"content": "Mock chat response with usage", "role": "assistant"}],
+                metadata={},
+                token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
             )
         )

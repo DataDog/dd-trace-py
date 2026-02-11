@@ -38,7 +38,6 @@ def get_version() -> str:
 
 @with_traced_module
 def traced_llm_call(llama_index, pin, func, instance, args, kwargs):
-    """Trace an LLM call with LLMObs support."""
     integration = llama_index._datadog_integration
 
     span = integration.trace(
@@ -57,14 +56,13 @@ def traced_llm_call(llama_index, pin, func, instance, args, kwargs):
         raise
     finally:
         if span.error or result is not None:
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=result)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result)
             span.finish()
     return result
 
 
 @with_traced_module
 async def traced_async_llm_call(llama_index, pin, func, instance, args, kwargs):
-    """Trace an async LLM call with LLMObs support."""
     integration = llama_index._datadog_integration
 
     span = integration.trace(
@@ -83,7 +81,7 @@ async def traced_async_llm_call(llama_index, pin, func, instance, args, kwargs):
         raise
     finally:
         if span.error or result is not None:
-            integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=result)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result)
             span.finish()
     return result
 
@@ -156,11 +154,9 @@ def patch():
     from llama_index.core.base.embeddings.base import BaseEmbedding
     from llama_index.core.base.llms.base import BaseLLM
 
-    # Query engine methods (concrete on base class, call abstract _query)
     wrap(BaseQueryEngine, "query", traced_llm_call(llama_index_core))
     wrap(BaseQueryEngine, "aquery", traced_async_llm_call(llama_index_core))
 
-    # Retriever methods (concrete on base class, call abstract _retrieve)
     wrap(BaseRetriever, "retrieve", traced_llm_call(llama_index_core))
     wrap(BaseRetriever, "aretrieve", traced_async_llm_call(llama_index_core))
 
@@ -170,13 +166,11 @@ def patch():
     # Also wrap any existing subclasses that were created before patching
     _patch_all_llm_subclasses(BaseLLM)
 
-    # Embedding methods (concrete on base class, call abstract _get_query_embedding)
     wrap(BaseEmbedding, "get_query_embedding", traced_llm_call(llama_index_core))
     wrap(BaseEmbedding, "aget_query_embedding", traced_async_llm_call(llama_index_core))
     wrap(BaseEmbedding, "get_text_embedding_batch", traced_llm_call(llama_index_core))
     wrap(BaseEmbedding, "aget_text_embedding_batch", traced_async_llm_call(llama_index_core))
 
-    # Agent methods
     try:
         from llama_index.core.agent.workflow.multi_agent_workflow import AgentWorkflow
         from llama_index.core.agent.workflow.react_agent import ReActAgent
@@ -188,7 +182,6 @@ def patch():
 
 
 def _unwrap_llm_subclasses(cls):
-    """Recursively unwrap LLM methods on all subclasses."""
     for subcls in cls.__subclasses__():
         for method_name in _LLM_SYNC_METHODS + _LLM_ASYNC_METHODS:
             if _is_ddtrace_wrapped(subcls, method_name):
@@ -209,7 +202,6 @@ def _unwrap_llm_subclasses(cls):
 
 
 def unpatch():
-    """Disable tracing for llama_index."""
     import llama_index.core as llama_index_core
 
     global _llama_index_mod
@@ -225,27 +217,22 @@ def unpatch():
     from llama_index.core.base.embeddings.base import BaseEmbedding
     from llama_index.core.base.llms.base import BaseLLM
 
-    # Query engine methods
     unwrap(BaseQueryEngine, "query")
     unwrap(BaseQueryEngine, "aquery")
 
-    # Retriever methods
     unwrap(BaseRetriever, "retrieve")
     unwrap(BaseRetriever, "aretrieve")
 
-    # LLM __init__ hook
     unwrap(BaseLLM, "__init__")
 
     # Unwrap LLM methods from all known subclasses (deep traversal)
     _unwrap_llm_subclasses(BaseLLM)
 
-    # Embedding methods
     unwrap(BaseEmbedding, "get_query_embedding")
     unwrap(BaseEmbedding, "aget_query_embedding")
     unwrap(BaseEmbedding, "get_text_embedding_batch")
     unwrap(BaseEmbedding, "aget_text_embedding_batch")
 
-    # Agent methods
     try:
         from llama_index.core.agent.workflow.multi_agent_workflow import AgentWorkflow
         from llama_index.core.agent.workflow.react_agent import ReActAgent

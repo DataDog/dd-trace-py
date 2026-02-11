@@ -40,6 +40,8 @@ class TestLLMChat:
         assert span.name == "llama_index.request"
         assert span.resource == "MockLLM.chat"
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
+        assert span.get_tag("llama_index.request.model") == ""
 
     def test_chat_error(self, test_spans):
         llm = MockErrorLLM()
@@ -53,8 +55,9 @@ class TestLLMChat:
         assert span.name == "llama_index.request"
         assert span.resource == "MockErrorLLM.chat"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
         assert span.get_tag("error.type") is not None
-        assert span.get_tag("error.message") is not None
+        assert span.get_tag("error.message") == "Mock chat error"
 
 
 class TestLLMComplete:
@@ -71,8 +74,9 @@ class TestLLMComplete:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockLLM.complete"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
+        assert span.get_tag("llama_index.request.model") == ""
 
     def test_complete_error(self, test_spans):
         llm = MockErrorLLM()
@@ -86,8 +90,9 @@ class TestLLMComplete:
         assert span.name == "llama_index.request"
         assert span.resource == "MockErrorLLM.complete"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
         assert span.get_tag("error.type") is not None
-        assert span.get_tag("error.message") is not None
+        assert span.get_tag("error.message") == "Mock complete error"
 
 
 class TestLLMStreamChat:
@@ -105,8 +110,8 @@ class TestLLMStreamChat:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockLLM.stream_chat"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     def test_stream_chat_error(self, test_spans):
         llm = MockErrorLLM()
@@ -120,6 +125,7 @@ class TestLLMStreamChat:
         assert span.name == "llama_index.request"
         assert span.resource == "MockErrorLLM.stream_chat"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
         assert span.get_tag("error.type") is not None
 
 
@@ -138,8 +144,8 @@ class TestLLMStreamComplete:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockLLM.stream_complete"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     def test_stream_complete_error(self, test_spans):
         llm = MockErrorLLM()
@@ -153,6 +159,7 @@ class TestLLMStreamComplete:
         assert span.name == "llama_index.request"
         assert span.resource == "MockErrorLLM.stream_complete"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
         assert span.get_tag("error.type") is not None
 
 
@@ -171,8 +178,8 @@ class TestLLMAsync:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockLLM.achat"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     @pytest.mark.asyncio
     async def test_achat_error(self, test_spans):
@@ -187,6 +194,7 @@ class TestLLMAsync:
         assert span.name == "llama_index.request"
         assert span.resource == "MockErrorLLM.achat"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
 
     @pytest.mark.asyncio
     async def test_acomplete_success(self, test_spans):
@@ -200,8 +208,8 @@ class TestLLMAsync:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockLLM.acomplete"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     @pytest.mark.asyncio
     async def test_acomplete_error(self, test_spans):
@@ -216,6 +224,7 @@ class TestLLMAsync:
         assert span.name == "llama_index.request"
         assert span.resource == "MockErrorLLM.acomplete"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
 
 
 class TestQueryEngine:
@@ -232,8 +241,8 @@ class TestQueryEngine:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockQueryEngine.query"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     def test_query_error(self, test_spans):
         qe = MockQueryEngine(error=True)
@@ -247,8 +256,9 @@ class TestQueryEngine:
         assert span.name == "llama_index.request"
         assert span.resource == "MockQueryEngine.query"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
         assert span.get_tag("error.type") is not None
-        assert span.get_tag("error.message") is not None
+        assert span.get_tag("error.message") == "Mock query error"
 
     @pytest.mark.asyncio
     async def test_aquery_success(self, test_spans):
@@ -262,8 +272,8 @@ class TestQueryEngine:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockQueryEngine.aquery"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     @pytest.mark.asyncio
     async def test_aquery_error(self, test_spans):
@@ -278,6 +288,7 @@ class TestQueryEngine:
         assert span.name == "llama_index.request"
         assert span.resource == "MockQueryEngine.aquery"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
 
 
 class TestRetriever:
@@ -295,8 +306,8 @@ class TestRetriever:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockRetriever.retrieve"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     def test_retrieve_error(self, test_spans):
         ret = MockRetriever(error=True)
@@ -310,8 +321,9 @@ class TestRetriever:
         assert span.name == "llama_index.request"
         assert span.resource == "MockRetriever.retrieve"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
         assert span.get_tag("error.type") is not None
-        assert span.get_tag("error.message") is not None
+        assert span.get_tag("error.message") == "Mock retrieve error"
 
     @pytest.mark.asyncio
     async def test_aretrieve_success(self, test_spans):
@@ -326,8 +338,8 @@ class TestRetriever:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockRetriever.aretrieve"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     @pytest.mark.asyncio
     async def test_aretrieve_error(self, test_spans):
@@ -342,6 +354,7 @@ class TestRetriever:
         assert span.name == "llama_index.request"
         assert span.resource == "MockRetriever.aretrieve"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
 
 
 class TestEmbedding:
@@ -358,8 +371,8 @@ class TestEmbedding:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockEmbedding.get_query_embedding"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     def test_get_query_embedding_error(self, test_spans):
         emb = MockEmbedding(error=True)
@@ -373,6 +386,7 @@ class TestEmbedding:
         assert span.name == "llama_index.request"
         assert span.resource == "MockEmbedding.get_query_embedding"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
         assert span.get_tag("error.type") is not None
 
     def test_get_text_embedding_batch_success(self, test_spans):
@@ -387,8 +401,8 @@ class TestEmbedding:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockEmbedding.get_text_embedding_batch"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     def test_get_text_embedding_batch_error(self, test_spans):
         emb = MockEmbedding(error=True)
@@ -402,6 +416,7 @@ class TestEmbedding:
         assert span.name == "llama_index.request"
         assert span.resource == "MockEmbedding.get_text_embedding_batch"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
 
     @pytest.mark.asyncio
     async def test_aget_query_embedding_success(self, test_spans):
@@ -415,8 +430,8 @@ class TestEmbedding:
         span = spans[0][0]
         assert span.name == "llama_index.request"
         assert span.resource == "MockEmbedding.aget_query_embedding"
-
         assert span.error == 0
+        assert span.get_tag("component") == "llama_index"
 
     @pytest.mark.asyncio
     async def test_aget_query_embedding_error(self, test_spans):
@@ -431,6 +446,7 @@ class TestEmbedding:
         assert span.name == "llama_index.request"
         assert span.resource == "MockEmbedding.aget_query_embedding"
         assert span.error == 1
+        assert span.get_tag("component") == "llama_index"
 
 
 class TestPeerService:
@@ -578,3 +594,25 @@ class TestPeerService:
             assert span.get_tag("_dd.peer.service.source") == "out.host"
         finally:
             self._restore_peer_service(proc, False)
+
+
+class TestModelTag:
+    """Tests for model parameter propagation to span tags."""
+
+    def test_model_kwarg_propagated_to_tag(self, test_spans):
+        """Verify model kwarg is extracted and set as llama_index.request.model tag."""
+        llm = MockLLM()
+        llm.chat([ChatMessage(role="user", content="Hello")], model="gpt-4")
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("llama_index.request.model") == "gpt-4"
+
+    def test_model_kwarg_default_empty(self, test_spans):
+        """Verify model tag defaults to empty string when not provided."""
+        llm = MockLLM()
+        llm.chat([ChatMessage(role="user", content="Hello")])
+
+        spans = test_spans.pop_traces()
+        span = spans[0][0]
+        assert span.get_tag("llama_index.request.model") == ""
