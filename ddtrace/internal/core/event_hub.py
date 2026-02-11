@@ -75,6 +75,10 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
             del _listeners[event_id]
 
 
+def dispatch_event(event) -> None:
+    dispatch(getattr(event, "event_name", ""), (event,))
+
+
 def dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> None:
     """Call all hooks for the provided event_id with the provided args"""
     global _listeners
