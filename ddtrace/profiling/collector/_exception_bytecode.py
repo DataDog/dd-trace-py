@@ -4,6 +4,7 @@
 # enabling exception profiling on Python versions without sys.monitoring.
 
 import dis
+from pathlib import Path
 import sys
 import types
 from types import CodeType
@@ -15,6 +16,8 @@ from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
+from ddtrace.internal.packages import is_stdlib
+from ddtrace.internal.packages import is_user_code
 
 
 log = get_logger(__name__)
@@ -211,6 +214,33 @@ class ExceptionProfilingInjector:
         self._instrumented_obj = set()
         self._callback = callback
 
+    def _should_instrument_module(self, module_name: str, module: ModuleType) -> bool:
+        # Determine if a module should be instrumented.
+        # Only instrument user application code, not stdlib/testing/infrastructure.
+        # Uses the same approach as error tracking.
+
+        # Skip modules without files (builtins, etc.)
+        if not hasattr(module, "__file__") or module.__file__ is None:
+            return False
+
+        # Skip ddtrace internals
+        if module_name.startswith("ddtrace"):
+            return False
+
+        # Skip pytest and testing infrastructure (but not actual test files)
+        test_infra_prefixes = ("_pytest", "pytest", "pluggy", "_py")
+        if module_name.startswith(test_infra_prefixes):
+            return False
+
+        module_path = Path(module.__file__).resolve()
+
+        # Skip standard library
+        if is_stdlib(module_path):
+            return False
+
+        # Instrument user code (this includes test files in the project)
+        return is_user_code(module_path)
+
     def instrument_module(self, module_name: str) -> None:
         # Instrument all functions in a module.
         if module_name not in sys.modules:
@@ -218,8 +248,8 @@ class ExceptionProfilingInjector:
 
         module = sys.modules[module_name]
 
-        # Skip modules without files (builtins, etc.)
-        if not hasattr(module, "__file__") or module.__file__ is None:
+        # Check if we should instrument this module
+        if not self._should_instrument_module(module_name, module):
             return
 
         # Skip already instrumented

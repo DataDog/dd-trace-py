@@ -10,6 +10,7 @@ import pytest
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_context_manager",
         _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+        DD_PROFILING_EXCEPTION_ENABLED="false",
     ),
     err=None,
 )

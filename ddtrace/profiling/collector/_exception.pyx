@@ -147,7 +147,7 @@ class ExceptionCollector(collector.Collector):
                 LOG.error("Failed to set up bytecode exception profiling: %s", e)
                 return
         else:
-            LOG.warning("Exception profiling requires Python 3.10+, disabling")
+            LOG.debug("Exception profiling requires Python 3.10+, skipping")
             return
 
         LOG.info("ExceptionCollector started: interval=%d", _sampling_interval)
@@ -168,7 +168,8 @@ class ExceptionCollector(collector.Collector):
 
         LOG.info("ExceptionCollector stopped: total=%d, sampled=%d", _total_exceptions, _sampled_exceptions)
 
-    def snapshot(self):
+    @staticmethod
+    def snapshot():
         pass
 
     def get_stats(self):
