@@ -15,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "7e245eb5813f8dde45f9f25a708739ab5209ffd3"
+  SYSTEM_TESTS_REF: "0382c548169eae1b20cf218d9f29ba067ded8a39"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
@@ -46,6 +46,7 @@ workflow:
     - when: always
 
 include:
+  - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -263,6 +264,13 @@ check_requirements_lockfiles:
     - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
+
+check_ci_dependencies:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - scripts/check-ci-dependencies
 
 codeowners:
   stage: tests
