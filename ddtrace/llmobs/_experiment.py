@@ -1,11 +1,9 @@
 from abc import ABC
 from abc import abstractmethod
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
-import itertools
 import re
 import sys
 import traceback
@@ -21,7 +19,6 @@ from typing import Sequence
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
-from typing import cast
 from typing import overload
 import uuid
 
@@ -1014,49 +1011,12 @@ class Experiment:
         # Create semaphore for concurrency control
         semaphore = asyncio.Semaphore(jobs)
 
-        # Run all iterations concurrently
-        async def run_iteration(iteration: int) -> ExperimentRun:
-            run_info = _ExperimentRunInfo(iteration)
-            iteration_tags = {
-                **self._tags,
-                "run_id": str(run_info._id),
-                "run_iteration": str(run_info._run_iteration),
-            }
-
-            coros = [
-                self._process_record(record, idx, run_info, iteration_tags, semaphore, raise_errors)
-                for idx, record in enumerate(subset_dataset)
-            ]
-            results = await asyncio.gather(*coros, return_exceptions=not raise_errors)
-
-            row_results: List[ExperimentRowResult] = []
-            all_metrics: List["LLMObsExperimentEvalMetricEvent"] = []
-            for result in results:
-                if isinstance(result, BaseException):
-                    if raise_errors:
-                        raise result
-                    continue
-                row_result, metrics = result
-                row_results.append(row_result)
-                all_metrics.extend(metrics)
-
-            # Run summary evaluators
-            summary_evals, summary_metrics = await self._run_summary_evaluators(
-                row_results, iteration_tags, semaphore, raise_errors
-            )
-            all_metrics.extend(summary_metrics)
-
-            # Submit metrics for this iteration
-            if self._id is None:
-                raise ValueError("Experiment ID is not set")
-            self._llmobs_instance._dne_client.experiment_eval_post(
-                self._id, all_metrics, convert_tags_dict_to_list(iteration_tags)
-            )
-
-            return ExperimentRun(run_info, summary_evals, row_results)
-
         # Launch all iterations concurrently
-        all_runs = list(await asyncio.gather(*[run_iteration(i) for i in range(self._runs)]))
+        all_runs = list(
+            await asyncio.gather(
+                *[self._run_iteration(i, subset_dataset, semaphore, raise_errors) for i in range(self._runs)]
+            )
+        )
 
         # Flush spans in case of serverless
         self._llmobs_instance.flush()
@@ -1066,6 +1026,60 @@ class Experiment:
             rows=all_runs[0].rows if all_runs else [],
             runs=all_runs,
         )
+
+    async def _run_iteration(
+        self,
+        iteration: int,
+        dataset: Dataset,
+        semaphore: asyncio.Semaphore,
+        raise_errors: bool,
+    ) -> ExperimentRun:
+        """Run a single iteration of the experiment.
+
+        :param iteration: The iteration index (0-based)
+        :param dataset: The dataset to process
+        :param semaphore: Semaphore for concurrency control
+        :param raise_errors: Whether to raise exceptions on errors
+        :return: ExperimentRun containing the results for this iteration
+        """
+        run_info = _ExperimentRunInfo(iteration)
+        iteration_tags = {
+            **self._tags,
+            "run_id": str(run_info._id),
+            "run_iteration": str(run_info._run_iteration),
+        }
+
+        coros = [
+            self._process_record(record, idx, run_info, iteration_tags, semaphore, raise_errors)
+            for idx, record in enumerate(dataset)
+        ]
+        results = await asyncio.gather(*coros, return_exceptions=not raise_errors)
+
+        row_results: List[ExperimentRowResult] = []
+        all_metrics: List["LLMObsExperimentEvalMetricEvent"] = []
+        for result in results:
+            if isinstance(result, BaseException):
+                if raise_errors:
+                    raise result
+                continue
+            row_result, metrics = result
+            row_results.append(row_result)
+            all_metrics.extend(metrics)
+
+        # Run summary evaluators
+        summary_evals, summary_metrics = await self._run_summary_evaluators(
+            row_results, iteration_tags, semaphore, raise_errors
+        )
+        all_metrics.extend(summary_metrics)
+
+        # Submit metrics for this iteration
+        if self._id is None:
+            raise ValueError("Experiment ID is not set")
+        self._llmobs_instance._dne_client.experiment_eval_post(
+            self._id, all_metrics, convert_tags_dict_to_list(iteration_tags)
+        )
+
+        return ExperimentRun(run_info, summary_evals, row_results)
 
     async def _process_record(
         self,
@@ -1242,7 +1256,7 @@ class Experiment:
                     eval_result = await evaluator(input_data, output, expected_output)
                 else:
                     # Sync function evaluator - run in thread
-                    eval_result = await asyncio.to_thread(evaluator, input_data, output, expected_output)  # type: ignore[arg-type]
+                    eval_result = await asyncio.to_thread(evaluator, input_data, output, expected_output)  # noqa: E501  # type: ignore[arg-type]
 
                 # Extract EvaluatorResult if applicable
                 eval_result_value, extra_return_values = _extract_evaluator_result(eval_result)
@@ -1325,7 +1339,7 @@ class Experiment:
                             evaluation_results=eval_results_by_name,
                             metadata=metadata_list,
                         )
-                        eval_result_value = await asyncio.to_thread(summary_evaluator.evaluate, context)  # type: ignore[union-attr, arg-type]
+                        eval_result_value = await asyncio.to_thread(summary_evaluator.evaluate, context)  # noqa: E501  # type: ignore[union-attr, arg-type]
                     elif asyncio.iscoroutinefunction(summary_evaluator):
                         # Async function summary evaluator
                         eval_result_value = await summary_evaluator(
