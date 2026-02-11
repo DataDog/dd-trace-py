@@ -12,7 +12,6 @@ from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Mapping
-from typing import MutableMapping
 from typing import Optional
 from typing import Sequence
 from typing import Set
@@ -245,8 +244,8 @@ class RemoteConfigClient:
         self.cached_target_files: List[AppliedConfigType] = []
 
         # Product callbacks for single subscriber architecture
-        self._product_callbacks: MutableMapping[str, RCCallback] = dict()
-        self._product_preprocess: MutableMapping[str, Callable[[List[Payload]], List[Payload]]] = dict()
+        self._product_callbacks: Dict[str, RCCallback] = {}
+        self._product_preprocess: Dict[str, Callable[[List[Payload]], List[Payload]]] = {}
 
         # Single global connector and subscriber for all products
         self._global_connector = PublisherSubscriberConnector()
@@ -254,7 +253,7 @@ class RemoteConfigClient:
             self._global_connector, self._dispatch_to_products, "GlobalSubscriber"
         )
 
-        self._applied_configs: AppliedConfigType = dict()
+        self._applied_configs: AppliedConfigType = {}
         self._last_targets_version = 0
         self._last_error: Optional[str] = None
         self._backend_state: Optional[str] = None
@@ -273,8 +272,12 @@ class RemoteConfigClient:
         Args:
             payloads: Sequence of configuration payloads to dispatch
         """
+        # Make a copy of the product callbacks at the time of dispatch to avoid
+        # issues if callbacks are registered/unregistered while dispatching
+        product_callbacks = self._product_callbacks.copy()  # Copy to avoid
+
         # Call periodic method for all registered callbacks
-        for product_name, callback in self._product_callbacks.items():
+        for product_name, callback in product_callbacks.items():
             try:
                 log.debug(
                     "[%s][P: %s] Calling periodic method for product %s",
@@ -306,8 +309,8 @@ class RemoteConfigClient:
 
         # Dispatch to each product's callback
         for product_name, product_payload_list in product_payloads.items():
-            product_callback = self._product_callbacks.get(product_name)
-            if product_callback:
+            product_callback = product_callbacks.get(product_name)
+            if product_callback is not None:
                 try:
                     log.debug(
                         "[%s][P: %s] Dispatching %d payloads to product %s",

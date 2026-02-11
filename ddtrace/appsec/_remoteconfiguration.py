@@ -19,7 +19,6 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
-from ddtrace.trace import Tracer
 from ddtrace.trace import tracer
 
 
@@ -28,7 +27,7 @@ log = get_logger(__name__)
 APPSEC_PRODUCTS = {PRODUCTS.ASM_FEATURES, PRODUCTS.ASM, PRODUCTS.ASM_DATA, PRODUCTS.ASM_DD}
 
 
-def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
+def enable_appsec_rc() -> None:
     """Remote config will be used by ASM libraries to receive four different updates from the backend.
     Each update has it's own product:
     - ASM_FEATURES product - To allow users enable or disable ASM remotely
@@ -38,8 +37,6 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
 
     If environment variable `DD_APPSEC_ENABLED` is not set, registering ASM_FEATURE can enable ASM remotely.
     If it's set to true, we will register the rest of the products.
-
-    Parameters `test_tracer` is needed for testing purposes
     """
     log.debug("[%s][P: %s] Register ASM Remote Config Callback", os.getpid(), os.getppid())
 
@@ -77,21 +74,15 @@ def disable_appsec_rc():
 class AppSecCallback(RCCallback):
     """Remote config callback for AppSec products."""
 
-    def __init__(self, test_tracer: Optional[Tracer] = None) -> None:
-        """Initialize the AppSec callback.
-
-        Args:
-            test_tracer: Optional tracer for testing purposes
-        """
-        self._test_tracer = test_tracer
+    def __init__(self) -> None:
+        """Initialize the AppSec callback."""
         self._cache: Dict[str, Dict[str, Any]] = {}
 
-    def __call__(self, payloads: Sequence[Payload], test_tracer: Optional[Tracer] = None) -> None:
+    def __call__(self, payloads: Sequence[Payload]) -> None:
         """Process AppSec configuration payloads.
 
         Args:
             payloads: Sequence of configuration payloads to process
-            test_tracer: Optional tracer for testing purposes (backward compatibility)
         """
         if not payloads:
             return

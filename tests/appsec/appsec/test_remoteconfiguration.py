@@ -220,33 +220,33 @@ def test_rc_activation_check_asm_features_product_disables_rest_of_products(
     disable_config = [build_payload("ASM_FEATURES", disable_config_content, "config")]
     with override_global_config(global_config):
         tracer.configure(appsec_enabled=True)
-        enable_appsec_rc(tracer)
+        enable_appsec_rc()
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending nothing should not change anything (configuration is the same)
-        _appsec_callback(empty_config, tracer)
+        _appsec_callback(empty_config)
 
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending empty config for asm should disable asm (meaning asm was deleted)
-        _appsec_callback(disable_config, tracer)
+        _appsec_callback(disable_config)
 
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending nothing should not change anything (configuration is the same)
-        _appsec_callback(empty_config, tracer)
+        _appsec_callback(empty_config)
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM) is None
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
 
         # sending config should enable asm again
-        _appsec_callback(enable_config, tracer)
+        _appsec_callback(enable_config)
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM_DATA)) is expected
         assert bool(rc_poller._client._product_callbacks.get(PRODUCTS.ASM)) is expected
         assert rc_poller._client._product_callbacks.get(PRODUCTS.ASM_FEATURES)
