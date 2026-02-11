@@ -45,6 +45,10 @@ class PythonErrorRestorer
     {
 #ifdef _PY312_AND_LATER
         // Python 3.12+: Use the new API that returns a single exception object
+        // Reference ownership note:
+        // - PyErr_GetRaisedException() returns a new reference.
+        // - PyErr_SetRaisedException() steals a reference.
+        // So we intentionally do not DECREF saved_exception ourselves.
         saved_exception = PyErr_GetRaisedException();
 #else
         // Python < 3.12: Use the old API with separate type, value, traceback
