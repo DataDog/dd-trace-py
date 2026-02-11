@@ -844,14 +844,18 @@ class AstVisitor(ast.NodeTransformer):
         if isinstance(assign_node.value, ast.Subscript):
             if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
                 # Best effort to avoid converting type definitions
+                # Support both typing module style (Dict, List, Tuple) and Python 3.9+ style (dict, list, tuple)
                 if assign_node.value.value.id in (
                     "Callable",
                     "Dict",
+                    "dict",
                     "Generator",
                     "List",
+                    "list",
                     "Optional",
                     "Sequence",
                     "Tuple",
+                    "tuple",
                     "Type",
                     "TypeVar",
                     "Union",
