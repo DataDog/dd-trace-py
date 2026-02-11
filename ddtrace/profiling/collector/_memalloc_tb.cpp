@@ -9,6 +9,72 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 
+/* RAII helper to preserve the raised C-level exception indicator while sampling.
+ *
+ * The allocator hook can run in contexts where CPython already has a raised
+ * exception in flight (PyErr_Occurred() != NULL). During sampling, we call
+ * C-API functions that may set or clear the indicator on failure.
+ *
+ * CPython uses this same save/restore pattern in sensitive paths (for example,
+ * frame-object creation) and documents that callbacks entered with a pending
+ * exception must preserve it unless they intentionally replace it.
+ *
+ * Important: this only preserves the raised C-level indicator, not the handled
+ * exception state used by sys.exception()/except blocks.
+ */
+class PythonErrorRestorer
+{
+  public:
+    PythonErrorRestorer()
+    {
+#ifdef _PY312_AND_LATER
+        // Python 3.12+: Use the new API that returns a single exception object
+        saved_exception = PyErr_GetRaisedException();
+#else
+        // Python < 3.12: Use the old API with separate type, value, traceback
+        PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
+#endif
+    }
+
+    ~PythonErrorRestorer()
+    {
+        // Restore the raised C-level exception indicator that was active on
+        // entry, so allocator-hook sampling does not clobber caller state.
+        //
+        // We still clear transient local failures at call sites where we
+        // continue after an API failure (for example, PyUnicode_AsUTF8AndSize
+        // and PyFrame_GetBack), because some C-API paths are not safe to keep
+        // running with an error set.
+#ifdef _PY312_AND_LATER
+        if (saved_exception != NULL) {
+            PyErr_SetRaisedException(saved_exception);
+        } else if (PyErr_Occurred()) {
+            PyErr_Clear();
+        }
+#else
+        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
+            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
+        } else if (PyErr_Occurred()) {
+            PyErr_Clear();
+        }
+#endif
+    }
+
+    // Non-copyable, non-movable
+    PythonErrorRestorer(const PythonErrorRestorer&) = delete;
+    PythonErrorRestorer& operator=(const PythonErrorRestorer&) = delete;
+    PythonErrorRestorer(PythonErrorRestorer&&) = delete;
+    PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
+
+  private:
+#ifdef _PY312_AND_LATER
+    PyObject* saved_exception;
+#else
+    PyObject* saved_exc_type;
+    PyObject* saved_exc_value;
+    PyObject* saved_exc_traceback;
+#endif
+};
 /* Helper function to convert PyUnicode object to string_view
  * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
  * The pointer remains valid as long as the PyObject is alive */
@@ -123,6 +189,15 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         PyFrameObject* back = PyFrame_GetBack(frame);
         Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
                           // from GetBack are also new references
+        if (back == NULL) {
+            if (PyErr_Occurred()) {
+                // In this case, PyFrame_GetBack returned a NULL frame, and set
+                // MemoryError. We'd better clear it here to avoid propagating
+                // it to the caller.
+                PyErr_Clear();
+            }
+            break;
+        }
         frame = back;
         memalloc_debug_gil_release();
     }
@@ -131,6 +206,10 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
+    // Preserve any raised C-level exception already in flight before touching
+    // CPython C-API from inside the allocator hook.
+    PythonErrorRestorer error_restorer;
+
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0
