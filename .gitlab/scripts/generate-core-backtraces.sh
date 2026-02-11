@@ -7,9 +7,6 @@
 
 set -o pipefail
 
-# Enable debuginfod so gdb can fetch debug symbols for system libraries (libc, etc.)
-export DEBUGINFOD_URLS="${DEBUGINFOD_URLS:-https://debuginfod.debian.net}"
-
 for core_file in core.*; do
     # Skip non-files (e.g. if the glob matched nothing) and our own output files
     [ -f "$core_file" ] || continue
@@ -22,8 +19,9 @@ for core_file in core.*; do
     exe=$(gdb -batch -ex "core-file $core_file" -ex "info auxv" 2>/dev/null \
         | grep AT_EXECFN | grep -oP '"\K[^"]+')
 
-    # AT_EXECFN may point to a script (e.g. pytest) rather than the interpreter.
-    # If so, follow the shebang to find the real binary.
+    # Since tests can be run with "pytest" or any other script that's just a
+    # wrapper, AT_EXECFN may point to the script rather than the Python binary.
+    # Follow the shebang to find the actual interpreter.
     if [ -n "$exe" ] && [ -f "$exe" ] && head -c2 "$exe" | grep -q '^#!'; then
         interp=$(head -1 "$exe" | sed 's/^#!//' | awk '{print $1}')
         if [ -n "$interp" ] && [ -f "$interp" ]; then
@@ -38,8 +36,6 @@ for core_file in core.*; do
 
     gdb -batch \
         -ex "set auto-load safe-path /" \
-        -ex "set pagination off" \
-        -ex "set debuginfod enabled on" \
         -ex "file $exe" \
         -ex "core-file $core_file" \
         -ex "bt" \
