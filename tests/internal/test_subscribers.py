@@ -11,8 +11,8 @@ from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.events import event_field
-from ddtrace.internal.core.subscriber import BaseContextSubscriber
-from ddtrace.internal.core.subscriber import BaseSubscriber
+from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.trace import tracer
 
 
@@ -35,7 +35,7 @@ class TestEvent(Event):
 def test_base_subscriber():
     """Test that a direct BaseSubscriber receives dispatched events."""
 
-    class DirectSubscriber(BaseSubscriber):
+    class DirectSubscriber(Subscriber):
         event_name = TestEvent.event_name
 
         @classmethod
@@ -50,7 +50,7 @@ def test_base_subscriber():
 def test_base_subscriber_inheritance():
     """Test that parent and child BaseSubscriber handlers run in order."""
 
-    class ParentSubscriber(BaseSubscriber):
+    class ParentSubscriber(Subscriber):
         @classmethod
         def on_event(cls, event_instance):
             called.append("parent")
@@ -77,7 +77,7 @@ def test_base_context_subscriber():
         in_context: str = event_field()
         not_in_context: InitVar[str] = event_field()
 
-    class DirectSubscriber(BaseContextSubscriber):
+    class DirectSubscriber(ContextSubscriber):
         event_name = TestContextEventWithAttributes.event_name
 
         @classmethod
@@ -105,7 +105,7 @@ def test_base_context_subscriber_inheritance():
     class TestContextEvent(Event):
         event_name = "test.subscriber.context"
 
-    class ParentSubscriber(BaseContextSubscriber):
+    class ParentSubscriber(ContextSubscriber):
         @classmethod
         def on_started(cls, ctx):
             called.append("parent_started")

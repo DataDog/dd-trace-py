@@ -8,7 +8,7 @@ from ddtrace.internal import core
 from .events import EventType
 
 
-class BaseSubscriber:
+class Subscriber:
     """Base class for event subscribers.
 
     Subclasses that define ``event_name`` automatically register themselves to handle that event.
@@ -24,7 +24,7 @@ class BaseSubscriber:
             event_name = "my.event"
             data: str
 
-        class MySubscriber(BaseSubscriber):
+        class MySubscriber(Subscriber):
             event_name = "my.event"
 
             @classmethod
@@ -44,9 +44,9 @@ class BaseSubscriber:
         cls._event_handlers = tuple(
             base_cls.on_event
             for base_cls in reversed(cls.__mro__[:-1])
-            if issubclass(base_cls, BaseSubscriber)
+            if issubclass(base_cls, Subscriber)
             and "on_event" in base_cls.__dict__
-            and base_cls is not BaseSubscriber
+            and base_cls is not Subscriber
         )
 
         if "event_name" not in cls.__dict__:
@@ -74,7 +74,7 @@ class BaseSubscriber:
             handler(event_instance)
 
 
-class BaseContextSubscriber(Generic[EventType]):
+class ContextSubscriber(Generic[EventType]):
     """Base class for context event subscribers.
 
     Subclasses that define ``event_name`` automatically register themselves to handle context lifecycle events:
@@ -88,7 +88,7 @@ class BaseContextSubscriber(Generic[EventType]):
 
             user_id: str = event_field()
 
-        class MyContextSubscriber(BaseContextSubscriber):
+        class MyContextSubscriber(ContextSubscriber):
             event_name = "my.context"
 
             @classmethod
@@ -115,16 +115,16 @@ class BaseContextSubscriber(Generic[EventType]):
         cls._started_handlers = tuple(
             base_cls.on_started
             for base_cls in reversed(cls.__mro__[:-1])
-            if issubclass(base_cls, BaseContextSubscriber)
+            if issubclass(base_cls, ContextSubscriber)
             and "on_started" in base_cls.__dict__
-            and base_cls is not BaseContextSubscriber
+            and base_cls is not ContextSubscriber
         )
         cls._ended_handlers = tuple(
             base_cls.on_ended
             for base_cls in reversed(cls.__mro__[:-1])
-            if issubclass(base_cls, BaseContextSubscriber)
+            if issubclass(base_cls, ContextSubscriber)
             and "on_ended" in base_cls.__dict__
-            and base_cls is not BaseContextSubscriber
+            and base_cls is not ContextSubscriber
         )
 
         if "event_name" not in cls.__dict__:

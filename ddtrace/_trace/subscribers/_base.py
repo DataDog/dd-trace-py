@@ -15,7 +15,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.events import TracingEvent
-from ddtrace.internal.core.subscriber import BaseContextSubscriber
+from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.trace import tracer
 
 
@@ -73,7 +73,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     return span
 
 
-class TracingSubscriber(BaseContextSubscriber[TracingEventType], Generic[TracingEventType]):
+class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType]):
     """Subscriber that automatically manages span lifecycle for SpanContextEvent.
 
     This base class handles span creation and finishing, so subclasses only need to
