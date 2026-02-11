@@ -4,7 +4,6 @@ This test intentionally crashes a subprocess to create a core file, then runs th
 backtrace generation script and verifies the output contains resolved symbols.
 """
 
-import ctypes
 import os
 import shutil
 import signal
@@ -16,7 +15,7 @@ import pytest
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_generate_core_backtrace(tmp_path):
-    """Fork a child that segfaults, then verify the backtrace script produces readable output."""
+    """Spawn a child that segfaults, then verify the backtrace script produces readable output."""
 
     if not shutil.which("gdb"):
         pytest.skip("gdb is not installed")
@@ -28,21 +27,17 @@ def test_generate_core_backtrace(tmp_path):
     if soft == 0:
         pytest.skip("Core dumps are disabled (ulimit -c 0)")
 
-    # Fork a child that will segfault
-    pid = os.fork()
-    if pid == 0:
-        # Child: change to tmp_path so core dumps land there
-        os.chdir(str(tmp_path))
-        ctypes.string_at(0)  # SIGSEGV
-        os._exit(1)  # unreachable
-
-    # Parent: wait for child
-    _, status = os.waitpid(pid, 0)
-    assert os.WIFSIGNALED(status), "Child should have been killed by a signal"
-    assert os.WTERMSIG(status) == signal.SIGSEGV, "Child should have received SIGSEGV"
+    # Spawn a subprocess that segfaults. Using subprocess (not os.fork) so the
+    # child gets its own AT_EXECFN pointing to the Python binary, not pytest.
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import ctypes; ctypes.string_at(0)"],
+        cwd=str(tmp_path),
+    )
+    proc.wait()
+    assert proc.returncode == -signal.SIGSEGV, "Child should have been killed by SIGSEGV, got %d" % proc.returncode
 
     # Expect core.<pid> (matches CI testrunner where kernel.core_pattern = core.%p)
-    core_file = str(tmp_path / ("core.%d" % pid))
+    core_file = str(tmp_path / ("core.%d" % proc.pid))
     if not os.path.exists(core_file):
         pytest.skip("No core file produced at %s (core_pattern may differ from core.%%p)" % core_file)
 
