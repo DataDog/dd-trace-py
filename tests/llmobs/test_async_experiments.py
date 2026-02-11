@@ -177,6 +177,15 @@ def _stable_run_info(iteration: int) -> _ExperimentRunInfo:
     return run_info
 
 
+def _stable_format_error(e: Exception) -> dict:
+    """Format error with stable stack trace (no environment-specific paths)."""
+    return {
+        "message": str(e),
+        "type": type(e).__name__,
+        "stack": f"Traceback (most recent call last):\n  {type(e).__name__}: {e}\n",
+    }
+
+
 @asynccontextmanager
 async def stable_experiment_run(exp: AsyncExperiment):
     """Context manager that fixes non-deterministic values for stable cassette recordings.
@@ -185,7 +194,7 @@ async def stable_experiment_run(exp: AsyncExperiment):
     - ddtrace.version tag (to prevent cassette hash mismatches across versions)
     - Run UUIDs (via _ExperimentRunInfo)
     - Span/Trace IDs and timestamps (via _run_task_for_record wrapper)
-    - Metrics posting (mocked to avoid timestamp validation while still returning results)
+    - Error formatting (to avoid environment-specific paths in stack traces)
 
     All other execution (tasks, evaluators, summary evaluators) proceeds normally.
 
@@ -211,7 +220,11 @@ async def stable_experiment_run(exp: AsyncExperiment):
         side_effect=_stable_run_info,
     ):
         with mock.patch.object(exp, "_run_task_for_record", side_effect=patched_run_task):
-            yield
+            with mock.patch(
+                "ddtrace.llmobs._async_experiment._format_error",
+                side_effect=_stable_format_error,
+            ):
+                yield
 
 
 # --- Fixtures ---

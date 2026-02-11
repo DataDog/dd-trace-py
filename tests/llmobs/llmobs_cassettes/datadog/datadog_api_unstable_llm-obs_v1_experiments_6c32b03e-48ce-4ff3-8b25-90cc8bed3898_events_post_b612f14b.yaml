@@ -5,19 +5,15 @@ interactions:
       "custom", "span_id": "123", "trace_id": "456", "timestamp_ms": 1770751160226,
       "metric_type": "categorical", "label": "async_faulty_evaluator", "categorical_value":
       null, "error": {"message": "This is a test error in async evaluator", "type":
-      "ValueError", "stack": "Traceback (most recent call last):\n  File \"/Users/christopher.fox/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/_async_experiment.py\",
-      line 502, in _run_evaluator\n    eval_result = await evaluator(input_data, output,
-      expected_output)\n                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File
-      \"/Users/christopher.fox/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_async_experiments.py\",
-      line 85, in async_faulty_evaluator\n    raise ValueError(\"This is a test error
-      in async evaluator\")\nValueError: This is a test error in async evaluator\n"},
-      "tags": ["ddtrace.version:1.2.3", "project_name:test-project", "dataset_name:async-test-dataset-one",
-      "experiment_name:test_async_experiment_eval_error", "project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9",
-      "experiment_id:6c32b03e-48ce-4ff3-8b25-90cc8bed3898", "run_id:12345678-abcd-abcd-abcd-123456789012",
-      "run_iteration:1"]}], "tags": ["ddtrace.version:1.2.3", "project_name:test-project",
+      "ValueError", "stack": "Traceback (most recent call last):\n  ValueError: This
+      is a test error in async evaluator\n"}, "tags": ["ddtrace.version:1.2.3", "project_name:test-project",
       "dataset_name:async-test-dataset-one", "experiment_name:test_async_experiment_eval_error",
       "project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9", "experiment_id:6c32b03e-48ce-4ff3-8b25-90cc8bed3898",
-      "run_id:12345678-abcd-abcd-abcd-123456789012", "run_iteration:1"]}}}'
+      "run_id:12345678-abcd-abcd-abcd-123456789012", "run_iteration:1"]}], "tags":
+      ["ddtrace.version:1.2.3", "project_name:test-project", "dataset_name:async-test-dataset-one",
+      "experiment_name:test_async_experiment_eval_error", "project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9",
+      "experiment_id:6c32b03e-48ce-4ff3-8b25-90cc8bed3898", "run_id:12345678-abcd-abcd-abcd-123456789012",
+      "run_iteration:1"]}}}'
     headers:
       Accept:
       - '*/*'
@@ -27,7 +23,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '1670'
+      - '1175'
       ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
@@ -46,7 +42,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 11 Feb 2026 00:58:40 GMT
+      - Wed, 11 Feb 2026 13:20:27 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

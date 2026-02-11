@@ -12,11 +12,7 @@ interactions:
       "", "trace_id": "", "timestamp_ms": 1770751160226, "metric_type": "categorical",
       "label": "async_faulty_summary_evaluator", "categorical_value": null, "error":
       {"message": "This is a test error in async summary evaluator", "type": "ValueError",
-      "stack": "Traceback (most recent call last):\n  File \"/Users/christopher.fox/go/src/github.com/DataDog/dd-trace-py/ddtrace/llmobs/_async_experiment.py\",
-      line 591, in run_single_summary_evaluator\n    eval_result_value = await summary_evaluator(\n                        ^^^^^^^^^^^^^^^^^^^^^^^^\n  File
-      \"/Users/christopher.fox/go/src/github.com/DataDog/dd-trace-py/tests/llmobs/test_async_experiments.py\",
-      line 116, in async_faulty_summary_evaluator\n    raise ValueError(\"This is
-      a test error in async summary evaluator\")\nValueError: This is a test error
+      "stack": "Traceback (most recent call last):\n  ValueError: This is a test error
       in async summary evaluator\n"}, "tags": ["ddtrace.version:1.2.3", "project_name:test-project",
       "dataset_name:async-test-dataset-one", "experiment_name:test_async_experiment_summary_error",
       "project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9", "experiment_id:28639d53-848e-435a-8a87-d393cdffa4d2",
@@ -34,7 +30,7 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '2256'
+      - '1774'
       ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
@@ -53,7 +49,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 11 Feb 2026 00:58:45 GMT
+      - Wed, 11 Feb 2026 13:20:30 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
