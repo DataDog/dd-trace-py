@@ -14,32 +14,32 @@ from ddtrace.testing.internal.test_data import TestStatus
 
 
 class TestImmutableRef:
-    """Tests for NamedTuple-based ref types (immutability of ModuleRef, SuiteRef, TestRef)."""
+    """Tests for _ImmutableRef base class behavior (immutability of ModuleRef, SuiteRef, TestRef)."""
 
     def test_module_ref_immutable_raises_attribute_error(self) -> None:
-        """Test that assigning to ModuleRef raises AttributeError."""
+        """Test that assigning to ModuleRef raises AttributeError with 'immutable' message."""
         module = ModuleRef(name="test_module")
-        with pytest.raises(AttributeError, match="can't set attribute"):
+        with pytest.raises(AttributeError, match="ModuleRef.*immutable"):
             module.name = "new_name"  # type: ignore[misc]
 
     def test_suite_ref_immutable_raises_attribute_error(self) -> None:
-        """Test that assigning to SuiteRef raises AttributeError."""
+        """Test that assigning to SuiteRef raises AttributeError with 'immutable' message."""
         module = ModuleRef(name="test_module")
         suite = SuiteRef(module=module, name="test_suite")
-        with pytest.raises(AttributeError, match="can't set attribute"):
+        with pytest.raises(AttributeError, match="SuiteRef.*immutable"):
             suite.name = "new_name"  # type: ignore[misc]
 
     def test_test_ref_immutable_raises_attribute_error(self) -> None:
-        """Test that assigning to TestRef raises AttributeError."""
+        """Test that assigning to TestRef raises AttributeError with 'immutable' message."""
         module = ModuleRef(name="test_module")
         suite = SuiteRef(module=module, name="test_suite")
         test = TestRef(suite=suite, name="test_function")
-        with pytest.raises(AttributeError, match="can't set attribute"):
+        with pytest.raises(AttributeError, match="TestRef.*immutable"):
             test.name = "new_name"  # type: ignore[misc]
 
 
 class TestModuleRef:
-    """Tests for ModuleRef (NamedTuple-based immutable ref)."""
+    """Tests for ModuleRef (immutable ref, plain class with __slots__)."""
 
     def test_module_ref_creation(self) -> None:
         """Test that ModuleRef can be created with a name."""
@@ -71,7 +71,7 @@ class TestModuleRef:
 
 
 class TestSuiteRef:
-    """Tests for SuiteRef (NamedTuple-based immutable ref)."""
+    """Tests for SuiteRef (immutable ref, plain class with __slots__)."""
 
     def test_suite_ref_creation(self) -> None:
         """Test that SuiteRef can be created with module and name."""
@@ -110,7 +110,7 @@ class TestSuiteRef:
 
 
 class TestTestRef:
-    """Tests for TestRef (NamedTuple-based immutable ref)."""
+    """Tests for TestRef (immutable ref, plain class with __slots__)."""
 
     def test_test_ref_creation(self) -> None:
         """Test that TestRef can be created with suite and name."""
