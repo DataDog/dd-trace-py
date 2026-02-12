@@ -28,6 +28,8 @@ struct PtrPair
 
 struct PtrPairHash
 {
+    // Hash combining using the golden ratio constant (2^64 / phi).
+    // This is a standard technique similar to boost::hash_combine.
     inline size_t operator()(const PtrPair& p) const noexcept
     {
         uintptr_t h1 = reinterpret_cast<uintptr_t>(p.a);
@@ -62,6 +64,10 @@ class StackRenderer
     Sample* sample = nullptr;
     ThreadState thread_state = {};
 
+    // Caches for interned strings and function IDs. These are used to avoid
+    // re-interning the same strings and function IDs multiple times (even though libdatadog
+    // deduplicates entries, keeping track of which items have been interned is faster than
+    // trying to re-intern them).
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
     std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
 
@@ -81,6 +87,7 @@ class StackRenderer
     void render_frame(Frame& frame);
     void render_cpu_time(uint64_t cpu_time_us);
     void render_stack_end();
+
     // Clear caches after fork to avoid using stale interned string/function IDs
     void postfork_child();
 };
