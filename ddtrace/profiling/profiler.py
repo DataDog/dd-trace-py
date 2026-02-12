@@ -177,15 +177,9 @@ class _ProfilerInstance(service.Service):
         ddup.start()
 
     def __post_init__(self) -> None:
-        if self._stack_collector_enabled:
-            LOG.debug("Profiling collector (stack) enabled")
-            try:
-                self._collectors.append(stack.StackCollector(tracer=self.tracer))
-                LOG.debug("Profiling collector (stack) initialized")
-            except Exception:
-                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
-
-        # Initialize the Python exception collector if enabled
+        # Initialize the Python exception collector first so that its
+        # bytecode scanning (on 3.10/3.11) completes before the stack
+        # sampler starts capturing frames.
         if self._exception_profiling_enabled:
             LOG.debug("Profiling collector (exception) enabled")
             try:
@@ -198,6 +192,14 @@ class _ProfilerInstance(service.Service):
                 LOG.debug("Profiling collector (exception) initialized")
             except Exception:
                 LOG.error("Failed to start exception collector, disabling.", exc_info=True)
+
+        if self._stack_collector_enabled:
+            LOG.debug("Profiling collector (stack) enabled")
+            try:
+                self._collectors.append(stack.StackCollector(tracer=self.tracer))
+                LOG.debug("Profiling collector (stack) initialized")
+            except Exception:
+                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
