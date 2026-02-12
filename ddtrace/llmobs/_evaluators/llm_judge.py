@@ -7,8 +7,6 @@ import json
 import os
 import re
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Literal
 from typing import Optional
 from typing import Protocol
@@ -250,7 +248,7 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     return call
 
 
-def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     try:
         import vertexai
         from vertexai.generative_models import GenerationConfig
@@ -297,10 +295,10 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
 
     def call(
         provider: Optional[str],
-        messages: List[Dict[str, str]],
-        json_schema: Optional[Dict[str, Any]],
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
         model: str,
-        model_params: Optional[Dict[str, Any]],
+        model_params: Optional[dict[str, Any]],
     ) -> str:
         contents = []
         system_msgs = []
