@@ -278,6 +278,16 @@ codeowners:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   script:
+    # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
+    # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
+    - |
+        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | sort | uniq -d > /tmp/duplicate_codeowners.txt
+        if [ -s /tmp/duplicate_codeowners.txt ]; then
+            echo "Duplicate entries found in .github/CODEOWNERS for patterns:"
+            cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
+            echo "Each file pattern should only be listed once to ensure clear ownership. Please remove duplicates from .github/CODEOWNERS."
+            exit 1
+        fi
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
