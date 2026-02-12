@@ -154,12 +154,12 @@ class SessionManager:
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
                 )
                 if is_faulty_session:
-                    log.info("Not enabling Early Flake Detection: too many new tests")
+                    log.debug("Not enabling Early Flake Detection: too many new tests")
                     self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
                     self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
             else:
-                log.info("Not enabling Early Flake Detection: no known tests")
+                log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
             self.retry_handlers.append(AutoTestRetriesHandler(self))
@@ -190,7 +190,7 @@ class SessionManager:
             return result
 
         except Exception as e:
-            log.exception("Error uploading coverage report: %s", e)
+            log.warning("Error uploading coverage report: %s", e)
             return False
 
     def finish(self) -> None:
@@ -227,14 +227,14 @@ class SessionManager:
             try:
                 on_new_module(test_module)
             except Exception:
-                log.exception("Error during discovery of module %s", test_module)
+                log.warning("Error during discovery of module %s", test_module)
 
         test_suite, created = test_module.get_or_create_child(test_ref.suite.name)
         if created:
             try:
                 on_new_suite(test_suite)
             except Exception:
-                log.exception("Error during discovery of suite %s", test_suite)
+                log.warning("Error during discovery of suite %s", test_suite)
 
         test, created = test_suite.get_or_create_child(test_ref.name)
         if created:
@@ -251,7 +251,7 @@ class SessionManager:
                 on_new_test(test)
                 self._set_codeowners(test)
             except Exception:
-                log.exception("Error during discovery of test %s", test)
+                log.warning("Error during discovery of test %s", test)
 
         return test_module, test_suite, test
 

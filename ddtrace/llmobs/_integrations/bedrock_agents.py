@@ -6,8 +6,8 @@ from typing import Literal
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
@@ -56,7 +56,7 @@ def _build_span_event(
     output_val=None,
 ) -> LLMObsSpanEvent:
     if span_id is None:
-        span_id = rand128bits()
+        span_id = generate_128bit_trace_id()
     apm_trace_id = format_trace_id(root_span.trace_id)
     llmobs_trace_id = root_span._get_ctx_item(LLMOBS_TRACE_ID)
     if llmobs_trace_id is None:

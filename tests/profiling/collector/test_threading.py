@@ -292,11 +292,8 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
             expected_release_events=[
@@ -305,11 +302,8 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
         )
@@ -385,11 +379,8 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
             expected_release_events=[
@@ -398,11 +389,8 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
         )

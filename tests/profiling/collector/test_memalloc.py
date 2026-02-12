@@ -6,10 +6,12 @@ from pathlib import Path
 import sys
 import threading
 from tracemalloc import Statistic
+from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Sequence
 from typing import Union
+from typing import cast
 
 import pytest
 
@@ -115,7 +117,11 @@ def test_memory_collector(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
             thread_id=threading.main_thread().ident,
             locations=[
                 pprof_utils.StackLocation(
@@ -208,6 +214,30 @@ def four(size: int) -> Union[tuple[None, ...], bytearray]:
 
 def _create_allocation(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
+def _allocate_with_lone_surrogate_filename(nallocs: int = 2_000) -> None:
+    """Allocate from a function whose co_filename cannot be UTF-8 encoded.
+
+    The filename contains a lone surrogate, which makes PyUnicode_AsUTF8AndSize()
+    fail when the memory collector serializes frame filenames.
+
+    This is used by memalloc tests to exercise the internal
+    PyUnicode_AsUTF8AndSize failure path in memalloc stack serialization.
+    """
+    namespace: Dict[str, object] = {}
+    compiled_code: CodeType = compile(
+        "def _alloc_from_bad_filename(nallocs):\n    for _ in range(nallocs):\n        object()\n",
+        "\udcff_memalloc_bad_filename.py",
+        "exec",
+    )
+    with pytest.raises(UnicodeEncodeError):
+        compiled_code.co_filename.encode("utf-8", "strict")
+    # NOTE: exec defines the function in the namespace, so that we can call it
+    # later.
+    exec(compiled_code, namespace)
+    alloc = cast(Callable[[int], None], namespace["_alloc_from_bad_filename"])
+    alloc(nallocs)
 
 
 class HeapInfo:
@@ -732,6 +762,21 @@ def test_memory_collector_exception_handling(tmp_path: Path) -> None:
         assert profile is not None
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1"))
+def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
+    from ddtrace.profiling.collector import _memalloc
+    from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
+
+    _memalloc.start(64, 1)
+    try:
+        # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
+        # memalloc frame serialization. The test passes if the subprocess
+        # exits cleanly (no leaked internal profiler exception).
+        _allocate_with_lone_surrogate_filename()
+    finally:
+        _memalloc.stop()
+
+
 def test_memory_collector_allocation_during_shutdown() -> None:
     """Test that verifies that when _memalloc.stop() is called while allocations are still
     happening in another thread, the shutdown process completes without deadlocks or crashes.
@@ -1131,7 +1176,12 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         profile,
         samples,
         expected_sample=pprof_utils.StackEvent(
-            thread_name="MainThread",
+            # Memory profiler uses Python C APIs to get thread id and there's
+            # no Python C API to get thread name. We can consider using Echion's
+            # ThreadInfoMap to get thread_name. DataDog::Sample::push_threadinfo()
+            # uses thread_id as a fallback for thread_name.
+            thread_name=str(threading.main_thread().ident),
+            thread_id=threading.main_thread().ident,
             locations=[
                 loc("inner_frame"),
                 loc("middle_frame"),
@@ -1140,3 +1190,57 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+@pytest.mark.subprocess()
+def test_memalloc_allocator_hook_does_not_release_gil() -> None:
+    """Regression test for IR-49169: memory profiler crash from GIL release during allocator hook.
+
+    The allocator hook calls PyObject_CallObject(threading.current_thread()) which
+    re-enters the eval loop. _Py_HandlePending can then release the GIL (when other
+    threads are waiting) or trigger GC, corrupting partially-constructed objects.
+    If the bug is present, this test segfaults.
+    """
+    import threading
+    import time
+
+    from ddtrace.profiling.collector import _memalloc
+
+    # sample_size=1: sample nearly every allocation so the hook fires
+    # during dictresize's internal malloc while the dict is inconsistent.
+    _memalloc.start(64, 1)
+
+    stop = threading.Event()
+    shared: dict = {}
+
+    def mutate(tid: int) -> None:
+        i = 0
+        while not stop.is_set():
+            for j in range(100):
+                shared[f"{tid}_{i}_{j}"] = [0] * 10
+            i += 1
+            if i % 5 == 0:
+                shared.clear()
+
+    def read() -> None:
+        while not stop.is_set():
+            try:
+                list(shared.items())
+            except RuntimeError:
+                pass
+
+    threads = []
+    for i in range(4):
+        threads.append(threading.Thread(target=mutate, args=(i,)))
+    for _ in range(4):
+        threads.append(threading.Thread(target=read))
+    for t in threads:
+        t.start()
+
+    time.sleep(5)
+    stop.set()
+
+    for t in threads:
+        t.join(timeout=10)
+
+    _memalloc.stop()
