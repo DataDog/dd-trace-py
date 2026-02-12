@@ -56,6 +56,7 @@ class ThreadInfo
 
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
+    bool using_uvloop = false; // Whether this thread is using uvloop instead of asyncio
 
     [[nodiscard]] Result<void> update_cpu_time();
 
