@@ -24,7 +24,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"claude_agent_sdk": ">=0.1.0"}
+    return {"claude_agent_sdk": ">=0.0.23"}
 
 
 @with_traced_module
