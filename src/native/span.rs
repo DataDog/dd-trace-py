@@ -71,7 +71,9 @@ impl SpanLinkData {
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
+    #[pyo3(get, set, name = "_meta")]
     meta: Py<PyDict>,
+    #[pyo3(get, set, name = "_metrics")]
     metrics: Py<PyDict>,
 }
 
@@ -343,26 +345,6 @@ impl SpanData {
             .map(|s| (s * 1e9) as i64)
             .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
             .unwrap_or(-1);
-    }
-
-    #[getter(_meta)]
-    fn get_meta<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
-        self.meta.bind(py).clone()
-    }
-
-    #[setter(_meta)]
-    fn set_meta(&mut self, value: Bound<'_, PyDict>) {
-        self.meta = value.unbind();
-    }
-
-    #[getter(_metrics)]
-    fn get_metrics<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
-        self.metrics.bind(py).clone()
-    }
-
-    #[setter(_metrics)]
-    fn set_metrics(&mut self, value: Bound<'_, PyDict>) {
-        self.metrics = value.unbind();
     }
 }
 
