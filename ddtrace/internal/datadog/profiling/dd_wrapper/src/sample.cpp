@@ -5,9 +5,9 @@
 #include <Python.h>
 #include <frameobject.h>
 
+#include "libdatadog_helpers.hpp"
 #include "pymacro.hpp"
 #include "python_helpers.hpp"
-#include "libdatadog_helpers.hpp"
 
 #include <algorithm>
 #include <chrono>

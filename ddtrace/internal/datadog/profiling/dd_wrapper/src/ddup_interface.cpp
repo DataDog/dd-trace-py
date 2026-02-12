@@ -7,6 +7,7 @@
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <datadog/profiling.h>
@@ -18,18 +19,20 @@
 namespace {
 
 // The Profiles Dictionary used for interning strings and functions
-ddog_prof_ProfilesDictionaryHandle dict_handle = nullptr;
+std::atomic<ddog_prof_ProfilesDictionaryHandle> dict_handle{ nullptr };
 
 // Initializes the Profiles Dictionary
 bool
 init_profiles_dictionary()
 {
-    auto result = ddog_prof_ProfilesDictionary_new(&dict_handle);
+    ddog_prof_ProfilesDictionaryHandle temp = nullptr;
+    auto result = ddog_prof_ProfilesDictionary_new(&temp);
     if (result.flags) {
         std::cerr << "could not initialise profiles dictionary: " << result.err << std::endl;
         return false;
     }
 
+    dict_handle.store(temp, std::memory_order_release);
     return true;
 }
 
@@ -40,14 +43,15 @@ namespace Datadog::internal {
 ddog_prof_ProfilesDictionaryHandle
 get_profiles_dictionary()
 {
-    return dict_handle;
+    return dict_handle.load(std::memory_order_acquire);
 }
 
 void
 release_profiles_dictionary()
 {
-    ddog_prof_ProfilesDictionary_drop(&dict_handle);
-    dict_handle = nullptr;
+    ddog_prof_ProfilesDictionaryHandle temp = dict_handle.load(std::memory_order_relaxed);
+    ddog_prof_ProfilesDictionary_drop(&temp);
+    dict_handle.store(nullptr, std::memory_order_release);
 }
 
 } // namespace Datadog::internal
