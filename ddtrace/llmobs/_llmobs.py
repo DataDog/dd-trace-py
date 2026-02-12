@@ -1,3 +1,4 @@
+import asyncio
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -115,6 +116,7 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
+from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
@@ -190,7 +192,6 @@ def _validate_task_signature(task: Callable, is_async: bool = False) -> None:
     :param is_async: Whether the task must be an async function
     :raises TypeError: If task is not callable, not async when required, or missing required params
     """
-    import asyncio
 
     if not callable(task):
         raise TypeError("task must be a callable function.")
@@ -1194,34 +1195,14 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        task: TaskType,
         dataset: Dataset,
-        evaluators: Sequence[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-            ]
-        ],
+        evaluators: Sequence[EvaluatorType],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        summary_evaluators: Optional[
-            List[
-                Union[
-                    Callable[
-                        [
-                            List[DatasetRecordInputType],
-                            List[JSONType],
-                            List[JSONType],
-                            Dict[str, List[JSONType]],
-                        ],
-                        JSONType,
-                    ],
-                    BaseSummaryEvaluator,
-                ]
-            ]
-        ] = None,
+        summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = 1,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
