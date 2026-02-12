@@ -45,7 +45,7 @@ except ImportError:
     log.warning(
         "opentelemetry.util._decorator not found, using contextlib.contextmanager instead. "
         "Using @tracer.start_as_current_span decorator in generators and async functions "
-        "will result in inaccurate durations."
+        "will result in inaccurate durations. For async support upgrade to opentelemetry-api>=1.24."
     )
     from contextlib import contextmanager
 
