@@ -116,7 +116,7 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
 
         let case_id: String = args_dict
             .get_item("case_id")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("case_id".to_string()))?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("case_id"))?
             .extract()?;
 
         if case_id.is_empty() || case_id == "0" {
@@ -139,22 +139,20 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
 
         let hostname: String = args_dict
             .get_item("hostname")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("hostname".to_string()))?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("hostname"))?
             .extract()?;
         let user_handle: String = args_dict
             .get_item("user_handle")?
-            .ok_or_else(|| {
-                PyErr::new::<pyo3::exceptions::PyKeyError, _>("user_handle".to_string())
-            })?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("user_handle"))?
             .extract()?;
 
         let task_type: String = dict
             .get_item("task_type")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("task_type".to_string()))?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("task_type"))?
             .extract()?;
         let uuid: String = dict
             .get_item("uuid")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("uuid".to_string()))?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("uuid"))?
             .extract()?;
 
         Ok(Self {
@@ -184,15 +182,15 @@ impl<'py> FromPyObject<'_, 'py> for AgentConfigFileWrapper {
 
         let name: String = dict
             .get_item("name")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("name".to_string()))?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("name"))?
             .extract()?;
         let config_ob = dict
             .get_item("config")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("config".to_string()))?;
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("config"))?;
         let config_dict = config_ob.cast::<PyDict>()?;
         let log_level: Option<String> = config_dict
             .get_item("log_level")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("log_level".to_string()))?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("log_level"))?
             .extract()?;
 
         Ok(Self {
