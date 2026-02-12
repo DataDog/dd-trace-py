@@ -248,7 +248,7 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     return call
 
 
-def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     region_name = (
         client_options.get("region_name")
@@ -262,7 +262,7 @@ def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> L
     except ImportError:
         raise ImportError("boto3 package required: pip install boto3")
 
-    session_kwargs: Dict[str, Any] = {"region_name": region_name}
+    session_kwargs: dict[str, Any] = {"region_name": region_name}
     profile_name = client_options.get("profile_name") or os.environ.get("AWS_PROFILE")
     if profile_name:
         session_kwargs["profile_name"] = profile_name
@@ -281,10 +281,10 @@ def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> L
 
     def call(
         provider: Optional[str],
-        messages: List[Dict[str, str]],
-        json_schema: Optional[Dict[str, Any]],
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
         model: str,
-        model_params: Optional[Dict[str, Any]],
+        model_params: Optional[dict[str, Any]],
     ) -> str:
         system_msgs = []
         converse_messages = []
@@ -295,13 +295,13 @@ def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> L
                 role = "user" if msg["role"] == "user" else "assistant"
                 converse_messages.append({"role": role, "content": [{"text": msg["content"]}]})
 
-        kwargs: Dict[str, Any] = {"modelId": model, "messages": converse_messages}
+        kwargs: dict[str, Any] = {"modelId": model, "messages": converse_messages}
 
         if system_msgs:
             kwargs["system"] = system_msgs
 
         if model_params:
-            inference_config: Dict[str, Any] = {}
+            inference_config: dict[str, Any] = {}
             for key in ["temperature", "topP", "maxTokens", "stopSequences"]:
                 if key in model_params:
                     inference_config[key] = model_params[key]
