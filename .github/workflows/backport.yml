@@ -76,6 +76,7 @@ jobs:
           MERGE_COMMIT=$(git rev-parse HEAD)
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
+          FAILURES=()
           while IFS= read -r BACKPORT_LABEL; do
             TARGET_BRANCH=$(echo "${BACKPORT_LABEL}" | awk '{ print $NF }')
             WORKTREE=".worktrees/backport-${TARGET_BRANCH}"
@@ -92,9 +93,13 @@ jobs:
             CHERRYPICK_STATUS=$?
             set -e
             if [ "${CHERRYPICK_STATUS}" -ne 0 ]; then
+              echo "Cherry-pick failed for ${TARGET_BRANCH}:"
               echo "${CHERRYPICK_OUT}"
               git cherry-pick --abort || true
-              exit 1
+              FAILURES+=("${TARGET_BRANCH}")
+              cd "${GITHUB_WORKSPACE}"
+              git worktree remove -f ${WORKTREE}
+              continue
             fi
 
             git push --force origin ${BACKPORT_BRANCH}
@@ -112,3 +117,8 @@ jobs:
               echo "Backport PR already exists for ${TARGET_BRANCH}: #${EXISTING_PR}"
             fi
           done < /tmp/backport-labels.sorted.txt
+
+          if [ ${#FAILURES[@]} -gt 0 ]; then
+            echo "Backport failed for: ${FAILURES[*]}"
+            exit 1
+          fi
