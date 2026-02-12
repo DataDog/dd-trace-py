@@ -40,7 +40,7 @@ def _handle_tracer_flare(flare: Flare, data: dict):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
             continue
         config_data = c.get("config", {})
-        flare_action = flare.native_manager.handle_remote_config_data(config_data, product_type)
+        flare_action = flare.handle_remote_config_data(config_data, product_type)
 
         if flare_action.is_send():
             flare.revert_configs()
@@ -48,6 +48,9 @@ def _handle_tracer_flare(flare: Flare, data: dict):
 
         elif flare_action.is_set():
             log_level = flare_action.level
+            if log_level is None:
+                log.warning("Received set flare action without log level")
+                continue
             flare.prepare(log_level)
         elif flare_action.is_unset():
             log.info("Reverting tracer flare configurations and cleaning up any generated files")

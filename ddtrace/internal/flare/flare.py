@@ -51,6 +51,10 @@ class Flare:
         """Create or recreate the native manager to ensure clean state."""
         self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
 
+    def handle_remote_config_data(self, config_data: dict, product_type: str) -> native_flare.FlareAction:
+        """Return the flare action for a remote-config payload."""
+        return self._native_manager.handle_remote_config_data(config_data, product_type)
+
     def prepare(self, log_level: str) -> bool:
         """
         Update configurations to start sending tracer logs to a file
@@ -167,7 +171,7 @@ class Flare:
             log.debug("Sending tracer flare")
 
             # Use native zip_and_send
-            self.native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
+            self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
             log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
 
     def clean_up_files(self):

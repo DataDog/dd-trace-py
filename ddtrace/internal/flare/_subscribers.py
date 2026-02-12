@@ -57,7 +57,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
             if not isinstance(item, dict):
                 log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(item)))
                 continue
-            flare_action = self.flare.native_manager.handle_remote_config_data(item, product_type)
+            flare_action = self.flare.handle_remote_config_data(item, product_type)
 
             if flare_action.is_set():
                 # We will only process one tracer flare request at a time
