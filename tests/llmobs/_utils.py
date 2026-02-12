@@ -43,6 +43,16 @@ else:
     logs_vcr = None
 
 
+def get_bedrock_vcr():
+    return vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/bedrock"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=["authorization", "X-Amz-Security-Token"],
+        ignore_localhost=True,
+    )
+
+
 def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     if tags is None:
         tags = {}
