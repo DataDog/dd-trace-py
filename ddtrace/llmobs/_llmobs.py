@@ -51,7 +51,6 @@ from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
@@ -1385,14 +1384,14 @@ class LLMObs(Service):
     def get_prompt(
         cls,
         prompt_id: str,
-        label: Optional[str] = None,
+        label: Optional[Literal["development", "production"]] = None,
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """
         Retrieve a prompt template from the Datadog Prompt Registry.
 
         :param prompt_id: The unique identifier of the prompt in the registry
-        :param label: Deployment label (e.g., "prod", "dev"). If not provided, returns the latest version.
+        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
                          returns any of those. If None, returns empty prompt.
@@ -1408,7 +1407,7 @@ class LLMObs(Service):
             # With explicit label and fallback
             prompt = LLMObs.get_prompt(
                 "greeting",
-                label="prod",
+                label="production",
                 fallback="Hello {{user}}, how can I help?"
             )
 
@@ -1439,7 +1438,7 @@ class LLMObs(Service):
             cls._prompt_manager.clear_cache(hot=hot, warm=warm)
         elif warm:
             # Clear file cache even if manager is not initialized
-            cache_dir = os.getenv("DD_LLMOBS_PROMPTS_CACHE_DIR")
+            cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
             warm_cache = WarmCache(cache_dir=cache_dir)
             warm_cache.clear()
 
@@ -1447,7 +1446,7 @@ class LLMObs(Service):
     def refresh_prompt(
         cls,
         prompt_id: str,
-        label: Optional[str] = None,
+        label: Optional[Literal["development", "production"]] = None,
     ) -> Optional[ManagedPrompt]:
         """Force refresh a specific prompt from the registry.
 
@@ -1476,18 +1475,15 @@ class LLMObs(Service):
             return None
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
-        cache_max_size = _get_config("DD_LLMOBS_PROMPTS_CACHE_MAX_SIZE", DEFAULT_PROMPTS_CACHE_MAX_SIZE, int)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
         cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
-        endpoint_override = _get_config("DD_LLMOBS_OVERRIDE_ORIGIN")
         timeout = _get_config("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT, float)
+        base_url = _get_config("DD_LLMOBS_OVERRIDE_ORIGIN") or f"https://api.{config._dd_site}"
 
         return PromptManager(
             api_key=api_key,
-            endpoint_override=endpoint_override,
-            base_url=f"https://api.{config._dd_site}",
+            base_url=base_url,
             cache_ttl=cache_ttl,
-            cache_max_size=cache_max_size,
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,

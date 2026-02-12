@@ -1,4 +1,3 @@
-from collections import OrderedDict
 import json
 import os
 from pathlib import Path
@@ -12,7 +11,6 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 
@@ -30,31 +28,26 @@ class CacheEntry:
     def is_stale(self, ttl: float) -> bool:
         return (time() - self.timestamp) > ttl
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {"prompt": self.prompt.to_dict(), "timestamp": self.timestamp}
+    def serialize(self) -> Dict[str, Any]:
+        return {"prompt": self.prompt.serialize(), "timestamp": self.timestamp}
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CacheEntry":
-        return cls(prompt=ManagedPrompt.from_dict(data["prompt"]), timestamp=data["timestamp"])
+    def deserialize(cls, data: Dict[str, Any]) -> "CacheEntry":
+        return cls(prompt=ManagedPrompt.deserialize(data["prompt"]), timestamp=data["timestamp"])
 
 
 class HotCache:
     """
-    In-memory LRU cache with TTL for prompt templates.
+    In-memory cache with TTL for prompt templates.
 
     Thread-safe via RLock.
     """
 
     def __init__(
         self,
-        max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
         ttl_seconds: float = DEFAULT_PROMPTS_CACHE_TTL,
     ) -> None:
-        self._cache: OrderedDict[str, CacheEntry] = OrderedDict()
-        if max_size <= 0:
-            log.warning("Invalid prompt cache max size %d; using minimum size of 1.", max_size)
-            max_size = 1
-        self._max_size = max_size
+        self._cache: Dict[str, CacheEntry] = {}
         self._ttl = ttl_seconds
         self._lock = RLock()
 
@@ -69,15 +62,11 @@ class HotCache:
             entry = self._cache.get(key)
             if entry is None:
                 return None
-            self._cache.move_to_end(key)
             return (entry.prompt, entry.is_stale(self._ttl))
 
     def set(self, key: str, prompt: ManagedPrompt) -> None:
         """Add or update a prompt in cache."""
         with self._lock:
-            self._cache.pop(key, None)
-            while len(self._cache) >= self._max_size:
-                self._cache.popitem(last=False)
             self._cache[key] = CacheEntry(prompt=prompt, timestamp=time())
 
     def delete(self, key: str) -> None:
@@ -118,16 +107,20 @@ class WarmCache:
         enabled: bool = True,
         ttl_seconds: float = DEFAULT_PROMPTS_CACHE_TTL,
     ) -> None:
-        if cache_dir is None:
-            self._cache_dir = self._get_default_cache_dir()
-        else:
-            self._cache_dir = Path(cache_dir).expanduser()
         self._enabled = enabled
         self._ttl = ttl_seconds
         self._lock = RLock()
 
-        if self._enabled:
-            self._ensure_cache_dir()
+        if not self._enabled:
+            self._cache_dir = Path()
+            return
+
+        if cache_dir is None:
+            self._cache_dir = self._get_default_cache_dir()
+        else:
+            self._cache_dir = Path(cache_dir).expanduser()
+
+        self._ensure_cache_dir()
 
     def _ensure_cache_dir(self) -> None:
         try:
@@ -156,7 +149,7 @@ class WarmCache:
                     return None
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            entry = CacheEntry.from_dict(data)
+            entry = CacheEntry.deserialize(data)
             return entry.prompt, entry.is_stale(self._ttl)
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
             log.debug("Failed to read prompt from cache: %s", e)
@@ -169,7 +162,7 @@ class WarmCache:
 
         path = self._key_to_path(key)
         entry = CacheEntry(prompt=prompt, timestamp=time())
-        data = entry.to_dict()
+        data = entry.serialize()
         try:
             with self._lock:
                 with open(path, "w", encoding="utf-8") as f:

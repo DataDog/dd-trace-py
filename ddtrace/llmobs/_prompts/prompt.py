@@ -11,6 +11,7 @@ from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
 
 
@@ -54,7 +55,7 @@ class ManagedPrompt:
             return safe_substitute(self.template, variables)
         return render_chat(self.template, variables)
 
-    def to_annotation_dict(self, **variables: Any) -> Dict[str, Any]:
+    def to_annotation_dict(self, **variables: Any) -> Prompt:
         """
         Convert to the format expected by annotation_context.
 
@@ -88,8 +89,8 @@ class ManagedPrompt:
     def __repr__(self) -> str:
         return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, label={self.label!r}, source={self.source!r})"
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Serialize to a JSON-compatible dict."""
+    def serialize(self) -> Dict[str, Any]:
+        """Serialize to a JSON-compatible dict for cache storage."""
         return {
             "id": self.id,
             "version": self.version,
@@ -101,8 +102,8 @@ class ManagedPrompt:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ManagedPrompt":
-        """Deserialize from a dict."""
+    def deserialize(cls, data: Dict[str, Any]) -> "ManagedPrompt":
+        """Deserialize from a cache storage dict."""
         return cls(
             id=data["id"],
             version=data["version"],

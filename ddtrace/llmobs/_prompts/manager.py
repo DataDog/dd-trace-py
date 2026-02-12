@@ -10,7 +10,6 @@ from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
-from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAX_SIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
@@ -18,6 +17,7 @@ from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._prompts.cache import HotCache
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
+from ddtrace.llmobs._prompts.utils import cache_key
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs.types import PromptFallback
@@ -33,20 +33,16 @@ class PromptManager:
         self,
         api_key: str,
         base_url: str,
-        endpoint_override: Optional[str] = None,
         cache_ttl: float = DEFAULT_PROMPTS_CACHE_TTL,
-        cache_max_size: int = DEFAULT_PROMPTS_CACHE_MAX_SIZE,
         timeout: float = DEFAULT_PROMPTS_TIMEOUT,
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
     ) -> None:
-        self._base_url = self._normalize_base_url(base_url, endpoint_override)
+        self._base_url = self._normalize_base_url(base_url)
         self._timeout = timeout
-
-        # Pre-build headers since they don't change
         self._headers: Dict[str, str] = {"DD-API-KEY": api_key, "Content-Type": "application/json"}
 
-        self._hot_cache = HotCache(max_size=cache_max_size, ttl_seconds=cache_ttl)
+        self._hot_cache = HotCache(ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
 
         self._refresh_threads: Dict[str, threading.Thread] = {}
@@ -60,7 +56,7 @@ class PromptManager:
         fallback: PromptFallback = None,
     ) -> ManagedPrompt:
         """Retrieve a prompt template from the registry."""
-        key = self._cache_key(prompt_id, label)
+        key = cache_key(prompt_id, label)
 
         # Try hot cache (in-memory)
         prompt = self._try_cache(self._hot_cache, key, prompt_id, label, "hot_cache")
@@ -112,11 +108,8 @@ class PromptManager:
 
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
-        key = self._cache_key(prompt_id, label)
+        key = cache_key(prompt_id, label)
         return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
-
-    def _cache_key(self, prompt_id: str, label: Optional[str]) -> str:
-        return f"{prompt_id}:{label or ''}"
 
     def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
         """Store a prompt in both hot and warm caches with source='cache'."""
@@ -202,14 +195,15 @@ class PromptManager:
             if status == 200:
                 return self._parse_response(body, prompt_id, label), False
 
+            not_found = status == 404
             detail = extract_error_detail(body)
-            if status == 404:
+            if not_found:
                 log.debug('Prompt not found: prompt_id=%s label=%s detail="%s"', prompt_id, label, detail)
             else:
                 log.warning(
                     'Prompt fetch failed: prompt_id=%s label=%s status=%d detail="%s"', prompt_id, label, status, detail
                 )
-            return None, status == 404
+            return None, not_found
         except Exception as e:
             log.warning("Prompt fetch exception: prompt_id=%s label=%s: %s", prompt_id, label, e)
             return None, False
@@ -226,14 +220,14 @@ class PromptManager:
         return f"{endpoint}/{prompt_id}"
 
     @staticmethod
-    def _normalize_base_url(base_url: str, endpoint_override: Optional[str]) -> str:
+    def _normalize_base_url(base_url: str) -> str:
         """Normalize base URL for prompt fetches.
 
         - Default missing scheme to ``https://``.
         - For HTTP(S), normalize to a trailing ``/`` so relative endpoint joins
           always resolve from a directory base path.
         """
-        url = endpoint_override or base_url
+        url = base_url
         if "://" not in url:
             url = "https://" + url
 

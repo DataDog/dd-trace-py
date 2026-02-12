@@ -18,7 +18,7 @@ TEXT_PROMPT_RESPONSE = {
     "prompt_uuid": "prompt-uuid-123",
     "prompt_version_uuid": "version-uuid-456",
     "version": "v1",
-    "label": "prod",
+    "label": "production",
     "template": "Hello {name}!",
 }
 
@@ -27,7 +27,7 @@ CHAT_PROMPT_RESPONSE = {
     "prompt_uuid": "chat-uuid-123",
     "prompt_version_uuid": "chat-version-uuid-456",
     "version": "v2",
-    "label": "prod",
+    "label": "production",
     "template": [
         {"role": "system", "content": "You are {{persona}}."},
         {"role": "user", "content": "{{question}}"},
@@ -39,7 +39,7 @@ DEV_PROMPT_RESPONSE = {
     "prompt_uuid": "dev-prompt-uuid-789",
     "prompt_version_uuid": "dev-version-uuid-012",
     "version": "dev-v1",
-    "label": "dev",
+    "label": "development",
     "template": "DEBUG: Hello {name}!",
 }
 
@@ -149,20 +149,20 @@ class TestGetPrompt:
 
     def test_label_parameter(self):
         """Different labels fetch different prompt versions."""
-        # Fetch prod version
+        # Fetch production version
         with mock_api(200, TEXT_PROMPT_RESPONSE):
-            prod_prompt = LLMObs.get_prompt("greeting", label="prod")
+            prod_prompt = LLMObs.get_prompt("greeting", label="production")
         assert prod_prompt.version == "v1"
-        assert prod_prompt.label == "prod"
+        assert prod_prompt.label == "production"
 
         # Clear cache to force new fetch
         LLMObs.clear_prompt_cache(hot=True, warm=True)
 
-        # Fetch dev version
+        # Fetch development version
         with mock_api(200, DEV_PROMPT_RESPONSE):
-            dev_prompt = LLMObs.get_prompt("greeting", label="dev")
+            dev_prompt = LLMObs.get_prompt("greeting", label="development")
         assert dev_prompt.version == "dev-v1"
-        assert dev_prompt.label == "dev"
+        assert dev_prompt.label == "development"
         assert "DEBUG" in dev_prompt.format(name="Test")
 
 
@@ -300,7 +300,7 @@ class TestAnnotationContext:
                 prompt_data = span._get_ctx_item(INPUT_PROMPT)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
-                assert prompt_data["label"] == "prod"
+                assert prompt_data["label"] == "production"
                 assert prompt_data["variables"] == {"name": "Alice"}
                 assert prompt_data["prompt_uuid"] == "prompt-uuid-123"
                 assert prompt_data["prompt_version_uuid"] == "version-uuid-456"
@@ -342,22 +342,22 @@ class TestPromptManagerInternals:
 
         with patch.object(manager, "_background_refresh", return_value=None) as refresh_mock:
             with patch("ddtrace.llmobs._prompts.manager.threading.Thread", ImmediateThread):
-                manager._trigger_background_refresh("greeting:prod", "greeting", "prod")
-                assert "greeting:prod" not in manager._refresh_threads
-                manager._trigger_background_refresh("greeting:prod", "greeting", "prod")
+                manager._trigger_background_refresh("greeting:production", "greeting", "production")
+                assert "greeting:production" not in manager._refresh_threads
+                manager._trigger_background_refresh("greeting:production", "greeting", "production")
 
         assert refresh_mock.call_count == 2
 
     @pytest.mark.parametrize(
-        "base_url,endpoint_override,expected",
+        "base_url,expected",
         [
-            ("https://api.datadoghq.com", "https://host/foo/bar", "https://host/foo/bar/"),
-            ("https://api.datadoghq.com", "https://host/foo/bar/", "https://host/foo/bar/"),
-            ("https://api.datadoghq.com", "https://host", "https://host/"),
-            ("https://api.datadoghq.com", "host/foo/bar", "https://host/foo/bar/"),
-            ("https://api.datadoghq.com", None, "https://api.datadoghq.com/"),
+            ("https://host/foo/bar", "https://host/foo/bar/"),
+            ("https://host/foo/bar/", "https://host/foo/bar/"),
+            ("https://host", "https://host/"),
+            ("host/foo/bar", "https://host/foo/bar/"),
+            ("https://api.datadoghq.com", "https://api.datadoghq.com/"),
         ],
     )
-    def test_normalize_base_url(self, base_url, endpoint_override, expected):
-        normalized = PromptManager._normalize_base_url(base_url, endpoint_override)
+    def test_normalize_base_url(self, base_url, expected):
+        normalized = PromptManager._normalize_base_url(base_url)
         assert normalized == expected
