@@ -48,12 +48,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     def _llmobs_set_tool_tags(self, span: Span, kwargs: dict[str, Any]) -> None:
         tool_input = kwargs.get("tool_input", {})
         tool_output = kwargs.get("tool_output", "")
+        tool_id = kwargs.get("tool_id", "")
 
         span._set_ctx_items(
             {
                 SPAN_KIND: "tool",
                 INPUT_VALUE: tool_input,
                 OUTPUT_VALUE: tool_output,
+                METADATA: {"tool_id": tool_id},
             }
         )
 

@@ -58,6 +58,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 self._active_tool_spans[tool_id] = {
                     "tool_span": tool_span,
                     "tool_input": tool_input,
+                    "tool_id": tool_id,
                 }
             if block_type == "ToolResultBlock":
                 tool_use_id = getattr(block, "tool_use_id", "")
@@ -76,6 +77,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             kwargs={
                 "tool_input": tool_data["tool_input"],
                 "tool_output": tool_output,
+                "tool_id": tool_data.get("tool_id", ""),
             },
             response=None,
             operation="tool",

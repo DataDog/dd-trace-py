@@ -163,6 +163,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="tool",
             input_value=safe_json({"file_path": "/etc/hostname"}),
             output_value="",
+            metadata={"tool_id": MOCK_READ_TOOL_ID},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
         assert llmobs_events[0] == expected_tool_event
@@ -216,6 +217,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="tool",
             input_value=safe_json(MOCK_BASH_TOOL_INPUT),
             output_value="",
+            metadata={"tool_id": MOCK_BASH_TOOL_ID},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
         assert llmobs_events[0] == expected_tool_event
@@ -269,6 +271,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="tool",
             input_value=safe_json(MOCK_GREP_TOOL_INPUT),
             output_value="",
+            metadata={"tool_id": MOCK_GREP_TOOL_ID},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
         assert llmobs_events[0] == expected_tool_event
