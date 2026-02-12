@@ -95,9 +95,16 @@ async def trace_async_socket_command(func: FunctionType, args: Tuple[Any, ...], 
         return await func(*args, **kwargs)
 
     socket_instance, dbname, cmd, pin = parsed
-    with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+    async with async_trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         s, args, kwargs = dbm_dispatch(s, args, kwargs)
         return await func(*args, **kwargs)
+
+
+@contextlib.asynccontextmanager
+async def async_trace_cmd(cmd, socket_instance, address):
+    """Async context manager wrapper for trace_cmd that properly handles GeneratorExit."""
+    with trace_cmd(cmd, socket_instance, address) as span:
+        yield span
 
 
 async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
@@ -107,7 +114,7 @@ async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, 
         return await func(*args, **kwargs)
 
     socket_instance, cmd, pin = parsed
-    with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+    async with async_trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         result = await func(*args, **kwargs)
         if result:
             s.set_metric(db.ROWCOUNT, result.get("n", -1))

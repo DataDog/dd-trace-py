@@ -5,6 +5,7 @@ use pyo3::{
 use std::time::SystemTime;
 
 use crate::py_string::PyBackedString;
+use libdd_trace_utils::span::SpanText;
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -72,6 +73,7 @@ impl SpanLinkData {
 #[derive(Default)]
 pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
+    span_api: PyBackedString,
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -134,6 +136,9 @@ impl SpanData {
         span_id=None,      // placeholder for Span.__init__ positional arg
         parent_id=None,
         start=None,
+        context=None,      // placeholder for Span.__init__ positional arg
+        on_finish=None,    // placeholder for Span.__init__ positional arg
+        span_api=None,
         *args,
         **kwargs
     ))]
@@ -146,7 +151,10 @@ impl SpanData {
         trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
         span_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
         parent_id: Option<&Bound<'p, PyAny>>,
-        start: Option<&Bound<'p, PyAny>>, // USED: in seconds (float or int)
+        start: Option<&Bound<'p, PyAny>>,
+        context: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        span_api: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
@@ -184,6 +192,10 @@ impl SpanData {
         };
         // Set duration to -1 (our sentinel for "not set")
         span.data.duration = -1;
+        // Initialize span_api: use provided value or default to "datadog"
+        span.span_api = span_api
+            .map(|obj| extract_backed_string_or_default(obj))
+            .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         span
     }
 
@@ -363,6 +375,19 @@ impl SpanData {
             None => 0,
             Some(obj) => obj.extract::<u64>().unwrap_or(self.data.parent_id),
         };
+    }
+
+    // _span_api property
+    #[getter(_span_api)]
+    #[inline(always)]
+    fn get_span_api<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        self.span_api.as_py(py)
+    }
+
+    #[setter(_span_api)]
+    #[inline(always)]
+    fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
+        self.span_api = extract_backed_string_or_default(value);
     }
 }
 
