@@ -277,10 +277,11 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
     // Otherwise, persist the val string and add the label
     labels.push_back({
       .key = key_id,
-      // do not intern this because it could be a memory leak if values are many-valued
+      // Do not intern this because it could be a memory leak if values are high-cardinality.
+      // For example, asyncio Task names are dynamic and only persist for the duration of the Task.
       .str = to_slice(val_str),
       .num = 0,
-      // do not intern this because it could be a memory leak if values are many-valued
+      // Do not intern this because it could be a memory leak if values are high-cardinality.
       .num_unit = to_slice(unit_str.c_str()),
     });
     return true;
