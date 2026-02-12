@@ -1,5 +1,6 @@
 from abc import ABC
-from dataclasses import dataclass
+
+# Removed dataclass import - using __slots__ for memory efficiency
 import dis
 from enum import Enum
 import sys
@@ -182,12 +183,22 @@ def update_location_data(
     return bytes(new_data)
 
 
-@dataclass
 class ExceptionTableEntry:
-    start: t.Union[int, Instruction]
-    end: t.Union[int, Instruction]
-    target: t.Union[int, Instruction]
-    depth_lasti: int
+    """Lightweight __slots__ version of ExceptionTableEntry."""
+
+    __slots__ = ("start", "end", "target", "depth_lasti")
+
+    def __init__(
+        self,
+        start: t.Union[int, "Instruction"],
+        end: t.Union[int, "Instruction"],
+        target: t.Union[int, "Instruction"],
+        depth_lasti: int,
+    ):
+        self.start = start
+        self.end = end
+        self.target = target
+        self.depth_lasti = depth_lasti
 
 
 def parse_exception_table(code: CodeType):

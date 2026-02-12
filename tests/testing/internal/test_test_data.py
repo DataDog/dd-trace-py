@@ -13,8 +13,33 @@ from ddtrace.testing.internal.test_data import TestRef
 from ddtrace.testing.internal.test_data import TestStatus
 
 
+class TestImmutableRef:
+    """Tests for immutability of ModuleRef, SuiteRef, and TestRef (no shared base class)."""
+
+    def test_module_ref_immutable_raises_attribute_error(self) -> None:
+        """Test that assigning to ModuleRef raises AttributeError with 'immutable' message."""
+        module = ModuleRef(name="test_module")
+        with pytest.raises(AttributeError, match="ModuleRef.*immutable"):
+            module.name = "new_name"  # type: ignore[misc]
+
+    def test_suite_ref_immutable_raises_attribute_error(self) -> None:
+        """Test that assigning to SuiteRef raises AttributeError with 'immutable' message."""
+        module = ModuleRef(name="test_module")
+        suite = SuiteRef(module=module, name="test_suite")
+        with pytest.raises(AttributeError, match="SuiteRef.*immutable"):
+            suite.name = "new_name"  # type: ignore[misc]
+
+    def test_test_ref_immutable_raises_attribute_error(self) -> None:
+        """Test that assigning to TestRef raises AttributeError with 'immutable' message."""
+        module = ModuleRef(name="test_module")
+        suite = SuiteRef(module=module, name="test_suite")
+        test = TestRef(suite=suite, name="test_function")
+        with pytest.raises(AttributeError, match="TestRef.*immutable"):
+            test.name = "new_name"  # type: ignore[misc]
+
+
 class TestModuleRef:
-    """Tests for ModuleRef dataclass."""
+    """Tests for ModuleRef (immutable ref, plain class with __slots__)."""
 
     def test_module_ref_creation(self) -> None:
         """Test that ModuleRef can be created with a name."""
@@ -22,9 +47,9 @@ class TestModuleRef:
         assert module.name == "test_module"
 
     def test_module_ref_immutable(self) -> None:
-        """Test that ModuleRef is frozen/immutable."""
+        """Test that ModuleRef is immutable."""
         module = ModuleRef(name="test_module")
-        with pytest.raises(Exception):  # FrozenInstanceError in newer Python
+        with pytest.raises(AttributeError):
             module.name = "new_name"  # type: ignore[misc]
 
     def test_module_ref_equality(self) -> None:
@@ -36,9 +61,17 @@ class TestModuleRef:
         assert module1 == module2
         assert module1 != module3
 
+    def test_module_ref_hashable_and_dedup_in_set(self) -> None:
+        """Test that equal ModuleRefs have same hash and deduplicate in a set."""
+        module1 = ModuleRef(name="mod")
+        module2 = ModuleRef(name="mod")
+        assert module1 == module2
+        assert hash(module1) == hash(module2)
+        assert len({module1, module2}) == 1
+
 
 class TestSuiteRef:
-    """Tests for SuiteRef dataclass."""
+    """Tests for SuiteRef (immutable ref, plain class with __slots__)."""
 
     def test_suite_ref_creation(self) -> None:
         """Test that SuiteRef can be created with module and name."""
@@ -49,16 +82,35 @@ class TestSuiteRef:
         assert suite.name == "test_suite"
 
     def test_suite_ref_immutable(self) -> None:
-        """Test that SuiteRef is frozen/immutable."""
+        """Test that SuiteRef is immutable."""
         module = ModuleRef(name="test_module")
         suite = SuiteRef(module=module, name="test_suite")
 
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(AttributeError):
             suite.name = "new_name"  # type: ignore[misc]
+
+    def test_suite_ref_equality(self) -> None:
+        """Test SuiteRef equality based on module and name."""
+        mod = ModuleRef(name="mod")
+        suite1 = SuiteRef(module=mod, name="suite")
+        suite2 = SuiteRef(module=mod, name="suite")
+        suite3 = SuiteRef(module=mod, name="other")
+
+        assert suite1 == suite2
+        assert suite1 != suite3
+
+    def test_suite_ref_hashable_and_dedup_in_set(self) -> None:
+        """Test that equal SuiteRefs have same hash and deduplicate in a set."""
+        mod = ModuleRef(name="mod")
+        suite1 = SuiteRef(module=mod, name="suite")
+        suite2 = SuiteRef(module=mod, name="suite")
+        assert suite1 == suite2
+        assert hash(suite1) == hash(suite2)
+        assert len({suite1, suite2}) == 1
 
 
 class TestTestRef:
-    """Tests for TestRef dataclass."""
+    """Tests for TestRef (immutable ref, plain class with __slots__)."""
 
     def test_test_ref_creation(self) -> None:
         """Test that TestRef can be created with suite and name."""
@@ -70,13 +122,43 @@ class TestTestRef:
         assert test.name == "test_function"
 
     def test_test_ref_immutable(self) -> None:
-        """Test that TestRef is frozen/immutable."""
+        """Test that TestRef is immutable."""
         module = ModuleRef(name="test_module")
         suite = SuiteRef(module=module, name="test_suite")
         test = TestRef(suite=suite, name="test_function")
 
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(AttributeError):
             test.name = "new_name"  # type: ignore[misc]
+
+    def test_test_ref_equality(self) -> None:
+        """Test TestRef equality based on suite and name."""
+        mod = ModuleRef(name="mod")
+        suite = SuiteRef(module=mod, name="suite")
+        ref1 = TestRef(suite=suite, name="test")
+        ref2 = TestRef(suite=suite, name="test")
+        ref3 = TestRef(suite=suite, name="other")
+
+        assert ref1 == ref2
+        assert ref1 != ref3
+
+    def test_test_ref_hashable_and_dedup_in_set(self) -> None:
+        """Test that equal TestRefs have same hash and deduplicate in a set."""
+        mod = ModuleRef(name="mod")
+        suite = SuiteRef(module=mod, name="suite")
+        ref1 = TestRef(suite=suite, name="test")
+        ref2 = TestRef(suite=suite, name="test")
+        assert ref1 == ref2
+        assert hash(ref1) == hash(ref2)
+        assert len({ref1, ref2}) == 1
+
+    def test_test_ref_as_dict_key(self) -> None:
+        """Test that TestRef can be used as dict key and lookup works."""
+        mod = ModuleRef(name="mod")
+        suite = SuiteRef(module=mod, name="suite")
+        ref1 = TestRef(suite=suite, name="test")
+        ref2 = TestRef(suite=suite, name="test")
+        d = {ref1: "value"}
+        assert d[ref2] == "value"
 
 
 class TestTestStatus:

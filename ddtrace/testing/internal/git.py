@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+# Removed dataclass import - using __slots__ for memory efficiency
 import logging
 from pathlib import Path
 import random
@@ -75,22 +75,60 @@ class GitTag:
     COMMIT_HEAD_COMMITTER_NAME = "git.commit.head.committer.name"
 
 
-@dataclass
 class _GitSubprocessDetails:
-    stdout: str
-    stderr: str
-    return_code: int
-    elapsed_seconds: float
+    """Lightweight __slots__ version of _GitSubprocessDetails."""
+
+    __slots__ = ("stdout", "stderr", "return_code", "elapsed_seconds")
+
+    def __init__(self, stdout: str, stderr: str, return_code: int, elapsed_seconds: float):
+        self.stdout = stdout
+        self.stderr = stderr
+        self.return_code = return_code
+        self.elapsed_seconds = elapsed_seconds
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, _GitSubprocessDetails):
+            return NotImplemented
+        return (
+            self.stdout == other.stdout
+            and self.stderr == other.stderr
+            and self.return_code == other.return_code
+            and self.elapsed_seconds == other.elapsed_seconds
+        )
 
 
-@dataclass
 class GitUserInfo:
-    author_name: str
-    author_email: str
-    author_date: str
-    committer_name: str
-    committer_email: str
-    committer_date: str
+    """Lightweight __slots__ version of GitUserInfo."""
+
+    __slots__ = ("author_name", "author_email", "author_date", "committer_name", "committer_email", "committer_date")
+
+    def __init__(
+        self,
+        author_name: str,
+        author_email: str,
+        author_date: str,
+        committer_name: str,
+        committer_email: str,
+        committer_date: str,
+    ):
+        self.author_name = author_name
+        self.author_email = author_email
+        self.author_date = author_date
+        self.committer_name = committer_name
+        self.committer_email = committer_email
+        self.committer_date = committer_date
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, GitUserInfo):
+            return NotImplemented
+        return (
+            self.author_name == other.author_name
+            and self.author_email == other.author_email
+            and self.author_date == other.author_date
+            and self.committer_name == other.committer_name
+            and self.committer_email == other.committer_email
+            and self.committer_date == other.committer_date
+        )
 
 
 class Git:
