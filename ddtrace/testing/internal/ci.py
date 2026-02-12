@@ -290,7 +290,7 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> t.Dict[str, t.Opt
                 github_event_data = json.load(f)
                 git_commit_head_sha = github_event_data.get("pull_request", {}).get("head", {}).get("sha")
         except Exception as e:
-            log.error("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
+            log.warning("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
 
     env_vars = {
         "GITHUB_SERVER_URL": github_server_url,

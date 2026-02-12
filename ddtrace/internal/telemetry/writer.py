@@ -190,6 +190,7 @@ class TelemetryWriter(PeriodicService):
             forksafe.register(self._fork_writer)
             # shutdown the telemetry writer when the application exits
             atexit.register(self.app_shutdown)
+            atexit.register_on_exit_signal(self.app_shutdown)
             # Captures unhandled exceptions during application start up
             self.install_excepthook()
             # In order to support 3.12, we start the writer upon initialization.
@@ -232,6 +233,7 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
+        self.started = False
         self.reset_queues()
 
     def enable_agentless_client(self, enabled: bool = True) -> None:
@@ -667,6 +669,8 @@ class TelemetryWriter(PeriodicService):
         self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self) -> None:
+        # Guard against multiple calls to prevent duplicate app-closing events
+        # This can happen when both signal handlers and atexit handlers are registered
         if self.started:
             self.periodic(force_flush=True, shutting_down=True)
         self.disable()
