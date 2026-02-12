@@ -216,15 +216,15 @@ impl SpanText for PyBackedString {
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
-pub struct PyBytes(Vec<u8>);
+pub struct Bytes(Vec<u8>);
 
-impl SpanBytes for PyBytes {
+impl SpanBytes for Bytes {
     fn from_static_bytes(value: &'static [u8]) -> Self {
         Self(value.to_vec())
     }
 }
 
-impl Borrow<[u8]> for PyBytes {
+impl Borrow<[u8]> for Bytes {
     fn borrow(&self) -> &[u8] {
         &self.0
     }
@@ -234,5 +234,5 @@ impl Borrow<[u8]> for PyBytes {
 pub struct PyTraceData;
 impl TraceData for PyTraceData {
     type Text = PyBackedString;
-    type Bytes = PyBytes;
+    type Bytes = Bytes;
 }
