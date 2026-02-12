@@ -1,6 +1,6 @@
 use pyo3::{
     types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
-    Bound, PyAny, PyResult, Python,
+    Bound, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
 
@@ -69,9 +69,10 @@ impl SpanLinkData {
 }
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
 pub struct SpanData {
     data: libdd_trace_utils::span::Span<PyBackedString>,
+    meta: Py<PyDict>,
+    metrics: Py<PyDict>,
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -151,7 +152,11 @@ impl SpanData {
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
-        let mut span = Self::default();
+        let mut span = SpanData {
+            data: Default::default(),
+            meta: PyDict::new(py).unbind(),
+            metrics: PyDict::new(py).unbind(),
+        };
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
@@ -338,6 +343,26 @@ impl SpanData {
             .map(|s| (s * 1e9) as i64)
             .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
             .unwrap_or(-1);
+    }
+
+    #[getter(_meta)]
+    fn get_meta<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
+        self.meta.bind(py).clone()
+    }
+
+    #[setter(_meta)]
+    fn set_meta(&mut self, value: Bound<'_, PyDict>) {
+        self.meta = value.unbind();
+    }
+
+    #[getter(_metrics)]
+    fn get_metrics<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
+        self.metrics.bind(py).clone()
+    }
+
+    #[setter(_metrics)]
+    fn set_metrics(&mut self, value: Bound<'_, PyDict>) {
+        self.metrics = value.unbind();
     }
 }
 

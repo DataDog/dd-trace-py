@@ -6,6 +6,7 @@ from typing import Literal
 from typing import Optional
 from typing import Type
 from typing import TypeVar
+from typing import Union
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
@@ -524,6 +525,8 @@ class SpanData:
     error: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    _meta: Dict[str, str]
+    _metrics: Dict[str, Union[int, float]]
 
     def __new__(
         cls: Type[_SpanDataT],

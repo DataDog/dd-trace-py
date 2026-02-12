@@ -111,10 +111,8 @@ class Span(SpanData):
         "span_id",
         "trace_id",
         "parent_id",
-        "_meta",
         "_meta_struct",
         "context",
-        "_metrics",
         "_store",
         # Internal attributes
         "_parent_context",
@@ -179,9 +177,6 @@ class Span(SpanData):
             return
 
         self._span_api = span_api
-
-        self._meta: Dict[str, str] = {}
-        self._metrics: Dict[str, NumericType] = {}
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
