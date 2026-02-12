@@ -876,11 +876,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._exporter = self._create_exporter()
 
     def __del__(self):
-        if self._before_fork_hook:
+        if hasattr(self, "_before_fork_hook") and self._before_fork_hook:
             forksafe.unregister_before_fork(self._before_fork_hook)
             self._before_fork_hook = None
 
-        if self._after_fork_hook:
+        if hasattr(self, "_after_fork_hook") and self._after_fork_hook:
             forksafe.unregister_parent(self._after_fork_hook)
             self._after_fork_hook = None
 
