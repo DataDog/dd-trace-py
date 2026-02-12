@@ -16,7 +16,7 @@ from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
 
 
-TESTING_GEVENT = bool(os.getenv("DD_PROFILE_TEST_GEVENT", False))
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 
 
 def test_status():
