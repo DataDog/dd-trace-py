@@ -1,0 +1,37 @@
+name: 'Setup CI Dependencies'
+description: 'Install locked CI dependencies with caching'
+inputs:
+  python-version:
+    description: 'Python version (optional, uses current if not specified)'
+    required: false
+    default: ''
+outputs:
+  cache-hit:
+    description: 'Whether the cache was hit'
+    value: ${{ steps.cache.outputs.cache-hit }}
+runs:
+  using: composite
+  steps:
+    - name: Setup Python (if version specified)
+      if: inputs.python-version != ''
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Get pip cache directory
+      id: pip-cache
+      shell: bash
+      run: echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+
+    - name: Cache pip dependencies
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.pip-cache.outputs.dir }}
+        key: ${{ runner.os }}-pip-${{ hashFiles('ci/requirements/ci.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install CI dependencies
+      shell: bash
+      run: pip install -r ci/requirements/ci.txt

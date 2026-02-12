@@ -212,6 +212,17 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
     return _
 
 
+def get_current_greenlet_task() -> t.Tuple[t.Optional[int], t.Optional[str], t.Optional[FrameType]]:
+    current_greenlet = gevent.getcurrent()
+    task_id = thread.get_ident(current_greenlet)
+    # Import locally to avoid eager import order interactions.
+    from ddtrace.profiling import _threading
+
+    task_name = _threading.get_thread_name(task_id)
+    frame = t.cast(t.Optional[FrameType], current_greenlet.gr_frame)
+    return task_id, task_name, frame
+
+
 def patch() -> None:
     global _original_greenlet_tracer
 

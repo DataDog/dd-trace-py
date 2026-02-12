@@ -524,6 +524,7 @@ class SpanData:
     error: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    _span_api: str
 
     def __new__(
         cls: Type[_SpanDataT],
@@ -535,6 +536,9 @@ class SpanData:
         span_id: Optional[int] = None,  # placeholder for Span.__init__
         parent_id: Optional[int] = None,  # placeholder for Span.__init__
         start: Optional[float] = None,
+        context: Optional[Any] = None,  # placeholder for Span.__init__
+        on_finish: Optional[Any] = None,  # placeholder for Span.__init__
+        span_api: Optional[str] = None,
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
@@ -552,3 +556,7 @@ class SpanLinkData:
         attributes: Optional[Dict[str, str]] = None,
         _dropped_attributes: int = 0,
     ): ...
+
+def seed() -> None: ...
+def rand64bits() -> int: ...
+def generate_128bit_trace_id() -> int: ...
