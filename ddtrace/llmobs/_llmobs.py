@@ -1035,7 +1035,9 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         max_iterations: int = 5,
-        stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
+        stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
+        dataset_split: bool = False,
+        test_dataset: Optional[str] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -1083,6 +1085,13 @@ class LLMObs(Service):
         :param stopping_condition: Optional function to determine when to stop optimization early.
                                    Takes summary_evaluations dict from the experiment result and returns True if
                                    optimization should stop.
+        :param dataset_split: If True, split the dataset into train/valid/test subsets.
+                             Train examples are shown to the optimization LLM, valid scores rank iterations,
+                             and test provides a final unbiased score. Default ratios: 60/20/20.
+        :param test_dataset: Optional name of a separate test dataset. When provided, the dataset is
+                            pulled automatically, the main dataset is split into train/valid (80/20),
+                            and the test dataset is used for the final unbiased score.
+                            Implicitly enables dataset splitting.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -1163,6 +1172,11 @@ class LLMObs(Service):
 
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
+        pulled_test_dataset = None
+        if test_dataset is not None:
+            if not isinstance(test_dataset, str):
+                raise TypeError("test_dataset must be a dataset name (string).")
+            pulled_test_dataset = cls.pull_dataset(dataset_name=test_dataset, project_name=project_name)
         if not evaluators:
             raise TypeError("Evaluators must be a non-empty list of BaseEvaluator instances or callable functions.")
         for evaluator in evaluators:
@@ -1191,6 +1205,8 @@ class LLMObs(Service):
             tags=tags,
             max_iterations=max_iterations,
             stopping_condition=stopping_condition,
+            dataset_split=dataset_split,
+            test_dataset=pulled_test_dataset,
         )
 
     @classmethod
