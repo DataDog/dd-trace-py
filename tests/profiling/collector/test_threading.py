@@ -493,7 +493,6 @@ def test_profiled_lock_ctor_handles_shallow_stack() -> None:
     profiled_lock = _ProfiledLock(
         wrapped=real_lock,
         tracer=None,
-        max_nframes=64,
         capture_sampler=capture_sampler,
     )
 
@@ -560,7 +559,6 @@ def test_update_name_handles_shallow_stack() -> None:
     profiled_lock = _ProfiledLock(
         wrapped=real_lock,
         tracer=None,
-        max_nframes=64,
         capture_sampler=capture_sampler,
     )
 
@@ -1492,7 +1490,6 @@ class TestGenericLockProfiling(LockCollectorTestBase):
             expected_slots: set[str] = {
                 "__wrapped__",
                 "tracer",
-                "max_nframes",
                 "capture_sampler",
                 "init_location",
                 "acquired_time",
