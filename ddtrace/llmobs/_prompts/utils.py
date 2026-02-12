@@ -4,6 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Mapping
+from typing import Optional
 from typing import Union
 
 from ddtrace.llmobs.types import Message
@@ -36,6 +37,10 @@ def extract_error_detail(body: str) -> str:
         return json.loads(body).get("detail", body)
     except Exception:
         return body
+
+
+def cache_key(prompt_id: str, label: Optional[str]) -> str:
+    return f"{prompt_id}:{label or ''}"
 
 
 def render_chat(messages: List[Message], variables: Dict[str, str]) -> List[Message]:
