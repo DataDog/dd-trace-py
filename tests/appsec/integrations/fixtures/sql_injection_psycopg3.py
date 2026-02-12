@@ -12,7 +12,9 @@ def sqli_simple(table):
     cur = connection.cursor()
     try:
         cur.execute("CREATE TABLE students (name TEXT, addr TEXT, city TEXT, pin TEXT)")
-    except (DuplicateTable, QueryCanceled):
+    except (DuplicateTable, QueryCanceled) as e:
+        # DEBUG: Keep this print while diagnosing CI-only failures in Python 3.10.
+        print("DEBUG psycopg3 CREATE TABLE:", type(e).__name__, str(e))
         connection.rollback()
 
     rows = []
@@ -20,7 +22,9 @@ def sqli_simple(table):
         # label test_sql_injection
         cur.execute("SELECT 1 FROM " + table)
         rows = cur.fetchone()
-    except (QueryCanceled, InFailedSqlTransaction):
+    except (QueryCanceled, InFailedSqlTransaction) as e:
+        # DEBUG: Keep this print while diagnosing CI-only failures in Python 3.10.
+        print("DEBUG psycopg3 SELECT:", type(e).__name__, str(e))
         connection.rollback()
 
     connection.close()

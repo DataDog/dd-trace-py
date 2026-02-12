@@ -28,7 +28,8 @@ def get_psycopg3_connection():
         host=POSTGRES_HOST,
         port=5432,
         dbname="postgres",
-        options="-c statement_timeout=1000",
+        # DEBUG: Temporary increase to validate whether CI flakes are timeout-driven.
+        options="-c statement_timeout=5000",
     )
     return connection
 
