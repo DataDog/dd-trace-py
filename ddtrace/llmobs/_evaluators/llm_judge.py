@@ -331,8 +331,11 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
         generation_config = GenerationConfig(**generation_config_params) if generation_config_params else None
         response = model_instance.generate_content(contents, generation_config=generation_config)
 
-        if response.candidates and response.candidates[0].content.parts:
-            return response.candidates[0].content.parts[0].text
+        if response.candidates:
+            content = getattr(response.candidates[0], "content", None)
+            parts = getattr(content, "parts", []) or []
+            if parts and getattr(parts[0], "text", None):
+                return parts[0].text
         return ""
 
     return call
