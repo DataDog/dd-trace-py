@@ -280,12 +280,23 @@ codeowners:
   script:
     # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
     # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
+    # Normalize patterns before checking for duplicates:
+    #   - Remove trailing slashes (tests/tracer and tests/tracer/ are equivalent)
+    #   - Remove leading ./ (./path and path are equivalent)
+    #   - Collapse multiple consecutive slashes (path//file becomes path/file)
     - |
-        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | sort | uniq -d > /tmp/duplicate_codeowners.txt
+        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
+          sed 's|^\./||' | \
+          sed -E 's|/+|/|g' | \
+          sed 's:/*$::' | \
+          sort | uniq -d > /tmp/duplicate_codeowners.txt
         if [ -s /tmp/duplicate_codeowners.txt ]; then
-            echo "Duplicate entries found in .github/CODEOWNERS for patterns:"
+            echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
             cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
-            echo "Each file pattern should only be listed once to ensure clear ownership. Please remove duplicates from .github/CODEOWNERS."
+            echo ""
+            echo "Each file pattern should only be listed once to ensure clear ownership."
+            echo "Normalization applied: removed trailing slashes, leading './', and collapsed multiple slashes."
+            echo "Please remove duplicates from .github/CODEOWNERS."
             exit 1
         fi
     - apt-get update && apt install ca-certificates git wget curl -y
