@@ -285,7 +285,6 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
             "Pass 'project' in client_options or set GOOGLE_CLOUD_PROJECT environment variable."
         )
 
-    # Vertex AI uses "location" to refer to a GCP region (e.g. "us-central1")
     location = (
         client_options.get("location")
         or os.environ.get("GOOGLE_CLOUD_REGION")
