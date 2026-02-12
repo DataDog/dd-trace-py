@@ -105,13 +105,31 @@ jobs:
             cd "${GITHUB_WORKSPACE}"
             git worktree remove -f ${WORKTREE}
 
-            EXISTING_PR=$(gh pr list --state open --base ${TARGET_BRANCH} --head ${BACKPORT_BRANCH} --json number --jq '.[0].number')
+            set +e
+            EXISTING_PR=$(gh pr list --state open --base ${TARGET_BRANCH} --head ${BACKPORT_BRANCH} --json number --jq '.[0].number' 2>&1)
+            GH_PR_LIST_STATUS=$?
+            set -e
+            if [ "${GH_PR_LIST_STATUS}" -ne 0 ]; then
+              echo "Failed to query existing backport PR for ${TARGET_BRANCH}:"
+              echo "${EXISTING_PR}"
+              FAILURES+=("${TARGET_BRANCH}")
+              continue
+            fi
             if [ -z "${EXISTING_PR}" ]; then
-              gh pr create \
+              set +e
+              CREATE_OUT=$(gh pr create \
                 --title "${PR_TITLE} [backport ${TARGET_BRANCH}]" \
                 --body "Backport #${PR_NUMBER} to ${TARGET_BRANCH}" \
                 --base ${TARGET_BRANCH} \
-                --head ${BACKPORT_BRANCH}
+                --head ${BACKPORT_BRANCH} 2>&1)
+              GH_PR_CREATE_STATUS=$?
+              set -e
+              if [ "${GH_PR_CREATE_STATUS}" -ne 0 ]; then
+                echo "Failed to create backport PR for ${TARGET_BRANCH}:"
+                echo "${CREATE_OUT}"
+                FAILURES+=("${TARGET_BRANCH}")
+                continue
+              fi
             else
               echo "Backport PR already exists for ${TARGET_BRANCH}: #${EXISTING_PR}"
             fi
