@@ -1,8 +1,5 @@
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -14,7 +11,6 @@ from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -39,8 +35,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -49,7 +45,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         else:
             self._llmobs_set_agent_tags(span, args, kwargs, response)
 
-    def _llmobs_set_tool_tags(self, span: Span, kwargs: Dict[str, Any]) -> None:
+    def _llmobs_set_tool_tags(self, span: Span, kwargs: dict[str, Any]) -> None:
         tool_input = kwargs.get("tool_input", {})
         tool_output = kwargs.get("tool_output", "")
 
@@ -64,8 +60,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
     def _llmobs_set_agent_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
     ) -> None:
         prompt = get_argument_value(args, kwargs, 0, "prompt", optional=True) or ""
@@ -75,9 +71,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         input_messages = self._extract_input_messages(prompt)
 
-        output_messages: List[Message] = [Message(content="")]
-        metrics: Dict[str, int] = {}
-        init_system_message: Dict[str, Any] = {}
+        output_messages: list[Message] = [Message(content="")]
+        metrics: dict[str, int] = {}
+        init_system_message: dict[str, Any] = {}
         if not span.error and response is not None:
             output_messages, metrics, init_system_message = self._extract_output_data(response)
 
@@ -96,9 +92,9 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         )
 
     def _build_agent_manifest(
-        self, model: str, metadata: Dict[str, Any], init_system_message: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        manifest: Dict[str, Any] = {}
+        self, model: str, metadata: dict[str, Any], init_system_message: dict[str, Any]
+    ) -> dict[str, Any]:
+        manifest: dict[str, Any] = {}
         manifest["framework"] = "Claude Agent SDK"
         if model:
             manifest["model"] = model
@@ -112,7 +108,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
             manifest["max_iterations"] = metadata["max_turns"]
         return manifest
 
-    def _extract_metadata(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]:
         metadata = {}
         options = kwargs.get("options")
         for key in CLAUDE_OPTIONS_KEYS:
@@ -121,7 +117,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         self._format_context(metadata, kwargs)
         return metadata
 
-    def _parse_context_categories(self, context_messages: List[Any]) -> Dict[str, Any]:
+    def _parse_context_categories(self, context_messages: list[Any]) -> dict[str, Any]:
         """Parse category percentages and token counts from context UserMessage.
 
         Args:
@@ -133,7 +129,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
                 - "used_tokens": Token count string (e.g., "16.3k") or None
                 - "total_tokens": Token count string (e.g., "200.0k") or None
         """
-        result: Dict[str, Any] = {"categories": {}, "used_tokens": None, "total_tokens": None}
+        result: dict[str, Any] = {"categories": {}, "used_tokens": None, "total_tokens": None}
 
         if not context_messages or not isinstance(context_messages, list):
             return result
@@ -193,7 +189,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return result
 
-    def _format_context(self, parameters: Dict[str, Any], kwargs: Dict[str, Any]) -> None:
+    def _format_context(self, parameters: dict[str, Any], kwargs: dict[str, Any]) -> None:
         after_context = kwargs.get("_dd_context")
         before_context = kwargs.get("_dd_before_context")
 
@@ -203,14 +199,14 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         if before_context:
             parameters["before_context"] = self._parse_context_categories(before_context)
 
-    def _extract_input_messages(self, prompt: str) -> List[Message]:
+    def _extract_input_messages(self, prompt: str) -> list[Message]:
         return [Message(content=prompt, role="user")]
 
-    def _parse_content_blocks(self, content: Any, role: str) -> List[Message]:
+    def _parse_content_blocks(self, content: Any, role: str) -> list[Message]:
         """Parses content which can be a string or a list of content blocks
         (TextBlock, ToolUseBlock, etc.) into a list of messages.
         """
-        messages: List[Message] = []
+        messages: list[Message] = []
 
         if isinstance(content, str):
             messages.append(Message(content=content, role=role))
@@ -254,11 +250,11 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_output_data(self, response: Any) -> Tuple[List[Message], Dict[str, int], Dict[str, Any]]:
+    def _extract_output_data(self, response: Any) -> tuple[list[Message], dict[str, int], dict[str, Any]]:
         """Extract output data from response, including output messages, usage metrics, and init system message."""
-        output_messages: List[Message] = []
-        metrics: Dict[str, int] = {}
-        init_system_message: Dict[str, Any] = {}
+        output_messages: list[Message] = []
+        metrics: dict[str, int] = {}
+        init_system_message: dict[str, Any] = {}
 
         if not response or not isinstance(response, list):
             return [Message(content="")], metrics, init_system_message
@@ -286,8 +282,8 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return output_messages or [Message(content="")], metrics, init_system_message
 
-    def _extract_result_message(self, message: Any) -> Dict[str, int]:
-        metrics: Dict[str, int] = {}
+    def _extract_result_message(self, message: Any) -> dict[str, int]:
+        metrics: dict[str, int] = {}
         usage = _get_attr(message, "usage", None) or {}
         if usage and isinstance(usage, dict):
             input_tokens = usage.get("input_tokens") or 0

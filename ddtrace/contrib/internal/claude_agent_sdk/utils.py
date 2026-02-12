@@ -1,5 +1,4 @@
 from typing import Any
-from typing import List
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._utils import _get_attr
@@ -26,7 +25,7 @@ async def _retrieve_context(instance):
             instance._dd_internal_context_query = False
 
 
-def _extract_model_from_response(response: List[Any]) -> str:
+def _extract_model_from_response(response: list[Any]) -> str:
     if not response or not isinstance(response, list):
         return ""
 

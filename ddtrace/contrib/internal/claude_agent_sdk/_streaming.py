@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
@@ -28,7 +27,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self.pin = pin
         self.instance = instance
         self.context = None
-        self._active_tool_spans: Dict[str, Dict[str, Any]] = {}
+        self._active_tool_spans: dict[str, dict[str, Any]] = {}
 
     async def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
@@ -68,7 +67,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                     tool_output = safe_json(result_content) or str(result_content)
                     self._finalize_tool_span(tool_data, tool_output)
 
-    def _finalize_tool_span(self, tool_data: Dict[str, Any], tool_output: str) -> None:
+    def _finalize_tool_span(self, tool_data: dict[str, Any], tool_output: str) -> None:
         tool_span = tool_data["tool_span"]
 
         self.integration.llmobs_set_tags(

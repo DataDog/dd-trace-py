@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 import claude_agent_sdk
 
@@ -24,7 +23,7 @@ def get_version() -> str:
     return getattr(claude_agent_sdk, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"claude_agent_sdk": ">=0.1.0"}
 
 
