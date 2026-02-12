@@ -64,7 +64,7 @@ Datadog::Profile::reset_profile()
 void
 Datadog::Profile::cleanup()
 {
-    // Clear the profile before using it
+    // Drop the profile and release its resources
     ddog_prof_Profile_drop(&cur_profile);
 }
 
