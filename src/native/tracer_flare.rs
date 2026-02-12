@@ -111,9 +111,12 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
     type Error = PyErr;
 
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        let dict = ob.cast::<PyDict>()?.as_mapping();
+        let dict_binding = ob.cast::<PyDict>()?;
+        let dict = dict_binding.as_mapping();
 
-        let args_dict = dict.get_item("args")?.cast::<PyDict>()?.as_mapping();
+        let args_value = dict.get_item("args")?;
+        let args_binding = args_value.cast::<PyDict>()?;
+        let args_dict = args_binding.as_mapping();
 
         let case_id: String = args_dict.get_item("case_id")?.extract()?;
 
@@ -161,10 +164,13 @@ impl<'py> FromPyObject<'_, 'py> for AgentConfigFileWrapper {
     type Error = PyErr;
 
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        let dict = ob.cast::<PyDict>()?.as_mapping();
+        let dict_binding = ob.cast::<PyDict>()?;
+        let dict = dict_binding.as_mapping();
 
         let name: String = dict.get_item("name")?.extract()?;
-        let config_dict = dict.get_item("config")?.cast::<PyDict>()?.as_mapping();
+        let config_value = dict.get_item("config")?;
+        let config_binding = config_value.cast::<PyDict>()?;
+        let config_dict = config_binding.as_mapping();
         let log_level: Option<String> = config_dict.get_item("log_level")?.extract()?;
 
         Ok(Self {
