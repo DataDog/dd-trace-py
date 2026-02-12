@@ -561,7 +561,8 @@ def _fib(n: int) -> int:
 
 
 @pytest.mark.skipif(
-    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION, reason=f"gevent is not compatible with Python {sys.version_info}"
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task() -> None:

@@ -1,5 +1,6 @@
 from abc import ABC
 from abc import abstractmethod
+import copy
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
@@ -213,7 +214,7 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
         if system:
             kwargs["system"] = system
         if json_schema:
-            schema_copy = json.loads(json.dumps(json_schema))
+            schema_copy = copy.deepcopy(json_schema)
             for prop_val in schema_copy.get("properties", {}).values():
                 if not isinstance(prop_val, dict):
                     continue
@@ -247,6 +248,114 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     return call
 
 
+def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    region_name = (
+        client_options.get("region_name")
+        or os.environ.get("AWS_REGION")
+        or os.environ.get("AWS_DEFAULT_REGION")
+        or "us-east-1"
+    )
+
+    try:
+        import boto3
+    except ImportError:
+        raise ImportError("boto3 package required: pip install boto3")
+
+    session_kwargs: Dict[str, Any] = {"region_name": region_name}
+    profile_name = client_options.get("profile_name") or os.environ.get("AWS_PROFILE")
+    if profile_name:
+        session_kwargs["profile_name"] = profile_name
+    aws_access_key_id = client_options.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
+    if aws_access_key_id:
+        session_kwargs["aws_access_key_id"] = aws_access_key_id
+    aws_secret_access_key = client_options.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+    if aws_secret_access_key:
+        session_kwargs["aws_secret_access_key"] = aws_secret_access_key
+    aws_session_token = client_options.get("aws_session_token") or os.environ.get("AWS_SESSION_TOKEN")
+    if aws_session_token:
+        session_kwargs["aws_session_token"] = aws_session_token
+
+    session = boto3.Session(**session_kwargs)
+    client = session.client("bedrock-runtime")
+
+    def call(
+        provider: Optional[str],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
+        model: str,
+        model_params: Optional[Dict[str, Any]],
+    ) -> str:
+        system_msgs = []
+        converse_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_msgs.append({"text": msg["content"]})
+            else:
+                role = "user" if msg["role"] == "user" else "assistant"
+                converse_messages.append({"role": role, "content": [{"text": msg["content"]}]})
+
+        kwargs: Dict[str, Any] = {"modelId": model, "messages": converse_messages}
+
+        if system_msgs:
+            kwargs["system"] = system_msgs
+
+        if model_params:
+            inference_config: Dict[str, Any] = {}
+            for key in ["temperature", "topP", "maxTokens", "stopSequences"]:
+                if key in model_params:
+                    inference_config[key] = model_params[key]
+            if "max_tokens" in model_params:
+                inference_config["maxTokens"] = model_params["max_tokens"]
+            if "top_p" in model_params:
+                inference_config["topP"] = model_params["top_p"]
+            if inference_config:
+                kwargs["inferenceConfig"] = inference_config
+
+        if json_schema:
+            # Bedrock doesn't support minimum/maximum for number properties in json schema.
+            # The range should be described in the description instead.
+            schema_copy = copy.deepcopy(json_schema)
+            for prop_val in schema_copy.get("properties", {}).values():
+                if not isinstance(prop_val, dict):
+                    continue
+                # Bedrock doesn't support minimum/maximum for number properties in json schema.
+                # The range should be described in the description instead.
+                if prop_val.get("type") == "number":
+                    min_val = prop_val.pop("minimum", None)
+                    max_val = prop_val.pop("maximum", None)
+                    if min_val is not None or max_val is not None:
+                        range_str = f" (range: {min_val} to {max_val})"
+                        prop_val["description"] = prop_val.get("description", "") + range_str
+                # Bedrock doesn't support 'type' on properties that use 'anyOf'.
+                if "anyOf" in prop_val:
+                    prop_val.pop("type", None)
+            kwargs["outputConfig"] = {
+                "textFormat": {
+                    "type": "json_schema",
+                    "structure": {
+                        "jsonSchema": {
+                            "name": "evaluation",
+                            "schema": json.dumps(schema_copy),
+                        },
+                    },
+                }
+            }
+
+        response = client.converse(**kwargs)
+
+        output = response.get("output", {})
+        message = output.get("message", {})
+        content_blocks = message.get("content", [])
+
+        for block in content_blocks:
+            if "text" in block:
+                return block["text"]
+        return ""
+
+    return call
+
+
 class LLMJudge(BaseEvaluator):
     """Evaluator that uses an LLM to judge LLM Observability span outputs."""
 
@@ -255,7 +364,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        provider: Optional[Literal["openai", "anthropic"]] = None,
+        provider: Optional[Literal["openai", "anthropic", "bedrock"]] = None,
         model: Optional[str] = None,
         model_params: Optional[dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
@@ -265,8 +374,8 @@ class LLMJudge(BaseEvaluator):
         """Initialize an LLMJudge evaluator.
 
         LLMJudge enables automated evaluation of LLM outputs using another LLM as the judge.
-        It supports multiple providers (OpenAI, Anthropic) and output formats for flexible
-        evaluation criteria.
+        It supports multiple providers (OpenAI, Anthropic, Bedrock) and output formats
+        for flexible evaluation criteria.
 
         Supported Output Types:
             - ``BooleanStructuredOutput``: Returns True/False with optional pass/fail assessment.
@@ -288,17 +397,32 @@ class LLMJudge(BaseEvaluator):
                 support template variables.
             structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
                 CategoricalStructuredOutput, or a custom JSON schema dict).
-            provider: LLM provider to use (``"openai"`` or ``"anthropic"``). Required if
-                ``client`` is not provided.
+            provider: LLM provider to use. Supported values: ``"openai"``, ``"anthropic"``,
+                ``"bedrock"``. Required if ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
             model_params: Additional parameters passed to the LLM API (e.g., temperature).
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
-            client_options: Provider-specific configuration options. Supported keys:
+            client_options: Provider-specific configuration options. Supported keys vary
+                by provider:
 
-                - ``api_key``: API key for OpenAI or Anthropic. Falls back to
-                  ``OPENAI_API_KEY`` or ``ANTHROPIC_API_KEY`` environment variables.
+                **OpenAI:**
+                    - ``api_key``: API key. Falls back to ``OPENAI_API_KEY`` env var.
+
+                **Anthropic:**
+                    - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+
+                **Bedrock:**
+                    - ``aws_access_key_id``: AWS access key. Falls back to
+                      ``AWS_ACCESS_KEY_ID`` env var.
+                    - ``aws_secret_access_key``: AWS secret key. Falls back to
+                      ``AWS_SECRET_ACCESS_KEY`` env var.
+                    - ``aws_session_token``: Session token. Falls back to
+                      ``AWS_SESSION_TOKEN`` env var.
+                    - ``region_name``: AWS region (default: "us-east-1"). Falls back to
+                      ``AWS_REGION`` or ``AWS_DEFAULT_REGION``.
+                    - ``profile_name``: AWS profile name. Falls back to ``AWS_PROFILE``.
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.
@@ -361,8 +485,10 @@ class LLMJudge(BaseEvaluator):
             self._client = _create_openai_client(client_options=client_options)
         elif provider == "anthropic":
             self._client = _create_anthropic_client(client_options=client_options)
+        elif provider == "bedrock":
+            self._client = _create_bedrock_client(client_options=client_options)
         else:
-            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic)")
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/bedrock)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:
