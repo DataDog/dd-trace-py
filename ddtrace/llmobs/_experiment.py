@@ -951,6 +951,197 @@ class BaseExperiment(ABC):
             eval_metrics.append(eval_metric)
         return eval_metrics
 
+    def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
+        """Get dataset subset if sample_size is specified.
+
+        :param sample_size: Number of records to sample, or None for full dataset
+        :return: A Dataset (either a subset or the original)
+        """
+        if sample_size is not None and sample_size < len(self._dataset):
+            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
+            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
+            return Dataset(
+                name=subset_name,
+                project=self._dataset.project,
+                dataset_id=self._dataset._id,
+                records=subset_records,
+                description=self._dataset.description,
+                latest_version=self._dataset._latest_version,
+                version=self._dataset._version,
+                _dne_client=self._dataset._dne_client,
+            )
+        return self._dataset
+
+    def _extract_evaluator_result(
+        self, eval_result: Union[JSONType, EvaluatorResult]
+    ) -> Tuple[JSONType, Dict[str, JSONType]]:
+        """Extract value and extra fields from evaluator result.
+
+        :param eval_result: The raw result from an evaluator
+        :return: Tuple of (value, extra_return_values dict)
+        """
+        extra_return_values: Dict[str, JSONType] = {}
+        if isinstance(eval_result, EvaluatorResult):
+            if eval_result.reasoning:
+                extra_return_values["reasoning"] = eval_result.reasoning
+            if eval_result.assessment:
+                extra_return_values["assessment"] = eval_result.assessment
+            if eval_result.metadata:
+                extra_return_values["metadata"] = eval_result.metadata
+            if eval_result.tags:
+                extra_return_values["tags"] = eval_result.tags
+            return eval_result.value, extra_return_values
+        return eval_result, extra_return_values
+
+    def _build_evaluator_error(self, exc: Exception) -> Dict[str, Any]:
+        """Build error dict from exception.
+
+        :param exc: The exception that occurred
+        :return: Dict with message, type, and stack trace
+        """
+        exc_type, exc_value, exc_tb = sys.exc_info()
+        exc_type_name = type(exc).__name__ if exc_type is not None else "Unknown Exception"
+        exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+        return {
+            "message": str(exc_value),
+            "type": exc_type_name,
+            "stack": exc_stack,
+        }
+
+    def _prepare_summary_evaluator_data(
+        self, task_results: List[TaskResult], eval_results: List[EvaluationResult]
+    ) -> Tuple[
+        List[DatasetRecordInputType],
+        List[JSONType],
+        List[JSONType],
+        List[Dict[str, Any]],
+        Dict[str, List[JSONType]],
+    ]:
+        """Prepare aggregated data for summary evaluators.
+
+        :param task_results: List of task results
+        :param eval_results: List of evaluation results
+        :return: Tuple of (inputs, outputs, expected_outputs, metadata_list, eval_results_by_name)
+        """
+        inputs: List[DatasetRecordInputType] = []
+        outputs: List[JSONType] = []
+        expected_outputs: List[JSONType] = []
+        metadata_list: List[Dict[str, Any]] = []
+        eval_results_by_name: Dict[str, List[JSONType]] = {}
+
+        for idx, task_result in enumerate(task_results):
+            outputs.append(task_result["output"])
+            record: DatasetRecord = self._dataset[idx]
+            inputs.append(record["input_data"])
+            expected_outputs.append(record["expected_output"])
+            record_metadata = record.get("metadata", {})
+            metadata_list.append({**record_metadata, "experiment_config": self._config})
+
+            eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
+            for name, eval_value in eval_result_at_idx_by_name.items():
+                if name not in eval_results_by_name:
+                    eval_results_by_name[name] = []
+                eval_results_by_name[name].append(eval_value.get("value"))
+
+        return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
+
+    def _setup_experiment(self, llmobs_not_enabled_error: str) -> None:
+        """Set up the experiment by creating project and experiment in the backend.
+
+        :param llmobs_not_enabled_error: Error message to use if LLMObs is not enabled
+        :raises ValueError: If jobs < 1 or LLMObs is not enabled
+        """
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            raise ValueError(llmobs_not_enabled_error)
+
+        project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
+        self._project_id = project.get("_id", "")
+        self._tags["project_id"] = self._project_id
+
+        experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
+            self.name,
+            self._dataset._id,
+            self._project_id,
+            self._dataset._version,
+            self._config,
+            convert_tags_dict_to_list(self._tags),
+            self._description,
+            self._runs,
+        )
+        self._id = experiment_id
+        self._tags["experiment_id"] = str(experiment_id)
+        self._run_name = experiment_run_name
+
+    def _build_experiment_result(self, run_results: List[ExperimentRun]) -> ExperimentResult:
+        """Build final ExperimentResult from run results.
+
+        :param run_results: List of ExperimentRun objects
+        :return: ExperimentResult dict
+        """
+        return {
+            "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
+            "rows": run_results[0].rows if run_results else [],
+            "runs": run_results,
+        }
+
+    def _build_task_result(self, idx: int, span: Any, span_id: str, trace_id: str, output_data: JSONType) -> TaskResult:
+        """Build TaskResult dict from span and output.
+
+        :param idx: Record index
+        :param span: The span object
+        :param span_id: Span ID string
+        :param trace_id: Trace ID string
+        :param output_data: Output from task execution
+        :return: TaskResult dict
+        """
+        return {
+            "idx": idx,
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "timestamp": span.start_ns,
+            "output": output_data,
+            "metadata": {
+                "dataset_record_index": idx,
+                "experiment_name": self.name,
+                "dataset_name": self._dataset.name,
+            },
+            "error": {
+                "message": span.get_tag(ERROR_MSG),
+                "stack": span.get_tag(ERROR_STACK),
+                "type": span.get_tag(ERROR_TYPE),
+            },
+        }
+
+    def _get_record_tags(self, record_id: str) -> Dict[str, str]:
+        """Build tags dict for a record.
+
+        :param record_id: The record ID
+        :return: Dict of tags
+        """
+        return {
+            **self._tags,
+            "dataset_id": str(self._dataset._id),
+            "dataset_record_id": str(record_id),
+            "experiment_id": str(self._id),
+        }
+
+    def _check_and_raise_task_error(self, task_result: TaskResult, raise_errors: bool) -> None:
+        """Check task result for errors and raise if configured.
+
+        :param task_result: The task result to check
+        :param raise_errors: Whether to raise on errors
+        :raises RuntimeError: If raise_errors is True and there's an error
+        """
+        err_dict = task_result.get("error") or {}
+        if isinstance(err_dict, dict):
+            err_msg = err_dict.get("message")
+            err_stack = err_dict.get("stack")
+            err_type = err_dict.get("type")
+            if raise_errors and err_msg:
+                raise RuntimeError(
+                    "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
+                )
+
 
 class Experiment(BaseExperiment):
     """Synchronous experiment using ThreadPoolExecutor for concurrent execution."""
@@ -1005,34 +1196,12 @@ class Experiment(BaseExperiment):
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
 
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            raise ValueError(
-                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
-                "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
-            )
-
-        project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
-        self._project_id = project.get("_id", "")
-        self._tags["project_id"] = self._project_id
-
-        (
-            experiment_id,
-            experiment_run_name,
-        ) = self._llmobs_instance._dne_client.experiment_create(
-            self.name,
-            self._dataset._id,
-            self._project_id,
-            self._dataset._version,
-            self._config,
-            convert_tags_dict_to_list(self._tags),
-            self._description,
-            self._runs,
+        self._setup_experiment(
+            "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+            "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
         )
-        self._id = experiment_id
-        self._tags["experiment_id"] = str(experiment_id)
-        self._run_name = experiment_run_name
+
         run_results = []
-        # for backwards compatibility
         for run_iteration in range(self._runs):
             run = _ExperimentRunInfo(run_iteration)
             self._tags["run_id"] = str(run._id)
@@ -1042,18 +1211,12 @@ class Experiment(BaseExperiment):
             summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
             experiment_evals = self._generate_metrics_from_exp_results(run_result)
-            self._llmobs_instance._dne_client.experiment_eval_post(
-                self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+            self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+                cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
             )
             run_results.append(run_result)
 
-        experiment_result: ExperimentResult = {
-            # for backwards compatibility, the first result fills the old fields of rows and summary evals
-            "summary_evaluations": run_results[0].summary_evaluations if len(run_results) > 0 else {},
-            "rows": run_results[0].rows if len(run_results) > 0 else [],
-            "runs": run_results,
-        }
-        return experiment_result
+        return self._build_experiment_result(run_results)
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord], run: _ExperimentRunInfo) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -1077,12 +1240,7 @@ class Experiment(BaseExperiment):
                 span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            tags = {
-                **self._tags,
-                "dataset_id": str(self._dataset._id),
-                "dataset_record_id": str(record_id),
-                "experiment_id": str(self._id),
-            }
+            tags = self._get_record_tags(record_id)
             output_data: JSONType = None
             try:
                 output_data = self._task(input_data, self._config)
@@ -1094,23 +1252,7 @@ class Experiment(BaseExperiment):
             if "metadata" in record:
                 span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
 
-            return {
-                "idx": idx,
-                "span_id": span_id,
-                "trace_id": trace_id,
-                "timestamp": span.start_ns,
-                "output": output_data,
-                "metadata": {
-                    "dataset_record_index": idx,
-                    "experiment_name": self.name,
-                    "dataset_name": self._dataset.name,
-                },
-                "error": {
-                    "message": span.get_tag(ERROR_MSG),
-                    "stack": span.get_tag(ERROR_STACK),
-                    "type": span.get_tag(ERROR_TYPE),
-                },
-            }
+            return self._build_task_result(idx, span, span_id, trace_id, output_data)
 
     def _run_task(
         self,
@@ -1121,21 +1263,7 @@ class Experiment(BaseExperiment):
     ) -> List[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
-        if sample_size is not None and sample_size < len(self._dataset):
-            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
-            subset_dataset = Dataset(
-                name=subset_name,
-                project=self._dataset.project,
-                dataset_id=self._dataset._id,
-                records=subset_records,
-                description=self._dataset.description,
-                latest_version=self._dataset._latest_version,
-                version=self._dataset._version,
-                _dne_client=self._dataset._dne_client,
-            )
-        else:
-            subset_dataset = self._dataset
+        subset_dataset = self._get_subset_dataset(sample_size)
         task_results = []
         with ThreadPoolExecutor(max_workers=jobs) as executor:
             for result in executor.map(
@@ -1146,15 +1274,7 @@ class Experiment(BaseExperiment):
                 if not result:
                     continue
                 task_results.append(result)
-                err_dict = result.get("error") or {}
-                if isinstance(err_dict, dict):
-                    err_msg = err_dict.get("message")
-                    err_stack = err_dict.get("stack")
-                    err_type = err_dict.get("type")
-                if raise_errors and err_msg:
-                    raise RuntimeError(
-                        "Error on record {}: {}\n{}\n{}".format(result["idx"], err_msg, err_type, err_stack)
-                    )
+                self._check_and_raise_task_error(result, raise_errors)
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
@@ -1183,7 +1303,6 @@ class Experiment(BaseExperiment):
                 eval_result_value: JSONType = None
                 eval_err: JSONType = None
                 evaluator_name = ""
-                extra_return_values: Dict[str, JSONType] = {}
 
                 try:
                     if _is_class_evaluator(evaluator):
@@ -1208,28 +1327,11 @@ class Experiment(BaseExperiment):
                         evaluator_name = str(evaluator)
                         eval_result = None
 
-                    if isinstance(eval_result, EvaluatorResult):
-                        if eval_result.reasoning:
-                            extra_return_values["reasoning"] = eval_result.reasoning
-                        if eval_result.assessment:
-                            extra_return_values["assessment"] = eval_result.assessment
-                        if eval_result.metadata:
-                            extra_return_values["metadata"] = eval_result.metadata
-                        if eval_result.tags:
-                            extra_return_values["tags"] = eval_result.tags
-                        eval_result_value = eval_result.value
-                    else:
-                        eval_result_value = eval_result
+                    eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
 
                 except Exception as e:
-                    exc_type, exc_value, exc_tb = sys.exc_info()
-                    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                    eval_err = {
-                        "message": str(exc_value),
-                        "type": exc_type_name,
-                        "stack": exc_stack,
-                    }
+                    extra_return_values = {}
+                    eval_err = self._build_evaluator_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
@@ -1256,30 +1358,11 @@ class Experiment(BaseExperiment):
         raise_errors: bool = False,
         jobs: int = 1,
     ) -> List[EvaluationResult]:
-        inputs: List[DatasetRecordInputType] = []
-        outputs: List[JSONType] = []
-        expected_outputs: List[JSONType] = []
-        metadata_list: List[Dict[str, Any]] = []
+        inputs, outputs, expected_outputs, metadata_list, eval_results_by_name = self._prepare_summary_evaluator_data(
+            task_results, eval_results
+        )
 
-        # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
-        # this is being computed so that the user can use the evaluation results in its original form
-        eval_results_by_name: dict[str, List[JSONType]] = {}
-        for idx, task_result in enumerate(task_results):
-            outputs.append(task_result["output"])
-            record: DatasetRecord = self._dataset[idx]
-            inputs.append(record["input_data"])
-            expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata", {})
-            metadata_list.append({**record_metadata, "experiment_config": self._config})
-
-            eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
-            for name, eval_value in eval_result_at_idx_by_name.items():
-                if name not in eval_results_by_name:
-                    eval_results_by_name[name] = []
-
-                eval_results_by_name[name].append(eval_value.get("value"))
-
-        def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, Dict[str, JSONType]]:
+        def _evaluate_summary_single(summary_evaluator: Any) -> Tuple[str, Dict[str, JSONType]]:
             eval_result_value: JSONType = None
             eval_err: JSONType = None
             evaluator_name = ""
@@ -1300,14 +1383,7 @@ class Experiment(BaseExperiment):
                     eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
                 eval_result_value = eval_result
             except Exception as e:
-                exc_type, exc_value, exc_tb = sys.exc_info()
-                exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                eval_err = {
-                    "message": str(exc_value),
-                    "type": exc_type_name,
-                    "stack": exc_stack,
-                }
+                eval_err = self._build_evaluator_error(e)
                 if raise_errors:
                     raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
 
@@ -1389,34 +1465,12 @@ class AsyncExperiment(BaseExperiment):
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
 
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            raise ValueError(
-                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
-                "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
-            )
-
-        project = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
-        self._project_id = project.get("_id", "")
-        self._tags["project_id"] = self._project_id
-
-        (
-            experiment_id,
-            experiment_run_name,
-        ) = self._llmobs_instance._dne_client.experiment_create(
-            self.name,
-            self._dataset._id,
-            self._project_id,
-            self._dataset._version,
-            self._config,
-            convert_tags_dict_to_list(self._tags),
-            self._description,
-            self._runs,
+        self._setup_experiment(
+            "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+            "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
         )
-        self._id = experiment_id
-        self._tags["experiment_id"] = str(experiment_id)
-        self._run_name = experiment_run_name
+
         run_results = []
-        # for backwards compatibility
         for run_iteration in range(self._runs):
             run = _ExperimentRunInfo(run_iteration)
             self._tags["run_id"] = str(run._id)
@@ -1426,18 +1480,12 @@ class AsyncExperiment(BaseExperiment):
             summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
             experiment_evals = self._generate_metrics_from_exp_results(run_result)
-            self._llmobs_instance._dne_client.experiment_eval_post(
-                self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+            self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+                cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
             )
             run_results.append(run_result)
 
-        experiment_result: ExperimentResult = {
-            # for backwards compatibility, the first result fills the old fields of rows and summary evals
-            "summary_evaluations": run_results[0].summary_evaluations if len(run_results) > 0 else {},
-            "rows": run_results[0].rows if len(run_results) > 0 else [],
-            "runs": run_results,
-        }
-        return experiment_result
+        return self._build_experiment_result(run_results)
 
     async def _process_record(
         self,
@@ -1468,12 +1516,7 @@ class AsyncExperiment(BaseExperiment):
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
-                tags = {
-                    **self._tags,
-                    "dataset_id": str(self._dataset._id),
-                    "dataset_record_id": str(record_id),
-                    "experiment_id": str(self._id),
-                }
+                tags = self._get_record_tags(record_id)
                 output_data = None
                 try:
                     output_data = await self._task(input_data, self._config)
@@ -1485,23 +1528,7 @@ class AsyncExperiment(BaseExperiment):
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
 
-                return {
-                    "idx": idx,
-                    "span_id": span_id,
-                    "trace_id": trace_id,
-                    "timestamp": span.start_ns,
-                    "output": output_data,
-                    "metadata": {
-                        "dataset_record_index": idx,
-                        "experiment_name": self.name,
-                        "dataset_name": self._dataset.name,
-                    },
-                    "error": {
-                        "message": span.get_tag(ERROR_MSG),
-                        "stack": span.get_tag(ERROR_STACK),
-                        "type": span.get_tag(ERROR_TYPE),
-                    },
-                }
+                return self._build_task_result(idx, span, span_id, trace_id, output_data)
 
     async def _run_task(
         self,
@@ -1513,21 +1540,7 @@ class AsyncExperiment(BaseExperiment):
         """Run task on all records using asyncio.gather with semaphore."""
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
-        if sample_size is not None and sample_size < len(self._dataset):
-            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
-            subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
-            subset_dataset = Dataset(
-                name=subset_name,
-                project=self._dataset.project,
-                dataset_id=self._dataset._id,
-                records=subset_records,
-                description=self._dataset.description,
-                latest_version=self._dataset._latest_version,
-                version=self._dataset._version,
-                _dne_client=self._dataset._dne_client,
-            )
-        else:
-            subset_dataset = self._dataset
+        subset_dataset = self._get_subset_dataset(sample_size)
 
         semaphore = asyncio.Semaphore(jobs)
         tasks = [self._process_record(idx_record, run, semaphore) for idx_record in enumerate(subset_dataset)]
@@ -1543,15 +1556,7 @@ class AsyncExperiment(BaseExperiment):
                 continue
             task_result: TaskResult = result
             task_results.append(task_result)
-            err_dict = task_result.get("error") or {}
-            if isinstance(err_dict, dict):
-                err_msg = err_dict.get("message")
-                err_stack = err_dict.get("stack")
-                err_type = err_dict.get("type")
-            if raise_errors and err_msg:
-                raise RuntimeError(
-                    "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
-                )
+            self._check_and_raise_task_error(task_result, raise_errors)
 
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
@@ -1576,7 +1581,6 @@ class AsyncExperiment(BaseExperiment):
                     eval_result_value: JSONType = None
                     eval_err: JSONType = None
                     evaluator_name = ""
-                    extra_return_values: Dict[str, JSONType] = {}
 
                     try:
                         if _is_async_evaluator(evaluator):
@@ -1625,28 +1629,11 @@ class AsyncExperiment(BaseExperiment):
                             evaluator_name = str(evaluator)
                             eval_result = None
 
-                        if isinstance(eval_result, EvaluatorResult):
-                            if eval_result.reasoning:
-                                extra_return_values["reasoning"] = eval_result.reasoning
-                            if eval_result.assessment:
-                                extra_return_values["assessment"] = eval_result.assessment
-                            if eval_result.metadata:
-                                extra_return_values["metadata"] = eval_result.metadata
-                            if eval_result.tags:
-                                extra_return_values["tags"] = eval_result.tags
-                            eval_result_value = eval_result.value
-                        else:
-                            eval_result_value = eval_result
+                        eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
 
                     except Exception as e:
-                        exc_type, exc_value, exc_tb = sys.exc_info()
-                        exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                        exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                        eval_err = {
-                            "message": str(exc_value),
-                            "type": exc_type_name,
-                            "stack": exc_stack,
-                        }
+                        extra_return_values = {}
+                        eval_err = self._build_evaluator_error(e)
                         if raise_errors:
                             raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
@@ -1679,26 +1666,9 @@ class AsyncExperiment(BaseExperiment):
         jobs: int = 10,
     ) -> List[EvaluationResult]:
         """Run summary evaluators - supports both sync and async."""
-        inputs: List[DatasetRecordInputType] = []
-        outputs: List[JSONType] = []
-        expected_outputs: List[JSONType] = []
-        metadata_list: List[Dict[str, Any]] = []
-
-        # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
-        eval_results_by_name: dict[str, List[JSONType]] = {}
-        for idx, task_result in enumerate(task_results):
-            outputs.append(task_result["output"])
-            record: DatasetRecord = self._dataset[idx]
-            inputs.append(record["input_data"])
-            expected_outputs.append(record["expected_output"])
-            record_metadata = record.get("metadata", {})
-            metadata_list.append({**record_metadata, "experiment_config": self._config})
-
-            eval_result_at_idx_by_name = eval_results[idx]["evaluations"]
-            for name, eval_value in eval_result_at_idx_by_name.items():
-                if name not in eval_results_by_name:
-                    eval_results_by_name[name] = []
-                eval_results_by_name[name].append(eval_value.get("value"))
+        inputs, outputs, expected_outputs, metadata_list, eval_results_by_name = self._prepare_summary_evaluator_data(
+            task_results, eval_results
+        )
 
         semaphore = asyncio.Semaphore(jobs)
 
@@ -1743,14 +1713,7 @@ class AsyncExperiment(BaseExperiment):
                         )
                     eval_result_value = eval_result
                 except Exception as e:
-                    exc_type, exc_value, exc_tb = sys.exc_info()
-                    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
-                    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-                    eval_err = {
-                        "message": str(exc_value),
-                        "type": exc_type_name,
-                        "stack": exc_stack,
-                    }
+                    eval_err = self._build_evaluator_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
 
