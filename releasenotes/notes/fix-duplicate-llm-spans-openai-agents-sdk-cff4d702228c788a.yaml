@@ -2,6 +2,6 @@
 fixes:
   - |
     LLM Observability: This fix resolves an issue where duplicate LLM spans were created when using the
-    OpenAI agents SDK with the responses API. When both the OpenAI and OpenAI agents SDK integrations
+    OpenAI agents SDK with the responses API and chat completion API. When both the OpenAI and OpenAI agents SDK integrations
     are active, the OpenAI integration now defers to the agents SDK integration for handling response
     API spans, preventing duplicate spans from being submitted to LLM Observability.

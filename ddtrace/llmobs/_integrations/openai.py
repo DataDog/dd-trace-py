@@ -64,10 +64,17 @@ class OpenAIIntegration(BaseLLMIntegration):
         if operation_id in traced_operations:
             submit_to_llmobs = True
         # When the OpenAI agents SDK integration is active, it handles LLM span creation
-        # for responses API calls via its own trace processor. Skip submitting these operations
+        # for responses and chat completion API calls via its own trace processor. Skip submitting these operations
         # to LLMObs from the OpenAI integration to avoid duplicate spans.
-        if operation_id in ("createResponse", "parseResponse") and self._is_agents_sdk_active():
+        if (
+            operation_id in ("createResponse", "parseResponse", "createChatCompletion", "parseChatCompletion")
+            and self._is_agents_sdk_active()
+        ):
             submit_to_llmobs = False
+            log.debug(
+                "Found OpenAI Agents integration active. Skipping submission of LLM span for OpenAI operation: %s. ",
+                operation_id,
+            )
         log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
