@@ -1543,8 +1543,8 @@ class AsyncExperiment(BaseExperiment):
         subset_dataset = self._get_subset_dataset(sample_size)
 
         semaphore = asyncio.Semaphore(jobs)
-        tasks = [self._process_record(idx_record, run, semaphore) for idx_record in enumerate(subset_dataset)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        coros = [self._process_record(idx_record, run, semaphore) for idx_record in enumerate(subset_dataset)]
+        results = await asyncio.gather(*coros, return_exceptions=True)
 
         task_results: List[TaskResult] = []
         for result in results:
@@ -1645,8 +1645,8 @@ class AsyncExperiment(BaseExperiment):
 
                 return row_results
 
-        tasks = [_evaluate_row(idx, task_result) for idx, task_result in enumerate(task_results)]
-        results = await asyncio.gather(*tasks, return_exceptions=not raise_errors)
+        coros = [_evaluate_row(idx, task_result) for idx, task_result in enumerate(task_results)]
+        results = await asyncio.gather(*coros, return_exceptions=not raise_errors)
 
         evaluations: List[EvaluationResult] = []
         for idx, row_results in enumerate(results):
@@ -1725,8 +1725,8 @@ class AsyncExperiment(BaseExperiment):
                     },
                 )
 
-        tasks = [_evaluate_summary_single(summary_evaluator) for summary_evaluator in self._summary_evaluators]
-        results = await asyncio.gather(*tasks, return_exceptions=not raise_errors)
+        coros = [_evaluate_summary_single(summary_evaluator) for summary_evaluator in self._summary_evaluators]
+        results = await asyncio.gather(*coros, return_exceptions=not raise_errors)
 
         evaluations: List[EvaluationResult] = []
         evals_dict: Dict[str, Dict[str, JSONType]] = {}
