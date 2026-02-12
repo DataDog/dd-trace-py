@@ -57,7 +57,7 @@ impl From<FlareError> for FlareErrorPy {
     }
 }
 
-pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ListeningError", m.py().get_type::<ListeningError>())?;
     m.add("LockError", m.py().get_type::<LockError>())?;
     m.add("ParsingError", m.py().get_type::<ParsingError>())?;
