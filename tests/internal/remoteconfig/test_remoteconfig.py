@@ -4,7 +4,6 @@ import datetime
 import hashlib
 import json
 import sys
-from time import sleep
 
 import mock
 import pytest
@@ -14,10 +13,7 @@ from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
-from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-from ddtrace.internal.remoteconfig._pubsub import PubSub
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.constants import ASM_FEATURES_PRODUCT
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
@@ -28,16 +24,6 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from tests.internal.test_utils_version import _assert_and_get_version_agent_format
 from tests.utils import override_global_config
-
-
-class RCMockPubSub(PubSub):
-    __subscriber_class__ = RemoteConfigSubscriber
-    __publisher_class__ = RemoteConfigPublisher
-
-    def __init__(self, _preprocess_results, callback):
-        self.__shared_data__ = PublisherSubscriberConnector()
-        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "TESTS")
 
 
 def to_bytes(string):
@@ -145,19 +131,16 @@ def get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors):
 
 def test_remote_config_register_auto_enable(remote_config_worker):
     # ASM_FEATURES product is enabled by default, but LIVE_DEBUGGER isn't
-    class MockPubsub(PubSub):
-        def __init__(self):
+    class MockCallback(RCCallback):
+        def __call__(self, payloads):
             pass
 
-        def stop(self, *args, **kwargs):
-            pass
-
-    mock_pubsub = MockPubsub()
+    mock_callback = MockCallback()
     remoteconfig_poller.disable()
     with override_global_config(dict(_remote_config_enabled=True)):
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-        remoteconfig_poller.register("LIVE_DEBUGGER", mock_pubsub)
+        remoteconfig_poller.register("LIVE_DEBUGGER", mock_callback)
 
         assert remoteconfig_poller.status == ServiceStatus.RUNNING
         assert remoteconfig_poller._client._product_callbacks["LIVE_DEBUGGER"] is not None
@@ -168,17 +151,14 @@ def test_remote_config_register_auto_enable(remote_config_worker):
 def test_remote_config_register_validate_rc_disabled(remote_config_worker):
     remoteconfig_poller.disable()
 
-    class MockPubsub(PubSub):
-        def __init__(self):
-            pass
-
-        def stop(self, *args, **kwargs):
+    class MockCallback(RCCallback):
+        def __call__(self, payloads):
             pass
 
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        remoteconfig_poller.register("LIVE_DEBUGGER", MockPubsub())
+        remoteconfig_poller.register("LIVE_DEBUGGER", MockCallback())
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -226,187 +206,6 @@ def test_remote_config_forksafe():
         assert client_id != child_payload["client"]["id"]
         assert runtime_id != child_payload["client"]["client_tracer"]["runtime_id"]
         exit(0)
-
-
-# TODO: split this test into smaller tests that operate independently from each other
-@pytest.mark.skip(reason="Tests old PubSub-based callback architecture - needs rewrite for direct callback dispatch")
-@mock.patch.object(RemoteConfigClient, "_send_request")
-def test_remote_configuration_1_click(mock_send_request, remote_config_worker):
-    class Callback:
-        features = {}
-
-        def _reload_features(self, features, test_tracer=None):
-            self.features = features
-
-    callback = Callback()
-    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
-        with RemoteConfigPoller() as rc:
-            mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-            mock_pubsub = RCMockPubSub(None, callback._reload_features)
-            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-
-            rc._online()
-            mock_send_request.assert_called()
-            sleep(0.5)
-            assert (
-                Payload(
-                    metadata=ConfigMetadata(
-                        id="asm_features_activation",
-                        product_name="ASM_FEATURES",
-                        sha256_hash="0159658ab85be7207761a4111172b01558394bfc74a1fe1d314f2023f7c656db",
-                        length=24,
-                        tuf_version=0,
-                        apply_state=2,
-                        apply_error=None,
-                    ),
-                    path="datadog/2/ASM_FEATURES/asm_features_activation/config",
-                    content={"asm": {"enabled": True}},
-                )
-                in callback.features
-            )
-
-    class Callback:
-        features = []
-
-        def _reload_features(self, features, test_tracer=None):
-            self.features = features
-
-    callback = Callback()
-
-    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.1)):
-        mock_send_request.return_value = get_mock_encoded_msg(
-            b'{"rules_data": [{"data": [{"expiration": 1662804872, "value": "127.0.0.0"}, '
-            b'{"expiration": 1662804872, "value": "52.80.198.1"}], "id": "blocking_ips", '
-            b'"type": "ip_with_expiration"}]}'
-        )
-        with RemoteConfigPoller() as rc:
-            mock_pubsub = RCMockPubSub(None, callback._reload_features)
-            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            rc._online()
-            mock_send_request.assert_called()
-            sleep(0.5)
-            assert callback.features == [
-                Payload(
-                    metadata=ConfigMetadata(
-                        id="asm_features_activation",
-                        product_name="ASM_FEATURES",
-                        sha256_hash="b50fee2d49f34364126ecbba696c4a5cb23fa0eb76169e5ed3139222e2bdae04",
-                        length=24,
-                        tuf_version=0,
-                        apply_state=2,
-                        apply_error=None,
-                    ),
-                    path="datadog/2/ASM_FEATURES/asm_features_activation/config",
-                    content={
-                        "rules_data": [
-                            {
-                                "data": [
-                                    {"expiration": 1662804872, "value": "127.0.0.0"},
-                                    {"expiration": 1662804872, "value": "52.80.198.1"},
-                                ],
-                                "id": "blocking_ips",
-                                "type": "ip_with_expiration",
-                            }
-                        ]
-                    },
-                )
-            ]
-
-    class Callback:
-        features = {}
-
-        def _reload_features(self, features, test_tracer=None):
-            self.features = features
-
-    callback = Callback()
-    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
-        with RemoteConfigPoller() as rc:
-            msg = b'{"asm":{"enabled":true}}'
-            expires_date = datetime.datetime.strftime(
-                datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
-            )
-            path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
-            # Signed data without version `spec_version`
-            signed_errors = {
-                "_type": "targets",
-                "custom": {"opaque_backend_state": ""},
-                "expires": expires_date,
-                "targets": {
-                    path: {
-                        "custom": {"c": [""], "v": 0},
-                        "hashes": {"sha256": hashlib.sha256(msg).hexdigest()},
-                        "length": 24,
-                    }
-                },
-                "version": 0,
-            }
-            mock_send_request.return_value = get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors)
-            mock_pubsub = RCMockPubSub(None, callback._reload_features)
-            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            rc._online()
-            mock_send_request.assert_called()
-            sleep(0.5)
-            assert callback.features == {}
-            assert rc._client._last_error.startswith("invalid agent payload received")
-
-    class Callback:
-        features = {}
-
-        def _reload_features(self, features, test_tracer=None):
-            self.features = features
-
-    callback = Callback()
-    with override_global_config(dict(_remote_config_enabled=True, _remote_config_poll_interval=0.5)):
-        with RemoteConfigPoller() as rc:
-            mock_pubsub = RCMockPubSub(None, callback._reload_features)
-            rc.register(ASM_FEATURES_PRODUCT, mock_pubsub)
-            for _ in range(0, 2):
-                msg = b'{"asm":{"enabled":true}}'
-                expires_date = datetime.datetime.strftime(
-                    datetime.datetime.now() + datetime.timedelta(days=1), "%Y-%m-%dT%H:%M:%SZ"
-                )
-                path = "datadog/2/%s/asm_features_activation/config" % ASM_FEATURES_PRODUCT
-                # Signed data without version `spec_version`
-                signed_errors = {
-                    "_type": "targets",
-                    "custom": {"opaque_backend_state": ""},
-                    "expires": expires_date,
-                    "targets": {
-                        path: {
-                            "custom": {"c": [""], "v": 0},
-                            "hashes": {"sha256": hashlib.sha256(msg).hexdigest()},
-                            "length": 24,
-                        }
-                    },
-                    "version": 0,
-                }
-                mock_send_request.return_value = get_mock_encoded_msg_with_signed_errors(msg, path, signed_errors)
-                rc._online()
-                mock_send_request.assert_called()
-                sleep(0.5)
-                assert callback.features == {}
-                assert rc._client._last_error.startswith("invalid agent payload received")
-
-            mock_send_request.return_value = get_mock_encoded_msg(b'{"asm":{"enabled":true}}')
-            rc._online()
-            mock_send_request.assert_called()
-            sleep(0.5)
-            assert rc._client._last_error is None
-            assert callback.features == [
-                Payload(
-                    metadata=ConfigMetadata(
-                        id="asm_features_activation",
-                        product_name="ASM_FEATURES",
-                        sha256_hash="0159658ab85be7207761a4111172b01558394bfc74a1fe1d314f2023f7c656db",
-                        length=24,
-                        tuf_version=0,
-                        apply_state=2,
-                        apply_error=None,
-                    ),
-                    path="datadog/2/ASM_FEATURES/asm_features_activation/config",
-                    content={"asm": {"enabled": True}},
-                )
-            ]
 
 
 def test_remoteconfig_semver():
@@ -635,16 +434,15 @@ def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expect
         assert sampler.rules == expected_sampling_rules
 
 
-@pytest.mark.skip(reason="Tests old PubSub-based callback architecture - needs rewrite for direct callback dispatch")
 def test_apm_tracing_precedence_ordering(remote_config_worker):
     """Test that APM tracing configurations are applied in correct precedence order"""
     from ddtrace import config
-    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingAdapter
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
     from ddtrace.internal.remoteconfig.products.apm_tracing import config_key
     from tests.utils import remote_config_build_payload as build_payload
 
-    # Create an APM tracing adapter instance
-    adapter = APMTracingAdapter()
+    # Create an APM tracing callback instance
+    callback = APMTracingCallback()
 
     # Mock current service and env
     original_service = config.service
@@ -690,32 +488,32 @@ def test_apm_tracing_precedence_ordering(remote_config_worker):
         assert config_key(env_payload) > config_key(cluster_payload)
         assert config_key(cluster_payload) > config_key(wildcard_payload)
 
-        # Send all payloads to the adapter
+        # Send all payloads to the callback
         all_payloads = [service_payload, env_payload, cluster_payload, wildcard_payload]
-        adapter.rc_callback(all_payloads)
+        callback(all_payloads)
 
         # Get the chained configuration
-        chained_config = adapter.get_chained_lib_config()
+        chained_config = callback._get_chained_lib_config()
 
         # The first (highest precedence) config should be from the service-specific payload
         assert chained_config["tracing_enabled"] == "service_config"
 
         # Test that removing the service-specific config promotes the env config
-        adapter.config_map.clear()
-        adapter.rc_callback([env_payload, cluster_payload, wildcard_payload])
-        chained_config = adapter.get_chained_lib_config()
+        callback._config_map.clear()
+        callback([env_payload, cluster_payload, wildcard_payload])
+        chained_config = callback._get_chained_lib_config()
         assert chained_config["tracing_enabled"] == "env_config"
 
         # Test that removing the env config promotes the cluster config
-        adapter.config_map.clear()
-        adapter.rc_callback([cluster_payload, wildcard_payload])
-        chained_config = adapter.get_chained_lib_config()
+        callback._config_map.clear()
+        callback([cluster_payload, wildcard_payload])
+        chained_config = callback._get_chained_lib_config()
         assert chained_config["tracing_enabled"] == "cluster_config"
 
         # Test that only wildcard config remains at the end
-        adapter.config_map.clear()
-        adapter.rc_callback([wildcard_payload])
-        chained_config = adapter.get_chained_lib_config()
+        callback._config_map.clear()
+        callback([wildcard_payload])
+        chained_config = callback._get_chained_lib_config()
         assert chained_config["tracing_enabled"] == "wildcard_config"
 
     finally:
@@ -724,11 +522,10 @@ def test_apm_tracing_precedence_ordering(remote_config_worker):
         config.env = original_env
 
 
-@pytest.mark.skip(reason="Tests old PubSub-based callback architecture - needs rewrite for direct callback dispatch")
 def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
     """Test that setting tracing_sampling_rules to None correctly removes previously set sampling rules"""
     from ddtrace import config
-    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingAdapter
+    from ddtrace.internal.remoteconfig.products.apm_tracing import APMTracingCallback
     from tests.utils import remote_config_build_payload as build_payload
 
     # Test constants
@@ -736,8 +533,8 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
     rc_sampling_rule_rate_customer = 0.8
     rc_sampling_rule_rate_dynamic = 0.5
 
-    # Create an APM tracing adapter instance
-    adapter = APMTracingAdapter()
+    # Create an APM tracing callback instance
+    callback = APMTracingCallback()
 
     # Mock current service and env
     original_service = config.service
@@ -772,10 +569,10 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
         )
 
         # Apply the sampling rules configuration
-        adapter.rc_callback([sampling_rules_payload])
+        callback([sampling_rules_payload])
 
         # Get the chained configuration and verify sampling rules are set
-        chained_config = adapter.get_chained_lib_config()
+        chained_config = callback._get_chained_lib_config()
         assert "tracing_sampling_rules" in chained_config
         sampling_rules = chained_config["tracing_sampling_rules"]
         assert len(sampling_rules) == 2
@@ -797,10 +594,10 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
         )
 
         # Apply the None sampling rules configuration
-        adapter.rc_callback([none_sampling_rules_payload, sampling_rules_payload])
+        callback([none_sampling_rules_payload, sampling_rules_payload])
 
         # Get the chained configuration and verify sampling rules are now None
-        chained_config = adapter.get_chained_lib_config()
+        chained_config = callback._get_chained_lib_config()
         assert "tracing_sampling_rules" in chained_config
         assert chained_config["tracing_sampling_rules"] is None
 
