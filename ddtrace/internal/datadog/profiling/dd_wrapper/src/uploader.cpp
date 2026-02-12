@@ -4,9 +4,10 @@
 #include "libdatadog_helpers.hpp"
 #include "profiler_stats.hpp"
 
-#include <cerrno>   // errno
-#include <chrono>   // milliseconds
-#include <cstring>  // strerror
+#include <cerrno>  // errno
+#include <chrono>  // milliseconds
+#include <cstring> // strerror
+#include <datadog/profiling.h>
 #include <fstream>  // ofstream
 #include <sstream>  // ostringstream
 #include <thread>   // sleep_for
@@ -106,7 +107,14 @@ Datadog::Uploader::upload_unlocked()
         .len = static_cast<uintptr_t>(to_compress_files.size()),
     };
 
-    bool ret = true;
+    // Build and send the request in one call
+    auto init_runtime_res = ddog_prof_Exporter_init_runtime(&ddog_exporter);
+    if (init_runtime_res.tag != DDOG_VOID_RESULT_OK) {
+        std::cerr << "Error initializing runtime: " << err_to_msg(&init_runtime_res.err, "Error initializing runtime")
+                  << std::endl;
+        return false;
+    }
+
     // Before starting a new upload, we need to cancel the current one (if it exists).
     // To do that, we exchange the current cancellation token with a new one (which will be used for our own upload)
     // If the current cancellation token was not null, then we use it to cancel the ongoing upload, then drop it.
@@ -122,16 +130,16 @@ Datadog::Uploader::upload_unlocked()
         ddog_CancellationToken_drop(&current_cancel);
     }
 
-    // Build and send the request in one call
-    ddog_prof_Result_HttpStatus res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
-                                                                       &encoded_profile,
-                                                                       files_to_compress,
-                                                                       nullptr, // optional_additional_tags
-                                                                       optional_process_tags_ptr,
-                                                                       &internal_metadata_json_slice,
-                                                                       nullptr, // optional_info_json
-                                                                       &new_cancel_clone_for_request);
+    auto res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
+                                                &encoded_profile,
+                                                files_to_compress,
+                                                nullptr, // optional_additional_tags
+                                                optional_process_tags_ptr,
+                                                &internal_metadata_json_slice,
+                                                nullptr, // optional_info_json
+                                                &new_cancel_clone_for_request);
 
+    bool ret = true;
     if (res.tag == DDOG_PROF_RESULT_HTTP_STATUS_ERR_HTTP_STATUS) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         auto err = res.err;                                        // NOLINT (cppcoreguidelines-pro-type-union-access)
         errmsg = err_to_msg(&err, "Error uploading");
