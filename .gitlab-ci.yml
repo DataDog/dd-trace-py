@@ -285,10 +285,15 @@ codeowners:
     #   - Remove leading ./ (./path and path are equivalent)
     #   - Collapse multiple consecutive slashes (path//file becomes path/file)
     - |
+        # All non-comment/empty lines from .github/CODEOWNERS
         awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
+          # Remove any leading `./` in the line
           sed 's|^\./||' | \
+          # Remove any duplicate `/`, e.g. `//` -> `/`
           sed -E 's|/+|/|g' | \
+          # Remove any trailing `/`
           sed 's:/*$::' | \
+          # Sort and return only duplicate entries
           sort | uniq -d > /tmp/duplicate_codeowners.txt
         if [ -s /tmp/duplicate_codeowners.txt ]; then
             echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
