@@ -107,17 +107,11 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
     type Error = PyErr;
 
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        let dict = ob.cast::<PyDict>()?;
+        let dict = ob.cast::<PyDict>()?.as_mapping();
 
-        let args_ob = dict
-            .get_item("args")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("args"))?;
-        let args_dict = args_ob.cast::<PyDict>()?;
+        let args_dict = dict.get_item("args")?.cast::<PyDict>()?.as_mapping();
 
-        let case_id: String = args_dict
-            .get_item("case_id")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("case_id"))?
-            .extract()?;
+        let case_id: String = args_dict.get_item("case_id")?.extract()?;
 
         if case_id.is_empty() || case_id == "0" {
             return Err(ParsingError::new_err(format!(
@@ -137,23 +131,11 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
             }
         }
 
-        let hostname: String = args_dict
-            .get_item("hostname")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("hostname"))?
-            .extract()?;
-        let user_handle: String = args_dict
-            .get_item("user_handle")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("user_handle"))?
-            .extract()?;
+        let hostname: String = args_dict.get_item("hostname")?.extract()?;
+        let user_handle: String = args_dict.get_item("user_handle")?.extract()?;
 
-        let task_type: String = dict
-            .get_item("task_type")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("task_type"))?
-            .extract()?;
-        let uuid: String = dict
-            .get_item("uuid")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("uuid"))?
-            .extract()?;
+        let task_type: String = dict.get_item("task_type")?.extract()?;
+        let uuid: String = dict.get_item("uuid")?.extract()?;
 
         Ok(Self {
             inner: AgentTaskFile {
@@ -178,20 +160,11 @@ impl<'py> FromPyObject<'_, 'py> for AgentConfigFileWrapper {
     type Error = PyErr;
 
     fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        let dict = ob.cast::<PyDict>()?;
+        let dict = ob.cast::<PyDict>()?.as_mapping();
 
-        let name: String = dict
-            .get_item("name")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("name"))?
-            .extract()?;
-        let config_ob = dict
-            .get_item("config")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("config"))?;
-        let config_dict = config_ob.cast::<PyDict>()?;
-        let log_level: Option<String> = config_dict
-            .get_item("log_level")?
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("log_level"))?
-            .extract()?;
+        let name: String = dict.get_item("name")?.extract()?;
+        let config_dict = dict.get_item("config")?.cast::<PyDict>()?.as_mapping();
+        let log_level: Option<String> = config_dict.get_item("log_level")?.extract()?;
 
         Ok(Self {
             inner: AgentConfigFile {
