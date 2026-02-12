@@ -111,7 +111,7 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
 
         let args_ob = dict
             .get_item("args")?
-            .ok_or_else(|| PyErr::new::<pyo3::exceptions::PyKeyError, _>("args".to_string()))?;
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("args"))?;
         let args_dict = args_ob.cast::<PyDict>()?;
 
         let case_id: String = args_dict
