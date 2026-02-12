@@ -18,7 +18,7 @@ from ddtrace.llmobs import LLMObs
 
 
 print("Application starting up... fetching prompts from registry")
-prompt = LLMObs.get_prompt("summary", label="prod")
+prompt = LLMObs.get_prompt("summary", label="production")
 print(f"Got prompt with {len(prompt.template)} messages")
 print(f"Source: {prompt.source}")
 print()

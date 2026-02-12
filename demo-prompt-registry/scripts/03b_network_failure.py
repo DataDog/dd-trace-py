@@ -24,7 +24,7 @@ print("(pointing to https://localhost:9999)")
 print()
 
 # These calls work because prompts are cached!
-prompt = LLMObs.get_prompt("summary", label="prod")
+prompt = LLMObs.get_prompt("summary", label="production")
 print(f"Source: {prompt.source}")
 print()
 print("Request:")

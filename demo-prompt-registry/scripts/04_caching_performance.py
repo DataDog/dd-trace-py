@@ -22,7 +22,7 @@ LLMObs.clear_prompt_cache()
 
 print("First call (cold - network fetch from registry):")
 start = time.time()
-p1 = LLMObs.get_prompt("summary", label="prod")
+p1 = LLMObs.get_prompt("summary", label="production")
 elapsed1 = (time.time() - start) * 1000
 print(f"  Time: {elapsed1:.1f}ms | Source: {p1.source}")
 
@@ -32,7 +32,7 @@ print(f"Hot cache ({NUM_ITERATIONS} calls - from memory cache):")
 times = []
 for _ in range(NUM_ITERATIONS):
     start = time.time()
-    p2 = LLMObs.get_prompt("summary", label="prod")
+    p2 = LLMObs.get_prompt("summary", label="production")
     times.append((time.time() - start) * 1000)
 
 avg_time = sum(times) / len(times)

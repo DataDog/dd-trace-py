@@ -16,7 +16,7 @@ os.environ.setdefault("DD_LLMOBS_ML_APP", "session-summary-eval")
 from ddtrace.llmobs import LLMObs
 
 
-prompt = LLMObs.get_prompt("summary", label="prod")
+prompt = LLMObs.get_prompt("summary", label="production")
 
 print("Chat template with multiple roles:")
 for msg in prompt.template:

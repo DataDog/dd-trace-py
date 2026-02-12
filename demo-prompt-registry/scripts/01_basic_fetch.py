@@ -19,7 +19,7 @@ from ddtrace.llmobs import LLMObs
 LLMObs.clear_prompt_cache()
 
 
-prompt = LLMObs.get_prompt("summary", label="prod")
+prompt = LLMObs.get_prompt("summary", label="production")
 
 print("Fetched prompt from registry!")
 print(f"Template: {prompt.template}")

@@ -25,7 +25,7 @@ def demo_text_template():
 
     prompt = LLMObs.get_prompt(
         "langchain_sequential_chain_example.greeting_template",
-        label="prod",
+        label="production",
     )
 
     print(f"Prompt ID: {prompt.id}")
@@ -59,7 +59,7 @@ def demo_chat_template():
 
     prompt = LLMObs.get_prompt(
         "langchain_sequential_chain_example.expert_advice_template",
-        label="prod",
+        label="production",
     )
 
     print(f"Prompt ID: {prompt.id}")
@@ -127,7 +127,7 @@ def demo_not_found():
     # With user-provided fallback
     prompt = LLMObs.get_prompt(
         "unknown-prompt-that-does-not-exist",
-        label="prod",
+        label="production",
         fallback="Default greeting: Hello {{name}}!",
     )
 
@@ -159,7 +159,7 @@ def demo_caching():
     print("First call (cold cache):")
     prompt1 = LLMObs.get_prompt(
         "langchain_sequential_chain_example.greeting_template",
-        label="prod",
+        label="production",
     )
     print(f"  Source: {prompt1.source}")
 
@@ -167,7 +167,7 @@ def demo_caching():
     print("Second call (hot cache):")
     prompt2 = LLMObs.get_prompt(
         "langchain_sequential_chain_example.greeting_template",
-        label="prod",
+        label="production",
     )
     print(f"  Source: {prompt2.source}")
 
@@ -187,7 +187,7 @@ def demo_refresh():
     print("Current cached version:")
     prompt1 = LLMObs.get_prompt(
         "langchain_sequential_chain_example.greeting_template",
-        label="prod",
+        label="production",
     )
     print(f"  Version: {prompt1.version}, Source: {prompt1.source}")
 
@@ -195,7 +195,7 @@ def demo_refresh():
     print("After refresh_prompt():")
     prompt2 = LLMObs.refresh_prompt(
         "langchain_sequential_chain_example.greeting_template",
-        label="prod",
+        label="production",
     )
     if prompt2:
         print(f"  Version: {prompt2.version}, Source: {prompt2.source}")
