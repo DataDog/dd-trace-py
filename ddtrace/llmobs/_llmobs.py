@@ -1168,11 +1168,11 @@ class LLMObs(Service):
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(
-            callable(evaluator) or isinstance(evaluator, BaseEvaluator, BaseMetric, BaseConversationalMetric) for evaluator in evaluators
+            callable(evaluator) or isinstance(evaluator, BaseEvaluator) or isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric) for evaluator in evaluators
         ):
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         for evaluator in evaluators:
-            if isinstance(evaluator, BaseEvaluator, BaseMetric, BaseConversationalMetric):
+            if isinstance(evaluator, BaseEvaluator) or isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric):
                 continue
             if not callable(evaluator):
                 raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator, BaseMetric, or BaseConversationalMetric.")

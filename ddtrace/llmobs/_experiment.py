@@ -899,9 +899,9 @@ class Experiment:
                     elif _is_deepeval_evaluator(evaluator):
                         evaluator_name = evaluator.name  # type: ignore[union-attr]
                         deepEvalTestCase = LLMTestCase(
-                            input=input_data,
-                            actual_output=output_data,
-                            expected_output=expected_output,
+                            input=str(input_data),
+                            actual_output=str(output_data),
+                            expected_output=str(expected_output),
                         )
                         evaluator.measure(deepEvalTestCase)
                         score = evaluator.score
