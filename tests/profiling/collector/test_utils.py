@@ -6,7 +6,6 @@ from types import TracebackType
 from typing import Any
 from typing import Coroutine
 from typing import Optional
-from typing import Type
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling import profiler
@@ -60,7 +59,7 @@ class ProfilerContextManager:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:
