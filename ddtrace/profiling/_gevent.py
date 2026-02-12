@@ -191,7 +191,7 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
     return _
 
 
-def get_current_greenlet_task() -> t.Tuple[t.Optional[int], t.Optional[str], t.Optional[FrameType]]:
+def get_current_greenlet_task() -> tuple[t.Optional[int], t.Optional[str], t.Optional[FrameType]]:
     current_greenlet = gevent.getcurrent()
     task_id = thread.get_ident(current_greenlet)
     # Import locally to avoid eager import order interactions.

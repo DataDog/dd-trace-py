@@ -225,7 +225,7 @@ def _allocate_with_lone_surrogate_filename(nallocs: int = 2_000) -> None:
     This is used by memalloc tests to exercise the internal
     PyUnicode_AsUTF8AndSize failure path in memalloc stack serialization.
     """
-    namespace: Dict[str, object] = {}
+    namespace: dict[str, object] = {}
     compiled_code: CodeType = compile(
         "def _alloc_from_bad_filename(nallocs):\n    for _ in range(nallocs):\n        object()\n",
         "\udcff_memalloc_bad_filename.py",
