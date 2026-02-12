@@ -241,6 +241,7 @@ download_dependency_wheels:
   script:
     - PACKAGE_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
     - echo "PACKAGE_VERSION=${PACKAGE_VERSION}" | tee -a package_version.env
+    - echo "PYTHON_PACKAGE_VERSION=${PACKAGE_VERSION}" | tee -a package_version.env
     # Validate commit tag matches version if tag is set
     - |
       if [ -n "${CI_COMMIT_TAG:-}" ]; then
