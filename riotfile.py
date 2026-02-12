@@ -3375,6 +3375,16 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3421,6 +3431,16 @@ venv = Venv(
                                 ),
                             ],
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3450,6 +3470,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
@@ -3483,6 +3513,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
