@@ -57,7 +57,6 @@ tests/internal                      @DataDog/apm-core-python
 tests/lib-injection                 @DataDog/apm-core-python
 tests/opentelemetry                 @DataDog/apm-core-python
 tests/opentracer                    @DataDog/apm-core-python
-tests/tracer                        @DataDog/apm-core-python
 
 # Test Visibility and related
 ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
@@ -246,7 +245,7 @@ tests/runtime/                                     @DataDog/apm-sdk-capabilities
 tests/test_sampling.py                             @DataDog/apm-sdk-capabilities-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
 tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
-tests/tracer/                                      @DataDog/apm-sdk-capabilities-python
+tests/tracer/                                      @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 
