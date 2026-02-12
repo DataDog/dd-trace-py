@@ -6,7 +6,7 @@ variables:
     name: ${TESTRUNNER_IMAGE}
     docker:
       user: bits
-      sysctl:
+      sysctls:
         kernel.core_pattern: "core.%p.%E"
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
