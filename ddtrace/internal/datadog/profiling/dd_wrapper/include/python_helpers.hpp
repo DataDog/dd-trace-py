@@ -17,15 +17,13 @@
  * Important: this only preserves the raised C-level indicator, not the handled
  * exception state used by sys.exception()/except blocks.
  *
- * Common Python C API functions used with this guard that can set errors:
- * - Frame operations: PyFrame_GetBack() (can set spurious TypeError in Python 3.14+),
- *   PyFrame_GetCode(), PyFrame_GetLineNumber()
- * - Object operations: PyObject_CallObject() (TypeError for bad args, or exceptions from callable),
- *   PyObject_GetAttrString() (AttributeError for missing attributes, or exceptions from getters)
+ * Common Python C API functions in this profiling path that can set errors:
+ * - Frame operations: PyFrame_GetBack() (can set an error when materializing
+ *   frame objects, e.g. MemoryError), PyFrame_GetCode(), PyFrame_GetLineNumber()
  * - Unicode operations: PyUnicode_AsUTF8AndSize() (TypeError for non-Unicode objects,
  *   or errors during UTF-8 conversion)
- * - Numeric operations: PyLong_AsLongLong() (OverflowError, ValueError, TypeError)
- * - Reference counting: Py_XDECREF()/Py_DECREF() (can trigger exceptions from custom __del__ methods)
+ * - Reference counting: Py_XDECREF()/Py_DECREF() (can run arbitrary Python code
+ *   during object finalization, e.g. __del__ or weakref callbacks)
  *
  * Example usage:
  *   {
