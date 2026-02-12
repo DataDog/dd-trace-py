@@ -4,8 +4,11 @@ import glob
 import os
 import re
 from typing import TYPE_CHECKING
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Sequence
+from typing import Tuple
 from typing import Union
 from typing import cast
 
@@ -18,7 +21,7 @@ UINT64_MAX = (1 << 64) - 1
 DEBUG_TEST = False
 
 
-def _protobuf_version() -> tuple[int, int, int]:
+def _protobuf_version() -> Tuple[int, int, int]:
     """Check if protobuf version is post 3.12"""
     import google.protobuf
 
@@ -141,7 +144,7 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def merge_profiles(profiles: list[pprof_pb2.Profile]) -> pprof_pb2.Profile:
+def merge_profiles(profiles: List[pprof_pb2.Profile]) -> pprof_pb2.Profile:
     """Merge multiple pprof profiles into one.
 
     This combines string tables, locations, functions, and samples from all profiles.
@@ -155,13 +158,13 @@ def merge_profiles(profiles: list[pprof_pb2.Profile]) -> pprof_pb2.Profile:
     merged = pprof_pb2.Profile()
 
     # Maps: (old_profile_idx, old_id) -> new_id
-    string_map: dict[tuple[int, int], int] = {}
-    function_map: dict[tuple[int, int], int] = {}
-    location_map: dict[tuple[int, int], int] = {}
+    string_map: Dict[Tuple[int, int], int] = {}
+    function_map: Dict[Tuple[int, int], int] = {}
+    location_map: Dict[Tuple[int, int], int] = {}
 
     # String table: index 0 must be empty string
     merged.string_table.append("")
-    string_map_global: dict[str, int] = {"": 0}
+    string_map_global: Dict[str, int] = {"": 0}
 
     def get_or_add_string(profile_idx: int, old_idx: int, old_string_table: Sequence[str]) -> int:
         key = (profile_idx, old_idx)
@@ -285,12 +288,12 @@ def get_sample_type_index(profile: pprof_pb2.Profile, value_type: str) -> int:
     )
 
 
-def get_samples_with_value_type(profile: pprof_pb2.Profile, value_type: str) -> list[pprof_pb2.Sample]:
+def get_samples_with_value_type(profile: pprof_pb2.Profile, value_type: str) -> List[pprof_pb2.Sample]:
     value_type_idx = get_sample_type_index(profile, value_type)
     return [sample for sample in profile.sample if sample.value[value_type_idx] > 0]
 
 
-def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> list[pprof_pb2.Sample]:
+def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> List[pprof_pb2.Sample]:
     return [sample for sample in profile.sample if get_label_with_key(profile.string_table, sample, key)]
 
 
@@ -515,6 +518,14 @@ def assert_profile_has_sample(
     expected_sample: StackEvent,
     print_samples_on_failure: bool = False,
 ) -> None:
+    """
+    Assert that at least one of the Samples passed matches the expected Sample.
+
+    - The expected Sample matches if its locations are a (not necessarily contiguous) subsequence of the locations in
+      any of the Samples passed.
+    - The innermost/deepest function in the stack should be the first location
+    """
+
     found = False
     for sample in samples:
         try:
@@ -540,6 +551,41 @@ def assert_profile_has_sample(
             print_all_samples(profile)
 
     assert found, error_description
+
+
+def assert_profile_does_not_have_sample(
+    profile: pprof_pb2.Profile,
+    samples: Sequence[pprof_pb2.Sample],
+    expected_sample: StackEvent,
+    print_samples_on_failure: bool = False,
+) -> None:
+    """
+    Assert that no Sample passed matches the expected Sample.
+
+    - The expected Sample matches if its locations are a (not necessarily contiguous) subsequence of the locations in
+      any of the Samples passed.
+    - The innermost/deepest function in the stack should be the first location
+    """
+    try:
+        assert_profile_has_sample(profile, samples, expected_sample, print_samples_on_failure=False)
+    except AssertionError:
+        return
+
+    if print_samples_on_failure:
+        print_all_samples(profile)
+
+    error_description = "Expected sample found in profile: "
+    error_description += str(expected_sample.locations)
+    if expected_sample.task_name:
+        error_description += ", task name " + expected_sample.task_name
+
+    if expected_sample.thread_name:
+        error_description += ", thread name " + expected_sample.thread_name
+
+    if print_samples_on_failure:
+        print_all_samples(profile)
+
+    raise AssertionError(error_description)
 
 
 def print_all_samples(profile: pprof_pb2.Profile) -> None:

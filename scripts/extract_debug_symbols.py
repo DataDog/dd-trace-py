@@ -23,7 +23,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 import zipfile
 
@@ -158,7 +160,7 @@ def verify_dsym_bundle(dsym_path: Path) -> bool:
 
     if not dwarf_dir.exists():
         print(f"  Error: DWARF directory does not exist: {dwarf_dir}")
-        # list what's actually in the .dSYM bundle
+        # List what's actually in the .dSYM bundle
         print("  Contents of .dSYM bundle:")
         for item in dsym_path.rglob("*"):
             print(f"    {item}")
@@ -251,7 +253,7 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
     return None
 
 
-def should_ignore_file(filename: str, ignore_patterns: list[str]) -> bool:
+def should_ignore_file(filename: str, ignore_patterns: List[str]) -> bool:
     """Check if a file should be ignored based on glob patterns."""
     if not ignore_patterns:
         return False
@@ -263,7 +265,7 @@ def should_ignore_file(filename: str, ignore_patterns: list[str]) -> bool:
     return False
 
 
-def find_dynamic_libraries_in_wheel(wheel_path: str, ignore_patterns: list[str] = None) -> list[tuple[str, bytes]]:
+def find_dynamic_libraries_in_wheel(wheel_path: str, ignore_patterns: List[str] = None) -> List[Tuple[str, bytes]]:
     """Find and read .so and .dylib files from a wheel file, excluding ignored patterns."""
     dynamic_libs = []
 
@@ -311,7 +313,7 @@ def process_dynamic_library_from_wheel(lib_filename: str, lib_content: bytes, te
         return None
 
 
-def create_debug_symbols_package(wheel_path: str, debug_files: list[str], output_dir: str, temp_dir: str) -> str:
+def create_debug_symbols_package(wheel_path: str, debug_files: List[str], output_dir: str, temp_dir: str) -> str:
     """Create a separate debug symbols package."""
     wheel_name = Path(wheel_path).stem
     debug_package_name = f"{wheel_name}-debug-symbols.zip"
@@ -374,12 +376,12 @@ def update_wheel_with_stripped_dynamic_libraries(wheel_path: str, temp_dir: str)
 
 
 def process_wheel(
-    wheel_path: str, output_dir: Optional[str] = None, ignore_patterns: list[str] = None
-) -> tuple[Optional[str], bool]:
+    wheel_path: str, output_dir: Optional[str] = None, ignore_patterns: List[str] = None
+) -> Tuple[Optional[str], bool]:
     """Process a single wheel file.
 
     Returns:
-        tuple of (debug_package_path, success). success is False if no debug symbols were found.
+        Tuple of (debug_package_path, success). success is False if no debug symbols were found.
     """
     if output_dir is None:
         output_dir = os.path.dirname(wheel_path)

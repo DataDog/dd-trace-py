@@ -1,5 +1,6 @@
 import os
 from time import time_ns
+from typing import Dict
 
 import aiokafka
 from wrapt import wrap_function_wrapper as _w
@@ -42,7 +43,7 @@ def get_version() -> str:
     return getattr(aiokafka, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"aiokafka": ">=0.9.0"}
 
 

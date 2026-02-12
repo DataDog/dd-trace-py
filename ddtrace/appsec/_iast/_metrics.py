@@ -1,3 +1,4 @@
+from typing import Dict
 from typing import Text
 from typing import Union
 
@@ -17,7 +18,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 log = get_logger(__name__)
 
-_IAST_SPAN_METRICS: dict[str, int] = {}
+_IAST_SPAN_METRICS: Dict[str, int] = {}
 
 
 def get_iast_metrics_report_lvl(*args, **kwargs):

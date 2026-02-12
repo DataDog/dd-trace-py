@@ -1,3 +1,5 @@
+from typing import Dict
+
 import pylibmc
 
 from .client import TracedClient
@@ -7,11 +9,12 @@ from .client import TracedClient
 _Client = pylibmc.Client
 
 
-def get_version() -> str:
+def get_version():
+    # type: () -> str
     return getattr(pylibmc, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"pylibmc": ">=1.6.2"}
 
 

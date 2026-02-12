@@ -1,6 +1,9 @@
 import inspect
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import TypeVar
 import weakref
 
@@ -19,11 +22,11 @@ _STUB_TO_REAL = weakref.WeakKeyDictionary()
 _STUB_TO_REAL[ddtrace_api.tracer] = ddtrace.tracer
 log = get_logger(__name__)
 T = TypeVar("T")
-_FN_PARAMS: dict[str, list[str]] = dict()
+_FN_PARAMS: Dict[str, List[str]] = dict()
 # for situations where the intended internal target doesn't have the same name
 # as the API method. one example is when a public ddtrace method gets internalized
 # in a major version
-_API_TO_IMPL_NAME: dict[str, str] = {"finish_with_ancestors": "_finish_with_ancestors"}
+_API_TO_IMPL_NAME: Dict[str, str] = {"finish_with_ancestors": "_finish_with_ancestors"}
 
 
 def _params_for_fn(wrapping_context: WrappingContext, instance: ddtrace_api._Stub, fn_name: str):
@@ -54,7 +57,7 @@ class DDTraceAPIWrappingContextBase(WrappingContext):
         return value
 
 
-def _proxy_span_arguments(args: list, kwargs: dict) -> tuple[list, dict]:
+def _proxy_span_arguments(args: List, kwargs: Dict) -> Tuple[List, Dict]:
     """Convert all ddtrace_api.Span objects in the args/kwargs collections to their held ddtrace.Span objects"""
 
     def convert(arg):
@@ -64,7 +67,7 @@ def _proxy_span_arguments(args: list, kwargs: dict) -> tuple[list, dict]:
 
 
 def _call_on_real_instance(
-    operand_stub: ddtrace_api._Stub, method_name: str, retval_from_api: Optional[Any], *args: list, **kwargs: dict
+    operand_stub: ddtrace_api._Stub, method_name: str, retval_from_api: Optional[Any], *args: List, **kwargs: Dict
 ) -> None:
     """
     Call `method_name` on the real object corresponding to `operand_stub` with `args` and `kwargs` as arguments.
@@ -85,7 +88,7 @@ def get_version() -> str:
     return getattr(ddtrace_api, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"ddtrace_api": "*"}
 
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace.contrib.internal.vllm._constants import PROVIDER_NAME
@@ -66,9 +68,9 @@ class VLLMIntegration(BaseLLMIntegration):
             span._set_tag_str(TAG_MODEL, model_name)
             span._set_tag_str(TAG_PROVIDER, PROVIDER_NAME)
 
-    def _build_metadata(self, data: RequestData) -> dict[str, Any]:
+    def _build_metadata(self, data: RequestData) -> Dict[str, Any]:
         """Extract metadata from request data."""
-        md: dict[str, Any] = {}
+        md: Dict[str, Any] = {}
 
         for key in self._METADATA_FIELDS:
             val = getattr(data, key, None)
@@ -77,11 +79,11 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return md
 
-    def _build_metrics(self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None) -> dict[str, Any]:
+    def _build_metrics(self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None) -> Dict[str, Any]:
         """Build token and latency metrics from request data."""
         it = int(data.input_tokens or 0)
         ot = int(data.output_tokens or 0)
-        metrics: dict[str, Any] = {
+        metrics: Dict[str, Any] = {
             INPUT_TOKENS_METRIC_KEY: it,
             OUTPUT_TOKENS_METRIC_KEY: ot,
             TOTAL_TOKENS_METRIC_KEY: it + ot,
@@ -97,15 +99,15 @@ class VLLMIntegration(BaseLLMIntegration):
 
     def _build_embedding_context(
         self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Build LLMObs context for embedding operations."""
-        ctx: dict[str, Any] = {
+        ctx: Dict[str, Any] = {
             SPAN_KIND: "embedding",
             METADATA: self._build_metadata(data),
             METRICS: self._build_metrics(data, latency_metrics),
         }
 
-        docs: list[Document] = []
+        docs: List[Document] = []
         if data.prompt:
             docs = [Document(text=data.prompt)]
         elif data.input_:
@@ -124,9 +126,9 @@ class VLLMIntegration(BaseLLMIntegration):
 
     def _build_completion_context(
         self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """Build LLMObs context for completion operations."""
-        ctx: dict[str, Any] = {
+        ctx: Dict[str, Any] = {
             SPAN_KIND: "llm",
             METADATA: self._build_metadata(data),
             METRICS: self._build_metrics(data, latency_metrics),
@@ -143,8 +145,8 @@ class VLLMIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:

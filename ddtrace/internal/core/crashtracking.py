@@ -2,6 +2,7 @@ import importlib.util
 import os
 import platform
 import sys
+from typing import Dict
 from typing import Optional
 
 from ddtrace import config
@@ -34,7 +35,7 @@ except ImportError:
     is_available = False
 
 
-def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
+def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     tags = {
         "language": "python",
         "runtime": "CPython",
@@ -83,7 +84,7 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
     return tags
 
 
-def _get_args(additional_tags: Optional[dict[str, str]]):
+def _get_args(additional_tags: Optional[Dict[str, str]]):
     # Instead of searching PATH for the receiver binary, invoke the receiver script
     # directly with the current Python interpreter. This is more reliable and doesn't
     # depend on PATH configuration.
@@ -168,7 +169,7 @@ def is_started() -> bool:
     return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
-def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
+def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
     if not is_available:
         return False
     if not crashtracker_config.enabled:

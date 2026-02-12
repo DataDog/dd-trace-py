@@ -104,7 +104,7 @@ def _update_git_metadata_tags(tags):
     return tags
 
 
-def _enrich_tags(tags) -> dict[str, str]:
+def _enrich_tags(tags) -> t.Dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
@@ -267,6 +267,14 @@ class ProfilingConfigStack(DDConfig):
         default=True,
         help_type="Boolean",
         private=True,
+    )
+
+    uvloop = DDConfig.v(
+        bool,
+        "uvloop",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable uvloop support for async profiling",
     )
 
 

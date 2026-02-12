@@ -7,6 +7,8 @@ import json
 import os
 import re
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Literal
 from typing import Optional
 from typing import Protocol
@@ -22,10 +24,10 @@ class LLMClient(Protocol):
     def __call__(
         self,
         provider: Optional[str],
-        messages: list[dict[str, str]],
-        json_schema: Optional[dict[str, Any]],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
         model: str,
-        model_params: Optional[dict[str, Any]],
+        model_params: Optional[Dict[str, Any]],
     ) -> str: ...
 
 
@@ -42,12 +44,12 @@ class BaseStructuredOutput(ABC):
         """Return the label key for the evaluation result."""
 
     @abstractmethod
-    def to_json_schema(self) -> dict[str, Any]:
+    def to_json_schema(self) -> Dict[str, Any]:
         """Return the JSON schema for structured output."""
 
-    def _build_schema(self, label_schema: dict[str, Any]) -> dict[str, Any]:
+    def _build_schema(self, label_schema: Dict[str, Any]) -> Dict[str, Any]:
         """Build JSON schema with the label property and optional reasoning."""
-        properties: dict[str, Any] = {self.label: label_schema}
+        properties: Dict[str, Any] = {self.label: label_schema}
         required = [self.label]
         if self.reasoning:
             properties["reasoning"] = {
@@ -74,7 +76,7 @@ class BooleanStructuredOutput(BaseStructuredOutput):
     def label(self) -> str:
         return "boolean_eval"
 
-    def to_json_schema(self) -> dict[str, Any]:
+    def to_json_schema(self) -> Dict[str, Any]:
         return self._build_schema({"type": "boolean", "description": self.description})
 
 
@@ -100,7 +102,7 @@ class ScoreStructuredOutput(BaseStructuredOutput):
     def label(self) -> str:
         return "score_eval"
 
-    def to_json_schema(self) -> dict[str, Any]:
+    def to_json_schema(self) -> Dict[str, Any]:
         return self._build_schema(
             {
                 "type": "number",
@@ -119,26 +121,26 @@ class CategoricalStructuredOutput(BaseStructuredOutput):
     Use ``pass_values`` to define which categories count as passing.
     """
 
-    categories: dict[str, str]
+    categories: Dict[str, str]
     reasoning: bool = False
     reasoning_description: Optional[str] = None
-    pass_values: Optional[list[str]] = None
+    pass_values: Optional[List[str]] = None
 
     @property
     def label(self) -> str:
         return "categorical_eval"
 
-    def to_json_schema(self) -> dict[str, Any]:
+    def to_json_schema(self) -> Dict[str, Any]:
         any_of = [{"const": value, "description": desc} for value, desc in self.categories.items()]
         return self._build_schema({"type": "string", "anyOf": any_of})
 
 
 StructuredOutput = Union[
-    BooleanStructuredOutput, ScoreStructuredOutput, CategoricalStructuredOutput, dict[str, JSONType]
+    BooleanStructuredOutput, ScoreStructuredOutput, CategoricalStructuredOutput, Dict[str, JSONType]
 ]
 
 
-def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
+def _create_openai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("OPENAI_API_KEY")
     if not api_key:
@@ -154,12 +156,12 @@ def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LL
 
     def call(
         provider: Optional[str],
-        messages: list[dict[str, str]],
-        json_schema: Optional[dict[str, Any]],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
         model: str,
-        model_params: Optional[dict[str, Any]],
+        model_params: Optional[Dict[str, Any]],
     ) -> str:
-        kwargs: dict[str, Any] = {"model": model, "messages": messages}
+        kwargs: Dict[str, Any] = {"model": model, "messages": messages}
         if model_params:
             kwargs.update(model_params)
         if json_schema:
@@ -177,7 +179,7 @@ def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LL
     return call
 
 
-def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
+def _create_anthropic_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -194,10 +196,10 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
 
     def call(
         provider: Optional[str],
-        messages: list[dict[str, str]],
-        json_schema: Optional[dict[str, Any]],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
         model: str,
-        model_params: Optional[dict[str, Any]],
+        model_params: Optional[Dict[str, Any]],
     ) -> str:
         system_msgs = []
         user_msgs = []
@@ -208,13 +210,13 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
                 user_msgs.append(msg)
         system = "\n".join(system_msgs) if system_msgs else None
 
-        kwargs: dict[str, Any] = {"model": model, "max_tokens": 4096, "messages": user_msgs}
+        kwargs: Dict[str, Any] = {"model": model, "max_tokens": 4096, "messages": user_msgs}
         if model_params:
             kwargs.update(model_params)
         if system:
             kwargs["system"] = system
         if json_schema:
-            schema_copy = json.loads(json.dumps(json_schema))
+            schema_copy = copy.deepcopy(json_schema)
             for prop_val in schema_copy.get("properties", {}).values():
                 if not isinstance(prop_val, dict):
                     continue
@@ -248,7 +250,7 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     return call
 
 
-def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
+def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
     try:
         import vertexai
         from vertexai.generative_models import GenerationConfig
@@ -295,10 +297,10 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
 
     def call(
         provider: Optional[str],
-        messages: list[dict[str, str]],
-        json_schema: Optional[dict[str, Any]],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
         model: str,
-        model_params: Optional[dict[str, Any]],
+        model_params: Optional[Dict[str, Any]],
     ) -> str:
         contents = []
         system_msgs = []
@@ -339,6 +341,114 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
     return call
 
 
+def _create_bedrock_client(client_options: Optional[Dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    region_name = (
+        client_options.get("region_name")
+        or os.environ.get("AWS_REGION")
+        or os.environ.get("AWS_DEFAULT_REGION")
+        or "us-east-1"
+    )
+
+    try:
+        import boto3
+    except ImportError:
+        raise ImportError("boto3 package required: pip install boto3")
+
+    session_kwargs: Dict[str, Any] = {"region_name": region_name}
+    profile_name = client_options.get("profile_name") or os.environ.get("AWS_PROFILE")
+    if profile_name:
+        session_kwargs["profile_name"] = profile_name
+    aws_access_key_id = client_options.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
+    if aws_access_key_id:
+        session_kwargs["aws_access_key_id"] = aws_access_key_id
+    aws_secret_access_key = client_options.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+    if aws_secret_access_key:
+        session_kwargs["aws_secret_access_key"] = aws_secret_access_key
+    aws_session_token = client_options.get("aws_session_token") or os.environ.get("AWS_SESSION_TOKEN")
+    if aws_session_token:
+        session_kwargs["aws_session_token"] = aws_session_token
+
+    session = boto3.Session(**session_kwargs)
+    client = session.client("bedrock-runtime")
+
+    def call(
+        provider: Optional[str],
+        messages: List[Dict[str, str]],
+        json_schema: Optional[Dict[str, Any]],
+        model: str,
+        model_params: Optional[Dict[str, Any]],
+    ) -> str:
+        system_msgs = []
+        converse_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_msgs.append({"text": msg["content"]})
+            else:
+                role = "user" if msg["role"] == "user" else "assistant"
+                converse_messages.append({"role": role, "content": [{"text": msg["content"]}]})
+
+        kwargs: Dict[str, Any] = {"modelId": model, "messages": converse_messages}
+
+        if system_msgs:
+            kwargs["system"] = system_msgs
+
+        if model_params:
+            inference_config: Dict[str, Any] = {}
+            for key in ["temperature", "topP", "maxTokens", "stopSequences"]:
+                if key in model_params:
+                    inference_config[key] = model_params[key]
+            if "max_tokens" in model_params:
+                inference_config["maxTokens"] = model_params["max_tokens"]
+            if "top_p" in model_params:
+                inference_config["topP"] = model_params["top_p"]
+            if inference_config:
+                kwargs["inferenceConfig"] = inference_config
+
+        if json_schema:
+            # Bedrock doesn't support minimum/maximum for number properties in json schema.
+            # The range should be described in the description instead.
+            schema_copy = copy.deepcopy(json_schema)
+            for prop_val in schema_copy.get("properties", {}).values():
+                if not isinstance(prop_val, dict):
+                    continue
+                # Bedrock doesn't support minimum/maximum for number properties in json schema.
+                # The range should be described in the description instead.
+                if prop_val.get("type") == "number":
+                    min_val = prop_val.pop("minimum", None)
+                    max_val = prop_val.pop("maximum", None)
+                    if min_val is not None or max_val is not None:
+                        range_str = f" (range: {min_val} to {max_val})"
+                        prop_val["description"] = prop_val.get("description", "") + range_str
+                # Bedrock doesn't support 'type' on properties that use 'anyOf'.
+                if "anyOf" in prop_val:
+                    prop_val.pop("type", None)
+            kwargs["outputConfig"] = {
+                "textFormat": {
+                    "type": "json_schema",
+                    "structure": {
+                        "jsonSchema": {
+                            "name": "evaluation",
+                            "schema": json.dumps(schema_copy),
+                        },
+                    },
+                }
+            }
+
+        response = client.converse(**kwargs)
+
+        output = response.get("output", {})
+        message = output.get("message", {})
+        content_blocks = message.get("content", [])
+
+        for block in content_blocks:
+            if "text" in block:
+                return block["text"]
+        return ""
+
+    return call
+
+
 class LLMJudge(BaseEvaluator):
     """Evaluator that uses an LLM to judge LLM Observability span outputs."""
 
@@ -347,24 +457,24 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        provider: Optional[Literal["openai", "anthropic", "vertexai"]] = None,
+        provider: Optional[Literal["openai", "anthropic", "vertexai", "bedrock"]] = None,
         model: Optional[str] = None,
-        model_params: Optional[dict[str, Any]] = None,
+        model_params: Optional[Dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
         name: Optional[str] = None,
-        client_options: Optional[dict[str, Any]] = None,
+        client_options: Optional[Dict[str, Any]] = None,
     ):
         """Initialize an LLMJudge evaluator.
 
         LLMJudge enables automated evaluation of LLM outputs using another LLM as the judge.
-        It supports multiple providers (OpenAI, Anthropic, Vertex AI) and output formats
+        It supports multiple providers (OpenAI, Anthropic, Vertex AI, Bedrock) and output formats
         for flexible evaluation criteria.
 
         Supported Output Types:
             - ``BooleanStructuredOutput``: Returns True/False with optional pass/fail assessment.
             - ``ScoreStructuredOutput``: Returns a numeric score within a defined range with optional thresholds.
             - ``CategoricalStructuredOutput``: Returns one of predefined categories with optional pass values.
-            - ``dict[str, JSONType]``: Custom JSON schema for arbitrary structured responses.
+            - ``Dict[str, JSONType]``: Custom JSON schema for arbitrary structured responses.
 
         Template Variables:
             Prompts support ``{{field.path}}`` syntax to inject context from the evaluated span:
@@ -381,7 +491,7 @@ class LLMJudge(BaseEvaluator):
             structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
                 CategoricalStructuredOutput, or a custom JSON schema dict).
             provider: LLM provider to use. Supported values: ``"openai"``, ``"anthropic"``,
-                ``"vertexai"``. Required if ``client`` is not provided.
+                ``"vertexai"``, ``"bedrock"``. Required if ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
             model_params: Additional parameters passed to the LLM API (e.g., temperature).
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
@@ -405,6 +515,17 @@ class LLMJudge(BaseEvaluator):
                     - ``credentials``: Optional service account credentials object.
                       Falls back to Application Default Credentials (ADC), which
                       respects the ``GOOGLE_APPLICATION_CREDENTIALS`` env var.
+
+                **Bedrock:**
+                    - ``aws_access_key_id``: AWS access key. Falls back to
+                      ``AWS_ACCESS_KEY_ID`` env var.
+                    - ``aws_secret_access_key``: AWS secret key. Falls back to
+                      ``AWS_SECRET_ACCESS_KEY`` env var.
+                    - ``aws_session_token``: Session token. Falls back to
+                      ``AWS_SESSION_TOKEN`` env var.
+                    - ``region_name``: AWS region (default: "us-east-1"). Falls back to
+                      ``AWS_REGION`` or ``AWS_DEFAULT_REGION``.
+                    - ``profile_name``: AWS profile name. Falls back to ``AWS_PROFILE``.
 
         Raises:
             ValueError: If neither ``client`` nor ``provider`` is provided.
@@ -469,8 +590,10 @@ class LLMJudge(BaseEvaluator):
             self._client = _create_anthropic_client(client_options=client_options)
         elif provider == "vertexai":
             self._client = _create_vertexai_client(client_options=client_options)
+        elif provider == "bedrock":
+            self._client = _create_bedrock_client(client_options=client_options)
         else:
-            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/vertexai)")
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/vertexai/bedrock)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:
@@ -479,7 +602,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt = self._render(self._user_prompt, context)
         system_prompt = self._system_prompt
 
-        messages: list[dict[str, str]] = []
+        messages: List[Dict[str, str]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": user_prompt})

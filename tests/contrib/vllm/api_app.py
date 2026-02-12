@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import List
+
 from fastapi import FastAPI
 from fastapi import Request
 from pydantic import BaseModel
@@ -15,7 +17,7 @@ from ._utils import create_async_engine
 
 class RagRequest(BaseModel):
     query: str
-    documents: list[str]
+    documents: List[str]
 
 
 app = FastAPI()
@@ -38,10 +40,10 @@ GEN_PARAMS = {
 }
 
 
-async def embed_texts(engine, texts: list[str], base_request_id: str) -> list[torch.Tensor]:
+async def embed_texts(engine, texts: List[str], base_request_id: str) -> List[torch.Tensor]:
     """Embed a list of texts and return their vector representations."""
     pooling_params = vllm.PoolingParams(task="embed")
-    vectors: list[torch.Tensor] = []
+    vectors: List[torch.Tensor] = []
 
     for i, text in enumerate(texts):
         request_id = f"{base_request_id}-{i}" if len(texts) > 1 else base_request_id

@@ -29,6 +29,7 @@ from typing import IO
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Generator
+from typing import List
 from typing import Optional
 
 import pytest
@@ -131,7 +132,7 @@ def test_uwsgi_threads_enabled(
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads")
-    worker_pids: list[int] = _get_worker_pids(proc.stdout, 1)
+    worker_pids: List[int] = _get_worker_pids(proc.stdout, 1)
     # Give some time to the process to actually startup
     time.sleep(3)
     proc.terminate()
@@ -161,7 +162,7 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Pope
     )
 
 
-def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
+def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> List[int]:
     """Parse uwsgi stdout to extract worker PIDs.
 
     Reads lines from uwsgi stdout looking for:
@@ -177,7 +178,7 @@ def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_start
 
     Returns when both conditions are met or EOF is reached.
     """
-    worker_pids: list[int] = []
+    worker_pids: List[int] = []
     started = 0
     while True:
         assert stdout is not None
@@ -199,7 +200,7 @@ def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_start
 
 def _wait_for_profile_samples(
     filename_prefix: str, pid: int, value_type: str, timeout: float = 10.0, interval: float = 0.1
-) -> list["pprof_pb2.Sample"]:
+) -> List["pprof_pb2.Sample"]:
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -398,7 +399,7 @@ def test_uwsgi_require_skip_atexit_when_lazy_without_master(
     num_workers = 2
     proc = uwsgi("--enable-threads", "--processes", str(num_workers), lazy_flag)
 
-    worker_pids: list[int] = []
+    worker_pids: List[int] = []
     logged_warning: int = 0
     while True:
         assert proc.stdout is not None

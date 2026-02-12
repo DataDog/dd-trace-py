@@ -1,6 +1,9 @@
 import os
 import threading
 from typing import Callable
+from typing import Dict
+from typing import List
+from typing import Tuple
 
 
 def fib(n: int) -> int:
@@ -9,7 +12,7 @@ def fib(n: int) -> int:
     return fib(n - 1) + fib(n - 2)
 
 
-def app(environ: dict[str, str], start_response: Callable[[str, list[tuple[str, str]]], None]) -> list[bytes]:
+def app(environ: Dict[str, str], start_response: Callable[[str, List[Tuple[str, str]]], None]) -> List[bytes]:
     response_body = f"fib(35) is {fib(35)} at pid {os.getpid()} tid {threading.get_ident()}"
 
     response_body = response_body.encode("utf-8")

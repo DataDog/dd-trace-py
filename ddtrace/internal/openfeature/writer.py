@@ -5,6 +5,8 @@ Writer for Feature Flag Exposure events to EVP proxy intake.
 import atexit
 import json
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import TypedDict
 
@@ -41,10 +43,10 @@ class ExposureEvent(TypedDict):
     """
 
     timestamp: int
-    allocation: dict[str, str]
-    flag: dict[str, str]
-    variant: dict[str, str]
-    subject: dict[str, Any]
+    allocation: Dict[str, str]
+    flag: Dict[str, str]
+    variant: Dict[str, str]
+    subject: Dict[str, Any]
 
 
 class GeoContext(TypedDict, total=False):
@@ -73,7 +75,7 @@ class BatchedExposures(TypedDict, total=False):
     """
 
     context: Context
-    exposures: list[ExposureEvent]
+    exposures: List[ExposureEvent]
 
 
 class ExposureWriter(PeriodicService):
@@ -101,7 +103,7 @@ class ExposureWriter(PeriodicService):
 
         super(ExposureWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer: list[ExposureEvent] = []
+        self._buffer: List[ExposureEvent] = []
         self._buffer_size: int = 0
         self._timeout: float = timeout
         self._enabled: bool = enabled
@@ -111,7 +113,7 @@ class ExposureWriter(PeriodicService):
         self._endpoint: str = f"{EVP_PROXY_AGENT_BASE_PATH}{EXPOSURE_ENDPOINT}"
 
         # Configure headers
-        self._headers: dict[str, str] = {
+        self._headers: Dict[str, str] = {
             "Content-Type": "application/json",
             EVP_SUBDOMAIN_HEADER_NAME: EXPOSURE_SUBDOMAIN_NAME,
         }
@@ -193,7 +195,7 @@ class ExposureWriter(PeriodicService):
         except Exception:
             logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
 
-    def _encode(self, events: list[ExposureEvent]) -> bytes:
+    def _encode(self, events: List[ExposureEvent]) -> bytes:
         """
         Encode events to JSON bytes wrapped in batch structure with context.
         """

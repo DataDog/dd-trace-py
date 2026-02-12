@@ -5,6 +5,7 @@ Integration tests are in tests/test_integration.py.
 """
 
 import os
+import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -1063,7 +1064,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        reports: dict[str, Mock] = {}
+        reports: t.Dict[str, Mock] = {}
 
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
