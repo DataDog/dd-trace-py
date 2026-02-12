@@ -5,6 +5,7 @@ use datadog_remote_config::{
 };
 use datadog_tracer_flare::{error::FlareError, FlareAction, LogLevel, TracerFlareManager};
 use regex::Regex;
+use std::sync::LazyLock;
 
 /// ERROR
 use pyo3::{
@@ -38,6 +39,9 @@ create_exception!(
 create_exception!(tracer_flare_exceptions, ZipError, PyException, "Zip error");
 
 pub struct FlareErrorPy(pub FlareError);
+
+static CASE_ID_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\d+-(with-debug|with-content)$").expect("valid case_id regex"));
 
 impl From<FlareErrorPy> for PyErr {
     fn from(value: FlareErrorPy) -> Self {
@@ -120,10 +124,7 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
             )));
         }
         if !case_id.chars().all(|c| c.is_ascii_digit()) {
-            let case_id_regex = Regex::new(r"^\d+-(with-debug|with-content)$").map_err(|e| {
-                ParsingError::new_err(format!("Failed to compile case_id regex: {}", e))
-            })?;
-            if !case_id_regex.is_match(&case_id) {
+            if !CASE_ID_REGEX.is_match(&case_id) {
                 return Err(ParsingError::new_err(format!(
                     "Invalid case_id format: '{}'",
                     case_id
