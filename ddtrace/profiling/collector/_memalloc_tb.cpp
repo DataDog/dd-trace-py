@@ -9,28 +9,6 @@
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
 #include "python_helpers.hpp"
-/* Helper function to convert PyUnicode object to string_view
- * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
- * The pointer remains valid as long as the PyObject is alive */
-static std::string_view
-unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unknown>")
-{
-    if (unicode_obj == NULL) {
-        return fallback;
-    }
-
-    Py_ssize_t len;
-    const char* ptr = PyUnicode_AsUTF8AndSize(unicode_obj, &len);
-    if (ptr) {
-        return std::string_view(ptr, len);
-    }
-    // PyUnicode_AsUTF8AndSize always sets an error on failure (TypeError if not a
-    // unicode object, MemoryError if UTF-8 cache allocation fails). Clear it since
-    // we're inside the allocator hook and must not leave stale errors for the caller.
-    PyErr_Clear();
-    return fallback;
-}
-
 /* Helper function to get thread info using C-level APIs and push to sample.
  *
  * Uses only PyThread_get_thread_ident() and PyThread_get_thread_native_id(),
