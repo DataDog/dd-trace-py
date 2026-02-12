@@ -496,7 +496,9 @@ lib_injection_tests:
     - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
 
-# Run on every PR (only if profiling files changed)
+# Run on every PR (only if native profiling files changed)
+# Scoped to C/C++, Cython, Rust, and build config — pure Python profiling
+# files (e.g. _lock.py, threading.py) do NOT need native sanitizer/valgrind runs.
 profiling_native:
   extends: .profiling_native_base
   rules:
@@ -505,9 +507,14 @@ profiling_native:
     - changes:
         - .gitlab-ci.yml
         - ddtrace/internal/datadog/profiling/**/*
-        - ddtrace/profiling/**/*
+        - ddtrace/profiling/collector/_memalloc*
+        - ddtrace/profiling/collector/_task.pyx
+        - ddtrace/profiling/collector/_pymacro.h
+        - ddtrace/profiling/collector/CMakeLists.txt
+        - ddtrace/profiling/_threading.pyx
         - src/native/**/*
-        - tests/profiling/**/*
+        - setup.py
+        - pyproject.toml
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
