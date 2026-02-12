@@ -1,17 +1,16 @@
 import enum
 import os
-from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Sequence  # noqa:F401
+from typing import Callable
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Optional
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig import Payload  # noqa:F401
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
