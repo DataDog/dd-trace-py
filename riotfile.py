@@ -3299,6 +3299,7 @@ venv = Venv(
                 "ragas": "==0.1.21",
                 "langchain": latest,
                 "pandas": latest,
+                "deepeval": latest,
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),

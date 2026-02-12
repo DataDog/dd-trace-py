@@ -18,6 +18,9 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 
+import deepeval
+from deepeval.metrics import BaseMetric, BaseConversationalMetric
+
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
@@ -1109,6 +1112,7 @@ class LLMObs(Service):
             Union[
                 Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
                 BaseEvaluator,
+                Union[List[BaseMetric], List[BaseConversationalMetric]]
             ]
         ],
         description: str = "",
@@ -1164,14 +1168,14 @@ class LLMObs(Service):
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(
-            callable(evaluator) or isinstance(evaluator, BaseEvaluator) for evaluator in evaluators
+            callable(evaluator) or isinstance(evaluator, BaseEvaluator, BaseMetric, BaseConversationalMetric) for evaluator in evaluators
         ):
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         for evaluator in evaluators:
-            if isinstance(evaluator, BaseEvaluator):
+            if isinstance(evaluator, BaseEvaluator, BaseMetric, BaseConversationalMetric):
                 continue
             if not callable(evaluator):
-                raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator.")
+                raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator, BaseMetric, or BaseConversationalMetric.")
             sig = inspect.signature(evaluator)
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")

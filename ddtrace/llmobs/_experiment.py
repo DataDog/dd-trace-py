@@ -23,6 +23,10 @@ from typing import cast
 from typing import overload
 import uuid
 
+import deepeval
+from deepeval.metrics import BaseMetric, BaseConversationalMetric
+from deepeval.test_case import LLMTestCase
+
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -290,6 +294,14 @@ def _is_class_evaluator(evaluator: Any) -> bool:
     """
     return isinstance(evaluator, BaseEvaluator)
 
+def _is_deepeval_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a deep eval evaluator (inherits from BaseMetric or BaseConversationalMetric).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a class-based deepeval evaluator, False otherwise
+    """
+    return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
+
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -306,7 +318,7 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     :param evaluator: The evaluator to check
     :return: True if it's a function evaluator, False otherwise
     """
-    return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator)
+    return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deepeval_evaluator(evaluator)
 
 
 class Project(TypedDict):
@@ -615,6 +627,8 @@ class Experiment:
             Union[
                 Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
                 BaseEvaluator,
+                BaseMetric,
+                BaseConversationalMetric,
             ]
         ],
         project_name: str,
@@ -882,6 +896,26 @@ class Experiment:
                             trace_id=task_result.get("trace_id"),
                         )
                         eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
+                    elif _is_deepeval_evaluator(evaluator):
+                        evaluator_name = evaluator.name  # type: ignore[union-attr]
+                        deepEvalTestCase = LLMTestCase(
+                            input=input_data,
+                            actual_output=output_data,
+                            expected_output=expected_output,
+                        )
+                        evaluator.measure(deepEvalTestCase)
+                        score = evaluator.score
+                        reasoning = None
+                        assessment = None
+                        if hasattr(evaluator, "reason"):
+                            reasoning = evaluator.reason
+                        if hasattr(evaluator, "success"):
+                            assessment = evaluator.success
+                        eval_result = EvaluatorResult(
+                            value=score,
+                            reasoning=reasoning,
+                            assessment=assessment,
+                        )
                     elif _is_function_evaluator(evaluator):
                         evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                         eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
