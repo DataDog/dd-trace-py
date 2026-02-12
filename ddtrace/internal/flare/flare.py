@@ -49,7 +49,7 @@ class Flare:
 
     def _create_native_manager(self):
         """Create or recreate the native manager to ensure clean state."""
-        self.native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
+        self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
 
     def prepare(self, log_level: str) -> bool:
         """
