@@ -19,11 +19,10 @@ from typing import Sequence
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
-from typing import cast
+from typing import cast 
 from typing import overload
 import uuid
 
-import deepeval
 from deepeval.metrics import BaseMetric, BaseConversationalMetric
 from deepeval.test_case import LLMTestCase
 
@@ -37,6 +36,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+
 from ddtrace.version import __version__
 
 
@@ -320,6 +320,26 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     """
     return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deepeval_evaluator(evaluator)
 
+def _deep_eval_evaluator(evaluator: BaseMetric | BaseConversationalMetric, context: EvaluatorContext) -> EvaluatorResult:
+    deepEvalTestCase = LLMTestCase(
+        input=str(context.input_data),
+        actual_output=str(context.output_data),
+        expected_output=str(context.expected_output),
+    )
+    evaluator.measure(deepEvalTestCase)
+    score = evaluator.score
+    reasoning = None
+    assessment = None
+    if hasattr(evaluator, "reason"):
+        reasoning = evaluator.reason
+    if hasattr(evaluator, "success"):
+        assessment = evaluator.success
+    eval_result = EvaluatorResult(
+        value=score,
+        reasoning=reasoning,
+        assessment=assessment,
+    )
+    return eval_result
 
 class Project(TypedDict):
     name: str
@@ -898,24 +918,16 @@ class Experiment:
                         eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
                     elif _is_deepeval_evaluator(evaluator):
                         evaluator_name = evaluator.name  # type: ignore[union-attr]
-                        deepEvalTestCase = LLMTestCase(
-                            input=str(input_data),
-                            actual_output=str(output_data),
-                            expected_output=str(expected_output),
+                        combined_metadata = {**metadata, "experiment_config": self._config}
+                        context = EvaluatorContext(
+                            input_data=input_data,
+                            output_data=output_data,
+                            expected_output=expected_output,
+                            metadata=combined_metadata,
+                            span_id=task_result.get("span_id"),
+                            trace_id=task_result.get("trace_id"),
                         )
-                        evaluator.measure(deepEvalTestCase)
-                        score = evaluator.score
-                        reasoning = None
-                        assessment = None
-                        if hasattr(evaluator, "reason"):
-                            reasoning = evaluator.reason
-                        if hasattr(evaluator, "success"):
-                            assessment = evaluator.success
-                        eval_result = EvaluatorResult(
-                            value=score,
-                            reasoning=reasoning,
-                            assessment=assessment,
-                        )
+                        eval_result = _deep_eval_evaluator(evaluator, context)
                     elif _is_function_evaluator(evaluator):
                         evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                         eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
