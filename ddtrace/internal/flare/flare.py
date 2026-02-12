@@ -11,7 +11,7 @@ from ddtrace._logger import _configure_ddtrace_native_logger
 from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import logger as native_logger
-from ddtrace.internal.native._native import native_flare  # type: ignore
+from ddtrace.internal.native._native import native_flare
 
 
 TRACER_FLARE_DIRECTORY = "tracer_flare"
