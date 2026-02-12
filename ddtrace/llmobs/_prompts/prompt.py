@@ -66,7 +66,7 @@ class ManagedPrompt:
         Example:
             prompt.to_annotation_dict(name="Alice", topic="weather")
         """
-        result: Dict[str, Any] = {
+        result: Prompt = {
             "id": self.id,
             "version": self.version,
         }
@@ -89,7 +89,7 @@ class ManagedPrompt:
     def __repr__(self) -> str:
         return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, label={self.label!r}, source={self.source!r})"
 
-    def serialize(self) -> Dict[str, Any]:
+    def _serialize(self) -> Dict[str, Any]:
         """Serialize to a JSON-compatible dict for cache storage."""
         return {
             "id": self.id,
@@ -102,7 +102,7 @@ class ManagedPrompt:
         }
 
     @classmethod
-    def deserialize(cls, data: Dict[str, Any]) -> "ManagedPrompt":
+    def _deserialize(cls, data: Dict[str, Any]) -> "ManagedPrompt":
         """Deserialize from a cache storage dict."""
         return cls(
             id=data["id"],

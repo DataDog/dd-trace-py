@@ -28,12 +28,12 @@ class CacheEntry:
     def is_stale(self, ttl: float) -> bool:
         return (time() - self.timestamp) > ttl
 
-    def serialize(self) -> Dict[str, Any]:
-        return {"prompt": self.prompt.serialize(), "timestamp": self.timestamp}
+    def _serialize(self) -> Dict[str, Any]:
+        return {"prompt": self.prompt._serialize(), "timestamp": self.timestamp}
 
     @classmethod
-    def deserialize(cls, data: Dict[str, Any]) -> "CacheEntry":
-        return cls(prompt=ManagedPrompt.deserialize(data["prompt"]), timestamp=data["timestamp"])
+    def _deserialize(cls, data: Dict[str, Any]) -> "CacheEntry":
+        return cls(prompt=ManagedPrompt._deserialize(data["prompt"]), timestamp=data["timestamp"])
 
 
 class HotCache:
@@ -149,7 +149,7 @@ class WarmCache:
                     return None
                 with open(path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-            entry = CacheEntry.deserialize(data)
+            entry = CacheEntry._deserialize(data)
             return entry.prompt, entry.is_stale(self._ttl)
         except (OSError, json.JSONDecodeError, KeyError, TypeError) as e:
             log.debug("Failed to read prompt from cache: %s", e)
@@ -162,7 +162,7 @@ class WarmCache:
 
         path = self._key_to_path(key)
         entry = CacheEntry(prompt=prompt, timestamp=time())
-        data = entry.serialize()
+        data = entry._serialize()
         try:
             with self._lock:
                 with open(path, "w", encoding="utf-8") as f:
