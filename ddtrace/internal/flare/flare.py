@@ -49,7 +49,7 @@ class Flare:
 
     def _create_native_manager(self):
         """Create or recreate the native manager to ensure clean state."""
-        self.native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
+        self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
 
     def prepare(self, log_level: str) -> bool:
         """
@@ -164,7 +164,7 @@ class Flare:
             open(lock_path, "w").close()
 
             # Use native implementation
-            log.debug("Sending tracer flare using native implementation")
+            log.debug("Sending tracer flare")
 
             # Use native zip_and_send
             self.native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
