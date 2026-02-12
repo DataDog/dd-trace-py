@@ -104,12 +104,15 @@ import types
 import typing
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
+from typing import Generic
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import TypeVar
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
+from .event_hub import dispatch_event  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
@@ -118,6 +121,7 @@ from .event_hub import reset as reset_listeners  # noqa:F401
 
 if typing.TYPE_CHECKING:
     from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.internal.core.events import Event  # noqa:F401
 
 import contextvars
 
@@ -131,13 +135,16 @@ log = logging.getLogger(__name__)
 
 ROOT_CONTEXT_ID = "__root"
 
+_EventType = TypeVar("_EventType", bound="Event")
 
-class ExecutionContext(object):
-    __slots__ = ("identifier", "_data", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+
+class ExecutionContext(Generic[_EventType], object):
+    __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
     def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
         self.identifier: str = identifier
         self._data: Dict[str, Any] = {}
+        self._event: Optional[_EventType] = None
         self._suppress_exceptions: List[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
@@ -264,6 +271,12 @@ class ExecutionContext(object):
         if "span_key" in self._data:
             self._data[self._data["span_key"]] = value
 
+    @property
+    def event(self) -> _EventType:
+        if self._event is None:
+            raise ValueError("No event provided in context")
+        return self._event
+
 
 def __getattr__(name):
     if name == "root":
@@ -285,6 +298,12 @@ def _reset_context():
 
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def context_with_event(event: _EventType, parent=None) -> ExecutionContext[_EventType]:
+    ctx = _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()))
+    ctx._event = event
+    return ctx
 
 
 def add_suppress_exception(exc_type: type) -> None:
