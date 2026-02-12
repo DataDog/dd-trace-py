@@ -338,6 +338,8 @@ def test_user_threads_have_native_id():
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_ENABLED="false",
+        # Intentionally force stack enabled: even then, profiling-disabled must
+        # not patch gevent.
         DD_PROFILING_STACK_ENABLED="true",
     )
 )
