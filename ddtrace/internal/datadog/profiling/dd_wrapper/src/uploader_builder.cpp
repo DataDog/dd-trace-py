@@ -208,7 +208,7 @@ Datadog::UploaderBuilder::build()
         encoded = ddog_prof_Profile_serialize(&borrowed.profile(), nullptr, nullptr);
         if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
             auto err = encoded.err;
-            const std::string errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
+            std::string errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
             ddog_Error_drop(&err);
             ddog_prof_Exporter_drop(ddog_exporter);
             return errmsg;
