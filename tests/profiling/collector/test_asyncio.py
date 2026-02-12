@@ -45,19 +45,19 @@ CollectorTypeClass = Type[CollectorTypeInst]
     [
         (
             AsyncioLockCollector,
-            "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",
+            "AsyncioLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             AsyncioSemaphoreCollector,
-            "AsyncioSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "AsyncioSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             AsyncioBoundedSemaphoreCollector,
-            "AsyncioBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "AsyncioBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             AsyncioConditionCollector,
-            "AsyncioConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "AsyncioConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
     ],
 )
