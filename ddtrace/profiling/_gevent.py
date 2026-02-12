@@ -64,6 +64,9 @@ def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
+    # AIDEV-NOTE: Greenlets that already exist when profiling is enabled are discovered lazily.
+    # We only start tracking them once a post-patch "switch"/"throw" event is observed.
+    # A greenlet that exits before switching again may not be tracked.
     if event in {"switch", "throw"}:
         # This tracer function runs in the context of the target
         origin, target = t.cast(t.Tuple[_Greenlet, _Greenlet], args)
