@@ -35,7 +35,6 @@ def _handle_tracer_flare(flare: Flare, data: dict):
 
     product_type = data.get("metadata", [{}])[0].get("product_name")
     configs = data.get("config", [{}])
-
     for c in configs:
         if not isinstance(c, dict):
             log.debug("Config item is not type dict, received type %s instead. Skipping...", str(type(c)))
@@ -50,7 +49,6 @@ def _handle_tracer_flare(flare: Flare, data: dict):
         elif flare_action.is_set():
             log_level = flare_action.level
             flare.prepare(log_level)
-
         elif flare_action.is_unset():
             log.info("Reverting tracer flare configurations and cleaning up any generated files")
             flare.revert_configs()

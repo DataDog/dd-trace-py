@@ -5,7 +5,10 @@ from pathlib import Path
 import re
 from typing import Any
 from typing import Callable
+from typing import Dict
+from typing import List
 from typing import Optional
+from typing import Set
 from typing import Union
 from urllib import parse
 
@@ -121,7 +124,7 @@ def _get_git_repo() -> Optional[str]:
     return None
 
 
-def _get_custom_configurations() -> dict[str, str]:
+def _get_custom_configurations() -> Dict[str, str]:
     custom_configurations = {}
     for tag, value in ddconfig.tags.items():
         if tag.startswith(CUSTOM_CONFIGURATIONS_PREFIX):
@@ -221,16 +224,16 @@ class CIVisibility(Service):
             )
             self._itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
         self._suite_skipping_mode = ddconfig.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-        self._tags: dict[str, str] = ci.tags(cwd=_get_git_repo())
+        self._tags: Dict[str, str] = ci.tags(cwd=_get_git_repo())
         self._is_auto_injected = bool(os.getenv("DD_CIVISIBILITY_AUTO_INSTRUMENTATION_PROVIDER", ""))
         self._service = service
         self._codeowners = None
         self._root_dir = None
         self._should_upload_git_metadata = True
-        self._itr_meta: dict[str, Any] = {}
+        self._itr_meta: Dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
-        self._known_test_ids: set[TestId] = set()
-        self._test_properties: dict[TestId, TestProperties] = {}
+        self._known_test_ids: Set[TestId] = set()
+        self._test_properties: Dict[TestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -570,7 +573,7 @@ class CIVisibility(Service):
         except Exception:  # noqa: E722
             log.debug("Error fetching skippable items", exc_info=True)
 
-    def _fetch_known_tests(self) -> Optional[set[TestId]]:
+    def _fetch_known_tests(self) -> Optional[Set[TestId]]:
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_known_tests()
@@ -579,7 +582,7 @@ class CIVisibility(Service):
             log.debug("Error fetching unique tests", exc_info=True)
         return None
 
-    def _fetch_test_management_tests(self) -> Optional[dict[TestId, TestProperties]]:
+    def _fetch_test_management_tests(self) -> Optional[Dict[TestId, TestProperties]]:
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_test_management_tests()
@@ -1145,7 +1148,7 @@ class CIVisibilitySpanForwarder(TraceFilter):
     def __init__(self, tracer):
         self.tracer = tracer
 
-    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         log.debug("Forwarding trace to CI Visibility: %r", trace)
         self.tracer._span_aggregator.writer.write(trace)
         return None

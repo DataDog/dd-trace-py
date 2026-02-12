@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 from typing import TYPE_CHECKING
+from typing import List
 from typing import Optional
 
 from ddtrace.llmobs.types import Message
@@ -194,7 +195,7 @@ _END_MARKERS = re.compile(
 _ASSISTANT_ROLES = ("assistant", "model", "ai", "bot", "response", "falcon")
 
 
-def parse_prompt_to_messages(prompt: Optional[str]) -> list[Message]:
+def parse_prompt_to_messages(prompt: Optional[str]) -> List[Message]:
     """Parse a formatted prompt into structured messages."""
     if not prompt:
         return []
@@ -210,13 +211,13 @@ def parse_prompt_to_messages(prompt: Optional[str]) -> list[Message]:
     return [Message(role="", content=prompt)]
 
 
-def _parse_with_pattern(prompt: str, role_pattern) -> list[Message]:
+def _parse_with_pattern(prompt: str, role_pattern) -> List[Message]:
     """Parse prompt using a specific role pattern."""
     matches = list(role_pattern.finditer(prompt))
     if not matches:
         return []
 
-    messages: list[Message] = []
+    messages: List[Message] = []
     for i, match in enumerate(matches):
         role_match = match.group(1)
         if not role_match:

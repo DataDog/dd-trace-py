@@ -1,8 +1,12 @@
 import json
 import time
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Sequence
+from typing import Set
+from typing import Tuple
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
@@ -76,13 +80,13 @@ class DDWaf(WAF):
             )
         self._default_ruleset = ruleset_map_object
         metrics.ddwaf_version = version()
-        self._rc_products: dict[str, set[str]] = {}
+        self._rc_products: Dict[str, Set[str]] = {}
         self._rc_products_str: str = ""
         self._rc_updates: int = 0
         self._lifespan: int = 0
 
     @property
-    def required_data(self) -> list[str]:
+    def required_data(self) -> List[str]:
         return py_ddwaf_known_addresses(self._handle) if self._handle else []
 
     def _set_info(self, diagnostics: ddwaf_object, action: str) -> None:
@@ -115,7 +119,7 @@ class DDWaf(WAF):
         return self._info
 
     def update_rules(
-        self, removals: Sequence[tuple[str, str]], updates: Sequence[tuple[str, str, PayloadType]]
+        self, removals: Sequence[Tuple[str, str]], updates: Sequence[Tuple[str, str, PayloadType]]
     ) -> bool:
         """update the rules of the WAF instance. return False if an error occurs."""
         ok = True

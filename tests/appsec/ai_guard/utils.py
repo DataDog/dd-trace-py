@@ -2,6 +2,8 @@ import contextlib
 import random
 import string
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 from unittest.mock import Mock
 
@@ -29,8 +31,8 @@ def find_ai_guard_span(test_spans: TracerSpanContainer) -> Span:
 
 def assert_ai_guard_span(
     test_spans: TracerSpanContainer,
-    tags: dict[str, Any],
-    meta_struct: dict[str, Any],
+    tags: Dict[str, Any],
+    meta_struct: Dict[str, Any],
 ) -> None:
     span = find_ai_guard_span(test_spans)
     for tag, value in tags.items():
@@ -42,7 +44,7 @@ def assert_ai_guard_span(
         assert struct[meta] == value, f"Wrong value {struct[meta]}, expected {value}"
 
 
-def mock_evaluate_response(action: str, reason: str = "", tags: list[str] = None, block: bool = True) -> Mock:
+def mock_evaluate_response(action: str, reason: str = "", tags: List[str] = None, block: bool = True) -> Mock:
     mock_response = Mock()
     mock_response.status = 200
     mock_response.get_json.return_value = {
@@ -61,8 +63,8 @@ def mock_evaluate_response(action: str, reason: str = "", tags: list[str] = None
 def assert_mock_execute_request_call(
     mock_execute_request,
     ai_guard_client: AIGuardClient,
-    messages: list[Message],
-    meta: Optional[dict[str, Any]] = None,
+    messages: List[Message],
+    meta: Optional[Dict[str, Any]] = None,
     endpoint: Optional[str] = None,
 ):
     expected_attributes = {"messages": messages, "meta": meta or {"service": config.service, "env": config.env}}
@@ -84,7 +86,7 @@ def override_ai_guard_config(values):
         >>> with self.override_ai_guard_config(dict(name=value,...)):
             # Your test
     """
-    # list of global variables we allow overriding
+    # List of global variables we allow overriding
     global_config_keys = [
         "_dd_api_key",
         "_dd_app_key",

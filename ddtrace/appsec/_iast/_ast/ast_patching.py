@@ -5,6 +5,7 @@ import textwrap
 from types import ModuleType
 from typing import Optional
 from typing import Text
+from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._ast import iastpatch
@@ -216,7 +217,7 @@ def {_PREFIX}set_dir_filter():
 ).encode()
 
 
-def astpatch_module(module: ModuleType) -> tuple[str, Optional[ast.Module]]:
+def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
     """Patches a Python module's AST for IAST instrumentation.
 
     This function processes a Python module for IAST (Interactive Application Security Testing)
@@ -234,7 +235,7 @@ def astpatch_module(module: ModuleType) -> tuple[str, Optional[ast.Module]]:
         module (ModuleType): The Python module to patch. Must be an imported module object.
 
     Returns:
-        tuple[str, Optional[ast.Module]]: A tuple containing:
+        Tuple[str, Optional[ast.Module]]: A tuple containing:
             - str: The module's file path if successful, empty string if failed
             - Optional[ast.Module]: The modified AST if successful, None if:
                 - Module file cannot be found

@@ -1,5 +1,7 @@
 from inspect import isfunction
 from typing import Any
+from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace.internal import core
@@ -37,8 +39,8 @@ class GoogleAdkIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: list[Any],
-        kwargs: dict[str, Any],
+        args: List[Any],
+        kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",  # being used for span kind: one of "agent", "tool", "code_execute"
     ) -> None:
@@ -58,7 +60,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_agent(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any]
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
@@ -81,7 +83,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_tool(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool = get_argument_value(args, kwargs, 0, "tool")
         tool_args = get_argument_value(args, kwargs, 1, "args")
@@ -111,11 +113,11 @@ class GoogleAdkIntegration(BaseLLMIntegration):
                 ),
             )
 
-    def _tag_agent_manifest(self, span: Span, kwargs: dict[str, Any], agent: Any) -> None:
+    def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
             return
 
-        manifest: dict[str, Any] = {}
+        manifest: Dict[str, Any] = {}
 
         manifest["framework"] = "Google ADK"
         manifest["name"] = getattr(agent, "name", "")
@@ -132,7 +134,7 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
     def _llmobs_set_tags_code_execute(
-        self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Optional[Any] = None
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         stdout = getattr(response, "stdout", None)
         stderr = getattr(response, "stderr", None)

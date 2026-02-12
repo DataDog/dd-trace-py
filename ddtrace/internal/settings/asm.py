@@ -3,6 +3,7 @@ import os.path
 from platform import machine
 from platform import system
 import sys
+from typing import List
 from typing import Optional
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -35,7 +36,7 @@ def _validate_percentage(r: float) -> None:
         raise ValueError("percentage value must be between 0 and 100")
 
 
-def _parse_options(options: list[str]):
+def _parse_options(options: List[str]):
     def parse(str_in: str) -> str:
         for o in options:
             if o.startswith(str_in.lower()):
@@ -195,9 +196,7 @@ class ASMConfig(DDConfig):
 
     # DOWNSTREAM REQUESTS INSTRUMENTATION
     # sample rate for body analysis
-    _dr_sample_rate: float = DDConfig.var(
-        float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", default=0.5
-    )
+    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5)
     # max number of downstream requests analysis  with bodies per request
     _dr_body_limit_per_request: int = DDConfig.var(
         int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1

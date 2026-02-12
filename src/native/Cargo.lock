@@ -684,6 +684,7 @@ dependencies = [
  "pyo3-build-config",
  "pyo3-ffi",
  "regex",
+ "rand 0.9.2",
  "serde",
  "serde_json",
  "tokio",

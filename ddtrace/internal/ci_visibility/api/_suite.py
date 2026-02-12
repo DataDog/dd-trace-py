@@ -1,4 +1,6 @@
 from pathlib import Path
+from typing import Dict
+from typing import List
 from typing import Optional
 
 from ddtrace.ext import test
@@ -33,9 +35,9 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         self,
         name: str,
         session_settings: TestVisibilitySessionSettings,
-        codeowners: Optional[list[str]] = None,
+        codeowners: Optional[List[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
-        initial_tags: Optional[dict[str, str]] = None,
+        initial_tags: Optional[Dict[str, str]] = None,
     ) -> None:
         super().__init__(name, session_settings, session_settings.suite_operation_name, initial_tags)
         self._codeowner = codeowners
@@ -73,7 +75,7 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         self.mark_itr_skipped()
         self.finish()
 
-    def _get_hierarchy_tags(self) -> dict[str, str]:
+    def _get_hierarchy_tags(self) -> Dict[str, str]:
         return {
             SUITE_ID: str(self.get_span_id()),
             test.SUITE: self.name,
@@ -103,5 +105,5 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
             test_framework=self._session_settings.test_framework_metric_name,
         )
 
-    def add_coverage_data(self, coverage_data: dict[Path, CoverageLines]) -> None:
+    def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
         self._coverage_data.add_covered_files(coverage_data)

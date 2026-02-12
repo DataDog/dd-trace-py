@@ -5,6 +5,7 @@ import multiprocessing
 import os
 import pathlib
 import shutil
+from typing import Dict
 from typing import Optional
 from typing import Union
 from typing import cast
@@ -286,7 +287,7 @@ class TracerFlareTests(TestCase):
                         f"Log line has non-string/int/float/None value: {value} in line: {line}"
                     )
 
-                data = cast(dict[str, Union[str, int, float, None]], data)
+                data = cast(Dict[str, Union[str, int, float, None]], data)
 
                 required_keys = {
                     "filename",

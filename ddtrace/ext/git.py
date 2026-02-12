@@ -10,10 +10,13 @@ import re
 from shutil import which
 import subprocess
 from tempfile import TemporaryDirectory
+from typing import Dict  # noqa:F401
 from typing import Generator  # noqa:F401
+from typing import List  # noqa:F401
 from typing import MutableMapping  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import compat
@@ -95,11 +98,13 @@ _GitSubprocessDetails = NamedTuple(
 )
 
 
-def normalize_ref(name: Optional[str]) -> Optional[str]:
+def normalize_ref(name):
+    # type: (Optional[str]) -> Optional[str]
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
 
 
-def is_ref_a_tag(ref: Optional[str]) -> bool:
+def is_ref_a_tag(ref):
+    # type: (Optional[str]) -> bool
     return "tags/" in ref if ref else False
 
 
@@ -113,9 +118,8 @@ def _get_executable_path(executable_name: str) -> Optional[str]:
     return which(executable_name, mode=os.X_OK)
 
 
-def _git_subprocess_cmd_with_details(
-    *cmd: str, cwd: Optional[str] = None, std_in: Optional[bytes] = None
-) -> _GitSubprocessDetails:
+def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
+    # type: (str, Optional[str], Optional[bytes]) -> _GitSubprocessDetails
     """Helper for invoking the git CLI binary
 
     Returns a tuple containing:
@@ -146,7 +150,8 @@ def _git_subprocess_cmd_with_details(
     )
 
 
-def _git_subprocess_cmd(cmd: Union[str, list[str]], cwd: Optional[str] = None, std_in: Optional[bytes] = None) -> str:
+def _git_subprocess_cmd(cmd, cwd=None, std_in=None):
+    # type: (Union[str, list[str]], Optional[str], Optional[bytes]) -> str
     """Helper for invoking the git CLI binary."""
     if isinstance(cmd, str):
         cmd = cmd.split(" ")
@@ -167,24 +172,28 @@ def _set_safe_directory():
         log.error("Error setting safe directory")
 
 
-def _extract_clone_defaultremotename_with_details(cwd: Optional[str]) -> _GitSubprocessDetails:
+def _extract_clone_defaultremotename_with_details(cwd):
+    # type: (Optional[str]) -> _GitSubprocessDetails
     return _git_subprocess_cmd_with_details(
         "config", "--default", "origin", "--get", "clone.defaultRemoteName", cwd=cwd
     )
 
 
-def _extract_upstream_sha(cwd: Optional[str] = None) -> str:
+def _extract_upstream_sha(cwd=None):
+    # type: (Optional[str]) -> str
     output = _git_subprocess_cmd("rev-parse @{upstream}", cwd=cwd)
     return output
 
 
-def _is_shallow_repository_with_details(cwd: Optional[str] = None) -> tuple[bool, float, int]:
+def _is_shallow_repository_with_details(cwd=None):
+    # type: (Optional[str]) -> Tuple[bool, float, int]
     stdout, _, duration, returncode = _git_subprocess_cmd_with_details("rev-parse", "--is-shallow-repository", cwd=cwd)
     is_shallow = stdout.strip() == "true"
     return (is_shallow, duration, returncode)
 
 
-def _get_device_for_path(path: str) -> int:
+def _get_device_for_path(path):
+    # type: (str) -> int
     return os.stat(path).st_dev
 
 
@@ -216,7 +225,7 @@ def _unshallow_repository(
     _unshallow_repository_with_details(cwd, repo, refspec, parent_only)
 
 
-def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> dict[str, tuple[str, str, str]]:
+def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> Dict[str, Tuple[str, str, str]]:
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
     cmd = "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z"
@@ -240,7 +249,8 @@ def extract_git_version(cwd=None):
     return version_info
 
 
-def _extract_remote_url_with_details(cwd: Optional[str] = None) -> _GitSubprocessDetails:
+def _extract_remote_url_with_details(cwd=None):
+    # type: (Optional[str]) -> _GitSubprocessDetails
     return _git_subprocess_cmd_with_details("config", "--get", "remote.origin.url", cwd=cwd)
 
 
@@ -251,11 +261,13 @@ def extract_remote_url(cwd=None):
     raise ValueError(error)
 
 
-def _extract_latest_commits_with_details(cwd: Optional[str] = None) -> _GitSubprocessDetails:
+def _extract_latest_commits_with_details(cwd=None):
+    # type: (Optional[str]) -> _GitSubprocessDetails
     return _git_subprocess_cmd_with_details("log", "--format=%H", "-n", "1000", '--since="1 month ago"', cwd=cwd)
 
 
-def extract_latest_commits(cwd: Optional[str] = None) -> list[str]:
+def extract_latest_commits(cwd=None):
+    # type: (Optional[str]) -> List[str]
     latest_commits, error, _, returncode = _extract_latest_commits_with_details(cwd=cwd)
     if returncode == 0:
         return latest_commits.split("\n") if latest_commits else []
@@ -266,11 +278,8 @@ def get_rev_list_excluding_commits(commit_shas, cwd=None):
     return _get_rev_list_with_details(excluded_commit_shas=commit_shas, cwd=cwd)[0]
 
 
-def _get_rev_list_with_details(
-    excluded_commit_shas: Optional[list[str]] = None,
-    included_commit_shas: Optional[list[str]] = None,
-    cwd: Optional[str] = None,
-) -> _GitSubprocessDetails:
+def _get_rev_list_with_details(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
+    # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> _GitSubprocessDetails
     command = ["rev-list", "--objects", "--filter=blob:none"]
     if extract_git_version(cwd=cwd) >= (2, 23, 0):
         command.append('--since="1 month ago"')
@@ -285,23 +294,22 @@ def _get_rev_list_with_details(
     return _git_subprocess_cmd_with_details(*command, cwd=cwd)
 
 
-def _get_rev_list(
-    excluded_commit_shas: Optional[list[str]] = None,
-    included_commit_shas: Optional[list[str]] = None,
-    cwd: Optional[str] = None,
-) -> str:
+def _get_rev_list(excluded_commit_shas=None, included_commit_shas=None, cwd=None):
+    # type: (Optional[list[str]], Optional[list[str]], Optional[str]) -> str
     return _get_rev_list_with_details(
         excluded_commit_shas=excluded_commit_shas, included_commit_shas=included_commit_shas, cwd=cwd
     )[0]
 
 
-def _extract_repository_url_with_details(cwd: Optional[str] = None) -> _GitSubprocessDetails:
+def _extract_repository_url_with_details(cwd=None):
+    # type: (Optional[str]) -> _GitSubprocessDetails
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
 
     return _git_subprocess_cmd_with_details("ls-remote", "--get-url", cwd=cwd)
 
 
-def extract_repository_url(cwd: Optional[str] = None) -> str:
+def extract_repository_url(cwd=None):
+    # type: (Optional[str]) -> str
     """Extract the repository url from the git repository in the current directory or one specified by ``cwd``."""
     stdout, stderr, _, returncode = _extract_repository_url_with_details(cwd=cwd)
     if returncode == 0:
@@ -309,33 +317,37 @@ def extract_repository_url(cwd: Optional[str] = None) -> str:
     raise ValueError(stderr)
 
 
-def extract_commit_message(cwd: Optional[str] = None) -> str:
+def extract_commit_message(cwd=None):
+    # type: (Optional[str]) -> str
     """Extract git commit message from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
     commit_message = _git_subprocess_cmd("show -s --format=%s", cwd=cwd)
     return commit_message
 
 
-def extract_workspace_path(cwd: Optional[str] = None) -> str:
+def extract_workspace_path(cwd=None):
+    # type: (Optional[str]) -> str
     """Extract the root directory path from the git repository in the current directory or one specified by ``cwd``."""
     workspace_path = _git_subprocess_cmd("rev-parse --show-toplevel", cwd=cwd)
     return workspace_path
 
 
-def extract_branch(cwd: Optional[str] = None) -> str:
+def extract_branch(cwd=None):
+    # type: (Optional[str]) -> str
     """Extract git branch from the git repository in the current directory or one specified by ``cwd``."""
     branch = _git_subprocess_cmd("rev-parse --abbrev-ref HEAD", cwd=cwd)
     return branch
 
 
-def extract_commit_sha(cwd: Optional[str] = None) -> str:
+def extract_commit_sha(cwd=None):
+    # type: (Optional[str]) -> str
     """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
     commit_sha = _git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
     return commit_sha
 
 
-def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -> dict[str, Optional[str]]:
-    tags: dict[str, Optional[str]] = {}
+def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -> Dict[str, Optional[str]]:
+    tags: Dict[str, Optional[str]] = {}
 
     is_shallow, *_ = _is_shallow_repository_with_details(cwd=cwd)
     if is_shallow:
@@ -360,9 +372,10 @@ def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -
     return tags
 
 
-def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
+def extract_git_metadata(cwd=None):
+    # type: (Optional[str]) -> Dict[str, Optional[str]]
     """Extract git commit metadata."""
-    tags: dict[str, Optional[str]] = {}
+    tags = {}  # type: Dict[str, Optional[str]]
     _set_safe_directory()
     try:
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
@@ -386,7 +399,8 @@ def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     return tags
 
 
-def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) -> dict[str, Optional[str]]:
+def extract_user_git_metadata(env=None):
+    # type: (Optional[MutableMapping[str, str]]) -> Dict[str, Optional[str]]
     """Extract git commit metadata from user-provided env vars."""
     env = os.environ if env is None else env
 
@@ -415,7 +429,8 @@ def extract_user_git_metadata(env: Optional[MutableMapping[str, str]] = None) ->
 
 
 @contextlib.contextmanager
-def _build_git_packfiles_with_details(revisions: str, cwd: Optional[str] = None, use_tempdir: bool = True) -> Generator:
+def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
+    # type: (str, Optional[str], bool) -> Generator
     basename = str(random.randint(1, 1000000))
 
     # check that the tempdir and cwd are on the same filesystem, otherwise git pack-objects will fail
@@ -448,7 +463,8 @@ def _build_git_packfiles_with_details(revisions: str, cwd: Optional[str] = None,
 
 
 @contextlib.contextmanager
-def build_git_packfiles(revisions: str, cwd: Optional[str] = None) -> Generator:
+def build_git_packfiles(revisions, cwd=None):
+    # type: (str, Optional[str]) -> Generator
     with _build_git_packfiles_with_details(revisions, cwd=cwd) as (prefix, process_details):
         if process_details.returncode == 0:
             yield prefix

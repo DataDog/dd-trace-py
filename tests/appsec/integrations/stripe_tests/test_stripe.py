@@ -2,6 +2,7 @@ import json
 import os
 import time
 from typing import Any
+from typing import Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -302,7 +303,7 @@ def _build_webhook_signature(payload, secret):
     return payload_json, header
 
 
-def include_webhook(path: str) -> dict[str, Any]:
+def include_webhook(path: str) -> Dict[str, Any]:
     directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webhooks")
     with open(os.path.join(directory, path)) as file:
         return json.loads(file.read())

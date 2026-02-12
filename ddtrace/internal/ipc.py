@@ -122,11 +122,11 @@ class SharedStringFile:
         except Exception:  # nosec
             pass
 
-    def peekall_unlocked(self, f: typing.BinaryIO) -> list[str]:
+    def peekall_unlocked(self, f: typing.BinaryIO) -> typing.List[str]:
         f.seek(0)
         return data.decode().split("\x00") if (data := f.read().strip(b"\x00")) else []
 
-    def peekall(self) -> list[str]:
+    def peekall(self) -> typing.List[str]:
         """Peek at all strings from the file."""
         if self.filename is None:
             return []
@@ -137,7 +137,7 @@ class SharedStringFile:
         except Exception:  # nosec
             return []
 
-    def snatchall(self) -> list[str]:
+    def snatchall(self) -> typing.List[str]:
         """Retrieve and remove all strings from the file."""
         if self.filename is None:
             return []

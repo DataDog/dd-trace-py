@@ -4,6 +4,7 @@ from collections import deque
 import json
 from pathlib import Path
 import sys
+import typing as t
 
 from betsy import DependencyGraph
 
@@ -12,7 +13,7 @@ ROOT = Path(__file__).parents[2] / "ddtrace"
 
 
 g = DependencyGraph(root=ROOT, include={"ddtrace"}).data  # modules and what they import
-q: deque[str] = deque()
+q: t.Deque[str] = deque()
 f = defaultdict(set)  # modules and who imports them
 for importer, imports in list(g.items()):
     if not imports:
@@ -23,7 +24,7 @@ for importer, imports in list(g.items()):
             f[i].add(importer)
 
 
-def dfs(v: str, visited: set[str], stack: list[str], cycles: dict[frozenset, tuple]):
+def dfs(v: str, visited: t.Set[str], stack: t.List[str], cycles: dict[frozenset, tuple]):
     for i in g.get(v, set()):
         if i not in visited:
             dfs(i, {*visited, v}, [*stack, v], cycles)

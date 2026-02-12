@@ -39,7 +39,7 @@ class ModuleCollector(DebuggerModuleWatchdog):
     def __init__(self, *args, **kwargs):
         super(ModuleCollector, self).__init__(*args, **kwargs)
 
-        self._imported_modules: set[str] = set()
+        self._imported_modules: t.Set[str] = set()
 
     def on_collect(self, discovery: FunctionDiscovery) -> None:
         raise NotImplementedError()
@@ -132,7 +132,7 @@ class ExplorationSignalCollector(SignalCollector):
         encoder_class = LogSignalJsonEncoder if config.encode else NoopSnapshotJsonEncoder
         self._encoder = encoder_class("exploration")
         self._encoder._encoders = {Snapshot: self._encoder}
-        self._snapshots: list[bytes] = []
+        self._snapshots: t.List[bytes] = []
         self._probes = []
         self._failed_encoding = []
         self.on_snapshot = None
@@ -149,11 +149,11 @@ class ExplorationSignalCollector(SignalCollector):
             self.on_snapshot(snapshot)
 
     @property
-    def snapshots(self) -> list[t.Optional[bytes]]:
+    def snapshots(self) -> t.List[t.Optional[bytes]]:
         return self._snapshots or [None]
 
     @property
-    def probes(self) -> list[t.Optional[Probe]]:
+    def probes(self) -> t.List[t.Optional[Probe]]:
         return self._probes or [None]
 
 
@@ -252,19 +252,19 @@ class ExplorationDebugger(Debugger):
             os._exit(2)
 
     @classmethod
-    def get_snapshots(cls) -> list[t.Optional[bytes]]:
+    def get_snapshots(cls) -> t.List[t.Optional[bytes]]:
         if cls._instance is None:
             raise RuntimeError("ExplorationDebugger is not enabled")
         return cls._instance.__uploader__.get_collector().snapshots
 
     @classmethod
-    def get_triggered_probes(cls) -> list[Probe]:
+    def get_triggered_probes(cls) -> t.List[Probe]:
         if cls._instance is None:
             raise RuntimeError("ExplorationDebugger is not enabled")
         return cls._instance.__uploader__.get_collector().probes
 
     @classmethod
-    def get_failed_probes(cls) -> list[Probe]:
+    def get_failed_probes(cls) -> t.List[Probe]:
         if cls._instance is None:
             raise RuntimeError("ExplorationDebugger is not enabled")
         return [e for e in cls._instance._probe_registry.values() if e.error_type is not None]
@@ -276,7 +276,7 @@ class ExplorationDebugger(Debugger):
         cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, [probe])
 
     @classmethod
-    def add_probes(cls, probes: list[Probe]) -> None:
+    def add_probes(cls, probes: t.List[Probe]) -> None:
         if cls._instance is None:
             raise RuntimeError("ExplorationDebugger is not enabled")
         cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, probes)

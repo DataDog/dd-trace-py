@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import mock
@@ -80,7 +81,8 @@ def azure_openai_config(openai):
 class FilterOrg(TraceFilter):
     """Replace the organization tag on spans with fake data."""
 
-    def process_trace(self, trace: list["Span"]) -> Optional[list["Span"]]:
+    def process_trace(self, trace):
+        # type: (List[Span]) -> Optional[List[Span]]
         for span in trace:
             if span.get_tag("organization"):
                 span._set_tag_str("organization", "not-a-real-org")

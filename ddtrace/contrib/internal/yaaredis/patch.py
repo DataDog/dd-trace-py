@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import wrapt
 import yaaredis
@@ -31,7 +32,7 @@ def get_version() -> str:
     return getattr(yaaredis, "__version__", "")
 
 
-def _supported_versions() -> dict[str, str]:
+def _supported_versions() -> Dict[str, str]:
     return {"yaaredis": ">=2.0.0"}
 
 
