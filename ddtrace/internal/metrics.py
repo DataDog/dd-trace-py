@@ -1,8 +1,52 @@
 from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Protocol  # noqa:F401
 
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+
+class MetricsClient(Protocol):
+    def increment(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
+    def gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
+    def histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
+    def distribution(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
+
+
+class DogStatsdClient(MetricsClient):
+    def __init__(self, namespace: Optional[str] = None) -> None:
+        self._client = get_dogstatsd_client(agent_config.dogstatsd_url, namespace=namespace)
+
+    def increment(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        self._client.increment(name, int(value), [":".join(_) for _ in tags.items()] if tags else None)
+
+    def gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        self._client.gauge(name, value, [":".join(_) for _ in tags.items()] if tags else None)
+
+    def histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        self._client.histogram(name, value, [":".join(_) for _ in tags.items()] if tags else None)
+
+    def distribution(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        self._client.distribution(name, value, [":".join(_) for _ in tags.items()] if tags else None)
+
+
+class InstrumentationTelemetryMetricsClient(MetricsClient):
+    def __init__(self, namespace: TELEMETRY_NAMESPACE) -> None:
+        self.namespace = namespace
+
+    def increment(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        telemetry_writer.add_count_metric(self.namespace, name, int(value), tuple(tags.items()) if tags else ())
+
+    def gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        telemetry_writer.add_gauge_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
+
+    def histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        pass
+
+    def distribution(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+        telemetry_writer.add_distribution_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
 
 
 class Metrics(object):
@@ -24,13 +68,9 @@ class Metrics(object):
             >>> writer_meter.increment('success')  # won't be emitted
     """
 
-    def __init__(self, dogstats_url=None, namespace=None):
-        # type: (Optional[str], Optional[str]) -> None
-        self.dogstats_url = dogstats_url
-        self.namespace = namespace
+    def __init__(self, client: MetricsClient) -> None:
         self.enabled = False
-
-        self._client = get_dogstatsd_client(dogstats_url or agent_config.dogstatsd_url, namespace=namespace)
+        self.client = client
 
     class Meter(object):
         def __init__(self, metrics, name):
@@ -43,36 +83,28 @@ class Metrics(object):
             if not self.metrics.enabled:
                 return None
 
-            self.metrics._client.increment(
-                ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
-            )
+            self.metrics.client.increment(".".join((self.name, name)), value, tags)
 
         def gauge(self, name, value=1.0, tags=None):
             # type: (str, float, Optional[Dict[str, str]]) -> None
             if not self.metrics.enabled:
                 return None
 
-            self.metrics._client.gauge(
-                ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
-            )
+            self.metrics.client.gauge(".".join((self.name, name)), value, tags)
 
         def histogram(self, name, value=1.0, tags=None):
             # type: (str, float, Optional[Dict[str, str]]) -> None
             if not self.metrics.enabled:
                 return None
 
-            self.metrics._client.histogram(
-                ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
-            )
+            self.metrics.client.histogram(".".join((self.name, name)), value, tags)
 
         def distribution(self, name, value=1.0, tags=None):
             # type: (str, float, Optional[Dict[str, str]]) -> None
             if not self.metrics.enabled:
                 return None
 
-            self.metrics._client.distribution(
-                ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
-            )
+            self.metrics.client.distribution(".".join((self.name, name)), value, tags)
 
     def enable(self):
         # type: () -> None

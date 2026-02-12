@@ -108,6 +108,7 @@ class Span(SpanData):
     __slots__ = [
         # Public span attributes
         "_span_api",
+        "span_id",
         "trace_id",
         "parent_id",
         "_meta",
@@ -172,8 +173,6 @@ class Span(SpanData):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
-
-        self._span_api = span_api
 
         self._meta: Dict[str, str] = {}
         self._metrics: Dict[str, NumericType] = {}
