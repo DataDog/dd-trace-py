@@ -727,6 +727,7 @@ venv = Venv(
                 "kombu": ">=4.2.0,<4.3.0",
                 "pymssql": latest,
                 "pytest-randomly": latest,
+                "redis": latest,
                 "requests": latest,
             },
             env={
@@ -3280,7 +3281,7 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
-                "riot": "==0.20.1",
+                "riot": "==0.21.0",
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
@@ -3294,6 +3295,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
+                "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
@@ -3374,6 +3376,16 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3420,6 +3432,16 @@ venv = Venv(
                                 ),
                             ],
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3449,6 +3471,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
@@ -3482,6 +3514,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),

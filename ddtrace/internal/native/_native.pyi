@@ -518,13 +518,30 @@ class SpanData:
     name: str
     service: Optional[str]
     resource: str
+    span_type: Optional[str]
+    start_ns: int
+    duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
+    error: int
+    start: float  # Convenience property: start_ns / 1e9 (in seconds)
+    duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    _span_api: str
 
     def __new__(
         cls: Type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,  # placeholder for Span.__init__
+        span_id: Optional[int] = None,  # placeholder for Span.__init__
+        parent_id: Optional[int] = None,  # placeholder for Span.__init__
+        start: Optional[float] = None,
+        context: Optional[Any] = None,  # placeholder for Span.__init__
+        on_finish: Optional[Any] = None,  # placeholder for Span.__init__
+        span_api: Optional[str] = None,
     ) -> _SpanDataT: ...
+    @property
+    def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
 class SpanEventData:
     def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...
@@ -539,3 +556,7 @@ class SpanLinkData:
         attributes: Optional[Dict[str, str]] = None,
         _dropped_attributes: int = 0,
     ): ...
+
+def seed() -> None: ...
+def rand64bits() -> int: ...
+def generate_128bit_trace_id() -> int: ...

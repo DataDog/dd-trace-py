@@ -57,7 +57,6 @@ tests/internal                      @DataDog/apm-core-python
 tests/lib-injection                 @DataDog/apm-core-python
 tests/opentelemetry                 @DataDog/apm-core-python
 tests/opentracer                    @DataDog/apm-core-python
-tests/tracer                        @DataDog/apm-core-python
 
 # Test Visibility and related
 ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
@@ -224,6 +223,7 @@ tests/openfeature/                        @DataDog/feature-flagging-and-experime
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-capabilities-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-capabilities-python
+ddtrace/_trace/span.py                             @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # File commonly updated for integrations, widen ownership to help with PR review
 ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities-python
@@ -245,7 +245,7 @@ tests/runtime/                                     @DataDog/apm-sdk-capabilities
 tests/test_sampling.py                             @DataDog/apm-sdk-capabilities-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
 tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
-tests/tracer/                                      @DataDog/apm-sdk-capabilities-python
+tests/tracer/                                      @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 

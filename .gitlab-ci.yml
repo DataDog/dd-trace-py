@@ -15,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "107798bd55a6d4ca247b88d01a1316549b8bafe9"
+  SYSTEM_TESTS_REF: "0382c548169eae1b20cf218d9f29ba067ded8a39"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
@@ -46,6 +46,7 @@ workflow:
     - when: always
 
 include:
+  - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -78,6 +79,8 @@ tests-gen:
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
+      - .gitlab/benchmarks/microbenchmarks-gen.yml
+      - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
 run-tests-trigger:
  stage: tests
@@ -134,6 +137,7 @@ serverless lambda tests:
 microbenchmarks:
   stage: benchmarks
   needs:
+    - job: tests-gen
     - job: "build linux"
       parallel:
         matrix:
@@ -146,7 +150,9 @@ microbenchmarks:
       allow_failure: true
     - allow_failure: false
   trigger:
-    include: .gitlab/benchmarks/microbenchmarks.yml
+    include:
+      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
+        job: tests-gen
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
@@ -259,6 +265,13 @@ check_requirements_lockfiles:
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
+check_ci_dependencies:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - scripts/check-ci-dependencies
+
 codeowners:
   stage: tests
   needs: []
@@ -268,12 +281,17 @@ codeowners:
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - export CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
+    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
+    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      if [ ! -z "$CHANGED_FILES" ]; then
-        ./codeowners "$CHANGED_FILES"
+      > /tmp/changed_files.txt
+      while IFS= read -r f; do
+        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
+      done < /tmp/changed_all.txt
+    - |
+      if [ -s /tmp/changed_files.txt ]; then
         echo '```' > codeowners.txt
-        echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
+        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - |

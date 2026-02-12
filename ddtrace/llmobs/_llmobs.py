@@ -32,10 +32,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import atexit
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
-from ddtrace.internal._rand import rand64bits
-from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import generate_128bit_trace_id
+from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
@@ -1476,7 +1476,7 @@ class LLMObs(Service):
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
             span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
-            span._set_ctx_item(LLMOBS_TRACE_ID, rand128bits())
+            span._set_ctx_item(LLMOBS_TRACE_ID, generate_128bit_trace_id())
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -2139,9 +2139,9 @@ class LLMObs(Service):
                 raise ValueError("label value must not contain a '.'.")
 
             metric_type = metric_type.lower()
-            if metric_type not in ("categorical", "score", "boolean"):
+            if metric_type not in ("categorical", "score", "boolean", "json"):
                 error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
+                raise ValueError("metric_type must be one of 'categorical', 'score', 'boolean', or 'json'.")
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
@@ -2152,6 +2152,9 @@ class LLMObs(Service):
             if metric_type == "boolean" and not isinstance(value, bool):
                 error = "invalid_metric_value"
                 raise TypeError("value must be a boolean for a boolean metric.")
+            if metric_type == "json" and not isinstance(value, dict):
+                error = "invalid_metric_value"
+                raise TypeError("value must be a dict for a json metric.")
 
             if tags is not None and not isinstance(tags, dict):
                 raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
@@ -2241,10 +2244,10 @@ class LLMObs(Service):
             llmobs_trace_id = active_span._get_ctx_item(LLMOBS_TRACE_ID)
         elif active_context is not None:
             ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
-            llmobs_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or rand128bits()
+            llmobs_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or generate_128bit_trace_id()
         else:
             ml_app = config._llmobs_ml_app
-            llmobs_trace_id = rand128bits()
+            llmobs_trace_id = generate_128bit_trace_id()
 
         span_context._meta[PROPAGATED_PARENT_ID_KEY] = parent_id
         span_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(llmobs_trace_id)

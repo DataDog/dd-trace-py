@@ -12,6 +12,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
     import asyncio
     import math
     import os
+    import sys
     import time
     import uuid
 
@@ -20,6 +21,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import async_run
 
     assert stack.is_available, stack.failure_msg
 
@@ -63,7 +65,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
     with tracer.trace("test_asyncio", resource=resource, span_type=span_type) as span:
         local_root_span_id = span._local_root.span_id
 
-        asyncio.run(main())
+        async_run(main())
 
     p.stop()
 
@@ -76,6 +78,14 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
     def loc(f_name: str, file: str = "", line_no: int = -1) -> pprof_utils.StackLocation:
         return pprof_utils.StackLocation(function_name=f_name, filename=file, line_no=line_no)
 
+    # On Python < 3.11 with uvloop, the runner is uvloop/__init__.py, not asyncio/runners.py
+    # On Python >= 3.11, uvloop delegates to asyncio.Runner, so it's still runners.py
+    use_uvloop = os.environ.get("USE_UVLOOP", "0") == "1"
+    if use_uvloop and sys.version_info < (3, 11):
+        run_file = "__init__.py"
+    else:
+        run_file = "runners.py"
+
     pprof_utils.assert_profile_has_sample(
         profile,
         samples,
@@ -87,7 +97,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
                 loc("factorial", "test_asyncio_wall_time_on_and_off_cpu.py"),
                 loc("cpu_bound_work", "test_asyncio_wall_time_on_and_off_cpu.py"),
                 loc("main", "test_asyncio_wall_time_on_and_off_cpu.py"),
-                loc("run", "runners.py"),
+                loc("run", run_file),
                 loc("<module>", "test_asyncio_wall_time_on_and_off_cpu.py"),
             ],
         ),
@@ -105,7 +115,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
                 loc("sleep", "tasks.py"),
                 loc("io_simulation", "test_asyncio_wall_time_on_and_off_cpu.py"),
                 loc("main", "test_asyncio_wall_time_on_and_off_cpu.py"),
-                loc("run", "runners.py"),
+                loc("run", run_file),
                 loc("<module>", "test_asyncio_wall_time_on_and_off_cpu.py"),
             ],
         ),
@@ -124,7 +134,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
                 loc("cpu_bound_work", "test_asyncio_wall_time_on_and_off_cpu.py"),
                 loc("mixed_workload", "test_asyncio_wall_time_on_and_off_cpu.py"),
                 loc("main", "test_asyncio_wall_time_on_and_off_cpu.py"),
-                loc("run", "runners.py"),
+                loc("run", run_file),
                 loc("<module>", "test_asyncio_wall_time_on_and_off_cpu.py"),
             ],
         ),
@@ -143,7 +153,7 @@ def test_asyncio_wall_time_on_and_off_cpu() -> None:
                 loc("io_simulation", "test_asyncio_wall_time_on_and_off_cpu.py"),
                 loc("mixed_workload", "test_asyncio_wall_time_on_and_off_cpu.py"),
                 loc("main", "test_asyncio_wall_time_on_and_off_cpu.py"),
-                loc("run", "runners.py"),
+                loc("run", run_file),
                 loc("<module>", "test_asyncio_wall_time_on_and_off_cpu.py"),
             ],
         ),

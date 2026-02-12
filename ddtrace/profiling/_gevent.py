@@ -19,7 +19,7 @@ _gevent_wait: t.Callable[..., t.Any] = gevent.wait
 _gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
 
 # Global package state
-_greenlet_frames: t.Dict[int, t.Union[FrameType, bool, None]] = {}
+_tracked_greenlets: t.Set[int] = set()
 _original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
 _greenlet_parent_map: t.Dict[int, int] = {}
 _parent_greenlet_count: t.Dict[int, int] = {}
@@ -53,13 +53,13 @@ def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
     except Exception as e:
         raise GreenletTrackingError("Cannot link greenlet for untracking") from e
 
-    _greenlet_frames[greenlet_id] = frame
+    _tracked_greenlets.add(greenlet_id)
 
     return greenlet
 
 
 def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None]) -> None:
-    _greenlet_frames[greenlet_id] = frame
+    _tracked_greenlets.add(greenlet_id)
     stack.update_greenlet_frame(greenlet_id, frame)
 
 
@@ -68,14 +68,14 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         # This tracer function runs in the context of the target
         origin, target = t.cast(t.Tuple[_Greenlet, _Greenlet], args)
 
-        if (origin_id := thread.get_ident(origin)) not in _greenlet_frames:
+        if (origin_id := thread.get_ident(origin)) not in _tracked_greenlets:
             try:
                 track_gevent_greenlet(origin)
             except GreenletTrackingError:
                 # Not something that we can track
                 pass
 
-        if (target_id := thread.get_ident(target)) not in _greenlet_frames:
+        if (target_id := thread.get_ident(target)) not in _tracked_greenlets:
             # This is likely the hub. We take this chance to track it.
             try:
                 track_gevent_greenlet(target)
@@ -107,7 +107,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
 def untrack_greenlet(greenlet: _Greenlet) -> None:
     greenlet_id: int = thread.get_ident(greenlet)
     stack.untrack_greenlet(greenlet_id)
-    _greenlet_frames.pop(greenlet_id, None)
+    _tracked_greenlets.discard(greenlet_id)
     _parent_greenlet_count.pop(greenlet_id, None)
     if (parent_id := _greenlet_parent_map.pop(greenlet_id, None)) is not None:
         _parent_greenlet_count[parent_id] -= 1
@@ -189,6 +189,17 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
         return original(*args, **kwargs)
 
     return _
+
+
+def get_current_greenlet_task() -> t.Tuple[t.Optional[int], t.Optional[str], t.Optional[FrameType]]:
+    current_greenlet = gevent.getcurrent()
+    task_id = thread.get_ident(current_greenlet)
+    # Import locally to avoid eager import order interactions.
+    from ddtrace.profiling import _threading
+
+    task_name = _threading.get_thread_name(task_id)
+    frame = t.cast(t.Optional[FrameType], current_greenlet.gr_frame)
+    return task_id, task_name, frame
 
 
 def patch() -> None:

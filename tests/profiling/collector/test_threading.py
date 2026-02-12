@@ -95,23 +95,23 @@ class Bar:
     [
         (
             ThreadingLockCollector,
-            "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             ThreadingRLockCollector,
-            "ThreadingRLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingRLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             ThreadingSemaphoreCollector,
-            "ThreadingSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             ThreadingBoundedSemaphoreCollector,
-            "ThreadingBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",  # noqa: E501
         ),
         (
             ThreadingConditionCollector,
-            "ThreadingConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
     ],
 )
@@ -294,11 +294,8 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
             expected_release_events=[
@@ -307,11 +304,8 @@ def test_lock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
         )
@@ -387,11 +381,8 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
             expected_release_events=[
@@ -400,11 +391,8 @@ def test_rlock_gevent_tasks() -> None:
                     filename=expected_filename,
                     linenos=linenos,
                     lock_name="lock",
-                    # TODO: With stack, the way we trace gevent greenlets has
-                    # changed, and we'd need to expose an API to get the task_id,
-                    # task_name, and task_frame.
-                    # task_id=t.ident,
-                    # task_name="foobar",
+                    task_id=t.ident,
+                    task_name="foobar",
                 ),
             ],
         )
@@ -505,7 +493,6 @@ def test_profiled_lock_ctor_handles_shallow_stack() -> None:
     profiled_lock = _ProfiledLock(
         wrapped=real_lock,
         tracer=None,
-        max_nframes=64,
         capture_sampler=capture_sampler,
     )
 
@@ -572,7 +559,6 @@ def test_update_name_handles_shallow_stack() -> None:
     profiled_lock = _ProfiledLock(
         wrapped=real_lock,
         tracer=None,
-        max_nframes=64,
         capture_sampler=capture_sampler,
     )
 
@@ -655,8 +641,14 @@ def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
             bsem2.release()
 
 
-class BaseThreadingLockCollectorTest:
-    # These should be implemented by child classes
+class LockCollectorTestBase:
+    """Minimal base class providing ddup setup/teardown for lock collector tests.
+
+    Subclasses must define:
+    - collector_class: The collector class to use (e.g., ThreadingLockCollector)
+    - lock_class: The lock class to use (e.g., threading.Lock)
+    """
+
     @property
     def collector_class(self) -> CollectorTypeClass:
         raise NotImplementedError("Child classes must implement collector_class")
@@ -702,6 +694,25 @@ class BaseThreadingLockCollectorTest:
                 os.remove(f)
             except Exception as e:
                 print("Error removing file: {}".format(e))
+
+
+class TestGenericLockProfiling(LockCollectorTestBase):
+    """Generic lock profiling tests that run once with threading.Lock.
+
+    These tests verify the core profiling infrastructure which is shared across
+    all lock types. Running them once with Lock is sufficient since:
+    - All lock types use the same _ProfiledLock wrapper
+    - The profiling logic (sampling, stack traces, ddup integration) is identical
+    - Lock-type-specific behavior is tested in dedicated test classes
+    """
+
+    @property
+    def collector_class(self) -> Type[ThreadingLockCollector]:
+        return ThreadingLockCollector
+
+    @property
+    def lock_class(self) -> Type[threading.Lock]:
+        return threading.Lock
 
     def test_wrapper(self) -> None:
         with self.collector_class():
@@ -767,6 +778,69 @@ class BaseThreadingLockCollectorTest:
                 ),
             ],
         )
+
+    def test_lock_events_truncate_frames(self) -> None:
+        """Ensure lock samples keep leaf callsite and use an omitted-frames root when truncated.
+
+        This builds a call stack deeper than max frames, then verifies that for both
+        lock-acquire and lock-release samples we can still find the expected callsite
+        as the leaf frame, while the root frame is the synthetic
+        "<N frame(s) omitted>" marker.
+        """
+        from ddtrace.internal.settings.profiling import config
+
+        # Force a deeper stack than configured max frames so truncation always happens.
+        recursion_depth = config.max_frames + 50
+
+        def deep_lock_ops(depth: int, lock: LockTypeInst) -> None:
+            if depth == 0:
+                lock.acquire()  # !ACQUIRE! test_lock_events_truncate_frames
+                lock.release()  # !RELEASE! test_lock_events_truncate_frames
+                return
+            deep_lock_ops(depth - 1, lock)
+
+        with self.collector_class(capture_pct=100):
+            lock: LockTypeInst = self.lock_class()  # !CREATE! test_lock_events_truncate_frames
+            deep_lock_ops(recursion_depth, lock)
+
+        ddup.upload()
+
+        profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(self.output_filename)
+        linenos: LineNo = get_lock_linenos("test_lock_events_truncate_frames")
+        caller_name = deep_lock_ops.__qualname__ if PY_311_OR_ABOVE else deep_lock_ops.__name__
+
+        def _assert_callsite_sample_is_truncated(sample_type: str, expected_line: int) -> None:
+            samples = pprof_utils.get_samples_with_value_type(profile, sample_type)
+            assert len(samples) > 0
+
+            found_callsite_sample = False
+            for sample_idx, sample in enumerate(samples):
+                # Stack export allows one extra frame plus an omitted-frames marker.
+                assert len(sample.location_id) <= config.max_frames + 2, (
+                    f"sample index={sample_idx} has too many locations: {len(sample.location_id)}"
+                )
+
+                leaf_location = pprof_utils.get_location_with_id(profile, sample.location_id[0])
+                leaf_line = leaf_location.line[0]
+                leaf_function = pprof_utils.get_function_with_id(profile, leaf_line.function_id)
+                leaf_function_name = profile.string_table[leaf_function.name]
+                if leaf_function_name == caller_name and leaf_line.line == expected_line:
+                    found_callsite_sample = True
+
+                    root_location = pprof_utils.get_location_with_id(profile, sample.location_id[-1])
+                    root_line = root_location.line[0]
+                    root_function = pprof_utils.get_function_with_id(profile, root_line.function_id)
+                    root_function_name = profile.string_table[root_function.name]
+                    assert root_function_name.startswith("<") and "omitted>" in root_function_name, (
+                        f"expected {sample_type} callsite sample root frame to be omitted marker, got"
+                        f" {root_function_name!r}"
+                    )
+                    break
+
+            assert found_callsite_sample, f"expected to find {sample_type} callsite sample"
+
+        _assert_callsite_sample_is_truncated("lock-acquire", linenos.acquire)
+        _assert_callsite_sample_is_truncated("lock-release", linenos.release)
 
     def test_lock_acquire_events_class(self) -> None:
         # Store reference to class for later qualname access
@@ -1416,7 +1490,6 @@ class BaseThreadingLockCollectorTest:
             expected_slots: set[str] = {
                 "__wrapped__",
                 "tracer",
-                "max_nframes",
                 "capture_sampler",
                 "init_location",
                 "acquired_time",
@@ -1478,8 +1551,12 @@ class BaseThreadingLockCollectorTest:
         )
 
 
-class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
-    """Test Lock profiling"""
+class TestThreadingLockCollector(LockCollectorTestBase):
+    """Test Lock-specific profiling behavior.
+
+    Generic profiling tests are in TestGenericLockProfiling.
+    This class only tests Lock-specific behavior (e.g., acquire_lock/release_lock aliases).
+    """
 
     @property
     def collector_class(self) -> Type[ThreadingLockCollector]:
@@ -1508,8 +1585,12 @@ class TestThreadingLockCollector(BaseThreadingLockCollectorTest):
             lock.release_lock()
 
 
-class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
-    """Test RLock profiling"""
+class TestThreadingRLockCollector(LockCollectorTestBase):
+    """Test RLock-specific profiling behavior.
+
+    Generic profiling tests are in TestGenericLockProfiling.
+    This class only tests RLock-specific behavior (e.g., _is_owned method).
+    """
 
     @property
     def collector_class(self) -> Type[ThreadingRLockCollector]:
@@ -1544,11 +1625,12 @@ class TestThreadingRLockCollector(BaseThreadingLockCollectorTest):
             assert not lock._is_owned()
 
 
-class BaseSemaphoreTest(BaseThreadingLockCollectorTest):
+class BaseSemaphoreTest(LockCollectorTestBase):
     """Base test class for Semaphore-like locks (Semaphore and BoundedSemaphore).
 
     Contains tests that apply to both regular Semaphore and BoundedSemaphore,
     particularly those related to internal lock detection and Condition-based implementation.
+    Generic profiling tests are in TestGenericLockProfiling.
     """
 
     def test_subclassing_wrapped_lock(self) -> None:
@@ -1812,8 +1894,12 @@ class TestThreadingBoundedSemaphoreCollector(BaseSemaphoreTest):
                 sem.release()
 
 
-class TestThreadingConditionCollector(BaseThreadingLockCollectorTest):
-    """Test threading.Condition profiling."""
+class TestThreadingConditionCollector(LockCollectorTestBase):
+    """Test threading.Condition-specific profiling behavior.
+
+    Generic profiling tests are in TestGenericLockProfiling.
+    This class can be extended with Condition-specific tests (e.g., wait/notify behavior).
+    """
 
     @property
     def collector_class(self) -> Type[ThreadingConditionCollector]:

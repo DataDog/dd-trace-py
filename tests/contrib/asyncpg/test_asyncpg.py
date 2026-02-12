@@ -382,7 +382,7 @@ def test_patch_unpatch_asyncpg():
 class AsyncPgTestCase(AsyncioTestCase):
     conn = None
 
-    async def _get_conn_tracer(self):
+    async def _get_conn(self):
         if not self.conn:
             self.conn = await asyncpg.connect(
                 host=POSTGRES_CONFIG["host"],
@@ -392,8 +392,7 @@ class AsyncPgTestCase(AsyncioTestCase):
                 password=POSTGRES_CONFIG["password"],
             )
             assert not self.conn.is_closed()
-
-            return self.conn, self.tracer
+        return self.conn
 
     def setUp(self):
         super().setUp()
@@ -410,7 +409,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     async def test_asyncpg_dbm_propagation_enabled(self):
-        conn, _ = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         await conn.execute("SELECT 1")
         spans = self.get_spans()
@@ -433,7 +432,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_with_global_service_name_configured(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
@@ -470,7 +469,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_integration_service_name_override(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
@@ -507,7 +506,7 @@ class AsyncPgTestCase(AsyncioTestCase):
     async def test_asyncpg_dbm_propagation_comment_peer_service_enabled(self):
         """tests if dbm comment is set in postgres"""
         db_name = POSTGRES_CONFIG["dbname"]
-        conn, tracer = await self._get_conn_tracer()
+        conn = await self._get_conn()
 
         def mock_func(args, kwargs, sql_pos, sql_kw, sql_with_dbm_tags):
             return args, kwargs
