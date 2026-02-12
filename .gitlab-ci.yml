@@ -349,7 +349,8 @@ detect_circular_imports:
 
 
 package-oci:
-  needs: [ "ddtrace package", download_dependency_wheels ]
+  # We only need linux wheels for OCI
+  needs: [ download_dependency_wheels ]
 
 promote-oci-to-prod:
   stage: release

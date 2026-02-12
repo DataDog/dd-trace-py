@@ -190,6 +190,8 @@ download_dependency_wheels:
   needs:
     - job: "build linux"
       artifacts: true
+    - job: "package version"
+      artifacts: true
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
