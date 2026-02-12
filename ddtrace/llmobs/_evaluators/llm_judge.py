@@ -313,6 +313,8 @@ def _create_vertexai_client(client_options: Optional[Dict[str, Any]] = None) -> 
         model_instance = GenerativeModel(model, system_instruction="\n".join(system_msgs))
 
         generation_config_params = model_params.copy() if model_params else {}
+        if "max_tokens" in generation_config_params:
+            generation_config_params["max_output_tokens"] = generation_config_params.pop("max_tokens")
         if json_schema:
             schema_copy = copy.deepcopy(json_schema)
             for prop_val in schema_copy.get("properties", {}).values():

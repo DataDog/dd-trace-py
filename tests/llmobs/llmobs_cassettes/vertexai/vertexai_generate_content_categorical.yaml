@@ -5,7 +5,7 @@ interactions:
       Content-Type:
       - application/json
     method: POST
-    uri: https://us-central1-aiplatform.googleapis.com/v1beta1/projects/test-project/locations/us-central1/publishers/google/models/gemini-1.5-pro:generateContent
+    uri: https://us-central1-aiplatform.googleapis.com/v1/projects/test-project/locations/us-central1/publishers/google/models/gemini-1.5-pro:generateContent
   response:
     body:
       string: '{"candidates":[{"content":{"parts":[{"text":"{\"categorical_eval\": \"positive\"}"}],"role":"model"},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":20,"candidatesTokenCount":10,"totalTokenCount":30}}'

@@ -251,63 +251,53 @@ def vertexai_vcr():
 
 
 class TestVertexAIClient:
-    @staticmethod
-    def _mock_google_auth(default_return=None, default_side_effect=None):
-        """Create mock google and google.auth modules with linked attributes."""
-        mock_google_auth = mock.MagicMock()
-        if default_return is not None:
-            mock_google_auth.default.return_value = default_return
-        if default_side_effect is not None:
-            mock_google_auth.default.side_effect = default_side_effect
-        mock_google = mock.MagicMock()
-        mock_google.auth = mock_google_auth
-        return {"google": mock_google, "google.auth": mock_google_auth}
-
-    def test_missing_project_raises(self, monkeypatch):
+    def test_missing_credentials_raises(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
         monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
-        modules = self._mock_google_auth(default_side_effect=Exception("no credentials"))
-        with mock.patch.dict("sys.modules", modules):
-            with pytest.raises(ValueError, match="Google Cloud project not provided"):
+        with mock.patch("google.auth.default", side_effect=Exception("no credentials")):
+            with pytest.raises(ValueError, match="Google Cloud credentials not provided"):
                 _create_vertexai_client()
 
     def test_project_from_default_credentials(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
         monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
-
         mock_credentials = mock.MagicMock()
-        mock_vertexai_module = mock.MagicMock()
-        mock_generative_models = mock.MagicMock()
-
-        modules = self._mock_google_auth(default_return=(mock_credentials, "adc-project"))
-        modules["vertexai"] = mock_vertexai_module
-        modules["vertexai.generative_models"] = mock_generative_models
-
-        with mock.patch.dict("sys.modules", modules):
+        with (
+            mock.patch("google.auth.default", return_value=(mock_credentials, "adc-project")),
+            mock.patch("vertexai.init") as mock_init,
+        ):
             _create_vertexai_client()
-            mock_vertexai_module.init.assert_called_once_with(
+            mock_init.assert_called_once_with(
                 project="adc-project", location="us-central1", credentials=mock_credentials
             )
 
     def test_explicit_project_overrides_adc(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "env-project")
-
         mock_credentials = mock.MagicMock()
-        mock_vertexai_module = mock.MagicMock()
-        mock_generative_models = mock.MagicMock()
-
-        modules = self._mock_google_auth(default_return=(mock_credentials, "adc-project"))
-        modules["vertexai"] = mock_vertexai_module
-        modules["vertexai.generative_models"] = mock_generative_models
-
-        with mock.patch.dict("sys.modules", modules):
+        with (
+            mock.patch("google.auth.default", return_value=(mock_credentials, "adc-project")),
+            mock.patch("vertexai.init") as mock_init,
+        ):
             _create_vertexai_client()
-            mock_vertexai_module.init.assert_called_once_with(
+            mock_init.assert_called_once_with(
                 project="env-project", location="us-central1", credentials=mock_credentials
             )
 
+    @staticmethod
+    def _patch_vertexai_init_rest():
+        """Patch vertexai.init to force REST transport so VCR can intercept HTTP calls."""
+        import vertexai
+
+        original_init = vertexai.init
+
+        def patched_init(**kwargs):
+            kwargs["api_transport"] = "rest"
+            return original_init(**kwargs)
+
+        return mock.patch("vertexai.init", side_effect=patched_init)
+
     def test_client_call(self, vertexai_vcr):
-        with vertexai_vcr.use_cassette("vertexai_generate_content_boolean.yaml"):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_boolean.yaml"):
             client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
             result = client(
                 provider="vertexai",
@@ -324,7 +314,7 @@ class TestVertexAIClient:
         assert result == '{"boolean_eval": true}'
 
     def test_client_call_with_score_schema(self, vertexai_vcr):
-        with vertexai_vcr.use_cassette("vertexai_generate_content_score.yaml"):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_score.yaml"):
             client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
             result = client(
                 provider="vertexai",
@@ -344,7 +334,7 @@ class TestVertexAIClient:
         assert parsed["score_eval"] == 8
 
     def test_client_call_with_categorical_schema(self, vertexai_vcr):
-        with vertexai_vcr.use_cassette("vertexai_generate_content_categorical.yaml"):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_categorical.yaml"):
             client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
             result = client(
                 provider="vertexai",
