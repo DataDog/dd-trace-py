@@ -137,6 +137,7 @@ class Sample
     bool push_local_root_span_id(uint64_t local_root_span_id);
     bool push_trace_type(std::string_view trace_type);
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
+    bool push_exception_message(std::string_view exception_message);
     bool push_class_name(std::string_view class_name);
     bool push_monotonic_ns(int64_t monotonic_ns);
     bool push_absolute_ns(int64_t timestamp_ns);

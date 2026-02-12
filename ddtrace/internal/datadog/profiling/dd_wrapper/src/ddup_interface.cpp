@@ -385,6 +385,13 @@ ddup_push_exceptioninfo(Datadog::Sample* sample, // cppcheck-suppress unusedFunc
 }
 
 void
+ddup_push_exception_message(Datadog::Sample* sample,
+                            std::string_view exception_message) // cppcheck-suppress unusedFunction
+{
+    sample->push_exception_message(exception_message);
+}
+
+void
 ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name) // cppcheck-suppress unusedFunction
 {
     sample->push_class_name(class_name);

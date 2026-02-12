@@ -1,7 +1,6 @@
 from libc.math cimport log, exp, sqrt, floor
 from libc.stdint cimport uint64_t
 
-# SplitMix64 constants
 cdef uint64_t SPLITMIX_INC = 0x9E3779B97F4A7C15ULL
 cdef uint64_t SPLITMIX_MUL1 = 0xBF58476D1CE4E5B9ULL
 cdef uint64_t SPLITMIX_MUL2 = 0x94D049BB133111EBULL
@@ -14,7 +13,7 @@ cdef uint64_t _rng_state
 import os as _os
 _rng_state = int.from_bytes(_os.urandom(8), "little")
 
-
+# SplitMix64: Taken from https://prng.di.unimi.it/splitmix64.c
 cdef inline uint64_t _splitmix64() noexcept nogil:
     global _rng_state
     cdef uint64_t z
@@ -24,14 +23,14 @@ cdef inline uint64_t _splitmix64() noexcept nogil:
     z = (z ^ (z >> 27)) * SPLITMIX_MUL2
     return z ^ (z >> 31)
 
-
+# Convert to double in [0, 1)
 cdef inline double _uniform() noexcept nogil:
     cdef uint64_t x = _splitmix64() >> 11
     return (<double>x + 0.5) * INV_2_53
 
 
+# Taken from: https://en.wikipedia.org/wiki/Poisson_distribution#Generating_Poisson-distributed_random_variables
 cdef inline int _poisson_knuth(double lam) noexcept nogil:
-    # O(λ) - fast for small λ
     cdef double L = exp(-lam)
     cdef int k = 0
     cdef double p = 1.0
@@ -40,9 +39,8 @@ cdef inline int _poisson_knuth(double lam) noexcept nogil:
         p = p * _uniform()
     return k - 1 if k > 0 else 0
 
-
+# Taken from: https://hpaulkeeler.com/simulating-poisson-random-variables-with-large-means-in-c/
 cdef inline int _poisson_ptrs(double lam) noexcept nogil:
-    # O(1) - PTRS transformed-rejection for large λ
     cdef double slam = sqrt(lam)
     cdef double loglam = log(lam)
     cdef double b = 0.931 + 2.53 * slam

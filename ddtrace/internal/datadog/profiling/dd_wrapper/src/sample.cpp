@@ -588,6 +588,13 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 }
 
 bool
+Datadog::Sample::push_exception_message(std::string_view exception_message)
+{
+    push_label(ExportLabelKey::exception_message, exception_message);
+    return true;
+}
+
+bool
 Datadog::Sample::push_lock_name(std::string_view lock_name)
 {
     push_label(ExportLabelKey::lock_name, lock_name);

@@ -14,10 +14,9 @@ _current_thread = threading.current_thread
 
 
 cdef int _sampling_interval = 100
+cdef bool _collect_message = False
 cdef int _sample_counter = 0
 cdef int _next_sample = 100
-cdef long long _total_exceptions = 0
-cdef long long _sampled_exceptions = 0
 cdef int _max_nframe = 64
 
 
@@ -27,6 +26,7 @@ cdef void _collect_exception(object exc_type, object exc_value, object exc_trace
 
     cdef str module = exc_type.__module__
     cdef str exception_type = f"{module}.{exc_type.__name__}" if module else exc_type.__name__
+    cdef str exception_message = str(exc_value) if _collect_message else ""
     cdef object handle = ddup.SampleHandle()
     cdef object tb = exc_traceback
     cdef list frames = []
@@ -39,6 +39,8 @@ cdef void _collect_exception(object exc_type, object exc_value, object exc_trace
 
     try:
         handle.push_exceptioninfo(exception_type, 1)
+        if exception_message:
+            handle.push_exception_message(exception_message)
 
         thread = _current_thread()
         handle.push_threadinfo(thread.ident or 0, getattr(thread, "native_id", 0) or 0, thread.name)
@@ -61,9 +63,8 @@ cdef void _collect_exception(object exc_type, object exc_value, object exc_trace
 
 cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
     # sys.monitoring.EXCEPTION_HANDLED callback - HOT PATH
-    global _total_exceptions, _sample_counter, _next_sample, _sampled_exceptions
+    global _sample_counter, _next_sample
 
-    _total_exceptions += 1
     _sample_counter += 1
 
     if _sample_counter < _next_sample:
@@ -74,7 +75,6 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
 
     try:
         _collect_exception(type(exception), exception, exception.__traceback__)
-        _sampled_exceptions += 1
     except:
         pass
 
@@ -83,9 +83,8 @@ def _on_exception_bytecode(arg):
     # Bytecode injection callback for Python 3.10/3.11 - HOT PATH
     # Called at the start of each except block. Exception is in sys.exc_info().
     # arg is the (line, path, dependency_info) tuple from bytecode injection.
-    global _total_exceptions, _sample_counter, _next_sample, _sampled_exceptions
+    global _sample_counter, _next_sample
 
-    _total_exceptions += 1
     _sample_counter += 1
 
     if _sample_counter < _next_sample:
@@ -100,7 +99,6 @@ def _on_exception_bytecode(arg):
 
     try:
         _collect_exception(exc_type, exc_val, exc_tb)
-        _sampled_exceptions += 1
     except:
         pass
 
@@ -110,21 +108,19 @@ class ExceptionCollector(collector.Collector):
 
     def __init__(self, max_nframe=None, sampling_interval=None, collect_message=None):
         global _sampling_interval, _max_nframe, _next_sample, _sample_counter
-        global _total_exceptions, _sampled_exceptions
+        global _collect_message
 
         super().__init__()
         _max_nframe = max_nframe if max_nframe is not None else config.max_frames
         _sampling_interval = sampling_interval if sampling_interval is not None else getattr(config.exception, "sampling_interval", 100)
-        self.collect_message = collect_message if collect_message is not None else getattr(config.exception, "collect_message", True)
+        _collect_message = collect_message if collect_message is not None else getattr(config.exception, "collect_message", False)
 
         _next_sample = _sampling_interval
         _sample_counter = 0
-        _total_exceptions = 0
-        _sampled_exceptions = 0
 
     def _start_service(self):
         if sys.version_info >= (3, 12) and HAS_MONITORING:
-            # Python 3.12+: Use sys.monitoring for efficient exception tracking
+            # Python 3.12+: Use sys.monitoring
             try:
                 sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
                 sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
@@ -165,12 +161,3 @@ class ExceptionCollector(collector.Collector):
                 uninstall_bytecode_exception_profiling()
             except:
                 pass
-
-        LOG.info("ExceptionCollector stopped: total=%d, sampled=%d", _total_exceptions, _sampled_exceptions)
-
-    @staticmethod
-    def snapshot():
-        pass
-
-    def get_stats(self):
-        return {"total_exceptions": _total_exceptions, "sampled_exceptions": _sampled_exceptions}

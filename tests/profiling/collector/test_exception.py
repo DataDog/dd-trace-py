@@ -126,58 +126,6 @@ def _thread_raise_runtime_errors():
             pass
 
 
-# Non pprof tests
-
-
-def test_exception_collector_get_stats():
-    """Test lifecycle and stats counters are accurate."""
-    collector = exception.ExceptionCollector(sampling_interval=1)
-
-    # Before start: counters are zero
-    stats = collector.get_stats()
-    assert stats["total_exceptions"] == 0
-    assert stats["sampled_exceptions"] == 0
-
-    collector.start()
-
-    n_exceptions = 1000
-    for _ in range(n_exceptions):
-        try:
-            raise ValueError("test")
-        except ValueError:
-            pass
-
-    collector.stop()
-
-    stats = collector.get_stats()
-    # total_exceptions is a deterministic counter
-    assert stats["total_exceptions"] == n_exceptions
-    # Poisson sampling with interval=1 has effective gap E[max(Poisson(1),1)] ≈ 1.37,
-    # 1.0 /1.37 = 0.73 giving ~73% sampling rate
-    # use a wider bound to avoid flakes
-    assert stats["sampled_exceptions"] > n_exceptions * 0.70
-    assert stats["sampled_exceptions"] <= stats["total_exceptions"]
-
-
-# TODO: this feels like a bad test
-def test_exception_sampling_reduces_overhead():
-    """Test that high sampling interval captures far fewer exceptions."""
-    collector = exception.ExceptionCollector(sampling_interval=1000)
-    collector.start()
-
-    for _ in range(100):
-        _raise_value_error_handled()
-
-    collector.stop()
-    stats = collector.get_stats()
-
-    assert stats["total_exceptions"] == 100
-    # With Poisson lambda=1000, expect ~0.1 samples from 100 exceptions
-    assert stats["sampled_exceptions"] < 10, (
-        f"Expected < 10 sampled with interval=1000, got {stats['sampled_exceptions']}"
-    )
-
-
 def test_exception_config_defaults():
     """Test that exception profiling config has expected default values."""
     from ddtrace.internal.settings.profiling import config as profiling_config
@@ -198,42 +146,6 @@ def test_poisson_sampling_distribution():
     mean = sum(samples) / len(samples)
     # Mean of 1000 exponential(100) samples has std ≈ 3.16; use wide bounds to avoid flakes
     assert 80 <= mean <= 120, f"Expected mean ~100, got {mean}"
-
-
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring only in Python 3.12+")
-def test_sys_monitoring_path():
-    """Test that Python 3.12+ sys.monitoring captures exceptions."""
-    collector = exception.ExceptionCollector(sampling_interval=1)
-    collector.start()
-
-    try:
-        raise ValueError("monitoring test")
-    except ValueError:
-        pass
-
-    collector.stop()
-
-    stats = collector.get_stats()
-    assert stats["total_exceptions"] == 1
-    assert stats["sampled_exceptions"] == 1
-
-
-@pytest.mark.skipif(sys.version_info >= (3, 12), reason="Bytecode injection only for Python 3.10/3.11")
-def test_bytecode_injection_path():
-    """Test that Python 3.10/3.11 bytecode injection captures exceptions."""
-    collector = exception.ExceptionCollector(sampling_interval=1)
-    collector.start()
-
-    try:
-        raise ValueError("bytecode test")
-    except ValueError:
-        pass
-
-    collector.stop()
-
-    stats = collector.get_stats()
-    assert stats["total_exceptions"] == 1
-    assert stats["sampled_exceptions"] == 1
 
 
 # Pprof profile tests
@@ -485,5 +397,30 @@ def test_exception_with_tracer(tmp_path: Path, tracer):
         expected_sample=pprof_utils.StackEvent(
             exception_type="builtins\\.ValueError",
         ),
+        print_samples_on_failure=True,
+    )
+
+
+def test_exception_message_collection(tmp_path: Path):
+    """Test that exception messages are collected."""
+    output_filename = _setup_profiler(tmp_path, "test_exception_message_collection")
+
+    with exception.ExceptionCollector(sampling_interval=1, collect_message=True):
+        for _ in range(10):
+            try:
+                raise ValueError("test exception message")
+            except ValueError:
+                pass
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(exception_message="test exception message"),
         print_samples_on_failure=True,
     )
