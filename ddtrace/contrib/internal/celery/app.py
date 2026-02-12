@@ -160,12 +160,12 @@ def _patched_close_open_fds(func, instance, args, kwargs):
     We call fork hook to avoid panics when the native runtime interacts with closed fds.
     """
     log.debug("Shutting down native runtime before closing fds")
-    ddtrace_before_fork()
+    #ddtrace_before_fork()
 
     try:
         result = func(*args, **kwargs)
     finally:
-        ddtrace_after_in_parent()
+        #ddtrace_after_in_parent()
         log.debug("Restarting native runtime after closing fds")
 
     return result
