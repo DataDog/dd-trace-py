@@ -143,8 +143,12 @@ class Sample
                     int64_t line               // for ddog_prof_Location
     );
 
-    // Push an entire PyFrameObject chain to the sample
-    // This walks the frame chain and pushes each frame in leaf-to-root order
+    // Push an entire PyFrameObject chain to the sample.
+    // This walks the frame chain and pushes each frame in leaf-to-root order.
+    // Ownership: this function does not take ownership of the initial `frame`
+    // argument. The caller is responsible for DECREF'ing that frame after this
+    // call returns. Frames obtained internally via PyFrame_GetBack() are
+    // released by this function.
     void push_pyframes(PyFrameObject* frame);
 
     // Set whether to reverse locations when exporting/flushing
