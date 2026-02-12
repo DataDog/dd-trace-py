@@ -73,7 +73,6 @@ class _ProfiledLock:
     __slots__ = (
         "__wrapped__",
         "tracer",
-        "max_nframes",
         "capture_sampler",
         "init_location",
         "acquired_time",
@@ -85,13 +84,11 @@ class _ProfiledLock:
         self,
         wrapped: Any,
         tracer: Optional[Tracer],
-        max_nframes: int,
         capture_sampler: collector.CaptureSampler,
         is_internal: bool = False,
     ) -> None:
         self.__wrapped__: Any = wrapped
         self.tracer: Optional[Tracer] = tracer
-        self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         try:
@@ -432,13 +429,11 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def __init__(
         self,
-        nframes: int = config.max_frames,
         tracer: Optional[Tracer] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.nframes: int = nframes
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Any = None
 
@@ -495,7 +490,6 @@ class LockCollector(collector.CaptureSamplerCollector):
             return self.PROFILED_LOCK_CLASS(
                 wrapped=original_lock(*args, **kwargs),
                 tracer=self.tracer,
-                max_nframes=self.nframes,
                 capture_sampler=self._capture_sampler,
                 is_internal=is_internal,
             )

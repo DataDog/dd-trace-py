@@ -95,23 +95,23 @@ class Bar:
     [
         (
             ThreadingLockCollector,
-            "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             ThreadingRLockCollector,
-            "ThreadingRLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingRLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             ThreadingSemaphoreCollector,
-            "ThreadingSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
         (
             ThreadingBoundedSemaphoreCollector,
-            "ThreadingBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingBoundedSemaphoreCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",  # noqa: E501
         ),
         (
             ThreadingConditionCollector,
-            "ThreadingConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, nframes=64, tracer=None)",  # noqa: E501
+            "ThreadingConditionCollector(status=<ServiceStatus.STOPPED: 'stopped'>, capture_pct=1.0, tracer=None)",
         ),
     ],
 )
