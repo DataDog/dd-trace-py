@@ -11,7 +11,7 @@ ddtrace/_monkey.py                  @DataDog/apm-core-python @DataDog/apm-idm-py
 tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/internal/peer_service         @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/internal/service_name         @DataDog/apm-core-python @DataDog/apm-idm-python
-tests/errortracking/                @DataDog/apm-idm-python
+tests/errortracking/                @DataDog/apm-core-python
 tests/contrib/grpc                  @DataDog/apm-idm-python @DataDog/asm-python
 tests/integration/                  @DataDog/apm-core-python
 
