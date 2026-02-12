@@ -25,7 +25,7 @@ def test_import_native_module():
 def test_create_tracer_flare_manager():
     """Test creating a TracerFlareManager instance."""
     native_flare = _get_native_flare_or_skip()
-    manager = native_flare.TracerFlareManager(agent_url="http://localhost:8126", language="python")
+    manager = native_flare.TracerFlareManager(agent_url="http://localhost:8126")
     assert manager is not None
     assert "TracerFlareManager" in repr(manager)
 

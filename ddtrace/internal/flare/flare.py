@@ -49,7 +49,7 @@ class Flare:
 
     def _create_native_manager(self):
         """Create or recreate the native manager to ensure clean state."""
-        self._native_manager = native_flare.TracerFlareManager(agent_url=self.url, language="python")
+        self._native_manager = native_flare.TracerFlareManager(agent_url=self.url)
 
     def handle_remote_config_data(self, config_data: dict, product_type: str) -> native_flare.FlareAction:
         """Return the flare action for a remote-config payload."""

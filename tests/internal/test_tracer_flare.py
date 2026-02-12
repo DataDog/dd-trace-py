@@ -56,7 +56,7 @@ def _multiproc_handle_agent_task(trace_agent_url: str, shared_dir: pathlib.Path,
     """Helper for multiprocessing tests - handles AGENT_TASK (send)."""
     try:
         # Create both Flare and data_manager inside the process to avoid pickling issues
-        data_manager = native_flare.TracerFlareManager(trace_agent_url, "python")
+        data_manager = native_flare.TracerFlareManager(trace_agent_url)
         flare = Flare(
             trace_agent_url=trace_agent_url,
             flare_dir=str(shared_dir),
@@ -83,7 +83,7 @@ def _multiproc_do_tracer_flare(
     """Helper for multiprocessing partial failure test."""
     try:
         # Create Flare and FlareAction inside the process to avoid pickling issues
-        data_manager = native_flare.TracerFlareManager(trace_agent_url, "python")
+        data_manager = native_flare.TracerFlareManager(trace_agent_url)
         send_request = setup_task_request(data_manager, case_id, hostname, email, uuid)
 
         flare = Flare(
@@ -129,7 +129,7 @@ class TracerFlareTests(unittest.TestCase):
         self.shared_dir.mkdir(parents=True, exist_ok=True)
 
         # Real manager for setup_task_request
-        self.data_manager = native_flare.TracerFlareManager(TRACE_AGENT_URL, "python")
+        self.data_manager = native_flare.TracerFlareManager(TRACE_AGENT_URL)
 
         self.flare = Flare(
             trace_agent_url=TRACE_AGENT_URL,
@@ -824,7 +824,7 @@ def test_native_logs(tmp_path):
 
         # Sends request to testagent
         # This just validates the request params
-        data_manager = native_flare.TracerFlareManager(TRACE_AGENT_URL, "python")
+        data_manager = native_flare.TracerFlareManager(TRACE_AGENT_URL)
         send_request = setup_task_request(data_manager, *FLARE_REQUEST_DATA)
         flare.send(send_request)
     finally:

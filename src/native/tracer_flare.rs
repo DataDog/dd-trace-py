@@ -257,14 +257,13 @@ impl TracerFlareManagerPy {
     ///
     /// Args:
     ///     agent_url: Agent URL computed from the environment
-    ///     language: Language of the tracer (e.g., "python")
     ///
     /// Returns:
     ///     TracerFlareManager instance
     #[new]
-    fn new(agent_url: &str, language: &str) -> Self {
+    fn new(agent_url: &str) -> Self {
         TracerFlareManagerPy {
-            manager: std::sync::Arc::new(TracerFlareManager::new(agent_url, language)),
+            manager: std::sync::Arc::new(TracerFlareManager::new(agent_url, "python")),
         }
     }
 
