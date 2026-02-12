@@ -8,8 +8,10 @@
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <string_view>
 #include <unistd.h>
 #include <unordered_map>
 
@@ -306,6 +308,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
                 int64_t line)
 {
     sample->push_frame(_name, _filename, address, line);
+}
+
+void
+ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-suppress unusedFunction
+{
+    sample->push_pyframes(frame);
 }
 
 void

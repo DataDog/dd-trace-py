@@ -525,6 +525,7 @@ class SpanData:
     error: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    _span_api: str
     _meta: Dict[str, str]
     _metrics: Dict[str, Union[int, float]]
 
@@ -538,6 +539,9 @@ class SpanData:
         span_id: Optional[int] = None,  # placeholder for Span.__init__
         parent_id: Optional[int] = None,  # placeholder for Span.__init__
         start: Optional[float] = None,
+        context: Optional[Any] = None,  # placeholder for Span.__init__
+        on_finish: Optional[Any] = None,  # placeholder for Span.__init__
+        span_api: Optional[str] = None,
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
