@@ -19,7 +19,7 @@ from typing import Sequence
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
-from typing import cast 
+from typing import cast
 from typing import overload
 import uuid
 
@@ -36,7 +36,6 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
-
 from ddtrace.version import __version__
 
 
@@ -294,7 +293,7 @@ def _is_class_evaluator(evaluator: Any) -> bool:
     """
     return isinstance(evaluator, BaseEvaluator)
 
-def _is_deepeval_evaluator(evaluator: Any) -> bool:
+def _is_deep_eval_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a deep eval evaluator (inherits from BaseMetric or BaseConversationalMetric).
 
     :param evaluator: The evaluator to check
@@ -318,9 +317,15 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     :param evaluator: The evaluator to check
     :return: True if it's a function evaluator, False otherwise
     """
-    return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deepeval_evaluator(evaluator)
+    return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deep_eval_evaluator(evaluator)
 
-def _deep_eval_evaluator(evaluator: BaseMetric | BaseConversationalMetric, context: EvaluatorContext) -> EvaluatorResult:
+def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric, context: EvaluatorContext) -> EvaluatorResult:
+    """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
+    
+    :param evaluator: The deep eval evaluator to run
+    :param context: The evaluation context
+    :return: An EvaluatorResult containing the score, reasoning, and assessment
+    """
     deepEvalTestCase = LLMTestCase(
         input=str(context.input_data),
         actual_output=str(context.output_data),
@@ -916,7 +921,7 @@ class Experiment:
                             trace_id=task_result.get("trace_id"),
                         )
                         eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
-                    elif _is_deepeval_evaluator(evaluator):
+                    elif _is_deep_eval_evaluator(evaluator):
                         evaluator_name = evaluator.name  # type: ignore[union-attr]
                         combined_metadata = {**metadata, "experiment_config": self._config}
                         context = EvaluatorContext(
@@ -927,7 +932,7 @@ class Experiment:
                             span_id=task_result.get("span_id"),
                             trace_id=task_result.get("trace_id"),
                         )
-                        eval_result = _deep_eval_evaluator(evaluator, context)
+                        eval_result = _deep_eval_evaluator_wrapper(evaluator, context)
                     elif _is_function_evaluator(evaluator):
                         evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                         eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
