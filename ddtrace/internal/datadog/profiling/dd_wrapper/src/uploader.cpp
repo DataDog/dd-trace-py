@@ -130,6 +130,7 @@ Datadog::Uploader::upload_unlocked()
         ddog_CancellationToken_drop(&current_cancel);
     }
 
+    // re-run
     auto res = ddog_prof_Exporter_send_blocking(&ddog_exporter,
                                                 &encoded_profile,
                                                 files_to_compress,
