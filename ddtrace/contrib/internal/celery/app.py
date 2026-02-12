@@ -18,8 +18,6 @@ from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.forksafe import ddtrace_after_in_parent
-from ddtrace.internal.forksafe import ddtrace_before_fork
 from ddtrace.internal.logger import get_logger
 from ddtrace.trace import tracer
 
@@ -160,12 +158,12 @@ def _patched_close_open_fds(func, instance, args, kwargs):
     We call fork hook to avoid panics when the native runtime interacts with closed fds.
     """
     log.debug("Shutting down native runtime before closing fds")
-    #ddtrace_before_fork()
+    # ddtrace_before_fork()
 
     try:
         result = func(*args, **kwargs)
     finally:
-        #ddtrace_after_in_parent()
+        # ddtrace_after_in_parent()
         log.debug("Restarting native runtime after closing fds")
 
     return result
