@@ -1,7 +1,7 @@
 from wrapt.importer import when_imported
 
-from .. import _asyncio
 from ddtrace.internal.settings.profiling import config
+from ddtrace.profiling import _asyncio
 
 _gevent_helper = None
 _gevent_support_initialized = False
@@ -9,7 +9,7 @@ _gevent_support_initialized = False
 
 def _initialize_gevent_module(gevent):
     global _gevent_helper
-    from .. import _gevent
+    from ddtrace.profiling import _gevent
 
     _gevent_helper = _gevent
     if config.stack.enabled:
