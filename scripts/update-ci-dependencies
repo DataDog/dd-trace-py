@@ -1,0 +1,142 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# dependencies = []
+# ///
+"""
+Compile locked CI requirements from ci.in.
+
+This script takes ci/requirements/ci.in (manually maintained) and compiles it
+to ci/requirements/ci.txt with locked versions and hashes.
+
+Process:
+1. Read ci/requirements/ci.in
+2. Run pip-compile (or uv) to generate ci/requirements/ci.txt with locked versions
+3. CI check script validates that all pip installs in workflows match ci.in
+
+Usage:
+    scripts/update-ci-dependencies
+
+The script always runs compilation. To add a new CI dependency:
+1. Add it to ci/requirements/ci.in
+2. Run this script to regenerate ci.txt
+3. Use the check-ci-dependencies script to verify workflows are up to date
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+
+def run_pip_compile(requirements_in: Path) -> bool:
+    """
+    Run pip-compile to generate ci.txt from ci.in.
+
+    Prefers uv pip compile if available, falls back to pip-compile.
+
+    Returns True if successful, False otherwise.
+    """
+    requirements_txt = requirements_in.with_suffix(".txt")
+
+    # Try uv first (preferred, faster)
+    try:
+        print(f"Running uv pip compile to generate {requirements_txt}...")
+        result = subprocess.run(
+            [
+                "uv",
+                "pip",
+                "compile",
+                "--generate-hashes",
+                "--python-platform",
+                "linux",
+                "--python-version",
+                "3.11",
+                "--output-file",
+                str(requirements_txt),
+                str(requirements_in),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        return True
+
+    except FileNotFoundError:
+        # uv not found, try pip-compile
+        print("uv not found, trying pip-compile...")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error running uv pip compile: {e}", file=sys.stderr)
+        if e.stdout:
+            print(e.stdout, file=sys.stderr)
+        if e.stderr:
+            print(e.stderr, file=sys.stderr)
+        return False
+
+    # Fall back to pip-compile
+    try:
+        print(f"Running pip-compile to generate {requirements_txt}...")
+        result = subprocess.run(
+            [
+                "pip-compile",
+                "--generate-hashes",
+                "--allow-unsafe",
+                "--output-file",
+                str(requirements_txt),
+                str(requirements_in),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        print(result.stdout)
+        return True
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error running pip-compile: {e}", file=sys.stderr)
+        print(e.stdout, file=sys.stderr)
+        print(e.stderr, file=sys.stderr)
+        return False
+
+    except FileNotFoundError:
+        print("Error: Neither uv nor pip-compile found.", file=sys.stderr)
+        print("Install one of:", file=sys.stderr)
+        print("  - uv: https://github.com/astral-sh/uv", file=sys.stderr)
+        print("  - pip-tools: pip install pip-tools", file=sys.stderr)
+        return False
+
+
+def main() -> int:
+    """Main entry point."""
+    requirements_in = Path("ci/requirements/ci.in")
+
+    if not requirements_in.exists():
+        print(f"Error: {requirements_in} not found", file=sys.stderr)
+        print("\nCreate ci/requirements/ci.in with your CI dependencies first.", file=sys.stderr)
+        print("Example:", file=sys.stderr)
+        print("  # ci/requirements/ci.in", file=sys.stderr)
+        print("  pytest>=7.0,<8", file=sys.stderr)
+        print("  ruff>=0.1.0", file=sys.stderr)
+        return 1
+
+    print(f"Compiling {requirements_in}...\n")
+
+    if not run_pip_compile(requirements_in):
+        print("\n❌ Failed to generate locked requirements")
+        return 1
+
+    requirements_txt = requirements_in.with_suffix(".txt")
+    print(f"\n✅ Successfully generated {requirements_txt}")
+    print("\nNext steps:")
+    print("  1. Review the generated ci/requirements/ci.txt")
+    print("  2. Run scripts/check-ci-dependencies to verify workflows")
+    print("  3. Commit the changes")
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

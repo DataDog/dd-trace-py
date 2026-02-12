@@ -34,7 +34,7 @@ include:
     - source "$HOME/.cargo/env"
     - python3 -m venv /tmp/venv
     - source /tmp/venv/bin/activate
-    - python3 -m pip install setuptools wheel cmake setuptools_rust cython pybind11
+    - python3 -m pip install setuptools wheel cmake setuptools_rust cython pybind11  # ci-deps: allow-no-version
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:clang_tidy_build[collapsed=true]\r\e[0Kclang-tidy on profiling C++ code"
