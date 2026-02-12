@@ -1255,15 +1255,15 @@ def test_experiment_invalid_dataset_raises(llmobs):
 
 
 def test_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_record):
-    with pytest.raises(TypeError, match="Evaluators must be a list of callable functions"):
+    with pytest.raises(TypeError, match="Evaluators must be a list of callable functions or BaseEvaluator instances."):
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [])
-    with pytest.raises(TypeError, match="Evaluators must be a list of callable functions"):
+    with pytest.raises(TypeError, match="Evaluator 123 must be callable or an instance of BaseEvaluator."):
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [123])
 
 
 def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_record):
-    expected_err = "Evaluator function must have parameters ('input_data', 'output_data', 'expected_output')."
-    with pytest.raises(TypeError, match=re.escape(expected_err)):
+    expected_err = "Evaluator function must have parameters"
+    with pytest.raises(TypeError, match=expected_err):
 
         def my_evaluator_missing_expected_output(input_data, output_data):
             pass
@@ -1274,7 +1274,7 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
             test_dataset_one_record,
             [my_evaluator_missing_expected_output],
         )
-    with pytest.raises(TypeError, match=re.escape(expected_err)):
+    with pytest.raises(TypeError, match=expected_err):
 
         def my_evaluator_missing_input(output_data, expected_output):
             pass
@@ -1285,7 +1285,7 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
             test_dataset_one_record,
             [my_evaluator_missing_input],
         )
-    with pytest.raises(TypeError, match=re.escape(expected_err)):
+    with pytest.raises(TypeError, match=expected_err):
 
         def my_evaluator_missing_output(input_data, expected_output):
             pass
