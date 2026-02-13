@@ -45,7 +45,7 @@ discover_branches:
 
       # Output discovered branches as dotenv variables
       # Only need: main, current minor (latest 4.x), previous major (latest 3.x)
-      echo "BRANCH_MAIN=main" >> branches.env
+      echo "BRANCH_MAIN=gnufede/enable-cov-coverage-nightly" >> branches.env
       echo "BRANCH_CURRENT_MINOR=${VERSIONS[0]}" >> branches.env
       echo "BRANCH_PREV_MAJOR=${VERSIONS[2]}" >> branches.env
 
