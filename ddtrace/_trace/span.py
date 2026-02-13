@@ -185,8 +185,8 @@ class Span(SpanData):
         elif config._128_bit_trace_id_enabled:
             self.trace_id: int = generate_128bit_trace_id()  # type: ignore[no-redef]
         else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or _rand64bits()
+            self.trace_id: int = rand64bits()  # type: ignore[no-redef]
+        self.span_id: int = span_id or rand64bits()
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
