@@ -1,7 +1,6 @@
 import os
 import sqlite3
 import sqlite3.dbapi2
-from typing import Dict
 
 import wrapt
 
@@ -31,12 +30,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return sqlite3.sqlite_version
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"sqlite3": "*"}
 
 
