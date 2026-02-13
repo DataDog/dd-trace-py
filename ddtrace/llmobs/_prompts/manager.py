@@ -41,6 +41,7 @@ class PromptManager:
         self._base_url = self._normalize_base_url(base_url)
         self._timeout = timeout
         self._headers: Dict[str, str] = {"DD-API-KEY": api_key, "Content-Type": "application/json"}
+        self._cache_enabled = cache_ttl > 0
 
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
@@ -58,15 +59,16 @@ class PromptManager:
         """Retrieve a prompt template from the registry."""
         key = cache_key(prompt_id, label)
 
-        # Try hot cache (in-memory)
-        prompt = self._try_cache(self._hot_cache, key, prompt_id, label, "hot_cache")
-        if prompt is not None:
-            return prompt
+        if self._cache_enabled:
+            # Try hot cache (in-memory)
+            prompt = self._try_cache(self._hot_cache, key, prompt_id, label, "hot_cache")
+            if prompt is not None:
+                return prompt
 
-        # Try warm cache (file-based)
-        prompt = self._try_cache(self._warm_cache, key, prompt_id, label, "warm_cache", populate_hot=True)
-        if prompt is not None:
-            return prompt
+            # Try warm cache (file-based)
+            prompt = self._try_cache(self._warm_cache, key, prompt_id, label, "warm_cache", populate_hot=True)
+            if prompt is not None:
+                return prompt
 
         # Try sync fetch from registry
         fetched_prompt = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
@@ -113,12 +115,16 @@ class PromptManager:
 
     def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
         """Store a prompt in both hot and warm caches with source='cache'."""
+        if not self._cache_enabled:
+            return
         cached_prompt = prompt._with_source("cache")
         self._hot_cache.set(key, cached_prompt)
         self._warm_cache.set(key, cached_prompt)
 
     def _evict_caches(self, key: str) -> None:
         """Remove a prompt from both caches."""
+        if not self._cache_enabled:
+            return
         self._hot_cache.delete(key)
         self._warm_cache.delete(key)
 

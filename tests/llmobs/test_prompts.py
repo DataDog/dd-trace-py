@@ -1,4 +1,5 @@
 import json
+import os
 from typing import Optional
 from typing import Union
 from unittest.mock import patch
@@ -146,6 +147,24 @@ class TestGetPrompt:
         prompt2 = LLMObs.get_prompt("greeting")
         assert call_count == 1
         assert_prompt_matches_response(prompt2, TEXT_PROMPT_RESPONSE, "cache")
+
+    def test_cache_ttl_zero_disables_cache(self):
+        """When cache TTL is zero, prompts are fetched from registry on every call."""
+        call_count = 0
+
+        def counting_conn(*a, **k):
+            nonlocal call_count
+            call_count += 1
+            return MockHTTPConnection(MockHTTPResponse(200, TEXT_PROMPT_RESPONSE))
+
+        with patch.dict(os.environ, {"DD_LLMOBS_PROMPTS_CACHE_TTL": "0"}):
+            with patch("ddtrace.llmobs._prompts.manager.get_connection", counting_conn):
+                prompt1 = LLMObs.get_prompt("greeting")
+                prompt2 = LLMObs.get_prompt("greeting")
+
+        assert call_count == 2
+        assert_prompt_matches_response(prompt1, TEXT_PROMPT_RESPONSE, "registry")
+        assert_prompt_matches_response(prompt2, TEXT_PROMPT_RESPONSE, "registry")
 
     def test_label_parameter(self):
         """Different labels fetch different prompt versions."""
