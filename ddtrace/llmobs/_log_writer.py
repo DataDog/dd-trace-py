@@ -3,9 +3,9 @@ import http.client as httplib
 import json
 from typing import TypedDict  # noqa:F401
 
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.threads import RLock
 
 
 logger = get_logger(__name__)
@@ -41,7 +41,7 @@ class V2LogWriter(PeriodicService):
 
     def __init__(self, site: str, api_key: str, interval: float, timeout: float) -> None:
         super(V2LogWriter, self).__init__(interval=interval)
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
         self._buffer: list[V2LogEvent] = []
         # match the API limit
         self._buffer_limit = 1000
