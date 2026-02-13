@@ -750,6 +750,22 @@ def test_span_id_overflow():
     assert isinstance(span.span_id, int)
 
 
+def test_span_id_larger_than_u64_setter():
+    """Setting span_id to value larger than u64 max is silently ignored."""
+    # This could happen if someone accidentally tries to set span_id = trace_id
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Try to set to a value larger than u64 max
+    larger_than_u64 = (2**64) + 67890
+    span.span_id = larger_than_u64
+
+    # Should be silently ignored, keeping the original value
+    assert span.span_id == original_id
+    assert span.span_id == 12345
+
+
 # =============================================================================
 # _span_api Property Tests
 # =============================================================================
