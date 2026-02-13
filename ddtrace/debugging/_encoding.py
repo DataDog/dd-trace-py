@@ -9,11 +9,8 @@ from threading import Thread
 from types import FrameType
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterator
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace.debugging._config import di_config
@@ -76,11 +73,11 @@ class BufferedEncoder(abc.ABC):
         """Enqueue the given item and returns its encoded size."""
 
     @abc.abstractmethod
-    def flush(self) -> Optional[Tuple[Union[bytes, bytearray], int]]:
+    def flush(self) -> Optional[tuple[Union[bytes, bytearray], int]]:
         """Flush the buffer and return the encoded data."""
 
 
-def _logs_track_logger_details(thread: Thread, frame: FrameType) -> Dict[str, Any]:
+def _logs_track_logger_details(thread: Thread, frame: FrameType) -> dict[str, Any]:
     code = frame.f_code
 
     return {
@@ -101,7 +98,7 @@ def _build_log_track_payload(
     service: str,
     signal: LogSignal,
     host: Optional[str],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     context = signal.trace_context
 
     payload = {
@@ -136,7 +133,7 @@ class JSONTree:
         end: int
         level: int
         parent: Optional["JSONTree.Node"]
-        children: List["JSONTree.Node"]
+        children: list["JSONTree.Node"]
 
         pruned: int = 0
         not_captured_depth: bool = False
@@ -164,7 +161,7 @@ class JSONTree:
 
     def __init__(self, data: str) -> None:
         self._iter = enumerate(data)
-        self._stack: List[JSONTree.Node] = []  # TODO: deque
+        self._stack: list[JSONTree.Node] = []  # TODO: deque
         self.root: Optional[JSONTree.Node] = None
         self.level = 0
 
@@ -346,7 +343,7 @@ class SignalQueue(BufferedEncoder):
                     self._on_full(item, encoded)
                 raise
 
-    def flush(self) -> Optional[Tuple[Union[bytes, bytearray], int]]:
+    def flush(self) -> Optional[tuple[Union[bytes, bytearray], int]]:
         with self._lock:
             if self.count == 0:
                 # Reclaim memory

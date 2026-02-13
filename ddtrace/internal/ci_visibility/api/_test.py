@@ -2,8 +2,6 @@ import os
 from pathlib import Path
 from time import time_ns
 from typing import ContextManager
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -59,9 +57,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         name: str,
         session_settings: TestVisibilitySessionSettings,
         parameters: Optional[str] = None,
-        codeowners: Optional[List[str]] = None,
+        codeowners: Optional[list[str]] = None,
         source_file_info: Optional[TestSourceFileInfo] = None,
-        initial_tags: Optional[Dict[str, str]] = None,
+        initial_tags: Optional[dict[str, str]] = None,
         is_efd_retry: bool = False,
         is_atr_retry: bool = False,
         is_attempt_to_fix_retry: bool = False,
@@ -95,14 +93,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         self._is_known_tests_enabled = session_settings.known_tests_enabled
         self._efd_is_retry = is_efd_retry
-        self._efd_retries: List[TestVisibilityTest] = []
+        self._efd_retries: list[TestVisibilityTest] = []
         self._efd_abort_reason: Optional[str] = None
 
         self._atr_is_retry = is_atr_retry
-        self._atr_retries: List[TestVisibilityTest] = []
+        self._atr_retries: list[TestVisibilityTest] = []
 
         self._attempt_to_fix_is_retry = is_attempt_to_fix_retry
-        self._attempt_to_fix_retries: List[TestVisibilityTest] = []
+        self._attempt_to_fix_retries: list[TestVisibilityTest] = []
 
         self._is_benchmark = False
         self._benchmark_duration_data: Optional[BenchmarkDurationData] = None
@@ -134,7 +132,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             self.__class__.__name__, self.name, suite_name, module_name, self._parameters, self._status
         )
 
-    def _get_hierarchy_tags(self) -> Dict[str, str]:
+    def _get_hierarchy_tags(self) -> dict[str, str]:
         return {
             test.NAME: self.name,
         }
@@ -304,7 +302,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         name: Optional[str] = None,
         suite_name: Optional[str] = None,
         parameters: Optional[str] = None,
-        codeowners: Optional[List[str]] = None,
+        codeowners: Optional[list[str]] = None,
     ) -> None:
         if name is not None:
             self.name = name
@@ -315,7 +313,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         if codeowners is not None:
             self._codeowners = codeowners
 
-    def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
+    def add_coverage_data(self, coverage_data: dict[Path, CoverageLines]) -> None:
         self._coverage_data.add_covered_files(coverage_data)
 
     def set_parameters(self, parameters: str) -> None:
@@ -467,7 +465,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         retry_test.finish()  # Send the retry span
 
     def efd_get_final_status(self) -> EFDTestStatus:
-        status_counts: Dict[TestStatus, int] = {
+        status_counts: dict[TestStatus, int] = {
             TestStatus.PASS: 0,
             TestStatus.FAIL: 0,
             TestStatus.SKIP: 0,

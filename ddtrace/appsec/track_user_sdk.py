@@ -19,7 +19,7 @@ from ddtrace.internal._exceptions import BlockingException
 
 
 def track_login_success(
-    login: str, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto: bool = False
+    login: str, user_id: t.Any = None, metadata: t.Optional[dict[str, t.Any]] = None, _auto: bool = False
 ) -> None:
     """
     Track a successful user login event.
@@ -36,7 +36,7 @@ def track_login_failure(
     login: str,
     exists: bool,
     user_id: t.Any = None,
-    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
 ):
     """
@@ -56,7 +56,7 @@ def track_signup(
     login: str,
     user_id: t.Any = None,
     success: bool = True,
-    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
 ):
     """
@@ -76,7 +76,7 @@ def track_user(
     login: str,
     user_id: t.Any = None,
     session_id: t.Optional[str] = None,
-    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
 ):
     """
@@ -130,7 +130,7 @@ def track_user(
 def track_user_id(
     user_id: t.Any,
     session_id: t.Optional[str] = None,
-    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
 ):
     """
@@ -178,7 +178,7 @@ def track_user_id(
                 raise BlockingException(_get_blocked())
 
 
-def track_custom_event(event_name: str, metadata: t.Dict[str, t.Any]):
+def track_custom_event(event_name: str, metadata: dict[str, t.Any]):
     """
     Track a custom user event.
 
