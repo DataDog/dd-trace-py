@@ -1080,3 +1080,11 @@ experiments:
             thresholds:
               - execution_time < 10 ms
               - max_rss_usage < 60 MB
+
+          # rand
+          - name: rand-rand64bits
+            thresholds:
+              - execution_time < 0.015 ms
+          - name: rand-rand128bits
+            thresholds:
+              - execution_time < 0.021 ms

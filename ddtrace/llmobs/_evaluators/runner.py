@@ -1,7 +1,5 @@
 from concurrent import futures
 import os
-from typing import List
-from typing import Tuple
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
@@ -39,7 +37,7 @@ class EvaluatorRunner(PeriodicService):
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
-        self._buffer: List[Tuple[LLMObsSpanEvent, Span]] = []
+        self._buffer: list[tuple[LLMObsSpanEvent, Span]] = []
         self._buffer_limit = 1000
 
         self.llmobs_service = llmobs_service
