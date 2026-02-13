@@ -219,6 +219,12 @@ class TestFallback:
         assert call_count == 0
         assert prompt.source == "registry"
 
+    def test_raises_when_no_fallback_provided(self):
+        """Raises ValueError when API fails and no fallback is provided."""
+        with mock_api(500, "Internal Server Error"):
+            with pytest.raises(ValueError, match="could not be fetched and no fallback was provided"):
+                LLMObs.get_prompt("greeting")
+
 
 class TestCacheControl:
     """Explicit cache management APIs."""

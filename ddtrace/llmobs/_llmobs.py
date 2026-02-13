@@ -1394,9 +1394,10 @@ class LLMObs(Service):
         :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
         :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
                          Can be a template string, message list, Prompt dict, or a callable that
-                         returns any of those. If None, returns empty prompt.
+                         returns any of those.
 
         :returns: A ManagedPrompt object with template and rendering methods
+        :raises ValueError: If the prompt cannot be fetched and no fallback is provided
 
         Example::
 
