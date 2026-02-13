@@ -1,10 +1,7 @@
 import logging
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import TypeVar  # noqa:F401
 from typing import Union  # noqa:F401
 
@@ -25,8 +22,7 @@ T = TypeVar("T")
 log = logging.getLogger(__name__)
 
 
-def deep_getattr(obj, attr_string, default=None):
-    # type: (Any, str, Optional[Any]) -> Optional[Any]
+def deep_getattr(obj: Any, attr_string: str, default: Optional[Any] = None) -> Optional[Any]:
     """
     Returns the attribute of `obj` at the dotted path given by `attr_string`
     If no such attribute is reachable, returns `default`
@@ -50,8 +46,7 @@ def deep_getattr(obj, attr_string, default=None):
     return obj
 
 
-def asbool(value):
-    # type: (Union[str, bool, None]) -> bool
+def asbool(value: Union[str, bool, None]) -> bool:
     """Convert the given String to a boolean object.
 
     Accepted values are `True` and `1`.
@@ -65,7 +60,7 @@ def asbool(value):
     return value.lower() in ("true", "1")
 
 
-def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
+def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
     """
     Parses a string containing key-value pairs and returns a dictionary.
     Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
@@ -75,7 +70,7 @@ def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
     """
-    res: Dict[str, str] = {}
+    res: dict[str, str] = {}
     if not tags_str:
         return res
     # falling back to comma as separator
@@ -99,15 +94,14 @@ def parse_tags_str(tags_str: Optional[str]) -> Dict[str, str]:
     return res
 
 
-def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_LEN):
-    # type: (List[Any], int, int) -> Text
+def stringify_cache_args(args: list[Any], value_max_len: int = VALUE_MAX_LEN, cmd_max_len: int = CMD_MAX_LEN) -> Text:
     """Convert a list of arguments into a space concatenated string
 
     This function is useful to convert a list of cache keys
     into a resource name or tag value with a max size limit.
     """
     length = 0
-    out = []  # type: List[Text]
+    out: list[Text] = []
     for arg in args:
         try:
             if isinstance(arg, (bytes, str)):
@@ -132,8 +126,7 @@ def stringify_cache_args(args, value_max_len=VALUE_MAX_LEN, cmd_max_len=CMD_MAX_
     return " ".join(out)
 
 
-def is_sequence(obj):
-    # type: (Any) -> bool
+def is_sequence(obj: Any) -> bool:
     try:
         return isinstance(obj, (list, tuple, set, frozenset))
     except TypeError:
@@ -141,8 +134,7 @@ def is_sequence(obj):
         return False
 
 
-def flatten_key_value(root_key, value):
-    # type: (str, Any) -> Dict[str, Any]
+def flatten_key_value(root_key: str, value: Any) -> dict[str, Any]:
     """Flattens attributes"""
     if not is_sequence(value):
         return {root_key: value}

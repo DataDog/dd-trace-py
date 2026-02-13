@@ -134,16 +134,14 @@ def _(asyncio: ModuleType) -> None:
 
         @partial(wrap, sys.modules["asyncio"].tasks._wait)
         def _(
-            f: typing.Callable[
-                ..., typing.Tuple[typing.Set["aio.Future[typing.Any]"], typing.Set["aio.Future[typing.Any]"]]
-            ],
+            f: typing.Callable[..., tuple[set["aio.Future[typing.Any]"], set["aio.Future[typing.Any]"]]],
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
             try:
                 return f(*args, **kwargs)
             finally:
-                futures = typing.cast(typing.Set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
+                futures = typing.cast(set["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
                 loop = typing.cast("aio.AbstractEventLoop", get_argument_value(args, kwargs, 3, "loop"))
 
                 # Link the parent gathering task to the gathered children
@@ -162,7 +160,7 @@ def _(asyncio: ModuleType) -> None:
 
             if parent is not None:
                 fs = typing.cast(typing.Iterable["aio.Future[typing.Any]"], get_argument_value(args, kwargs, 0, "fs"))
-                futures: typing.Set["aio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
+                futures: set["aio.Future"] = {asyncio.ensure_future(f, loop=loop) for f in set(fs)}
                 for future in futures:
                     stack.link_tasks(parent, future)
 
@@ -233,3 +231,63 @@ def _(asyncio: ModuleType) -> None:
             return task
 
         _call_init_asyncio(asyncio)
+
+
+@ModuleWatchdog.after_module_imported("uvloop")
+def _(uvloop: ModuleType) -> None:
+    """Hook uvloop to track event loops.
+
+    uvloop doesn't inherit from BaseDefaultEventLoopPolicy, and on Python 3.11+
+    uvloop.run() uses asyncio.Runner which bypasses set_event_loop entirely.
+    We hook new_event_loop to catch all uvloop loop creations.
+
+    We also hook EventLoopPolicy.set_event_loop for the deprecated uvloop.install()
+    + asyncio.run() pattern.
+    """
+    # Check if uvloop support is disabled via configuration
+    if not config.stack.uvloop:  # pyright: ignore[reportAttributeAccessIssue]
+        return
+
+    import asyncio
+
+    init_stack: bool = config.stack.enabled and stack.is_available
+
+    # Wrap uvloop.new_event_loop to track loops when they're created
+    new_event_loop_func = getattr(uvloop, "new_event_loop", None)
+    if new_event_loop_func is not None:
+
+        @partial(wrap, new_event_loop_func)
+        def _(
+            f: typing.Callable[..., "asyncio.AbstractEventLoop"],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> "asyncio.AbstractEventLoop":
+            loop = f(*args, **kwargs)
+            if init_stack:
+                thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+                stack.set_uvloop_mode(thread_id, True)
+
+                stack.track_asyncio_loop(thread_id, loop)
+                # Ensure asyncio task tracking is initialized
+                _call_init_asyncio(asyncio)
+
+            return loop
+
+    # Wrap uvloop.EventLoopPolicy.set_event_loop for uvloop.install() + asyncio.run() pattern
+    policy_class = getattr(uvloop, "EventLoopPolicy", None)
+    if policy_class is not None and hasattr(policy_class, "set_event_loop"):
+
+        @partial(wrap, policy_class.set_event_loop)
+        def _(
+            f: typing.Callable[..., typing.Any], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]
+        ) -> typing.Any:
+            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            if init_stack:
+                stack.set_uvloop_mode(thread_id, True)
+
+            loop: typing.Optional["asyncio.AbstractEventLoop"] = get_argument_value(args, kwargs, 1, "loop")
+            if init_stack and loop is not None:
+                stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                _call_init_asyncio(asyncio)
+
+            return f(*args, **kwargs)

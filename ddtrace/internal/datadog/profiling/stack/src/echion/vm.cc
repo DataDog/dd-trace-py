@@ -44,7 +44,6 @@ VmReader::create(size_t sz)
     for (auto& tmp_dir : tmp_dirs) {
         // Reset the file descriptor, just in case
         close(fd);
-        fd = -1;
 
         // Create the temporary file
         std::string tmpfile = tmp_dir + tmp_suffix;
@@ -74,11 +73,16 @@ VmReader::create(size_t sz)
     return new VmReader(sz, ret, fd);
 }
 
+namespace {
+constexpr size_t KB = 1024;
+constexpr size_t MB = KB * KB;
+} // namespace
+
 VmReader*
 VmReader::get_instance()
 {
     if (instance == nullptr) {
-        instance = VmReader::create(1024 * 1024); // A megabyte?
+        instance = VmReader::create(MB);
         if (!instance) {
             std::cerr << "Failed to initialize VmReader with buffer size " << instance->sz << std::endl;
             return nullptr;

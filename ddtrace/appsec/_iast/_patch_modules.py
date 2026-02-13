@@ -14,7 +14,6 @@ functions and enable taint tracking and vulnerability detection.
 import functools
 from typing import Callable
 from typing import Optional
-from typing import Set
 from typing import Text
 
 from wrapt import FunctionWrapper
@@ -35,7 +34,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
-MODULES_TO_UNPATCH: Set["IASTFunction"] = set()
+MODULES_TO_UNPATCH: set["IASTFunction"] = set()
 
 
 class IASTFunction:
@@ -121,13 +120,13 @@ class WrapFunctonsForIAST:
     and unpatching. It supports both normal operation and testing scenarios.
 
     Attributes:
-        functions (Set[IASTFunction]): Set of modules to be patched
+        functions (set[IASTFunction]): set of modules to be patched
         testing (bool): Whether the instance is being used in a testing context
     """
 
     def __init__(self) -> None:
         """Initialize a WrapFunctonsForIAST instance."""
-        self.functions: Set[IASTFunction] = set()
+        self.functions: set[IASTFunction] = set()
         self.testing: bool = asm_config._iast_is_testing
 
     def wrap_function(self, name, function, hook):

@@ -24,7 +24,6 @@ tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
-README.md                           @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
 
@@ -264,8 +263,8 @@ tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities
 tests/runtime/                                     @DataDog/apm-sdk-capabilities-python
 tests/test_sampling.py                             @DataDog/apm-sdk-capabilities-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
-tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
-tests/tracer/                                      @DataDog/apm-sdk-capabilities-python
+tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
+tests/tracer/                                      @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 
