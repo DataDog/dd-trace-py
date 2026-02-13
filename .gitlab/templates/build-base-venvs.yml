@@ -19,15 +19,10 @@ build_base_venvs:
   script: |
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
-    echo "NIGHTLY_BUILD: {nightly_build}"
     if [[ {unpin_dependencies} == "true" ]]
     then
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
-    fi
-    if [[ {nightly_build} == "true" ]]
-    then
-      export NIGHTLY_BUILD=true
     fi
     riot -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
