@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/a9b86d7b-c35b-465f-9b99-01cff012fe52/datasets?filter[name]=test-dataset-non-existent",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "31",
+      "date": "Fri, 13 Feb 2026 17:07:43 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[],\"meta\":{\"after\":\"\"}}"
+  }
+}

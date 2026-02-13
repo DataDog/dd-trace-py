@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/3a1a13ae-9bf7-4953-8f09-2e0235836d11/datasets/cbe945bb-c116-4857-8514-802343b90348/records?&filter[tags]=team:ml&filter[tags]=priority:high",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "488",
+      "date": "Fri, 13 Feb 2026 17:08:17 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"5bedc953-ea33-4750-b095-f504907ba4b3\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"bd1e77f8-b171-44da-a503-1cfedda3c579\",\"created_at\":\"2026-02-13T17:08:13.043032Z\",\"dataset_id\":\"cbe945bb-c116-4857-8514-802343b90348\",\"expected_output\":{\"answer\":\"Boston\"},\"input\":{\"prompt\":\"What is the capital of Massachusetts?\"},\"tags\":[\"team:ml\",\"priority:high\"],\"updated_at\":\"2026-02-13T17:08:13.043032Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}

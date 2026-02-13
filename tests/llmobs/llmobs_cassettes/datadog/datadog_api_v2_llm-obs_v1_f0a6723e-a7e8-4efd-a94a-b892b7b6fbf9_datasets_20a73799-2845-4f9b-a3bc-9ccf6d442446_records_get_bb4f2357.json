@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9/datasets/20a73799-2845-4f9b-a3bc-9ccf6d442446/records",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "858",
+      "date": "Fri, 13 Feb 2026 17:09:06 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"44330264-067f-46d2-b3d5-8ade2e906d6f\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"d4afeb3c-1bf3-45ca-9f6b-e02d70dd01da\",\"created_at\":\"2026-02-13T17:09:03.773784Z\",\"dataset_id\":\"20a73799-2845-4f9b-a3bc-9ccf6d442446\",\"expected_output\":{\"answer\":\"Rome\"},\"input\":{\"prompt\":\"What is the capital of Italy?\"},\"updated_at\":\"2026-02-13T17:09:03.773784Z\"}},{\"id\":\"0bbbc753-7689-4515-8638-d7c473fd4dcf\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"5c00021d-0383-4f11-8047-5a0a2d6d42fa\",\"created_at\":\"2026-02-13T17:08:59.642253Z\",\"dataset_id\":\"20a73799-2845-4f9b-a3bc-9ccf6d442446\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"updated_at\":\"2026-02-13T17:08:59.642253Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}

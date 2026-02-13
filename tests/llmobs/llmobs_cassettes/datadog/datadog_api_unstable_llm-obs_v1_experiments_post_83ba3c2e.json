@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "378",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"experiments\", \"attributes\": {\"name\": \"test_experiment\", \"description\": \"\", \"dataset_id\": \"6ac19fd6-6f5b-4d66-9e7c-f98134a1cdd5\", \"project_id\": \"c4b49fb5-7b16-46e1-86f0-de5800e8a56c\", \"dataset_version\": 1, \"config\": {}, \"metadata\": {\"tags\": [\"ddtrace.version:1.2.3\", \"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\"]}, \"ensure_unique\": true, \"run_count\": 1}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "570",
+      "date": "Fri, 13 Feb 2026 17:10:47 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":{\"id\":\"0f01ebb7-0e07-422f-a7c0-b78f328391db\",\"type\":\"experiments\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"config\":{},\"created_at\":\"2026-02-13T17:10:47.931798321Z\",\"dataset_id\":\"6ac19fd6-6f5b-4d66-9e7c-f98134a1cdd5\",\"dataset_version\":1,\"description\":\"\",\"experiment\":\"test_experiment\",\"metadata\":{\"tags\":[\"ddtrace.version:1.2.3\",\"project_id:c4b49fb5-7b16-46e1-86f0-de5800e8a56c\"]},\"name\":\"test_experiment-1771002647931\",\"project_id\":\"c4b49fb5-7b16-46e1-86f0-de5800e8a56c\",\"run_count\":1,\"updated_at\":\"2026-02-13T17:10:47.931798403Z\"}}}"
+  }
+}

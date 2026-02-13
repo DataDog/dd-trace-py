@@ -457,6 +457,7 @@ class Dataset:
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             new_version, new_record_ids = self._dne_client.dataset_batch_update(
                 self._id,
+                self.project.get("_id"),
                 list(self._new_records_by_record_id.values()),
                 updated_records,
                 self._deleted_record_ids,

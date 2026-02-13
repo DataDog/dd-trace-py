@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9/datasets/9cfe8a37-4aa8-43cf-866c-f8fccd348bec/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "271",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"9cfe8a37-4aa8-43cf-866c-f8fccd348bec\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of Sealand?\"}, \"expected_output\": null, \"metadata\": null, \"tags\": null}], \"update_records\": [], \"delete_records\": []}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "417",
+      "date": "Fri, 13 Feb 2026 17:09:18 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"d6ca4d42-385b-4c08-b873-0b9376136bc3\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"ef952032-39bc-4d02-a09a-c311d00ec5ad\",\"created_at\":\"2026-02-13T17:09:18.344837541Z\",\"dataset_id\":\"9cfe8a37-4aa8-43cf-866c-f8fccd348bec\",\"input\":{\"prompt\":\"What is the capital of Sealand?\"},\"tags\":[],\"updated_at\":\"2026-02-13T17:09:18.344837541Z\",\"version\":2}}]}"
+  }
+}
