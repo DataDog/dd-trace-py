@@ -484,7 +484,7 @@ def _inject():
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
-        sys.path.insert(-1, site_pkgs_path)
+        sys.path.append(site_pkgs_path)
         _log("sys.path %s" % sys.path, level="debug")
         # Used to track whether the ddtrace package was successfully injected. Must be set before importing ddtrace
         os.environ["_DD_PY_SSI_INJECT"] = "1"
@@ -533,7 +533,7 @@ def _inject():
                     for entry in os.getenv("PYTHONPATH", "").split(os.pathsep)
                     if not any(path in entry for path in path_segments_indicating_removal)
                 ]
-                python_path.insert(-1, site_pkgs_path)
+                python_path.append(site_pkgs_path)
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
                 os.environ["PYTHONPATH"] = python_path
