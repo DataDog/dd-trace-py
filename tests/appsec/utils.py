@@ -57,7 +57,7 @@ def asm_context(
     span_type: str = SpanTypes.WEB,
     ip_addr: typing.Optional[str] = None,
     headers_case_sensitive: bool = False,
-    headers: typing.Optional[typing.Dict[str, str]] = None,
+    headers: typing.Optional[dict[str, str]] = None,
     block_request_callable: typing.Optional[typing.Callable[[], bool]] = None,
     service: typing.Optional[str] = None,
     config=None,

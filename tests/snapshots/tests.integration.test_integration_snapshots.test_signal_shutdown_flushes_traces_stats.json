@@ -1,0 +1,24 @@
+[[
+  {
+    "name": "signal-shutdown-test",
+    "service": "signal-test-svc",
+    "resource": "signal-shutdown-test",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.base_service": "test_signal_shutdown_flushes_t0",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6982362f00000000",
+      "language": "python",
+      "runtime-id": "78e48d852d1746998dc68682b13851f8"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 626.0
+    },
+    "duration": 1642667,
+    "start": 1770141231735705171
+  }]]

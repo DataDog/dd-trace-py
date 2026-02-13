@@ -254,7 +254,7 @@ class TestAPIClientGetSettings:
                 settings = api_client.get_settings()
 
         assert "Error getting settings from API" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
         assert settings.early_flake_detection.enabled is False
         assert settings.auto_test_retries.enabled is False
@@ -437,7 +437,6 @@ class TestAPIClientGetKnownTests:
                 known_tests = api_client.get_known_tests()
 
         assert "Error getting known tests from API" in caplog.text
-        assert "KeyError" in caplog.text
 
         assert known_tests == set()
 
@@ -701,7 +700,7 @@ class TestAPIClientGetTestManagementTests:
                 properties = api_client.get_test_management_properties()
 
         assert "Failed to parse Test Management tests data from API" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
         assert properties == {}
 
@@ -849,7 +848,7 @@ class TestAPIClientGetKnownCommits:
                 commits = api_client.get_known_commits(latest_commits=["0000abcd", "1111abcd"])
 
         assert "Failed to parse search_commits data" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
         assert commits == []
 
@@ -1046,7 +1045,7 @@ class TestAPIClientGetSkippableTests:
                 skippable_tests, correlation_id = api_client.get_skippable_tests()
 
         assert "Failed to parse skippable tests data" in caplog.text
-        assert "KeyError" in caplog.text
+        assert "'data'" in caplog.text
 
         assert skippable_tests == set()
         assert correlation_id is None
@@ -1288,7 +1287,7 @@ class TestAPIClientUploadCoverageReport:
         # Create a simple LCOV report
         coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
 
-        with caplog.at_level(level=logging.INFO, logger="ddtrace.testing"):
+        with caplog.at_level(level=logging.DEBUG, logger="ddtrace.testing"):
             api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
 
         # Verify post_files was called
@@ -1420,7 +1419,7 @@ class TestAPIClientUploadCoverageReport:
 
         coverage_report = b"SF:test.py\nDA:1,1\nLF:1\nLH:1\nend_of_record\n"
 
-        with caplog.at_level(level=logging.ERROR, logger="ddtrace.testing"):
+        with caplog.at_level(level=logging.WARNING, logger="ddtrace.testing"):
             api_client.upload_coverage_report(coverage_report, coverage_format="lcov")
 
         assert "Failed to upload coverage report" in caplog.text

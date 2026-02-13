@@ -6,10 +6,8 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-from threading import RLock
+from threading import Lock
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -71,9 +69,9 @@ AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> List[SpanProcessor]:
+) -> list[SpanProcessor]:
     """Construct the default list of span processors to use."""
-    span_processors: List[SpanProcessor] = []
+    span_processors: list[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
     if config._trace_resource_renaming_enabled:
@@ -154,9 +152,10 @@ class Tracer(object):
         # Ensure that tracer exit hooks are registered and unregistered once per instance
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
+        atexit.register_on_exit_signal(self._atexit)
         forksafe.register(self._child_after_fork)
 
-        self._shutdown_lock = RLock()
+        self._shutdown_lock = Lock()
 
         self._new_process = False
 
@@ -259,7 +258,7 @@ class Tracer(object):
             return active.context
         return None
 
-    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
@@ -289,7 +288,7 @@ class Tracer(object):
         appsec_enabled_origin: Optional[str] = "",
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
-        trace_processors: Optional[List[TraceProcessor]] = None,
+        trace_processors: Optional[list[TraceProcessor]] = None,
     ) -> None:
         """Configure a Tracer.
 
@@ -299,7 +298,7 @@ class Tracer(object):
         :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
         :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
-        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
+        :param list[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
 
@@ -367,7 +366,7 @@ class Tracer(object):
 
     def _recreate(
         self,
-        trace_processors: Optional[List[TraceProcessor]] = None,
+        trace_processors: Optional[list[TraceProcessor]] = None,
         compute_stats_enabled: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
@@ -387,20 +386,7 @@ class Tracer(object):
             self._endpoint_call_counter_span_processor,
         )
 
-    def _start_span_after_shutdown(
-        self,
-        name: str,
-        child_of: Optional[Union[Span, Context]] = None,
-        service: Optional[str] = None,
-        resource: Optional[str] = None,
-        span_type: Optional[str] = None,
-        activate: bool = False,
-        span_api: str = SPAN_API_DATADOG,
-    ) -> Span:
-        log.warning("Spans started after the tracer has been shut down will not be sent to the Datadog Agent.")
-        return self._start_span(name, child_of, service, resource, span_type, activate, span_api)
-
-    def _start_span(
+    def start_span(
         self,
         name: str,
         child_of: Optional[Union[Span, Context]] = None,
@@ -567,7 +553,23 @@ class Tracer(object):
         core.dispatch("trace.span_start", (span,))
         return span
 
-    start_span = _start_span
+    _start_span = start_span
+
+    def _start_span_after_shutdown(
+        self,
+        name: str,
+        child_of: Optional[Union[Span, Context]] = None,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        activate: bool = False,
+        span_api: str = SPAN_API_DATADOG,
+    ) -> Span:
+        span = self._start_span(name, child_of, service, resource, span_type, activate, span_api)
+        log.warning(
+            "Spans started after the tracer has been shut down will not be sent to the Datadog Agent: %s.", span
+        )
+        return span
 
     def _on_span_finish(self, span: Span) -> None:
         active = self.current_span()
@@ -860,7 +862,7 @@ class Tracer(object):
 
         return wrap_decorator
 
-    def set_tags(self, tags: Dict[str, str]) -> None:
+    def set_tags(self, tags: dict[str, str]) -> None:
         """Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 
@@ -875,8 +877,10 @@ class Tracer(object):
             before exiting or :obj:`None` to block until flushing has successfully completed (default: :obj:`None`)
         :type timeout: :obj:`int` | :obj:`float` | :obj:`None`
         """
-        with self._shutdown_lock:
-            # Thread safety: Ensures tracer is shutdown synchronously
+        if not self._shutdown_lock.acquire(blocking=False):
+            # Already shutting down from this or another thread — skip re-entrant call
+            return
+        try:
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)
@@ -889,3 +893,5 @@ class Tracer(object):
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
+        finally:
+            self._shutdown_lock.release()
