@@ -6,8 +6,6 @@ import threading
 import time
 from typing import TYPE_CHECKING
 from typing import Generator
-from typing import List
-from typing import Tuple
 from unittest.mock import patch
 import uuid
 
@@ -174,7 +172,7 @@ def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
 
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -229,7 +227,7 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
 
         profile = pprof_utils.parse_newest_profile(output_filename)
         samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-        samples: List[Sample] = []
+        samples: list[Sample] = []
         for sample in samples_with_span_id:
             locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
             if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -278,7 +276,7 @@ def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -327,7 +325,7 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -713,7 +711,7 @@ def test_stress_threads_run_as_thread(tmp_path: Path) -> None:
 @pytest.fixture
 def tracer_and_collector(
     tracer: Tracer, request: FixtureRequest, tmp_path: Path
-) -> Generator[Tuple[Tracer, stack.StackCollector], None, None]:
+) -> Generator[tuple[Tracer, stack.StackCollector], None, None]:
     test_name = get_original_test_name(request)
     pprof_prefix = str(tmp_path / test_name)
 
@@ -902,7 +900,7 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
     )
 
 
-def test_stress_trace_collection(tracer_and_collector: Tuple[Tracer, stack.StackCollector]) -> None:
+def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:
     tracer, _ = tracer_and_collector
 
     def _trace() -> None:

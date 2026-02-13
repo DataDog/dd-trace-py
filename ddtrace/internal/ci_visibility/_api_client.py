@@ -63,13 +63,15 @@ DEFAULT_TIMEOUT: float = 15.0
 DEFAULT_ITR_SKIPPABLE_TIMEOUT: float = 20.0
 DEFAULT_ATTEMPT_TO_FIX_RETRIES: int = 20
 
-_BASE_HEADERS: t.Dict[str, str] = {
+# IMPORTANT: Do not change t.Dict to dict until minimum Python version is 3.11+
+# Module-level dict[...] in Python 3.10 affects import timing. See packages.py for details.
+_BASE_HEADERS: t.Dict[str, str] = {  # noqa: UP006
     "Content-Type": "application/json",
 }
 
 _SKIPPABLE_ITEM_ID_TYPE = t.Union[TestId, TestSuiteId]
-_CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
-_KNOWN_TESTS_TYPE = t.Set[TestId]
+_CONFIGURATIONS_TYPE = dict[str, t.Union[str, dict[str, str]]]
+_KNOWN_TESTS_TYPE = set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
@@ -121,12 +123,12 @@ class TestVisibilityAPISettings:
 @dataclasses.dataclass(frozen=True)
 class ITRData:
     correlation_id: t.Optional[str] = None
-    covered_files: t.Optional[t.Dict[str, CoverageLines]] = None
-    skippable_items: t.Set[t.Union[TestId, TestSuiteId]] = dataclasses.field(default_factory=set)
+    covered_files: t.Optional[dict[str, CoverageLines]] = None
+    skippable_items: set[t.Union[TestId, TestSuiteId]] = dataclasses.field(default_factory=set)
 
 
 class _SkippableResponseMeta(TypedDict):
-    coverage: t.Dict[str, str]
+    coverage: dict[str, str]
     correlation_id: str
 
 
@@ -134,7 +136,7 @@ class _SkippableResponseDataItemAttributes(TypedDict):
     name: str
     suite: str
     parameters: str
-    configurations: t.Dict[str, t.Any]
+    configurations: dict[str, t.Any]
 
 
 class _SkippableResponseDataItem(TypedDict):
@@ -143,7 +145,7 @@ class _SkippableResponseDataItem(TypedDict):
 
 
 class _SkippableResponse(TypedDict):
-    data: t.List[_SkippableResponseDataItem]
+    data: list[_SkippableResponseDataItem]
     meta: _SkippableResponseMeta
 
 
@@ -167,7 +169,7 @@ def _get_suite_id_from_skippable_suite(skippable_suite: _SkippableResponseDataIt
     return TestSuiteId(module_id, skippable_suite["attributes"]["suite"])
 
 
-def _parse_covered_files(covered_files_data: t.Dict[str, str]) -> t.Optional[t.Dict[str, CoverageLines]]:
+def _parse_covered_files(covered_files_data: dict[str, str]) -> t.Optional[dict[str, CoverageLines]]:
     covered_files = {}
     parse_errors = 0
     for covered_file, covered_lines_bytes in covered_files_data.items():
@@ -186,9 +188,9 @@ def _parse_covered_files(covered_files_data: t.Dict[str, str]) -> t.Optional[t.D
 
 
 def _parse_skippable_suites(
-    skippable_suites_data: t.List[_SkippableResponseDataItem],
-) -> t.Set[_SKIPPABLE_ITEM_ID_TYPE]:
-    suites_to_skip: t.Set[_SKIPPABLE_ITEM_ID_TYPE] = set()
+    skippable_suites_data: list[_SkippableResponseDataItem],
+) -> set[_SKIPPABLE_ITEM_ID_TYPE]:
+    suites_to_skip: set[_SKIPPABLE_ITEM_ID_TYPE] = set()
     count_unparsed_suites = 0
     for skippable_suite in skippable_suites_data:
         try:
@@ -207,9 +209,9 @@ def _parse_skippable_suites(
 
 
 def _parse_skippable_tests(
-    skippable_tests_data: t.List[_SkippableResponseDataItem], ignore_parameters: bool = False
-) -> t.Set[_SKIPPABLE_ITEM_ID_TYPE]:
-    tests_to_skip: t.Set[_SKIPPABLE_ITEM_ID_TYPE] = set()
+    skippable_tests_data: list[_SkippableResponseDataItem], ignore_parameters: bool = False
+) -> set[_SKIPPABLE_ITEM_ID_TYPE]:
+    tests_to_skip: set[_SKIPPABLE_ITEM_ID_TYPE] = set()
     count_unparsed_tests = 0
     for skippable_test in skippable_tests_data:
         try:
@@ -241,7 +243,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         base_url: str,
         itr_skipping_level: ITR_SKIPPING_LEVEL,
         git_data: GitData,
-        configurations: t.Dict[str, t.Any],
+        configurations: dict[str, t.Any],
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
         timeout: t.Optional[float] = None,
@@ -255,15 +257,15 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         self._timeout: float = timeout if timeout is not None else DEFAULT_TIMEOUT
 
     @abc.abstractmethod
-    def _redact_headers(self) -> t.Dict[str, str]:
+    def _redact_headers(self) -> dict[str, str]:
         """This is an abstract method to force child classes to consider which headers should be redacted for logging"""
         pass
 
     @abc.abstractmethod
-    def _get_headers(self) -> t.Dict[str, str]:
+    def _get_headers(self) -> dict[str, str]:
         pass
 
-    def _get_final_headers(self) -> t.Dict[str, str]:
+    def _get_final_headers(self) -> dict[str, str]:
         headers = _BASE_HEADERS.copy()
         headers.update(self._get_headers())
         return headers
@@ -302,7 +304,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         self,
         method: str,
         endpoint: str,
-        payload: t.Dict,
+        payload: dict,
         metric_names: APIRequestMetricNames,
         timeout: t.Optional[float] = None,
         read_from_cache: bool = True,
@@ -505,7 +507,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         except Exception:  # noqa: E722
             return None
 
-        covered_files: t.Optional[t.Dict[str, CoverageLines]] = None
+        covered_files: t.Optional[dict[str, CoverageLines]] = None
 
         if skippable_response is None:
             # We did not fetch any data, but telemetry has already been recorded, and a warning has been logged
@@ -543,7 +545,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skippable_items=items_to_skip,
         )
 
-    def fetch_known_tests(self, read_from_cache: bool = True) -> t.Optional[t.Set[TestId]]:
+    def fetch_known_tests(self, read_from_cache: bool = True) -> t.Optional[set[TestId]]:
         metric_names = APIRequestMetricNames(
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
@@ -551,7 +553,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        known_test_ids: t.Set[TestId] = set()
+        known_test_ids: set[TestId] = set()
 
         payload = {
             "data": {
@@ -600,7 +602,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         return known_test_ids
 
-    def fetch_test_management_tests(self, read_from_cache: bool = True) -> t.Optional[t.Dict[TestId, TestProperties]]:
+    def fetch_test_management_tests(self, read_from_cache: bool = True) -> t.Optional[dict[TestId, TestProperties]]:
         metric_names = APIRequestMetricNames(
             count=TEST_MANAGEMENT_TELEMETRY.REQUEST.value,
             duration=TEST_MANAGEMENT_TELEMETRY.REQUEST_MS.value,
@@ -608,7 +610,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=TEST_MANAGEMENT_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        test_properties: t.Dict[TestId, TestProperties] = {}
+        test_properties: dict[TestId, TestProperties] = {}
         payload = {
             "data": {
                 "id": str(uuid4()),
@@ -693,7 +695,7 @@ class AgentlessTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
     def _get_headers(self):
         return {AGENTLESS_API_KEY_HEADER_NAME: self._api_key}
 
-    def _redact_headers(self) -> t.Dict[str, str]:
+    def _redact_headers(self) -> dict[str, str]:
         """Sanitize headers for logging"""
         headers = self._get_final_headers()
         headers[AGENTLESS_API_KEY_HEADER_NAME] = "REDACTED"
@@ -720,6 +722,6 @@ class EVPProxyTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
     def _get_headers(self):
         return {EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_API_VALUE}
 
-    def _redact_headers(self) -> t.Dict[str, str]:
+    def _redact_headers(self) -> dict[str, str]:
         """EVP proxy headers do not include authentication information"""
         return self._get_final_headers()

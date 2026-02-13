@@ -15,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "0382c548169eae1b20cf218d9f29ba067ded8a39"
+  SYSTEM_TESTS_REF: "81191874d5f75b6f65f606a066a29c093e1ae17b"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
@@ -278,6 +278,32 @@ codeowners:
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   script:
+    # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
+    # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
+    # Normalize patterns before checking for duplicates:
+    #   - Remove trailing slashes (tests/tracer and tests/tracer/ are equivalent)
+    #   - Remove leading ./ (./path and path are equivalent)
+    #   - Collapse multiple consecutive slashes (path//file becomes path/file)
+    - |
+        # All non-comment/empty lines from .github/CODEOWNERS
+        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
+          # Remove any leading `./` in the line
+          sed 's|^\./||' | \
+          # Remove any duplicate `/`, e.g. `//` -> `/`
+          sed -E 's|/+|/|g' | \
+          # Remove any trailing `/`
+          sed 's:/*$::' | \
+          # Sort and return only duplicate entries
+          sort | uniq -d > /tmp/duplicate_codeowners.txt
+        if [ -s /tmp/duplicate_codeowners.txt ]; then
+            echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
+            cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
+            echo ""
+            echo "Each file pattern should only be listed once to ensure clear ownership."
+            echo "Normalization applied: removed trailing slashes, leading './', and collapsed multiple slashes."
+            echo "Please remove duplicates from .github/CODEOWNERS."
+            exit 1
+        fi
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz

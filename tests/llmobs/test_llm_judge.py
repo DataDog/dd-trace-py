@@ -10,9 +10,11 @@ from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
+from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 from tests.llmobs._utils import get_bedrock_vcr
+from tests.llmobs._utils import get_vertexai_vcr
 
 
 BEDROCK_CLIENT_OPTIONS = {
@@ -234,6 +236,128 @@ class TestLLMJudge:
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
         assert result.reasoning is None
+
+
+VERTEXAI_CLIENT_OPTIONS = {
+    "project": "test-project",
+    "location": "us-central1",
+    "credentials": mock.MagicMock(),
+}
+
+
+@pytest.fixture(scope="session")
+def vertexai_vcr():
+    yield get_vertexai_vcr()
+
+
+class TestVertexAIClient:
+    def test_missing_credentials_raises(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+        with mock.patch("google.auth.default", side_effect=Exception("no credentials")):
+            with pytest.raises(ValueError, match="Google Cloud credentials not provided"):
+                _create_vertexai_client()
+
+    def test_project_from_default_credentials(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+        mock_credentials = mock.MagicMock()
+        with (
+            mock.patch("google.auth.default", return_value=(mock_credentials, "adc-project")),
+            mock.patch("vertexai.init") as mock_init,
+        ):
+            _create_vertexai_client()
+            mock_init.assert_called_once_with(
+                project="adc-project", location="us-central1", credentials=mock_credentials
+            )
+
+    def test_explicit_project_overrides_adc(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "env-project")
+        mock_credentials = mock.MagicMock()
+        with (
+            mock.patch("google.auth.default", return_value=(mock_credentials, "adc-project")),
+            mock.patch("vertexai.init") as mock_init,
+        ):
+            _create_vertexai_client()
+            mock_init.assert_called_once_with(
+                project="env-project", location="us-central1", credentials=mock_credentials
+            )
+
+    @staticmethod
+    def _patch_vertexai_init_rest():
+        """Patch vertexai.init to force REST transport so VCR can intercept HTTP calls."""
+        import vertexai
+
+        original_init = vertexai.init
+
+        def patched_init(**kwargs):
+            kwargs["api_transport"] = "rest"
+            return original_init(**kwargs)
+
+        return mock.patch("vertexai.init", side_effect=patched_init)
+
+    def test_client_call(self, vertexai_vcr):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_boolean.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {"boolean_eval": {"type": "boolean"}},
+                    "required": ["boolean_eval"],
+                    "additionalProperties": False,
+                },
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        assert result == '{"boolean_eval": true}'
+
+    def test_client_call_with_score_schema(self, vertexai_vcr):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_score.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "score_eval": {"type": "number", "minimum": 1, "maximum": 10, "description": "Score"},
+                    },
+                    "required": ["score_eval"],
+                    "additionalProperties": False,
+                },
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
+
+    def test_client_call_with_categorical_schema(self, vertexai_vcr):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_categorical.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "categorical_eval": {
+                            "type": "string",
+                            "anyOf": [
+                                {"const": "positive", "description": "Positive sentiment"},
+                                {"const": "negative", "description": "Negative sentiment"},
+                            ],
+                        },
+                    },
+                    "required": ["categorical_eval"],
+                    "additionalProperties": False,
+                },
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"
 
 
 class TestBedrockClient:
