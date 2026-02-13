@@ -31,7 +31,7 @@ log = get_logger(__name__)
 VERSION = pymongo.version_tuple
 
 
-async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Wrapper for AsyncServer.run_operation to trace operations."""
     server_instance = get_argument_value(args, kwargs, 0, "self")
     operation = get_argument_value(args, kwargs, 2, "operation")
