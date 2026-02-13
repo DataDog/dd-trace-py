@@ -18,8 +18,12 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 
-import deepeval
-from deepeval.metrics import BaseMetric, BaseConversationalMetric
+try:
+    import deepeval
+    from deepeval.metrics import BaseMetric, BaseConversationalMetric
+except ImportError:
+    BaseMetric = None  # type: ignore[misc, assignment]
+    BaseConversationalMetric = None  # type: ignore[misc, assignment]
 
 import ddtrace
 from ddtrace import config
@@ -140,6 +144,19 @@ from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
+
+
+if BaseMetric is not None and BaseConversationalMetric is not None:
+    _ExperimentEvaluatorType = Union[
+        Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+        BaseEvaluator,
+        Union[List[BaseMetric], List[BaseConversationalMetric]],
+    ]
+else:
+    _ExperimentEvaluatorType = Union[
+        Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+        BaseEvaluator,
+    ]
 
 
 log = get_logger(__name__)
@@ -1108,13 +1125,7 @@ class LLMObs(Service):
         name: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: Sequence[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-                Union[List[BaseMetric], List[BaseConversationalMetric]]
-            ]
-        ],
+        evaluators: Sequence[_ExperimentEvaluatorType],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,

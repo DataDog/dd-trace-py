@@ -6,7 +6,7 @@ import pytest
 from deepeval.metrics import BaseMetric
 from deepeval.test_case import LLMTestCase
 
-from ddtrace.llmobs._experiment import _is_deepeval_evaluator
+from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 
@@ -25,22 +25,22 @@ class SimpleDeepEvalMetric(BaseMetric):
         passed = test_case.actual_output == test_case.expected_output
         self.score = 1.0 if passed else 0.0
         self.reason = "Match" if passed else "Mismatch"
-        self.success = str(passed)
+        self.success = "pass" if passed else "fail"
         return self.score
 
 
 class TestDeepEvalEvaluatorDetection:
-    """Test that _is_deepeval_evaluator correctly identifies DeepEval metrics."""
+    """Test that _is_deep_eval_evaluator correctly identifies DeepEval metrics."""
 
-    def test_simple_metric_is_deepeval_evaluator(self):
+    def test_simple_metric_is_deep_eval_evaluator(self):
         evaluator = SimpleDeepEvalMetric()
-        assert _is_deepeval_evaluator(evaluator) is True
+        assert _is_deep_eval_evaluator(evaluator) is True
 
-    def test_function_is_not_deepeval_evaluator(self):
+    def test_function_is_not_deep_eval_evaluator(self):
         def fn(a, b, c):
             return 1
 
-        assert _is_deepeval_evaluator(fn) is False
+        assert _is_deep_eval_evaluator(fn) is False
 
 
 class TestDeepEvalEvaluatorMeasure:
@@ -66,7 +66,7 @@ class TestDeepEvalEvaluatorMeasure:
 class TestDeepEvalEvaluatorInExperiment:
     """Test that a DeepEval evaluator runs successfully inside an experiment run."""
 
-    def test_experiment_run_with_deepeval_evaluator(self, llmobs):
+    def test_experiment_run_with_deep_eval_evaluator(self, llmobs):
         """Run an experiment with a DeepEval evaluator and assert it completes with correct results."""
         
         def dummytask(input_data, config):
@@ -90,12 +90,12 @@ class TestDeepEvalEvaluatorInExperiment:
             _dne_client=None,
         )
 
-        deepeval_metric = SimpleDeepEvalMetric(name="simple_deepeval")
+        deep_eval_metric = SimpleDeepEvalMetric(name="simple_deep_eval")
         exp = llmobs.experiment(
             "test_experiment",
             dummytask,
             dataset,
-            [deepeval_metric],
+            [deep_eval_metric],
         )
         
         run_info = _ExperimentRunInfo(0)
@@ -104,14 +104,14 @@ class TestDeepEvalEvaluatorInExperiment:
 
         print(eval_results)
         assert len(eval_results) == 1
-        assert "simple_deepeval" in eval_results[0]["evaluations"]
-        result = eval_results[0]["evaluations"]["simple_deepeval"]
+        assert "simple_deep_eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["simple_deep_eval"]
         assert result["error"] is None
         assert result["value"] == 1.0
         assert result["reasoning"] == "Match"
-        assert result["assessment"] == "True"
+        assert result["assessment"] == "pass"
 
-    def test_experiment_run_with_deepeval_evaluator_fail(self, llmobs):
+    def test_experiment_run_with_deep_eval_evaluator_fail(self, llmobs):
         """DeepEval evaluator scores 0 when actual_output != expected_output."""
 
         def task(input_data, config):
@@ -134,12 +134,12 @@ class TestDeepEvalEvaluatorInExperiment:
             _dne_client=None,
         )
 
-        deepeval_metric = SimpleDeepEvalMetric(name="simple_deepeval")
+        deep_eval_metric = SimpleDeepEvalMetric(name="simple_deep_eval")
         exp = llmobs.experiment(
             "test_experiment",
             task,
             dataset,
-            [deepeval_metric],
+            [deep_eval_metric],
         )
         
         run_info = _ExperimentRunInfo(0)
@@ -147,8 +147,8 @@ class TestDeepEvalEvaluatorInExperiment:
         eval_results = exp._run_evaluators(task_results, raise_errors=False)
 
         assert len(eval_results) == 1
-        assert "simple_deepeval" in eval_results[0]["evaluations"]
-        result = eval_results[0]["evaluations"]["simple_deepeval"]
+        assert "simple_deep_eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["simple_deep_eval"]
         assert result["value"] == 0.0
         assert result["reasoning"] == "Mismatch"
-        assert result["assessment"] == "False"
+        assert result["assessment"] == "fail"

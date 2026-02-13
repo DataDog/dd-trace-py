@@ -23,8 +23,13 @@ from typing import cast
 from typing import overload
 import uuid
 
-from deepeval.metrics import BaseMetric, BaseConversationalMetric
-from deepeval.test_case import LLMTestCase
+try:
+    from deepeval.metrics import BaseMetric, BaseConversationalMetric
+    from deepeval.test_case import LLMTestCase
+except ImportError:
+    BaseMetric = None  # type: ignore[misc, assignment]
+    BaseConversationalMetric = None  # type: ignore[misc, assignment]
+    LLMTestCase = None  # type: ignore[misc, assignment]
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
@@ -299,6 +304,8 @@ def _is_deep_eval_evaluator(evaluator: Any) -> bool:
     :param evaluator: The evaluator to check
     :return: True if it's a class-based deepeval evaluator, False otherwise
     """
+    if BaseMetric is None or BaseConversationalMetric is None:
+        return False
     return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
 
 
@@ -337,8 +344,8 @@ def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetri
     assessment = None
     if hasattr(evaluator, "reason"):
         reasoning = evaluator.reason
-    if hasattr(evaluator, "success"):
-        assessment = evaluator.success
+    if hasattr(evaluator, "success") and isinstance(evaluator.success, bool):
+        assessment = "pass" if evaluator.success else "fail"
     eval_result = EvaluatorResult(
         value=score,
         reasoning=reasoning,
