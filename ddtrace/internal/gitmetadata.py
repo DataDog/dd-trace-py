@@ -9,7 +9,9 @@ from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.utils import formats
 
 
-_GITMETADATA_TAGS: typing.Optional[tuple[str, str, str]] = None
+# IMPORTANT: Do not change typing.Tuple to tuple until minimum Python version is 3.11+
+# Module-level tuple[...] in Python 3.10 affects import timing. See packages.py for details.
+_GITMETADATA_TAGS: typing.Optional[typing.Tuple[str, str, str]] = None  # noqa: UP006
 
 log = get_logger(__name__)
 

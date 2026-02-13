@@ -844,13 +844,17 @@ class AstVisitor(ast.NodeTransformer):
         if isinstance(assign_node.value, ast.Subscript):
             if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
                 # Best effort to avoid converting type definitions
+                # Support both typing module style (Dict, List, Tuple) and Python 3.9+ style (dict, list, tuple)
                 if assign_node.value.value.id in (
                     "Callable",
+                    "Dict",
                     "dict",
                     "Generator",
+                    "List",
                     "list",
                     "Optional",
                     "Sequence",
+                    "Tuple",
                     "tuple",
                     "Type",
                     "TypeVar",
@@ -863,7 +867,7 @@ class AstVisitor(ast.NodeTransformer):
                 # We can't assign to a function call, which is anyway going to rewrite
                 # the index destination so we just ignore that target
                 target.avoid_convert = True  # type: ignore[attr-defined]
-            elif isinstance(target, (list, ast.Tuple)):
+            elif isinstance(target, (ast.List, ast.Tuple)):
                 # Same for lists/tuples on the left side of the assignment
                 for element in target.elts:
                     if isinstance(element, ast.Subscript):

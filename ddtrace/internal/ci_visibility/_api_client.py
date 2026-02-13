@@ -63,7 +63,9 @@ DEFAULT_TIMEOUT: float = 15.0
 DEFAULT_ITR_SKIPPABLE_TIMEOUT: float = 20.0
 DEFAULT_ATTEMPT_TO_FIX_RETRIES: int = 20
 
-_BASE_HEADERS: dict[str, str] = {
+# IMPORTANT: Do not change t.Dict to dict until minimum Python version is 3.11+
+# Module-level dict[...] in Python 3.10 affects import timing. See packages.py for details.
+_BASE_HEADERS: t.Dict[str, str] = {  # noqa: UP006
     "Content-Type": "application/json",
 }
 

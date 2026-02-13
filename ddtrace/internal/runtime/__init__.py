@@ -15,7 +15,9 @@ def _generate_runtime_id() -> str:
 
 _RUNTIME_ID: str = _generate_runtime_id()
 _ANCESTOR_RUNTIME_ID: t.Optional[str] = None
-_ON_RUNTIME_ID_CHANGE: set[t.Callable[[str], None]] = set()
+# IMPORTANT: Do not change t.Set to set until minimum Python version is 3.11+
+# Module-level set[...] in Python 3.10 affects import timing. See packages.py for details.
+_ON_RUNTIME_ID_CHANGE: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
 
 
 def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:

@@ -37,7 +37,9 @@ import logging
 import os
 import time
 import traceback
+from typing import DefaultDict
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 
@@ -150,8 +152,10 @@ class LoggingBucket:
 
 _MINF = float("-inf")
 
-key_type = Union[tuple[str, int, str, int], str]
-_buckets: collections.defaultdict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))
+# IMPORTANT: Do not change typing types to built-ins until minimum Python version is 3.11+
+# Module-level tuple[...] and defaultdict[...] in Python 3.10 affect import timing. See packages.py for details.
+key_type = Union[Tuple[str, int, str, int], str]  # noqa: UP006
+_buckets: DefaultDict[key_type, LoggingBucket] = collections.defaultdict(lambda: LoggingBucket(_MINF, 0))  # noqa: UP006
 
 # Allow 1 log record per name/level/pathname/lineno every 60 seconds by default
 # Allow configuring via `DD_TRACE_LOGGING_RATE`

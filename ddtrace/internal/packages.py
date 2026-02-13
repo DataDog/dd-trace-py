@@ -19,7 +19,7 @@ LOG = logging.getLogger(__name__)
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 
-_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, list[str]]] = None
+_PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: UP006
 
 
 @callonce
@@ -101,7 +101,7 @@ def _effective_root(rel_path: Path, parent: Path) -> str:
 
 # DEV: Since we can't lock on sys.path, these operations can be racy.
 _SYS_PATH_HASH: t.Optional[int] = None
-_RESOLVED_SYS_PATH: list[Path] = []
+_RESOLVED_SYS_PATH: t.List[Path] = []  # noqa: UP006
 
 
 def resolve_sys_path() -> list[Path]:

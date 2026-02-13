@@ -269,6 +269,14 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    uvloop = DDConfig.v(
+        bool,
+        "uvloop",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable uvloop support for async profiling",
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"

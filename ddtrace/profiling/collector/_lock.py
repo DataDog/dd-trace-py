@@ -18,8 +18,6 @@ from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
-from ddtrace.profiling.collector import _traceback
-from ddtrace.profiling.event import DDFrame
 from ddtrace.trace import Tracer
 
 
@@ -72,7 +70,6 @@ class _ProfiledLock:
     __slots__ = (
         "__wrapped__",
         "tracer",
-        "max_nframes",
         "capture_sampler",
         "init_location",
         "acquired_time",
@@ -84,13 +81,11 @@ class _ProfiledLock:
         self,
         wrapped: Any,
         tracer: Optional[Tracer],
-        max_nframes: int,
         capture_sampler: collector.CaptureSampler,
         is_internal: bool = False,
     ) -> None:
         self.__wrapped__: Any = wrapped
         self.tracer: Optional[Tracer] = tracer
-        self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         try:
@@ -271,9 +266,7 @@ class _ProfiledLock:
             # If we can't get the task frame, we use the caller frame.
             # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
             frame: FrameType = task_frame or sys._getframe(CALLER_FRAME_INDEX)
-            frames: list[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
-            for ddframe in frames:
-                handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
+            handle.push_pyframes(frame)
 
             handle.flush_sample()
         except AssertionError:
@@ -433,13 +426,11 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def __init__(
         self,
-        nframes: int = config.max_frames,
         tracer: Optional[Tracer] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.nframes: int = nframes
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Any = None
 
@@ -496,7 +487,6 @@ class LockCollector(collector.CaptureSamplerCollector):
             return self.PROFILED_LOCK_CLASS(
                 wrapped=original_lock(*args, **kwargs),
                 tracer=self.tracer,
-                max_nframes=self.nframes,
                 capture_sampler=self._capture_sampler,
                 is_internal=is_internal,
             )

@@ -797,10 +797,15 @@ class CustomBuildExt(build_ext):
 
     def _get_common_cmake_args(self, source_dir, build_dir, output_dir, extension_name, build_type=None):
         """Get common CMake arguments used by both libdd_wrapper and extensions."""
+        # Use base_prefix (not prefix) to get the actual Python installation path even when in a venv
+        # Resolve symlinks so CMake can find include/lib directories relative to the real installation
+        python_root = Path(sys.base_prefix).resolve()
+
         cmake_args = [
             f"-S{source_dir}",
             f"-B{build_dir}",
-            f"-DPython3_ROOT_DIR={sys.prefix}",
+            f"-DPython3_ROOT_DIR={python_root}",
+            f"-DPython3_EXECUTABLE={sys.executable}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={build_type or COMPILE_MODE}",
             f"-DLIB_INSTALL_DIR={output_dir}",
@@ -1208,11 +1213,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     cython_exts = cythonize(
         [
             Cython.Distutils.Extension(
-                "ddtrace.internal._rand",
-                sources=["ddtrace/internal/_rand.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
@@ -1227,11 +1227,6 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
             Extension(
                 "ddtrace.internal.telemetry.metrics_namespaces",
                 ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                language="c",
-            ),
-            Cython.Distutils.Extension(
-                "ddtrace.profiling.collector._traceback",
-                sources=["ddtrace/profiling/collector/_traceback.pyx"],
                 language="c",
             ),
             Cython.Distutils.Extension(

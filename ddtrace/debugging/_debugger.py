@@ -42,6 +42,7 @@ from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
@@ -56,7 +57,7 @@ from ddtrace.trace import Tracer
 
 log = get_logger(__name__)
 
-_probe_metrics = Metrics(namespace="dynamic.instrumentation.metric")
+_probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
 _probe_metrics.enable()
 
 T = TypeVar("T")

@@ -24,14 +24,9 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - uses: ./.github/actions/setup-ci-deps
         with:
           python-version: '3.11'
-
-      - name: Install codeowners
-        run: |
-            pip install codeowners
 
       - name: Run flaky tests report script
         run: python scripts/report_skipped_flaky.py
