@@ -1371,7 +1371,7 @@ class LLMObs(Service):
     _prompt_manager_lock = forksafe.Lock()
 
     @classmethod
-    def _ensure_prompt_manager(cls) -> Optional[PromptManager]:
+    def _ensure_prompt_manager(cls) -> PromptManager:
         # Double-checked locking for thread-safe initialization.
         if not cls._prompt_manager_initialized:
             with cls._prompt_manager_lock:
@@ -1422,9 +1422,6 @@ class LLMObs(Service):
                 )
         """
         prompt_manager = cls._ensure_prompt_manager()
-        if prompt_manager is None:
-            return ManagedPrompt.from_fallback(prompt_id, fallback)
-
         return prompt_manager.get_prompt(prompt_id, label, fallback)
 
     @classmethod
@@ -1458,22 +1455,18 @@ class LLMObs(Service):
             label: The prompt label. If not provided, returns the latest version.
 
         Returns:
-            The refreshed prompt, or None if fetch failed or prompt manager is not available.
+            The refreshed prompt, or None if fetch failed.
         """
         prompt_manager = cls._ensure_prompt_manager()
-        if prompt_manager is None:
-            log.warning("Cannot refresh prompt: prompt manager not initialized")
-            return None
         return prompt_manager.refresh_prompt(prompt_id, label)
 
     @classmethod
-    def _initialize_prompt_manager(cls) -> Optional[PromptManager]:
+    def _initialize_prompt_manager(cls) -> PromptManager:
         """Initialize the prompt manager with configuration."""
         api_key = config._dd_api_key
 
         if not api_key:
-            log.warning("DD_API_KEY not set. Prompt registry will not be available.")
-            return None
+            raise ValueError("DD_API_KEY is required for the Prompt Registry")
 
         cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
         file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
