@@ -66,8 +66,6 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
     // Python string object
     [[nodiscard]] Result<Key> key(PyObject* s, StringTag tag = StringTag::Unknown);
 
-    [[nodiscard]] Key key_unsafe(PyObject* s, StringTag tag = StringTag::Unknown);
-
     [[nodiscard]] Result<std::reference_wrapper<const std::string>> lookup(Key key) const;
 
     [[nodiscard]] inline size_t size() const
