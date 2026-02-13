@@ -441,10 +441,15 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if "metadata" in record:
             metadata = {} if record["metadata"] is None else record["metadata"]
 
+        tags: JSONType = None
+        if "tags" in record:
+            tags = [] if record["tags"] is None else record["tags"]
+
         rj: JSONType = {
             "input": cast(Dict[str, JSONType], record.get("input_data")),
             "expected_output": expected_output,
             "metadata": metadata,
+            "tags": tags,
         }
 
         if is_update:

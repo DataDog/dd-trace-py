@@ -20,10 +20,10 @@
       "vary": "Accept-Encoding",
       "x-frame-options": "SAMEORIGIN",
       "content-length": "372",
-      "date": "Fri, 13 Feb 2026 06:00:48 GMT",
+      "date": "Fri, 13 Feb 2026 17:07:29 GMT",
       "x-content-type-options": "nosniff",
       "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
     },
-    "body": "{\"data\":{\"id\":\"fafdd99f-7a3d-472f-a13c-066edad856d5\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"created_at\":\"2026-02-13T06:00:48.422902348Z\",\"current_version\":0,\"description\":\"A good csv dataset\",\"name\":\"test-dataset-good-csv\",\"project_id\":\"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9\",\"updated_at\":\"2026-02-13T06:00:48.422902348Z\"}}}"
+    "body": "{\"data\":{\"id\":\"e17407f3-a5af-4503-a25f-a1eb4cd437b3\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"created_at\":\"2026-02-13T17:07:29.092549795Z\",\"current_version\":0,\"description\":\"A good csv dataset\",\"name\":\"test-dataset-good-csv\",\"project_id\":\"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9\",\"updated_at\":\"2026-02-13T17:07:29.092549795Z\"}}}"
   }
 }

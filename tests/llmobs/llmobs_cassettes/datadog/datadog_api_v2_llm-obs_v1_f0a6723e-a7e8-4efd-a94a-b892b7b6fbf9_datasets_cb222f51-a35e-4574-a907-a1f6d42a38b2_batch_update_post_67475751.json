@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9/datasets/cb222f51-a35e-4574-a907-a1f6d42a38b2/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "412",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"cb222f51-a35e-4574-a907-a1f6d42a38b2\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of France?\"}, \"expected_output\": {\"answer\": \"Paris\"}, \"metadata\": null, \"tags\": null}, {\"input\": {\"prompt\": \"What is the capital of Italy?\"}, \"expected_output\": {\"answer\": \"Rome\"}, \"metadata\": null, \"tags\": null}], \"update_records\": [], \"delete_records\": []}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "894",
+      "date": "Fri, 13 Feb 2026 17:09:21 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"7994475d-78fb-42b5-bb16-28de8c27dc03\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"e6b89a02-82f0-4a66-a4f9-b5451e9a3647\",\"created_at\":\"2026-02-13T17:09:21.225797312Z\",\"dataset_id\":\"cb222f51-a35e-4574-a907-a1f6d42a38b2\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"tags\":[],\"updated_at\":\"2026-02-13T17:09:21.225797312Z\",\"version\":1}},{\"id\":\"956b81c9-39df-4eb6-8fdc-7766c902a954\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"f81ac04f-0d1f-4e45-9995-597c5b979464\",\"created_at\":\"2026-02-13T17:09:21.225797312Z\",\"dataset_id\":\"cb222f51-a35e-4574-a907-a1f6d42a38b2\",\"expected_output\":{\"answer\":\"Rome\"},\"input\":{\"prompt\":\"What is the capital of Italy?\"},\"tags\":[],\"updated_at\":\"2026-02-13T17:09:21.225797312Z\",\"version\":1}}]}"
+  }
+}

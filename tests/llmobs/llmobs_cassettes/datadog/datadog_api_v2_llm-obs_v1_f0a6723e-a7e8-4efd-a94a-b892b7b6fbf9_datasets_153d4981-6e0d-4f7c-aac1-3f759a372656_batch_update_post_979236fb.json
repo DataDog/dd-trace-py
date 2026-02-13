@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9/datasets/153d4981-6e0d-4f7c-aac1-3f759a372656/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "384",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"153d4981-6e0d-4f7c-aac1-3f759a372656\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of Nauru?\"}, \"expected_output\": null, \"metadata\": null, \"tags\": null}, {\"input\": {\"prompt\": \"What is the capital of Sealand?\"}, \"expected_output\": null, \"metadata\": null, \"tags\": null}], \"update_records\": [], \"delete_records\": []}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "822",
+      "date": "Fri, 13 Feb 2026 17:09:28 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"76a709d3-bd86-4558-a74d-6ae20730a623\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"9a3ad566-43db-4970-b224-992866afd21f\",\"created_at\":\"2026-02-13T17:09:28.744868211Z\",\"dataset_id\":\"153d4981-6e0d-4f7c-aac1-3f759a372656\",\"input\":{\"prompt\":\"What is the capital of Nauru?\"},\"tags\":[],\"updated_at\":\"2026-02-13T17:09:28.744868211Z\",\"version\":1}},{\"id\":\"308a23a0-b6c9-41b0-8c1e-74994d44ee01\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"c37aa961-4bcd-4191-b285-8178027f4b68\",\"created_at\":\"2026-02-13T17:09:28.744868211Z\",\"dataset_id\":\"153d4981-6e0d-4f7c-aac1-3f759a372656\",\"input\":{\"prompt\":\"What is the capital of Sealand?\"},\"tags\":[],\"updated_at\":\"2026-02-13T17:09:28.744868211Z\",\"version\":1}}]}"
+  }
+}

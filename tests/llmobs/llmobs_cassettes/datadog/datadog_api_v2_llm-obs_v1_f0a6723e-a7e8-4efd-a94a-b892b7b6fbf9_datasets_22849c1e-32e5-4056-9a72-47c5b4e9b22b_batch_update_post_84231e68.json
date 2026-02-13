@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9/datasets/22849c1e-32e5-4056-9a72-47c5b4e9b22b/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "415",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"22849c1e-32e5-4056-9a72-47c5b4e9b22b\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of France?\"}, \"expected_output\": {\"answer\": \"Paris\"}, \"metadata\": null, \"tags\": null}, {\"input\": {\"prompt\": \"What is the capital of China?\"}, \"expected_output\": {\"answer\": \"Beijing\"}, \"metadata\": null, \"tags\": null}], \"update_records\": [], \"delete_records\": []}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "897",
+      "date": "Fri, 13 Feb 2026 17:08:31 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"d09dd9ef-e463-4e93-b7bd-b4454048d2af\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"9872d7d6-6fb6-43b3-acaa-6785f86c90ec\",\"created_at\":\"2026-02-13T17:08:31.534345121Z\",\"dataset_id\":\"22849c1e-32e5-4056-9a72-47c5b4e9b22b\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"tags\":[],\"updated_at\":\"2026-02-13T17:08:31.534345121Z\",\"version\":1}},{\"id\":\"079b21db-5c64-4e31-b283-ce489ea48f25\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"ee871efb-2c1d-42b2-8264-4a62f22f445b\",\"created_at\":\"2026-02-13T17:08:31.534345121Z\",\"dataset_id\":\"22849c1e-32e5-4056-9a72-47c5b4e9b22b\",\"expected_output\":{\"answer\":\"Beijing\"},\"input\":{\"prompt\":\"What is the capital of China?\"},\"tags\":[],\"updated_at\":\"2026-02-13T17:08:31.534345121Z\",\"version\":1}}]}"
+  }
+}
