@@ -13,14 +13,21 @@ on:
       - '.gitlab/**'
       - '.cursor/**'
       - '.claude/**'
-      # Documentation
+      # Documentation and legal
       - 'docs/**'
       - 'releasenotes/**'
       - '*.md'
+      - '*.rst'
+      - 'LICENSE*'
+      - 'NOTICE'
+      - 'MANIFEST.in'
       # Tests, benchmarks, scripts (not packaged into the wheel)
       - 'tests/**'
       - 'benchmarks/**'
       - 'scripts/**'
+      # Git/repo config
+      - '.gitignore'
+      - '.gitattributes'
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
