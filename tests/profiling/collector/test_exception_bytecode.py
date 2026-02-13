@@ -11,23 +11,24 @@ import textwrap
 
 import pytest
 
-from ddtrace.profiling.collector._exception_bytecode import _find_except_bytecode_indexes_3_10
-from ddtrace.profiling.collector._exception_bytecode import _find_except_bytecode_indexes_3_11
-
 
 py_version = sys.version_info[:2]
+
+if py_version == (3, 10):
+    from ddtrace.profiling.collector._exception_bytecode import _find_except_bytecode_indexes_3_10
+
+    _find_offsets = _find_except_bytecode_indexes_3_10
+elif py_version == (3, 11):
+    from ddtrace.profiling.collector._exception_bytecode import _find_except_bytecode_indexes_3_11
+
+    _find_offsets = _find_except_bytecode_indexes_3_11
+else:
+    _find_offsets = None
 
 pytestmark = pytest.mark.skipif(
     py_version not in ((3, 10), (3, 11)),
     reason="Bytecode offset finder tests only run on Python 3.10 and 3.11",
 )
-
-if py_version == (3, 10):
-    _find_offsets = _find_except_bytecode_indexes_3_10
-elif py_version == (3, 11):
-    _find_offsets = _find_except_bytecode_indexes_3_11
-else:
-    _find_offsets = None
 
 # Expected offsets keyed by (major, minor)
 _EXPECTED = {
