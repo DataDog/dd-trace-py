@@ -6,7 +6,6 @@ from types import TracebackType
 from typing import Any
 from typing import Coroutine
 from typing import Optional
-from typing import Type
 from typing import TypeVar
 
 from ddtrace.internal.datadog.profiling import ddup

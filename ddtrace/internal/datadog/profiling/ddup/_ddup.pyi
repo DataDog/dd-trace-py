@@ -1,5 +1,4 @@
 from types import FrameType
-from typing import Dict
 from typing import Mapping
 from typing import Optional
 from typing import Union

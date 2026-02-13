@@ -8,26 +8,26 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 class MetricsClient(Protocol):
-    def increment(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
-    def gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
-    def histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
-    def distribution(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None: ...
+    def increment(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None: ...
+    def gauge(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None: ...
+    def histogram(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None: ...
+    def distribution(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None: ...
 
 
 class DogStatsdClient(MetricsClient):
     def __init__(self, namespace: Optional[str] = None) -> None:
         self._client = get_dogstatsd_client(agent_config.dogstatsd_url, namespace=namespace)
 
-    def increment(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def increment(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         self._client.increment(name, int(value), [":".join(_) for _ in tags.items()] if tags else None)
 
-    def gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def gauge(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         self._client.gauge(name, value, [":".join(_) for _ in tags.items()] if tags else None)
 
-    def histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def histogram(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         self._client.histogram(name, value, [":".join(_) for _ in tags.items()] if tags else None)
 
-    def distribution(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def distribution(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         self._client.distribution(name, value, [":".join(_) for _ in tags.items()] if tags else None)
 
 
@@ -35,16 +35,16 @@ class InstrumentationTelemetryMetricsClient(MetricsClient):
     def __init__(self, namespace: TELEMETRY_NAMESPACE) -> None:
         self.namespace = namespace
 
-    def increment(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def increment(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         telemetry_writer.add_count_metric(self.namespace, name, int(value), tuple(tags.items()) if tags else ())
 
-    def gauge(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def gauge(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         telemetry_writer.add_gauge_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
 
-    def histogram(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def histogram(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         pass
 
-    def distribution(self, name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
+    def distribution(self, name: str, value: float, tags: Optional[dict[str, str]] = None) -> None:
         telemetry_writer.add_distribution_metric(self.namespace, name, value, tuple(tags.items()) if tags else ())
 
 
