@@ -4,7 +4,6 @@ from pathlib import Path
 import sys
 import types
 from types import ModuleType
-import typing as t
 
 from _config import config
 from output import log
@@ -21,11 +20,11 @@ from ddtrace.internal.module import BaseModuleWatchdog
 
 
 INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
-_callback_lines: t.Dict[str, set[int]] = {}
-_tracked_lines: t.Dict[str, t.List[int]] = {}
+_callback_lines: dict[str, set[int]] = {}
+_tracked_lines: dict[str, list[int]] = {}
 
 
-def instrument_all_lines(func, callback: CallbackType) -> t.List[int]:
+def instrument_all_lines(func, callback: CallbackType) -> list[int]:
     code_to_instr = func.__wrapped__ if hasattr(func, "__wrapped__") else func
     if "__code__" not in dir(code_to_instr):
         return []
@@ -54,8 +53,8 @@ class InjectionWatchdog(BaseModuleWatchdog):
     def __init__(self, *args, **kwargs):
         super(InjectionWatchdog, self).__init__(*args, **kwargs)
 
-        self._imported_modules: t.Set[str] = set()
-        self._instrumented_modules: t.Set[str] = set()
+        self._imported_modules: set[str] = set()
+        self._instrumented_modules: set[str] = set()
 
         atexit.register(self.report_callback_called)
 
@@ -114,7 +113,7 @@ class InjectionWatchdog(BaseModuleWatchdog):
         global _tracked_lines
         global _callback_lines
 
-        _tracked_lines_path: t.Dict[Path, t.List[int]] = {Path(k).resolve(): v for k, v in _tracked_lines.items()}
+        _tracked_lines_path: dict[Path, list[int]] = {Path(k).resolve(): v for k, v in _tracked_lines.items()}
         try:
             w = max(len(str(o.relative_to(CWD))) for o in _tracked_lines_path)
         except ValueError:
