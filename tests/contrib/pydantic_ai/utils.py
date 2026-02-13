@@ -1,5 +1,3 @@
-from typing import Dict
-
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
@@ -23,7 +21,7 @@ def expected_foo_tool():
     ]
 
 
-def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> Dict:
+def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> dict:
     metadata = {
         "agent_manifest": {
             "framework": "PydanticAI",

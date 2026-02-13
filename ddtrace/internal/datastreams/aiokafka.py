@@ -2,10 +2,7 @@ import time
 from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -29,7 +26,7 @@ def dsm_aiokafka_send_start(
     topic: str,
     value: Optional[bytes],
     key: Optional[bytes],
-    headers: List[Tuple[str, bytes]],
+    headers: list[tuple[str, bytes]],
     span_ctx: core.ExecutionContext,
     _partition: Any,
 ) -> None:
@@ -54,7 +51,7 @@ def dsm_aiokafka_send_start(
     edge_tags = ["direction:out", f"topic:{topic}", "type:kafka"]
     ctx = dsm_processor.set_checkpoint(edge_tags, payload_size=payload_size, span=span)
 
-    dsm_headers: Dict[str, str] = {}
+    dsm_headers: dict[str, str] = {}
     DsmPathwayCodec.encode(ctx, dsm_headers)
     for header_key, header_value in dsm_headers.items():
         headers.append((header_key, header_value.encode("utf-8")))
@@ -62,7 +59,7 @@ def dsm_aiokafka_send_start(
 
 def dsm_aiokafka_send_completed(
     _ctx: core.ExecutionContext,
-    _error: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    _error: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     record_metadata: Any,
 ) -> None:
     from . import data_streams_processor as processor
@@ -122,7 +119,7 @@ def dsm_aiokafka_message_consume(
 def dsm_aiokafka_many_messages_consume(
     instance: "AIOKafkaConsumer",
     ctx: core.ExecutionContext,
-    messages: Optional[Dict["TopicPartition", list["ConsumerRecord"]]],
+    messages: Optional[dict["TopicPartition", list["ConsumerRecord"]]],
 ) -> None:
     if messages is not None:
         for _, records in messages.items():

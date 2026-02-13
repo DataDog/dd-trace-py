@@ -1,5 +1,4 @@
 from typing import Optional
-from typing import Type
 from typing import TypeVar
 
 
@@ -15,7 +14,7 @@ E = TypeVar("E", bound=BaseException)
 
 def find_exception(
     exc: BaseException,
-    exception_type: Type[E],
+    exception_type: type[E],
 ) -> Optional[E]:
     """Traverse an exception and its children to find the first occurrence of a specific exception type."""
     if isinstance(exc, exception_type):

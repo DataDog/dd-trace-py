@@ -1,11 +1,7 @@
 # coding: utf-8
 from collections import defaultdict
 import os
-from typing import DefaultDict
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.processor import SpanProcessor
@@ -13,13 +9,13 @@ from ddtrace._trace.span import Span
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
 from ...constants import _SPAN_MEASURED_KEY
 from .. import agent
 from .._encoding import packb
-from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -41,7 +37,7 @@ best as possible). This enables the compression of stat points.
 Aggregation can be done using primary and secondary attributes from the span
 stored in a tuple which is hashable in Python.
 """
-SpanAggrKey = Tuple[
+SpanAggrKey = tuple[
     str,  # name
     str,  # service
     str,  # resource
@@ -100,10 +96,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
         self._bucket_size_ns: int = int(interval * 1e9)
-        self._buckets: DefaultDict[int, DefaultDict[SpanAggrKey, SpanAggrStats]] = defaultdict(
+        self._buckets: defaultdict[int, defaultdict[SpanAggrKey, SpanAggrStats]] = defaultdict(
             lambda: defaultdict(SpanAggrStats)
         )
-        self._headers: Dict[str, str] = {
+        self._headers: dict[str, str] = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": __version__,
             "Content-Type": "application/msgpack",
@@ -149,7 +145,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             else:
                 stats.ok_distribution.add(span.duration_ns)
 
-    def _serialize_buckets(self) -> List[Dict]:
+    def _serialize_buckets(self) -> list[dict]:
         """Serialize and update the buckets.
 
         The current bucket is left in case any other spans are added.
@@ -228,7 +224,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if not serialized_stats:
             # No stats to report, short-circuit.
             return
-        raw_payload: Dict[str, Union[List[Dict], str]] = {
+        raw_payload: dict[str, Union[list[dict], str]] = {
             "Stats": serialized_stats,
             "Hostname": self._hostname,
         }

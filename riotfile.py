@@ -1,7 +1,5 @@
 # type: ignore
 import logging
-from typing import List  # noqa
-from typing import Tuple  # noqa
 
 from riot import Venv
 
@@ -9,7 +7,7 @@ from riot import Venv
 logger = logging.getLogger(__name__)
 latest = ""
 
-SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
+SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 9),
     (3, 10),
     (3, 11),
@@ -19,7 +17,7 @@ SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
 ]
 
 
-def version_to_str(version: Tuple[int, int]) -> str:
+def version_to_str(version: tuple[int, int]) -> str:
     """Convert a Python version tuple to a string
 
     >>> version_to_str((3, 9))
@@ -40,7 +38,7 @@ def version_to_str(version: Tuple[int, int]) -> str:
     return ".".join(str(p) for p in version)
 
 
-def str_to_version(version: str) -> Tuple[int, int]:
+def str_to_version(version: str) -> tuple[int, int]:
     """Convert a Python version string to a tuple
 
     >>> str_to_version("3.9")
@@ -65,7 +63,7 @@ MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
 MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
-def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> List[str]:
+def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
@@ -3295,6 +3293,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
+                "google-cloud-aiplatform": latest,
+                "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
@@ -3376,6 +3376,16 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3422,6 +3432,16 @@ venv = Venv(
                                 ),
                             ],
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3451,6 +3471,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
@@ -3484,6 +3514,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),

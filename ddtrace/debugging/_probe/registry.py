@@ -1,15 +1,13 @@
 from collections import defaultdict
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import cast
 
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeLocationMixin
 from ddtrace.debugging._probe.status import ProbeStatusLogger
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 
 
 logger = get_logger(__name__)
@@ -66,9 +64,9 @@ class ProbeRegistry(dict):
         self.logger = status_logger
 
         # Used to keep track of probes pending installation
-        self._pending: Dict[str, List[Probe]] = defaultdict(list)
+        self._pending: dict[str, list[Probe]] = defaultdict(list)
 
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
 
     def register(self, *probes: Probe) -> None:
         """Register a probe."""
@@ -181,7 +179,7 @@ class ProbeRegistry(dict):
                 return True
         return False
 
-    def unregister(self, *probes: Probe) -> List[Probe]:
+    def unregister(self, *probes: Probe) -> list[Probe]:
         """Unregister a collection of probes.
 
         This also ensures that any pending probes are removed if they haven't
@@ -201,7 +199,7 @@ class ProbeRegistry(dict):
                     unregistered_probes.append(probe)
         return unregistered_probes
 
-    def get_pending(self, location: str) -> List[Probe]:
+    def get_pending(self, location: str) -> list[Probe]:
         """Get the currently pending probes by location."""
         return self._pending[location].copy()
 
