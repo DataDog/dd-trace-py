@@ -95,6 +95,7 @@ PATCH_MODULES = {
     "yaaredis": True,
     "asyncpg": True,
     "aws_lambda": True,  # patch only in AWS Lambda environments
+    "aws_durable_execution_sdk_python": True,  # AWS Lambda Durable Functions
     "azure_eventhubs": True,
     "azure_functions": True,
     "azure_servicebus": True,
