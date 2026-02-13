@@ -55,7 +55,7 @@ release_profiles_dictionary()
 } // namespace Datadog::internal
 
 // State
-bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<bool> is_ddup_initialized{ false }; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
 
 // When a fork is detected, we need to reinitialize this state.

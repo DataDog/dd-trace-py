@@ -12,6 +12,9 @@ Datadog::string_id
 Datadog::intern_string(std::string_view s)
 {
     auto dict = internal::get_profiles_dictionary();
+    if (dict == nullptr) {
+        return nullptr;
+    }
 
     ddog_prof_StringId2 string_id;
     auto insert_str_res = ddog_prof_ProfilesDictionary_insert_str(
@@ -36,6 +39,10 @@ Datadog::function_id
 Datadog::intern_function(string_id name, string_id filename)
 {
     auto dict = internal::get_profiles_dictionary();
+    if (dict == nullptr) {
+        return nullptr;
+    }
+
     ddog_prof_Function2 my_function = {
         .name = name,
         .system_name = cached_empty_string_id, // No support for system_name in Python

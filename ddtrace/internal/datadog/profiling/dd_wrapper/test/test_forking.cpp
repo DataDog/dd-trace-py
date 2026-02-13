@@ -79,13 +79,11 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
 {
     configure("my_test_service", "my_test_env", "0.0.1", "https://127.0.0.1:9126", "cpython", "3.10.6", "3.100", 256);
     std::atomic<bool> done(false);
-    std::vector<pthread_t> thread_handles;
-    std::vector<unsigned int> ids;
+    std::vector<pthread_t> thread_handles(num_threads);
     std::vector<EmulateSamplerArg> args;
 
-    for (unsigned int i = 0; i < ids.size(); i++) {
-        auto id = ids[i];
-        args.push_back(EmulateSamplerArg{ id, sleep_time_ns, &done });
+    for (unsigned int i = 0; i < num_threads; i++) {
+        args.push_back(EmulateSamplerArg{ i % 4 + 1, sleep_time_ns, &done });
     }
 
     // ddup is configured, launch threads
