@@ -341,9 +341,7 @@ class TestLLMObsClaudeAgentSdk:
 
         assert llmobs_events[0] == expected_event
 
-    async def test_llmobs_client_query_with_async_iterable_prompt(
-        self, mock_client, llmobs_events, test_spans
-    ):
+    async def test_llmobs_client_query_with_async_iterable_prompt(self, mock_client, llmobs_events, test_spans):
         async def prompt_generator():
             yield {"type": "user", "message": {"role": "user", "content": "Hello"}}
             yield {"type": "user", "message": {"role": "user", "content": "What is 2+2?"}}
@@ -358,10 +356,12 @@ class TestLLMObsClaudeAgentSdk:
         expected_event = _expected_llmobs_non_llm_span_event(
             span,
             span_kind="agent",
-            input_value=safe_json([
-                {"content": "Hello", "role": "user"},
-                {"content": "What is 2+2?", "role": "user"},
-            ]),
+            input_value=safe_json(
+                [
+                    {"content": "Hello", "role": "user"},
+                    {"content": "What is 2+2?", "role": "user"},
+                ]
+            ),
             output_value=safe_json(
                 [
                     {
