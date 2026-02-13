@@ -1440,7 +1440,7 @@ class AsyncExperiment(BaseExperiment):
 
                     try:
                         if isinstance(evaluator, BaseAsyncEvaluator):
-                            evaluator_name = evaluator.name  # type: ignore[union-attr]
+                            evaluator_name = evaluator.name
                             combined_metadata = {**metadata, "experiment_config": self._config}
                             context = EvaluatorContext(
                                 input_data=input_data,
@@ -1450,10 +1450,10 @@ class AsyncExperiment(BaseExperiment):
                                 span_id=task_result.get("span_id"),
                                 trace_id=task_result.get("trace_id"),
                             )
-                            eval_result = await evaluator.evaluate(context)  # type: ignore[union-attr, misc]
+                            eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
-                            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                            eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[operator, misc]
+                            evaluator_name = evaluator.__name__
+                            eval_result = await evaluator(input_data, output_data, expected_output)
                         elif _is_class_evaluator(evaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {**metadata, "experiment_config": self._config}
