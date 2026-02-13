@@ -62,12 +62,14 @@ tests-gen:
   extends: .testrunner
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
     - |
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
       if [ -z ${GH_TOKEN} ]
       then
@@ -87,6 +89,7 @@ run-tests-trigger:
  needs: [ tests-gen ]
  variables:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+   NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
