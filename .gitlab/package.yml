@@ -39,16 +39,12 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
-    _DD_DEBUG_EXT: "1"
-    DD_CARGO_ARGS: "--timings"
   artifacts:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
       - "debugwheelhouse/*.log"
       - "debugwheelhouse/*.zip"
-      - "debug_ext_metadata.txt"
-      - "src/native/target*/cargo-timings/"
 
 .upload_wheels_base:
   tags: ["arch:amd64"]
