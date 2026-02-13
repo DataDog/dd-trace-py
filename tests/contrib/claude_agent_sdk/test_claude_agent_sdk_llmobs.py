@@ -311,8 +311,8 @@ class TestLLMObsClaudeAgentSdk:
         self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans
     ):
         async def prompt_generator():
-            yield {"role": "user", "content": "Hello"}
-            yield {"role": "user", "content": "What is 2+2?"}
+            yield {"type": "user", "message": {"role": "user", "content": "Hello"}}
+            yield {"type": "user", "message": {"role": "user", "content": "What is 2+2?"}}
 
         async for _ in claude_agent_sdk.query(prompt=prompt_generator()):
             pass
@@ -345,8 +345,8 @@ class TestLLMObsClaudeAgentSdk:
         self, mock_client, llmobs_events, test_spans
     ):
         async def prompt_generator():
-            yield {"role": "user", "content": "Hello"}
-            yield {"role": "user", "content": "What is 2+2?"}
+            yield {"type": "user", "message": {"role": "user", "content": "Hello"}}
+            yield {"type": "user", "message": {"role": "user", "content": "What is 2+2?"}}
 
         await mock_client.query(prompt=prompt_generator())
         async for _ in mock_client.receive_messages():

@@ -207,9 +207,10 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         if prompt_wrapper and hasattr(prompt_wrapper, "captured_values"):
             messages = []
             for captured_msg in prompt_wrapper.captured_values:
-                if isinstance(captured_msg, dict) and "content" in captured_msg and "role" in captured_msg:
-                    content = safe_json(captured_msg.get("content", "")) or ""
-                    role = captured_msg.get("role", "user") or "user"
+                if isinstance(captured_msg, dict) and "message" in captured_msg:
+                    message = captured_msg.get("message", {}) or {}
+                    content = message.get("content", "") or ""
+                    role = message.get("role", "user") or "user"
                     messages.append(Message(content=content, role=role))
                 else:
                     messages.append(Message(content=safe_json(captured_msg) or "", role="user"))
