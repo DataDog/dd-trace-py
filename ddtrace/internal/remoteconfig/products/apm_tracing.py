@@ -42,7 +42,7 @@ class APMTracingCallback(RCCallback):
 
     def __init__(self) -> None:
         """Initialize the APM tracing callback with empty configuration state."""
-        self._config_map: t.Dict[str, Payload] = {}
+        self._config_map: dict[str, Payload] = {}
 
     def _get_chained_lib_config(self) -> t.ChainMap:
         """Get merged library configuration from all configs, ordered by precedence."""

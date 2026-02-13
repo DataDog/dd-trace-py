@@ -1,10 +1,8 @@
 import enum
 import os
-from typing import Callable
-from typing import Dict
-from typing import Iterable
-from typing import List
-from typing import Optional
+from typing import Callable  # noqa:F401
+from typing import Iterable  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
@@ -36,7 +34,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()
-        self._capabilities_map: Dict[enum.IntFlag, str] = dict()
+        self._capabilities_map: dict[enum.IntFlag, str] = dict()
 
     def _agent_check(self) -> None:
         try:
@@ -141,7 +139,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self,
         product: str,
         callback: RCCallback,
-        preprocess: Optional[Callable[[List[Payload]], List[Payload]]] = None,
+        preprocess: Optional[Callable[[list[Payload]], list[Payload]]] = None,
         skip_enabled: bool = False,
         capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
@@ -152,7 +150,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             callback: Callback function to invoke when payloads are received in child processes
             preprocess: Optional preprocessing function to run in the main process before publishing
             skip_enabled: If True, skip enabling the remote config client
-            capabilities: List of capabilities to register for this product
+            capabilities: list of capabilities to register for this product
         """
         try:
             # By enabling on registration we ensure we start the RCM client only

@@ -7,6 +7,7 @@ merge_method: squash
 gitlab_check_enable: true
 gitlab_jobs_retry_enable: false
 gitlab_fail_fast: false
+skip_labels: true
 
 ---
 schema-version: v1

@@ -4,11 +4,8 @@ import time
 import typing as t
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Optional
-from typing import Type
 
 from ddtrace import config as tracer_config
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
@@ -50,7 +47,7 @@ from ddtrace.internal.remoteconfig import RCCallback
 log = get_logger(__name__)
 
 
-def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
+def xlate_keys(d: dict[str, Any], mapping: dict[str, str]) -> dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
@@ -82,15 +79,15 @@ def _filter_by_env_and_version(f: Callable[..., Iterable[Probe]]) -> Callable[..
 
 
 class ProbeFactory(object):
-    __line_class__: Optional[Type[LineProbe]] = None
-    __function_class__: Optional[Type[FunctionProbe]] = None
+    __line_class__: Optional[type[LineProbe]] = None
+    __function_class__: Optional[type[FunctionProbe]] = None
 
     @classmethod
     def update_args(cls, args, attribs):
         raise NotImplementedError()
 
     @classmethod
-    def build(cls, args: Dict[str, Any], attribs: Dict[str, Any]) -> Any:
+    def build(cls, args: dict[str, Any], attribs: dict[str, Any]) -> Any:
         cls.update_args(args, attribs)
 
         where = attribs["where"]
@@ -235,7 +232,7 @@ PROBE_FACTORY = {
 }
 
 
-def build_probe(attribs: Dict[str, Any]) -> Probe:
+def build_probe(attribs: dict[str, Any]) -> Probe:
     """
     Create a new Probe instance.
     """
@@ -288,7 +285,7 @@ class DebuggerRCCallback(RCCallback):
 
     def __init__(
         self,
-        callback: Callable[[ProbePollerEvent, List[Probe]], None],
+        callback: Callable[[ProbePollerEvent, list[Probe]], None],
         status_logger: ProbeStatusLogger,
         registry: "ProbeRegistry",
         diagnostics_interval: float,
@@ -306,9 +303,9 @@ class DebuggerRCCallback(RCCallback):
         self._registry = registry
         self._diagnostics_interval = diagnostics_interval
         self._last_status_emission = 0.0
-        self._configs: Dict[str, Dict[str, Probe]] = {}
+        self._configs: dict[str, dict[str, Probe]] = {}
 
-    def _dispatch_probe_events(self, prev_probes: Dict[str, Probe], next_probes: Dict[str, Probe]) -> None:
+    def _dispatch_probe_events(self, prev_probes: dict[str, Probe], next_probes: dict[str, Probe]) -> None:
         """Dispatch events for new, deleted, and modified probes."""
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
@@ -323,8 +320,8 @@ class DebuggerRCCallback(RCCallback):
 
     def _update_probes_for_config(self, config_id: str, config: Any) -> None:
         """Update probes for a specific configuration."""
-        prev_probes: Dict[str, Probe] = self._configs.get(config_id, {})
-        next_probes: Dict[str, Probe] = (
+        prev_probes: dict[str, Probe] = self._configs.get(config_id, {})
+        next_probes: dict[str, Probe] = (
             {probe.probe_id: probe for probe in get_probes(config, self._status_logger)}
             if config not in (None, False)
             else {}

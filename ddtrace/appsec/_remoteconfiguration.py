@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Sequence
 
@@ -76,7 +74,7 @@ class AppSecCallback(RCCallback):
 
     def __init__(self) -> None:
         """Initialize the AppSec callback."""
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
 
     def __call__(self, payloads: Sequence[Payload]) -> None:
         """Process AppSec configuration payloads.
@@ -104,9 +102,9 @@ class AppSecCallback(RCCallback):
         )
         log.debug(debug_info)
 
-        for_the_waf_updates: List[tuple[str, str, PayloadType]] = []
-        for_the_waf_removals: List[tuple[str, str]] = []
-        for_the_tracer: List[Payload] = []
+        for_the_waf_updates: list[tuple[str, str, PayloadType]] = []
+        for_the_waf_removals: list[tuple[str, str]] = []
+        for_the_tracer: list[Payload] = []
         for payload in payloads:
             if payload.metadata.product_name == "ASM_FEATURES":
                 for_the_tracer.append(payload)
@@ -123,8 +121,8 @@ class AppSecCallback(RCCallback):
 _appsec_callback = AppSecCallback()
 
 
-def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    res: Dict[str, Dict[str, Optional[bool]]] = {}
+def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    res: dict[str, dict[str, Optional[bool]]] = {}
     for payload in payload_list:
         if payload.metadata.product_name == "ASM_FEATURES":
             payload_content = payload.content
@@ -141,7 +139,7 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: Dict[str, Dict[
     return res
 
 
-def _process_asm_features(payload_list: List[Payload], cache: Dict[str, Dict[str, Any]] = {}):
+def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str, Any]] = {}):
     """This callback updates appsec enabled in tracer and config instances following this logic:
     ```
     | DD_APPSEC_ENABLED | RC Enabled | Result   |
