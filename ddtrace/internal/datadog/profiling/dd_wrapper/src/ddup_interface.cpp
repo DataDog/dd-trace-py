@@ -40,10 +40,15 @@ init_profiles_dictionary()
 
 namespace Datadog::internal {
 
-ddog_prof_ProfilesDictionaryHandle
+std::optional<ddog_prof_ProfilesDictionaryHandle>
 get_profiles_dictionary()
 {
-    return dict_handle.load(std::memory_order_acquire);
+    auto handle = dict_handle.load(std::memory_order_acquire);
+    if (handle == nullptr) {
+        return std::nullopt;
+    }
+
+    return handle;
 }
 
 void
@@ -78,7 +83,11 @@ ddup_postfork_child()
     }
 
     // Initialize cached interned strings with the new Profiles Dictionary
-    Datadog::internal::init_interned_strings();
+    if (!Datadog::internal::init_interned_strings()) {
+        std::cerr << "failed to initialise interned strings in child process, profiler will be disabled" << std::endl;
+        is_ddup_initialized = false;
+        return;
+    }
 
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();

@@ -147,7 +147,11 @@ StackRenderer::render_frame(Frame& frame)
             name_str = missing_name;
         }
 
-        name_id = Datadog::intern_string(name_str);
+        auto maybe_interned_name_id = Datadog::intern_string(name_str);
+        if (!maybe_interned_name_id) {
+            return;
+        }
+        name_id = *maybe_interned_name_id;
         string_id_cache.insert({ frame.name, name_id });
     } else {
         name_id = maybe_name_id->second;
@@ -184,7 +188,11 @@ StackRenderer::render_frame(Frame& frame)
             filename_str = missing_filename;
         }
 
-        filename_id = Datadog::intern_string(filename_str);
+        auto maybe_interned_filename_id = Datadog::intern_string(filename_str);
+        if (!maybe_interned_filename_id) {
+            return;
+        }
+        filename_id = *maybe_interned_filename_id;
         string_id_cache.insert({ frame.filename, filename_id });
     } else {
         filename_id = maybe_filename_id->second;
@@ -193,7 +201,11 @@ StackRenderer::render_frame(Frame& frame)
     function_id function_id;
     auto maybe_function_id = function_id_cache.find({ name_id, filename_id });
     if (maybe_function_id == function_id_cache.end()) {
-        function_id = Datadog::intern_function(name_id, filename_id);
+        auto maybe_interned_function_id = Datadog::intern_function(name_id, filename_id);
+        if (!maybe_interned_function_id) {
+            return;
+        }
+        function_id = *maybe_interned_function_id;
         function_id_cache.insert({ { static_cast<void*>(name_id), static_cast<void*>(filename_id) }, function_id });
     } else {
         function_id = maybe_function_id->second;

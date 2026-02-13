@@ -26,41 +26,47 @@ reset_key_caches()
     }
 }
 
-ddog_prof_StringId2
+std::optional<ddog_prof_StringId2>
 to_interned_string(ExportTagKey key)
 {
     const auto idx = static_cast<size_t>(key);
 
     if (idx >= tag_cache.size()) {
-        return nullptr;
+        return std::nullopt;
     }
 
     // Check cache first (relaxed is fine - see comment above cache declaration)
     auto string_id = tag_cache[idx].load(std::memory_order_relaxed);
     if (string_id == nullptr) {
-        string_id = intern_string(to_string(key));
+        auto interned = intern_string(to_string(key));
+        if (!interned) {
+            return std::nullopt;
+        }
+        string_id = interned.value();
         tag_cache[idx].store(string_id, std::memory_order_relaxed);
-        return string_id;
     }
 
     return string_id;
 }
 
-ddog_prof_StringId2
+std::optional<ddog_prof_StringId2>
 to_interned_string(ExportLabelKey key)
 {
     const auto idx = static_cast<size_t>(key);
 
     if (idx >= label_cache.size()) {
-        return nullptr;
+        return std::nullopt;
     }
 
     // Check cache first (relaxed is fine - see comment above cache declaration)
     auto string_id = label_cache[idx].load(std::memory_order_relaxed);
     if (string_id == nullptr) {
-        string_id = intern_string(to_string(key));
+        auto interned = intern_string(to_string(key));
+        if (!interned) {
+            return std::nullopt;
+        }
+        string_id = interned.value();
         label_cache[idx].store(string_id, std::memory_order_relaxed);
-        return string_id;
     }
 
     return string_id;

@@ -15,18 +15,21 @@
 #include <datadog/profiling.h>
 #include <string_view>
 
-Datadog::string_id
+std::optional<Datadog::string_id>
 Datadog::intern_string(std::string_view s)
 {
-    auto dict = internal::get_profiles_dictionary();
+    auto maybe_dict = internal::get_profiles_dictionary();
+    if (!maybe_dict) {
+        return std::nullopt;
+    }
 
     ddog_prof_StringId2 string_id;
     auto insert_str_res = ddog_prof_ProfilesDictionary_insert_str(
-      &string_id, dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
+      &string_id, *maybe_dict, to_slice(s), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
 
     if (insert_str_res.flags) {
         std::cerr << "Error inserting string: " << insert_str_res.err << std::endl;
-        return nullptr;
+        return std::nullopt;
     }
 
     return string_id;
@@ -39,10 +42,14 @@ ddog_prof_StringId2 cached_empty_string_id = nullptr;
 
 } // namespace
 
-Datadog::function_id
+std::optional<Datadog::function_id>
 Datadog::intern_function(string_id name, string_id filename)
 {
-    auto dict = internal::get_profiles_dictionary();
+    auto maybe_dict = internal::get_profiles_dictionary();
+    if (!maybe_dict) {
+        return std::nullopt;
+    }
+
     ddog_prof_Function2 my_function = {
         .name = name,
         .system_name = cached_empty_string_id, // No support for system_name in Python
@@ -50,23 +57,29 @@ Datadog::intern_function(string_id name, string_id filename)
     };
 
     ddog_prof_FunctionId2 function_id;
-    auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, dict, &my_function);
+    auto insert_function_res = ddog_prof_ProfilesDictionary_insert_function(&function_id, *maybe_dict, &my_function);
     if (insert_function_res.flags) {
         std::cerr << "Error inserting function: " << insert_function_res.err << std::endl;
-        return nullptr;
+        return std::nullopt;
     }
 
     return function_id;
 }
 
-void
+[[nodiscard]] bool
 Datadog::internal::init_interned_strings()
 {
     // Initialize the cached empty string with the current Profiles Dictionary
-    cached_empty_string_id = intern_string("");
+    auto empty_str = intern_string("");
+    if (!empty_str) {
+        return false;
+    }
+    cached_empty_string_id = *empty_str;
 
     // Reset and re-initialize the tag and label key caches
     reset_key_caches();
+
+    return true;
 }
 
 Datadog::internal::StringArena::StringArena()
@@ -117,20 +130,28 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
-    auto name_id = intern_string(name);
-    auto filename_id = intern_string(filename);
+    auto maybe_name_id = intern_string(name);
+    auto maybe_filename_id = intern_string(filename);
 
-    auto function_id = intern_function(name_id, filename_id);
+    // Skip frame if interning failed (e.g., dictionary not available)
+    if (!maybe_name_id || !maybe_filename_id) {
+        return;
+    }
 
-    push_frame_impl(function_id, address, line);
+    auto maybe_func_id = intern_function(*maybe_name_id, *maybe_filename_id);
+    if (!maybe_func_id) {
+        return;
+    }
+
+    push_frame_impl(*maybe_func_id, address, line);
 }
 
 void
-Datadog::Sample::push_frame_impl(function_id function_id, uint64_t address, int64_t line)
+Datadog::Sample::push_frame_impl(function_id func_id, uint64_t address, int64_t line)
 {
     locations.push_back({
       .mapping = nullptr, // No support for mappings in Python
-      .function = function_id,
+      .function = func_id,
       .address = address,
       .line = line,
     });
@@ -261,13 +282,17 @@ Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t l
 bool
 Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 {
-    // Get the interned string for the key
-    const auto key_id = internal::to_interned_string(key);
-
-    // If either the val or the key are empty, we don't add the label, but
-    // we don't return error
+    // If the value is empty, we don't add the label, but we don't return error
     // TODO is this what we want?
-    if (val.empty() || key_id == nullptr) {
+    if (val.empty()) {
+        return true;
+    }
+
+    // Get the interned string for the key
+    const auto maybe_key_id = internal::to_interned_string(key);
+    // If the key is not found, we don't add the label, but we don't return error
+    // TODO is this what we want?
+    if (!maybe_key_id) {
         return true;
     }
 
@@ -276,7 +301,7 @@ Datadog::Sample::push_label(const ExportLabelKey key, std::string_view val)
 
     // Otherwise, persist the val string and add the label
     labels.push_back({
-      .key = key_id,
+      .key = *maybe_key_id,
       // Do not intern this because it could be a memory leak if values are high-cardinality.
       // For example, asyncio Task names are dynamic and only persist for the duration of the Task.
       .str = to_slice(val_str),
@@ -293,14 +318,14 @@ Datadog::Sample::push_label(const ExportLabelKey key, int64_t val)
     // Get the interned string for the key.  If there is no key, then there
     // is no label.  Right now this is OK.
     // TODO make this not OK
-    const auto key_id = internal::to_interned_string(key);
-    if (key_id == nullptr) {
+    const auto maybe_key_id = internal::to_interned_string(key);
+    if (!maybe_key_id) {
         return true;
     }
 
     auto empty_string = to_slice("");
     labels.push_back({
-      .key = key_id,
+      .key = *maybe_key_id,
       .str = empty_string,
       .num = val,
       .num_unit = empty_string,

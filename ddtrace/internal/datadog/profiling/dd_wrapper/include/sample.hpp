@@ -5,6 +5,7 @@
 #include "profile_borrow.hpp"
 #include "types.hpp"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -64,9 +65,10 @@ struct StringArena
 using string_id = ddog_prof_StringId2;
 using function_id = ddog_prof_FunctionId2;
 
-string_id
+std::optional<string_id>
 intern_string(std::string_view s);
-function_id
+
+std::optional<function_id>
 intern_function(string_id name, string_id filename);
 
 class SampleManager; // friend
