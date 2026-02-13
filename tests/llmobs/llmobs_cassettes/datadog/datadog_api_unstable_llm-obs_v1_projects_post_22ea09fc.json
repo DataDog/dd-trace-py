@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/unstable/llm-obs/v1/projects",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "98",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"projects\", \"attributes\": {\"name\": \"new-different-project\", \"description\": \"\"}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "259",
+      "date": "Fri, 13 Feb 2026 06:03:41 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":{\"id\":\"c4b49fb5-7b16-46e1-86f0-de5800e8a56c\",\"type\":\"projects\",\"attributes\":{\"author\":{\"id\":\"de473b30-eb9f-11e9-a77a-c7405862b8bd\"},\"created_at\":\"2025-10-16T21:04:07.493104Z\",\"name\":\"new-different-project\",\"updated_at\":\"2025-10-16T21:04:07.493104Z\"}}}"
+  }
+}

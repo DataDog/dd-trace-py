@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "119",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"attributes\": {\"type\": \"soft\", \"dataset_ids\": [\"f7857081-5528-41d4-828f-14e37c46ffb6\"]}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "424",
+      "date": "Fri, 13 Feb 2026 06:01:26 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"f7857081-5528-41d4-828f-14e37c46ffb6\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"created_at\":\"2026-02-13T06:01:24.1858Z\",\"current_version\":1,\"dataset_type\":\"user\",\"deleted_at\":\"2026-02-13T06:01:26.679535Z\",\"description\":\"A boston dataset\",\"name\":\"test-dataset-857\",\"project_id\":\"3a1a13ae-9bf7-4953-8f09-2e0235836d11\",\"updated_at\":\"2026-02-13T06:01:24.298344Z\"}}]}"
+  }
+}

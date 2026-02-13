@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9/datasets/bb117a10-e507-4504-9977-f32aa41b999a/batch_update",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "387",
+      "Content-Type": "application/json"
+    },
+    "body": "{\"data\": {\"type\": \"datasets\", \"id\": \"bb117a10-e507-4504-9977-f32aa41b999a\", \"attributes\": {\"insert_records\": [{\"input\": {\"prompt\": \"What is the capital of France?\"}, \"expected_output\": {\"answer\": \"Paris\"}, \"metadata\": null}, {\"input\": {\"prompt\": \"What is the capital of Canada?\"}, \"expected_output\": {\"answer\": \"Ottawa\"}, \"metadata\": null}], \"update_records\": [], \"delete_records\": []}}}"
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "897",
+      "date": "Fri, 13 Feb 2026 06:03:01 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"66d2ee18-3e91-4f5a-875e-2d775baa0085\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"cd9a8c4b-efb2-4a59-9e0d-9108901fe871\",\"created_at\":\"2026-02-13T06:03:01.225524381Z\",\"dataset_id\":\"bb117a10-e507-4504-9977-f32aa41b999a\",\"expected_output\":{\"answer\":\"Paris\"},\"input\":{\"prompt\":\"What is the capital of France?\"},\"tags\":[],\"updated_at\":\"2026-02-13T06:03:01.225524381Z\",\"version\":1}},{\"id\":\"6d495e9e-70c5-48c6-bbe8-7d3e166ccd07\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"canonical_id\":\"5ec21ee4-ce6c-40bd-bfd7-d90fa8d6b2ab\",\"created_at\":\"2026-02-13T06:03:01.225524381Z\",\"dataset_id\":\"bb117a10-e507-4504-9977-f32aa41b999a\",\"expected_output\":{\"answer\":\"Ottawa\"},\"input\":{\"prompt\":\"What is the capital of Canada?\"},\"tags\":[],\"updated_at\":\"2026-02-13T06:03:01.225524381Z\",\"version\":1}}]}"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://api.datadoghq.com/api/v2/llm-obs/v1/f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9/datasets?filter[name]=test-dataset-good-csv-without-expected-output",
+    "headers": {
+      "Accept-Encoding": "identity",
+      "Content-Length": "0",
+      "Content-Type": "application/json"
+    },
+    "body": ""
+  },
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "OK"
+    },
+    "headers": {
+      "content-security-policy": "frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com",
+      "content-type": "application/vnd.api+json",
+      "vary": "Accept-Encoding",
+      "x-frame-options": "SAMEORIGIN",
+      "content-length": "465",
+      "date": "Fri, 13 Feb 2026 06:00:54 GMT",
+      "x-content-type-options": "nosniff",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload"
+    },
+    "body": "{\"data\":[{\"id\":\"1373f1b7-b3b9-4c43-8568-9b0e98d54fd7\",\"type\":\"datasets\",\"attributes\":{\"author\":{\"id\":\"cc589400-1367-11ed-aee5-da7ad0900002\"},\"created_at\":\"2026-02-13T06:00:50.44827Z\",\"current_version\":1,\"dataset_type\":\"user\",\"description\":\"A good csv dataset without expected_output columns\",\"name\":\"test-dataset-good-csv-without-expected-output\",\"project_id\":\"f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9\",\"updated_at\":\"2026-02-13T06:00:50.570412Z\"}}],\"meta\":{\"after\":\"\"}}"
+  }
+}
