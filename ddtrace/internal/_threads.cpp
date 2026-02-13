@@ -469,17 +469,19 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.
-        if (!self->_atexit && !error && self->_on_shutdown != Py_None && !self->_skip_shutdown) {
+        if (!self->_atexit) {
+            if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown) {
 #if PY_VERSION_HEX >= 0x30d0000
-            if (!Py_IsFinalizing()) {
+                if (!Py_IsFinalizing()) {
 #else
-            if (!_Py_IsFinalizing()) {
+                if (!_Py_IsFinalizing()) {
 #endif
-                PeriodicThread__on_shutdown(self);
+                    PeriodicThread__on_shutdown(self);
+                }
             }
-        }
 
-        PyDict_DelItem(_periodic_threads, self->ident);
+            PyDict_DelItem(_periodic_threads, self->ident);
+        }
 
         // Notify the join method that the thread has stopped
         self->_stopped->set();
