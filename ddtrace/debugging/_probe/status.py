@@ -20,7 +20,7 @@ log = get_logger(__name__)
 meter = metrics.get_meter("probe.status")
 
 
-ErrorInfo = t.Tuple[str, str]
+ErrorInfo = tuple[str, str]
 
 
 class ProbeStatusLogger:
@@ -72,7 +72,7 @@ class ProbeStatusLogger:
 
         return json.dumps(payload)
 
-    def _write_payload(self, data: t.Tuple[bytes, dict]) -> None:
+    def _write_payload(self, data: tuple[bytes, dict]) -> None:
         body, headers = data
         try:
             log.debug("Sending probe status payload: %r", body)
@@ -102,7 +102,7 @@ class ProbeStatusLogger:
         if self._queue.empty():
             return
 
-        msgs: t.List[str] = []
+        msgs: list[str] = []
         while not self._queue.empty():
             msgs.append(self._queue.get_nowait())
 

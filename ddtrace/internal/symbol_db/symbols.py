@@ -27,7 +27,6 @@ from ddtrace import config
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
@@ -37,6 +36,7 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
@@ -85,7 +85,7 @@ def func_origin(f: FunctionType) -> t.Optional[str]:
     return filename if Path(filename).exists() else None
 
 
-def get_fields(cls: type) -> t.Set[str]:
+def get_fields(cls: type) -> set[str]:
     # If the class has a __slots__ attribute, return it.
     try:
         return set(object.__getattribute__(cls, "__slots__"))
@@ -123,7 +123,7 @@ class Symbol:
     type: t.Optional[str] = None
 
     @classmethod
-    def from_code(cls, code: CodeType) -> t.List["Symbol"]:
+    def from_code(cls, code: CodeType) -> list["Symbol"]:
         nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
         arg_names = code.co_varnames[:nargs]
         locals_names = code.co_varnames[nargs:]
@@ -148,7 +148,7 @@ class ScopeType(str, Enum):
 @dataclass
 class ScopeData:
     origin: Path
-    seen: t.Set[t.Any]
+    seen: set[t.Any]
 
 
 @dataclass
@@ -160,8 +160,8 @@ class Scope:
     source_file: str
     start_line: int
     end_line: int
-    symbols: t.List[Symbol]
-    scopes: t.List["Scope"]
+    symbols: list[Symbol]
+    scopes: list["Scope"]
 
     language_specifics: dict = field(default_factory=dict)
 
@@ -467,8 +467,8 @@ class Scope:
 class ScopeContext:
     __scope_limit__: int = 400
 
-    def __init__(self, scopes: t.Optional[t.List[Scope]] = None) -> None:
-        self._scopes: t.List[Scope] = scopes if scopes is not None else []
+    def __init__(self, scopes: t.Optional[list[Scope]] = None) -> None:
+        self._scopes: list[Scope] = scopes if scopes is not None else []
         self._scopes_lock = RLock()
 
         self._event_data = {
@@ -610,7 +610,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
 
-        self._seen_modules: t.Set[str] = set()
+        self._seen_modules: set[str] = set()
         self._update_called = False
         self._processed_files_count = 0
 

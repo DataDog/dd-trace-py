@@ -1,8 +1,6 @@
 import json
 from typing import Any
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -45,7 +43,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         span: Span,
         model: Optional[str] = None,
         api_key: Optional[str] = None,
-        **kwargs: Dict[str, Any],
+        **kwargs: dict[str, Any],
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
         if model is not None:
@@ -54,8 +52,8 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -72,7 +70,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(list(messages) if messages else [], system_prompt)
 
-        output_messages: List[Message] = [Message(content="")]
+        output_messages: list[Message] = [Message(content="")]
         if not span.error and response is not None:
             output_messages = self._extract_output_message(response)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
@@ -94,15 +92,15 @@ class AnthropicIntegration(BaseLLMIntegration):
         update_proxy_workflow_input_output_value(span, span_kind)
 
     def _extract_input_message(
-        self, messages: List[Dict[str, Any]], system_prompt: Optional[Union[str, List[Dict[str, Any]]]] = None
-    ) -> List[Message]:
+        self, messages: list[dict[str, Any]], system_prompt: Optional[Union[str, list[dict[str, Any]]]] = None
+    ) -> list[Message]:
         """Extract input messages from the stored prompt.
         Anthropic allows for messages and multiple texts in a message, which requires some special casing.
         """
         if not isinstance(messages, Iterable):
             log.warning("Anthropic input must be a list of messages.")
 
-        input_messages: List[Message] = []
+        input_messages: list[Message] = []
         if system_prompt is not None:
             messages = [{"content": system_prompt, "role": "system"}] + messages
 
@@ -172,9 +170,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             return ",".join(formatted_content)
         return str(content)
 
-    def _extract_output_message(self, response) -> List[Message]:
+    def _extract_output_message(self, response) -> list[Message]:
         """Extract output messages from the stored response."""
-        output_messages: List[Message] = []
+        output_messages: list[Message] = []
         content = _get_attr(response, "content", "")
         role = _get_attr(response, "role", "")
 
@@ -201,7 +199,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                     output_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
         return output_messages
 
-    def _extract_usage(self, span: Span, usage: Dict[str, Any]):
+    def _extract_usage(self, span: Span, usage: dict[str, Any]):
         if not usage:
             return
         input_tokens = _get_attr(usage, "input_tokens", None)
@@ -226,13 +224,13 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics
 
-    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None
         return str(base_url) if base_url else None
 
-    def _extract_tools(self, tools: Optional[Any]) -> List[ToolDefinition]:
+    def _extract_tools(self, tools: Optional[Any]) -> list[ToolDefinition]:
         if not tools:
             return []
 

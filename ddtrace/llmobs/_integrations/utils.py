@@ -3,10 +3,7 @@ import inspect
 import json
 import re
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace._trace.span import Span
@@ -218,7 +215,7 @@ def format_langchain_io(
     return get_content_from_langchain_message(messages)
 
 
-def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
+def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
     """
     Attempts to extract the content and role from a message (AIMessage, HumanMessage, SystemMessage) object.
     """
@@ -232,7 +229,7 @@ def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
         return str(message)
 
 
-def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]]) -> List[Message]:
+def get_messages_from_converse_content(role: str, content: list[dict[str, Any]]) -> list[Message]:
     """
     Extracts out a list of messages from a converse `content` field.
 
@@ -244,11 +241,11 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
     """
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
-    messages: List[Message] = []
+    messages: list[Message] = []
     content_blocks = []
     tool_calls_info = []
-    tool_messages: List[Message] = []
-    unsupported_content_messages: List[Message] = []
+    tool_messages: list[Message] = []
+    unsupported_content_messages: list[Message] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
@@ -262,13 +259,13 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             )
             tool_calls_info.append(tool_call_info)
         elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
-            tool_message: Dict[str, Any] = content_block.get("toolResult", {})
-            tool_message_contents: List[Dict[str, Any]] = tool_message.get("content", [])
+            tool_message: dict[str, Any] = content_block.get("toolResult", {})
+            tool_message_contents: list[dict[str, Any]] = tool_message.get("content", [])
             tool_message_id: str = tool_message.get("toolUseId", "")
 
             for tool_message_content in tool_message_contents:
                 tool_message_content_text: Optional[str] = tool_message_content.get("text")
-                tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
+                tool_message_content_json: Optional[dict[str, Any]] = tool_message_content.get("json")
 
                 tool_result_info = ToolResult(
                     result=tool_message_content_text
@@ -304,7 +301,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
 
 
 def openai_set_meta_tags_from_completion(
-    span: Span, kwargs: Dict[str, Any], completions: Any, integration_name: str = "openai"
+    span: Span, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
@@ -325,10 +322,10 @@ def openai_set_meta_tags_from_completion(
 
 
 def openai_set_meta_tags_from_chat(
-    span: Span, kwargs: Dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+    span: Span, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
-    input_messages: List[Message] = []
+    input_messages: list[Message] = []
     for m in kwargs.get("messages", []):
         content = str(_get_attr(m, "content", ""))
         role = str(_get_attr(m, "role", ""))
@@ -363,7 +360,7 @@ def openai_set_meta_tags_from_chat(
         return
     if isinstance(messages, list):  # streamed response
         role = ""
-        output_messages: List[Message] = []
+        output_messages: list[Message] = []
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
@@ -403,8 +400,8 @@ def openai_set_meta_tags_from_chat(
 
 
 def _openai_extract_tool_calls_and_results_chat(
-    message: Dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
-) -> Tuple[List[ToolCall], List[ToolResult]]:
+    message: dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+) -> tuple[list[ToolCall], list[ToolResult]]:
     tool_calls = []
     tool_results = []
 
@@ -528,10 +525,10 @@ def capture_plain_text_tool_usage(
 
 
 def get_metadata_from_kwargs(
-    kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
-) -> Dict[str, Any]:
+    kwargs: dict[str, Any], integration_name: str = "openai", operation: str = "chat"
+) -> dict[str, Any]:
     metadata = {}
-    keys_to_include: Tuple[str, ...] = COMMON_METADATA_KEYS
+    keys_to_include: tuple[str, ...] = COMMON_METADATA_KEYS
     if integration_name == "openai":
         keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
     elif integration_name == "litellm":
@@ -541,8 +538,8 @@ def get_metadata_from_kwargs(
 
 
 def openai_get_input_messages_from_response_input(
-    messages: Optional[Union[str, List[Dict[str, Any]]]],
-) -> List[Message]:
+    messages: Optional[Union[str, list[dict[str, Any]]]],
+) -> list[Message]:
     """Parses the input to openai responses api into a list of input messages
 
     Args:
@@ -556,8 +553,8 @@ def openai_get_input_messages_from_response_input(
 
 
 def _openai_parse_input_response_messages(
-    messages: Optional[Union[str, List[Dict[str, Any]]]], system_instructions: Optional[str] = None
-) -> Tuple[List[Message], List[str]]:
+    messages: Optional[Union[str, list[dict[str, Any]]]], system_instructions: Optional[str] = None
+) -> tuple[list[Message], list[str]]:
     """
     Parses input messages from the openai responses api into a list of processed messages
     and a list of tool call IDs.
@@ -569,8 +566,8 @@ def _openai_parse_input_response_messages(
         - A list of processed messages
         - A list of tool call IDs
     """
-    processed: List[Message] = []
-    tool_call_ids: List[str] = []
+    processed: list[Message] = []
+    tool_call_ids: list[str] = []
 
     if system_instructions:
         processed.append(Message(role="system", content=system_instructions))
@@ -645,7 +642,7 @@ def _openai_parse_input_response_messages(
 
 def openai_get_output_messages_from_response(
     response: Optional[Any], integration: Any = None
-) -> Tuple[List[Message], List[ToolDefinition]]:
+) -> tuple[list[Message], list[ToolDefinition]]:
     """
     Parses the output to openai responses api into a list of output messages and a list of
     MCP tool definitions returned from the MCP server.
@@ -670,8 +667,8 @@ def openai_get_output_messages_from_response(
 
 
 def _openai_parse_output_response_messages(
-    messages: List[Any], integration: Any = None
-) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
+    messages: list[Any], integration: Any = None
+) -> tuple[list[Message], list[ToolCall], list[ToolDefinition]]:
     """
     Parses output messages from the openai responses api into a list of processed messages
     and a list of tool call outputs and a list of MCP tool definitions.
@@ -683,9 +680,9 @@ def _openai_parse_output_response_messages(
         - A list of processed messages
         - A list of tool call outputs
     """
-    processed: List[Message] = []
-    tool_call_outputs: List[ToolCall] = []
-    mcp_tool_definitions: List[ToolDefinition] = []
+    processed: list[Message] = []
+    tool_call_outputs: list[ToolCall] = []
+    mcp_tool_definitions: list[ToolDefinition] = []
 
     for item in messages:
         message: Message = Message()
@@ -767,8 +764,8 @@ def _openai_parse_output_response_messages(
 
 
 def openai_get_metadata_from_response(
-    response: Optional[Any], kwargs: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
+    response: Optional[Any], kwargs: Optional[dict[str, Any]] = None
+) -> dict[str, Any]:
     metadata = {}
 
     if kwargs:
@@ -815,7 +812,7 @@ def _extract_content_item_text(content_item: Any) -> str:
     return ""
 
 
-def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
+def _normalize_prompt_variables(variables: dict[str, Any]) -> dict[str, Any]:
     """Converts OpenAI SDK response objects or dicts into simple key-value pairs.
 
     Example:
@@ -829,8 +826,8 @@ def _normalize_prompt_variables(variables: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _extract_chat_template_from_instructions(
-    instructions: List[Any], variables: Dict[str, Any]
-) -> List[Dict[str, str]]:
+    instructions: list[Any], variables: dict[str, Any]
+) -> list[dict[str, str]]:
     """
     Extract a chat template from OpenAI response instructions by replacing variable values with placeholders.
 
@@ -838,11 +835,11 @@ def _extract_chat_template_from_instructions(
     OpenAI strips the values (e.g., by default URL stripping behavior).
 
     Args:
-        instructions: List of instruction messages from the OpenAI response
+        instructions: list of instruction messages from the OpenAI response
         variables: Dictionary of variables used in the prompt
 
     Returns:
-        List of chat template messages with placeholders (e.g., {{variable_name}}, [image], [file])
+        list of chat template messages with placeholders (e.g., {{variable_name}}, [image], [file])
     """
     chat_template = []
 
@@ -884,7 +881,7 @@ def _extract_chat_template_from_instructions(
     return chat_template
 
 
-def _has_multimodal_inputs(variables: Dict[str, Any]) -> bool:
+def _has_multimodal_inputs(variables: dict[str, Any]) -> bool:
     """Check if prompt variables contain multimodal inputs (image/file)."""
     if not variables or not isinstance(variables, dict):
         return False
@@ -914,7 +911,7 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
 
 
 def openai_set_meta_tags_from_response(
-    span: Span, kwargs: Dict[str, Any], response: Optional[Any], integration: Any = None
+    span: Span, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
@@ -976,7 +973,7 @@ def openai_set_meta_tags_from_response(
         span._set_ctx_item(TOOL_DEFINITIONS, tools + mcp_tool_definitions)
 
 
-def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
+def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
         # chat API tool access
@@ -1011,7 +1008,7 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
     return tool_definitions
 
 
-def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
+def openai_construct_completion_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, str]:
     """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
     if not streamed_chunks:
         return {"text": ""}
@@ -1061,12 +1058,12 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "")
 
 
-def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
+def openai_construct_message_from_streamed_chunks(streamed_chunks: list[Any]) -> dict[str, Any]:
     """Constructs a chat completion message dictionary from streamed chunks.
     The resulting message dictionary is of form:
     {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
     """
-    message: Dict[str, Any] = {"content": "", "tool_calls": []}
+    message: dict[str, Any] = {"content": "", "tool_calls": []}
     for chunk in streamed_chunks:
         if _get_attr(chunk, "usage", None):
             message["usage"] = chunk.usage
@@ -1157,7 +1154,7 @@ class OaiSpanAdapter:
         return kind_mapping.get(self.span_type)
 
     @property
-    def input(self) -> Union[str, List[Any]]:
+    def input(self) -> Union[str, list[Any]]:
         """Get the span data input."""
         if not hasattr(self._raw_oai_span, "span_data"):
             return ""
@@ -1192,14 +1189,14 @@ class OaiSpanAdapter:
         return getattr(self._raw_oai_span.span_data, "to_agent", "")
 
     @property
-    def handoffs(self) -> Optional[List[str]]:
+    def handoffs(self) -> Optional[list[str]]:
         """Get the span data handoffs."""
         if not hasattr(self._raw_oai_span, "span_data"):
             return None
         return getattr(self._raw_oai_span.span_data, "handoffs", None)
 
     @property
-    def tools(self) -> Optional[List[str]]:
+    def tools(self) -> Optional[list[str]]:
         """Get the span data tools."""
         if not hasattr(self._raw_oai_span, "span_data"):
             return None
@@ -1213,7 +1210,7 @@ class OaiSpanAdapter:
         return getattr(self._raw_oai_span.span_data, "data", None)
 
     @property
-    def formatted_custom_data(self) -> Dict[str, Any]:
+    def formatted_custom_data(self) -> dict[str, Any]:
         """Get the custom span data in a formatted way."""
         data = self.data
         if not data:
@@ -1246,7 +1243,7 @@ class OaiSpanAdapter:
         return None
 
     @property
-    def llmobs_metrics(self) -> Optional[Dict[str, Any]]:
+    def llmobs_metrics(self) -> Optional[dict[str, Any]]:
         """Get metrics from the span data formatted for LLMObs."""
         if not hasattr(self._raw_oai_span, "span_data"):
             return None
@@ -1272,7 +1269,7 @@ class OaiSpanAdapter:
         return metrics if metrics else None
 
     @property
-    def llmobs_metadata(self) -> Optional[Dict[str, Any]]:
+    def llmobs_metadata(self) -> Optional[dict[str, Any]]:
         """Get metadata from the span data formatted for LLMObs."""
         if not hasattr(self._raw_oai_span, "span_data"):
             return None
@@ -1297,7 +1294,7 @@ class OaiSpanAdapter:
         return metadata if metadata else None
 
     @property
-    def error(self) -> Optional[Dict[str, Any]]:
+    def error(self) -> Optional[dict[str, Any]]:
         """Get span error if it exists."""
         return self._raw_oai_span.error if hasattr(self._raw_oai_span, "error") else None
 
@@ -1307,13 +1304,13 @@ class OaiSpanAdapter:
             return None
         return self.error.get("message")
 
-    def get_error_data(self) -> Optional[Dict[str, Any]]:
+    def get_error_data(self) -> Optional[dict[str, Any]]:
         """Get the error data if an error exists."""
         if not self.error:
             return None
         return self.error.get("data")
 
-    def llmobs_input_messages(self) -> Tuple[List[Message], List[str]]:
+    def llmobs_input_messages(self) -> tuple[list[Message], list[str]]:
         """Returns processed input messages for LLM Obs LLM spans.
 
         Returns:
@@ -1322,7 +1319,7 @@ class OaiSpanAdapter:
         """
         return _openai_parse_input_response_messages(self.input, self.response_system_instructions)
 
-    def llmobs_output_messages(self) -> Tuple[List[Message], List[ToolCall], List[ToolDefinition]]:
+    def llmobs_output_messages(self) -> tuple[list[Message], list[ToolCall], list[ToolDefinition]]:
         """Returns processed output messages for LLM Obs LLM spans.
 
         Returns:
@@ -1333,7 +1330,7 @@ class OaiSpanAdapter:
         if not self.response or not self.response.output:
             return [], [], []
 
-        messages: List[Any] = self.response.output
+        messages: list[Any] = self.response.output
         if not messages:
             return [], [], []
 
@@ -1392,7 +1389,7 @@ class OaiTraceAdapter:
             return None
 
     @property
-    def metadata(self) -> Optional[Dict[str, Any]]:
+    def metadata(self) -> Optional[dict[str, Any]]:
         """Get the trace metadata if it exists."""
         return self._trace.metadata if hasattr(self._trace, "metadata") else None
 
@@ -1418,7 +1415,7 @@ class LLMObsTraceInfo:
 
 
 def get_final_message_converse_stream_message(
-    message: Dict[str, Any], text_blocks: Dict[int, str], tool_blocks: Dict[int, Dict[str, Any]]
+    message: dict[str, Any], text_blocks: dict[int, str], tool_blocks: dict[int, dict[str, Any]]
 ) -> Message:
     """Process a message and its content blocks into LLM Obs message format.
 
@@ -1428,7 +1425,7 @@ def get_final_message_converse_stream_message(
         tool_blocks: Mapping of content block indices to their tool usage data
 
     Returns:
-        Dict containing the processed message with content and optional tool calls
+        dict containing the processed message with content and optional tool calls
     """
     indices = sorted(message.get("content_block_indicies", []))
     message_output = Message(role=message["role"])
@@ -1493,7 +1490,7 @@ def _compute_completion_tokens(completions_or_messages):
     return num_completion_tokens
 
 
-def _est_tokens(prompt: Union[str, List[int]]) -> int:
+def _est_tokens(prompt: Union[str, list[int]]) -> int:
     """
     Provide a very rough estimate of the number of tokens in a string prompt.
     Note that if the prompt is passed in as a token array (list of ints), the token count
@@ -1514,25 +1511,25 @@ def _est_tokens(prompt: Union[str, List[int]]) -> int:
 
 def extract_instance_metadata_from_stack(
     instance: Any,
-    internal_variable_names: Optional[List[str]] = None,
+    internal_variable_names: Optional[list[str]] = None,
     default_variable_name: Optional[str] = None,
     default_module_name: Optional[str] = None,
     frame_start_offset: int = 2,
     frame_search_depth: int = 6,
-) -> Tuple[Optional[str], Optional[str]]:
+) -> tuple[Optional[str], Optional[str]]:
     """
     Attempts to find the variable name and module name for an instance by inspecting the call stack.
 
     Args:
         instance: The instance to find the variable name for
-        internal_variable_names: List of variable names to skip (e.g., ["instance", "self", "step"])
+        internal_variable_names: list of variable names to skip (e.g., ["instance", "self", "step"])
         default_variable_name: Default name to use if variable name cannot be found
         default_module_name: Default module name to use if module cannot be determined
         frame_start_offset: How many frames to skip from the current frame
         frame_search_depth: Maximum number of frames to search through
 
     Returns:
-        Tuple of (variable_name, module_name)
+        tuple of (variable_name, module_name)
     """
     try:
         if internal_variable_names is None:
