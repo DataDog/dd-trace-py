@@ -248,6 +248,98 @@ def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) ->
     return call
 
 
+def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
+    try:
+        import vertexai
+        from vertexai.generative_models import GenerationConfig
+        from vertexai.generative_models import GenerativeModel
+    except ImportError:
+        raise ImportError("google-cloud-aiplatform package required: pip install google-cloud-aiplatform")
+
+    client_options = client_options or {}
+
+    credentials = client_options.get("credentials")
+    project = (
+        client_options.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT")
+    )
+
+    if credentials is None:
+        try:
+            import google.auth
+
+            credentials, default_project = google.auth.default()
+            if not project:
+                project = default_project
+        except Exception:
+            raise ValueError(
+                "Google Cloud credentials not provided and Application Default Credentials (ADC) "
+                "could not be resolved. Pass 'credentials' in client_options or set the "
+                "GOOGLE_APPLICATION_CREDENTIALS environment variable."
+            )
+
+    if not project:
+        raise ValueError(
+            "Google Cloud project not provided. "
+            "Pass 'project' in client_options or set GOOGLE_CLOUD_PROJECT environment variable."
+        )
+
+    location = (
+        client_options.get("location")
+        or os.environ.get("GOOGLE_CLOUD_REGION")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or "us-central1"
+    )
+
+    vertexai.init(project=project, location=location, credentials=credentials)
+
+    def call(
+        provider: Optional[str],
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
+        model: str,
+        model_params: Optional[dict[str, Any]],
+    ) -> str:
+        contents = []
+        system_msgs = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_msgs.append(msg["content"])
+            else:
+                role = "user" if msg["role"] == "user" else "model"
+                contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+
+        model_instance = GenerativeModel(model, system_instruction="\n".join(system_msgs))
+
+        generation_config_params = model_params.copy() if model_params else {}
+        if "max_tokens" in generation_config_params:
+            generation_config_params["max_output_tokens"] = generation_config_params.pop("max_tokens")
+        if json_schema:
+            schema_copy = copy.deepcopy(json_schema)
+            for prop_val in schema_copy.get("properties", {}).values():
+                if not isinstance(prop_val, dict):
+                    continue
+                # Vertex AI doesn't support 'const' in anyOf. Convert to enum.
+                if "anyOf" in prop_val:
+                    enum_values = [item.pop("const") for item in prop_val["anyOf"] if "const" in item]
+                    if enum_values:
+                        prop_val.pop("anyOf")
+                        prop_val["enum"] = enum_values
+            generation_config_params["response_mime_type"] = "application/json"
+            generation_config_params["response_schema"] = schema_copy
+
+        generation_config = GenerationConfig(**generation_config_params) if generation_config_params else None
+        response = model_instance.generate_content(contents, generation_config=generation_config)
+
+        if response.candidates:
+            content = getattr(response.candidates[0], "content", None)
+            parts = getattr(content, "parts", []) or []
+            if parts and getattr(parts[0], "text", None):
+                return parts[0].text
+        return ""
+
+    return call
+
+
 def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     region_name = (
@@ -364,7 +456,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        provider: Optional[Literal["openai", "anthropic", "bedrock"]] = None,
+        provider: Optional[Literal["openai", "anthropic", "vertexai", "bedrock"]] = None,
         model: Optional[str] = None,
         model_params: Optional[dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
@@ -374,7 +466,7 @@ class LLMJudge(BaseEvaluator):
         """Initialize an LLMJudge evaluator.
 
         LLMJudge enables automated evaluation of LLM outputs using another LLM as the judge.
-        It supports multiple providers (OpenAI, Anthropic, Bedrock) and output formats
+        It supports multiple providers (OpenAI, Anthropic, Vertex AI, Bedrock) and output formats
         for flexible evaluation criteria.
 
         Supported Output Types:
@@ -398,7 +490,7 @@ class LLMJudge(BaseEvaluator):
             structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
                 CategoricalStructuredOutput, or a custom JSON schema dict).
             provider: LLM provider to use. Supported values: ``"openai"``, ``"anthropic"``,
-                ``"bedrock"``. Required if ``client`` is not provided.
+                ``"vertexai"``, ``"bedrock"``. Required if ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
             model_params: Additional parameters passed to the LLM API (e.g., temperature).
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
@@ -412,6 +504,16 @@ class LLMJudge(BaseEvaluator):
 
                 **Anthropic:**
                     - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+
+                **Vertex AI:**
+                    - ``project``: Google Cloud project ID. Falls back to
+                      ``GOOGLE_CLOUD_PROJECT`` or ``GCLOUD_PROJECT`` env var,
+                      or the project inferred from default credentials.
+                    - ``location``: Region (default: "us-central1"). Falls back to
+                      ``GOOGLE_CLOUD_REGION`` or ``GOOGLE_CLOUD_LOCATION``.
+                    - ``credentials``: Optional service account credentials object.
+                      Falls back to Application Default Credentials (ADC), which
+                      respects the ``GOOGLE_APPLICATION_CREDENTIALS`` env var.
 
                 **Bedrock:**
                     - ``aws_access_key_id``: AWS access key. Falls back to
@@ -485,10 +587,12 @@ class LLMJudge(BaseEvaluator):
             self._client = _create_openai_client(client_options=client_options)
         elif provider == "anthropic":
             self._client = _create_anthropic_client(client_options=client_options)
+        elif provider == "vertexai":
+            self._client = _create_vertexai_client(client_options=client_options)
         elif provider == "bedrock":
             self._client = _create_bedrock_client(client_options=client_options)
         else:
-            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/bedrock)")
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/vertexai/bedrock)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:
