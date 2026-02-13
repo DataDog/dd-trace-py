@@ -443,7 +443,7 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
 
         # Check that we don't have stack in error; we might still have it in runtime_stacks
         body = json.loads(report["body"])
-        message = json.loads(body["payload"][0]["message"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
         error = message["error"]
         assert "string_at" not in error
 
@@ -532,7 +532,7 @@ def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess)
         # We should get the experimental field because `string_at` is in both the
         # native frames stacktrace and experimental runtime_stacks field
         body = json.loads(report["body"])
-        message = json.loads(body["payload"][0]["message"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
         assert "string_at" in json.dumps(message["experimental"])
 
 

@@ -1,8 +1,6 @@
 from collections.abc import MutableMapping
 import functools
 from typing import Any
-from typing import Dict
-from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
@@ -207,7 +205,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         _taint_django_func_call(fn_args[0], fn_args, fn_kwargs)
 
 
-def _taint_django_func_call(http_req: Any, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
+def _taint_django_func_call(http_req: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
     resolver_match = getattr(http_req, "resolver_match", None)
     if resolver_match is not None:
         set_iast_request_endpoint(http_req.method, resolver_match.route)

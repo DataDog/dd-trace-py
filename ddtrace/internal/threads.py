@@ -49,7 +49,7 @@ class BoundMethod(t.Protocol):
 
 # List of threads that have requested to be started while forking. These will
 # be started after the fork is complete.
-_threads_to_start_after_fork: t.List[BoundMethod] = []
+_threads_to_start_after_fork: list[BoundMethod] = []
 
 
 class PeriodicThread(_PeriodicThread):
@@ -69,7 +69,7 @@ class PeriodicThread(_PeriodicThread):
 
 
 # Set of running periodic threads that need to be restarted after a fork.
-_threads_to_restart_after_fork: t.Set[_PeriodicThread] = set()
+_threads_to_restart_after_fork: set[_PeriodicThread] = set()
 
 
 @atexit.register
