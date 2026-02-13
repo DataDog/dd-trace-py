@@ -37,6 +37,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -268,7 +269,7 @@ class LLMObs(Service):
 
         self._link_tracker = LinkTracker()
         self._annotations: list[tuple[str, str, dict[str, Any]]] = []
-        self._annotation_context_lock = forksafe.RLock()
+        self._annotation_context_lock = RLock()
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:

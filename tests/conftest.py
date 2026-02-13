@@ -11,6 +11,7 @@ import logging
 import os
 from os.path import split
 from os.path import splitext
+from pathlib import Path
 import platform
 import random
 import shutil
@@ -347,11 +348,14 @@ class FunctionDefFinder(ast.NodeVisitor):
             self._body = node.body
 
     def find(self, file):
-        with open(file) as f:
-            t = ast.parse(f.read())
-            self.visit(t)
-            t.body = self._body
-            return t
+        if not (path := Path(file)).exists():
+            if path.is_absolute() or not (path := Path(__file__).parents[1] / file).exists():
+                raise FileNotFoundError(f"File {file} does not exist")
+
+        t = ast.parse(path.read_text())
+        self.visit(t)
+        t.body = self._body or []
+        return t
 
 
 def is_stream_ok(stream, expected):
@@ -370,7 +374,7 @@ def is_stream_ok(stream, expected):
 
 
 def run_function_from_file(item, params=None):
-    file = item.location[0]
+    file = Path(item.location[0])
     func = item.originalname
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
