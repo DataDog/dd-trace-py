@@ -7,7 +7,6 @@ import logging
 import os
 from pathlib import Path
 import re
-import tempfile
 import traceback
 import typing as t
 
@@ -16,10 +15,10 @@ import pluggy
 import pytest
 
 from ddtrace.contrib.internal.coverage.patch import clear_coverage_instance
-from ddtrace.contrib.internal.coverage.patch import generate_lcov_report
-from ddtrace.contrib.internal.coverage.patch import is_coverage_running
-from ddtrace.contrib.internal.coverage.patch import set_coverage_instance
 from ddtrace.contrib.internal.coverage.patch import stop_coverage
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_available
+from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
@@ -78,7 +77,7 @@ log = logging.getLogger(__name__)
 
 
 # The tuple pytest expects as the `longrepr` field of reports for failed or skipped tests.
-_Longrepr = t.Tuple[
+_Longrepr = tuple[
     # 1st field: pathname of the test file
     str,
     # 2nd field: line number.
@@ -89,7 +88,7 @@ _Longrepr = t.Tuple[
 
 
 # The tuple pytest expects as the output of the `pytest_report_teststatus` hook.
-_ReportTestStatus = t.Tuple[
+_ReportTestStatus = tuple[
     # 1st field: the status category in which the test will be counted in the final stats (X passed, Y failed, etc).
     # Usually this is the same as report.outcome, but does not have to be! For example if a report has report.outcome =
     # "skipped" but `pytest_report_teststatus` returns "quarantined" as the first tuple item here, the test will be
@@ -103,7 +102,7 @@ _ReportTestStatus = t.Tuple[
         str,
         # - a tuple (text, properties_dict), where the properties_dict can contain properties such as {"blue": True}.
         #   These properties are also applied to the short representation.
-        t.Tuple[str, t.Dict[str, bool]],
+        tuple[str, dict[str, bool]],
     ],
 ]
 # The `pytest_report_teststatus` hook can return a tuple of empty strings ("", "", ""), in which case the test report is
@@ -111,7 +110,7 @@ _ReportTestStatus = t.Tuple[
 # `None` if you want the default pytest log output).
 
 # The tuple stored in the `location` attribute of a `pytest.Item`
-_Location = t.Tuple[
+_Location = tuple[
     str,  # 1st field: file name
     int,  # 2nd field: line number
     str,  # 3rd field: test name
@@ -139,7 +138,7 @@ def _get_relative_module_path_from_item(item: pytest.Item, workspace_path: Path)
         return abs_path
 
 
-def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[t.Optional[str], int, int]:
+def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> tuple[t.Optional[str], int, int]:
     """
     Extract test location information (file path, start line, end line) from a pytest item.
 
@@ -168,7 +167,7 @@ def _get_test_location_info(item: pytest.Item, workspace_path: Path) -> t.Tuple[
             return None, 0, 0
 
 
-def _get_source_lines(item: pytest.Item, item_path: Path) -> t.Tuple[int, int]:
+def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
     """
     Get start and end line numbers for a test item.
 
@@ -203,7 +202,7 @@ class TestPhase:
     __test__ = False
 
 
-_ReportGroup = t.Dict[str, pytest.TestReport]
+_ReportGroup = dict[str, pytest.TestReport]
 
 
 class TestOptPlugin:
@@ -225,16 +224,16 @@ class TestOptPlugin:
             self.enable_ddtrace_trace_filter = False
 
         self.enable_all_ddtrace_integrations = False
-        self.reports_by_nodeid: t.Dict[str, _ReportGroup] = defaultdict(lambda: {})
-        self.excinfo_by_report: t.Dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
-        self.benchmark_data_by_nodeid: t.Dict[str, BenchmarkData] = {}
-        self.tests_by_nodeid: t.Dict[str, Test] = {}
+        self.reports_by_nodeid: dict[str, _ReportGroup] = defaultdict(lambda: {})
+        self.excinfo_by_report: dict[pytest.TestReport, t.Optional[pytest.ExceptionInfo[t.Any]]] = {}
+        self.benchmark_data_by_nodeid: dict[str, BenchmarkData] = {}
+        self.tests_by_nodeid: dict[str, Test] = {}
         self.is_xdist_worker = False
 
         self.manager = session_manager
         self.session = self.manager.session
 
-        self.extra_failed_reports: t.List[pytest.TestReport] = []
+        self.extra_failed_reports: list[pytest.TestReport] = []
 
     def pytest_sessionstart(self, session: pytest.Session) -> None:
         if xdist_worker_input := getattr(session.config, "workerinput", None):
@@ -274,66 +273,18 @@ class TestOptPlugin:
 
         # If coverage report upload is enabled, generate and upload the report
         if self.manager.settings.coverage_report_upload_enabled:
-            # If pytest-cov is enabled but coverage detection fails, register the pytest-cov instance
-            if _is_pytest_cov_enabled(session.config) and not is_coverage_running():
-                # Try to get coverage from pytest-cov plugin and register it
-                for plugin in session.config.pluginmanager.list_name_plugin():
-                    _, plugin_instance = plugin
-                    if hasattr(plugin_instance, "cov_controller") and plugin_instance.cov_controller:
-                        set_coverage_instance(plugin_instance.cov_controller.cov)
-                        log.debug("Registered pytest-cov coverage instance with ddtrace")
-                        break
+            # Create upload function wrapper for manager
+            def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
+                return self.manager.upload_coverage_report(
+                    coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
+                )
 
-            # Now check if coverage is available (either ddtrace started or pytest-cov registered)
-            if is_coverage_running():
-                try:
-                    coverage_format = "lcov"  # Default to LCOV
-
-                    # Generate the report in a temporary file
-                    with tempfile.NamedTemporaryFile(mode="wb", suffix=".lcov", delete=False) as tmp_file:
-                        tmp_path = Path(tmp_file.name)
-
-                    # Generate LCOV report. This returns the percentage and also stores it
-                    # in _coverage_data, so we don't need to generate a second report just for the percentage.
-                    pct_covered = generate_lcov_report(outfile=str(tmp_path))
-                    log.debug("Generated LCOV coverage report: %s (%.1f%% coverage)", tmp_path, pct_covered)
-
-                    # Read the report file
-                    coverage_report_bytes = tmp_path.read_bytes()
-                    log.debug("Read coverage report: %d bytes", len(coverage_report_bytes))
-
-                    # Upload the report (tags are populated from env_tags in the API client)
-                    upload_success = self.manager.upload_coverage_report(
-                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
-                    )
-
-                    if upload_success:
-                        log.debug("Successfully uploaded coverage report")
-                    else:
-                        log.debug("Failed to upload coverage report")
-
-                    # Clean up temporary file
-                    try:
-                        tmp_path.unlink()
-                    except Exception:
-                        log.debug("Could not delete temporary coverage report file: %s", tmp_path)
-
-                    # Stop coverage AFTER generating and uploading the report
-                    # (if we started it ourselves)
-                    if not _is_pytest_cov_enabled(session.config):
-                        log.debug("Stopping coverage.py collection")
-                        stop_coverage(save=True)
-
-                except Exception as e:
-                    log.debug("Error generating or uploading coverage report: %s", e)
-                    # Still try to stop coverage even if report generation failed
-                    if not _is_pytest_cov_enabled(session.config):
-                        try:
-                            stop_coverage(save=True)
-                        except Exception:
-                            log.debug("Could not stop coverage after error", exc_info=True)
-            else:
-                log.debug("Coverage instance not available for report generation")
+            handle_coverage_report(
+                config=session.config,
+                upload_func=upload_func,
+                is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
+                stop_coverage_func=stop_coverage,
+            )
 
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
@@ -367,11 +318,11 @@ class TestOptPlugin:
         """
         for item in session.items:
             test_ref = item_to_test_ref(item)
-            test_module, test_suite, test = self._discover_test(item, test_ref)
+            self.manager.collected_tests.add(test_ref)
 
         self.manager.finish_collection()
 
-    def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> t.Tuple[TestModule, TestSuite, Test]:
+    def _discover_test(self, item: pytest.Item, test_ref: TestRef) -> tuple[TestModule, TestSuite, Test]:
         """
         Return the module, suite and test objects for a given test item, creating them if necessary.
         """
@@ -493,7 +444,7 @@ class TestOptPlugin:
 
     def _do_one_test_run(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item], context: TestContext
-    ) -> t.Tuple[TestRun, _ReportGroup]:
+    ) -> tuple[TestRun, _ReportGroup]:
         test = self.tests_by_nodeid[item.nodeid]
         test_run = test.make_test_run()
         test_run.start()
@@ -613,7 +564,7 @@ class TestOptPlugin:
 
         return None
 
-    def _extract_longrepr(self, reports: _ReportGroup) -> t.Tuple[t.Any, t.Any]:
+    def _extract_longrepr(self, reports: _ReportGroup) -> tuple[t.Any, t.Any]:
         """
         Extract the most relevant report `longrepr` for a report group.
 
@@ -715,7 +666,7 @@ class TestOptPlugin:
 
         return None
 
-    def _get_test_outcome(self, nodeid: str) -> t.Tuple[TestStatus, t.Dict[str, str]]:
+    def _get_test_outcome(self, nodeid: str) -> tuple[TestStatus, dict[str, str]]:
         """
         Return test status and tags with exception/skip information for a given executed test.
 
@@ -930,7 +881,7 @@ class XdistTestOptPlugin:
             self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
 
-def _make_reports_dict(reports: t.List[pytest.TestReport]) -> _ReportGroup:
+def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
     return {report.when: report for report in reports}
 
 
@@ -973,7 +924,7 @@ def _is_test_optimization_disabled_by_kill_switch() -> bool:
     return not asbool(os.environ.get("DD_CIVISIBILITY_ENABLED", "true"))
 
 
-def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
+def _is_enabled_early(early_config: pytest.Config, args: list[str]) -> bool:
     if _is_test_optimization_disabled_by_kill_switch():
         return False
 
@@ -983,13 +934,13 @@ def _is_enabled_early(early_config: pytest.Config, args: t.List[str]) -> bool:
     return _is_option_true("ddtrace", early_config, args)
 
 
-def _is_option_true(option: str, early_config: pytest.Config, args: t.List[str]) -> bool:
+def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -> bool:
     return early_config.getoption(option) or early_config.getini(option) or f"--{option}" in args
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_load_initial_conftests(
-    early_config: pytest.Config, parser: pytest.Parser, args: t.List[str]
+    early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
     if not _is_enabled_early(early_config, args):
         yield
@@ -1089,7 +1040,7 @@ def _get_test_command(config: pytest.Config) -> str:
     return command
 
 
-def _get_exception_tags(excinfo: t.Optional[pytest.ExceptionInfo[t.Any]]) -> t.Dict[str, str]:
+def _get_exception_tags(excinfo: t.Optional[pytest.ExceptionInfo[t.Any]]) -> dict[str, str]:
     if excinfo is None:
         return {}
 
@@ -1121,7 +1072,7 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
     if callspec is None:
         return None
 
-    parameters: t.Dict[str, t.Dict[str, str]] = {"arguments": {}, "metadata": {}}
+    parameters: dict[str, dict[str, str]] = {"arguments": {}, "metadata": {}}
     for param_name, param_val in item.callspec.params.items():
         try:
             parameters["arguments"][param_name] = _encode_test_parameter(param_val)
@@ -1162,32 +1113,14 @@ def _is_test_unskippable(item: pytest.Item) -> bool:
     )
 
 
-def _get_test_custom_tags(item: pytest.Item) -> t.Dict[str, str]:
-    tags: t.Dict[str, str] = {}
+def _get_test_custom_tags(item: pytest.Item) -> dict[str, str]:
+    tags: dict[str, str] = {}
 
     for marker in item.iter_markers(name="dd_tags"):
         for key, value in marker.kwargs.items():
             tags[key] = str(value)
 
     return tags
-
-
-def _is_pytest_cov_available(config) -> bool:
-    """Check if pytest-cov plugin is available (installed)."""
-    return config.pluginmanager.get_plugin("pytest_cov") is not None
-
-
-def _is_pytest_cov_enabled(config) -> bool:
-    """Check if pytest-cov plugin is both available and enabled via command-line options."""
-    if not _is_pytest_cov_available(config):
-        return False
-    cov_option = config.getoption("--cov", default=False)
-    nocov_option = config.getoption("--no-cov", default=False)
-    if nocov_option is True:
-        return False
-    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
-        return True
-    return cov_option
 
 
 @pytest.fixture(scope="session")

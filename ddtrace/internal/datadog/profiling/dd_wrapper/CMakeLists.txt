@@ -27,18 +27,21 @@ include(FindInfer)
 include(CheckSymbolExists)
 
 find_package(LibNative)
+find_package(Python3 COMPONENTS Interpreter Development.Module)
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Since this file is currently only loaded as a subdirectory, we need to propagate certain libdatadog variables up to
 # the parent scope.
-set(Datadog_INCLUDE_DIRS
-    ${Datadog_INCLUDE_DIRS}
-    PARENT_SCOPE)
-set(Datadog_LIBRARIES
-    ${Datadog_LIBRARIES}
-    PARENT_SCOPE)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(Datadog_INCLUDE_DIRS
+        ${Datadog_INCLUDE_DIRS}
+        PARENT_SCOPE)
+    set(Datadog_LIBRARIES
+        ${Datadog_LIBRARIES}
+        PARENT_SCOPE)
+endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -65,7 +68,10 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
+# Disable -Wold-style-cast for sample.cpp because Python C API headers use old-style casts
+set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
+
+target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
 

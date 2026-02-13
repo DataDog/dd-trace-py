@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 import wrapt
@@ -30,7 +29,7 @@ def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"coverage": "*"}
 
 
@@ -52,9 +51,14 @@ def unpatch():
     coverage._datadog_patch = False
 
 
+def _is_coverage_available():
+    return coverage is not None
+
+
 def coverage_report_wrapper(func: Any, instance: Any, args: tuple, kwargs: dict) -> Any:
     """Wrapper to cache percentage when report() is called."""
     global _cached_coverage_percentage
+
     pct_covered = func(*args, **kwargs)
     _cached_coverage_percentage = pct_covered
     return pct_covered
@@ -265,7 +269,7 @@ def get_coverage_percentage() -> Optional[float]:
     return _cached_coverage_percentage
 
 
-def get_coverage_data() -> Dict[str, Any]:
+def get_coverage_data() -> dict[str, Any]:
     """
     Get coverage metadata dict (for backwards compatibility).
 

@@ -66,8 +66,19 @@ SPECIAL_CHARACTER_STRINGS = [
 
 # Property categories for parameterized tests
 REQUIRED_STRING_PROPERTIES = ["name", "resource"]
-OPTIONAL_STRING_PROPERTIES = ["service"]
+OPTIONAL_STRING_PROPERTIES = ["service", "span_type"]
 ALL_STRING_PROPERTIES = REQUIRED_STRING_PROPERTIES + OPTIONAL_STRING_PROPERTIES
+
+# _span_api is special: constructor param is "span_api" but property getter/setter is "_span_api"
+# Tests for _span_api are written explicitly rather than parameterized
+
+# Values that are not valid numeric types - should trigger fallback behavior
+INVALID_NUMERIC_VALUES = [
+    pytest.param("string", id="string"),
+    pytest.param(["list"], id="list"),
+    pytest.param({"key": "value"}, id="dict"),
+    pytest.param(object(), id="object"),
+]
 
 
 # =============================================================================
@@ -82,6 +93,7 @@ def test_basic_creation():
     assert span.service is None
     # resource defaults to name when not provided
     assert span.resource == "test.span"
+    assert span.span_type is None
 
 
 def test_creation_accepts_extra_kwargs():
@@ -89,7 +101,7 @@ def test_creation_accepts_extra_kwargs():
 
     Since SpanData.__new__ accepts *args/**kwargs, subclasses (like Span) can pass
     additional parameters without needing to override __new__. SpanData only uses
-    'name', 'service', and 'resource'; other parameters are ignored but don't raise errors.
+    'name', 'service', 'resource', 'span_type', and 'span_api'; other parameters are ignored but don't raise errors.
     """
     span = SpanData(
         name="test.span",
@@ -100,12 +112,16 @@ def test_creation_accepts_extra_kwargs():
         span_id=456,
         parent_id=789,
         start=1234567890.0,
-        span_api="datadog",
+        context=None,
+        on_finish=None,
+        span_api="custom-api",
         links=None,
     )
     assert span.name == "test.span"
     assert span.service == "test-service"
     assert span.resource == "test-resource"
+    assert span.span_type == "web"
+    assert span._span_api == "custom-api"
 
 
 # =============================================================================
@@ -475,3 +491,235 @@ def test_service_none_to_string_transitions():
 
     span.service = "service-2"
     assert span.service == "service-2"
+
+
+# =============================================================================
+# Numeric Property Tests
+# =============================================================================
+
+
+def test_start_ns_getter_setter():
+    """start_ns can be read and written."""
+    import time
+
+    # start_ns is now set to current time by default (via wall_clock_ns in Rust)
+    before = time.time_ns()
+    span = SpanData(name="test")
+    after = time.time_ns()
+    assert before <= span.start_ns <= after
+
+    span.start_ns = 1234567890
+    assert span.start_ns == 1234567890
+
+    span.start_ns = 9999999999
+    assert span.start_ns == 9999999999
+
+
+def test_start_ns_accepts_float():
+    """start_ns accepts float values (truncated to int)."""
+    span = SpanData(name="test")
+    span.start_ns = 1234567890.5
+    assert span.start_ns == 1234567890
+
+    span.start_ns = 9999999999.9
+    assert span.start_ns == 9999999999
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_NUMERIC_VALUES)
+def test_start_ns_invalid_types_fall_back_to_zero(invalid_value):
+    """start_ns falls back to 0 for invalid types."""
+    span = SpanData(name="test")
+    span.start_ns = 100
+    assert span.start_ns == 100
+
+    span.start_ns = invalid_value
+    assert span.start_ns == 0
+
+
+def test_duration_ns_getter_setter():
+    """duration_ns can be read and written."""
+    span = SpanData(name="test")
+    assert span.duration_ns is None  # default (sentinel)
+
+    span.duration_ns = 5000000
+    assert span.duration_ns == 5000000
+
+    span.duration_ns = 1000000000
+    assert span.duration_ns == 1000000000
+
+
+def test_duration_ns_none_handling():
+    """duration_ns can be set to None (stores as 0 sentinel)."""
+    span = SpanData(name="test")
+    assert span.duration_ns is None
+
+    span.duration_ns = 5000000
+    assert span.duration_ns == 5000000
+
+    span.duration_ns = None
+    assert span.duration_ns is None
+
+
+def test_duration_ns_accepts_float():
+    """duration_ns accepts float values (truncated to int)."""
+    span = SpanData(name="test")
+    span.duration_ns = 1234567890.5
+    assert span.duration_ns == 1234567890
+
+    span.duration_ns = 9999999999.9
+    assert span.duration_ns == 9999999999
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_NUMERIC_VALUES)
+def test_duration_ns_invalid_types_fall_back_to_none(invalid_value):
+    """duration_ns falls back to None (0 sentinel) for invalid types."""
+    span = SpanData(name="test")
+    span.duration_ns = 100
+    assert span.duration_ns == 100
+
+    span.duration_ns = invalid_value
+    assert span.duration_ns is None
+
+
+def test_error_getter_setter():
+    """error can be read and written."""
+    span = SpanData(name="test")
+    assert span.error == 0  # default
+
+    span.error = 1
+    assert span.error == 1
+
+    span.error = 0
+    assert span.error == 0
+
+
+def test_error_bool_conversion():
+    """error accepts bool values (converted to 0/1)."""
+    span = SpanData(name="test")
+    span.error = True
+    assert span.error == 1
+
+    span.error = False
+    assert span.error == 0
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_NUMERIC_VALUES)
+def test_error_invalid_types_fall_back_to_zero(invalid_value):
+    """error falls back to 0 for invalid types."""
+    span = SpanData(name="test")
+    span.error = 1
+    assert span.error == 1
+
+    span.error = invalid_value
+    assert span.error == 0
+
+
+def test_finished_property():
+    """finished property returns True when duration is set, False otherwise."""
+    span = SpanData(name="test")
+    assert span.finished is False  # duration is None (0 sentinel)
+
+    span.duration_ns = 100
+    assert span.finished is True
+
+    span.duration_ns = 1000000000
+    assert span.finished is True
+
+    span.duration_ns = None
+    assert span.finished is False
+
+
+def test_finished_is_read_only():
+    """finished property is read-only (no setter)."""
+    span = SpanData(name="test")
+    with pytest.raises(AttributeError):
+        span.finished = True
+
+
+# =============================================================================
+# Start Parameter Handling Tests
+# =============================================================================
+
+
+def test_start_ns_default_captures_time():
+    """start_ns is set to current time when start not provided."""
+    import time
+
+    before = time.time_ns()
+    span = SpanData(name="test")
+    after = time.time_ns()
+    assert before <= span.start_ns <= after
+
+
+def test_start_ns_from_seconds():
+    """start parameter (in seconds) is converted to nanoseconds."""
+    span = SpanData(name="test", start=1234567890.5)
+    assert span.start_ns == 1234567890500000000
+
+
+def test_start_ns_from_int_seconds():
+    """start parameter accepts integer seconds."""
+    span = SpanData(name="test", start=1234567890)
+    assert span.start_ns == 1234567890000000000
+
+
+def test_start_ns_invalid_value_falls_back_to_current_time():
+    """start parameter with invalid value falls back to current time."""
+    import time
+
+    before = time.time_ns()
+    span = SpanData(name="test", start="invalid")
+    after = time.time_ns()
+    assert before <= span.start_ns <= after
+
+
+# =============================================================================
+# _span_api Property Tests
+# =============================================================================
+
+
+def test_span_api_default():
+    """_span_api defaults to "datadog" when not provided."""
+    span = SpanData(name="test")
+    assert span._span_api == "datadog"
+
+
+def test_span_api_constructor():
+    """_span_api can be set via constructor."""
+    span = SpanData(name="test", span_api="opentelemetry")
+    assert span._span_api == "opentelemetry"
+
+
+def test_span_api_getter_setter():
+    """_span_api can be read and written."""
+    span = SpanData(name="test")
+    assert span._span_api == "datadog"
+
+    span._span_api = "custom-api"
+    assert span._span_api == "custom-api"
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_TYPE_VALUES)
+def test_span_api_invalid_types_fall_back_to_empty_string(invalid_value):
+    """_span_api falls back to empty string for invalid types."""
+    # Constructor
+    span = SpanData(name="test", span_api=invalid_value)
+    assert span._span_api == ""
+
+    # Setter
+    span = SpanData(name="test")
+    span._span_api = invalid_value
+    assert span._span_api == ""
+
+
+@pytest.mark.parametrize("invalid_bytes", INVALID_UTF8_BYTES)
+def test_span_api_invalid_utf8_falls_back_to_empty_string(invalid_bytes):
+    """_span_api falls back to empty string for invalid UTF-8 bytes."""
+    # Constructor
+    span = SpanData(name="test", span_api=invalid_bytes)
+    assert span._span_api == ""
+
+    # Setter
+    span = SpanData(name="test")
+    span._span_api = invalid_bytes
+    assert span._span_api == ""

@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import logging
 from typing import Callable
-from typing import Dict
 from typing import Optional
 
 from ddtrace import config
@@ -12,6 +11,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.propagation.http import _extract_header_value
 from ddtrace.propagation.http import _possible_header
+from ddtrace.trace import tracer
 
 
 log = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ def _api_gateway_http_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str
     return None
 
 
-supported_proxies: Dict[str, ProxyInfo] = {
+supported_proxies: dict[str, ProxyInfo] = {
     "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
     "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
 }
@@ -76,7 +76,7 @@ POSSIBLE_PROXY_HEADER_USER = _possible_header("x-dd-proxy-user")
 HEADER_USERAGENT = _possible_header("user-agent")
 
 
-def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) -> None:
+def create_inferred_proxy_span_if_headers_exist(ctx, headers) -> None:
     if not headers:
         return None
 
@@ -99,7 +99,7 @@ def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) 
         resource=resource,
         span_type=SpanTypes.WEB,
         activate=True,
-        child_of=child_of,
+        child_of=tracer.current_trace_context(),
     )
     span.start_ns = int(proxy_context.request_time) * 1000000
 
@@ -198,5 +198,5 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     )
 
 
-def normalize_headers(headers) -> Dict[str, str]:
+def normalize_headers(headers) -> dict[str, str]:
     return {key.lower(): value for key, value in headers.items()}

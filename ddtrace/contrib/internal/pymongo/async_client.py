@@ -2,8 +2,6 @@
 import contextlib
 from types import FunctionType
 from typing import Any
-from typing import Dict
-from typing import Tuple
 
 import pymongo
 from pymongo.asynchronous.pool import AsyncConnection
@@ -47,7 +45,7 @@ async def trace_async_server_run_operation(func: FunctionType, args: Tuple[Any, 
         return process_server_operation_result(span, operation, result)
 
 
-async def trace_async_server_checkout(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Wrapper for AsyncServer.checkout to trace socket checkout.
 
     AsyncServer.checkout() returns an async context manager. We wrap it to add tracing.
@@ -71,26 +69,33 @@ async def trace_async_server_checkout(func: FunctionType, args: Tuple[Any, ...],
     return traced_cm()
 
 
-async def trace_async_socket_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+async def trace_async_socket_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Wrapper for AsyncConnection.command to trace command operations."""
     parsed = parse_socket_command_spec(args, kwargs)
     if parsed is None:
         return await func(*args, **kwargs)
 
     socket_instance, dbname, cmd = parsed
-    with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+    async with async_trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         s, args, kwargs = dbm_dispatch(s, args, kwargs)
         return await func(*args, **kwargs)
 
 
-async def trace_async_socket_write_command(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+@contextlib.asynccontextmanager
+async def async_trace_cmd(cmd, socket_instance, address):
+    """Async context manager wrapper for trace_cmd that properly handles GeneratorExit."""
+    with trace_cmd(cmd, socket_instance, address) as span:
+        yield span
+
+
+async def trace_async_socket_write_command(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Wrapper for AsyncConnection.write_command to trace write command operations."""
     parsed = parse_socket_write_command_msg(args, kwargs)
     if parsed is None:
         return await func(*args, **kwargs)
 
     socket_instance, cmd = parsed
-    with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
+    async with async_trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         result = await func(*args, **kwargs)
         if result:
             s.set_metric(db.ROWCOUNT, result.get("n", -1))

@@ -46,11 +46,11 @@ _PYTEST_SUPPORTS_ITR = _pytest_version_supports_itr()
 
 
 def _get_spans_from_list(
-    spans: t.List[ddtrace.trace.Span],
+    spans: list[ddtrace.trace.Span],
     span_type: str,
     name: t.Optional[str] = None,
     status: t.Optional[str] = None,
-) -> t.List[ddtrace.trace.Span]:
+) -> list[ddtrace.trace.Span]:
     _names_map = {
         "session": ("test_session_end",),
         "module": ("test_module_end", "test.module"),
@@ -142,7 +142,7 @@ class PytestTestCaseBase(TracerTestCase):
         with _ci_override_env(_test_env, replace_os_env=True):
             return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
-    def subprocess_run(self, *args, env: t.Optional[t.Dict[str, str]] = None):
+    def subprocess_run(self, *args, env: t.Optional[dict[str, str]] = None):
         """Execute test script with test tracer."""
         _base_env = dict(DD_API_KEY="foobar.baz")
         if env is not None:
@@ -5098,7 +5098,7 @@ def test_pytest_coverage_data_format_handling_invalid_type():
     ):
         _pytest_sessionfinish(mock_session, 0)
 
-        mock_log.warning.assert_called_with(
+        mock_log.debug.assert_called_with(
             "Unexpected format for total covered percentage: type=%s.%s, value=%r",
             "builtins",
             "str",
@@ -5117,11 +5117,19 @@ def test_pytest_coverage_data_format_handling_valid_values(valid_value):
     mock_session.exitstatus = 0
 
     ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+    # Set up the _api_settings attribute properly to avoid the debug log
+    mock_api_settings = mock.MagicMock()
+    mock_api_settings.coverage_report_upload_enabled = False
+    ci_visibility_instance._api_settings = mock_api_settings
 
     with (
         mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.get_coverage_percentage", return_value=valid_value),
         mock.patch(
             "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+            return_value=ci_visibility_instance,
+        ),
+        mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.require_ci_visibility_service",
             return_value=ci_visibility_instance,
         ),
         mock.patch(

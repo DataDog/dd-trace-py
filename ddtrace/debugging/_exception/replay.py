@@ -54,10 +54,10 @@ FRAME_FILE_TAG = "_dd.debug.error.%d.file"
 FRAME_LINE_TAG = "_dd.debug.error.%d.line"
 
 EXCEPTION_IDENT_LIMIT = 3600.0  # 1 hour
-EXCEPTION_IDENT_LIMITER: t.Dict[int, HourGlass] = {}
+EXCEPTION_IDENT_LIMITER: dict[int, HourGlass] = {}
 
 
-ExceptionChain = t.Deque[t.Tuple[BaseException, t.Optional[TracebackType]]]
+ExceptionChain = deque[tuple[BaseException, t.Optional[TracebackType]]]
 
 
 def exception_ident(exc: BaseException, tb: t.Optional[TracebackType]) -> int:
@@ -113,14 +113,14 @@ def limit_exception(exc_ident: int) -> bool:
 
 def unwind_exception_chain(
     exc: t.Optional[BaseException], tb: t.Optional[TracebackType]
-) -> t.Tuple[ExceptionChain, t.Optional[uuid.UUID]]:
+) -> tuple[ExceptionChain, t.Optional[uuid.UUID]]:
     """Unwind the exception chain and assign it an ID.
 
     The chain goes from "cause to effect", meaning that every cause for an
     exception is put first.
     """
     chain: ExceptionChain = deque()
-    seen: t.Set[int] = set()  # Track visited exceptions by id to detect cycles
+    seen: set[int] = set()  # Track visited exceptions by id to detect cycles
 
     while exc is not None and id(exc) not in seen:
         seen.add(id(exc))
@@ -150,7 +150,7 @@ def unwind_exception_chain(
     return chain, exc_id
 
 
-def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.Tuple[int, TracebackType], None, None]:
+def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[tuple[int, TracebackType], None, None]:
     """Get the frames from the exception chain.
 
     For each exception in the chain we collect the maximum number of frames
@@ -161,7 +161,7 @@ def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.Generator[t.T
     for _, tb in chain:
         # Retain only the last N frames from the traceback, where N is the
         # configured max size for span tracebacks.
-        local_frames: t.Deque[TracebackType] = deque(maxlen=global_config._span_traceback_max_size)
+        local_frames: deque[TracebackType] = deque(maxlen=global_config._span_traceback_max_size)
         if tb is None or tb.tb_frame is None:
             continue
 
@@ -217,7 +217,7 @@ class SpanExceptionSnapshot(Snapshot):
     exc_id: t.Optional[uuid.UUID] = None
 
     @property
-    def data(self) -> t.Dict[str, t.Any]:
+    def data(self) -> dict[str, t.Any]:
         data = super().data
         data.update({"exceptionId": str(self.exc_id)})
         return data
@@ -326,7 +326,7 @@ class SpanExceptionHandler:
             return False
 
     def on_span_exception(
-        self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, traceback: t.Optional[TracebackType]
+        self, span: Span, _exc_type: type[BaseException], exc: BaseException, traceback: t.Optional[TracebackType]
     ) -> None:
         if span.get_tag(DEBUG_INFO_TAG) == "true" or not can_capture(span):
             # Debug info for span already captured or no budget to capture
