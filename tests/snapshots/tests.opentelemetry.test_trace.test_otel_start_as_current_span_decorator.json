@@ -1,0 +1,82 @@
+[[
+  {
+    "name": "internal",
+    "service": "tests.opentelemetry",
+    "resource": "with-child-spans",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-4",
+      "_dd.p.tid": "69860c8d00000000",
+      "language": "python",
+      "runtime-id": "21a870cf153a467193cf95e9ba18e2f8"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2.0,
+      "process_id": 57821.0
+    },
+    "duration": 600000,
+    "start": 1770392717482349000
+  },
+     {
+       "name": "internal",
+       "service": "tests.opentelemetry",
+       "resource": "required-resource-name",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 84000,
+       "start": 1770392717482584000
+     },
+     {
+       "name": "my-operation",
+       "service": "tests.opentelemetry",
+       "resource": "with-operation-name",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "operation.name": "my-operation"
+       },
+       "duration": 53000,
+       "start": 1770392717482742000
+     },
+     {
+       "name": "internal",
+       "service": "my-service",
+       "resource": "with-service-name",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.opentelemetry"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0
+       },
+       "duration": 37000,
+       "start": 1770392717482822000
+     },
+     {
+       "name": "internal",
+       "service": "tests.opentelemetry",
+       "resource": "with-manual-keep",
+       "trace_id": 0,
+       "span_id": 5,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 45000,
+       "start": 1770392717482888000
+     }]]

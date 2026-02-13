@@ -69,6 +69,9 @@ REQUIRED_STRING_PROPERTIES = ["name", "resource"]
 OPTIONAL_STRING_PROPERTIES = ["service", "span_type"]
 ALL_STRING_PROPERTIES = REQUIRED_STRING_PROPERTIES + OPTIONAL_STRING_PROPERTIES
 
+# _span_api is special: constructor param is "span_api" but property getter/setter is "_span_api"
+# Tests for _span_api are written explicitly rather than parameterized
+
 # Values that are not valid numeric types - should trigger fallback behavior
 INVALID_NUMERIC_VALUES = [
     pytest.param("string", id="string"),
@@ -98,7 +101,7 @@ def test_creation_accepts_extra_kwargs():
 
     Since SpanData.__new__ accepts *args/**kwargs, subclasses (like Span) can pass
     additional parameters without needing to override __new__. SpanData only uses
-    'name', 'service', 'resource', and 'span_type'; other parameters are ignored but don't raise errors.
+    'name', 'service', 'resource', 'span_type', and 'span_api'; other parameters are ignored but don't raise errors.
     """
     span = SpanData(
         name="test.span",
@@ -109,13 +112,16 @@ def test_creation_accepts_extra_kwargs():
         span_id=456,
         parent_id=789,
         start=1234567890.0,
-        span_api="datadog",
+        context=None,
+        on_finish=None,
+        span_api="custom-api",
         links=None,
     )
     assert span.name == "test.span"
     assert span.service == "test-service"
     assert span.resource == "test-resource"
     assert span.span_type == "web"
+    assert span._span_api == "custom-api"
 
 
 # =============================================================================
@@ -665,3 +671,55 @@ def test_start_ns_invalid_value_falls_back_to_current_time():
     span = SpanData(name="test", start="invalid")
     after = time.time_ns()
     assert before <= span.start_ns <= after
+
+
+# =============================================================================
+# _span_api Property Tests
+# =============================================================================
+
+
+def test_span_api_default():
+    """_span_api defaults to "datadog" when not provided."""
+    span = SpanData(name="test")
+    assert span._span_api == "datadog"
+
+
+def test_span_api_constructor():
+    """_span_api can be set via constructor."""
+    span = SpanData(name="test", span_api="opentelemetry")
+    assert span._span_api == "opentelemetry"
+
+
+def test_span_api_getter_setter():
+    """_span_api can be read and written."""
+    span = SpanData(name="test")
+    assert span._span_api == "datadog"
+
+    span._span_api = "custom-api"
+    assert span._span_api == "custom-api"
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_TYPE_VALUES)
+def test_span_api_invalid_types_fall_back_to_empty_string(invalid_value):
+    """_span_api falls back to empty string for invalid types."""
+    # Constructor
+    span = SpanData(name="test", span_api=invalid_value)
+    assert span._span_api == ""
+
+    # Setter
+    span = SpanData(name="test")
+    span._span_api = invalid_value
+    assert span._span_api == ""
+
+
+@pytest.mark.parametrize("invalid_bytes", INVALID_UTF8_BYTES)
+def test_span_api_invalid_utf8_falls_back_to_empty_string(invalid_bytes):
+    """_span_api falls back to empty string for invalid UTF-8 bytes."""
+    # Constructor
+    span = SpanData(name="test", span_api=invalid_bytes)
+    assert span._span_api == ""
+
+    # Setter
+    span = SpanData(name="test")
+    span._span_api = invalid_bytes
+    assert span._span_api == ""

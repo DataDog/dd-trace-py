@@ -163,12 +163,10 @@ def test_profiler_ddtrace_deprecation():
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
         from ddtrace.profiling import _threading  # noqa:F401
-        from ddtrace.profiling import event  # noqa:F401
         from ddtrace.profiling import profiler  # noqa:F401
         from ddtrace.profiling import scheduler  # noqa:F401
         from ddtrace.profiling.collector import _lock  # noqa:F401
         from ddtrace.profiling.collector import _task  # noqa:F401
-        from ddtrace.profiling.collector import _traceback  # noqa:F401
         from ddtrace.profiling.collector import memalloc  # noqa:F401
         from ddtrace.profiling.collector import stack  # noqa:F401
 
