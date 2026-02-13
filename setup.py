@@ -5,6 +5,7 @@ import os
 import platform
 import random
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -101,6 +102,7 @@ DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
+DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
@@ -290,6 +292,7 @@ class PatchedDistribution(Distribution):
                 debug=COMPILE_MODE.lower() == "debug",
                 features=rust_features,
                 env=rust_env,
+                args=DD_CARGO_ARGS,
             )
         ]
 
