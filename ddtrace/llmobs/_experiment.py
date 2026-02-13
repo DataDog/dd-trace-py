@@ -326,32 +326,42 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     """
     return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deep_eval_evaluator(evaluator)
 
-def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric, context: EvaluatorContext) -> EvaluatorResult:
+def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric) -> Callable[[Dict[str, Any], Any, Optional[JSONType]], EvaluatorResult]:
     """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
     
     :param evaluator: The deep eval evaluator to run
-    :param context: The evaluation context
-    :return: An EvaluatorResult containing the score, reasoning, and assessment
+    :return: A callable function that can be used as an evaluator
     """
-    deepEvalTestCase = LLMTestCase(
-        input=str(context.input_data),
-        actual_output=str(context.output_data),
-        expected_output=str(context.expected_output),
-    )
-    evaluator.measure(deepEvalTestCase)
-    score = evaluator.score
-    reasoning = None
-    assessment = None
-    if hasattr(evaluator, "reason"):
-        reasoning = evaluator.reason
-    if hasattr(evaluator, "success") and isinstance(evaluator.success, bool):
-        assessment = "pass" if evaluator.success else "fail"
-    eval_result = EvaluatorResult(
-        value=score,
-        reasoning=reasoning,
-        assessment=assessment,
-    )
-    return eval_result
+    def wrapped_evaluator(input_data: Dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
+        """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
+        
+        :param input_data: The input data
+        :param output_data: The output data
+        :param expected_output: The expected output
+        :return: An EvaluatorResult containing the score, reasoning, and assessment
+        """
+        deepEvalTestCase = LLMTestCase(
+            input=str(input_data),
+            actual_output=str(output_data),
+            expected_output=str(expected_output),
+        )
+        evaluator.measure(deepEvalTestCase)
+        score = evaluator.score
+        reasoning = None
+        assessment = None
+        if hasattr(evaluator, "reason"):
+            reasoning = evaluator.reason
+        if hasattr(evaluator, "success"):
+            assessment = "pass" if score else "fail"
+        eval_result = EvaluatorResult(
+            value=score,
+            reasoning=reasoning,
+            assessment=assessment,
+        )
+        return eval_result
+    wrapped_evaluator.__name__ = getattr(evaluator, "name", "deep_eval_evaluator")
+    return wrapped_evaluator
+
 
 class Project(TypedDict):
     name: str
@@ -657,10 +667,7 @@ class Experiment:
         dataset: Dataset,
         evaluators: Sequence[
             Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-                BaseMetric,
-                BaseConversationalMetric,
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],                BaseEvaluator,
             ]
         ],
         project_name: str,
@@ -928,18 +935,6 @@ class Experiment:
                             trace_id=task_result.get("trace_id"),
                         )
                         eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
-                    elif _is_deep_eval_evaluator(evaluator):
-                        evaluator_name = evaluator.name  # type: ignore[union-attr]
-                        combined_metadata = {**metadata, "experiment_config": self._config}
-                        context = EvaluatorContext(
-                            input_data=input_data,
-                            output_data=output_data,
-                            expected_output=expected_output,
-                            metadata=combined_metadata,
-                            span_id=task_result.get("span_id"),
-                            trace_id=task_result.get("trace_id"),
-                        )
-                        eval_result = _deep_eval_evaluator_wrapper(evaluator, context)
                     elif _is_function_evaluator(evaluator):
                         evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                         eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]

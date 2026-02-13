@@ -52,7 +52,7 @@ class TestDeepEvalEvaluatorMeasure:
         metric.measure(tc)
         assert metric.score == 1.0
         assert metric.reason == "Match"
-        assert metric.success == "True"
+        assert metric.success == "pass"
 
     def test_measure_sets_score_fail(self):
         metric = SimpleDeepEvalMetric()
@@ -60,7 +60,7 @@ class TestDeepEvalEvaluatorMeasure:
         metric.measure(tc)
         assert metric.score == 0.0
         assert metric.reason == "Mismatch"
-        assert metric.success == "False"
+        assert metric.success == "fail"
 
 
 class TestDeepEvalEvaluatorInExperiment:
@@ -102,7 +102,6 @@ class TestDeepEvalEvaluatorInExperiment:
         task_results = exp._run_task(1, run=run_info, raise_errors=False)
         eval_results = exp._run_evaluators(task_results, raise_errors=False)
 
-        print(eval_results)
         assert len(eval_results) == 1
         assert "simple_deep_eval" in eval_results[0]["evaluations"]
         result = eval_results[0]["evaluations"]["simple_deep_eval"]

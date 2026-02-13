@@ -114,6 +114,7 @@ from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
@@ -1182,8 +1183,11 @@ class LLMObs(Service):
             callable(evaluator) or isinstance(evaluator, BaseEvaluator) or isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric) for evaluator in evaluators
         ):
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
-        for evaluator in evaluators:
-            if isinstance(evaluator, BaseEvaluator) or isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric):
+        for idx, evaluator in enumerate(evaluators):
+            if isinstance(evaluator, BaseEvaluator):
+                continue
+            if BaseMetric is not None and BaseConversationalMetric is not None and (isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)):
+                evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator)
                 continue
             if not callable(evaluator):
                 raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator, BaseMetric, or BaseConversationalMetric.")
