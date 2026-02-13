@@ -5,6 +5,7 @@ import claude_agent_sdk
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import handle_streamed_response
+from ddtrace.contrib.internal.claude_agent_sdk._streaming import wrap_prompt_if_async_iterable
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -32,14 +33,19 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
     """Trace the standalone query() async generator function."""
     integration = claude_agent_sdk._datadog_integration
 
+    wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
+
     span = integration.trace(
         pin,
         "claude_agent_sdk.query",
         submit_to_llmobs=True,
     )
 
+    if prompt_wrapper:
+        span._set_ctx_item("_dd_prompt_wrapper", prompt_wrapper)
+
     try:
-        resp = func(*args, **kwargs)
+        resp = func(*wrapped_args, **wrapped_kwargs)
         return handle_streamed_response(integration, resp, args, kwargs, span, operation="query", pin=pin)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -57,6 +63,8 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
 
     integration = claude_agent_sdk._datadog_integration
 
+    wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
+
     span = integration.trace(
         pin,
         "claude_agent_sdk.ClaudeSDKClient.query",
@@ -64,12 +72,20 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
         instance=instance,
     )
 
+    if prompt_wrapper:
+        span._set_ctx_item("_dd_prompt_wrapper", prompt_wrapper)
+
     before_context = await _retrieve_context(instance)
 
-    instance._dd_query_args = {"span": span, "args": args, "kwargs": kwargs, "before_context": before_context}
+    instance._dd_query_args = {
+        "span": span,
+        "args": args,
+        "kwargs": kwargs,
+        "before_context": before_context,
+    }
 
     try:
-        return await func(*args, **kwargs)
+        return await func(*wrapped_args, **wrapped_kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="request")

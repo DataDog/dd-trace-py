@@ -64,6 +64,11 @@ def claude_agent_sdk(ddtrace_config_claude_agent_sdk):
 
 def _create_mock_internal_client(response_sequence):
     async def mock_process_query(self, prompt, options, transport=None):
+        # consume async iterable prompt
+        if hasattr(prompt, "__aiter__"):
+            async for _ in prompt:
+                pass
+
         for msg in response_sequence:
             yield msg
 

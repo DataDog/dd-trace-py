@@ -306,3 +306,84 @@ class TestLLMObsClaudeAgentSdk:
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
         assert llmobs_events[1] == expected_agent_event
+
+    async def test_llmobs_query_with_async_iterable_prompt(
+        self, claude_agent_sdk, llmobs_events, mock_internal_client, test_spans
+    ):
+        async def prompt_generator():
+            yield {"role": "user", "content": "Hello"}
+            yield {"role": "user", "content": "What is 2+2?"}
+
+        async for _ in claude_agent_sdk.query(prompt=prompt_generator()):
+            pass
+
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+
+        expected_event = _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="agent",
+            input_value=safe_json([{"content": "Hello", "role": "user"}, {"content": "What is 2+2?", "role": "user"}]),
+            output_value=safe_json(
+                [
+                    {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {"content": "4", "role": "assistant"},
+                    {"content": "4", "role": "system"},
+                ]
+            ),
+            metadata={"agent_manifest": expected_agent_manifest()},
+            token_metrics=EXPECTED_QUERY_USAGE,
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+        )
+
+        assert llmobs_events[0] == expected_event
+
+    async def test_llmobs_client_query_with_async_iterable_prompt(
+        self, mock_client, llmobs_events, test_spans
+    ):
+        async def prompt_generator():
+            yield {"role": "user", "content": "Hello"}
+            yield {"role": "user", "content": "What is 2+2?"}
+
+        await mock_client.query(prompt=prompt_generator())
+        async for _ in mock_client.receive_messages():
+            pass
+
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+
+        expected_event = _expected_llmobs_non_llm_span_event(
+            span,
+            span_kind="agent",
+            input_value=safe_json([
+                {"content": "Hello", "role": "user"},
+                {"content": "What is 2+2?", "role": "user"},
+            ]),
+            output_value=safe_json(
+                [
+                    {
+                        "content": safe_json(EXPECTED_SYSTEM_MESSAGE_DATA),
+                        "role": "system",
+                    },
+                    {"content": "4", "role": "assistant"},
+                ]
+            ),
+            metadata={
+                "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                "agent_manifest": expected_agent_manifest(),
+            },
+            token_metrics={
+                "input_tokens": 14599,
+                "output_tokens": 5,
+                "total_tokens": 14604,
+                "cache_write_input_tokens": 12742,
+                "cache_read_input_tokens": 1854,
+            },
+            tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
+        )
+
+        assert llmobs_events[0] == expected_event

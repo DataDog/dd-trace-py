@@ -71,7 +71,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         metadata = self._extract_metadata(kwargs)
 
-        input_messages = self._extract_input_messages(prompt)
+        input_messages = self._extract_input_messages(prompt, span)
 
         output_messages: list[Message] = [Message(content="")]
         metrics: dict[str, int] = {}
@@ -201,8 +201,24 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         if before_context:
             parameters["before_context"] = self._parse_context_categories(before_context)
 
-    def _extract_input_messages(self, prompt: str) -> list[Message]:
-        return [Message(content=prompt, role="user")]
+    def _extract_input_messages(self, prompt: Any, span: Span) -> list[Message]:
+        prompt_wrapper = span._get_ctx_item("_dd_prompt_wrapper") if span else None
+
+        if prompt_wrapper and hasattr(prompt_wrapper, "captured_values"):
+            messages = []
+            for captured_msg in prompt_wrapper.captured_values:
+                if isinstance(captured_msg, dict) and "content" in captured_msg and "role" in captured_msg:
+                    content = safe_json(captured_msg.get("content", "")) or ""
+                    role = captured_msg.get("role", "user") or "user"
+                    messages.append(Message(content=content, role=role))
+                else:
+                    messages.append(Message(content=safe_json(captured_msg) or "", role="user"))
+            return messages
+
+        if isinstance(prompt, str):
+            return [Message(content=prompt, role="user")]
+
+        return [Message(content="", role="user")]
 
     def _parse_content_blocks(self, content: Any, role: str) -> list[Message]:
         """Parses content which can be a string or a list of content blocks

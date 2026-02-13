@@ -1,4 +1,7 @@
+import inspect
 from typing import Any
+
+import wrapt
 
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
@@ -9,6 +12,54 @@ from ddtrace.llmobs._utils import safe_json
 
 
 log = get_logger(__name__)
+
+
+class CapturingAsyncIterable(wrapt.ObjectProxy):
+    """Transparently wraps an AsyncIterable to capture yielded values.
+
+    This allows us to capture prompt messages from an AsyncIterable prompt
+    while still passing them through to the Claude Agent SDK.
+    """
+
+    def __init__(self, original):
+        super().__init__(original)
+        self._self_captured_values = []
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            value = await self.__wrapped__.__anext__()
+            self._self_captured_values.append(value)
+            return value
+        except StopAsyncIteration:
+            raise
+
+    @property
+    def captured_values(self):
+        return self._self_captured_values
+
+
+def wrap_prompt_if_async_iterable(args, kwargs):
+    prompt = None
+    prompt_in_args = len(args) > 0
+    if prompt_in_args:
+        prompt = args[0]
+    else:
+        prompt = kwargs.get("prompt")
+    if prompt is not None and not isinstance(prompt, str):
+        if hasattr(prompt, "__aiter__") or inspect.isasyncgen(prompt):
+            wrapper = CapturingAsyncIterable(prompt)
+            if prompt_in_args:
+                args = list(args)
+                args[0] = wrapper
+                args = tuple(args)
+            else:
+                kwargs = dict(kwargs)
+                kwargs["prompt"] = wrapper
+            return args, kwargs, wrapper
+    return args, kwargs, None
 
 
 def handle_streamed_response(integration, resp, args, kwargs, span, operation, pin, instance=None):
