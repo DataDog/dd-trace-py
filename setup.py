@@ -85,6 +85,11 @@ else:
 
 if FAST_BUILD:
     os.environ["DD_COMPILE_ABSEIL"] = "0"
+    # Trade binary size for compilation speed in dev environments by disabling
+    # LTO and increasing codegen parallelism. Never used for release wheels.
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_LTO", "off")
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "16")
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_OPT_LEVEL", "2")
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 

@@ -10,6 +10,9 @@ debug = "line-tables-only"
 opt-level = 's'
 codegen-units = 1
 
+[profile.release.build-override]
+opt-level = 0
+
 [features]
 crashtracker = ["dep:anyhow", "dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
 profiling = ["dep:libdd-profiling-ffi"]
