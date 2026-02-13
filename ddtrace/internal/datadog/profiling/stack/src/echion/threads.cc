@@ -495,7 +495,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 
         auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_wr.wr_object));
         if (maybe_task_info) {
-            if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+            if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
                 tasks.push_back(std::move(*maybe_task_info));
             }
         }
@@ -519,7 +519,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
         for (auto task_addr : eager_tasks) {
             auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
             if (maybe_task_info) {
-                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
                     tasks.push_back(std::move(*maybe_task_info));
                 }
             }

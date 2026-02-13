@@ -395,7 +395,7 @@ def appsec_application_server(
 
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
         try:
-            client.get_ignored("/shutdown")
+            client.get_ignored("/shutdown", timeout=10)
         except ConnectionError:
             pass
         except Exception:
@@ -422,7 +422,11 @@ def appsec_application_server(
             else:
                 os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
                 server_process.terminate()
-                server_process.wait()
+                try:
+                    server_process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    server_process.kill()
+                    server_process.wait()
                 if (assert_debug and PYTHON_VERSION_INFO >= (3, 10)) and (
                     iast_enabled is not None and iast_enabled != "false"
                 ):
