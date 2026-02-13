@@ -32,6 +32,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.periodic import Timer
+from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
@@ -474,6 +475,7 @@ class ScopeContext:
             "ddsource": "python",
             "service": config.service or DEFAULT_SERVICE_NAME,
             "runtimeId": get_runtime_id(),
+            "parentId": get_ancestor_runtime_id(),
             "type": "symdb",
         }
 
