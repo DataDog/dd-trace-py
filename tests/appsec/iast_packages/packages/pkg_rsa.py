@@ -20,7 +20,7 @@ def pkg_rsa_view():
     response = ResultResponse(request.args.get("package_param"))
 
     try:
-        (public_key, private_key) = rsa.newkeys(512)
+        (public_key, private_key) = rsa.newkeys(2048)
 
         message = response.package_param
         encrypted_message = rsa.encrypt(message.encode(), public_key)
@@ -45,7 +45,7 @@ def pkg_rsa_propagation_view():
         return response.json()
 
     try:
-        (public_key, private_key) = rsa.newkeys(512)
+        (public_key, private_key) = rsa.newkeys(2048)
 
         message = response.package_param
         encrypted_message = rsa.encrypt(message.encode(), public_key)
