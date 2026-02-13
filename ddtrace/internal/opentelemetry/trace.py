@@ -1,5 +1,9 @@
+from collections.abc import Iterator
+from collections.abc import Mapping
+from collections.abc import Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
+from typing import Optional
 
 from opentelemetry import version
 from opentelemetry.context import Context as OtelContext  # noqa:F401
@@ -21,19 +25,11 @@ from .span import Span
 
 
 if TYPE_CHECKING:
-    from typing import Dict  # noqa:F401
-    from typing import Iterator  # noqa:F401
-    from typing import Mapping  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Sequence  # noqa:F401
-    from typing import Union  # noqa:F401
-
     from opentelemetry.trace import Link as OtelLink  # noqa:F401
     from opentelemetry.trace.span import Span as OtelSpan  # noqa:F401
     from opentelemetry.util.types import AttributeValue as OtelAttributeValue  # noqa:F401
 
     from ddtrace.context import Context as DDContext  # noqa:F401
-    from ddtrace.trace import Tracer as DDTracer  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -42,8 +38,7 @@ log = get_logger(__name__)
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 
 
-def _otel_to_dd_span_context(otel_span):
-    # type: (OtelSpan) -> DDContext
+def _otel_to_dd_span_context(otel_span: "OtelSpan") -> "DDContext":
     trace_id, span_id, _, tf, ts, _ = otel_span.get_span_context()
     if tf is DEFAULT_TRACE_OPTIONS:
         # If a SpanContext is created with specificing the trace flags field it is set to DEFAULT_TRACE_OPTIONS.
@@ -65,12 +60,11 @@ class TracerProvider(OtelTracerProvider):
         # The new signature includes an `attributes` parameter which is used by opentelemetry internals.
         def get_tracer(
             self,
-            instrumenting_module_name,
-            instrumenting_library_version=None,
-            schema_url=None,
-            attributes=None,
-        ):
-            # type: (str, Optional[str], Optional[str], Optional[Dict]) -> OtelTracer
+            instrumenting_module_name: str,
+            instrumenting_library_version: Optional[str] = None,
+            schema_url: Optional[str] = None,
+            attributes: Optional[dict] = None,
+        ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
             return Tracer()
 
@@ -78,11 +72,10 @@ class TracerProvider(OtelTracerProvider):
 
         def get_tracer(  # type: ignore[misc]
             self,
-            instrumenting_module_name,
-            instrumenting_library_version=None,
-            schema_url=None,
-        ):
-            # type: (str, Optional[str], Optional[str]) -> OtelTracer
+            instrumenting_module_name: str,
+            instrumenting_library_version: Optional[str] = None,
+            schema_url: Optional[str] = None,
+        ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
             return Tracer()
 
@@ -92,16 +85,15 @@ class Tracer(OtelTracer):
 
     def start_span(
         self,
-        name,  # type: str
-        context=None,  # type: Optional[OtelContext]
-        kind=OtelSpanKind.INTERNAL,  # type: OtelSpanKind
-        attributes=None,  # type: Optional[Mapping[str, OtelAttributeValue]]
-        links=None,  # type: Optional[Sequence[OtelLink]]
-        start_time=None,  # type: Optional[int]
-        record_exception=True,  # type: bool
-        set_status_on_exception=True,  # type: bool
-    ):
-        # type: (...) -> OtelSpan
+        name: str,
+        context: Optional[OtelContext] = None,
+        kind: OtelSpanKind = OtelSpanKind.INTERNAL,
+        attributes: Optional[Mapping[str, "OtelAttributeValue"]] = None,
+        links: Optional[Sequence["OtelLink"]] = None,
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+    ) -> "OtelSpan":
         """Creates and starts an opentelemetry span."""
         # Get active otel span
         curr_otel_span = get_current_span(context)
@@ -140,17 +132,16 @@ class Tracer(OtelTracer):
     @contextmanager
     def start_as_current_span(
         self,
-        name,  # type: str
-        context=None,  # type: Optional[OtelContext]
-        kind=OtelSpanKind.INTERNAL,  # type: OtelSpanKind
-        attributes=None,  # type: Optional[Mapping[str, OtelAttributeValue]]
-        links=None,  # type: Optional[Sequence[OtelLink]]
-        start_time=None,  # type: Optional[int]
-        record_exception=True,  # type: bool
-        set_status_on_exception=True,  # type: bool
-        end_on_exit=True,  # type: bool
-    ):
-        # type: (...) -> Iterator[OtelSpan]
+        name: str,
+        context: Optional[OtelContext] = None,
+        kind: OtelSpanKind = OtelSpanKind.INTERNAL,
+        attributes: Optional[Mapping[str, "OtelAttributeValue"]] = None,
+        links: Optional[Sequence["OtelLink"]] = None,
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+        end_on_exit: bool = True,
+    ) -> Iterator["OtelSpan"]:
         """Context manager for creating and activating a new opentelemetry span."""
         # Create a new non-active OTel span wrapper
         span = self.start_span(
