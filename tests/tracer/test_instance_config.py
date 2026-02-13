@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
 from unittest import TestCase
 
@@ -23,7 +22,7 @@ class InstanceConfigTestCase(TestCase):
         self.Klass = Klass
         Pin(service="metrics").onto(Klass)
 
-    def _get_pin_config(self, obj: Any) -> Optional[Dict[str, Any]]:
+    def _get_pin_config(self, obj: Any) -> Optional[dict[str, Any]]:
         pin = Pin.get_from(obj)
         if pin:
             return pin._config
