@@ -2,8 +2,6 @@
 Trace queries to botocore api done via a pynamodb client
 """
 
-from typing import Dict
-
 import pynamodb.connection.base
 import wrapt
 
@@ -40,7 +38,7 @@ def get_version() -> str:
     return getattr(pynamodb, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"pynamodb": ">=5.5.1"}
 
 

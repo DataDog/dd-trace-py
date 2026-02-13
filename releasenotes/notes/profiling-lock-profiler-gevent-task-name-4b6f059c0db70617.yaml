@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixed gevent lock profiler task attribution when stack profiling
+    is enabled so greenlet task id and name are no longer missing.

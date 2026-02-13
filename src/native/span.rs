@@ -4,7 +4,8 @@ use pyo3::{
 };
 use std::time::SystemTime;
 
-use crate::py_string::PyBackedString;
+use crate::py_string::{PyBackedString, PyTraceData};
+use libdd_trace_utils::span::SpanText;
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -71,7 +72,8 @@ impl SpanLinkData {
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
-    data: libdd_trace_utils::span::Span<PyBackedString>,
+    data: libdd_trace_utils::span::v04::Span<PyTraceData>,
+    span_api: PyBackedString,
     _trace_id_128bit_mode: bool,
 }
 
@@ -135,6 +137,9 @@ impl SpanData {
         span_id=None,
         parent_id=None,    // placeholder for Span.__init__ positional arg
         start=None,
+        context=None,      // placeholder for Span.__init__ positional arg
+        on_finish=None,    // placeholder for Span.__init__ positional arg
+        span_api=None,
         *args,
         **kwargs
     ))]
@@ -148,6 +153,9 @@ impl SpanData {
         span_id: Option<&Bound<'p, PyAny>>,
         parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
         start: Option<&Bound<'p, PyAny>>,
+        context: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        span_api: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
@@ -191,6 +199,10 @@ impl SpanData {
             .unwrap_or_else(crate::rand::generate_128bit_trace_id);
         // Initialize 128-bit mode flag to true (default)
         span._trace_id_128bit_mode = true;
+        // Initialize span_api: use provided value or default to "datadog"
+        span.span_api = span_api
+            .map(|obj| extract_backed_string_or_default(obj))
+            .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         span
     }
 
@@ -413,6 +425,19 @@ impl SpanData {
             .map(|s| (s * 1e9) as i64)
             .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
             .unwrap_or(-1);
+    }
+
+    // _span_api property
+    #[getter(_span_api)]
+    #[inline(always)]
+    fn get_span_api<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        self.span_api.as_py(py)
+    }
+
+    #[setter(_span_api)]
+    #[inline(always)]
+    fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
+        self.span_api = extract_backed_string_or_default(value);
     }
 }
 

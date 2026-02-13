@@ -69,6 +69,7 @@ class Sampler
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
     void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
     // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
@@ -79,6 +80,9 @@ class Sampler
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
+
+    // Restart the sampler after fork if it was running
+    void restart_after_fork();
 };
 
 } // namespace Datadog
