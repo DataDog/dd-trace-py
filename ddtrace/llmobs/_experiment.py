@@ -317,7 +317,7 @@ class RemoteEvaluator(BaseEvaluator):
     """Evaluator that references a production BYOP evaluation by name.
 
     This class allows users to run LLM-as-Judge evaluations configured in the Datadog
-    UI by referenceing the evaluation name.
+    UI by referencing the evaluation name.
 
     Example (simple usage)::
 
