@@ -153,7 +153,14 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
         # Typed exception handlers
         if co_code[idx] == CHECK_EXC_MATCH and co_code[idx + 2] == POP_JUMP_FORWARD_IF_FALSE:
             inject_next_start_of_line_offset(idx + 6)
-        # Generic exception handlers
+            # Check if the jump target is a bare except following this typed handler.
+            # POP_JUMP_FORWARD_IF_FALSE jumps forward by arg instruction-units (2 bytes each).
+            # Target lands on: LOAD_GLOBAL (next typed handler), RERAISE (no more handlers),
+            # or POP_TOP (bare except handler reached by fallthrough).
+            jump_target = idx + 4 + co_code[idx + 3] * 2
+            if jump_target < len(co_code) and co_code[jump_target] == POP_TOP:
+                inject_next_start_of_line_offset(first_offset_not_matching(jump_target, POP_TOP, CACHE))
+        # Generic exception handlers (standalone bare except with its own PUSH_EXC_INFO)
         elif co_code[idx] == PUSH_EXC_INFO and CHECK_EXC_MATCH != nth_non_cache_opcode(idx, 3):
             inject_next_start_of_line_offset(first_offset_not_matching(idx + 2, POP_TOP, CACHE))
 
