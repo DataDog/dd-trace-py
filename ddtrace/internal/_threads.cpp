@@ -244,6 +244,12 @@ class Event
         return _cond.wait_for(lock, timeout, [this]() { return _set; });
     }
 
+    bool wait(std::chrono::time_point<std::chrono::steady_clock> until)
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        return _cond.wait_until(lock, until, [this]() { return _set; });
+    }
+
     void clear()
     {
         std::lock_guard<std::mutex> lock(_mutex);
@@ -273,7 +279,9 @@ typedef struct periodic_thread
 
     bool _stopping;
     bool _atexit;
-    bool _after_fork;
+    bool _skip_shutdown;
+
+    std::chrono::time_point<std::chrono::steady_clock> _next_call_time;
 
     std::unique_ptr<Event> _started;
     std::unique_ptr<Event> _stopped;
@@ -303,8 +311,6 @@ static PyMemberDef PeriodicThread_members[] = {
       offsetof(PeriodicThread, _ddtrace_profiling_ignore),
       0,
       "whether to ignore the thread for profiling" },
-
-    { "_is_after_fork", T_BOOL, offsetof(PeriodicThread, _after_fork), READONLY, "whether the thread is after fork" },
 
     { NULL } /* Sentinel */
 };
@@ -341,7 +347,7 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     self->_stopping = false;
     self->_atexit = false;
-    self->_after_fork = false;
+    self->_skip_shutdown = false;
 
     self->_started = std::make_unique<Event>();
     self->_stopped = std::make_unique<Event>();
@@ -383,16 +389,8 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_start(PeriodicThread* self, PyObject* args)
+PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    // After fork, the child process should not restart threads that were running in the parent
-    // until properly reinitialized through forksafe handlers. This prevents crashes when
-    // pthread_create is called before threading state is safe (e.g., in uvloop's _after_fork).
-    // Check this first because after fork, self->_thread is non-null but the thread doesn't exist.
-    if (self->_after_fork) {
-        Py_RETURN_NONE;
-    }
-
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
         return NULL;
@@ -400,6 +398,11 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
     if (self->_stopping)
         Py_RETURN_NONE;
+
+    // Initialize the next call time to the current time plus the interval.
+    // This ensures that the first call happens after the specified interval.
+    self->_next_call_time =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
 
     // Start the thread
     self->_thread = std::make_unique<std::thread>([self]() {
@@ -423,7 +426,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         self->_started->set();
 
         bool error = false;
-        auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
         if (self->_no_wait_at_start)
             self->_request->set();
 
@@ -431,7 +433,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             {
                 AllowThreads _;
 
-                if (self->_request->wait(interval)) {
+                if (self->_request->wait(self->_next_call_time)) {
                     if (self->_stopping)
                         break;
 
@@ -454,6 +456,9 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
                 break;
             }
 
+            self->_next_call_time =
+              std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
+
             // If this came from a request mark it as served
             self->_served->set();
         }
@@ -464,7 +469,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
         // Run the shutdown callback if there was no error and we are not
         // at Python shutdown.
-        if (!self->_atexit && !error && self->_on_shutdown != Py_None) {
+        if (!self->_atexit && !error && self->_on_shutdown != Py_None && !self->_skip_shutdown) {
 #if PY_VERSION_HEX >= 0x30d0000
             if (!Py_IsFinalizing()) {
 #else
@@ -473,6 +478,8 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
                 PeriodicThread__on_shutdown(self);
             }
         }
+
+        PyDict_DelItem(_periodic_threads, self->ident);
 
         // Notify the join method that the thread has stopped
         self->_stopped->set();
@@ -493,14 +500,14 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_awake(PeriodicThread* self, PyObject* args)
+PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     if (self->_thread == nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread not started");
         return NULL;
     }
 
-    if (!self->_after_fork) {
+    {
         AllowThreads _;
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
@@ -514,19 +521,15 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* args)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_stop(PeriodicThread* self, PyObject* args)
+PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     if (self->_thread == nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread not started");
         return NULL;
     }
 
-    if (!self->_after_fork) {
-        // The thread is no longer running so it makes no sense to stop it.
-        // Attempting to acquire the Event lock could deadlock.
-        self->_stopping = true;
-        self->_request->set();
-    }
+    self->_stopping = true;
+    self->_request->set();
 
     Py_RETURN_NONE;
 }
@@ -543,11 +546,6 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     if (self->_thread->get_id() == std::this_thread::get_id()) {
         PyErr_SetString(PyExc_RuntimeError, "Cannot join the current periodic thread");
         return NULL;
-    }
-
-    if (self->_after_fork) {
-        // The thread is no longer running so it makes no sense to join it.
-        Py_RETURN_NONE;
     }
 
     PyObject* timeout = Py_None;
@@ -586,7 +584,7 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__atexit(PeriodicThread* self, PyObject* args)
+PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_atexit = true;
 
@@ -601,9 +599,32 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* args)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__after_fork(PeriodicThread* self, PyObject* args)
+PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    self->_after_fork = true;
+    self->_thread = nullptr;
+
+    self->_stopping = false;
+    self->_atexit = false;
+    self->_skip_shutdown = false;
+
+    // We don't clear the request event because we might have pending awake
+    // requests.
+    self->_started->clear();
+    self->_stopped->clear();
+    self->_served->clear();
+
+    PeriodicThread_start(self, NULL);
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
+{
+    self->_skip_shutdown = true;
+
+    PeriodicThread_stop(self, NULL);
 
     Py_RETURN_NONE;
 }
@@ -661,8 +682,9 @@ static PyMethodDef PeriodicThread_methods[] = {
     { "join", (PyCFunction)PeriodicThread_join, METH_VARARGS | METH_KEYWORDS, "Join the thread" },
     /* Private */
     { "_atexit", (PyCFunction)PeriodicThread__atexit, METH_NOARGS, "Stop the thread at exit" },
-    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Mark the thread as after fork" },
-    { NULL } /* Sentinel */
+    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork" },
+    { "_before_fork", (PyCFunction)PeriodicThread__before_fork, METH_NOARGS, "Prepare the thread for fork" },
+    { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
 // ----------------------------------------------------------------------------
