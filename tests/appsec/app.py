@@ -1,6 +1,7 @@
 """This Flask application is imported on tests.appsec.appsec_utils.gunicorn_flask_server"""
 
 import os
+import sys
 
 
 if os.getenv("_USE_DDTRACE_COMMAND", False) not in ("1", "true", "True"):
@@ -308,8 +309,8 @@ def iast_code_injection_vulnerability():
 
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
-    tracer.shutdown()
-    return "OK"
+    tracer.shutdown(timeout=10)
+    sys.exit(0)
 
 
 @app.route("/iast-stacktrace-leak-vulnerability", methods=["GET"])

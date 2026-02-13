@@ -4,10 +4,17 @@
 #include <string_view>
 #include <unordered_map>
 
-// Forward decl of the return pointer
+// Forward declarations
 namespace Datadog {
 class Sample;
 } // namespace Datadog
+
+// Forward declaration of Python types.
+// We avoid including Python.h in this public C++ header because CPython headers
+// use old-style casts and our build treats old-style casts as errors. Keep
+// Python includes in implementation files when full API access is required.
+struct _frame;
+typedef struct _frame PyFrameObject;
 
 #ifdef __cplusplus
 extern "C"
@@ -67,6 +74,7 @@ extern "C"
                          std::string_view _filename,
                          uint64_t address,
                          int64_t line);
+    void ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
 
