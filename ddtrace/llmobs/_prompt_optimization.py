@@ -1,5 +1,6 @@
 """Prompt optimization framework for iteratively improving LLM prompts."""
 
+from dataclasses import dataclass
 import random
 from typing import TYPE_CHECKING
 from typing import Any
@@ -58,8 +59,17 @@ class IterationData(TypedDict, total=False):
     results: ExperimentResult  # required
     score: float  # required
     experiment_url: str  # required
-    summary_evaluations: Dict[str, Dict[str, JSONType]]  # required
+    summary_evaluations: dict[str, dict[str, JSONType]]  # required
     train_experiment_url: str  # optional, present when dataset splitting is enabled
+
+
+@dataclass
+class TestPhaseResult:
+    """Results from the final test phase of prompt optimization (when dataset splitting is enabled)."""
+
+    results: ExperimentResult
+    score: float
+    experiment_url: str
 
 
 class OptimizationIteration:
@@ -337,9 +347,7 @@ class OptimizationResult:
         initial_prompt: str,
         iterations: list[IterationData],
         best_iteration: int,
-        test_results: Optional[ExperimentResult] = None,
-        test_score: Optional[float] = None,
-        test_experiment_url: Optional[str] = None,
+        test_phase: Optional[TestPhaseResult] = None,
     ) -> None:
         """Initialize optimization results.
 
@@ -347,17 +355,13 @@ class OptimizationResult:
         :param initial_prompt: The starting prompt.
         :param iterations: list of results from each iteration (IterationData).
         :param best_iteration: Index of the iteration with best performance.
-        :param test_results: Results from the final test experiment (when dataset splitting is enabled).
-        :param test_score: Score from the final test experiment.
-        :param test_experiment_url: URL for the final test experiment.
+        :param test_phase: Results from the final test phase (when dataset splitting is enabled).
         """
         self.name = name
         self.initial_prompt = initial_prompt
         self.iterations = iterations
         self.best_iteration = best_iteration
-        self._test_results = test_results
-        self._test_score = test_score
-        self._test_experiment_url = test_experiment_url
+        self._test_phase = test_phase
 
     @property
     def best_prompt(self) -> str:
@@ -388,19 +392,19 @@ class OptimizationResult:
     @property
     def test_score(self) -> Optional[float]:
         """Get the score from the final test experiment (when dataset splitting is enabled)."""
-        return self._test_score
+        return self._test_phase.score if self._test_phase else None
 
     @property
     def test_experiment_url(self) -> Optional[str]:
         """Get the experiment URL for the final test experiment."""
-        return self._test_experiment_url
+        return self._test_phase.experiment_url if self._test_phase else None
 
     @property
     def test_results(self) -> Optional[ExperimentResult]:
         """Get the results from the final test experiment."""
-        return self._test_results
+        return self._test_phase.results if self._test_phase else None
 
-    def get_history(self) -> List[IterationData]:
+    def get_history(self) -> list[IterationData]:
         """Get the full optimization history with all iterations.
 
         Returns a list of IterationData dicts, one per iteration.
@@ -435,10 +439,10 @@ class OptimizationResult:
             f"Best score: {self.best_score:.4f}" if self.best_score is not None else "Best score: N/A",
         ]
 
-        if self._test_score is not None:
-            lines.append(f"Test score: {self._test_score:.4f}")
-            if self._test_experiment_url:
-                lines.append(f"Test experiment: {self._test_experiment_url}")
+        if self.test_score is not None:
+            lines.append(f"Test score: {self.test_score:.4f}")
+            if self.test_experiment_url:
+                lines.append(f"Test experiment: {self.test_experiment_url}")
 
         # Add best iteration's summary evaluations
         for iteration in self.iterations:
@@ -449,8 +453,8 @@ class OptimizationResult:
                 break
 
         # Add test set summary evaluations
-        if self._test_results is not None:
-            test_summary_evals = self._test_results.get("summary_evaluations", {})
+        if self.test_results is not None:
+            test_summary_evals = self.test_results.get("summary_evaluations", {})
             if test_summary_evals:
                 lines.append(f"\nTest set summary evaluations:\n{test_summary_evals}")
 
@@ -488,13 +492,9 @@ class PromptOptimization:
         _llmobs_instance: Optional["LLMObs"] = None,
         tags: Optional[dict[str, str]] = None,
         max_iterations: int = 5,
-<<<<<<< HEAD
         stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
-=======
-        stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
-        dataset_split: bool = False,
+        dataset_split: Union[bool, tuple[float, ...]] = False,
         test_dataset: Optional[Dataset] = None,
->>>>>>> 313eb76c4a ([MLOB-5503] Train / Eval / Test split for prompt optimization)
     ) -> None:
         """Initialize a prompt optimization.
 
@@ -531,9 +531,13 @@ class PromptOptimization:
         :param stopping_condition: Optional function to determine when to stop optimization.
                                    Takes summary_evaluations dict from the experiment result
                                    and returns True if should stop.
-        :param dataset_split: If True, split the dataset into train/valid/test subsets.
-                             Train examples are shown to the optimization LLM, valid scores rank iterations,
-                             and test provides a final unbiased score. Default ratios: 60/20/20.
+        :param dataset_split: Controls dataset splitting. Accepts:
+            - ``False`` (default): No splitting, use full dataset for everything.
+            - ``True``: Split with default ratios (60/20/20 without test_dataset, 80/20 with).
+            - ``(train, valid, test)`` tuple: Custom 3-way split ratios. Must sum to 1.0.
+              Cannot be combined with ``test_dataset``.
+            - ``(train, valid)`` tuple: Custom 2-way split ratios. Must sum to 1.0.
+              Requires ``test_dataset`` for the test set.
         :param test_dataset: Optional separate test dataset. When provided, the main dataset is split
                             into train/valid (80/20) and this dataset is used for the final test.
                             Implicitly enables dataset splitting.
@@ -565,16 +569,26 @@ class PromptOptimization:
         self._config = config
 
         # Dataset splitting
-        self._dataset_split_enabled = dataset_split or test_dataset is not None
         self._test_dataset = test_dataset
+        self._dataset_split_enabled = bool(dataset_split) or test_dataset is not None
 
-    def _make_sub_dataset(self, split_name: str, records: List[DatasetRecord]) -> Dataset:
+        self._split_ratios: Optional[tuple[float, ...]] = None
+        if isinstance(dataset_split, tuple):
+            self._split_ratios = dataset_split
+        elif test_dataset is not None:
+            self._split_ratios = (0.8, 0.2)  # Default 2-way when test_dataset provided
+        elif dataset_split:
+            self._split_ratios = (0.6, 0.2, 0.2)  # Default 3-way
+        else:
+            self._split_ratios = None  # No split
+
+    def _make_sub_dataset(self, split_name: str, records: list[DatasetRecord]) -> Dataset:
         """Create a sub-dataset from a list of records.
 
         Follows the same pattern as Experiment._run_task for creating subset datasets.
 
         :param split_name: Name suffix for the sub-dataset (e.g. "train", "valid", "test").
-        :param records: List of DatasetRecord dicts to include.
+        :param records: list of DatasetRecord dicts to include.
         :return: A new Dataset instance with the specified records.
         """
         from copy import deepcopy
@@ -599,26 +613,30 @@ class PromptOptimization:
 
         Records are shuffled with a fixed seed for reproducibility.
 
-        :return: Tuple of (train_dataset, valid_dataset, test_dataset).
+        :return: tuple of (train_dataset, valid_dataset, test_dataset).
         :raises ValueError: If any split would be empty.
         """
+        if self._split_ratios is None:
+            raise ValueError("_split_dataset called without split ratios")
         records = list(self._dataset)
 
         # Shuffle with fixed seed for reproducibility
-        rng = random.Random(_DATASET_SPLIT_SEED)
+        rng = random.Random(_DATASET_SPLIT_SEED)  # nosec B311
         rng.shuffle(records)
 
         if self._test_dataset is not None:
-            # Mode 3: main → train/valid (80/20), test = external dataset
-            split_idx = int(0.8 * len(records))
+            # 2-way split: train/valid from main dataset, external test
+            train_ratio = self._split_ratios[0]
+            split_idx = int(train_ratio * len(records))
             train_records = records[:split_idx]
             valid_records = records[split_idx:]
             test_ds = self._test_dataset
         else:
-            # Mode 2: 3-way split (60/20/20)
+            # 3-way split from main dataset
             n = len(records)
-            train_end = int(0.6 * n)
-            valid_end = int(0.8 * n)
+            train_ratio, valid_ratio = self._split_ratios[0], self._split_ratios[1]
+            train_end = int(train_ratio * n)
+            valid_end = int((train_ratio + valid_ratio) * n)
             train_records = records[:train_end]
             valid_records = records[train_end:valid_end]
             test_records = records[valid_end:]
@@ -771,7 +789,7 @@ class PromptOptimization:
         train_ds, valid_ds, test_ds = self._create_split_datasets()
 
         # Track all iteration results
-        all_iterations: List[IterationData] = []
+        all_iterations: list[IterationData] = []
         best_iteration = 0
         best_score = None
         best_prompt = None
@@ -870,9 +888,7 @@ class PromptOptimization:
             initial_prompt=str(self._initial_prompt),
             iterations=all_iterations,
             best_iteration=best_iteration,
-            test_results=test_results,
-            test_score=test_score,
-            test_experiment_url=test_url,
+            test_phase=TestPhaseResult(results=test_results, score=test_score, experiment_url=test_url),
         )
 
     def _run_experiment(
@@ -890,7 +906,7 @@ class PromptOptimization:
         :param jobs: Number of parallel jobs.
         :param dataset: Optional dataset override. If not provided, uses ``self._dataset``.
         :param suffix: Optional suffix appended to the experiment name (e.g. "_train", "_valid").
-        :return: Tuple of (experiment results dictionary, experiment URL).
+        :return: tuple of (experiment results dictionary, experiment URL).
         """
         ds = dataset or self._dataset
         iteration_name = "baseline" if iteration == 0 else f"iteration_{iteration}"
