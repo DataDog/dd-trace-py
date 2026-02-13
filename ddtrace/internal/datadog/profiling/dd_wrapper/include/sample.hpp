@@ -39,7 +39,8 @@ struct StringArena
     // allocate) that is bigger than any actual sample string size seen over a
     // random selection of a few hundred Python profiles at Datadog. So ideally
     // we only need one chunk, which we can reuse between samples
-    static constexpr size_t DEFAULT_SIZE = 16 * 1024;
+    static constexpr size_t KB = 1024;
+    static constexpr size_t DEFAULT_SIZE = 16 * KB;
     // Strings are backed by fixed-size Chunks. The Chunks can't grow, or
     // they'll move and invalidate pointers into the arena. At the same time,
     // they must be dynamically sized at creation because we get arbitrary
