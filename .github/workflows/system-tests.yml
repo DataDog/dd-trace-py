@@ -7,6 +7,20 @@ on:
       - mq-working-branch-*
   merge_group:
   pull_request:
+    paths-ignore:
+      # CI config (GitLab / editor / AI tooling)
+      - '.gitlab-ci.yml'
+      - '.gitlab/**'
+      - '.cursor/**'
+      - '.claude/**'
+      # Documentation
+      - 'docs/**'
+      - 'releasenotes/**'
+      - '*.md'
+      # Tests, benchmarks, scripts (not packaged into the wheel)
+      - 'tests/**'
+      - 'benchmarks/**'
+      - 'scripts/**'
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
@@ -442,9 +456,11 @@ jobs:
     needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
     if: success() || failure()
     steps:
-      - name: True when everything else succeeded
-        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success' && needs.serverless-system-tests.result == 'success'
-        run: exit 0
-      - name: Fails if anything else failed
+      - name: Print results
+        run: |
+          echo "parametric: ${{ needs.parametric.result }}"
+          echo "system-tests: ${{ needs.system-tests.result }}"
+          echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
+      - name: Fail if any dependency failed
         if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
         run: exit 1
