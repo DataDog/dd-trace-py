@@ -110,7 +110,6 @@ tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
 tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
 tests/snapshots/test_selenium_*                       @DataDog/ci-app-libraries
 tests/testing/                                        @DataDog/ci-app-libraries
-tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
 # scripts
 scripts/ci_visibility/*                               @DataDog/ci-app-libraries
 
