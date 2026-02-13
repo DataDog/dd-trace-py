@@ -4,7 +4,6 @@
 # enabling exception profiling on Python versions without sys.monitoring.
 
 import dis
-from pathlib import Path
 import sys
 import types
 from types import CodeType
@@ -16,13 +15,12 @@ from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
-from ddtrace.internal.packages import is_stdlib
 from ddtrace.internal.packages import is_user_code
 
 
 log = get_logger(__name__)
 
-INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, type)
+INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, classmethod, type)
 
 # Version-specific bytecode offset finders
 py_version = sys.version_info[:2]
@@ -63,7 +61,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
     injection_indexes: t.Set[int] = set()
     lines_offsets = [o for o, _ in dis.findlinestarts(code)]
 
-    def inject_next_start_of_line_offset(offset: int):
+    def inject_next_start_of_line_offset(offset: int) -> None:
         # Find the first offset of the next line
         while offset not in lines_offsets:
             offset += 2
@@ -71,7 +69,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
                 return
         injection_indexes.add(offset)
 
-    def first_offset_not_matching(start: int, *opcodes: int):
+    def first_offset_not_matching(start: int, *opcodes: int) -> int:
         while code.co_code[start] in opcodes:
             start += 2
         return start
@@ -131,7 +129,7 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
     injection_indexes: t.Set[int] = set()
     co_code = code.co_code
 
-    def inject_next_start_of_line_offset(offset: int):
+    def inject_next_start_of_line_offset(offset: int) -> None:
         # Find the first offset of the next line
         while offset not in lines_offsets:
             offset += 2
@@ -139,12 +137,12 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
                 return
         injection_indexes.add(offset)
 
-    def first_offset_not_matching(start: int, *opcodes: int):
+    def first_offset_not_matching(start: int, *opcodes: int) -> int:
         while code.co_code[start] in opcodes:
             start += 2
         return start
 
-    def nth_non_cache_opcode(start, n):
+    def nth_non_cache_opcode(start: int, n: int) -> int:
         for _ in range(n - 1):
             while code.co_code[start + 2] == CACHE:
                 start += 2
@@ -183,7 +181,7 @@ else:
     _offsets_callback = _get_offsets_noop
 
 
-def _inject_exception_profiling(func, callback: CallbackType) -> None:
+def _inject_exception_profiling(func: t.Any, callback: CallbackType) -> None:
     # Inject profiling callback at except clause bytecode offsets.
     # If the function has a wrapper, instrument the wrapped code
     code_to_instr = func.__wrapped__ if hasattr(func, "__wrapped__") else func
@@ -232,14 +230,9 @@ class ExceptionProfilingInjector:
         if module_name.startswith(test_infra_prefixes):
             return False
 
-        module_path = Path(module.__file__).resolve()
-
-        # Skip standard library
-        if is_stdlib(module_path):
-            return False
-
-        # Instrument user code (this includes test files in the project)
-        return is_user_code(module_path)
+        # Use the str overload of is_user_code which is cached and
+        # internally checks is_stdlib + is_third_party
+        return is_user_code(module.__file__)
 
     def instrument_module(self, module_name: str) -> None:
         # Instrument all functions in a module.
@@ -257,36 +250,52 @@ class ExceptionProfilingInjector:
             return
         self._instrumented_modules.add(module_name)
 
-        # Instrument all functions and classes in the module
+        # Walk module-level callables: functions, classes, and callable instances.
         for name in dir(module):
-            if name in module.__dict__:
-                obj = module.__dict__[name]
-                if (
-                    type(obj) in INSTRUMENTABLE_TYPES
-                    and (module_name == "__main__" or getattr(obj, "__module__", None) == module_name)
-                    and not name.startswith("__")
-                ):
-                    self._instrument_obj(obj)
+            if name not in module.__dict__:
+                continue
+            if name.startswith("__"):
+                continue
+            obj = module.__dict__[name]
+            if not callable(obj):
+                continue
+            if module_name != "__main__" and getattr(obj, "__module__", None) != module_name:
+                continue
+            self._instrument_obj(obj)
 
-    def _instrument_obj(self, obj) -> None:
-        # Instrument a function, method, or class.
-        obj_hash = hash(obj)
-        if obj_hash in self._instrumented_obj:
+    def _instrument_obj(self, obj: t.Any) -> None:
+        # Recursively instrument a callable by dispatching on its runtime type:
+        #   function/method/staticmethod  inject bytecode directly
+        #   classmethod                   unwrap via __func__, then recurse
+        #   class (type)                  iterate __dict__ for methods, recurse each
+        #   callable instance             find __call__ on its class, recurse
+        obj_id = id(obj)
+        if obj_id in self._instrumented_obj:
             return
-        self._instrumented_obj.add(obj_hash)
+        self._instrumented_obj.add(obj_id)
 
         if type(obj) in (types.FunctionType, types.MethodType, staticmethod):
+            # Leaf case: these have (or proxy to) __code__, inject directly
             if hasattr(obj, "__name__") and not self._is_reserved(obj.__name__):
                 _inject_exception_profiling(obj, self._callback)
+        elif type(obj) is classmethod:
+            # classmethod is a descriptor wrapping a plain function so unwrap and recurse
+            if hasattr(obj, "__func__"):
+                self._instrument_obj(obj.__func__)
         elif isinstance(obj, type):
-            # Instrument class methods
-            for attr_name in obj.__dict__.keys():
-                attr = obj.__dict__[attr_name]
-                if type(attr) in INSTRUMENTABLE_TYPES and hash(attr) not in self._instrumented_obj:
+            # walk __dict__ to find functions, staticmethods, classmethods, and
+            # nested classes, checking INSTRUMENTABLE_TYPES to skip data descriptors,
+            # properties, and other non-code attributes.
+            for attr in obj.__dict__.values():
+                if type(attr) in INSTRUMENTABLE_TYPES and id(attr) not in self._instrumented_obj:
                     self._instrument_obj(attr)
+        else:
+            # look up __call__ on the class to get the raw function, then recurse to instrument it
+            call_method = type(obj).__dict__.get("__call__")
+            if call_method is not None and id(call_method) not in self._instrumented_obj:
+                self._instrument_obj(call_method)
 
     def _is_reserved(self, name: str) -> bool:
-        # Check if function name is reserved (skip instrumentation).
         return name.startswith("__") and name != "__call__"
 
 
@@ -305,7 +314,7 @@ class ExceptionProfilingWatchdog(BaseModuleWatchdog):
             raise RuntimeError("Callback must be set before installing watchdog")
         _injector = ExceptionProfilingInjector(_callback)
 
-        # Instrument already-loaded modules (including __main__)
+        # Instrument already-loaded modules
         existing_modules = set(sys.modules.keys())
         for module_name in existing_modules:
             _injector.instrument_module(module_name)

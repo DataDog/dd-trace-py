@@ -534,9 +534,11 @@ cdef class SampleHandle:
             call_ddup_push_exceptioninfo(self.ptr, exc_name, clamp_to_uint64_unsigned(count))
 
     def push_exception_message(self, exception_message: StringType) -> None:
-        if self.ptr is not NULL:
-            if exception_message is not None:
-                call_ddup_push_exception_message(self.ptr, exception_message)
+        if self.ptr is NULL:
+            return
+        if exception_message is None:
+            return
+        call_ddup_push_exception_message(self.ptr, exception_message)
 
     def push_class_name(self, class_name: StringType) -> None:
         if self.ptr is not NULL:

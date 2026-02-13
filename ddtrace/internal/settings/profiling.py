@@ -376,8 +376,10 @@ class ProfilingConfigException(DDConfig):
         "sampling_interval",
         default=100,
         help_type="Integer",
-        help="Average number of exceptions between samples (uses Poisson distribution). "
-        "Lower values sample more frequently but add more overhead.",
+        help=(
+            "Average number of exceptions between samples (uses Poisson distribution). "
+            "Lower values sample more frequently but add more overhead."
+        ),
     )
 
     collect_message = DDConfig.v(

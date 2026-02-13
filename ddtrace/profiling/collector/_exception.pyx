@@ -58,7 +58,6 @@ cdef void _collect_exception(object exc_type, object exc_value, object exc_trace
         handle.flush_sample()
     except:
         handle.drop_sample()
-        raise
 
 
 cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
@@ -73,13 +72,10 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
     _next_sample = _fast_poisson.sample(_sampling_interval) or 1
     _sample_counter = 0
 
-    try:
-        _collect_exception(type(exception), exception, exception.__traceback__)
-    except:
-        pass
+    _collect_exception(type(exception), exception, exception.__traceback__)
 
 
-def _on_exception_bytecode(arg):
+def _on_exception_bytecode(arg: object) -> None:
     # Bytecode injection callback for Python 3.10/3.11 - HOT PATH
     # Called at the start of each except block. Exception is in sys.exc_info().
     # arg is the (line, path, dependency_info) tuple from bytecode injection.
@@ -97,28 +93,25 @@ def _on_exception_bytecode(arg):
     if exc_type is None:
         return
 
-    try:
-        _collect_exception(exc_type, exc_val, exc_tb)
-    except:
-        pass
+    _collect_exception(exc_type, exc_val, exc_tb)
 
 
 class ExceptionCollector(collector.Collector):
     # Collects exception samples using sys.monitoring (Python 3.12+)
 
-    def __init__(self, max_nframe=None, sampling_interval=None, collect_message=None):
+    def __init__(self, max_nframe: int = None, sampling_interval: int = None, collect_message: bool = None):
         global _sampling_interval, _max_nframe, _next_sample, _sample_counter
         global _collect_message
 
         super().__init__()
         _max_nframe = max_nframe if max_nframe is not None else config.max_frames
-        _sampling_interval = sampling_interval if sampling_interval is not None else getattr(config.exception, "sampling_interval", 100)
-        _collect_message = collect_message if collect_message is not None else getattr(config.exception, "collect_message", False)
+        _sampling_interval = sampling_interval if sampling_interval is not None else config.exception.sampling_interval
+        _collect_message = collect_message if collect_message is not None else config.exception.collect_message
 
         _next_sample = _sampling_interval
         _sample_counter = 0
 
-    def _start_service(self):
+    def _start_service(self) -> None:
         if sys.version_info >= (3, 12) and HAS_MONITORING:
             # Python 3.12+: Use sys.monitoring
             try:
@@ -130,8 +123,8 @@ class ExceptionCollector(collector.Collector):
                     _on_exception_handled,
                 )
                 LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
-            except Exception as e:
-                LOG.error("Failed to set up exception monitoring: %s", e)
+            except Exception:
+                LOG.exception("Failed to set up exception monitoring")
                 return
         elif sys.version_info >= (3, 10):
             # Python 3.10/3.11: Use bytecode injection
@@ -139,8 +132,8 @@ class ExceptionCollector(collector.Collector):
                 from ddtrace.profiling.collector._exception_bytecode import install_bytecode_exception_profiling
                 install_bytecode_exception_profiling(_on_exception_bytecode)
                 LOG.debug("Using bytecode injection for exception profiling")
-            except Exception as e:
-                LOG.error("Failed to set up bytecode exception profiling: %s", e)
+            except Exception:
+                LOG.exception("Failed to set up bytecode exception profiling")
                 return
         else:
             LOG.debug("Exception profiling requires Python 3.10+, skipping")
@@ -148,7 +141,7 @@ class ExceptionCollector(collector.Collector):
 
         LOG.info("ExceptionCollector started: interval=%d", _sampling_interval)
 
-    def _stop_service(self):
+    def _stop_service(self) -> None:
         if sys.version_info >= (3, 12) and HAS_MONITORING:
             try:
                 sys.monitoring.set_events(sys.monitoring.PROFILER_ID, 0)

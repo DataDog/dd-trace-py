@@ -424,3 +424,150 @@ def test_exception_message_collection(tmp_path: Path):
         expected_sample=pprof_utils.StackEvent(exception_message="test exception message"),
         print_samples_on_failure=True,
     )
+
+
+# Callable type helpers for instrumentation coverage tests
+
+
+class _ExceptionInMethod:
+    def handle(self):
+        try:
+            raise ValueError("method error")
+        except ValueError:
+            pass
+
+
+class _ExceptionInStaticMethod:
+    @staticmethod
+    def handle():
+        try:
+            raise ValueError("static error")
+        except ValueError:
+            pass
+
+
+class _ExceptionInClassMethod:
+    @classmethod
+    def handle(cls):
+        try:
+            raise ValueError("classmethod error")
+        except ValueError:
+            pass
+
+
+class _CallableWithException:
+    def __call__(self):
+        try:
+            raise ValueError("callable error")
+        except ValueError:
+            pass
+
+
+def test_exception_in_instance_method(tmp_path: Path):
+    """Test that exceptions in instance methods are captured."""
+    output_filename = _setup_profiler(tmp_path, "test_instance_method")
+
+    obj = _ExceptionInMethod()
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(10):
+            obj.handle()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.ValueError",
+            locations=[
+                pprof_utils.StackLocation(function_name="handle", filename="test_exception.py", line_no=-1),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+def test_exception_in_static_method(tmp_path: Path):
+    """Test that exceptions in static methods are captured."""
+    output_filename = _setup_profiler(tmp_path, "test_static_method")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(10):
+            _ExceptionInStaticMethod.handle()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.ValueError",
+            locations=[
+                pprof_utils.StackLocation(function_name="handle", filename="test_exception.py", line_no=-1),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+def test_exception_in_class_method(tmp_path: Path):
+    """Test that exceptions in class methods are captured."""
+    output_filename = _setup_profiler(tmp_path, "test_class_method")
+
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(10):
+            _ExceptionInClassMethod.handle()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.ValueError",
+            locations=[
+                pprof_utils.StackLocation(function_name="handle", filename="test_exception.py", line_no=-1),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+def test_exception_in_callable_instance(tmp_path: Path):
+    """Test that exceptions in callable instances (__call__) are captured."""
+    output_filename = _setup_profiler(tmp_path, "test_callable_instance")
+
+    obj = _CallableWithException()
+    with exception.ExceptionCollector(sampling_interval=1):
+        for _ in range(10):
+            obj()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.ValueError",
+            locations=[
+                pprof_utils.StackLocation(function_name="__call__", filename="test_exception.py", line_no=-1),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
