@@ -9,11 +9,11 @@ from typing import Optional
 from typing import TypedDict
 
 from ddtrace import config
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -100,7 +100,7 @@ class ExposureWriter(PeriodicService):
             interval = ffe_config.ffe_intake_heartbeat_interval
 
         super(ExposureWriter, self).__init__(interval=interval)
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
         self._buffer: list[ExposureEvent] = []
         self._buffer_size: int = 0
         self._timeout: float = timeout

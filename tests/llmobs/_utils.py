@@ -43,6 +43,16 @@ else:
     logs_vcr = None
 
 
+def get_vertexai_vcr():
+    return vcr.VCR(
+        cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/vertexai"),
+        record_mode="once",
+        match_on=["path"],
+        filter_headers=["authorization", "x-goog-api-key"],
+        ignore_localhost=True,
+    )
+
+
 def get_bedrock_vcr():
     return vcr.VCR(
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/bedrock"),
