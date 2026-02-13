@@ -455,13 +455,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def dataset_batch_update(
         self,
         dataset_id: str,
+        project_id: str,
         insert_records: List[DatasetRecordRaw],
         update_records: List[UpdatableDatasetRecord],
         delete_record_ids: List[str],
     ) -> Tuple[int, List[str]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
+        path = f"/api/v2/llm-obs/v1/{project_id}/datasets/{dataset_id}/batch_update"
         body: JSONType = {
             "data": {
                 "type": "datasets",
@@ -497,7 +498,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "getting records with project ID %s for %s, version: %s", project_id, project_name, str(version) or "latest"
         )
 
-        path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
+        path = f"/api/v2/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
             raise ValueError(
