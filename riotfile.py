@@ -96,7 +96,7 @@ _base_env = {
     "CARGO_BUILD_JOBS": "12",
     "DD_PYTEST_USE_NEW_PLUGIN": "true",
 }
-if _nightly_build:
+if _nightly_build or True:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
 
 
