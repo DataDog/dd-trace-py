@@ -126,13 +126,11 @@ impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
                 case_id
             )));
         }
-        if !case_id.chars().all(|c| c.is_ascii_digit()) {
-            if !CASE_ID_REGEX.is_match(&case_id) {
-                return Err(ParsingError::new_err(format!(
-                    "Invalid case_id format: '{}'",
-                    case_id
-                )));
-            }
+        if !case_id.chars().all(|c| c.is_ascii_digit()) && !CASE_ID_REGEX.is_match(&case_id) {
+            return Err(ParsingError::new_err(format!(
+                "Invalid case_id format: '{}'",
+                case_id
+            )));
         }
 
         let hostname: String = args_dict.get_item("hostname")?.extract()?;
