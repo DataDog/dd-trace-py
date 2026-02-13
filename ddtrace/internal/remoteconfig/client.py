@@ -270,7 +270,7 @@ class RemoteConfigClient:
         """
         # Make a copy of the product callbacks at the time of dispatch to avoid
         # issues if callbacks are registered/unregistered while dispatching
-        product_callbacks = self._product_callbacks.copy()  # Copy to avoid
+        product_callbacks = self._product_callbacks.copy()
 
         # Call periodic method for all registered callbacks
         for product_name, callback in product_callbacks.items():
