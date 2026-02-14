@@ -7,10 +7,13 @@ import google.adk as adk
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.trace_utils import check_module_path
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
@@ -30,6 +33,27 @@ def get_version() -> str:
     return getattr(adk, "__version__", "")
 
 
+def _create_llm_event(pin, integration, instance, wrapped, provider_name, model_name, kind, kwargs):
+    """Create an LlmRequestEvent for a Google ADK call."""
+    event = LlmRequestEvent(
+        service=int_service(pin, integration.integration_config),
+        resource="%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+        integration_name="google_adk",
+        provider=provider_name,
+        model=model_name,
+        integration=integration,
+        submit_to_llmobs=True,
+        request_kwargs=kwargs,
+        base_tag_kwargs={
+            "provider": provider_name,
+            "model": model_name,
+            "kind": kind,
+        },
+        measured=True,
+    )
+    return event
+
+
 @with_traced_module
 def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     """Trace the main execution of an agent (async generator)."""
@@ -38,36 +62,33 @@ def _traced_agent_run_async(adk, pin, wrapped, instance, args, kwargs):
     model = getattr(agent, "model", None)
     provider_name, model_name = extract_provider_and_model_name(instance=model, model_name_attr="model")
 
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="agent",
-        submit_to_llmobs=True,
-        **kwargs,
-    )
+    event = _create_llm_event(pin, integration, instance, wrapped, provider_name, model_name, "agent", kwargs)
+
+    ctx = core.context_with_event(event)
+    ctx.__enter__()
 
     try:
         agen = wrapped(*args, **kwargs)
     except Exception:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
+        ctx.__exit__(*sys.exc_info())
         raise
 
     async def _generator():
         response_events = []
+        exc = (None, None, None)
         try:
-            async for event in agen:
-                response_events.append(event)
-                yield event
+            async for ev in agen:
+                response_events.append(ev)
+                yield ev
         except Exception:
-            span.set_exc_info(*sys.exc_info())
+            exc = sys.exc_info()
             raise
         finally:
             kwargs["instance"] = instance.agent
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response_events, operation="agent")
-            span.finish()
+            ctx.set_item("response", response_events)
+            ctx.set_item("operation", "agent")
+            ctx.set_item("llmobs_args", args)
+            ctx.__exit__(*exc)
             del kwargs["instance"]
 
     return _generator()
@@ -86,29 +107,17 @@ async def _traced_functions_call_tool_async(adk, pin, wrapped, instance, args, k
     )
     instance = instance or args[0]
 
-    with integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="tool",
-        submit_to_llmobs=True,
-    ) as span:
+    event = _create_llm_event(pin, integration, instance, wrapped, provider_name, model_name, "tool", kwargs)
+
+    with core.context_with_event(event) as ctx:
         result = None
         try:
             result = await wrapped(*args, **kwargs)
             return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
         finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="tool",
-            )
+            ctx.set_item("response", result)
+            ctx.set_item("operation", "tool")
+            ctx.set_item("llmobs_args", args)
 
 
 @with_traced_module
@@ -125,30 +134,18 @@ async def _traced_functions_call_tool_live(adk, pin, wrapped, instance, args, kw
         instance=getattr(agent, "model", {}), model_name_attr="model"
     )
 
-    with integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="tool",
-        submit_to_llmobs=True,
-    ) as span:
+    event = _create_llm_event(pin, integration, instance, wrapped, provider_name, model_name, "tool", kwargs)
+
+    with core.context_with_event(event) as ctx:
         result = None
         try:
             agen = wrapped(*args, **kwargs)
             async for item in agen:
                 yield item
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
         finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="tool",
-            )
+            ctx.set_item("response", result)
+            ctx.set_item("operation", "tool")
+            ctx.set_item("llmobs_args", args)
 
 
 @with_traced_module
@@ -159,30 +156,17 @@ def _traced_code_executor_execute_code(adk, pin, wrapped, instance, args, kwargs
     agent = getattr(getattr(invocation_context, "agent", None), "model", {})
     provider_name, model_name = extract_provider_and_model_name(instance=agent, model_name_attr="model")
 
-    # Signature: execute_code(self, invocation_context, code_execution_input)
-    with integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
-        provider=provider_name,
-        model=model_name,
-        kind="code_execute",
-        submit_to_llmobs=True,
-    ) as span:
+    event = _create_llm_event(pin, integration, instance, wrapped, provider_name, model_name, "code_execute", kwargs)
+
+    with core.context_with_event(event) as ctx:
         result = None
         try:
             result = wrapped(*args, **kwargs)
             return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
         finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="code_execute",
-            )
+            ctx.set_item("response", result)
+            ctx.set_item("operation", "code_execute")
+            ctx.set_item("llmobs_args", args)
 
 
 def extract_agent_from_tool_context(args: Any, kwargs: Any) -> Union[str, None]:
