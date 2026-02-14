@@ -70,7 +70,7 @@ class LlmTracingSubscriber(TracingSubscriber):
             response = ctx.get_item("response")
             event.integration.llmobs_set_tags(
                 ctx.span,
-                args=[],
+                args=ctx.get_item("llmobs_args", []),
                 kwargs=event.request_kwargs,
                 response=response,
                 operation=ctx.get_item("operation", ""),
