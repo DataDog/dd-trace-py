@@ -114,5 +114,5 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)
         finally:
-            if cls._end_span:
+            if cls._end_span and getattr(ctx.event, "_end_span", True):
                 _finish_span(ctx, exc_info)
