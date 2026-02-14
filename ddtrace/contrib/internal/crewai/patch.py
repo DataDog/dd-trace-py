@@ -1,17 +1,18 @@
-import sys
 from typing import Dict
 
 import crewai
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.events.llm import LlmRequestEvent
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
-from ddtrace.trace import tracer
 
 
 def get_version() -> str:
@@ -28,57 +29,84 @@ def _supported_versions() -> Dict[str, str]:
     return {"crewai": ">=0.102"}
 
 
+def _create_llm_event(pin, integration, resource, operation, kwargs, **extra_tag_kwargs):
+    """Create an LlmRequestEvent for a CrewAI call."""
+    base_tag_kwargs = {"operation": operation}
+    base_tag_kwargs.update(extra_tag_kwargs)
+    return LlmRequestEvent(
+        service=int_service(pin, integration.integration_config),
+        resource=resource,
+        integration_name="crewai",
+        provider="",
+        model="",
+        integration=integration,
+        submit_to_llmobs=True,
+        request_kwargs=kwargs,
+        base_tag_kwargs=base_tag_kwargs,
+        measured=True,
+    )
+
+
 @with_traced_module
 def traced_kickoff(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
     instance_id = getattr(instance, "id", "")
     planning_enabled = getattr(instance, "planning", False)
-    span = integration.trace(
+    event = _create_llm_event(
         pin,
+        integration,
         "Crew Kickoff",
-        span_name="CrewAI Crew",
-        submit_to_llmobs=True,
-        operation="crew",
+        "crew",
+        kwargs,
         instance_id=instance_id,
         planning=planning_enabled,
     )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="crew")
-        span.finish()
+    event.set_span_name("CrewAI Crew")
+
+    with core.context_with_event(event) as ctx:
+        result = None
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            kwargs["_dd.instance"] = instance
+            ctx.set_item("response", result)
+            ctx.set_item("operation", "crew")
+            ctx.set_item("llmobs_args", args)
     return result
 
 
 @with_traced_module
 def traced_task_execute(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
+
+    # Activate cross-thread context propagation
+    ddtrace_ctx = getattr(instance, "_ddtrace_ctx", None)
+    if ddtrace_ctx:
+        integration.activate_distributed_context(ddtrace_ctx)
+
+    event = _create_llm_event(
         pin,
+        integration,
         "CrewAI Task",
-        span_name=getattr(instance, "name", ""),
-        operation="task",
+        "task",
+        kwargs,
         instance_id=instance.id,
-        submit_to_llmobs=True,
-        _ddtrace_ctx=getattr(instance, "_ddtrace_ctx", None),
     )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if getattr(instance, "_ddtrace_ctx", None):
-            delattr(instance, "_ddtrace_ctx")
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="task")
-        span.finish()
+    task_name = getattr(instance, "name", "")
+    if task_name:
+        event.set_span_name(task_name)
+
+    with core.context_with_event(event) as ctx:
+        result = None
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            if getattr(instance, "_ddtrace_ctx", None):
+                delattr(instance, "_ddtrace_ctx")
+            kwargs["_dd.instance"] = instance
+            ctx.set_item("response", result)
+            ctx.set_item("operation", "task")
+            ctx.set_item("llmobs_args", args)
     return result
 
 
@@ -93,47 +121,48 @@ def traced_task_execute_async(crewai, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_task_get_context(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
-    span = tracer.current_span()
     result = func(*args, **kwargs)
-    integration._llmobs_set_span_link_on_task(span, args, kwargs)
+    integration.llmobs_set_span_link_on_task_from_context(args, kwargs)
     return result
 
 
 @with_traced_module
 def traced_agent_execute(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        pin, "CrewAI Agent", span_name=getattr(instance, "role", ""), operation="agent", submit_to_llmobs=True
-    )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="agent")
-        span.finish()
+    event = _create_llm_event(pin, integration, "CrewAI Agent", "agent", kwargs)
+    role = getattr(instance, "role", "")
+    if role:
+        event.set_span_name(role)
+
+    with core.context_with_event(event) as ctx:
+        result = None
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            kwargs["_dd.instance"] = instance
+            ctx.set_item("response", result)
+            ctx.set_item("operation", "agent")
+            ctx.set_item("llmobs_args", args)
     return result
 
 
 @with_traced_module
 def traced_tool_run(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
-    result = None
-    span = integration.trace(
-        pin, "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
-    )
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["_dd.instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
-        span.finish()
+    event = _create_llm_event(pin, integration, "CrewAI Tool", "tool", kwargs)
+    tool_name = getattr(instance, "name", "")
+    if tool_name:
+        event.set_span_name(tool_name)
+
+    with core.context_with_event(event) as ctx:
+        result = None
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            kwargs["_dd.instance"] = instance
+            ctx.set_item("response", result)
+            ctx.set_item("operation", "tool")
+            ctx.set_item("llmobs_args", args)
     return result
 
 
@@ -141,9 +170,14 @@ def traced_tool_run(crewai, pin, func, instance, args, kwargs):
 async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
     span_name = getattr(type(instance), "__name__", "CrewAI Flow")
-    with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=True) as span:
+    event = _create_llm_event(pin, integration, "CrewAI Flow", "flow", kwargs)
+    event.set_span_name(span_name)
+
+    with core.context_with_event(event) as ctx:
         result = await func(*args, **kwargs)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="flow")
+        ctx.set_item("response", result)
+        ctx.set_item("operation", "flow")
+        ctx.set_item("llmobs_args", args)
         return result
 
 
@@ -151,14 +185,18 @@ async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
 async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
     span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
-    with integration.trace(
+    event = _create_llm_event(
         pin,
+        integration,
         "CrewAI Flow Method",
+        "flow_method",
+        kwargs,
         span_name=span_name,
-        operation="flow_method",
-        submit_to_llmobs=True,
         flow_instance=instance,
-    ) as span:
+    )
+    event.set_span_name(span_name)
+
+    with core.context_with_event(event) as ctx:
         flow_state = getattr(instance, "state", {})
         initial_flow_state = {}
         if isinstance(flow_state, dict):
@@ -168,7 +206,9 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
         result = await func(*args, **kwargs)
         kwargs["_dd.instance"] = instance
         kwargs["_dd.initial_flow_state"] = initial_flow_state
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="flow_method")
+        ctx.set_item("response", result)
+        ctx.set_item("operation", "flow_method")
+        ctx.set_item("llmobs_args", args)
         return result
 
 
@@ -176,8 +216,7 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
 def patched_find_triggered_methods(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
     result = func(*args, **kwargs)
-    current_span = tracer.current_span()
-    integration.llmobs_set_span_links_on_flow(current_span, args, kwargs, instance)
+    integration.llmobs_set_span_links_on_flow_from_context(args, kwargs, instance)
     return result
 
 
