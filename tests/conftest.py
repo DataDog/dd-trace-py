@@ -33,6 +33,7 @@ import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
@@ -621,6 +622,35 @@ def remote_config_worker():
     # we have 2 threads: main thread and telemetry thread. TODO: verify if that alive thread is a bug
     # TODO: this assert doesn't work in CI, threading.active_count() > 50
     # assert threading.active_count() == 2
+
+
+class SyncRemoteConfigPoller(RemoteConfigPoller):
+    """RemoteConfigPoller subclass with testing utilities.
+
+    This subclass adds a `poll()` method that forces the client's
+    subscriber to poll new data, allowing synchronous testing without
+    waiting for the periodic thread.
+    """
+
+    def poll(self) -> None:
+        """Force client subscriber to poll new data for testing."""
+        self._client._global_subscriber.periodic()
+
+
+@pytest.fixture
+def rc_poller():
+    """Provide a SyncRemoteConfigPoller instance for testing.
+
+    This creates an isolated poller instance that can be used synchronously
+    in tests without relying on the global singleton.
+    """
+    poller = SyncRemoteConfigPoller()
+    try:
+        yield poller
+    finally:
+        # Clean up: stop any running services and reset state
+        if poller.status == ServiceStatus.RUNNING:
+            poller.disable(join=True)
 
 
 @pytest.fixture
