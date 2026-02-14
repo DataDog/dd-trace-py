@@ -1,16 +1,18 @@
-import sys
 from typing import Dict
 
 import litellm
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.events.llm import LlmRequestEvent
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
+from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
@@ -27,6 +29,27 @@ def get_version() -> str:
 
 def _supported_versions() -> Dict[str, str]:
     return {"litellm": "*"}
+
+
+def _create_llm_event(pin, integration, operation, kwargs, model, host, submit_to_llmobs=True):
+    """Create an LlmRequestEvent for a LiteLLM call."""
+    base_url = kwargs.get("base_url", None) or kwargs.get("api_base", None)
+    return LlmRequestEvent(
+        service=int_service(pin, integration.integration_config),
+        resource=operation,
+        integration_name="litellm",
+        provider="",
+        model=model or "",
+        integration=integration,
+        submit_to_llmobs=submit_to_llmobs,
+        request_kwargs=kwargs,
+        base_tag_kwargs={
+            "model": model,
+            "host": host,
+            "base_url": base_url,
+        },
+        measured=True,
+    )
 
 
 def _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False):
@@ -52,29 +75,31 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
-    span = integration.trace(
+    event = _create_llm_event(
         pin,
+        integration,
         operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
+        kwargs,
+        model,
+        host,
         submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = func(*args, **kwargs)
-        if stream:
-            return make_traced_stream(resp, LiteLLMStreamHandler(integration, span, args, kwargs))
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # streamed spans will be finished separately once the stream generator is exhausted
-        if not stream:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+
+    with core.context_with_event(event) as ctx:
+        resp = None
+        try:
+            resp = func(*args, **kwargs)
+            if stream:
+                ctx.set_item("is_stream", True)
+                event._end_span = False
+                return make_traced_stream(resp, LiteLLMStreamHandler(integration, ctx.span, args, kwargs))
+        finally:
+            if not ctx.get_item("is_stream", False):
+                ctx.set_item("response", resp)
+                ctx.set_item("operation", operation)
+                ctx.set_item("llmobs_args", args)
+    return resp
 
 
 @with_traced_module
@@ -83,29 +108,31 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
-    span = integration.trace(
+    event = _create_llm_event(
         pin,
+        integration,
         operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
+        kwargs,
+        model,
+        host,
         submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = await func(*args, **kwargs)
-        if stream:
-            return make_traced_stream(resp, LiteLLMAsyncStreamHandler(integration, span, args, kwargs))
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        # streamed spans will be finished separately once the stream generator is exhausted
-        if not stream:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+
+    with core.context_with_event(event) as ctx:
+        resp = None
+        try:
+            resp = await func(*args, **kwargs)
+            if stream:
+                ctx.set_item("is_stream", True)
+                event._end_span = False
+                return make_traced_stream(resp, LiteLLMAsyncStreamHandler(integration, ctx.span, args, kwargs))
+        finally:
+            if not ctx.get_item("is_stream", False):
+                ctx.set_item("response", resp)
+                ctx.set_item("operation", operation)
+                ctx.set_item("llmobs_args", args)
+    return resp
 
 
 @with_traced_module
@@ -114,29 +141,26 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
-    span = integration.trace(
-        pin,
-        operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
-        submit_to_llmobs=True,
-    )
+    event = _create_llm_event(pin, integration, operation, kwargs, model, host)
     stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = func(*args, **kwargs)
-        if stream:
-            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=False)
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if not stream:
-            kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+
+    with core.context_with_event(event) as ctx:
+        resp = None
+        try:
+            resp = func(*args, **kwargs)
+            if stream:
+                ctx.set_item("is_stream", True)
+                event._end_span = False
+                return _handle_router_stream_response(
+                    resp, ctx.span, kwargs, instance, integration, args, is_async=False
+                )
+        finally:
+            if not ctx.get_item("is_stream", False):
+                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
+                ctx.set_item("response", resp)
+                ctx.set_item("operation", operation)
+                ctx.set_item("llmobs_args", args)
+    return resp
 
 
 @with_traced_module
@@ -145,29 +169,26 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
     integration = litellm._datadog_integration
     model = get_argument_value(args, kwargs, 0, "model", None)
     host = extract_host_tag(kwargs)
-    span = integration.trace(
-        pin,
-        operation,
-        model=model,
-        host=host,
-        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
-        submit_to_llmobs=True,
-    )
+    event = _create_llm_event(pin, integration, operation, kwargs, model, host)
     stream = kwargs.get("stream", False)
-    resp = None
-    try:
-        resp = await func(*args, **kwargs)
-        if stream:
-            return _handle_router_stream_response(resp, span, kwargs, instance, integration, args, is_async=True)
-        return resp
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        if not stream:
-            kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
-            span.finish()
+
+    with core.context_with_event(event) as ctx:
+        resp = None
+        try:
+            resp = await func(*args, **kwargs)
+            if stream:
+                ctx.set_item("is_stream", True)
+                event._end_span = False
+                return _handle_router_stream_response(
+                    resp, ctx.span, kwargs, instance, integration, args, is_async=True
+                )
+        finally:
+            if not ctx.get_item("is_stream", False):
+                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
+                ctx.set_item("response", resp)
+                ctx.set_item("operation", operation)
+                ctx.set_item("llmobs_args", args)
+    return resp
 
 
 @with_traced_module
