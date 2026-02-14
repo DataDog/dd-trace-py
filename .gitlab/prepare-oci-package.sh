@@ -16,18 +16,13 @@ if [ -z "$PYTHON_PACKAGE_VERSION" ]; then
   # ddtrace-2.11.0.dev41+g50bf57680-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
   # the version is everything between the first and second "-"
   WHEELS_LIST=(../pywheels/*.whl)
-  echo "Wheel files found: ${WHEELS_LIST[*]}"
-  
   FIRST_WHEEL=${WHEELS_LIST[1]}
-  echo "Extracting version from wheel filename: ${FIRST_WHEEL}"
 
   #everything before -
   WITHOUT_BEGINNING=${FIRST_WHEEL#*-}
-  echo "Without beginning: ${WITHOUT_BEGINNING}"
 
   #strip after -
   PYTHON_PACKAGE_VERSION=${WITHOUT_BEGINNING%%-*}
-  echo "Extracted version: ${PYTHON_PACKAGE_VERSION}"
 fi
 
 mkdir -p sources/ddtrace_pkgs
