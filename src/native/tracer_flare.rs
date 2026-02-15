@@ -214,7 +214,7 @@ impl From<FlareActionPy> for FlareAction {
 
 #[pyclass(name = "TracerFlareManager")]
 pub struct TracerFlareManagerPy {
-    manager: std::sync::Arc<TracerFlareManager>,
+    manager: TracerFlareManager,
 }
 
 #[pymethods]
@@ -229,7 +229,7 @@ impl TracerFlareManagerPy {
     #[new]
     fn new(agent_url: &str) -> Self {
         TracerFlareManagerPy {
-            manager: std::sync::Arc::new(TracerFlareManager::new(agent_url, "python")),
+            manager: TracerFlareManager::new(agent_url, "python"),
         }
     }
 
@@ -238,7 +238,7 @@ impl TracerFlareManagerPy {
         data: &Bound<PyAny>,
         product: &str,
     ) -> PyResult<FlareActionPy> {
-        let manager = self.manager.as_ref();
+        let manager = &self.manager;
 
         if product == "AGENT_CONFIG" {
             let agent_config: AgentConfigFileWrapper = match data.extract() {
@@ -285,7 +285,7 @@ impl TracerFlareManagerPy {
     ///     ZipError: If zipping fails or directory doesn't exist
     ///     SendError: If sending fails
     fn zip_and_send(&self, directory: &str, send_action: FlareActionPy) -> PyResult<()> {
-        let manager = self.manager.as_ref();
+        let manager = &self.manager;
 
         manager
             .zip_and_send_sync(vec![directory.to_string()], send_action.inner)
