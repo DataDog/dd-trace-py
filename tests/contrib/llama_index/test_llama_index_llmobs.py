@@ -7,6 +7,7 @@ calling llama_index methods with LLMObs enabled.
 from llama_index.core.base.llms.types import ChatMessage
 import pytest
 
+import ddtrace
 from tests.contrib.llama_index.utils import MockEmbedding
 from tests.contrib.llama_index.utils import MockErrorLLM
 from tests.contrib.llama_index.utils import MockLLM
@@ -14,6 +15,16 @@ from tests.contrib.llama_index.utils import MockLLMWithUsage
 from tests.contrib.llama_index.utils import MockQueryEngine
 from tests.contrib.llama_index.utils import MockRetriever
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+
+
+def _llmobs_tags():
+    """Build tags dict with actual service/version/env from config."""
+    return {
+        "ml_app": "<ml-app-name>",
+        "service": ddtrace.config.service or "",
+        "version": ddtrace.config.version or "",
+        "env": ddtrace.config.env or "",
+    }
 
 
 @pytest.mark.parametrize(
@@ -45,7 +56,7 @@ class TestLLMObsLlamaIndex:
                 input_messages=[{"content": "Hello, world!", "role": "user"}],
                 output_messages=[{"content": "Mock chat response", "role": "assistant"}],
                 metadata={},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -64,7 +75,7 @@ class TestLLMObsLlamaIndex:
                 input_messages=[{"content": "Hello, world!", "role": "user"}],
                 output_messages=[{"content": "Mock completion response", "role": "assistant"}],
                 metadata={},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -88,7 +99,7 @@ class TestLLMObsLlamaIndex:
                 error="builtins.ValueError",
                 error_message=span.get_tag("error.message"),
                 error_stack=span.get_tag("error.stack"),
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -107,7 +118,7 @@ class TestLLMObsLlamaIndex:
                 input_messages=[{"content": "What is the meaning of life?", "role": "user"}],
                 output_messages=[{"content": "Mock query response", "role": "assistant"}],
                 metadata={},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -126,7 +137,7 @@ class TestLLMObsLlamaIndex:
                 input_messages=[{"content": "test query", "role": "user"}],
                 output_messages=[{"content": ""}],
                 metadata={},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -145,7 +156,7 @@ class TestLLMObsLlamaIndex:
                 input_messages=[{"content": "test query", "role": "user"}],
                 output_messages=[{"content": ""}],
                 metadata={},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -164,7 +175,7 @@ class TestLLMObsLlamaIndex:
                 input_messages=[{"content": "Hello!", "role": "user"}],
                 output_messages=[{"content": ""}],
                 metadata={},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -187,7 +198,7 @@ class TestLLMObsLlamaIndex:
                 input_messages=[{"content": "Hello!", "role": "user"}],
                 output_messages=[{"content": "Mock chat response", "role": "assistant"}],
                 metadata={"temperature": 0.7, "max_tokens": 100},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )
 
@@ -207,6 +218,6 @@ class TestLLMObsLlamaIndex:
                 output_messages=[{"content": "Mock chat response with usage", "role": "assistant"}],
                 metadata={},
                 token_metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.llama_index"},
+                tags=_llmobs_tags(),
             )
         )

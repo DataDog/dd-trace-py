@@ -154,21 +154,33 @@ class LlamaIndexIntegration(BaseLLMIntegration):
         return [Message(content="")]
 
     def _extract_usage(self, response: Any) -> Dict[str, int]:
-        """Extract token usage from response.
+        """Extract token usage from llama_index response objects.
 
-        TODO: Customize this method based on the library's usage format.
+        Checks response.raw (dict with API provider response) and
+        response.usage for token counts.
         """
-        metrics = {}
+        metrics: Dict[str, int] = {}
         usage = _get_attr(response, "usage", None)
-        if usage:
-            # Try different token field names
+        # llama_index stores raw API responses in response.raw
+        if usage is None:
+            raw = _get_attr(response, "raw", None)
+            if isinstance(raw, dict):
+                usage = raw.get("usage")
+
+        if not usage:
+            return metrics
+
+        if isinstance(usage, dict):
+            input_tokens = usage.get("input_tokens") or usage.get("prompt_tokens")
+            output_tokens = usage.get("output_tokens") or usage.get("completion_tokens")
+        else:
             input_tokens = _get_attr(usage, "input_tokens", None) or _get_attr(usage, "prompt_tokens", None)
             output_tokens = _get_attr(usage, "output_tokens", None) or _get_attr(usage, "completion_tokens", None)
 
-            if input_tokens is not None:
-                metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
-            if output_tokens is not None:
-                metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-            if input_tokens is not None and output_tokens is not None:
-                metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+        if input_tokens is not None:
+            metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens is not None:
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if input_tokens is not None and output_tokens is not None:
+            metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
         return metrics
