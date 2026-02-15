@@ -5,7 +5,6 @@ import sqlite3.dbapi2
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -67,8 +66,8 @@ def traced_connect(func, _, args, kwargs):
 
 
 def patch_conn(conn):
-    wrapped = TracedSQLite(conn)
-    Pin(tags={db.SYSTEM: "sqlite"}).onto(wrapped)
+    tags = {db.SYSTEM: "sqlite"}
+    wrapped = TracedSQLite(conn, tags=tags)
     return wrapped
 
 
@@ -89,12 +88,12 @@ class TracedSQLiteFetchCursor(TracedSQLiteCursor, FetchTracedCursor):
 
 
 class TracedSQLite(TracedConnection):
-    def __init__(self, conn, pin=None, cursor_cls=None):
+    def __init__(self, conn, cursor_cls=None, tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
             cursor_cls = TracedSQLiteFetchCursor if config.sqlite.trace_fetch_methods else TracedSQLiteCursor
 
-            super(TracedSQLite, self).__init__(conn, pin=pin, cfg=config.sqlite, cursor_cls=cursor_cls)
+            super(TracedSQLite, self).__init__(conn, cfg=config.sqlite, cursor_cls=cursor_cls, tags=tags)
 
     def execute(self, *args, **kwargs):
         # sqlite has a few extra sugar functions

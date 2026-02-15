@@ -43,7 +43,7 @@ def get_version():
 class TracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
-    def __init__(self, cursor, cfg):
+    def __init__(self, cursor, cfg, tags=None):
         super(TracedCursor, self).__init__(cursor)
         # Allow dbapi-based integrations to override default span name prefix
         span_name_prefix = (
@@ -60,6 +60,7 @@ class TracedCursor(wrapt.ObjectProxy):
         self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
+        self._self_tags = tags or {}
 
     def __iter__(self):
         return self.__wrapped__.__iter__()
@@ -92,6 +93,7 @@ class TracedCursor(wrapt.ObjectProxy):
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(tracer._tags)
+            s.set_tags(self._self_tags)
             s.set_tags(extra_tags)
 
             s._set_tag_str(COMPONENT, self._self_config.integration_name)
@@ -228,7 +230,7 @@ class FetchTracedCursor(TracedCursor):
 class TracedConnection(wrapt.ObjectProxy):
     """TracedConnection wraps a Connection with tracing code."""
 
-    def __init__(self, conn, cfg=None, cursor_cls=None):
+    def __init__(self, conn, cfg=None, cursor_cls=None, tags=None):
         if not cfg:
             cfg = config.dbapi2
         # Set default cursor class if one was not provided
@@ -243,6 +245,7 @@ class TracedConnection(wrapt.ObjectProxy):
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
         self._self_config = cfg
+        self._self_tags = tags or {}
 
     def __enter__(self):
         """Context management is not defined by the dbapi spec.
@@ -277,7 +280,7 @@ class TracedConnection(wrapt.ObjectProxy):
             if iswrapped(r):
                 return r
             else:
-                return self._self_cursor_cls(r, self._self_config)
+                return self._self_cursor_cls(r, self._self_config, tags=self._self_tags)
         else:
             # Otherwise r is some other object, so maintain the functionality
             # of the original.
@@ -294,13 +297,14 @@ class TracedConnection(wrapt.ObjectProxy):
             s._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             s.set_tags(tracer._tags)
+            s.set_tags(self._self_tags)
             s.set_tags(extra_tags)
 
             return method(*args, **kwargs)
 
     def cursor(self, *args, **kwargs):
         cursor = self.__wrapped__.cursor(*args, **kwargs)
-        return self._self_cursor_cls(cursor=cursor, cfg=self._self_config)
+        return self._self_cursor_cls(cursor=cursor, cfg=self._self_config, tags=self._self_tags)
 
     def commit(self, *args, **kwargs):
         span_name = "{}.{}".format(self._self_datadog_name, "commit")
