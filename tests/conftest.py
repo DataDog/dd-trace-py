@@ -11,6 +11,7 @@ import logging
 import os
 from os.path import split
 from os.path import splitext
+from pathlib import Path
 import platform
 import random
 import shutil
@@ -32,6 +33,7 @@ import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
@@ -346,11 +348,14 @@ class FunctionDefFinder(ast.NodeVisitor):
             self._body = node.body
 
     def find(self, file):
-        with open(file) as f:
-            t = ast.parse(f.read())
-            self.visit(t)
-            t.body = self._body
-            return t
+        if not (path := Path(file)).exists():
+            if path.is_absolute() or not (path := Path(__file__).parents[1] / file).exists():
+                raise FileNotFoundError(f"File {file} does not exist")
+
+        t = ast.parse(path.read_text())
+        self.visit(t)
+        t.body = self._body or []
+        return t
 
 
 def is_stream_ok(stream, expected):
@@ -369,7 +374,7 @@ def is_stream_ok(stream, expected):
 
 
 def run_function_from_file(item, params=None):
-    file = item.location[0]
+    file = Path(item.location[0])
     func = item.originalname
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
@@ -617,6 +622,35 @@ def remote_config_worker():
     # we have 2 threads: main thread and telemetry thread. TODO: verify if that alive thread is a bug
     # TODO: this assert doesn't work in CI, threading.active_count() > 50
     # assert threading.active_count() == 2
+
+
+class SyncRemoteConfigPoller(RemoteConfigPoller):
+    """RemoteConfigPoller subclass with testing utilities.
+
+    This subclass adds a `poll()` method that forces the client's
+    subscriber to poll new data, allowing synchronous testing without
+    waiting for the periodic thread.
+    """
+
+    def poll(self) -> None:
+        """Force client subscriber to poll new data for testing."""
+        self._client._global_subscriber.periodic()
+
+
+@pytest.fixture
+def rc_poller():
+    """Provide a SyncRemoteConfigPoller instance for testing.
+
+    This creates an isolated poller instance that can be used synchronously
+    in tests without relying on the global singleton.
+    """
+    poller = SyncRemoteConfigPoller()
+    try:
+        yield poller
+    finally:
+        # Clean up: stop any running services and reset state
+        if poller.status == ServiceStatus.RUNNING:
+            poller.disable(join=True)
 
 
 @pytest.fixture
