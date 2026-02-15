@@ -3,7 +3,7 @@ use datadog_remote_config::{
     config::{agent_config::AgentConfigFile, agent_task::AgentTaskFile},
     RemoteConfigData,
 };
-use datadog_tracer_flare::{error::FlareError, FlareAction, LogLevel, TracerFlareManager};
+use datadog_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
 use regex::Regex;
 use std::sync::LazyLock;
 
@@ -68,38 +68,6 @@ fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("SendError", m.py().get_type::<SendError>())?;
     m.add("ZipError", m.py().get_type::<ZipError>())?;
     Ok(())
-}
-
-/// LIB
-/// Python wrapper for LogLevel enum
-#[pyclass(name = "LogLevel")]
-#[derive(Clone, Copy)]
-pub struct LogLevelPy(LogLevel);
-
-#[pymethods]
-impl LogLevelPy {
-    #[classattr]
-    const TRACE: LogLevelPy = LogLevelPy(LogLevel::Trace);
-    #[classattr]
-    const DEBUG: LogLevelPy = LogLevelPy(LogLevel::Debug);
-    #[classattr]
-    const INFO: LogLevelPy = LogLevelPy(LogLevel::Info);
-    #[classattr]
-    const WARN: LogLevelPy = LogLevelPy(LogLevel::Warn);
-    #[classattr]
-    const ERROR: LogLevelPy = LogLevelPy(LogLevel::Error);
-    #[classattr]
-    const CRITICAL: LogLevelPy = LogLevelPy(LogLevel::Critical);
-    #[classattr]
-    const OFF: LogLevelPy = LogLevelPy(LogLevel::Off);
-
-    fn __repr__(&self) -> String {
-        format!("{:?}", self.0)
-    }
-
-    fn __str__(&self) -> String {
-        format!("{}", self.0)
-    }
 }
 
 /// Internal wrapper for AgentTaskFile (not exposed to Python, only for conversion)
@@ -335,7 +303,6 @@ impl TracerFlareManagerPy {
 pub fn native_flare(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TracerFlareManagerPy>()?;
     m.add_class::<FlareActionPy>()?;
-    m.add_class::<LogLevelPy>()?;
     register_exceptions(m)?;
 
     Ok(())

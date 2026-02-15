@@ -518,15 +518,6 @@ class native_flare:
     class SendError(Exception): ...
     class ZipError(Exception): ...
 
-    class LogLevel:
-        TRACE: "native_flare.LogLevel"
-        DEBUG: "native_flare.LogLevel"
-        INFO: "native_flare.LogLevel"
-        WARN: "native_flare.LogLevel"
-        ERROR: "native_flare.LogLevel"
-        CRITICAL: "native_flare.LogLevel"
-        OFF: "native_flare.LogLevel"
-
     class FlareAction:
         def is_send(self) -> bool: ...
         def is_set(self) -> bool: ...

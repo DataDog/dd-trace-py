@@ -30,19 +30,6 @@ def test_create_tracer_flare_manager():
     assert "TracerFlareManager" in repr(manager)
 
 
-def test_log_level_constants():
-    """Test that LogLevel constants are available."""
-    native_flare = _get_native_flare_or_skip()
-    # Verify all log levels exist
-    assert hasattr(native_flare.LogLevel, "TRACE")
-    assert hasattr(native_flare.LogLevel, "DEBUG")
-    assert hasattr(native_flare.LogLevel, "INFO")
-    assert hasattr(native_flare.LogLevel, "WARN")
-    assert hasattr(native_flare.LogLevel, "ERROR")
-    assert hasattr(native_flare.LogLevel, "CRITICAL")
-    assert hasattr(native_flare.LogLevel, "OFF")
-
-
 def test_agent_task_file():
     """Test that AgentTaskFile is not exposed (internal only)."""
     native_flare = _get_native_flare_or_skip()
