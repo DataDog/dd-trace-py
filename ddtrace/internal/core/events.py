@@ -60,12 +60,15 @@ from dataclasses import MISSING
 from dataclasses import dataclass
 from dataclasses import field
 import sys
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Optional
 from typing import TypeVar
 
-from ddtrace._trace.context import Context
+
+if TYPE_CHECKING:
+    from ddtrace._trace.provider import ActiveTrace
 
 
 EventType = TypeVar("EventType", bound="Event")
@@ -134,6 +137,6 @@ class TracingEvent(Event):
     activate: bool = True  # if True, activate the span as active span context
     use_active_context: bool = True  # if True, use the active span ctx as parent
     service: Optional[str] = None
-    distributed_context: Optional[Context] = None  # if set, use the context as parent
+    distributed_context: Optional["ActiveTrace"] = None  # if set, use the context as parent
     resource: Optional[str] = None
     measured: bool = False
