@@ -114,6 +114,54 @@ def test_unwind_current_thread():
     assert frames[0].name == "test_unwind_current_thread"
 
 
+def test_unwind_current_thread_with_frame():
+    """Test unwinding from a specific frame."""
+
+    def inner_function():
+        # Capture the current frame and unwind from it
+        frame = sys._getframe()
+        frames_from_frame = inspection.unwind_current_thread(frame)
+
+        # Verify we got valid frames
+        assert len(frames_from_frame) > 0
+        assert all(isinstance(f, inspection.Frame) for f in frames_from_frame)
+        # First frame should be inner_function (or qualified name in Python 3.11+)
+        assert "inner_function" in frames_from_frame[0].name
+
+        return frames_from_frame
+
+    def outer_function():
+        # Get the current frame and unwind from outer function
+        outer_frame = sys._getframe()
+        frames_from_outer = inspection.unwind_current_thread(outer_frame)
+
+        # Call inner function to get its frames
+        frames_from_inner = inner_function()
+
+        # Unwinding from outer should have fewer frames than from inner
+        # (because inner is one level deeper in the call stack)
+        assert len(frames_from_outer) < len(frames_from_inner)
+
+        # The outer frames should be a suffix of the inner frames
+        # (outer's frames should match the tail of inner's frames)
+        assert "outer_function" in frames_from_outer[0].name
+
+        # The inner frame list should contain both inner_function and outer_function
+        frame_names = [f.name for f in frames_from_inner]
+        assert any("inner_function" in name for name in frame_names)
+        assert any("outer_function" in name for name in frame_names)
+
+        return frames_from_outer
+
+    # Test without providing a frame (default behavior)
+    frames_default = inspection.unwind_current_thread()
+    assert len(frames_default) > 0
+    assert "test_unwind_current_thread_with_frame" in frames_default[0].name
+
+    # Test with providing a frame
+    outer_function()
+
+
 def test_unwind_cache_reuse():
     """Test that frames are cached and reused when unwinding from the same exact location."""
 

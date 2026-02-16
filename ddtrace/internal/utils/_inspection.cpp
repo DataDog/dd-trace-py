@@ -551,14 +551,38 @@ get_frame_cache_size(PyObject* module, PyObject* Py_UNUSED(arg))
     return PyLong_FromSize_t(state->cache_size);
 }
 
+static inline PyObject*
+unwrap_frame(PyObject* frame)
+{
+#if PY_VERSION_HEX >= 0x030b0000
+    // For Python 3.11+, we need to get the internal frame from PyFrameObject
+    return reinterpret_cast<PyObject*>(((PyFrameObject*)frame)->f_frame);
+#else
+    // For Python < 3.11, PyFrameObject is used directly
+    return frame;
+#endif
+}
+
 // ----------------------------------------------------------------------------
 static PyObject*
-unwind_current_thread(PyObject* module, PyObject* Py_UNUSED(arg))
+unwind_current_thread(PyObject* module, PyObject* args)
 {
     // Get module state for cache access
     ModuleState* state = (ModuleState*)PyModule_GetState(module);
     if (state == NULL || state->cache_map == NULL || state->cache_ring == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "Module state not initialized");
+        return NULL;
+    }
+
+    // Parse optional frame argument
+    PyObject* start_frame = NULL;
+    if (!PyArg_ParseTuple(args, "|O", &start_frame)) {
+        return NULL;
+    }
+
+    // Validate the frame argument if provided
+    if (start_frame != NULL && !PyFrame_Check(start_frame)) {
+        PyErr_SetString(PyExc_TypeError, "frame argument must be a frame object");
         return NULL;
     }
 
@@ -568,10 +592,11 @@ unwind_current_thread(PyObject* module, PyObject* Py_UNUSED(arg))
         return NULL;
     }
 
-    PyThreadState* thread_state = PyThreadState_Get();
+    // Determine the starting frame
+    PyObject* initial_frame =
+      start_frame != NULL ? unwrap_frame(start_frame) : get_frame_from_thread_state(PyThreadState_Get());
 
-    for (PyObject* py_frame = get_frame_from_thread_state(thread_state); py_frame != NULL;
-         py_frame = get_previous_frame(py_frame)) {
+    for (PyObject* py_frame = initial_frame; py_frame != NULL; py_frame = get_previous_frame(py_frame)) {
         if (should_skip_frame(py_frame))
             continue;
 
@@ -655,8 +680,8 @@ module_free(void* m)
 static PyMethodDef _inspection_methods[] = {
     { "unwind_current_thread",
       (PyCFunction)unwind_current_thread,
-      METH_NOARGS,
-      "Unwind the current thread's call stack" },
+      METH_VARARGS,
+      "Unwind the current thread's call stack, optionally starting from a specific frame" },
     { "set_frame_cache_size", (PyCFunction)set_frame_cache_size, METH_VARARGS, "Set the maximum frame cache size" },
     { "get_frame_cache_size", (PyCFunction)get_frame_cache_size, METH_NOARGS, "Get the current frame cache size" },
     { NULL, NULL, 0, NULL } /* Sentinel */
