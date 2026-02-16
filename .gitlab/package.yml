@@ -240,11 +240,8 @@ download_dependency_wheels:
   stage: package
   needs: ["ddtrace package", "package version"]
   rules:
-    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH
       when: on_success
-    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
-      when: on_success
-    - when: never
   script:
     - |
       set -euo pipefail
