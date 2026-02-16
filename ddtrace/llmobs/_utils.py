@@ -3,9 +3,10 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 from typing import Any
+from typing import Iterator
 from typing import Optional
 from typing import Union
-from typing import Iterator, Sequence
+from typing import Sequence
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes

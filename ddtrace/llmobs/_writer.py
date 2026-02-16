@@ -558,7 +558,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             _dne_client=self,
         )
 
-    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord]):
+    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True):
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -586,7 +586,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             with open(tmp.name, mode="rb") as f:
                 file_content = f.read()
 
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload"
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload?deduplicate={deduplicate}"
         BOUNDARY = b"----------boundary------"
         CRLF = b"\r\n"
 

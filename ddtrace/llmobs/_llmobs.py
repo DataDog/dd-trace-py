@@ -827,6 +827,23 @@ class LLMObs(Service):
         bulk_upload: bool = False,
         deduplicate: bool = True,
     ) -> Dataset:
+        """Creates a Dataset to run Experiments on.
+
+        :param dataset_name: The name of the dataset.
+        :param project_name: The name of the project to save the dataset to.
+        :param description: The description of the dataset.
+        :param records: Optional records to initialize the dataset with.
+        :param bulk_upload:
+            - True:
+                Uploads method uploads the records in a single upload request. This mechanism does not support
+                deduplicating against existing data and best suited for initial uploads.
+            - False:
+                Potentially splits the data into batches, and uploads the batches individually. This version
+                supports deduplicating against existing records, but does not offer any transactional guarantees
+                if the same dataset is being manipulated from multiple clients.
+        :param deduplicate:
+            Wether to deduplicate the records or not. Does not deduplicate against existing data if bulk_upload is False.
+        """
         if records is None:
             records = []
         ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
@@ -835,7 +852,7 @@ class LLMObs(Service):
             if bulk_upload:
                 for record in records:
                     dataset.append(record)
-                ds._push(bulk_upload=True, deduplicate=deduplicate)
+                ds._push(deduplicate=deduplicate, bulk_upload=True)
             else:
                 batch_size = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 original_version = ds.version # dataset_create gets the current version from the API
@@ -843,7 +860,7 @@ class LLMObs(Service):
                 for record_batch in utils.batched(records, batch_size):
                     for record in record_batch:
                         dataset.append(record)
-                    ds._push(bulk_upload=False, deduplicate=deduplicate, create_new_version=create_new_version)
+                    ds._push(deduplicate=deduplicate, create_new_version=create_new_version, bulk_upload=False)
                     if ds.version > original_version:
                         # Since we are batching a single upload, we should only bump the version at most once
                         create_new_version = False
@@ -861,6 +878,7 @@ class LLMObs(Service):
         csv_delimiter: str = ",",
         description: str = "",
         project_name: Optional[str] = None,
+        deduplicate: bool = True,
     ) -> Dataset:
         if expected_output_columns is None:
             expected_output_columns = []
@@ -916,7 +934,7 @@ class LLMObs(Service):
         for r in records:
             ds.append(r)
         if len(ds) > 0:
-            cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records)
+            cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records, deduplicate=deduplicate)
         return ds
 
     @classmethod

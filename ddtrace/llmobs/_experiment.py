@@ -5,7 +5,6 @@ from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 import itertools
-import math
 import re
 import sys
 import traceback
@@ -31,7 +30,6 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import batched
 from ddtrace.version import __version__
 
 
@@ -426,7 +424,7 @@ class Dataset:
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
-    def push(self, bulk_upload: Optional[bool] = None, deduplicate: bool = True, create_new_version: bool = True) -> None:
+    def push(self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None) -> None:
         if not self._id:
             raise ValueError(
                 (
@@ -446,17 +444,17 @@ class Dataset:
         if bulk_upload == True or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
             # TODO must return version too
-            self._dne_client.dataset_bulk_upload(self._id, self._records)
+            self._dne_client.dataset_bulk_upload(self._id, self._records, deduplicate=deduplicate)
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             new_version, new_record_ids = self._dne_client.dataset_batch_update(
-                self._id,
-                list(self._new_records_by_record_id.values()),
-                updated_records,
-                self._deleted_record_ids,
-                deduplicate,
-                create_new_version,
+                dataset_id=self._id,
+                insert_records=list(self._new_records_by_record_id.values()),
+                update_records=updated_records,
+                delete_record_id=self._deleted_record_ids,
+                deduplicate=deduplicate,
+                create_new_version=create_new_version,
             )
 
             # attach record ids to newly created records
