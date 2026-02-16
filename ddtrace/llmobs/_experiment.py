@@ -424,7 +424,9 @@ class Dataset:
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
-    def push(self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None) -> None:
+    def push(
+        self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
+    ) -> None:
         if not self._id:
             raise ValueError(
                 (
