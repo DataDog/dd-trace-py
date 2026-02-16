@@ -1,0 +1,9 @@
+core_api:
+  api: core
+events_api:
+  api: events
+dispatch:
+  api: dispatch
+dispatch_event:
+  api: dispatch_event
+
