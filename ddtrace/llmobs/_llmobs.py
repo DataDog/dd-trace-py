@@ -853,7 +853,7 @@ class LLMObs(Service):
             if bulk_upload:
                 for record in records:
                     ds.append(record)
-                ds._push(deduplicate=deduplicate, bulk_upload=True)
+                ds.push(deduplicate=deduplicate, bulk_upload=True)
             else:
                 batch_size = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 original_version = ds.version  # dataset_create gets the current version from the API
@@ -861,7 +861,7 @@ class LLMObs(Service):
                 for record_batch in _batched(records, batch_size):
                     for record in record_batch:
                         ds.append(record)
-                    ds._push(deduplicate=deduplicate, create_new_version=create_new_version, bulk_upload=False)
+                    ds.push(deduplicate=deduplicate, create_new_version=create_new_version, bulk_upload=False)
                     if ds.version > original_version:
                         # Since we are batching a single upload, we should only bump the version at most once
                         create_new_version = False

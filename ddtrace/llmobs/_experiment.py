@@ -454,7 +454,7 @@ class Dataset:
                 dataset_id=self._id,
                 insert_records=list(self._new_records_by_record_id.values()),
                 update_records=updated_records,
-                delete_record_id=self._deleted_record_ids,
+                delete_record_ids=self._deleted_record_ids,
                 deduplicate=deduplicate,
                 create_new_version=create_new_version,
             )
