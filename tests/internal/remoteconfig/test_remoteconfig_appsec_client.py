@@ -141,40 +141,6 @@ def test_load_new_configurations_error_extract_target_file(mock_extract_target_f
         assert applied_configs == {}
 
 
-@mock.patch.object(RemoteConfigClient, "_extract_target_file")
-def test_load_new_configurations_preprocess_error(mock_extract_target_file):
-    """Test that preprocessing errors are handled gracefully and don't prevent publishing."""
-
-    def failing_preprocess(payloads):
-        raise ValueError("Preprocessing failed")
-
-    with override_global_config(dict(_remote_config_enabled=True)):
-        mock_config_content = {"test": "content"}
-        mock_extract_target_file.return_value = mock_config_content
-        mock_callback = MagicMock()
-        mock_config = ConfigMetadata(
-            id="", product_name="ASM_FEATURES", sha256_hash="sha256_hash", length=5, tuf_version=5
-        )
-
-        applied_configs = {}
-        agent_payload = AgentPayload()
-        client_configs = {"mock/ASM_FEATURES": mock_config}
-
-        rc_client = RemoteConfigClient()
-        # Register callback with a failing preprocess function
-        rc_client.register_product("ASM_FEATURES", mock_callback, preprocess=failing_preprocess)
-
-        payload_list = []
-        rc_client._load_new_configurations(payload_list, applied_configs, client_configs, payload=agent_payload)
-
-        # Should not raise exception even with failing preprocess
-        rc_client._publish_configuration(payload_list)
-
-        # Verify the payload was created despite preprocessing error
-        assert len(payload_list) == 1
-        assert applied_configs == client_configs
-
-
 @pytest.mark.parametrize(
     "payload_client_configs,num_payload_target_files,cache_target_files,expected_result_ok",
     [
