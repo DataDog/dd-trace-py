@@ -482,7 +482,6 @@ class Dataset:
             for record, record_id in zip(self._new_records_by_record_id.values(), new_record_ids):
                 record["record_id"] = record_id  # type: ignore
 
-            logger.debug("new_version {new_version} self._latest_version {self._latest_version}")
             if new_version != -1:
                 self._latest_version = new_version
             else:
@@ -490,6 +489,7 @@ class Dataset:
                 # If there are no deletion requests, the lack of new_version indicates no version bumps
                 if len(self._deleted_record_ids) == 0:
                     self._latest_version + 1
+            logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
             # no matter what the version was before the push, pushing will result in the dataset being on the current
             # version tracked by the backend
             self._version = self._latest_version
