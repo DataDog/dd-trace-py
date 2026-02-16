@@ -652,9 +652,7 @@ class LLMJudge(BaseEvaluator):
         elif provider == "bedrock":
             self._client = _create_bedrock_client(client_options=client_options)
         else:
-            raise ValueError(
-                "Provide either 'client' or 'provider' (openai/anthropic/azure_openai/vertexai/bedrock)"
-            )
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/azure_openai/vertexai/bedrock)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:

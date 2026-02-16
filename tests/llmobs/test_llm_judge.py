@@ -471,6 +471,7 @@ class TestVertexAIClient:
         parsed = json.loads(result)
         assert parsed["categorical_eval"] == "positive"
 
+
 class TestBedrockClient:
     def test_missing_package_raises(self):
         with mock.patch.dict("sys.modules", {"boto3": None}):
