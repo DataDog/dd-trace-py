@@ -112,6 +112,7 @@ class JobSpec:
 
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
+        env["NIGHTLY_BUILD"] = os.getenv("NIGHTLY_BUILD", "false")
         if self.runner == "riot":
             env["PIP_CACHE_KEY"] = (
                 subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
