@@ -833,17 +833,17 @@ class LLMObs(Service):
         :param project_name: The name of the project to save the dataset to.
         :param description: The description of the dataset.
         :param records: Optional records to initialize the dataset with.
-        :param bulk_upload:
-            - True:
-                Uploads method uploads the records in a single upload request. This mechanism does not support
-                deduplicating against existing data and best suited for initial uploads.
-            - False:
-                Potentially splits the data into batches, and uploads the batches individually. This version
-                supports deduplicating against existing records, but does not offer any transactional guarantees
-                if the same dataset is being manipulated from multiple clients.
         :param deduplicate:
             Wether to deduplicate the records or not. Does not deduplicate against existing
             data if bulk_upload is False.
+        :param bulk_upload:
+            - True:
+                Uploads all records in a single request. This method does not support deduplication
+                against existing data and is best suited for initial uploads.
+            - False:
+                Splits the data into batches and uploads them individually. This method supports
+                deduplication against existing records but does not provide transactional guarantees
+                when the same dataset is modified concurrently by multiple clients.
         """
         if records is None:
             records = []

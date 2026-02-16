@@ -427,6 +427,25 @@ class Dataset:
     def push(
         self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
     ) -> None:
+        """Pushes any local changes in this dataset since the last push.
+
+        :param deduplicate:
+            Wether to deduplicate the records or not. Does not deduplicate against existing
+            data if bulk_upload is False.
+        :param create_new_version:
+            Whether to create a new version of the dataset when changes are detected, or update the
+            existing version.
+        :param bulk_upload:
+            - True:
+                Uploads all records in a single request. This method does not support deduplication
+                against existing data and is best suited for initial uploads.
+            - False:
+                Splits the data into batches and uploads them individually. This method supports
+                deduplication against existing records but does not provide transactional guarantees
+                when the same dataset is modified concurrently by multiple clients.
+            - None:
+                The SDK chooses between the above two approaches using data size.
+        """
         if not self._id:
             raise ValueError(
                 (
