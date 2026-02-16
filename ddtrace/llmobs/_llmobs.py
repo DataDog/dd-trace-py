@@ -842,7 +842,8 @@ class LLMObs(Service):
                 supports deduplicating against existing records, but does not offer any transactional guarantees
                 if the same dataset is being manipulated from multiple clients.
         :param deduplicate:
-            Wether to deduplicate the records or not. Does not deduplicate against existing data if bulk_upload is False.
+            Wether to deduplicate the records or not. Does not deduplicate against existing
+            data if bulk_upload is False.
         """
         if records is None:
             records = []
@@ -851,15 +852,15 @@ class LLMObs(Service):
         if len(records) > 0:
             if bulk_upload:
                 for record in records:
-                    dataset.append(record)
+                    ds.append(record)
                 ds._push(deduplicate=deduplicate, bulk_upload=True)
             else:
                 batch_size = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 original_version = ds.version  # dataset_create gets the current version from the API
                 create_new_version = True
-                for record_batch in utils.batched(records, batch_size):
+                for record_batch in _batched(records, batch_size):
                     for record in record_batch:
-                        dataset.append(record)
+                        ds.append(record)
                     ds._push(deduplicate=deduplicate, create_new_version=create_new_version, bulk_upload=False)
                     if ds.version > original_version:
                         # Since we are batching a single upload, we should only bump the version at most once
