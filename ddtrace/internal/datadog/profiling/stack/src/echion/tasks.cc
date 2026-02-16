@@ -165,14 +165,15 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
     std::stack<PyObject*, std::vector<PyObject*>> coro_frames;
 
     // Unwind the coro chain
-    size_t itr_count = 0;
+    size_t coro_chain_depth = 0;
     for (auto py_coro = this->coro.get(); py_coro != NULL; py_coro = py_coro->await.get()) {
+        coro_chain_depth++;
+        if (coro_chain_depth > MAX_RECURSION_DEPTH) {
+            break;
+        }
+
         if (py_coro->frame != NULL) {
             coro_frames.push(py_coro->frame);
-            itr_count++;
-            if (itr_count >= MAX_RECURSION_DEPTH) {
-                break;
-            }
         }
     }
 
