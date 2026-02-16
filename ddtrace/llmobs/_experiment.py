@@ -443,7 +443,7 @@ class Dataset:
             )
 
         delta_size = self._estimate_delta_size()
-        if bulk_upload == True or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
+        if bulk_upload or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
             # TODO must return version too
             self._dne_client.dataset_bulk_upload(self._id, self._records, deduplicate=deduplicate)

@@ -5,8 +5,8 @@ import json
 from typing import Any
 from typing import Iterator
 from typing import Optional
-from typing import Union
 from typing import Sequence
+from typing import Union
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
