@@ -1,5 +1,3 @@
-from typing import Dict
-
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
@@ -28,7 +26,7 @@ def _set_span_tag_iast_executed_sink(span):
     reset_iast_span_metrics()
 
 
-def get_iast_span_metrics() -> Dict:
+def get_iast_span_metrics() -> dict:
     if env := _get_iast_env():
         return env.iast_span_metrics
     return dict()
