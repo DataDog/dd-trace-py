@@ -109,5 +109,9 @@ class EchionSampler
         greenlet_info_map_.clear();
         greenlet_parent_map_.clear();
         greenlet_thread_map_.clear();
+
+        // Clear renderer caches to avoid using stale interned IDs from the
+        // parent's Profiles Dictionary
+        renderer_.postfork_child();
     }
 };
