@@ -475,11 +475,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
+            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.text()}")  # nosec
         response_data = resp.get_json()
         data = response_data["data"]
 
         # FIXME: we don't get version numbers in responses to deletion requests
+        log.debug(data[0]["attributes"]["version"])
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
