@@ -78,6 +78,10 @@ class JobSpec:
         # Set needs based on runner type
         lines.append("  needs:")
         lines.append("    - prechecks")
+        # Inherit NIGHTLY_BUILD (and other vars) from parent pipeline's tests-gen via dotenv
+        lines.append("    - pipeline: $PARENT_PIPELINE_ID")
+        lines.append("      job: tests-gen")
+        lines.append("      artifacts: true")
         if self.runner == "riot":
             # Riot jobs need build_base_venvs artifacts
             lines.append("    - job: build_base_venvs")
