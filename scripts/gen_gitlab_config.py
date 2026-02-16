@@ -129,7 +129,12 @@ class JobSpec:
 
         lines.append("  variables:")
         for key, value in env.items():
-            lines.append(f"    {key}: {value}")
+            # Write NIGHTLY_BUILD as a quoted string so it is not parsed as YAML boolean
+            # and is exported to the job script env (unquoted true/false may not be).
+            if key == "NIGHTLY_BUILD":
+                lines.append(f'    {key}: "{value}"')
+            else:
+                lines.append(f"    {key}: {value}")
 
         if self.only:
             lines.append("  only:")
