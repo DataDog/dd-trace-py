@@ -297,7 +297,7 @@ class BaseSummaryEvaluator(ABC):
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
-def _default_context_transform(context: "EvaluatorContext") -> Dict[str, Any]:
+def _default_context_transform(context: "EvaluatorContext") -> dict[str, Any]:
     """Default transform: maps EvaluatorContext to meta.input/meta.output format.
 
     :param context: The evaluation context to transform
@@ -325,7 +325,7 @@ class RemoteEvaluator(BaseEvaluator):
 
     Example (with custom transform function)::
 
-        def custom_transform(ctx: EvaluatorContext) -> Dict[str, Any]:
+        def custom_transform(ctx: EvaluatorContext) -> dict[str, Any]:
             return {"span_input": ctx.input_data, "span_output": ctx.output_data}
 
         evaluator = RemoteEvaluator(

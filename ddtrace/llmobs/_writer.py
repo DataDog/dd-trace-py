@@ -718,7 +718,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def evaluator_infer(
         self,
         eval_name: str,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> EvaluatorInferResponse:
         """Call backend to run inference on a LLM-as-Judge evaluator.
 
@@ -732,7 +732,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         from ddtrace.llmobs._experiment import RemoteEvaluatorError
 
         path = f"/api/unstable/llm-obs/v1/evaluators/{eval_name}/infer"
-        body: JSONType = {"data": {"type": "evaluator_infer", "attributes": {"context": context}}}
+        body: JSONType = {"data": {"type": "evaluator_inference", "attributes": {"context": context}}}
 
         resp = self.request("POST", path, body)
         response_data = resp.get_json() or {}
@@ -759,7 +759,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "reasoning": attributes.get("reasoning"),
         }
 
-    def _build_http_error(self, error_data: Dict[str, Any], status: int) -> Dict[str, str]:
+    def _build_http_error(self, error_data: dict[str, Any], status: int) -> dict[str, str]:
         """Build backend_error dict from HTTP error response."""
         # Try JSON:API format
         if "errors" in error_data and error_data["errors"]:
