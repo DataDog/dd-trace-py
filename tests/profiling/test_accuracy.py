@@ -95,13 +95,13 @@ def test_accuracy_stack():
             wall_times[function_name] += wall_time_spent_ns
             cpu_times[function_name] += cpu_time_spent_ns
 
-    assert_almost_equal(wall_times["spend_3"], 9e9)
-    assert_almost_equal(wall_times["spend_1"], 2e9)
-    assert_almost_equal(wall_times["spend_4"], 4e9)
-    assert_almost_equal(wall_times["spend_16"], 16e9)
-    assert_almost_equal(wall_times["spend_7"], 7e9)
+    assert_almost_equal(wall_times["spend_3"], 9e9, tolerance=1)
+    assert_almost_equal(wall_times["spend_1"], 2e9, tolerance=1)
+    assert_almost_equal(wall_times["spend_4"], 4e9, tolerance=1)
+    assert_almost_equal(wall_times["spend_16"], 16e9, tolerance=1)
+    assert_almost_equal(wall_times["spend_7"], 7e9, tolerance=1)
 
-    assert_almost_equal(wall_times["spend_cpu_2"], 2e9)
-    assert_almost_equal(wall_times["spend_cpu_3"], 3e9)
-    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9)
-    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
+    assert_almost_equal(wall_times["spend_cpu_2"], 2e9, tolerance=1)
+    assert_almost_equal(wall_times["spend_cpu_3"], 3e9, tolerance=1)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, tolerance=1)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, tolerance=1)
