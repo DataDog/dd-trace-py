@@ -15,7 +15,7 @@ def test_remoteconfig_publisher_dispatch():
     publisher = RemoteConfigPublisher(mock_connector, mock_preprocess_results)
     config = {"id": "1", "product_name": "MOCK", "sha256_hash": "sha256_hash", "length": 5, "tuf_version": 35}
     publisher.append({"config": "data"}, "path", config)
-    publisher.dispatch(None)
+    publisher.dispatch()
 
     if publisher._preprocess_results_func:
         mock_preprocess_results.assert_called_once_with(
@@ -34,6 +34,5 @@ def test_remoteconfig_publisher_dispatch():
                     content={"config": "data"},
                 )
             ],
-            None,
         )
     assert mock_connector.data == [{"config": "parsed_data"}]
