@@ -86,7 +86,7 @@ class Flare:
         """
         # Always revert configs and cleanup, even for invalid requests
         try:
-            if flare_action.is_send() is False:
+            if not flare_action.is_send():
                 return
             self.revert_configs()
 
