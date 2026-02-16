@@ -206,12 +206,6 @@ impl From<FlareAction> for FlareActionPy {
     }
 }
 
-impl From<FlareActionPy> for FlareAction {
-    fn from(value: FlareActionPy) -> Self {
-        value.inner
-    }
-}
-
 #[pyclass(name = "TracerFlareManager")]
 pub struct TracerFlareManagerPy {
     manager: TracerFlareManager,
