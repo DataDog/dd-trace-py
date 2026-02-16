@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 import itertools
+import math
 import re
 import sys
 import traceback
@@ -30,6 +31,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import batched
 from ddtrace.version import __version__
 
 
@@ -424,7 +426,7 @@ class Dataset:
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
-    def push(self) -> None:
+    def push(self, bulk_upload: Optional[bool] = None, deduplicate: bool = True, create_new_version: bool = True) -> None:
         if not self._id:
             raise ValueError(
                 (
@@ -441,7 +443,7 @@ class Dataset:
             )
 
         delta_size = self._estimate_delta_size()
-        if delta_size > self.BATCH_UPDATE_THRESHOLD:
+        if bulk_upload == True or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
             # TODO must return version too
             self._dne_client.dataset_bulk_upload(self._id, self._records)
@@ -453,6 +455,8 @@ class Dataset:
                 list(self._new_records_by_record_id.values()),
                 updated_records,
                 self._deleted_record_ids,
+                deduplicate,
+                create_new_version,
             )
 
             # attach record ids to newly created records

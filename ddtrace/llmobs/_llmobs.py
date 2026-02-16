@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import inspect
 import json
+import math
 import os
 import sys
 import time
@@ -107,6 +108,7 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -822,14 +824,30 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         description: str = "",
         records: Optional[list[DatasetRecord]] = None,
+        bulk_upload: bool = False,
+        deduplicate: bool = True,
     ) -> Dataset:
         if records is None:
             records = []
         ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
-        for r in records:
-            ds.append(r)
+
         if len(records) > 0:
-            ds.push()
+            if bulk_upload:
+                for record in records:
+                    dataset.append(record)
+                ds._push(bulk_upload=True, deduplicate=deduplicate)
+            else:
+                batch_size = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
+                original_version = ds.version # dataset_create gets the current version from the API
+                create_new_version = True
+                for record_batch in utils.batched(records, batch_size):
+                    for record in record_batch:
+                        dataset.append(record)
+                    ds._push(bulk_upload=False, deduplicate=deduplicate, create_new_version=create_new_version)
+                    if ds.version > original_version:
+                        # Since we are batching a single upload, we should only bump the version at most once
+                        create_new_version = False
+
         return ds
 
     @classmethod

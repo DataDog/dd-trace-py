@@ -454,6 +454,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         insert_records: list[DatasetRecordRaw],
         update_records: list[UpdatableDatasetRecord],
         delete_record_ids: list[str],
+        deduplicate: bool = True,
+        create_new_version: bool = True,
     ) -> tuple[int, list[str]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
@@ -466,6 +468,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "insert_records": irs,
                     "update_records": urs,
                     "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
+                    "deduplicate": deduplicate,
+                    "create_new_version": create_new_version,
                 },
             }
         }

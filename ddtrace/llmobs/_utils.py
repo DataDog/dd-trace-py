@@ -5,6 +5,7 @@ import json
 from typing import Any
 from typing import Optional
 from typing import Union
+from typing import Iterator, Sequence
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
@@ -321,6 +322,11 @@ def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     if not tags:
         return []
     return [f"{key}:{value}" for key, value in tags.items()]
+
+
+def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
 
 
 @dataclass
