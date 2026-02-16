@@ -5,8 +5,8 @@ import typing
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.threads import Lock
 
 
 EndpointCountsType = dict[str, int]
@@ -19,9 +19,7 @@ class EndpointCallCounterProcessor(SpanProcessor):
     # endpoint to span_ids instead of mapping from span_id to endpoint to
     # avoid creating a new string object for each span id.
     endpoint_to_span_ids: dict[str, list[int]] = field(default_factory=dict, init=False, repr=False, compare=False)
-    _endpoint_counts_lock: typing.ContextManager = field(
-        default_factory=forksafe.Lock, init=False, repr=False, compare=False
-    )
+    _endpoint_counts_lock: typing.ContextManager = field(default_factory=Lock, init=False, repr=False, compare=False)
     _enabled: bool = field(default=False, repr=False, compare=False)
 
     def enable(self) -> None:
@@ -49,3 +47,6 @@ class EndpointCallCounterProcessor(SpanProcessor):
             span_ids = self.endpoint_to_span_ids
             self.endpoint_to_span_ids = {}
             return counts, span_ids
+
+    def _after_fork(self) -> None:
+        self._endpoint_counts_lock = Lock()

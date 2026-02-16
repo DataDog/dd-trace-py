@@ -5,6 +5,7 @@ import os
 import platform
 import random
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -84,6 +85,11 @@ else:
 
 if FAST_BUILD:
     os.environ["DD_COMPILE_ABSEIL"] = "0"
+    # Trade binary size for compilation speed in dev environments by disabling
+    # LTO and increasing codegen parallelism. Never used for release wheels.
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_LTO", "off")
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_CODEGEN_UNITS", "16")
+    os.environ.setdefault("CARGO_PROFILE_RELEASE_OPT_LEVEL", "2")
 
 SCCACHE_COMPILE = os.getenv("DD_USE_SCCACHE", "0").lower() in ("1", "yes", "on", "true")
 
@@ -101,6 +107,7 @@ DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 STACK_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack"
 NATIVE_CRATE = HERE / "src" / "native"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
+DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
@@ -290,6 +297,7 @@ class PatchedDistribution(Distribution):
                 debug=COMPILE_MODE.lower() == "debug",
                 features=rust_features,
                 env=rust_env,
+                args=DD_CARGO_ARGS,
             )
         ]
 

@@ -1,12 +1,12 @@
 from concurrent import futures
 import os
 
-from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
@@ -36,7 +36,7 @@ class EvaluatorRunner(PeriodicService):
 
     def __init__(self, interval: float, llmobs_service=None, evaluators=None):
         super(EvaluatorRunner, self).__init__(interval=interval)
-        self._lock = forksafe.RLock()
+        self._lock = RLock()
         self._buffer: list[tuple[LLMObsSpanEvent, Span]] = []
         self._buffer_limit = 1000
 

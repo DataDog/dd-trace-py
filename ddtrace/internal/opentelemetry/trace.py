@@ -35,6 +35,17 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+try:
+    from opentelemetry.util._decorator import _agnosticcontextmanager as contextmanager  # type: ignore[no-redef]
+except ImportError:
+    log.warning(
+        "opentelemetry.util._decorator not found, using contextlib.contextmanager instead. "
+        "Using @tracer.start_as_current_span decorator in generators and async functions "
+        "will result in inaccurate durations. For async support upgrade to opentelemetry-api>=1.24."
+    )
+    from contextlib import contextmanager
+
+
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 
 

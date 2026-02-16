@@ -2,7 +2,7 @@ import abc
 import enum
 import typing  # noqa:F401
 
-from . import forksafe
+from ddtrace.internal.threads import Lock
 
 
 class ServiceStatus(enum.Enum):
@@ -29,7 +29,7 @@ class Service(metaclass=abc.ABCMeta):
 
     def __init__(self) -> None:
         self.status: ServiceStatus = ServiceStatus.STOPPED
-        self._service_lock: typing.ContextManager = forksafe.Lock()
+        self._service_lock: typing.ContextManager = Lock()
 
     def __repr__(self):
         class_name = self.__class__.__name__

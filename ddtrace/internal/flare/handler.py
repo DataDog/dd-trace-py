@@ -1,19 +1,13 @@
 from ddtrace.internal.flare.flare import Flare
+from ddtrace.internal.logger import get_logger
 
 
-def _tracerFlarePubSub():
-    from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-    from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-    from ddtrace.internal.remoteconfig._pubsub import PubSub
+log = get_logger(__name__)
 
-    class _TracerFlarePubSub(PubSub):
-        __publisher_class__ = RemoteConfigPublisher
-        __subscriber_class__ = TracerFlareSubscriber
-        __shared_data__ = PublisherSubscriberConnector()
 
-        def __init__(self, flare: Flare):
-            self._publisher = self.__publisher_class__(self.__shared_data__, None)
-            self._subscriber = self.__subscriber_class__(self.__shared_data__, flare)
-
-    return _TracerFlarePubSub
+def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
+    if cleanup:
+        log.info("Reverting tracer flare configurations and cleaning up any generated files")
+        flare.revert_configs()
+        flare.clean_up_files()
+        return
