@@ -340,10 +340,28 @@ class TestRemoteEvaluator:
         result = evaluator._transform_fn(ctx)
         assert result == {
             "meta": {
-                "input": {"query": "test"},
-                "output": "response",
-                "expected_output": "expected",
+                "input": {"value": '{"query": "test"}'},
+                "output": {"value": "response"},
+                "expected_output": {"value": "expected"},
             }
+        }
+
+        ctx_messages = EvaluatorContext(
+            input_data={"messages": [{"role": "user", "content": "hello"}]},
+            output_data={"messages": [{"role": "assistant", "content": "hi"}]},
+            span_id="span123",
+            trace_id="trace456",
+            metadata={"experiment_config": {"temperature": 0.7}},
+        )
+        result_messages = evaluator._transform_fn(ctx_messages)
+        assert result_messages == {
+            "meta": {
+                "input": {"messages": [{"role": "user", "content": "hello"}]},
+                "output": {"messages": [{"role": "assistant", "content": "hi"}]},
+                "metadata": {"experiment_config": {"temperature": 0.7}},
+            },
+            "span_id": "span123",
+            "trace_id": "trace456",
         }
 
     def test_init_empty_eval_name(self):

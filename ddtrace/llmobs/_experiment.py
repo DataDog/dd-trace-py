@@ -297,20 +297,53 @@ class BaseSummaryEvaluator(ABC):
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
-def _default_context_transform(context: "EvaluatorContext") -> dict[str, Any]:
-    """Default transform: maps EvaluatorContext to meta.input/meta.output format.
+def _default_context_transform(context: "EvaluatorContext") -> dict[str, JSONType]:
+    """Default transform: maps EvaluatorContext to remote evaluator format.
+
+    Transforms the context into the format expected by remote LLM-as-Judge evaluators.
+    The output structure is designed to be compatible with evaluator placeholders
+    configured in the Datadog UI.
 
     :param context: The evaluation context to transform
-    :return: Dictionary with meta.input, meta.output, meta.expected_output structure
+    :return: Dictionary with meta.input, meta.output, optional meta.expected_output,
+             optional meta.metadata, and optional trace identifiers (span_id, trace_id)
     """
-    # TODO: review default transform
-    return {
+
+    def _format_meta_io(data: JSONType) -> dict[str, JSONType]:
+        """Format data for remote evaluation."""
+        if isinstance(data, dict):
+            recognized_fields = {"messages", "value", "parameters", "documents", "prompt"}
+            if any(field in data for field in recognized_fields):
+                return data
+            import json
+
+            return {"value": json.dumps(data)}
+        elif isinstance(data, str):
+            return {"value": data}
+        else:
+            import json
+
+            return {"value": json.dumps(data)}
+
+    result: dict[str, Any] = {
         "meta": {
-            "input": context.input_data,
-            "output": context.output_data,
-            "expected_output": context.expected_output,
+            "input": _format_meta_io(context.input_data),
+            "output": _format_meta_io(context.output_data),
         }
     }
+
+    if context.expected_output is not None:
+        result["meta"]["expected_output"] = _format_meta_io(context.expected_output)
+
+    if context.span_id:
+        result["span_id"] = context.span_id
+    if context.trace_id:
+        result["trace_id"] = context.trace_id
+
+    if context.metadata:
+        result["meta"]["metadata"] = context.metadata
+
+    return result
 
 
 class RemoteEvaluator(BaseEvaluator):
@@ -1219,7 +1252,7 @@ class Experiment:
             "timestamp_ms": int(timestamp_ns / 1e6),
             "metric_type": metric_type,
             "label": eval_name,
-            f"{metric_type}_value": eval_value,  # type: ignore
+            f"{metric_type}_value": eval_value,  # type: ignore[misc]
             "error": err,
             "tags": convert_tags_dict_to_list(tags),
             "experiment_id": self._id,
@@ -1242,7 +1275,7 @@ class Experiment:
         remote_evaluator_names = {
             evaluator.name  # type: ignore[union-attr]
             for evaluator in self._evaluators
-            if hasattr(evaluator, "_is_remote_evaluator") and evaluator._is_remote_evaluator  # type: ignore[union-attr]
+            if hasattr(evaluator, "_is_remote_evaluator") and evaluator._is_remote_evaluator
         }
 
         for exp_result in experiment_result.rows:
