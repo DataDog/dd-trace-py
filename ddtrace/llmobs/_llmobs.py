@@ -857,7 +857,7 @@ class LLMObs(Service):
             else:
                 num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 batch_size = math.ceil(len(records) / num_batches)
-                log.debug(f"batched upload num_batches :{num_batches}, batch_size: {batch_size}")
+                log.debug("batched upload num_batches :%s, batch_size: %s", num_batches, batch_size)
                 original_version = ds.version  # dataset_create gets the current version from the API
                 create_new_version = True
                 for record_batch in _batched(records, batch_size):

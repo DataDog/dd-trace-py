@@ -483,8 +483,13 @@ class Dataset:
                 record["record_id"] = record_id  # type: ignore
 
             logger.debug("new_version {new_version} self._latest_version {self._latest_version}")
-            # FIXME: we don't get version numbers in responses to deletion requests
-            self._latest_version = new_version if new_version != -1 else self._latest_version + 1
+            if new_version != -1:
+                self._latest_version = new_version
+            else:
+                # FIXME: we don't get version numbers in responses to deletion requests
+                # If there are no deletion requests, the lack of new_version indicates no version bumps
+                if len(self._deleted_record_ids) == 0:
+                    self._latest_version + 1
             # no matter what the version was before the push, pushing will result in the dataset being on the current
             # version tracked by the backend
             self._version = self._latest_version

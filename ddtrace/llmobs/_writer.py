@@ -480,7 +480,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         data = response_data["data"]
 
         # FIXME: we don't get version numbers in responses to deletion requests
-        log.debug(data[0]["attributes"]["version"])
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
