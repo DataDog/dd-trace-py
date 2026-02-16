@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace.internal.flare.flare import Flare
@@ -17,11 +16,10 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
     def __init__(
         self,
         data_connector: PublisherSubscriberConnector,
-        callback: Callable,
         flare: Flare,
         stale_flare_age: int = DEFAULT_STALE_FLARE_DURATION_MINS,
     ):
-        super().__init__(data_connector, callback, "TracerFlareConfig")
+        super().__init__(data_connector, lambda _data: None, "TracerFlareConfig")
         self.current_request_start: Optional[datetime] = None
         self.stale_tracer_flare_num_mins = stale_flare_age
         self.flare = flare
@@ -70,6 +68,9 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                 log.info("Preparing tracer flare")
 
                 log_level = flare_action.level
+                if log_level is None:
+                    log.warning("Received set flare action without log level")
+                    continue
                 if self.flare.prepare(log_level):
                     self.current_request_start = datetime.now()
             elif flare_action.is_send():

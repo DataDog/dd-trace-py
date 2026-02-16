@@ -7,12 +7,11 @@ from ddtrace.internal.settings._agent import config as agent_config
 def _register_rc_products() -> None:
     """Enable fetching configuration from Datadog."""
     from ddtrace.internal.flare.flare import Flare
-    from ddtrace.internal.flare.handler import _handle_tracer_flare
     from ddtrace.internal.flare.handler import _tracerFlarePubSub
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     flare = Flare(trace_agent_url=agent_config.trace_agent_url, api_key=config._dd_api_key, ddconfig=config.__dict__)
-    tracerflare_pubsub = _tracerFlarePubSub()(_handle_tracer_flare, flare)
+    tracerflare_pubsub = _tracerFlarePubSub()(flare)
     remoteconfig_poller.register("AGENT_CONFIG", tracerflare_pubsub)
     remoteconfig_poller.register("AGENT_TASK", tracerflare_pubsub)
 
