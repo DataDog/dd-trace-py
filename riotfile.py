@@ -1,7 +1,5 @@
 # type: ignore
 import logging
-from typing import List  # noqa
-from typing import Tuple  # noqa
 
 from riot import Venv
 
@@ -9,7 +7,7 @@ from riot import Venv
 logger = logging.getLogger(__name__)
 latest = ""
 
-SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
+SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 9),
     (3, 10),
     (3, 11),
@@ -19,7 +17,7 @@ SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
 ]
 
 
-def version_to_str(version: Tuple[int, int]) -> str:
+def version_to_str(version: tuple[int, int]) -> str:
     """Convert a Python version tuple to a string
 
     >>> version_to_str((3, 9))
@@ -40,7 +38,7 @@ def version_to_str(version: Tuple[int, int]) -> str:
     return ".".join(str(p) for p in version)
 
 
-def str_to_version(version: str) -> Tuple[int, int]:
+def str_to_version(version: str) -> tuple[int, int]:
     """Convert a Python version string to a tuple
 
     >>> str_to_version("3.9")
@@ -65,7 +63,7 @@ MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
 MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
-def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> List[str]:
+def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
@@ -3281,7 +3279,7 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
-                "riot": "==0.20.1",
+                "riot": "==0.21.0",
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
@@ -3295,6 +3293,8 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
+                "google-cloud-aiplatform": latest,
+                "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
@@ -3326,7 +3326,7 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3372,6 +3372,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
@@ -3421,6 +3431,16 @@ venv = Venv(
                                 ),
                             ],
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3450,6 +3470,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
@@ -3486,6 +3516,16 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3499,7 +3539,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="profile-memalloc",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501
                     pys=select_pys(),
                     pkgs={
                         "protobuf": latest,

@@ -3,8 +3,6 @@ from dataclasses import dataclass
 from dataclasses import field
 import json
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace.internal.utils.fnv import fnv1_64
@@ -16,7 +14,7 @@ from .schema_iterator import SchemaIterator
 class SchemaBuilder:
     max_depth = 10
     max_properties = 1000
-    CACHE: Dict[str, Schema] = {}
+    CACHE: dict[str, Schema] = {}
     properties = 0
 
     def __init__(self, iterator: SchemaIterator) -> None:
@@ -32,7 +30,7 @@ class SchemaBuilder:
         description: Optional[str],
         ref: Optional[str],
         format_: Optional[str],
-        enum_values: Optional[List[Any]],
+        enum_values: Optional[list[Any]],
     ) -> bool:
         if self.properties >= self.max_properties:
             return False
@@ -76,17 +74,17 @@ class OpenApiSchema:
         description: Optional[str] = None
         ref: Optional[str] = field(default=None, metadata={"name": "$ref"})
         format: Optional[str] = None
-        enum_values: Optional[List[str]] = field(default=None, metadata={"name": "enum"})
+        enum_values: Optional[list[str]] = field(default=None, metadata={"name": "enum"})
         items: Optional["OpenApiSchema.Property"] = None
 
     @dataclass
     class Schema:
         type: str = "object"
-        properties: Dict[str, "OpenApiSchema.Property"] = field(default_factory=dict)
+        properties: dict[str, "OpenApiSchema.Property"] = field(default_factory=dict)
 
     @dataclass
     class Components:
-        schemas: Dict[str, "OpenApiSchema.Schema"] = field(default_factory=dict)
+        schemas: dict[str, "OpenApiSchema.Schema"] = field(default_factory=dict)
 
 
 def convert_to_json_compatible(obj: Any) -> Any:

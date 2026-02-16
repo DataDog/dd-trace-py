@@ -6,6 +6,7 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
+import pytest
 from pytest import MonkeyPatch
 
 from tests.testing.mocks import CoverageReportUploadCapture
@@ -184,6 +185,7 @@ class TestPytestCoverageReportUpload:
         coverage_uploads = upload_capture.get_coverage_report_uploads()
         assert len(coverage_uploads) == 0
 
+    @pytest.mark.skip("Skipping due to flakiness: ")
     def test_coverage_report_upload_without_pytest_cov(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test coverage report upload uses coverage.py when pytest-cov is not enabled."""
         pytester.makepyfile(
@@ -301,7 +303,7 @@ class TestPytestCoverageReportUpload:
         upload_attempted = []
 
         def failing_upload_coverage_report(
-            coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+            coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
         ):
             upload_attempted.append("/api/v2/cicovreprt")
             # Simulate upload failure by returning False

@@ -255,7 +255,6 @@ def test_agentless(monkeypatch):
 
 @pytest.mark.subprocess()
 def test_custom_writer():
-    from typing import List
     from typing import Optional
 
     from ddtrace.internal import debug
@@ -270,7 +269,7 @@ def test_custom_writer():
         def stop(self, timeout: Optional[float] = None) -> None:
             pass
 
-        def write(self, spans: Optional[List[Span]] = None) -> None:
+        def write(self, spans: Optional[list[Span]] = None) -> None:
             pass
 
         def flush_queue(self) -> None:

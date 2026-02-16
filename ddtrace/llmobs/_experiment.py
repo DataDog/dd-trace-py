@@ -11,12 +11,9 @@ import traceback
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterator
-from typing import List
 from typing import Optional
 from typing import Sequence
-from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from typing import cast
@@ -44,10 +41,10 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
-NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
-ConfigType = Dict[str, JSONType]
-DatasetRecordInputType = Dict[str, NonNoneJSONType]
+JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONType"]]
+NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONType]]
+ConfigType = dict[str, JSONType]
+DatasetRecordInputType = dict[str, NonNoneJSONType]
 
 
 class EvaluatorResult:
@@ -74,8 +71,8 @@ class EvaluatorResult:
         value: JSONType,
         reasoning: Optional[str] = None,
         assessment: Optional[str] = None,
-        metadata: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[Dict[str, JSONType]] = None,
+        metadata: Optional[dict[str, JSONType]] = None,
+        tags: Optional[dict[str, JSONType]] = None,
     ) -> None:
         """Initialize an EvaluatorResult.
 
@@ -130,10 +127,10 @@ class EvaluatorContext:
                      Optional string.
     """
 
-    input_data: Dict[str, Any]
+    input_data: dict[str, Any]
     output_data: Any
     expected_output: Optional[JSONType] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     span_id: Optional[str] = None
     trace_id: Optional[str] = None
 
@@ -142,19 +139,19 @@ class EvaluatorContext:
 class SummaryEvaluatorContext:
     """Context object containing all data needed for summary evaluation.
 
-    :param inputs: List of all input data from the dataset records (read-only).
-    :param outputs: List of all outputs produced by the task (read-only).
-    :param expected_outputs: List of all expected outputs (read-only).
+    :param inputs: list of all input data from the dataset records (read-only).
+    :param outputs: list of all outputs produced by the task (read-only).
+    :param expected_outputs: list of all expected outputs (read-only).
     :param evaluation_results: Dictionary mapping evaluator names to their results (read-only).
-    :param metadata: List of metadata for each dataset record, each combined with experiment configuration (read-only).
+    :param metadata: list of metadata for each dataset record, each combined with experiment configuration (read-only).
                      Each element contains the record's metadata merged with {"experiment_config": ...}.
     """
 
-    inputs: List[DatasetRecordInputType]
-    outputs: List[JSONType]
-    expected_outputs: List[JSONType]
-    evaluation_results: Dict[str, List[JSONType]]
-    metadata: List[Dict[str, Any]] = field(default_factory=list)
+    inputs: list[DatasetRecordInputType]
+    outputs: list[JSONType]
+    expected_outputs: list[JSONType]
+    evaluation_results: dict[str, list[JSONType]]
+    metadata: list[dict[str, Any]] = field(default_factory=list)
 
 
 class BaseEvaluator(ABC):
@@ -317,13 +314,13 @@ class Project(TypedDict):
 class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
@@ -340,13 +337,13 @@ class TaskResult(TypedDict):
     trace_id: str
     timestamp: int
     output: JSONType
-    metadata: Dict[str, JSONType]
-    error: Dict[str, Optional[str]]
+    metadata: dict[str, JSONType]
+    error: dict[str, Optional[str]]
 
 
 class EvaluationResult(TypedDict):
     idx: int
-    evaluations: Dict[str, Dict[str, JSONType]]
+    evaluations: dict[str, dict[str, JSONType]]
 
 
 class _ExperimentRunInfo:
@@ -362,20 +359,20 @@ class ExperimentRowResult(TypedDict):
     span_id: str
     trace_id: str
     timestamp: int
-    input: Dict[str, NonNoneJSONType]
+    input: dict[str, NonNoneJSONType]
     output: JSONType
     expected_output: JSONType
-    evaluations: Dict[str, Dict[str, JSONType]]
-    metadata: Dict[str, JSONType]
-    error: Dict[str, Optional[str]]
+    evaluations: dict[str, dict[str, JSONType]]
+    metadata: dict[str, JSONType]
+    error: dict[str, Optional[str]]
 
 
 class ExperimentRun:
     def __init__(
         self,
         run: _ExperimentRunInfo,
-        summary_evaluations: Dict[str, Dict[str, JSONType]],
-        rows: List[ExperimentRowResult],
+        summary_evaluations: dict[str, dict[str, JSONType]],
+        rows: list[ExperimentRowResult],
     ):
         self.run_id = run._id
         self.run_iteration = run._run_iteration
@@ -385,22 +382,22 @@ class ExperimentRun:
 
 class ExperimentResult(TypedDict):
     # TODO: remove these fields (summary_evaluations, rows) in the next major release (5.x)
-    summary_evaluations: Dict[str, Dict[str, JSONType]]
-    rows: List[ExperimentRowResult]
-    runs: List[ExperimentRun]
+    summary_evaluations: dict[str, dict[str, JSONType]]
+    rows: list[ExperimentRowResult]
+    runs: list[ExperimentRun]
 
 
 class Dataset:
     name: str
     description: str
     _id: str
-    _records: List[DatasetRecord]
+    _records: list[DatasetRecord]
     _version: int
     _latest_version: int
     _dne_client: "LLMObsExperimentsClient"
-    _new_records_by_record_id: Dict[str, DatasetRecordRaw]
-    _updated_record_ids_to_new_fields: Dict[str, UpdatableDatasetRecord]
-    _deleted_record_ids: List[str]
+    _new_records_by_record_id: dict[str, DatasetRecordRaw]
+    _updated_record_ids_to_new_fields: dict[str, UpdatableDatasetRecord]
+    _deleted_record_ids: list[str]
 
     BATCH_UPDATE_THRESHOLD = 5 * 1024 * 1024  # 5MB
 
@@ -409,7 +406,7 @@ class Dataset:
         name: str,
         project: Project,
         dataset_id: str,
-        records: List[DatasetRecord],
+        records: list[DatasetRecord],
         description: str,
         latest_version: int,
         version: int,
@@ -498,7 +495,7 @@ class Dataset:
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
-    def extend(self, records: List[DatasetRecordRaw]) -> None:
+    def extend(self, records: list[DatasetRecordRaw]) -> None:
         for record in records:
             self.append(record)
 
@@ -545,9 +542,9 @@ class Dataset:
     def __getitem__(self, index: int) -> DatasetRecord: ...
 
     @overload
-    def __getitem__(self, index: slice) -> List[DatasetRecord]: ...
+    def __getitem__(self, index: slice) -> list[DatasetRecord]: ...
 
-    def __getitem__(self, index: Union[int, slice]) -> Union[DatasetRecord, List[DatasetRecord]]:
+    def __getitem__(self, index: Union[int, slice]) -> Union[DatasetRecord, list[DatasetRecord]]:
         return self._records.__getitem__(index)
 
     def __len__(self) -> int:
@@ -567,7 +564,7 @@ class Dataset:
         column_tuples = set()
         data_rows = []
         for record in self._records:
-            flat_record = {}  # type: Dict[Union[str, Tuple[str, str]], Any]
+            flat_record = {}  # type: dict[Union[str, tuple[str, str]], Any]
 
             input_data = record.get("input_data", {})
             if isinstance(input_data, dict):
@@ -619,18 +616,18 @@ class Experiment:
         ],
         project_name: str,
         description: str = "",
-        tags: Optional[Dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[
-            List[
+            list[
                 Union[
                     Callable[
                         [
-                            List[DatasetRecordInputType],
-                            List[JSONType],
-                            List[JSONType],
-                            Dict[str, List[JSONType]],
+                            list[DatasetRecordInputType],
+                            list[JSONType],
+                            list[JSONType],
+                            dict[str, list[JSONType]],
                         ],
                         JSONType,
                     ],
@@ -646,12 +643,12 @@ class Experiment:
         self._evaluators = evaluators
         self._summary_evaluators = summary_evaluators or []
         self._description = description
-        self._tags: Dict[str, str] = tags or {}
+        self._tags: dict[str, str] = tags or {}
         self._tags["ddtrace.version"] = str(__version__)
         self._tags["project_name"] = project_name
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
-        self._config: Dict[str, JSONType] = config or {}
+        self._config: dict[str, JSONType] = config or {}
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
 
@@ -739,7 +736,7 @@ class Experiment:
         # FIXME: will not work for subdomain orgs
         return f"{_get_base_url()}/llm/experiments/{self._id}"
 
-    def _process_record(self, idx_record: Tuple[int, DatasetRecord], run: _ExperimentRunInfo) -> Optional[TaskResult]:
+    def _process_record(self, idx_record: tuple[int, DatasetRecord], run: _ExperimentRunInfo) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         idx, record = idx_record
@@ -802,7 +799,7 @@ class Experiment:
         run: _ExperimentRunInfo,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
-    ) -> List[TaskResult]:
+    ) -> list[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         if sample_size is not None and sample_size < len(self._dataset):
@@ -843,31 +840,31 @@ class Experiment:
         return task_results
 
     def _run_evaluators(
-        self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 1
-    ) -> List[EvaluationResult]:
+        self, task_results: list[TaskResult], raise_errors: bool = False, jobs: int = 1
+    ) -> list[EvaluationResult]:
         """Run evaluators on task results with concurrent execution using ThreadPoolExecutor.
 
         Supports both class-based (BaseEvaluator) and literal function evaluators.
 
-        :param task_results: List of task results to evaluate
+        :param task_results: list of task results to evaluate
         :param raise_errors: Whether to raise exceptions on evaluation errors
         :param jobs: Maximum number of concurrent evaluator executions (default: 1)
         """
 
-        def _evaluate_row(idx: int, task_result: TaskResult) -> Dict[str, Dict[str, JSONType]]:
+        def _evaluate_row(idx: int, task_result: TaskResult) -> dict[str, dict[str, JSONType]]:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
             output_data = task_result["output"]
             expected_output = record["expected_output"]
             metadata = record.get("metadata", {})
 
-            row_results: Dict[str, Dict[str, JSONType]] = {}
+            row_results: dict[str, dict[str, JSONType]] = {}
 
             for evaluator in self._evaluators:
                 eval_result_value: JSONType = None
                 eval_err: JSONType = None
                 evaluator_name = ""
-                extra_return_values: Dict[str, JSONType] = {}
+                extra_return_values: dict[str, JSONType] = {}
 
                 try:
                     if _is_class_evaluator(evaluator):
@@ -928,26 +925,26 @@ class Experiment:
         with ThreadPoolExecutor(max_workers=jobs) as executor:
             results = list(executor.map(_evaluate_row, range(len(task_results)), task_results))
 
-        evaluations: List[EvaluationResult] = [
+        evaluations: list[EvaluationResult] = [
             {"idx": idx, "evaluations": row_results} for idx, row_results in enumerate(results)
         ]
         return evaluations
 
     def _run_summary_evaluators(
         self,
-        task_results: List[TaskResult],
-        eval_results: List[EvaluationResult],
+        task_results: list[TaskResult],
+        eval_results: list[EvaluationResult],
         raise_errors: bool = False,
         jobs: int = 1,
-    ) -> List[EvaluationResult]:
-        inputs: List[DatasetRecordInputType] = []
-        outputs: List[JSONType] = []
-        expected_outputs: List[JSONType] = []
-        metadata_list: List[Dict[str, Any]] = []
+    ) -> list[EvaluationResult]:
+        inputs: list[DatasetRecordInputType] = []
+        outputs: list[JSONType] = []
+        expected_outputs: list[JSONType] = []
+        metadata_list: list[dict[str, Any]] = []
 
         # name of evaluator (not summary evaluator) -> list of eval results ordered by index of the list of task results
         # this is being computed so that the user can use the evaluation results in its original form
-        eval_results_by_name: dict[str, List[JSONType]] = {}
+        eval_results_by_name: dict[str, list[JSONType]] = {}
         for idx, task_result in enumerate(task_results):
             outputs.append(task_result["output"])
             record: DatasetRecord = self._dataset[idx]
@@ -963,7 +960,7 @@ class Experiment:
 
                 eval_results_by_name[name].append(eval_value.get("value"))
 
-        def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, Dict[str, JSONType]]:
+        def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, dict[str, JSONType]]:
             eval_result_value: JSONType = None
             eval_err: JSONType = None
             evaluator_name = ""
@@ -1003,8 +1000,8 @@ class Experiment:
                 },
             )
 
-        evaluations: List[EvaluationResult] = []
-        evals_dict: Dict[str, Dict[str, JSONType]] = {}
+        evaluations: list[EvaluationResult] = []
+        evals_dict: dict[str, dict[str, JSONType]] = {}
 
         with ThreadPoolExecutor(max_workers=jobs) as executor:
             results = list(executor.map(_evaluate_summary_single, self._summary_evaluators))
@@ -1018,14 +1015,14 @@ class Experiment:
     def _merge_results(
         self,
         run: _ExperimentRunInfo,
-        task_results: List[TaskResult],
-        evaluations: List[EvaluationResult],
-        summary_evaluations: Optional[List[EvaluationResult]],
+        task_results: list[TaskResult],
+        evaluations: list[EvaluationResult],
+        summary_evaluations: Optional[list[EvaluationResult]],
     ) -> ExperimentRun:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], convert_tags_dict_to_list(self._tags))}
+            metadata: dict[str, JSONType] = {"tags": cast(list[JSONType], convert_tags_dict_to_list(self._tags))}
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
@@ -1044,7 +1041,7 @@ class Experiment:
             }
             experiment_results.append(exp_result)
 
-        summary_evals: Dict[str, Dict[str, JSONType]] = {}
+        summary_evals: dict[str, dict[str, JSONType]] = {}
         if summary_evaluations:
             for summary_evaluation in summary_evaluations:
                 for name, eval_data in summary_evaluation["evaluations"].items():
@@ -1063,8 +1060,8 @@ class Experiment:
         source: str = "custom",
         reasoning: Optional[str] = None,
         assessment: Optional[str] = None,
-        metadata: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[Dict[str, str]] = None,
+        metadata: Optional[dict[str, JSONType]] = None,
+        tags: Optional[dict[str, str]] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
         if eval_value is None:
             metric_type = "categorical"
@@ -1077,7 +1074,7 @@ class Experiment:
         else:
             metric_type = "categorical"
             eval_value = str(eval_value).lower()
-        eval_metric: LLMObsExperimentEvalMetricEvent = {
+        eval_metric: "LLMObsExperimentEvalMetricEvent" = {
             "metric_source": source,
             "span_id": span_id,
             "trace_id": trace_id,
@@ -1099,7 +1096,7 @@ class Experiment:
 
     def _generate_metrics_from_exp_results(
         self, experiment_result: ExperimentRun
-    ) -> List["LLMObsExperimentEvalMetricEvent"]:
+    ) -> list["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
         latest_timestamp: int = 0
         for exp_result in experiment_result.rows:
@@ -1125,11 +1122,11 @@ class Experiment:
                     assessment=str(eval_data.get("assessment"))
                     if isinstance(eval_data.get("assessment"), str)
                     else None,
-                    metadata=cast(Dict[str, JSONType], eval_data.get("metadata"))
-                    if isinstance(eval_data.get("metadata"), Dict)
+                    metadata=cast(dict[str, JSONType], eval_data.get("metadata"))
+                    if isinstance(eval_data.get("metadata"), dict)
                     else None,
-                    tags=cast(Dict[str, str], eval_data.get("tags"))
-                    if isinstance(eval_data.get("tags"), Dict)
+                    tags=cast(dict[str, str], eval_data.get("tags"))
+                    if isinstance(eval_data.get("tags"), dict)
                     else None,
                 )
                 eval_metrics.append(eval_metric)

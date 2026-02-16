@@ -8,8 +8,6 @@ import os
 from os import getpid
 from threading import Lock
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -71,9 +69,9 @@ AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> List[SpanProcessor]:
+) -> list[SpanProcessor]:
     """Construct the default list of span processors to use."""
-    span_processors: List[SpanProcessor] = []
+    span_processors: list[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
     if config._trace_resource_renaming_enabled:
@@ -260,7 +258,7 @@ class Tracer(object):
             return active.context
         return None
 
-    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> Dict[str, str]:
+    def get_log_correlation_context(self, active: Optional[Union[Context, Span]] = None) -> dict[str, str]:
         """Retrieves the data used to correlate a log with the current active trace.
         Generates a dictionary for custom logging instrumentation including the trace id and
         span id of the current active span, as well as the configured service, version, and environment names.
@@ -290,7 +288,7 @@ class Tracer(object):
         appsec_enabled_origin: Optional[str] = "",
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
-        trace_processors: Optional[List[TraceProcessor]] = None,
+        trace_processors: Optional[list[TraceProcessor]] = None,
     ) -> None:
         """Configure a Tracer.
 
@@ -300,7 +298,7 @@ class Tracer(object):
         :param bool appsec_enabled: Enables Application Security Monitoring (ASM) for the tracer.
         :param bool iast_enabled: Enables IAST support for the tracer
         :param bool apm_tracing_disabled: When APM tracing is disabled ensures ASM support is still enabled.
-        :param List[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
+        :param list[TraceProcessor] trace_processors: This parameter sets TraceProcessor (ex: TraceFilters).
            Trace processors are used to modify and filter traces based on certain criteria.
         """
 
@@ -368,7 +366,7 @@ class Tracer(object):
 
     def _recreate(
         self,
-        trace_processors: Optional[List[TraceProcessor]] = None,
+        trace_processors: Optional[list[TraceProcessor]] = None,
         compute_stats_enabled: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
@@ -865,7 +863,7 @@ class Tracer(object):
 
         return wrap_decorator
 
-    def set_tags(self, tags: Dict[str, str]) -> None:
+    def set_tags(self, tags: dict[str, str]) -> None:
         """Set some tags at the tracer level.
         This will append those tags to each span created by the tracer.
 

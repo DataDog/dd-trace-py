@@ -1,5 +1,3 @@
-from typing import Dict
-
 import pymongo
 
 from ddtrace import config
@@ -25,12 +23,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(pymongo, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"pymongo": ">=3.8.0"}
 
 

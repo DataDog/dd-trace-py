@@ -48,8 +48,8 @@ class SessionManager:
             self.workspace_path = Path.cwd()
 
         self.platform_tags = get_platform_tags()
-        self.collected_tests: t.Set[TestRef] = set()
-        self.skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
+        self.collected_tests: set[TestRef] = set()
+        self.skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
         self.itr_correlation_id: t.Optional[str] = None
         self.itr_skipping_level = ITRSkippingLevel.TEST  # TODO: SUITE level not supported at the moment.
 
@@ -100,7 +100,7 @@ class SessionManager:
         self.api_client.close()
 
         # Retry handlers must be set up after collection phase for EFD faulty session logic to work.
-        self.retry_handlers: t.List[RetryHandler] = []
+        self.retry_handlers: list[RetryHandler] = []
 
         self.writer = TestOptWriter(connector_setup=self.connector_setup)
         self.coverage_writer = TestCoverageWriter(connector_setup=self.connector_setup)
@@ -154,12 +154,12 @@ class SessionManager:
                     and new_tests_percentage > self.settings.early_flake_detection.faulty_session_threshold
                 )
                 if is_faulty_session:
-                    log.info("Not enabling Early Flake Detection: too many new tests")
+                    log.debug("Not enabling Early Flake Detection: too many new tests")
                     self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
                     self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
             else:
-                log.info("Not enabling Early Flake Detection: no known tests")
+                log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
             self.retry_handlers.append(AutoTestRetriesHandler(self))
@@ -170,7 +170,7 @@ class SessionManager:
         atexit.register(self.finish)
 
     def upload_coverage_report(
-        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
     ) -> bool:
         """
         Upload a coverage report to Datadog CI Intake.
@@ -190,7 +190,7 @@ class SessionManager:
             return result
 
         except Exception as e:
-            log.exception("Error uploading coverage report: %s", e)
+            log.warning("Error uploading coverage report: %s", e)
             return False
 
     def finish(self) -> None:
@@ -214,7 +214,7 @@ class SessionManager:
         on_new_module: t.Callable[[TestModule], None],
         on_new_suite: t.Callable[[TestSuite], None],
         on_new_test: t.Callable[[Test], None],
-    ) -> t.Tuple[TestModule, TestSuite, Test]:
+    ) -> tuple[TestModule, TestSuite, Test]:
         """
         Return the module, suite and test objects for a given test reference, creating them if necessary.
 
@@ -227,14 +227,14 @@ class SessionManager:
             try:
                 on_new_module(test_module)
             except Exception:
-                log.exception("Error during discovery of module %s", test_module)
+                log.warning("Error during discovery of module %s", test_module)
 
         test_suite, created = test_module.get_or_create_child(test_ref.suite.name)
         if created:
             try:
                 on_new_suite(test_suite)
             except Exception:
-                log.exception("Error during discovery of suite %s", test_suite)
+                log.warning("Error during discovery of suite %s", test_suite)
 
         test, created = test_suite.get_or_create_child(test_ref.name)
         if created:
@@ -251,7 +251,7 @@ class SessionManager:
                 on_new_test(test)
                 self._set_codeowners(test)
             except Exception:
-                log.exception("Error during discovery of test %s", test)
+                log.warning("Error during discovery of test %s", test)
 
         return test_module, test_suite, test
 
@@ -394,7 +394,7 @@ class SessionManager:
         )
 
 
-def _get_service_name_from_git_repo(env_tags: t.Dict[str, str]) -> t.Optional[str]:
+def _get_service_name_from_git_repo(env_tags: dict[str, str]) -> t.Optional[str]:
     repo_name = env_tags.get(GitTag.REPOSITORY_URL)
     if repo_name and (m := re.match(r".*/([^/]+)(?:.git)/?", repo_name)):
         return m.group(1).lower()
