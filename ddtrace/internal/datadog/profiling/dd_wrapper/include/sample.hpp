@@ -74,19 +74,14 @@ intern_function(string_id name, string_id filename);
 
 class SampleManager; // friend
 
+// Sample represents a single profiling sample being built.
+// Profile state is stored in the Ddup singleton.
 class Sample
 {
   private:
-    static inline Profile profile_state{}; // TODO pointer to global state?
     unsigned int max_nframes;
     SampleType type_mask;
     std::string errmsg;
-
-    // Timeline support works by endowing each sample with a timestamp. Collection of this data this data is cheap, but
-    // due to the underlying pprof format, timeline support increases the sample cardinality. Rather than switching
-    // around the frontend code too much, we push enablement down to whether or not timestamps get added to samples (a
-    // 0 value suppresses the tag). However, Sample objects are short-lived, so we make the flag static.
-    static inline bool timeline_enabled = false;
 
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location2> locations;

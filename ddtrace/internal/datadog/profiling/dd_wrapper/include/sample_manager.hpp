@@ -1,25 +1,13 @@
 #pragma once
 
-#include "constants.hpp"
 #include "sample.hpp"
-#include "types.hpp"
-
-#include <array>
-#include <atomic>
-#include <mutex>
-#include <optional>
-
-#include <vector>
 
 namespace Datadog {
 
+// SampleManager provides static methods for sample lifecycle management.
+// Configuration state is stored in the Ddup singleton.
 class SampleManager
 {
-  private:
-    static inline unsigned int max_nframes{ g_default_max_nframes };
-    static inline SampleType type_mask{ SampleType::All };
-    static inline size_t sample_pool_capacity{ g_default_sample_pool_capacity };
-
   public:
     // Configuration
     static void add_type(unsigned int type);
@@ -30,12 +18,6 @@ class SampleManager
     // Sampling entrypoint (this could also be called `build_ptr()`)
     static Sample* start_sample();
     static void drop_sample(Sample* sample);
-
-    // Handles state management after forks
-    static void postfork_child();
-    static void cleanup();
-
-    // Initialization
-    static void init();
 };
+
 } // namespace Datadog

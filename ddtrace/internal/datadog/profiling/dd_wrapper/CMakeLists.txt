@@ -55,6 +55,7 @@ add_library(
     dd_wrapper SHARED
     src/code_provenance.cpp
     src/code_provenance_interface.cpp
+    src/ddup.cpp
     src/ddup_interface.cpp
     src/libdatadog_helpers.cpp
     src/profile.cpp
