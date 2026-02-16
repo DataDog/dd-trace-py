@@ -110,6 +110,7 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
 
 class EvaluatorInferResponse(TypedDict, total=False):
     """Response from the evaluator_infer API endpoint."""
+
     status: str
     value: Union[float, bool, str, None]
     assessment: Optional[str]
@@ -771,13 +772,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "recommended_resolution": error.get("meta", {}).get("recommended_resolution", ""),
                 }
             return {"type": "http_error", "message": str(error), "recommended_resolution": ""}
-        
+
         # Fallback
         return {
             "type": "http_error",
             "message": f"HTTP {status}: {str(error_data)[:200]}",
             "recommended_resolution": "Check backend logs",
         }
+
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""
