@@ -40,16 +40,24 @@ function(dd_wrapper_add_test name)
     target_include_directories(${name} PRIVATE ../include)
     target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper ${Python3_LIBRARIES})
     add_ddup_config(${name})
-    target_link_options(${name} PRIVATE -Wl,--no-as-needed)
+    if(NOT APPLE)
+        target_link_options(${name} PRIVATE -Wl,--no-as-needed)
+    endif()
 
     # Test executable needs to find libdd_wrapper in parent directory Append to INSTALL_RPATH instead of replacing to
     # preserve sanitizer library paths set by add_ddup_config
+    if(APPLE)
+        set(_rpath_prefix "@loader_path")
+    else()
+        set(_rpath_prefix "$ORIGIN")
+    endif()
+
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};$ORIGIN/.."
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/.."
                                                  BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "$ORIGIN/.." BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
     gtest_discover_tests(
@@ -71,3 +79,4 @@ dd_wrapper_add_test(test_initialization test_initialization.cpp)
 dd_wrapper_add_test(test_api test_api.cpp)
 dd_wrapper_add_test(test_threading test_threading.cpp)
 dd_wrapper_add_test(test_forking test_forking.cpp)
+dd_wrapper_add_test(test_cleanup_race test_cleanup_race.cpp)
