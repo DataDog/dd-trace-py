@@ -112,7 +112,7 @@ class Event:
     Every children classes should be a @dataclass
     """
 
-    event_name: str = field(init=False, repr=False)
+    event_name: ClassVar[str]
 
 
 @dataclass

@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import logging
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -8,6 +9,7 @@ from ddtrace.internal.settings._config import config
 
 
 _listeners: dict[str, dict[Any, Callable[..., Any]]] = {}
+log = logging.getLogger(__name__)
 
 
 class ResultType(enum.Enum):
@@ -74,7 +76,22 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
 
 
 def dispatch_event(event) -> None:
-    dispatch(getattr(event, "event_name", ""), (event,))
+    try:
+        event_id = event.event_name
+    except AttributeError:
+        log.warning("dispatch_event() called with event without 'event_name': %r", event)
+        return
+
+    listeners = _listeners.get(event_id)
+    if not listeners:
+        return
+
+    for local_hook in listeners.values():
+        try:
+            local_hook(event)
+        except Exception:
+            if config._raise:
+                raise
 
 
 def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
