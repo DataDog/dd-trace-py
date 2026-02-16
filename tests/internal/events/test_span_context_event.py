@@ -2,7 +2,6 @@ from dataclasses import InitVar
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional
-from typing import Tuple
 
 import pytest
 
@@ -15,7 +14,7 @@ from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.events import event_field
 
 
-ExcInfoType = Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
+ExcInfoType = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
 
 
 @pytest.fixture(autouse=True)
@@ -32,11 +31,9 @@ class TestTracingEvent(TracingEvent):
     span_kind = "internal"
 
     my_span_name: InitVar[str] = event_field()
-    my_component: InitVar[str] = event_field()
 
-    def __post_init__(self, my_span_name, my_component):
-        self.set_component(my_component)
-        self.set_span_name(my_span_name)
+    def __post_init__(self, my_span_name):
+        self.span_name = my_span_name
 
 
 def test_span_context_event_can_create_and_finish_span(test_spans):
@@ -50,7 +47,6 @@ def test_span_context_event_can_create_and_finish_span(test_spans):
         ctx.set_item("span_type", event.span_type)
         ctx.set_item("resource", event.resource)
         ctx.set_item("service", event.service)
-        ctx.set_item("call_trace", event.call_trace)
         ctx.set_item("tags", event.tags)
 
         _start_span(ctx)
@@ -62,7 +58,7 @@ def test_span_context_event_can_create_and_finish_span(test_spans):
     core.on(f"context.ended.{TestTracingEvent.event_name}", on_context_ended)
 
     with core.context_with_event(
-        TestTracingEvent(resource="test.resource", service="svc", my_component="comp", my_span_name="name")
+        TestTracingEvent(resource="test.resource", service="svc", component="comp", my_span_name="name")
     ):
         pass
 

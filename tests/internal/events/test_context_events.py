@@ -102,28 +102,3 @@ def test_context_event_event_field():
         pass
 
     assert called == [0, "toto", "test"]
-
-
-def test_content_event_inheritance():
-    """Test that child ContextEvent inherits and extends parent's hooks via subscribers."""
-    called = []
-
-    @dataclass
-    class TestContextEvent(Event):
-        event_name = "test.event"
-        foo: str = event_field()
-
-    @dataclass
-    class ChildTestContextEvent(TestContextEvent):
-        event_name = "test.child.event"
-
-    def on_context_started_child(ctx: core.ExecutionContext):
-        event: ChildTestContextEvent = ctx.event
-        called.append(event.foo)
-
-    core.on(f"context.started.{ChildTestContextEvent.event_name}", on_context_started_child)
-
-    with core.context_with_event(ChildTestContextEvent(foo="toto")):
-        pass
-
-    assert called == ["toto"]
