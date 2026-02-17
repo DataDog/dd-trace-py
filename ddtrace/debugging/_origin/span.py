@@ -17,9 +17,9 @@ from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
@@ -51,6 +51,7 @@ class EntrySpanProbe(LogFunctionProbe):
             template=message,
             segments=[LiteralTemplateSegment(message)],
             take_snapshot=True,
+            capture_expressions=[],
             limits=DEFAULT_CAPTURE_LIMITS,
             condition=None,
             condition_error_rate=0.0,
@@ -78,7 +79,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
     __enabled__ = False
     __priority__ = 199
 
-    def __init__(self, uploader: t.Type[SignalUploader], f: FunctionType) -> None:
+    def __init__(self, uploader: type[SignalUploader], f: FunctionType) -> None:
         super().__init__(f)
 
         self.uploader = uploader
@@ -117,7 +118,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
 
         return self
 
-    def _close_signal(self, retval=None, exc_info=(None, None, None)):
+    def _close_signal(self, retval: t.Any = None, exc_info: tuple[t.Any, t.Any, t.Any] = (None, None, None)) -> None:
         if not self.__enabled__:
             return
 
@@ -170,7 +171,7 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: t.List = []
+    _pending: list = []
     _lock = Lock()
 
     @classmethod
@@ -178,7 +179,7 @@ class SpanCodeOriginProcessorEntry:
         if isinstance(f, MethodType):
             f = t.cast(FunctionType, f.__func__)
         if not _isinstance(f, FunctionType):
-            log.warning("Cannot instrument view %r: not a function", f)
+            log.debug("Cannot instrument view %r: not a function", f)
             return
 
         with cls._lock:

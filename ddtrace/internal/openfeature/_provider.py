@@ -96,9 +96,9 @@ class DataDogProvider(AbstractProvider):
         # Cache for reported exposures to prevent duplicates
         # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
-        self._exposure_cache: LRUCache[
-            typing.Tuple[str, str], typing.Tuple[typing.Optional[str], typing.Optional[str]]
-        ] = LRUCache(maxsize=65536)
+        self._exposure_cache: LRUCache[tuple[str, str], tuple[typing.Optional[str], typing.Optional[str]]] = LRUCache(
+            maxsize=65536
+        )
 
         # Check if experimental flagging provider is enabled
         self._enabled = ffe_config.experimental_flagging_provider_enabled
@@ -454,7 +454,7 @@ class DataDogProvider(AbstractProvider):
 
 
 # Module-level registry for active provider instances
-_provider_instances: typing.List[DataDogProvider] = []
+_provider_instances: list[DataDogProvider] = []
 
 
 def _register_provider(provider: DataDogProvider) -> None:

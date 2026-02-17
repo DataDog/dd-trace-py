@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Telemetry: handle closed logging streams in writer background threads

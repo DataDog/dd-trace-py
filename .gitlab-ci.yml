@@ -15,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "8efd013d8502894c7a5ecbdebdd2ca52ba9afa01"
+  SYSTEM_TESTS_REF: "b8d5e051fb307f031a9ce32c894c388f4501d7dc"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
@@ -46,6 +46,7 @@ workflow:
     - when: always
 
 include:
+  - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -78,6 +79,8 @@ tests-gen:
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
+      - .gitlab/benchmarks/microbenchmarks-gen.yml
+      - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
 run-tests-trigger:
  stage: tests
@@ -134,6 +137,7 @@ serverless lambda tests:
 microbenchmarks:
   stage: benchmarks
   needs:
+    - job: tests-gen
     - job: "build linux"
       parallel:
         matrix:
@@ -146,7 +150,9 @@ microbenchmarks:
       allow_failure: true
     - allow_failure: false
   trigger:
-    include: .gitlab/benchmarks/microbenchmarks.yml
+    include:
+      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
+        job: tests-gen
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
@@ -259,21 +265,59 @@ check_requirements_lockfiles:
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
+check_ci_dependencies:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - scripts/check-ci-dependencies
+
 codeowners:
   stage: tests
   needs: []
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   script:
+    # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
+    # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
+    # Normalize patterns before checking for duplicates:
+    #   - Remove trailing slashes (tests/tracer and tests/tracer/ are equivalent)
+    #   - Remove leading ./ (./path and path are equivalent)
+    #   - Collapse multiple consecutive slashes (path//file becomes path/file)
+    - |
+        # All non-comment/empty lines from .github/CODEOWNERS
+        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
+          # Remove any leading `./` in the line
+          sed 's|^\./||' | \
+          # Remove any duplicate `/`, e.g. `//` -> `/`
+          sed -E 's|/+|/|g' | \
+          # Remove any trailing `/`
+          sed 's:/*$::' | \
+          # Sort and return only duplicate entries
+          sort | uniq -d > /tmp/duplicate_codeowners.txt
+        if [ -s /tmp/duplicate_codeowners.txt ]; then
+            echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
+            cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
+            echo ""
+            echo "Each file pattern should only be listed once to ensure clear ownership."
+            echo "Normalization applied: removed trailing slashes, leading './', and collapsed multiple slashes."
+            echo "Please remove duplicates from .github/CODEOWNERS."
+            exit 1
+        fi
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - export CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
+    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
+    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      if [ ! -z "$CHANGED_FILES" ]; then
-        ./codeowners "$CHANGED_FILES"
+      > /tmp/changed_files.txt
+      while IFS= read -r f; do
+        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
+      done < /tmp/changed_all.txt
+    - |
+      if [ -s /tmp/changed_files.txt ]; then
         echo '```' > codeowners.txt
-        echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
+        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - |

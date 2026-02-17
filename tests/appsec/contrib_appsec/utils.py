@@ -2,10 +2,7 @@ import itertools
 import json
 import sys
 from typing import Any
-from typing import Dict
 from typing import Generator
-from typing import List
-from typing import Tuple
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -51,17 +48,17 @@ class Interface:
         self.name: str = name
         self.framework = framework
         self.client = client
-        self.version: Tuple[int, ...] = ()
+        self.version: tuple[int, ...] = ()
 
     def __repr__(self):
         return f"Interface({self.name}[{self.version}] Python[{sys.version}])"
 
 
-def payload_to_xml(payload: Dict[str, str]) -> str:
+def payload_to_xml(payload: dict[str, str]) -> str:
     return "".join(f"<{k}>{v}</{k}>" for k, v in payload.items())
 
 
-def payload_to_plain_text(payload: Dict[str, str]) -> str:
+def payload_to_plain_text(payload: dict[str, str]) -> str:
     return "\n".join(f"{k}={v}" for k, v in payload.items())
 
 
@@ -89,7 +86,7 @@ class Contrib_TestClass_For_Threats:
     def status(self, response) -> int:
         raise NotImplementedError
 
-    def headers(self, response) -> Dict[str, str]:
+    def headers(self, response) -> dict[str, str]:
         raise NotImplementedError
 
     def location(self, response) -> str:
@@ -118,7 +115,7 @@ class Contrib_TestClass_For_Threats:
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
         return triggers[0].get("security_response_id", None)
 
-    def check_rules_triggered(self, rule_id: List[str], entry_span):
+    def check_rules_triggered(self, rule_id: list[str], entry_span):
         triggers = get_triggers(entry_span())
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
@@ -305,7 +302,7 @@ class Contrib_TestClass_For_Threats:
     def test_truncation_tags(self, interface: Interface, get_entry_span_metric):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
-            body: Dict[str, Any] = {"val": "x" * 5000}
+            body: dict[str, Any] = {"val": "x" * 5000}
             body.update({f"a_{i}": i for i in range(517)})
             response = interface.client.post(
                 "/asm/",
@@ -338,7 +335,7 @@ class Contrib_TestClass_For_Threats:
             ) as mocked,
         ):
             self.update_tracer(interface)
-            body: Dict[str, Any] = {"val": "x" * 5000}
+            body: dict[str, Any] = {"val": "x" * 5000}
             body.update({f"a_{i}": i for i in range(517)})
             response = interface.client.post(
                 "/asm/",
@@ -1667,7 +1664,20 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("ep_enabled", [True, False])
     @pytest.mark.parametrize(
         ["endpoint", "parameters", "rule", "top_functions"],
-        [("lfi", {"filename1": "/etc/passwd", "filename2": "/etc/master.passwd"}, "rasp-930-100", ("rasp",))]
+        [
+            (
+                "lfi",
+                {"filename1": "/etc/passwd", "filename2": "/etc/master.passwd"},
+                "rasp-930-100",
+                ("rasp",),
+            ),
+            (
+                "lfi",
+                {"filename_pathlib1": "/etc/passwd", "filename_pathlib2": "/etc/master.passwd"},
+                "rasp-930-100",
+                ("rasp",),
+            ),
+        ]
         + [
             ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(

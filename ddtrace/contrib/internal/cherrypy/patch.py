@@ -4,7 +4,6 @@ Datadog trace code for cherrypy.
 
 import logging
 import os
-from typing import Dict
 
 import cherrypy
 from cherrypy.lib.httputil import valid_status
@@ -19,7 +18,9 @@ from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.vendor.debtcollector import deprecate
 
 
 log = logging.getLogger(__name__)
@@ -34,12 +35,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(cherrypy, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"cherrypy": ">=17.0.0"}
 
 
@@ -47,9 +47,8 @@ SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direct
 
 
 class TraceTool(cherrypy.Tool):
-    def __init__(self, app, tracer, service, use_distributed_tracing=None):
+    def __init__(self, app, service, use_distributed_tracing=None):
         self.app = app
-        self._tracer = tracer
         self.service = service
         if use_distributed_tracing is not None:
             self.use_distributed_tracing = use_distributed_tracing
@@ -86,7 +85,6 @@ class TraceTool(cherrypy.Tool):
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, config.cherrypy, default="cherrypy"),
             tags={},
-            tracer=self._tracer,
             distributed_headers=cherrypy.request.headers,
             integration_config=config.cherrypy,
             activate_distributed_headers=True,
@@ -163,7 +161,13 @@ class TraceTool(cherrypy.Tool):
 
 
 class TraceMiddleware(object):
-    def __init__(self, app, tracer, service="cherrypy", distributed_tracing=None):
+    def __init__(self, app, tracer=None, service="cherrypy", distributed_tracing=None):
         self.app = app
-
-        self.app.tools.tracer = TraceTool(app, tracer, service, distributed_tracing)
+        if tracer is not None:
+            deprecate(
+                "The tracer parameter is deprecated",
+                message="The global tracer will be used instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="5.0.0",
+            )
+        self.app.tools.tracer = TraceTool(app, service, distributed_tracing)

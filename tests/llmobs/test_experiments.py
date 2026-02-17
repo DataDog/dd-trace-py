@@ -15,7 +15,6 @@ import re
 import tempfile
 import time
 from typing import Generator
-from typing import List
 from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
@@ -89,7 +88,7 @@ def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _Ex
 
 
 @pytest.fixture
-def test_dataset_records() -> List[DatasetRecord]:
+def test_dataset_records() -> list[DatasetRecord]:
     return []
 
 
@@ -1929,3 +1928,150 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert f"run_iteration:{i + 1}" in event["tags"]
         assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
         assert event["_dd"]["scope"] == "experiments"
+
+
+def test_evaluators_run_with_jobs_parameter(llmobs, test_dataset_one_record):
+    """Test that evaluators can run with jobs > 1."""
+
+    def eval_1(input_data, output_data, expected_output):
+        return 1
+
+    def eval_2(input_data, output_data, expected_output):
+        return 2
+
+    def eval_3(input_data, output_data, expected_output):
+        return 3
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [eval_1, eval_2, eval_3],
+    )
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+
+    # Run with jobs=3 - should complete successfully
+    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=3)
+
+    assert len(eval_results) == 1
+    assert eval_results[0]["evaluations"]["eval_1"]["value"] == 1
+    assert eval_results[0]["evaluations"]["eval_1"]["error"] is None
+    assert eval_results[0]["evaluations"]["eval_2"]["value"] == 2
+    assert eval_results[0]["evaluations"]["eval_2"]["error"] is None
+    assert eval_results[0]["evaluations"]["eval_3"]["value"] == 3
+    assert eval_results[0]["evaluations"]["eval_3"]["error"] is None
+
+
+def test_evaluators_with_errors_concurrent(llmobs, test_dataset_one_record):
+    """Test that errors in one evaluator don't block others when running concurrently."""
+
+    def failing_evaluator(input_data, output_data, expected_output):
+        raise ValueError("Test error")
+
+    def successful_evaluator(input_data, output_data, expected_output):
+        return 100
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [failing_evaluator, successful_evaluator],
+    )
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+
+    # Run with jobs=2 - failing evaluator shouldn't block the successful one
+    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=2)
+
+    assert len(eval_results) == 1
+    evals_dict = eval_results[0]["evaluations"]
+
+    # Failing evaluator has error
+    assert evals_dict["failing_evaluator"]["error"] is not None
+    assert "Test error" in evals_dict["failing_evaluator"]["error"]["message"]
+    assert evals_dict["failing_evaluator"]["value"] is None
+
+    # Successful evaluator completed
+    assert evals_dict["successful_evaluator"]["value"] == 100
+    assert evals_dict["successful_evaluator"]["error"] is None
+
+
+def test_summary_evaluators_run_concurrently(llmobs, test_dataset_one_record):
+    """Test that summary evaluators can run with jobs > 1."""
+
+    def summary_eval_1(inputs, outputs, expected_outputs, evaluators_results):
+        return 10
+
+    def summary_eval_2(inputs, outputs, expected_outputs, evaluators_results):
+        return 20
+
+    def summary_eval_3(inputs, outputs, expected_outputs, evaluators_results):
+        return 30
+
+    def simple_evaluator(input_data, output_data, expected_output):
+        return 1
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [simple_evaluator],
+        summary_evaluators=[summary_eval_1, summary_eval_2, summary_eval_3],
+    )
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=1)
+
+    # Run with jobs=3 - should complete successfully
+    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False, jobs=3)
+
+    # Verify all summary evaluators completed
+    assert len(summary_eval_results) == 3
+    summary_evals_dict = {}
+    for eval_result in summary_eval_results:
+        summary_evals_dict.update(eval_result["evaluations"])
+
+    assert summary_evals_dict["summary_eval_1"]["value"] == 10
+    assert summary_evals_dict["summary_eval_1"]["error"] is None
+    assert summary_evals_dict["summary_eval_2"]["value"] == 20
+    assert summary_evals_dict["summary_eval_2"]["error"] is None
+    assert summary_evals_dict["summary_eval_3"]["value"] == 30
+    assert summary_evals_dict["summary_eval_3"]["error"] is None
+
+
+def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_record):
+    """Test that errors in one summary evaluator don't block others when running concurrently."""
+
+    def failing_summary_evaluator(inputs, outputs, expected_outputs, evaluators_results):
+        raise ValueError("Test error")
+
+    def successful_summary_evaluator(inputs, outputs, expected_outputs, evaluators_results):
+        return 100
+
+    def simple_evaluator(input_data, output_data, expected_output):
+        return 1
+
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [simple_evaluator],
+        summary_evaluators=[failing_summary_evaluator, successful_summary_evaluator],
+    )
+    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=1)
+
+    # Run with jobs=2 - failing evaluator shouldn't block the successful one
+    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False, jobs=2)
+
+    assert len(summary_eval_results) == 2
+    summary_evals_dict = {}
+    for eval_result in summary_eval_results:
+        summary_evals_dict.update(eval_result["evaluations"])
+
+    # Failing evaluator has error
+    assert summary_evals_dict["failing_summary_evaluator"]["error"] is not None
+    assert "Test error" in summary_evals_dict["failing_summary_evaluator"]["error"]["message"]
+    assert summary_evals_dict["failing_summary_evaluator"]["value"] is None
+
+    # Successful evaluator completed
+    assert summary_evals_dict["successful_summary_evaluator"]["value"] == 100
+    assert summary_evals_dict["successful_summary_evaluator"]["error"] is None

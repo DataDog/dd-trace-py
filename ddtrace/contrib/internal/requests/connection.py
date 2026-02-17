@@ -1,11 +1,9 @@
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
 import requests
 
-import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -23,6 +21,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -39,8 +38,7 @@ def is_otlp_export(request: requests.models.Request) -> bool:
     return False
 
 
-def _extract_hostname_and_path(uri):
-    # type: (str) -> str
+def _extract_hostname_and_path(uri: str) -> str:
     parsed_uri = parse.urlparse(uri)
     hostname = parsed_uri.hostname
     try:
@@ -52,8 +50,7 @@ def _extract_hostname_and_path(uri):
     return hostname, parsed_uri.path
 
 
-def _extract_query_string(uri):
-    # type: (str) -> Optional[str]
+def _extract_query_string(uri: str) -> Optional[str]:
     start = uri.find("?") + 1
     if start == 0:
         return None
@@ -71,12 +68,6 @@ def _extract_query_string(uri):
 
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
-    # TODO[manu]: we already offer a way to provide the Global Tracer
-    # and is ddtrace.tracer; it's used only inside our tests and can
-    # be easily changed by providing a TracingTestCase that sets common
-    # tracing functionalities.
-    tracer = getattr(instance, "datadog_tracer", ddtrace.tracer)
-
     # skip if tracing is not enabled
     if not tracer.enabled and not asm_config._apm_opt_out:
         return func(*args, **kwargs)
@@ -92,7 +83,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg: Dict[str, Any] = {}
+    cfg: dict[str, Any] = {}
     pin = Pin.get_from(instance)
     if pin:
         cfg = pin._config

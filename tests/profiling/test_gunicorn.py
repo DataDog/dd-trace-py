@@ -100,7 +100,7 @@ def _test_gunicorn(
         assert proc.stdout is not None
         output = proc.stdout.read().decode()
         print(output)
-        pytest.fail("Failed to make request to gunicorn server %s" % e)
+        pytest.fail(f"Failed to make request to gunicorn server {e}")
     finally:
         # Need to terminate the process to get the output and release the port
         proc.terminate()
@@ -109,7 +109,7 @@ def _test_gunicorn(
     assert proc.stdout is not None
     output = proc.stdout.read().decode()
     worker_pids = _get_worker_pids(output)
-    debug_print("Gunicorn worker PIDs: %s" % worker_pids)
+    debug_print(f"Gunicorn worker PIDs: {worker_pids}")
 
     for line in output.splitlines():
         debug_print(line)
@@ -124,8 +124,8 @@ def _test_gunicorn(
     assert "module 'threading' has no attribute '_active'" not in output, output
 
     for pid in worker_pids:
-        debug_print("Reading pprof file with prefix %s.%d" % (filename, pid))
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
+        debug_print(f"Reading pprof file with prefix {filename}.{pid}")
+        profile = pprof_utils.parse_newest_profile(f"{filename}.{pid}", allow_penultimate=True)
         # This returns a list of samples that have non-zero cpu-time
         samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
         assert len(samples) > 0
@@ -134,7 +134,7 @@ def _test_gunicorn(
         # when run on GitLab CI. We need to match either of these two.
         filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
 
-        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=12)
+        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=9)
 
         pprof_utils.assert_profile_has_sample(
             profile,

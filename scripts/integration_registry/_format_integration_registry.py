@@ -4,7 +4,6 @@ Script to format the integration registry YAML file to have blank lines between 
 
 import pathlib
 import sys
-from typing import List
 from typing import Optional
 
 
@@ -17,7 +16,7 @@ REGISTRY_YAML_PATH = ROOT_DIR / "ddtrace" / "contrib" / "integration_registry" /
 INTEGRATION_START_KEY = "- integration_name:"
 
 
-def _read_file_lines(filepath: pathlib.Path) -> Optional[List[str]]:
+def _read_file_lines(filepath: pathlib.Path) -> Optional[list[str]]:
     """Reads all lines from the file, handling potential errors."""
     try:
         with open(filepath, "r", encoding="utf-8") as infile:
@@ -27,7 +26,7 @@ def _read_file_lines(filepath: pathlib.Path) -> Optional[List[str]]:
         return None
 
 
-def _process_lines_for_formatting(input_lines: List[str]) -> List[str]:
+def _process_lines_for_formatting(input_lines: list[str]) -> list[str]:
     """Adds blank lines between top-level integration list items."""
     output_lines = []
     found_first_integration = False
@@ -46,7 +45,7 @@ def _process_lines_for_formatting(input_lines: List[str]) -> List[str]:
     return output_lines
 
 
-def _write_file_lines(filepath: pathlib.Path, output_lines: List[str]) -> bool:
+def _write_file_lines(filepath: pathlib.Path, output_lines: list[str]) -> bool:
     """Writes lines back to a file, handling potential errors."""
     try:
         with open(filepath, "w", encoding="utf-8") as outfile:

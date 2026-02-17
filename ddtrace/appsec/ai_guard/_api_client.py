@@ -3,15 +3,12 @@
 from copy import deepcopy
 import json
 from typing import Any
-from typing import List
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
 from typing import Union
 
 from ddtrace import config
-from ddtrace import tracer as ddtracer
-from ddtrace._trace.tracer import Tracer
 from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
@@ -20,6 +17,7 @@ from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.trace import tracer
 from ddtrace.version import __version__
 
 
@@ -53,15 +51,15 @@ class ContentPart(TypedDict, total=False):
 
 class Message(TypedDict, total=False):
     role: str
-    content: Union[str, List[ContentPart]]
+    content: Union[str, list[ContentPart]]
     tool_call_id: str
-    tool_calls: List[ToolCall]
+    tool_calls: list[ToolCall]
 
 
 class Evaluation(TypedDict):
     action: Literal["ALLOW", "DENY", "ABORT"]
     reason: str
-    tags: List[str]
+    tags: list[str]
 
 
 class Options(TypedDict, total=False):
@@ -78,7 +76,7 @@ class Error(TypedDict, total=False):
 class AIGuardClientError(Exception):
     """Exception for AI Guard client errors."""
 
-    def __init__(self, message: Optional[str], status: int = 0, errors: Optional[List[Error]] = None):
+    def __init__(self, message: Optional[str], status: int = 0, errors: Optional[list[Error]] = None):
         self.status = status
         self.errors = errors or []
         super().__init__(message)
@@ -87,7 +85,7 @@ class AIGuardClientError(Exception):
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
 
-    def __init__(self, action: str, reason: str, tags: Optional[List[str]] = None):
+    def __init__(self, action: str, reason: str, tags: Optional[list[str]] = None):
         self.action = action
         self.reason = reason
         self.tags = tags
@@ -97,17 +95,14 @@ class AIGuardAbortError(Exception):
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
-    def __init__(self, endpoint: str, api_key: str, app_key: str, tracer: Tracer):
+    def __init__(self, endpoint: str, api_key: str, app_key: str):
         """Initialize AI Guard client.
 
         Args:
             endpoint: AI Guard service endpoint URL
             api_key: Datadog API key
             app_key: Datadog application key
-            tracer: Datadog tracer instance
         """
-
-        self._tracer = tracer
         self._endpoint = endpoint
         self._headers = {
             "Content-Type": "application/json",
@@ -125,7 +120,7 @@ class AIGuardClient:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _messages_for_meta_struct(messages: List[Message]) -> List[Message]:
+    def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
         max_messages_length = ai_guard_config._ai_guard_max_messages_length
         if len(messages) > max_messages_length:
             telemetry.telemetry_writer.add_count_metric(
@@ -146,7 +141,7 @@ class AIGuardClient:
                     new_message["content"] = content[:max_content_size]
                     content_truncated = True
             elif isinstance(content, list):
-                # Handle List[ContentPart] - truncate text in content parts
+                # Handle list[ContentPart] - truncate text in content parts
                 for part in content:
                     if isinstance(part, dict) and "text" in part:
                         text = part.get("text", "")
@@ -173,7 +168,7 @@ class AIGuardClient:
         return bool(tool_call_id and len(tool_call_id) > 0)
 
     @staticmethod
-    def _get_tool_name(message: Message, messages: List[Message]) -> Optional[str]:
+    def _get_tool_name(message: Message, messages: list[Message]) -> Optional[str]:
         # assistant message with tool calls
         if AIGuardClient._has_tool_calls(message):
             tool_calls = message.get("tool_calls", [])
@@ -208,11 +203,11 @@ class AIGuardClient:
             return False
         return options.get("block", False)
 
-    def evaluate(self, messages: List[Message], options: Optional[Options] = None) -> Evaluation:
+    def evaluate(self, messages: list[Message], options: Optional[Options] = None) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
         Args:
-            messages: List of messages to evaluate
+            messages: list of messages to evaluate
             options: Optional configuration with 'block' parameter (defaults to False)
 
         Returns:
@@ -225,7 +220,7 @@ class AIGuardClient:
         if not messages or len(messages) == 0:
             raise ValueError("Messages must not be empty")
 
-        with self._tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
+        with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
                 last = messages[-1]
@@ -313,7 +308,6 @@ class AIGuardClient:
 
 def new_ai_guard_client(
     endpoint: Optional[str] = None,
-    tracer: Tracer = ddtracer,
 ) -> AIGuardClient:
     api_key = config._dd_api_key
     app_key = config._dd_app_key
@@ -326,4 +320,4 @@ def new_ai_guard_client(
         site = f"app.{config._dd_site}" if config._dd_site.count(".") == 1 else config._dd_site
         endpoint = f"https://{site}/api/v2/ai-guard"
 
-    return AIGuardClient(endpoint, api_key, app_key, tracer)
+    return AIGuardClient(endpoint, api_key, app_key)

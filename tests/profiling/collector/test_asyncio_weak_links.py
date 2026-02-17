@@ -1,6 +1,14 @@
+import os
+
 import pytest
 
 
+# Skip this test when using uvloop - the weak link feature relies on asyncio internals
+# that uvloop doesn't expose the same way
+@pytest.mark.skipif(
+    os.environ.get("USE_UVLOOP", "0") == "1",
+    reason="uvloop does not support weak link detection the same way as asyncio",
+)
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_weak_links",
@@ -15,6 +23,7 @@ def test_asyncio_weak_links_wall_time() -> None:
     from ddtrace.internal.datadog.profiling import stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_utils import async_run
 
     assert stack.is_available, stack.failure_msg
 
@@ -43,7 +52,7 @@ def test_asyncio_weak_links_wall_time() -> None:
     p = profiler.Profiler()
     p.start()
 
-    asyncio.run(main())
+    async_run(main())
 
     p.stop()
 
@@ -78,6 +87,7 @@ def test_asyncio_weak_links_wall_time() -> None:
                 # loc("Task-1"),
             ],
         ),
+        print_samples_on_failure=True,
     )
 
     # We should see a stack for Task-1 / parent / Task-awaited / awaited / sleep
@@ -96,4 +106,5 @@ def test_asyncio_weak_links_wall_time() -> None:
                 # loc("Task-1"),
             ],
         ),
+        print_samples_on_failure=True,
     )
