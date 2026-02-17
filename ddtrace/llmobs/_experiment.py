@@ -323,13 +323,13 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     """
     return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deep_eval_evaluator(evaluator)
 
-def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric) -> Callable[[Dict[str, Any], Any, Optional[JSONType]], EvaluatorResult]:
+def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric) -> Callable[[dict[str, Any], Any, Optional[JSONType]], EvaluatorResult]:
     """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
     
     :param evaluator: The deep eval evaluator to run
     :return: A callable function that can be used as an evaluator
     """
-    def wrapped_evaluator(input_data: Dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
+    def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
         """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
         
         :param input_data: The input data
