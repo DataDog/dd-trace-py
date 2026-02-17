@@ -6,7 +6,6 @@ import typing as t
 from ddtrace.ext.ci import github_actions
 from ddtrace.testing.internal import git
 from ddtrace.testing.internal.git import GitTag
-from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
 log = logging.getLogger(__name__)
@@ -271,21 +270,7 @@ def extract_codefresh(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[s
 @register_provider("GITHUB_SHA")
 def extract_github_actions(env: t.MutableMapping[str, str]) -> dict[str, t.Optional[str]]:
     """Extract CI tags from Github Actions environment."""
-    return github_actions.extract_github_actions(
-        env,
-        _ci_env_vars_tag=CITag._CI_ENV_VARS,
-        _filter_sensitive_info=_filter_sensitive_info,
-        git_module=GitTag,
-        job_id_tag=CITag.JOB_ID,
-        job_name_tag=CITag.JOB_NAME,
-        job_url_tag=CITag.JOB_URL,
-        pipeline_id_tag=CITag.PIPELINE_ID,
-        pipeline_name_tag=CITag.PIPELINE_NAME,
-        pipeline_number_tag=CITag.PIPELINE_NUMBER,
-        pipeline_url_tag=CITag.PIPELINE_URL,
-        provider_name_tag=CITag.PROVIDER_NAME,
-        workspace_path_tag=CITag.WORKSPACE_PATH,
-    )
+    return github_actions.extract_github_actions(env)
 
 
 @register_provider("GITLAB_CI")

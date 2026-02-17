@@ -344,21 +344,7 @@ def extract_codefresh(env: MutableMapping[str, str]) -> dict[str, Optional[str]]
 
 def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Github Actions environment."""
-    return github_actions.extract_github_actions(
-        env,
-        _ci_env_vars_tag=_CI_ENV_VARS,
-        _filter_sensitive_info=_filter_sensitive_info,
-        git_module=git,
-        job_id_tag=JOB_ID,
-        job_name_tag=JOB_NAME,
-        job_url_tag=JOB_URL,
-        pipeline_id_tag=PIPELINE_ID,
-        pipeline_name_tag=PIPELINE_NAME,
-        pipeline_number_tag=PIPELINE_NUMBER,
-        pipeline_url_tag=PIPELINE_URL,
-        provider_name_tag=PROVIDER_NAME,
-        workspace_path_tag=WORKSPACE_PATH,
-    )
+    return github_actions.extract_github_actions(env)
 
 
 def extract_gitlab(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:

@@ -26,24 +26,33 @@ import json
 import os
 import platform
 import re
-from typing import Callable
 from typing import MutableMapping
 from typing import Optional
-from typing import Protocol
 
+from ddtrace.ext import git
 from ddtrace.internal.logger import get_logger
 
 
-class _GitModuleLike(Protocol):
-    """Protocol for the git module passed from ddtrace.ext.ci (ddtrace.ext.git)."""
-
-    BRANCH: str
-    COMMIT_SHA: str
-    REPOSITORY_URL: str
-    COMMIT_HEAD_SHA: str
-
-
 log = get_logger(__name__)
+
+# CI tag constants (string literals matching ddtrace.ext.ci constants)
+_JOB_ID = "ci.job.id"
+_JOB_NAME = "ci.job.name"
+_JOB_URL = "ci.job.url"
+_PIPELINE_ID = "ci.pipeline.id"
+_PIPELINE_NAME = "ci.pipeline.name"
+_PIPELINE_NUMBER = "ci.pipeline.number"
+_PIPELINE_URL = "ci.pipeline.url"
+_PROVIDER_NAME = "ci.provider.name"
+_WORKSPACE_PATH = "ci.workspace_path"
+_CI_ENV_VARS = "_dd.ci.env_vars"
+
+# Regex to strip credentials from URLs
+_RE_URL = re.compile(r"(https?://|ssh://)[^/]*@")
+
+
+def _filter_sensitive_info(url: Optional[str]) -> Optional[str]:
+    return _RE_URL.sub("\\1", url) if url is not None else None
 
 
 # GitHub Actions job ID resolution constants
@@ -241,27 +250,12 @@ def _get_job_id(env: MutableMapping[str, str]) -> Optional[str]:
     return None
 
 
-def extract_github_actions(
-    env: MutableMapping[str, str],
-    _ci_env_vars_tag: str,
-    _filter_sensitive_info: Callable[[Optional[str]], Optional[str]],
-    git_module: _GitModuleLike,
-    job_id_tag: str,
-    job_name_tag: str,
-    job_url_tag: str,
-    pipeline_id_tag: str,
-    pipeline_name_tag: str,
-    pipeline_number_tag: str,
-    pipeline_url_tag: str,
-    provider_name_tag: str,
-    workspace_path_tag: str,
-) -> dict[str, Optional[str]]:
+def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:
     """Extract CI tags from Github Actions environment."""
     github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
     github_repository = env.get("GITHUB_REPOSITORY")
     git_commit_sha = env.get("GITHUB_SHA")
     github_run_id = env.get("GITHUB_RUN_ID")
-    github_job_id = env.get(JOB_CHECK_RUN_ID_ENV)
     run_attempt = env.get("GITHUB_RUN_ATTEMPT")
 
     pipeline_url = "{0}/{1}/actions/runs/{2}".format(
@@ -306,18 +300,18 @@ def extract_github_actions(
         log.debug("GitHub Actions job URL with numeric job ID: %s", job_url)
 
     return {
-        git_module.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
-        git_module.COMMIT_SHA: git_commit_sha,
-        git_module.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
-        git_module.COMMIT_HEAD_SHA: git_commit_head_sha,
-        job_id_tag: github_job_id,
-        job_url_tag: job_url,
-        pipeline_id_tag: github_run_id,
-        pipeline_name_tag: env.get("GITHUB_WORKFLOW"),
-        pipeline_number_tag: env.get("GITHUB_RUN_NUMBER"),
-        pipeline_url_tag: pipeline_url,
-        job_name_tag: job_name,
-        provider_name_tag: "github",
-        workspace_path_tag: env.get("GITHUB_WORKSPACE"),
-        _ci_env_vars_tag: json.dumps(env_vars, separators=(",", ":")),
+        git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
+        git.COMMIT_SHA: git_commit_sha,
+        git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
+        git.COMMIT_HEAD_SHA: git_commit_head_sha,
+        _JOB_ID: github_job_id,
+        _JOB_URL: job_url,
+        _PIPELINE_ID: github_run_id,
+        _PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
+        _PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
+        _PIPELINE_URL: pipeline_url,
+        _JOB_NAME: job_name,
+        _PROVIDER_NAME: "github",
+        _WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
+        _CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
