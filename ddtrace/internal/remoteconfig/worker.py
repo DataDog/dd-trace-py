@@ -135,19 +135,22 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         return self._client.update_product_callback(product, callback)
 
-    def register(
+    def register_callback(
         self,
         product: str,
         callback: RCCallback,
         skip_enabled: bool = False,
         capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
-        """Register a product with a callback for remote configuration updates.
+        """Register a product callback for remote configuration updates.
+
+        Registration only registers the callback and capabilities. To include the
+        product in client payloads (enable it), call enable_product() separately.
 
         Args:
             product: Product name (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
             callback: Callback function to invoke when payloads are received in child processes
-            skip_enabled: If True, skip enabling the remote config client
+            skip_enabled: If True, skip enabling the remote config client (deprecated, use enable() separately)
             capabilities: list of capabilities to register for this product
         """
         try:
@@ -156,7 +159,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             if not skip_enabled:
                 self.enable()
 
-            self._client.register_product(product, callback)
+            self._client.register_callback(product, callback)
 
             # Check for potential conflicts in capabilities
             for capability in capabilities:
@@ -178,7 +181,39 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
-    def unregister(self, product):
+    def enable_product(self, product: str) -> None:
+        """Enable a product to be included in client payloads.
+
+        When a product is enabled, it will be added to the 'products' list
+        in payloads sent to the agent, indicating that this client wants
+        to receive configurations for this product.
+
+        Args:
+            product: Product name to enable
+        """
+        self._client.enable_product(product)
+
+    def disable_product(self, product: str) -> None:
+        """Disable a product, removing it from client payloads.
+
+        The product's callback remains registered and can still receive
+        configurations, but the client will not request configurations
+        for this product from the agent.
+
+        Args:
+            product: Product name to disable
+        """
+        self._client.disable_product(product)
+
+    def unregister_callback(self, product):
+        """Unregister a product callback.
+
+        This removes the callback but does not disable the product. To also
+        disable the product, call disable_product() separately.
+
+        Args:
+            product: Product name to unregister
+        """
         if rc_config.skip_shutdown:
             # If we are asked to skip shutdown, then we likely don't want to
             # unregister any of the products, because this is generally done
