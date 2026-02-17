@@ -78,10 +78,6 @@ class JobSpec:
         # Set needs based on runner type
         lines.append("  needs:")
         lines.append("    - prechecks")
-        # Inherit NIGHTLY_BUILD (and other vars) from parent pipeline's tests-gen via dotenv
-        lines.append("    - pipeline: $PARENT_PIPELINE_ID")
-        lines.append("      job: tests-gen")
-        lines.append("      artifacts: true")
         if self.runner == "riot":
             # Riot jobs need build_base_venvs artifacts
             lines.append("    - job: build_base_venvs")
@@ -102,9 +98,13 @@ class JobSpec:
         if self.snapshot:
             wait_for.add("testagent")
 
+        # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
+        # so the value is set when tests-gen runs and is present in the child job.
+        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
+        lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
@@ -116,7 +116,7 @@ class JobSpec:
 
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        env["NIGHTLY_BUILD"] = os.getenv("NIGHTLY_BUILD", "false")
+        env["NIGHTLY_BUILD"] = _nightly_build
         if self.runner == "riot":
             env["PIP_CACHE_KEY"] = (
                 subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
@@ -542,7 +542,13 @@ def gen_build_base_venvs() -> None:
     on the cached testrunner job, which is also generated dynamically.
     """
     with TESTS_GEN.open("a") as f:
-        f.write(template("build-base-venvs", unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false"))
+        f.write(
+            template(
+                "build-base-venvs",
+                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
+                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+            )
+        )
 
 
 def gen_debugger_exploration() -> None:

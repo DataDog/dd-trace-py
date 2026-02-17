@@ -71,9 +71,6 @@ tests-gen:
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
       echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
-      # Dotenv for child pipeline: pass NIGHTLY_BUILD so test jobs inherit it via needs
-      echo "NIGHTLY_BUILD=${NIGHTLY_BUILD:-false}" >> nightly.env
-    - |
       if [ -z ${GH_TOKEN} ]
       then
         # Use dd-octo-sts to get GitHub token
@@ -86,8 +83,6 @@ tests-gen:
       - .gitlab/tests-gen.yml
       - .gitlab/benchmarks/microbenchmarks-gen.yml
       - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
-    reports:
-      dotenv: nightly.env
 
 run-tests-trigger:
  stage: tests
@@ -95,8 +90,6 @@ run-tests-trigger:
  variables:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
-   # Child pipeline needs this to fetch dotenv from parent's tests-gen
-   PARENT_PIPELINE_ID: $CI_PIPELINE_ID
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
