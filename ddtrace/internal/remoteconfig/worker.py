@@ -27,7 +27,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     _enable = True
 
-    def __init__(self):
+    def __init__(self) -> None:
         super(RemoteConfigPoller, self).__init__(
             interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False
         )
