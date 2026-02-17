@@ -3571,7 +3571,6 @@ venv = Venv(
             command="pytest --no-cov {cmdargs} -c /dev/null --no-ddtrace tests/contrib/selenium",
             env={
                 "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
