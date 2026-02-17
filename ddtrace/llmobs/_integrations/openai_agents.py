@@ -45,10 +45,10 @@ logger = get_logger(__name__)
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
 
-    def __init__(self, integration_config):
+    def __init__(self, integration_config: Any) -> None:
         super().__init__(integration_config)
         # a map of openai span ids to the corresponding llm obs span
-        self.oai_to_llmobs_span: dict[str, Span] = weakref.WeakValueDictionary()
+        self.oai_to_llmobs_span: weakref.WeakValueDictionary[str, Span] = weakref.WeakValueDictionary()
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: dict[str, LLMObsTraceInfo] = {}
