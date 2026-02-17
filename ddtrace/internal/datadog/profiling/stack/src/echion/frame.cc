@@ -14,6 +14,640 @@
 #endif // PY_VERSION_HEX >= 0x030e0000
 #endif // PY_VERSION_HEX >= 0x030b0000
 
+#if PY_VERSION_HEX >= 0x030b0000
+#if PY_VERSION_HEX >= 0x030d0000
+#include <opcode.h>
+#else
+#include <internal/pycore_opcode.h>
+#endif
+#else
+// Python < 3.11
+#include <opcode.h>
+#endif
+
+// ----------------------------------------------------------------------------
+// Check if an opcode is a CALL to a C/builtin function
+// In Python 3.11+, opcodes are specialized at runtime, so we check for
+// specialized PRECALL_BUILTIN_* variants that indicate a C function call
+static inline bool
+is_call_opcode([[maybe_unused]] uint8_t opcode)
+{
+#if PY_VERSION_HEX >= 0x030d0000
+    // Python 3.13+: Check for call opcodes that may invoke C/native code.
+    // We include the generic CALL opcode (used before specialization) and rely on
+    // the stack.empty() check in unwind_frame to filter out calls to Python functions
+    // (which push their own frame onto the stack).
+    return opcode == CALL || opcode == CALL_FUNCTION_EX || opcode == CALL_KW ||
+           // Specialized C/builtin call opcodes
+           opcode == CALL_BUILTIN_CLASS || opcode == CALL_BUILTIN_FAST || opcode == CALL_BUILTIN_FAST_WITH_KEYWORDS ||
+           opcode == CALL_BUILTIN_O || opcode == CALL_NON_PY_GENERAL ||
+           // C method descriptor opcodes
+           opcode == CALL_METHOD_DESCRIPTOR_O || opcode == CALL_METHOD_DESCRIPTOR_FAST ||
+           opcode == CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS || opcode == CALL_METHOD_DESCRIPTOR_NOARGS ||
+           // Built-in function specializations
+           opcode == CALL_ISINSTANCE || opcode == CALL_LEN || opcode == CALL_LIST_APPEND || opcode == CALL_STR_1 ||
+           opcode == CALL_TUPLE_1 ||
+           opcode == CALL_TYPE_1
+#if PY_VERSION_HEX >= 0x030e0000
+           // Python 3.14 added CALL_KW specializations
+           || opcode == CALL_KW_NON_PY
+#endif
+      ;
+#elif PY_VERSION_HEX >= 0x030c0000
+    // Python 3.12: CALL is specialized but no PRECALL
+    return opcode == CALL || opcode == CALL_FUNCTION_EX || opcode == CALL_BUILTIN_CLASS ||
+           opcode == CALL_BUILTIN_FAST_WITH_KEYWORDS || opcode == CALL_NO_KW_BUILTIN_FAST ||
+           opcode == CALL_NO_KW_BUILTIN_O || opcode == CALL_NO_KW_ISINSTANCE || opcode == CALL_NO_KW_LEN ||
+           opcode == CALL_NO_KW_LIST_APPEND || opcode == CALL_NO_KW_STR_1 || opcode == CALL_NO_KW_TUPLE_1 ||
+           opcode == CALL_NO_KW_TYPE_1;
+#elif PY_VERSION_HEX >= 0x030b0000
+    // Python 3.11: Check specialized PRECALL_BUILTIN_* variants and CALL
+    return opcode == CALL || opcode == PRECALL_BUILTIN_CLASS || opcode == PRECALL_BUILTIN_FAST_WITH_KEYWORDS ||
+           opcode == PRECALL_NO_KW_BUILTIN_FAST || opcode == PRECALL_NO_KW_BUILTIN_O ||
+           opcode == PRECALL_NO_KW_ISINSTANCE || opcode == PRECALL_NO_KW_LEN || opcode == PRECALL_NO_KW_LIST_APPEND ||
+           opcode == PRECALL_NO_KW_STR_1 || opcode == PRECALL_NO_KW_TUPLE_1 || opcode == PRECALL_NO_KW_TYPE_1 ||
+           opcode == CALL_FUNCTION_EX;
+#else
+    // Python 3.10 and earlier
+    return opcode == CALL_FUNCTION || opcode == CALL_FUNCTION_KW || opcode == CALL_FUNCTION_EX || opcode == CALL_METHOD;
+#endif
+}
+
+// ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030b0000
+// Check if an opcode is a LOAD_ATTR/LOAD_METHOD (preferred for method names)
+static inline bool
+is_load_attr_opcode(uint8_t opcode)
+{
+    if (opcode == LOAD_ATTR)
+        return true;
+#if PY_VERSION_HEX < 0x030c0000
+    // Python 3.11 specialized LOAD_ATTR variants
+    if (opcode == LOAD_ATTR_ADAPTIVE || opcode == LOAD_ATTR_INSTANCE_VALUE || opcode == LOAD_ATTR_MODULE ||
+        opcode == LOAD_ATTR_SLOT || opcode == LOAD_ATTR_WITH_HINT || opcode == LOAD_METHOD ||
+        opcode == LOAD_METHOD_ADAPTIVE || opcode == LOAD_METHOD_CLASS || opcode == LOAD_METHOD_MODULE ||
+        opcode == LOAD_METHOD_NO_DICT || opcode == LOAD_METHOD_WITH_DICT || opcode == LOAD_METHOD_WITH_VALUES)
+        return true;
+#else
+    // Python 3.12+ specialized LOAD_ATTR variants (LOAD_METHOD merged into LOAD_ATTR)
+    if (opcode == LOAD_ATTR_CLASS || opcode == LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN ||
+        opcode == LOAD_ATTR_INSTANCE_VALUE || opcode == LOAD_ATTR_MODULE || opcode == LOAD_ATTR_PROPERTY ||
+        opcode == LOAD_ATTR_SLOT || opcode == LOAD_ATTR_WITH_HINT || opcode == LOAD_ATTR_METHOD_LAZY_DICT ||
+        opcode == LOAD_ATTR_METHOD_NO_DICT || opcode == LOAD_ATTR_METHOD_WITH_VALUES)
+        return true;
+#endif
+    return false;
+}
+
+// Check if an opcode is a LOAD_GLOBAL/LOAD_NAME (fallback for function names)
+static inline bool
+is_load_global_opcode(uint8_t opcode)
+{
+#if PY_VERSION_HEX >= 0x030c0000
+    return opcode == LOAD_GLOBAL || opcode == LOAD_NAME || opcode == LOAD_GLOBAL_BUILTIN ||
+           opcode == LOAD_GLOBAL_MODULE;
+#elif PY_VERSION_HEX >= 0x030b0000
+    return opcode == LOAD_GLOBAL || opcode == LOAD_NAME || opcode == LOAD_GLOBAL_ADAPTIVE ||
+           opcode == LOAD_GLOBAL_BUILTIN || opcode == LOAD_GLOBAL_MODULE;
+#else
+    return opcode == LOAD_GLOBAL || opcode == LOAD_NAME;
+#endif
+}
+
+// Check if a LOAD_ATTR variant is a method load (pushes 2 values: self + method)
+[[maybe_unused]] static inline bool
+is_load_method_variant([[maybe_unused]] uint8_t opcode, [[maybe_unused]] uint8_t arg)
+{
+#if PY_VERSION_HEX >= 0x030c0000
+    // In Python 3.12+, LOAD_METHOD is merged into LOAD_ATTR with arg & 1 == 1
+    return (arg & 1) != 0;
+#else
+    // In Python 3.11, LOAD_METHOD is a separate opcode family
+    return opcode == LOAD_METHOD || opcode == LOAD_METHOD_ADAPTIVE || opcode == LOAD_METHOD_CLASS ||
+           opcode == LOAD_METHOD_MODULE || opcode == LOAD_METHOD_NO_DICT || opcode == LOAD_METHOD_WITH_DICT ||
+           opcode == LOAD_METHOD_WITH_VALUES;
+#endif
+}
+
+#if PY_VERSION_HEX >= 0x030d0000
+// Check if an opcode is a CALL_KW variant (consumes an extra kwnames tuple)
+[[maybe_unused]] static inline bool
+is_call_kw_opcode(uint8_t opcode)
+{
+    return opcode == CALL_KW
+#if PY_VERSION_HEX >= 0x030e0000
+           || opcode == CALL_KW_NON_PY || opcode == CALL_KW_PY || opcode == CALL_KW_BOUND_METHOD
+#endif
+      ;
+}
+#endif // PY_VERSION_HEX >= 0x030d0000
+
+#if PY_VERSION_HEX >= 0x030d0000
+// Superinstructions that push 2 values onto the stack
+[[maybe_unused]] static inline bool
+is_double_load_opcode(uint8_t opcode)
+{
+    return opcode == LOAD_FAST_LOAD_FAST
+#if PY_VERSION_HEX >= 0x030e0000
+           || opcode == LOAD_FAST_BORROW_LOAD_FAST_BORROW
+#endif
+      ;
+}
+
+// Check if an opcode is a BINARY_OP or BINARY_SUBSCR variant (consumes 2, produces 1)
+static inline bool
+is_binary_op_opcode(uint8_t opcode)
+{
+    return opcode == BINARY_OP || opcode == BINARY_OP_INPLACE_ADD_UNICODE || opcode == BINARY_OP_ADD_FLOAT ||
+           opcode == BINARY_OP_ADD_INT || opcode == BINARY_OP_ADD_UNICODE || opcode == BINARY_OP_MULTIPLY_FLOAT ||
+           opcode == BINARY_OP_MULTIPLY_INT || opcode == BINARY_OP_SUBTRACT_FLOAT ||
+           opcode == BINARY_OP_SUBTRACT_INT
+#if PY_VERSION_HEX >= 0x030e0000
+           // Python 3.14: BINARY_SUBSCR merged into BINARY_OP
+           || opcode == BINARY_OP_EXTEND || opcode == BINARY_OP_SUBSCR_DICT || opcode == BINARY_OP_SUBSCR_GETITEM ||
+           opcode == BINARY_OP_SUBSCR_LIST_INT || opcode == BINARY_OP_SUBSCR_LIST_SLICE ||
+           opcode == BINARY_OP_SUBSCR_STR_INT || opcode == BINARY_OP_SUBSCR_TUPLE_INT
+#else
+           // Python 3.13: BINARY_SUBSCR is a separate opcode family
+           || opcode == BINARY_SUBSCR || opcode == BINARY_SUBSCR_DICT || opcode == BINARY_SUBSCR_GETITEM ||
+           opcode == BINARY_SUBSCR_LIST_INT || opcode == BINARY_SUBSCR_STR_INT || opcode == BINARY_SUBSCR_TUPLE_INT
+#endif
+      ;
+}
+
+// Number of inline CACHE entries following each opcode.
+// Specialized opcodes inherit the cache count of their base opcode.
+// Used for forward-scanning bytecode to identify instruction boundaries.
+// clang-format off
+static inline int
+opcode_num_caches(uint8_t opcode)
+{
+    switch (opcode) {
+#if PY_VERSION_HEX >= 0x030e0000
+    // BINARY_OP family: 5 caches in 3.14 (includes subscript variants)
+    case BINARY_OP: case BINARY_OP_INPLACE_ADD_UNICODE:
+    case BINARY_OP_ADD_FLOAT: case BINARY_OP_ADD_INT: case BINARY_OP_ADD_UNICODE:
+    case BINARY_OP_EXTEND:
+    case BINARY_OP_MULTIPLY_FLOAT: case BINARY_OP_MULTIPLY_INT:
+    case BINARY_OP_SUBSCR_DICT: case BINARY_OP_SUBSCR_GETITEM:
+    case BINARY_OP_SUBSCR_LIST_INT: case BINARY_OP_SUBSCR_LIST_SLICE:
+    case BINARY_OP_SUBSCR_STR_INT: case BINARY_OP_SUBSCR_TUPLE_INT:
+    case BINARY_OP_SUBTRACT_FLOAT: case BINARY_OP_SUBTRACT_INT:
+        return 5;
+#else
+    // BINARY_OP family: 1 cache in 3.13
+    case BINARY_OP: case BINARY_OP_INPLACE_ADD_UNICODE:
+    case BINARY_OP_ADD_FLOAT: case BINARY_OP_ADD_INT: case BINARY_OP_ADD_UNICODE:
+    case BINARY_OP_MULTIPLY_FLOAT: case BINARY_OP_MULTIPLY_INT:
+    case BINARY_OP_SUBTRACT_FLOAT: case BINARY_OP_SUBTRACT_INT:
+    // BINARY_SUBSCR family: 1 cache in 3.13
+    case BINARY_SUBSCR:
+    case BINARY_SUBSCR_DICT: case BINARY_SUBSCR_GETITEM:
+    case BINARY_SUBSCR_LIST_INT: case BINARY_SUBSCR_STR_INT: case BINARY_SUBSCR_TUPLE_INT:
+        return 1;
+#endif
+    // LOAD_ATTR family: 9 caches
+    case LOAD_ATTR:
+    case LOAD_ATTR_CLASS:
+#if PY_VERSION_HEX >= 0x030e0000
+    case LOAD_ATTR_CLASS_WITH_METACLASS_CHECK:
+#endif
+    case LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN: case LOAD_ATTR_INSTANCE_VALUE:
+    case LOAD_ATTR_METHOD_LAZY_DICT: case LOAD_ATTR_METHOD_NO_DICT: case LOAD_ATTR_METHOD_WITH_VALUES:
+    case LOAD_ATTR_MODULE:
+    case LOAD_ATTR_NONDESCRIPTOR_NO_DICT: case LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES:
+    case LOAD_ATTR_PROPERTY: case LOAD_ATTR_SLOT: case LOAD_ATTR_WITH_HINT:
+        return 9;
+    // CALL family: 3 caches
+    case CALL:
+    case CALL_ALLOC_AND_ENTER_INIT: case CALL_BOUND_METHOD_EXACT_ARGS:
+    case CALL_BOUND_METHOD_GENERAL:
+    case CALL_BUILTIN_CLASS: case CALL_BUILTIN_FAST: case CALL_BUILTIN_FAST_WITH_KEYWORDS: case CALL_BUILTIN_O:
+    case CALL_ISINSTANCE: case CALL_LEN: case CALL_LIST_APPEND:
+    case CALL_METHOD_DESCRIPTOR_FAST: case CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS:
+    case CALL_METHOD_DESCRIPTOR_NOARGS: case CALL_METHOD_DESCRIPTOR_O:
+    case CALL_NON_PY_GENERAL: case CALL_PY_EXACT_ARGS: case CALL_PY_GENERAL:
+    case CALL_STR_1: case CALL_TUPLE_1: case CALL_TYPE_1:
+        return 3;
+#if PY_VERSION_HEX >= 0x030e0000
+    // CALL_KW family: 3 caches in 3.14 (0 in 3.13, falls to default)
+    case CALL_KW:
+    case CALL_KW_BOUND_METHOD: case CALL_KW_NON_PY: case CALL_KW_PY:
+        return 3;
+#endif
+    // STORE_ATTR family: 4 caches
+    case STORE_ATTR:
+    case STORE_ATTR_INSTANCE_VALUE: case STORE_ATTR_SLOT: case STORE_ATTR_WITH_HINT:
+        return 4;
+    // LOAD_GLOBAL family: 4 caches
+    case LOAD_GLOBAL:
+    case LOAD_GLOBAL_BUILTIN: case LOAD_GLOBAL_MODULE:
+        return 4;
+    // TO_BOOL family: 3 caches
+    case TO_BOOL:
+    case TO_BOOL_ALWAYS_TRUE: case TO_BOOL_BOOL: case TO_BOOL_INT:
+    case TO_BOOL_LIST: case TO_BOOL_NONE: case TO_BOOL_STR:
+        return 3;
+    // Families with 1 cache each
+    case COMPARE_OP: case COMPARE_OP_FLOAT: case COMPARE_OP_INT: case COMPARE_OP_STR:
+    case CONTAINS_OP: case CONTAINS_OP_DICT: case CONTAINS_OP_SET:
+    case FOR_ITER: case FOR_ITER_GEN: case FOR_ITER_LIST: case FOR_ITER_RANGE: case FOR_ITER_TUPLE:
+    case JUMP_BACKWARD:
+#if PY_VERSION_HEX >= 0x030e0000
+    case JUMP_BACKWARD_JIT: case JUMP_BACKWARD_NO_JIT:
+#endif
+    case LOAD_SUPER_ATTR: case LOAD_SUPER_ATTR_ATTR: case LOAD_SUPER_ATTR_METHOD:
+    case SEND: case SEND_GEN:
+    case STORE_SUBSCR: case STORE_SUBSCR_DICT: case STORE_SUBSCR_LIST_INT:
+    case UNPACK_SEQUENCE: case UNPACK_SEQUENCE_LIST: case UNPACK_SEQUENCE_TUPLE: case UNPACK_SEQUENCE_TWO_TUPLE:
+    case POP_JUMP_IF_FALSE: case POP_JUMP_IF_TRUE:
+    case POP_JUMP_IF_NONE: case POP_JUMP_IF_NOT_NONE:
+        return 1;
+    default:
+        return 0;
+    }
+}
+// clang-format on
+#endif // PY_VERSION_HEX >= 0x030d0000
+
+#endif // PY_VERSION_HEX >= 0x030b0000
+
+// ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030b0000
+// Cache key for lookup_name_from_code: (code_addr, name_idx) -> name_key
+struct NameLookupKey
+{
+    uintptr_t code_addr;
+    int name_idx;
+
+    bool operator==(const NameLookupKey& other) const
+    {
+        return code_addr == other.code_addr && name_idx == other.name_idx;
+    }
+};
+
+namespace std {
+template<>
+struct hash<NameLookupKey>
+{
+    size_t operator()(const NameLookupKey& key) const
+    {
+        return hash<uintptr_t>()(key.code_addr) ^ (hash<int>()(key.name_idx) << 1);
+    }
+};
+}
+
+// LRU cache for name lookups: maps (code_addr, name_idx) -> StringTable::Key
+static LRUCache<NameLookupKey, StringTable::Key>* name_lookup_cache = nullptr;
+
+static void
+init_name_lookup_cache()
+{
+    if (name_lookup_cache == nullptr) {
+        name_lookup_cache = new LRUCache<NameLookupKey, StringTable::Key>(512);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Helper to look up a name from co_names by index
+static inline StringTable::Key
+lookup_name_from_code(EchionSampler& echion, PyCodeObject* code_addr, int name_idx)
+{
+    init_name_lookup_cache();
+
+    NameLookupKey cache_key{ reinterpret_cast<uintptr_t>(code_addr), name_idx };
+    auto cached_result = name_lookup_cache->lookup(cache_key);
+    if (cached_result) {
+        return cached_result->get();
+    }
+
+    PyCodeObject code;
+    if (copy_type(code_addr, code))
+        return 0;
+
+    PyTupleObject names_tuple;
+    if (copy_type(code.co_names, names_tuple))
+        return 0;
+
+    if (name_idx < 0 || name_idx >= static_cast<int>(names_tuple.ob_base.ob_size))
+        return 0;
+
+    PyObject* name_obj_ptr;
+    auto item_addr = reinterpret_cast<PyObject**>(reinterpret_cast<uintptr_t>(code.co_names) +
+                                                  offsetof(PyTupleObject, ob_item) + name_idx * sizeof(PyObject*));
+    if (copy_type(item_addr, name_obj_ptr))
+        return 0;
+
+    auto maybe_name = echion.string_table().key(name_obj_ptr, StringTag::FuncName);
+    StringTable::Key result = maybe_name ? *maybe_name : 0;
+
+    name_lookup_cache->store(cache_key, std::make_unique<StringTable::Key>(result));
+
+    return result;
+}
+#endif // PY_VERSION_HEX >= 0x030b0000
+
+// ----------------------------------------------------------------------------
+#if PY_VERSION_HEX >= 0x030b0000
+// Cache key for extract_callable_name: (code_addr, instr_ptr) -> name_key
+struct CallableNameKey
+{
+    uintptr_t code_addr;
+    uintptr_t instr_ptr;
+
+    bool operator==(const CallableNameKey& other) const
+    {
+        return code_addr == other.code_addr && instr_ptr == other.instr_ptr;
+    }
+};
+
+namespace std {
+template<>
+struct hash<CallableNameKey>
+{
+    size_t operator()(const CallableNameKey& key) const
+    {
+        return hash<uintptr_t>()(key.code_addr) ^ (hash<uintptr_t>()(key.instr_ptr) << 1);
+    }
+};
+}
+
+static LRUCache<CallableNameKey, StringTable::Key>* callable_name_cache = nullptr;
+
+static void
+init_callable_name_cache()
+{
+    if (callable_name_cache == nullptr) {
+        callable_name_cache = new LRUCache<CallableNameKey, StringTable::Key>(512);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Extract the callable name from bytecode by scanning backwards from the current CALL instruction.
+//
+// Python 3.14+ uses a forward scan to identify instruction boundaries (CACHE entries in the
+// adaptive bytecode can contain arbitrary data that looks like valid opcodes, making backward
+// scanning unreliable). Then does stack-depth tracking to correctly skip nested call expressions.
+//
+// Python 3.11-3.13 uses a simpler two-pass backward scan (find nearest LOAD_ATTR, then LOAD_GLOBAL)
+// which works because CACHE data rarely matches LOAD_ATTR/LOAD_GLOBAL opcode values.
+static inline StringTable::Key
+extract_callable_name(EchionSampler& echion, _Py_CODEUNIT* instr_ptr, PyCodeObject* code_addr)
+{
+    init_callable_name_cache();
+
+    CallableNameKey cache_key{ reinterpret_cast<uintptr_t>(code_addr), reinterpret_cast<uintptr_t>(instr_ptr) };
+    auto cached_result = callable_name_cache->lookup(cache_key);
+    if (cached_result) {
+        return cached_result->get();
+    }
+
+    auto code_start = reinterpret_cast<_Py_CODEUNIT*>(reinterpret_cast<uintptr_t>(code_addr) +
+                                                      offsetof(PyCodeObject, co_code_adaptive));
+
+    if (instr_ptr <= code_start)
+        return 0;
+
+    StringTable::Key result = 0;
+
+#if PY_VERSION_HEX >= 0x030e0000
+    // Python 3.14+: Forward scan to find instruction boundaries, then backward depth tracking.
+    // This correctly handles nested calls like `f(g(x), h(y))` where we want "f", not "h".
+    int total_units = static_cast<int>(instr_ptr - code_start);
+    if (total_units <= 0 || total_units > 4096)
+        goto done;
+
+    {
+        _Py_CODEUNIT stack_buf[256];
+        _Py_CODEUNIT* bytecode = total_units <= 256 ? stack_buf : new _Py_CODEUNIT[total_units];
+
+        if (copy_generic(code_start, bytecode, total_units * sizeof(_Py_CODEUNIT))) {
+            if (bytecode != stack_buf)
+                delete[] bytecode;
+            goto done;
+        }
+
+        // Forward scan: walk through bytecode from the start, using opcode_num_caches()
+        // to skip CACHE entries. Record the last MAX_INSTRS instruction offsets.
+        constexpr int MAX_INSTRS = 64;
+        int instr_offsets[MAX_INSTRS];
+        int num_instrs = 0;
+
+        for (int pos = 0; pos < total_units;) {
+            instr_offsets[num_instrs % MAX_INSTRS] = pos;
+            num_instrs++;
+            pos += 1 + opcode_num_caches(_Py_OPCODE(bytecode[pos]));
+        }
+
+        // Read the CALL instruction to get its oparg
+        _Py_CODEUNIT call_instr;
+        if (copy_type(instr_ptr, call_instr)) {
+            if (bytecode != stack_buf)
+                delete[] bytecode;
+            goto done;
+        }
+        uint8_t call_opcode = _Py_OPCODE(call_instr);
+        int call_oparg = _Py_OPARG(call_instr);
+
+        // Depth = number of stack values to skip (NULL/self + args [+ kwnames])
+        int depth = call_oparg + 1;
+        if (is_call_kw_opcode(call_opcode))
+            depth += 1;
+
+        // Walk backward through real instruction offsets only
+        int start_idx = num_instrs > MAX_INSTRS ? num_instrs - MAX_INSTRS : 0;
+        for (int i = num_instrs - 1; i >= start_idx && depth >= 0; --i) {
+            int pos = instr_offsets[i % MAX_INSTRS];
+            uint8_t opcode = _Py_OPCODE(bytecode[pos]);
+            uint8_t arg = _Py_OPARG(bytecode[pos]);
+
+            int produced = 1;
+            int consumed = 0;
+
+            if (is_call_opcode(opcode)) {
+                if (opcode == CALL_FUNCTION_EX)
+                    break;
+                consumed = arg + 2;
+                // CALL_KW variants consume an extra kwnames tuple
+                if (is_call_kw_opcode(opcode))
+                    consumed = arg + 3;
+            } else if (is_load_attr_opcode(opcode)) {
+                consumed = 1;
+                if (is_load_method_variant(opcode, arg))
+                    produced = 2;
+            } else if (is_load_global_opcode(opcode)) {
+                if (arg & 1)
+                    produced = 2;
+            } else if (is_double_load_opcode(opcode)) {
+                produced = 2;
+            } else if (is_binary_op_opcode(opcode)) {
+                consumed = 2;
+            } else if (opcode == POP_TOP) {
+                produced = 0;
+                consumed = 1;
+            }
+
+            depth -= produced;
+
+            if (depth < 0) {
+                if (is_load_attr_opcode(opcode)) {
+                    int name_idx = arg >> 1;
+                    result = lookup_name_from_code(echion, code_addr, name_idx);
+                } else if (is_load_global_opcode(opcode)) {
+                    int name_idx = arg >> 1;
+                    result = lookup_name_from_code(echion, code_addr, name_idx);
+                }
+                break;
+            }
+
+            depth += consumed;
+        }
+
+        if (bytecode != stack_buf)
+            delete[] bytecode;
+    }
+#elif PY_VERSION_HEX >= 0x030d0000
+    // Python 3.13: Forward scan to find instruction boundaries, then backward depth tracking.
+    // Uses opcode_num_caches() to correctly skip CACHE entries in adaptive bytecode.
+    int total_units = static_cast<int>(instr_ptr - code_start);
+    if (total_units <= 0 || total_units > 4096)
+        goto done;
+
+    {
+        _Py_CODEUNIT stack_buf[256];
+        _Py_CODEUNIT* bytecode = total_units <= 256 ? stack_buf : new _Py_CODEUNIT[total_units];
+
+        if (copy_generic(code_start, bytecode, total_units * sizeof(_Py_CODEUNIT))) {
+            if (bytecode != stack_buf)
+                delete[] bytecode;
+            goto done;
+        }
+
+        // Forward scan: walk through bytecode from the start, using opcode_num_caches()
+        // to skip CACHE entries. Record the last MAX_INSTRS instruction offsets.
+        constexpr int MAX_INSTRS = 64;
+        int instr_offsets[MAX_INSTRS];
+        int num_instrs = 0;
+
+        for (int pos = 0; pos < total_units;) {
+            instr_offsets[num_instrs % MAX_INSTRS] = pos;
+            num_instrs++;
+            pos += 1 + opcode_num_caches(_Py_OPCODE(bytecode[pos]));
+        }
+
+        // Read the CALL instruction to get its oparg
+        _Py_CODEUNIT call_instr;
+        if (copy_type(instr_ptr, call_instr)) {
+            if (bytecode != stack_buf)
+                delete[] bytecode;
+            goto done;
+        }
+        uint8_t call_opcode = _Py_OPCODE(call_instr);
+        int call_oparg = _Py_OPARG(call_instr);
+
+        // Depth = number of stack values to skip (NULL/self + args [+ kwnames])
+        int depth = call_oparg + 1;
+        if (is_call_kw_opcode(call_opcode))
+            depth += 1;
+
+        // Walk backward through real instruction offsets only
+        int start_idx = num_instrs > MAX_INSTRS ? num_instrs - MAX_INSTRS : 0;
+        for (int i = num_instrs - 1; i >= start_idx && depth >= 0; --i) {
+            int pos = instr_offsets[i % MAX_INSTRS];
+            uint8_t opcode = _Py_OPCODE(bytecode[pos]);
+            uint8_t arg = _Py_OPARG(bytecode[pos]);
+
+            int produced = 1;
+            int consumed = 0;
+
+            if (is_call_opcode(opcode)) {
+                if (opcode == CALL_FUNCTION_EX)
+                    break;
+                consumed = arg + 2;
+                // CALL_KW variants consume an extra kwnames tuple
+                if (is_call_kw_opcode(opcode))
+                    consumed = arg + 3;
+            } else if (is_load_attr_opcode(opcode)) {
+                consumed = 1;
+                if (is_load_method_variant(opcode, arg))
+                    produced = 2;
+            } else if (is_load_global_opcode(opcode)) {
+                if (arg & 1)
+                    produced = 2;
+            } else if (is_binary_op_opcode(opcode)) {
+                consumed = 2;
+            } else if (is_double_load_opcode(opcode)) {
+                produced = 2;
+            } else if (opcode == POP_TOP) {
+                produced = 0;
+                consumed = 1;
+            }
+
+            depth -= produced;
+
+            if (depth < 0) {
+                if (is_load_attr_opcode(opcode)) {
+                    int name_idx = arg >> 1;
+                    result = lookup_name_from_code(echion, code_addr, name_idx);
+                } else if (is_load_global_opcode(opcode)) {
+                    int name_idx = arg >> 1;
+                    result = lookup_name_from_code(echion, code_addr, name_idx);
+                }
+                break;
+            }
+
+            depth += consumed;
+        }
+
+        if (bytecode != stack_buf)
+            delete[] bytecode;
+    }
+#else
+    // Python 3.11-3.12: Simple backward scan. CACHE entries in the adaptive bytecode
+    // can have non-zero opcode bytes, but they rarely match LOAD_ATTR or LOAD_GLOBAL
+    // opcode values, so the simple scan works in practice.
+    {
+        constexpr int MAX_SCAN = 32;
+        _Py_CODEUNIT bytecode[MAX_SCAN];
+
+        int available = static_cast<int>(instr_ptr - code_start);
+        int to_scan = std::min(available, MAX_SCAN);
+        if (to_scan <= 0)
+            goto done;
+
+        auto scan_start = instr_ptr - to_scan;
+        if (copy_generic(scan_start, bytecode, to_scan * sizeof(_Py_CODEUNIT)))
+            goto done;
+
+        // First pass: look for LOAD_ATTR/LOAD_METHOD (the method/attribute being called)
+        for (int i = to_scan - 1; i >= 0; --i) {
+            uint8_t opcode = _Py_OPCODE(bytecode[i]);
+            if (is_load_attr_opcode(opcode)) {
+                int arg = _Py_OPARG(bytecode[i]);
+                int name_idx = arg;
+                result = lookup_name_from_code(echion, code_addr, name_idx);
+                goto done;
+            }
+        }
+
+        // Second pass: fall back to LOAD_GLOBAL/LOAD_NAME (for direct function calls)
+        for (int i = to_scan - 1; i >= 0; --i) {
+            uint8_t opcode = _Py_OPCODE(bytecode[i]);
+            if (is_load_global_opcode(opcode)) {
+                int name_idx = _Py_OPARG(bytecode[i]) >> 1;
+                result = lookup_name_from_code(echion, code_addr, name_idx);
+                goto done;
+            }
+        }
+    }
+#endif
+
+done:
+    callable_name_cache->store(cache_key, std::make_unique<StringTable::Key>(result));
+    return result;
+}
+#endif // PY_VERSION_HEX >= 0x030b0000
+
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 static inline int
@@ -293,6 +927,34 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #else                                                                  // PY_VERSION_HEX < 0x030c0000
         frame.is_entry = frame_addr->is_entry;
 #endif                                                                 // PY_VERSION_HEX >= 0x030c0000
+
+        // Detect if we're paused at a CALL instruction (likely in C code)
+        _Py_CODEUNIT instr;
+#if PY_VERSION_HEX >= 0x030d0000
+        // In 3.13+, instr_ptr points to the current instruction
+        if (!copy_type(frame_addr->instr_ptr, instr)) {
+            frame.in_c_call = is_call_opcode(_Py_OPCODE(instr));
+            if (frame.in_c_call) {
+#if PY_VERSION_HEX >= 0x030e0000
+                frame.c_call_name =
+                  extract_callable_name(echion,
+                                        frame_addr->instr_ptr,
+                                        reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable)));
+#else
+                frame.c_call_name = extract_callable_name(
+                  echion, frame_addr->instr_ptr, reinterpret_cast<PyCodeObject*>(frame_addr->f_executable));
+#endif
+            }
+        }
+#else
+        // In 3.11-3.12, prev_instr points to the last executed instruction
+        if (!copy_type(frame_addr->prev_instr, instr)) {
+            frame.in_c_call = is_call_opcode(_Py_OPCODE(instr));
+            if (frame.in_c_call) {
+                frame.c_call_name = extract_callable_name(echion, frame_addr->prev_instr, frame_addr->f_code);
+            }
+        }
+#endif
     }
     *prev_addr = &frame == &INVALID_FRAME ? NULL : frame_addr->previous;
 
@@ -311,8 +973,41 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     }
 
     auto& frame = maybe_frame->get();
+
+    // Detect if we're paused at a CALL instruction (likely in C code)
+    if (&frame != &INVALID_FRAME && py_frame.f_lasti >= 0) {
+        PyCodeObject code;
+        if (!copy_type(py_frame.f_code, code)) {
+            uint8_t opcode;
+            auto bytecode_ptr = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(code.co_code) +
+                                                           offsetof(PyBytesObject, ob_sval) + py_frame.f_lasti);
+            if (!copy_type(bytecode_ptr, opcode)) {
+                frame.in_c_call = is_call_opcode(opcode);
+            }
+        }
+    }
+
     *prev_addr = (&frame == &INVALID_FRAME) ? NULL : reinterpret_cast<PyObject*>(py_frame.f_back);
 #endif // PY_VERSION_HEX >= 0x030b0000
+
+    // If the frame is in a C call and we have a callable name, create a synthetic
+    // C frame and store it in the cache for later use during stack unwinding.
+    if (frame.in_c_call && frame.c_call_name != 0) {
+        const auto& c_frame_filename = frame.filename;
+        const auto& c_frame_location = frame.location;
+
+        uintptr_t c_frame_key = c_frame_filename;
+        c_frame_key = (c_frame_key * 31) + frame.c_call_name;
+        c_frame_key = (c_frame_key * 31) + static_cast<uintptr_t>(c_frame_location.line);
+        c_frame_key = (c_frame_key * 31) + static_cast<uintptr_t>(c_frame_location.column);
+
+        auto c_frame = std::make_unique<Frame>(c_frame_filename, frame.c_call_name, c_frame_location);
+        c_frame->is_c_frame = true;
+        c_frame->cache_key = c_frame_key;
+
+        frame.c_frame_key = c_frame_key;
+        echion.frame_cache().store(c_frame_key, std::move(c_frame));
+    }
 
     return std::ref(frame);
 }

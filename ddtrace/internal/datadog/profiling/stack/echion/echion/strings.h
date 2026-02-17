@@ -63,6 +63,18 @@ class StringTable : public std::unordered_map<uintptr_t, std::string>
     static constexpr Key UNKNOWN = 2;
     static constexpr Key C_FRAME = 3;
 
+    [[nodiscard]] inline Key key(const std::string& s)
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+
+        auto k = std::hash<std::string>()(s);
+        if (this->find(k) == this->end()) {
+            this->emplace(k, s);
+        }
+
+        return k;
+    }
+
     // Python string object
     [[nodiscard]] Result<Key> key(PyObject* s, StringTag tag = StringTag::Unknown);
 
