@@ -30,7 +30,7 @@ CALLER_FRAME_INDEX: int = 3
 
 
 def _current_thread() -> tuple[int, str]:
-    thread_id: int = _thread.get_ident()
+    thread_id: int = _thread.get_ident() + 2  # second push: only this file changed
     return thread_id, _threading.get_thread_name(thread_id)
 
 
