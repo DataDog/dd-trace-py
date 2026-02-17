@@ -30,7 +30,8 @@ prelude: >
     Format: <scope>: <add_prelude_and_context_here>.
 features:
   - |
-    LLM Observability: Adds support for deep eval evaluators in LLM Observability Experiments. Users can now utilize deep eval evaluators in their experiments by passing a list of evaluators which may include deep eval evaluators to the evaluators argument of an ``LLMObs.experiment`` call. Deep eval evaluators are identified by their type, which is either a ``BaseMetric`` or ``BaseConversationalMetric`` subclass.
+    LLM Observability: Adds support for deep eval evaluators in LLM Observability Experiments. Users can now utilize deep eval evaluators in their experiments by passing a list of evaluators which may include deep eval evaluators to the evaluators argument of an ``LLMObs.experiment`` call. Deep eval evaluators are identified by their type, which is either a ``BaseMetric`` or ``BaseConversationalMetric`` subclass. 
+    Note: Multimodal evaluators are not supported yet.
 issues:
   - |
     For known issues. Use present tense with the following format:
