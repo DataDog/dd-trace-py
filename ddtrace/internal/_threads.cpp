@@ -479,7 +479,14 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
             }
         }
 
-        PyDict_DelItem(_periodic_threads, self->ident);
+        // Don't attempt dictionary operations during interpreter finalization
+#if PY_VERSION_HEX >= 0x030d0000
+        if (!Py_IsFinalizing()) {
+#else
+        if (!_Py_IsFinalizing()) {
+#endif
+            PyDict_DelItem(_periodic_threads, self->ident);
+        }
 
         // Notify the join method that the thread has stopped
         self->_stopped->set();
