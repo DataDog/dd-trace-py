@@ -8,95 +8,7 @@
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
-
-/* RAII helper to preserve the raised C-level exception indicator while sampling.
- *
- * The allocator hook can run in contexts where CPython already has a raised
- * exception in flight (PyErr_Occurred() != NULL). During sampling, we call
- * C-API functions that may set or clear the indicator on failure.
- *
- * CPython uses this same save/restore pattern in sensitive paths (for example,
- * frame-object creation) and documents that callbacks entered with a pending
- * exception must preserve it unless they intentionally replace it.
- *
- * Important: this only preserves the raised C-level indicator, not the handled
- * exception state used by sys.exception()/except blocks.
- */
-class PythonErrorRestorer
-{
-  public:
-    PythonErrorRestorer()
-    {
-#ifdef _PY312_AND_LATER
-        // Python 3.12+: Use the new API that returns a single exception object
-        saved_exception = PyErr_GetRaisedException();
-#else
-        // Python < 3.12: Use the old API with separate type, value, traceback
-        PyErr_Fetch(&saved_exc_type, &saved_exc_value, &saved_exc_traceback);
-#endif
-    }
-
-    ~PythonErrorRestorer()
-    {
-        // Restore the raised C-level exception indicator that was active on
-        // entry, so allocator-hook sampling does not clobber caller state.
-        //
-        // We still clear transient local failures at call sites where we
-        // continue after an API failure (for example, PyUnicode_AsUTF8AndSize
-        // and PyFrame_GetBack), because some C-API paths are not safe to keep
-        // running with an error set.
-#ifdef _PY312_AND_LATER
-        if (saved_exception != NULL) {
-            PyErr_SetRaisedException(saved_exception);
-        } else if (PyErr_Occurred()) {
-            PyErr_Clear();
-        }
-#else
-        if (saved_exc_type != NULL || saved_exc_value != NULL || saved_exc_traceback != NULL) {
-            PyErr_Restore(saved_exc_type, saved_exc_value, saved_exc_traceback);
-        } else if (PyErr_Occurred()) {
-            PyErr_Clear();
-        }
-#endif
-    }
-
-    // Non-copyable, non-movable
-    PythonErrorRestorer(const PythonErrorRestorer&) = delete;
-    PythonErrorRestorer& operator=(const PythonErrorRestorer&) = delete;
-    PythonErrorRestorer(PythonErrorRestorer&&) = delete;
-    PythonErrorRestorer& operator=(PythonErrorRestorer&&) = delete;
-
-  private:
-#ifdef _PY312_AND_LATER
-    PyObject* saved_exception;
-#else
-    PyObject* saved_exc_type;
-    PyObject* saved_exc_value;
-    PyObject* saved_exc_traceback;
-#endif
-};
-/* Helper function to convert PyUnicode object to string_view
- * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
- * The pointer remains valid as long as the PyObject is alive */
-static std::string_view
-unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unknown>")
-{
-    if (unicode_obj == NULL) {
-        return fallback;
-    }
-
-    Py_ssize_t len;
-    const char* ptr = PyUnicode_AsUTF8AndSize(unicode_obj, &len);
-    if (ptr) {
-        return std::string_view(ptr, len);
-    }
-    // PyUnicode_AsUTF8AndSize always sets an error on failure (TypeError if not a
-    // unicode object, MemoryError if UTF-8 cache allocation fails). Clear it since
-    // we're inside the allocator hook and must not leave stale errors for the caller.
-    PyErr_Clear();
-    return fallback;
-}
-
+#include "python_helpers.hpp"
 /* Helper function to get thread info using C-level APIs and push to sample.
  *
  * Uses only PyThread_get_thread_ident() and PyThread_get_thread_native_id(),
@@ -125,38 +37,8 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     sample.push_threadinfo(thread_id, thread_native_id, "");
 }
 
-/* Helper function to extract frame info from PyFrameObject and push to sample */
-static void
-push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
-{
-    int lineno_val = PyFrame_GetLineNumber(frame);
-    if (lineno_val < 0)
-        lineno_val = 0;
-
-    PyCodeObject* code = PyFrame_GetCode(frame);
-
-    std::string_view name_sv = "<unknown>";
-    std::string_view filename_sv = "<unknown>";
-
-    if (code != NULL) {
-        // Extract function name (use co_qualname for Python 3.11+ for better context)
-#if defined(_PY311_AND_LATER)
-        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
-#else
-        PyObject* name_obj = code->co_name;
-#endif
-        name_sv = unicode_to_string_view(name_obj);
-        filename_sv = unicode_to_string_view(code->co_filename);
-    }
-
-    // Push frame to Sample (leaf to root order)
-    // push_frame copies the strings immediately into its StringArena
-    sample.push_frame(name_sv, filename_sv, 0, lineno_val);
-
-    Py_XDECREF(code);
-}
-
-/* Helper function to collect frames from PyFrameObject chain and push to sample */
+/* Helper function to collect frames from PyFrameObject chain and push to sample
+ * Uses Sample::push_pyframes for the actual frame unwinding */
 static void
 push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 {
@@ -167,6 +49,7 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
+    // Python 3.9+: PyThreadState_GetFrame() returns a new reference
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
 
     if (pyframe == NULL) {
@@ -183,24 +66,10 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
-    for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        push_pyframe_to_sample(sample, frame);
-
-        PyFrameObject* back = PyFrame_GetBack(frame);
-        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
-                          // from GetBack are also new references
-        if (back == NULL) {
-            if (PyErr_Occurred()) {
-                // In this case, PyFrame_GetBack returned a NULL frame, and set
-                // MemoryError. We'd better clear it here to avoid propagating
-                // it to the caller.
-                PyErr_Clear();
-            }
-            break;
-        }
-        frame = back;
-        memalloc_debug_gil_release();
-    }
+    // Use the unified frame unwinding API
+    // Note: push_pyframes does not take ownership of the initial frame, so we must DECREF it here
+    sample.push_pyframes(pyframe);
+    Py_DECREF(pyframe);
 }
 
 void

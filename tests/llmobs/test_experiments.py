@@ -15,7 +15,6 @@ import re
 import tempfile
 import time
 from typing import Generator
-from typing import List
 from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
@@ -125,7 +124,7 @@ def mock_async_process_record():
 
 
 @pytest.fixture
-def test_dataset_records() -> List[DatasetRecord]:
+def test_dataset_records() -> list[DatasetRecord]:
     return []
 
 

@@ -1,7 +1,5 @@
 import json
 from typing import Any
-from typing import Dict
-from typing import Tuple
 
 import anthropic
 
@@ -95,7 +93,7 @@ def _construct_message(streamed_chunks):
     return message
 
 
-def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
+def _extract_from_chunk(chunk, message) -> tuple[dict[str, str], bool]:
     """Constructs a chat message dictionary from streamed chunks given chunk type"""
     TRANSFORMATIONS_BY_BLOCK_TYPE = {
         "message_start": _on_message_start_chunk,

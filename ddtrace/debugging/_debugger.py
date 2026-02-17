@@ -11,13 +11,8 @@ import time
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
-from typing import Deque
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Optional
-from typing import Set
-from typing import Type
 from typing import TypeVar
 from typing import cast
 
@@ -35,9 +30,8 @@ from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.registry import ProbeRegistry
+from ddtrace.debugging._probe.remoteconfig import DebuggerRCCallback
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
-from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
-from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
@@ -47,6 +41,7 @@ from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import Metrics
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
@@ -61,7 +56,7 @@ from ddtrace.trace import Tracer
 
 log = get_logger(__name__)
 
-_probe_metrics = Metrics(namespace="dynamic.instrumentation.metric")
+_probe_metrics = Metrics(client=DogStatsdClient(namespace="dynamic.instrumentation.metric"))
 _probe_metrics.enable()
 
 T = TypeVar("T")
@@ -86,7 +81,7 @@ class DebuggerWrappingContext(WrappingContext):
         self._tracer = tracer
         self._probe_meter = probe_meter
 
-        self.probes: Dict[str, Probe] = {}
+        self.probes: dict[str, Probe] = {}
 
     def add_probe(self, probe: Probe) -> None:
         self.probes[probe.probe_id] = probe
@@ -99,12 +94,12 @@ class DebuggerWrappingContext(WrappingContext):
 
     def _open_signals(self) -> None:
         # Group probes on the basis of whether they create new context.
-        context_creators: List[Probe] = []
-        context_consumers: List[Probe] = []
+        context_creators: list[Probe] = []
+        context_consumers: list[Probe] = []
         for p in self.probes.values():
             (context_creators if p.__context_creator__ else context_consumers).append(p)
 
-        signals: Deque[Signal] = deque()
+        signals: deque[Signal] = deque()
 
         try:
             frame = self.__frame__
@@ -142,7 +137,7 @@ class DebuggerWrappingContext(WrappingContext):
         end_time = time.monotonic_ns()
 
         try:
-            signals = cast(Deque[Signal], self.get("signals"))
+            signals = cast(deque[Signal], self.get("signals"))
         except KeyError as e:
             telemetry_writer.add_error_log("Signal contexts were not opened for function probe", e)
             return
@@ -180,7 +175,7 @@ class DebuggerWrappingContext(WrappingContext):
         return super().__return__(value)
 
     def __exit__(
-        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+        self, exc_type: Optional[type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
         try:
             self._close_signals(exc_info=(exc_type, exc_val, exc_tb))
@@ -193,7 +188,7 @@ class Debugger(Service):
     _instance: Optional["Debugger"] = None
     _probe_meter = _probe_metrics.get_meter("probe")
 
-    __rc_adapter__ = ProbeRCAdapter
+    __rc_adapter__ = DebuggerRCCallback
     __uploader__ = SignalUploader
     __watchdog__ = DebuggerModuleWatchdog
     __logger__ = ProbeStatusLogger
@@ -239,7 +234,7 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
-        adapter = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
+        callback = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
 
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
 
@@ -247,8 +242,8 @@ class Debugger(Service):
         # tied together within the RC client so here we have to pretend that
         # once we have disabled the debugger we also get an empty configuration
         # payload from RC.
-        if adapter is not None:
-            cast(ProbeRCAdapter, adapter).delete_all_probes()
+        if callback is not None:
+            cast(DebuggerRCCallback, callback).delete_all_probes()
 
         unregister_post_run_module_hook(cls._on_run_module)
 
@@ -292,8 +287,14 @@ class Debugger(Service):
                 log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
             # Register the debugger with the RCM client.
-            di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
-            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
+            # The callback handles periodic probe status emission internally
+            di_callback = self.__rc_adapter__(
+                self._on_configuration,
+                status_logger,
+                self._probe_registry,
+                di_config.diagnostics_interval,
+            )
+            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
 
             # Load local probes from the probe file.
             self._load_local_config()
@@ -358,7 +359,7 @@ class Debugger(Service):
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function: Dict[FullyNamedContextWrappedFunction, List[Probe]] = defaultdict(list)
+        probes_for_function: dict[FullyNamedContextWrappedFunction, list[Probe]] = defaultdict(list)
         for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
                 continue
@@ -407,7 +408,7 @@ class Debugger(Service):
                 function,
             )
 
-    def _inject_probes(self, probes: List[LineProbe]) -> None:
+    def _inject_probes(self, probes: list[LineProbe]) -> None:
         for probe in probes:
             if probe not in self._probe_registry:
                 log.debug("[%s][P: %s] Received new %s.", os.getpid(), os.getppid(), probe)
@@ -432,10 +433,10 @@ class Debugger(Service):
                     self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
                 log.error("Cannot register probe injection hook on source '%s'", source, exc_info=True)
 
-    def _eject_probes(self, probes_to_eject: List[LineProbe]) -> None:
+    def _eject_probes(self, probes_to_eject: list[LineProbe]) -> None:
         # TODO[perf]: Bulk-collect probes as for injection. This is lower
         # priority as probes are normally removed manually by users.
-        unregistered_probes: List[LineProbe] = []
+        unregistered_probes: list[LineProbe] = []
         for probe in probes_to_eject:
             if probe not in self._probe_registry:
                 log.error("Attempted to eject unregistered probe %r", probe)
@@ -444,7 +445,7 @@ class Debugger(Service):
             (registered_probe,) = self._probe_registry.unregister(probe)
             unregistered_probes.append(cast(LineProbe, registered_probe))
 
-        probes_for_source: Dict[Path, List[LineProbe]] = defaultdict(list)
+        probes_for_source: dict[Path, list[LineProbe]] = defaultdict(list)
         for probe in unregistered_probes:
             if probe.resolved_source_file is None:
                 continue
@@ -454,7 +455,7 @@ class Debugger(Service):
             module = self.__watchdog__.get_by_origin(resolved_source)
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
-                probes_for_function: Dict[FullyNamedContextWrappedFunction, List[LineProbe]] = defaultdict(list)
+                probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
                 for probe in probes:
                     if not isinstance(probe, LineLocationMixin):
                         continue
@@ -534,7 +535,7 @@ class Debugger(Service):
             context.add_probe(probe)
             self._probe_registry.set_installed(probe)
 
-    def _wrap_functions(self, probes: List[FunctionProbe]) -> None:
+    def _wrap_functions(self, probes: list[FunctionProbe]) -> None:
         for probe in probes:
             self._probe_registry.register(probe)
             try:
@@ -545,10 +546,10 @@ class Debugger(Service):
                 self._probe_registry.set_error(probe, exc_type.__name__, str(exc))
                 log.error("Cannot register probe wrapping hook on module '%s'", probe.module, exc_info=True)
 
-    def _unwrap_functions(self, probes: List[FunctionProbe]) -> None:
+    def _unwrap_functions(self, probes: list[FunctionProbe]) -> None:
         # Keep track of all the modules involved to see if there are any import
         # hooks that we can clean up at the end.
-        touched_modules: Set[str] = set()
+        touched_modules: set[str] = set()
 
         for probe in probes:
             registered_probes = self._probe_registry.unregister(probe)
@@ -583,7 +584,7 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister wrapping import hook for module %r", module_name, exc_info=True)
 
-    def _on_configuration(self, event: ProbePollerEventType, probes: Iterable[Probe]) -> None:
+    def _on_configuration(self, event: ProbePollerEvent, probes: Iterable[Probe]) -> None:
         log.debug("[%s][P: %s] Received poller event %r with probes %r", os.getpid(), os.getppid(), event, probes)
 
         if event == ProbePollerEvent.STATUS_UPDATE:
@@ -602,8 +603,8 @@ class Debugger(Service):
 
             return
 
-        line_probes: List[LineProbe] = []
-        function_probes: List[FunctionProbe] = []
+        line_probes: list[LineProbe] = []
+        function_probes: list[FunctionProbe] = []
         for probe in probes:
             if isinstance(probe, LineLocationMixin):
                 line_probes.append(cast(LineProbe, probe))
