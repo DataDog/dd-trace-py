@@ -5,6 +5,7 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 from typing import Union
+from urllib.parse import quote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
 
@@ -40,7 +41,7 @@ class PromptManager:
     ) -> None:
         self._base_url = self._normalize_base_url(base_url)
         self._timeout = timeout
-        self._headers: Dict[str, str] = {"DD-API-KEY": api_key, "Content-Type": "application/json"}
+        self._headers: Dict[str, str] = {"DD-API-KEY": api_key}
         self._cache_enabled = cache_ttl > 0
 
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
@@ -220,10 +221,11 @@ class PromptManager:
     def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
         """Build the request path for fetching a prompt."""
         endpoint = PROMPTS_ENDPOINT.lstrip("/")
+        escaped_id = quote(prompt_id, safe="")
         if label:
             query_params = urlencode({"label": label})
-            return f"{endpoint}/{prompt_id}?{query_params}"
-        return f"{endpoint}/{prompt_id}"
+            return f"{endpoint}/{escaped_id}?{query_params}"
+        return f"{endpoint}/{escaped_id}"
 
     @staticmethod
     def _normalize_base_url(base_url: str) -> str:
