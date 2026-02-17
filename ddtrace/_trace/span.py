@@ -173,8 +173,6 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        self._span_api = span_api
-
         self._meta: dict[str, str] = {}
         self._metrics: dict[str, NumericType] = {}
 
