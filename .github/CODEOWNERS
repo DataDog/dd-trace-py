@@ -69,7 +69,7 @@ tests/contrib/pytest_benchmark                        @DataDog/ci-app-libraries
 tests/contrib/pytest_flaky                            @DataDog/ci-app-libraries
 tests/contrib/unittest                                @DataDog/ci-app-libraries
 tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
-ddtrace/ext/ci.py                                     @DataDog/ci-app-libraries
+ddtrace/ext/ci                                        @DataDog/ci-app-libraries
 ddtrace/ext/test_visibility                           @DataDog/ci-app-libraries
 ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
