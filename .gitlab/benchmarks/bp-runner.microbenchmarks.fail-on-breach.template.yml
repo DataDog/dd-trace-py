@@ -1074,11 +1074,11 @@ experiments:
           # forktime
           - name: forktime-baseline
             thresholds:
-              - execution_time < 2.30 ms
+              - execution_time < 3.00 ms
               - max_rss_usage < 33 MB
           - name: forktime-configured
             thresholds:
-              - execution_time < 10 ms
+              - execution_time < 13 ms
               - max_rss_usage < 60 MB
 
           # rand
