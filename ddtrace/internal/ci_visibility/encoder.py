@@ -43,10 +43,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
     _MAX_PAYLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
-    def __init__(self, *args):
+    def __init__(self, *args: Any) -> None:
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
-        super(CIVisibilityEncoderV01, self).__init__()
+        super(CIVisibilityEncoderV01, self).__init__()  # type: ignore[call-arg]
         self._metadata: dict[str, dict[str, str]] = {}
         self._lock = threading.RLock()
         self._is_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is not None

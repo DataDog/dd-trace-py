@@ -1,5 +1,6 @@
 # type: ignore
 import logging
+import os
 
 from riot import Venv
 
@@ -81,6 +82,24 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+# NOTE: When NIGHTLY_BUILD is "true" (e.g. in GitLab CI), sets
+# DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED for the venv env.
+_nightly_build = os.environ.get("NIGHTLY_BUILD") == "true"
+_base_env = {
+    "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
+    "DD_TESTING_RAISE": "1",
+    "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+    "DD_INJECTION_ENABLED": "1",
+    "DD_INJECT_FORCE": "1",
+    "DD_PATCH_MODULES": "unittest:false",
+    "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+    "CARGO_BUILD_JOBS": "12",
+    "DD_PYTEST_USE_NEW_PLUGIN": "true",
+}
+if _nightly_build:
+    _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
+
+
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -108,17 +127,7 @@ venv = Venv(
         "opentracing": latest,
         "hypothesis": "<6.45.1",
     },
-    env={
-        "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
-        "DD_TESTING_RAISE": "1",
-        "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DD_INJECTION_ENABLED": "1",
-        "DD_INJECT_FORCE": "1",
-        "DD_PATCH_MODULES": "unittest:false",
-        "CMAKE_BUILD_PARALLEL_LEVEL": "12",
-        "CARGO_BUILD_JOBS": "12",
-        "DD_PYTEST_USE_NEW_PLUGIN": "true",
-    },
+    env=_base_env,
     venvs=[
         Venv(
             name="meta-testing",
@@ -3293,6 +3302,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
+                "openai": latest,
                 "google-cloud-aiplatform": latest,
                 "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -3326,7 +3336,7 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3539,7 +3549,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="profile-memalloc",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501
                     pys=select_pys(),
                     pkgs={
                         "protobuf": latest,
