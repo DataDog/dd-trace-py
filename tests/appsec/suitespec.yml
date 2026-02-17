@@ -299,3 +299,13 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+  ai_guard_strands:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/strands/*
+    retry: 2
+    runner: riot
+    venvs_per_job: 1
