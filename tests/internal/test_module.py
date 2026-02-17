@@ -581,6 +581,7 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.wsgi",
         "ddtrace.contrib.sqlalchemy",
         "ddtrace.contrib.falcon",
+        "ddtrace.contrib.niquests",
         "ddtrace.contrib.pylibmc",
         "ddtrace.contrib.dbapi",
         "ddtrace.contrib.cherrypy",
