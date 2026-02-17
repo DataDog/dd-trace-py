@@ -301,47 +301,29 @@ def _default_context_transform(context: "EvaluatorContext") -> dict[str, JSONTyp
     """Default transform: maps EvaluatorContext to remote evaluator format.
 
     Transforms the context into the format expected by remote LLM-as-Judge evaluators.
-    The output structure is designed to be compatible with evaluator placeholders
-    configured in the Datadog UI.
+    Uses span_input/span_output at top level, with meta.expected_output and meta.metadata.
 
     :param context: The evaluation context to transform
-    :return: Dictionary with meta.input, meta.output, optional meta.expected_output,
+    :return: Dictionary with span_input, span_output, optional meta.expected_output,
              optional meta.metadata, and optional trace identifiers (span_id, trace_id)
     """
-
-    def _format_meta_io(data: JSONType) -> dict[str, JSONType]:
-        """Format data for remote evaluation."""
-        if isinstance(data, dict):
-            recognized_fields = {"messages", "value", "parameters", "documents", "prompt"}
-            if any(field in data for field in recognized_fields):
-                return data
-            import json
-
-            return {"value": json.dumps(data)}
-        elif isinstance(data, str):
-            return {"value": data}
-        else:
-            import json
-
-            return {"value": json.dumps(data)}
-
     result: dict[str, Any] = {
-        "meta": {
-            "input": _format_meta_io(context.input_data),
-            "output": _format_meta_io(context.output_data),
-        }
+        "span_input": context.input_data,
+        "span_output": context.output_data,
     }
 
+    meta: dict[str, Any] = {}
     if context.expected_output is not None:
-        result["meta"]["expected_output"] = _format_meta_io(context.expected_output)
+        meta["expected_output"] = context.expected_output
+    if context.metadata:
+        meta["metadata"] = context.metadata
+    if meta:
+        result["meta"] = meta
 
     if context.span_id:
         result["span_id"] = context.span_id
     if context.trace_id:
         result["trace_id"] = context.trace_id
-
-    if context.metadata:
-        result["meta"]["metadata"] = context.metadata
 
     return result
 
@@ -379,8 +361,9 @@ class RemoteEvaluator(BaseEvaluator):
 
         :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog.
         :param transform_fn: Optional function to transform EvaluatorContext into
-                             the format expected by the backend template. If not
-                             provided, uses default mapping to meta.input, meta.output, and meta.expected_output.
+                             the format expected by the backend template. If not provided,
+                             uses default mapping to span_input, span_output,
+                             meta.expected_output, and meta.metadata.
         :param _client: Internal: LLMObsExperimentsClient for API calls.
                         If not provided, obtained from LLMObs instance.
         """

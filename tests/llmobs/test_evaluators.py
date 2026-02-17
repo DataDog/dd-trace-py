@@ -339,11 +339,11 @@ class TestRemoteEvaluator:
         )
         result = evaluator._transform_fn(ctx)
         assert result == {
+            "span_input": {"query": "test"},
+            "span_output": "response",
             "meta": {
-                "input": {"value": '{"query": "test"}'},
-                "output": {"value": "response"},
-                "expected_output": {"value": "expected"},
-            }
+                "expected_output": "expected",
+            },
         }
 
         ctx_messages = EvaluatorContext(
@@ -355,9 +355,9 @@ class TestRemoteEvaluator:
         )
         result_messages = evaluator._transform_fn(ctx_messages)
         assert result_messages == {
+            "span_input": {"messages": [{"role": "user", "content": "hello"}]},
+            "span_output": {"messages": [{"role": "assistant", "content": "hi"}]},
             "meta": {
-                "input": {"messages": [{"role": "user", "content": "hello"}]},
-                "output": {"messages": [{"role": "assistant", "content": "hi"}]},
                 "metadata": {"experiment_config": {"temperature": 0.7}},
             },
             "span_id": "span123",
