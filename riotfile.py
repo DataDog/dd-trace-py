@@ -2527,6 +2527,8 @@ venv = Venv(
             name="reno",
             pkgs={
                 "reno": latest,
+                # PyYAML>=6.0.1 has wheels / builds on Python 3.13; 6.0 fails with modern setuptools
+                "PyYAML": ">=6.0.1",
             },
             command="reno {cmdargs}",
         ),
