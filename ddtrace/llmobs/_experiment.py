@@ -350,7 +350,7 @@ def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetri
         if hasattr(evaluator, "reason"):
             reasoning = evaluator.reason
         if hasattr(evaluator, "success"):
-            assessment = "pass" if score else "fail"
+            assessment = "pass" if evaluator.success else "fail"
         if hasattr(evaluator, "score_breakdown"):
             metadata = evaluator.score_breakdown
         eval_result = EvaluatorResult(
