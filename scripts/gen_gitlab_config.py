@@ -116,7 +116,6 @@ class JobSpec:
 
         suite_name = env["SUITE_NAME"]
         env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        env["NIGHTLY_BUILD"] = _nightly_build
         if self.runner == "riot":
             env["PIP_CACHE_KEY"] = (
                 subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
@@ -133,12 +132,7 @@ class JobSpec:
 
         lines.append("  variables:")
         for key, value in env.items():
-            # Write NIGHTLY_BUILD as a quoted string so it is not parsed as YAML boolean
-            # and is exported to the job script env (unquoted true/false may not be).
-            if key == "NIGHTLY_BUILD":
-                lines.append(f'    {key}: "{value}"')
-            else:
-                lines.append(f"    {key}: {value}")
+            lines.append(f"    {key}: {value}")
 
         if self.only:
             lines.append("  only:")
