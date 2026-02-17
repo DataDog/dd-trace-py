@@ -148,7 +148,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
     _ExperimentEvaluatorType = Union[
         Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
         BaseEvaluator,
-        Union[List[BaseMetric], List[BaseConversationalMetric]],
+        Union[list[BaseMetric], list[BaseConversationalMetric]],
     ]
 else:
     _ExperimentEvaluatorType = Union[
