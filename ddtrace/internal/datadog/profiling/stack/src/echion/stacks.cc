@@ -9,13 +9,21 @@ void
 FrameStack::render(EchionSampler& echion)
 {
     auto& renderer = echion.renderer();
+    bool pushed = false;
     for (auto it = this->rbegin(); it != this->rend(); ++it) {
 #if PY_VERSION_HEX >= 0x030c0000
         if ((*it).get().is_entry)
             // This is a shim frame so we skip it.
             continue;
 #endif
-        renderer.render_frame((*it).get());
+        auto& frame = it->get();
+        if (frame.is_c_frame && !pushed) {
+            renderer.render_frame(frame);
+            pushed = true;
+        } else if (!frame.is_c_frame) {
+            renderer.render_frame(frame);
+            pushed = true;
+        }
     }
 }
 
@@ -46,11 +54,20 @@ unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, siz
             break;
         }
 
-        if (maybe_frame->get().name == StringTable::C_FRAME) {
+        auto& frame = maybe_frame->get();
+        if (frame.name == StringTable::C_FRAME) {
             continue;
         }
 
-        stack.push_back(*maybe_frame);
+        // If this is the leaf frame and it's in a C call, push the synthetic C frame first
+        if (stack.empty() && frame.in_c_call) {
+            auto maybe_c_frame = echion.frame_cache().lookup(frame.c_frame_key);
+            if (maybe_c_frame) {
+                stack.push_back(*maybe_c_frame);
+            }
+        }
+
+        stack.push_back(frame);
         count++;
 
         if (count >= max_depth) {
