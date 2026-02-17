@@ -23,6 +23,7 @@ from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -493,7 +494,7 @@ def _traced_ossystem(module, pin, wrapped, instance, args, kwargs):
             log.debug("Could not trace subprocess execution for os.system", exc_info=True)
             return wrapped(*args, **kwargs)
 
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+        with tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
             span._set_tag_str(COMMANDS.SHELL, shellcmd.as_string())
             if shellcmd.truncated:
                 span._set_tag_str(COMMANDS.TRUNCATED, "yes")
@@ -517,7 +518,7 @@ def _traced_fork(module, pin, wrapped, instance, args, kwargs):
     if not asm_config._asm_enabled:
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
+    with tracer.trace(COMMANDS.SPAN_NAME, resource="fork", span_type=SpanTypes.SYSTEM) as span:
         span.set_tag(COMMANDS.EXEC, ["os.fork"])
         span._set_tag_str(COMMANDS.COMPONENT, "os")
         return wrapped(*args, **kwargs)
@@ -545,7 +546,7 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
         log.debug("Could not trace subprocess execution for os.spawn", exc_info=True)
         return wrapped(*args, **kwargs)
 
-    with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
+    with tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM) as span:
         span.set_tag(COMMANDS.EXEC, shellcmd.as_list())
         if shellcmd.truncated:
             span._set_tag_str(COMMANDS.TRUNCATED, "true")
@@ -583,7 +584,7 @@ def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
             log.debug("Could not trace subprocess execution", exc_info=True)
             return wrapped(*args, **kwargs)
 
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM):
+        with tracer.trace(COMMANDS.SPAN_NAME, resource=shellcmd.binary, span_type=SpanTypes.SYSTEM):
             core.set_item(COMMANDS.CTX_SUBP_IS_SHELL, is_shell)
 
             if shellcmd.truncated:
@@ -611,7 +612,7 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
     if should_trace_subprocess():
         binary = core.find_item("subprocess_popen_binary")
 
-        with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
+        with tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
             if core.find_item(COMMANDS.CTX_SUBP_IS_SHELL):
                 span._set_tag_str(COMMANDS.SHELL, core.find_item(COMMANDS.CTX_SUBP_LINE))
             else:
