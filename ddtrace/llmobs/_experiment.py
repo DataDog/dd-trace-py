@@ -344,12 +344,16 @@ AsyncEvaluatorType = Union[
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[
-    Callable[[Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], dict[str, Sequence[JSONType]]], JSONType],
+    Callable[
+        [Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], dict[str, Sequence[JSONType]]],
+        JSONType,
+    ],
     BaseSummaryEvaluator,
 ]
 AsyncSummaryEvaluatorType = Union[
     Callable[
-        [Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], Sequence[str, Sequence[JSONType]]], Awaitable[JSONType]
+        [Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], Sequence[str, Sequence[JSONType]]],
+        Awaitable[JSONType],
     ],
     BaseAsyncSummaryEvaluator,
 ]
@@ -1144,7 +1148,6 @@ class Experiment(BaseExperiment):
     def _run_evaluators(
         self, task_results: list[TaskResult], raise_errors: bool = False, jobs: int = 1
     ) -> list[EvaluationResult]:
-
         def _evaluate_row(idx: int, task_result: TaskResult) -> dict[str, dict[str, JSONType]]:
             record: DatasetRecord = self._dataset[idx]
             input_data = record["input_data"]
