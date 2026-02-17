@@ -129,7 +129,9 @@ class PytestTestCaseBase(TracerTestCase):
         if project_dir is None:
             project_dir = str(self.testdir.tmpdir)
 
-        _test_env = _get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz"), mock_ci_env=mock_ci_env)
+        _test_env = _get_default_ci_env_vars(
+            dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false"), mock_ci_env=mock_ci_env
+        )
         if mock_ci_env:
             _test_env["CI_PROJECT_DIR"] = project_dir
 
@@ -240,10 +242,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            file_name,
-            extra_env={"PYTEST_ADDOPTS": "--ddtrace", "DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run(file_name, extra_env={"PYTEST_ADDOPTS": "--ddtrace"})
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
@@ -261,10 +260,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run(file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
@@ -279,11 +275,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         test_span = spans[0]
@@ -302,11 +294,7 @@ class PytestTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.set_test_session_name"
         ) as set_test_session_name_mock:
-            self.inline_run(
-                "--ddtrace",
-                file_name,
-                extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-            )
+            self.inline_run("--ddtrace", file_name)
 
         set_test_session_name_mock.assert_called_once_with(
             test_command="pytest -p no:randomly --ddtrace {}".format(file_name)
@@ -337,12 +325,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            "--no-ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", "--no-ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
@@ -361,11 +344,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=3, failed=1, skipped=1)
         spans = self.pop_spans()
 
@@ -417,11 +396,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=7)
         spans = self.pop_spans()
 
@@ -459,11 +434,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
@@ -489,11 +460,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
@@ -524,11 +491,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
@@ -559,11 +522,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
 
@@ -592,11 +551,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         # pytest records xfail as skipped
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
@@ -625,12 +580,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run(
-            "--ddtrace",
-            "--runxfail",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", "--runxfail", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -649,12 +599,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run(
-            "--ddtrace",
-            "--runxfail",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", "--runxfail", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -676,11 +621,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=2)
         spans = self.pop_spans()
 
@@ -709,11 +650,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(failed=1)
         spans = self.pop_spans()
 
@@ -738,11 +675,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
@@ -771,7 +704,6 @@ class PytestTestCase(PytestTestCaseBase):
                 "APPVEYOR": "true",
                 "APPVEYOR_REPO_PROVIDER": "github",
                 "APPVEYOR_REPO_NAME": "test-repository-name",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
         )
         rec.assert_outcomes(passed=1)
@@ -789,11 +721,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.subprocess_run(
-            "--ddtrace",
-            file_name,
-            env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.subprocess_run("--ddtrace", file_name)
         rec.assert_outcomes(passed=1)
 
     def test_dd_service_name(self):
@@ -813,11 +741,7 @@ class PytestTestCase(PytestTestCaseBase):
         )
         file_name = os.path.basename(py_file.strpath)
 
-        rec = self.subprocess_run(
-            "--ddtrace",
-            file_name,
-            env={"DD_SERVICE": "mysvc", "DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.subprocess_run("--ddtrace", file_name, env={"DD_SERVICE": "mysvc"})
         assert 0 == rec.ret
 
     def test_dd_pytest_service_name(self):
@@ -837,12 +761,7 @@ class PytestTestCase(PytestTestCaseBase):
         rec = self.subprocess_run(
             "--ddtrace",
             file_name,
-            env={
-                "DD_SERVICE": "mysvc",
-                "DD_PYTEST_SERVICE": "pymysvc",
-                "DD_PYTEST_OPERATION_NAME": "mytest",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
+            env={"DD_SERVICE": "mysvc", "DD_PYTEST_SERVICE": "pymysvc", "DD_PYTEST_OPERATION_NAME": "mytest"},
         )
         assert 0 == rec.ret
 
@@ -861,11 +780,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
@@ -912,12 +827,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            "--doctest-modules",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", "--doctest-modules", file_name)
         rec.assertoutcome(passed=3)
         spans = self.pop_spans()
 
@@ -940,11 +850,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
 
@@ -960,11 +866,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -988,11 +890,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -1017,11 +915,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -1049,11 +943,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -1075,11 +965,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", file_name)
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -1110,11 +996,7 @@ class PytestTestCase(PytestTestCaseBase):
         codeowners = "* @default-team\n{0} @team-b @backup-b\n".format(os.path.basename(py_team_b_file.strpath))
         self.testdir.makefile("", CODEOWNERS=codeowners)
 
-        self.inline_run(
-            "--ddtrace",
-            *file_names,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", *file_names)
         spans = self.pop_spans()
         assert len(spans) == (6 if _USE_PLUGIN_V2 else 7)
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
@@ -1135,21 +1017,14 @@ class PytestTestCase(PytestTestCaseBase):
         self.testdir.makepyfile(**{"subdir/test_foo": test_file_content})
 
         subdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            "test_foo.py",
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace", "test_foo.py")
         spans = self.pop_spans()
         [test_span] = [span for span in spans if span.get_tag("type") == "test"]
         assert json.loads(test_span.get_tag(test.CODEOWNERS)) == ["@default-team"]
 
     def test_pytest_session(self):
         """Test that running pytest will generate a test session span."""
-        self.inline_run(
-            "--ddtrace",
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
         assert len(spans) == 1
         assert spans[0].get_tag("type") == "test_session_end"
@@ -1168,11 +1043,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         assert len(spans) == 4
@@ -1188,11 +1059,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         test_suite_span = spans[3]
@@ -1230,12 +1097,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_names.append(os.path.basename(file_b.strpath))
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
         assert len(spans) == (6 if _USE_PLUGIN_V2 else 7)
@@ -1269,13 +1131,7 @@ class PytestTestCase(PytestTestCaseBase):
                     assert True
                 """
         )
-        rec = self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
-        spans = self.pop_spans()
+        rec = self.inline_run("--ddtrace")
         rec.assertoutcome(passed=3)
         spans = self.pop_spans()
         assert len(spans) == 6
@@ -1304,12 +1160,7 @@ class PytestTestCase(PytestTestCaseBase):
                 """
         )
         file_names.append(os.path.basename(file_b.strpath))
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
         test_session_span = _get_spans_from_list(spans, "session")[0]
         test_module_spans = _get_spans_from_list(spans, "module")
@@ -1346,12 +1197,7 @@ class PytestTestCase(PytestTestCaseBase):
                 """
         )
         file_names.append(os.path.basename(file_b.strpath))
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
         test_session_span = _get_spans_from_list(spans, "session")[0]
         test_module_spans = _get_spans_from_list(spans, "module")
@@ -1381,14 +1227,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
-
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=2)
         spans = self.pop_spans()
         for span in spans:
@@ -1408,14 +1247,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
-
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(passed=1, failed=1)
         spans = self.pop_spans()
         test_span_ok = spans[0]
@@ -1451,13 +1283,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
         for span in spans:
@@ -1478,13 +1304,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=1, passed=1)
         spans = self.pop_spans()
         test_session_span = _get_spans_from_list(spans, "session")[0]
@@ -1519,13 +1339,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=1, passed=1)
         spans = self.pop_spans()
         test_span_skipped = spans[0]
@@ -1561,14 +1375,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
-
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2, passed=0)
         spans = self.pop_spans()
         test_session_span = [s for s in spans if s.get_tag("type") == "test_session_end"][0]
@@ -1602,14 +1409,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         file_name = os.path.basename(py_file.strpath)
-        rec = self.inline_run(
-            "--ddtrace",
-            file_name,
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
-
+        rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(failed=1, passed=1)
         spans = self.pop_spans()
         test_span_skipped = spans[0]
@@ -1640,12 +1440,7 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
         for span in spans:
             assert span.get_tag("test.status") == "pass"
@@ -1687,12 +1482,7 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
         assert len(spans) == 7
@@ -1735,13 +1525,7 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        rec = self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
-
+        rec = self.inline_run("--ddtrace")
         rec.assertoutcome(passed=4)
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -1777,13 +1561,7 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        self.inline_run(
-            "--ignore=test_package_a",
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ignore=test_package_a", "--ddtrace")
         spans = self.pop_spans()
         assert len(spans) == 4
         test_session_span = spans[1]
@@ -1841,12 +1619,7 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
         assert len(spans) == 11
@@ -1894,12 +1667,7 @@ class PytestTestCase(PytestTestCaseBase):
         """
         )
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -1957,7 +1725,6 @@ class PytestTestCase(PytestTestCaseBase):
                 os.path.basename(py_cov_file.strpath),
                 extra_env={
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                 },
             )
 
@@ -2057,7 +1824,6 @@ class PytestTestCase(PytestTestCaseBase):
                 os.path.basename(py_cov_file.strpath),
                 extra_env={
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                 },
             )
         spans = self.pop_spans()
@@ -2150,7 +1916,6 @@ class PytestTestCase(PytestTestCaseBase):
                 os.path.basename(py_cov_file.strpath),
                 extra_env={
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                 },
             )
 
@@ -2238,7 +2003,6 @@ class PytestTestCase(PytestTestCaseBase):
                 os.path.basename(py_cov_file.strpath),
                 extra_env={
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                 },
             )
         spans = self.pop_spans()
@@ -2306,7 +2070,6 @@ class PytestTestCase(PytestTestCaseBase):
                 os.path.basename(py_cov_file.strpath),
                 extra_env={
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                 },
             )
         spans = self.pop_spans()
@@ -2341,14 +2104,7 @@ class PytestTestCase(PytestTestCaseBase):
         file_name = os.path.basename(py_file.strpath)
         with mock.patch("ddtrace.internal.ci_visibility.recorder._get_git_repo") as ggr:
             ggr.return_value = self.git_repo
-            self.inline_run(
-                "--ddtrace",
-                file_name,
-                mock_ci_env=False,
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace", file_name, mock_ci_env=False)
             spans = self.pop_spans()
 
         assert len(spans) == 4
@@ -2459,13 +2215,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            # self.inline_run("--ddtrace")
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 11
@@ -2570,12 +2320,7 @@ class PytestTestCase(PytestTestCaseBase):
                 side_effect=_fetch_test_to_skip_side_effect(_itr_data),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -2668,12 +2413,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -2744,12 +2484,7 @@ class PytestTestCase(PytestTestCaseBase):
             ),
             mock.patch("ddtrace.internal.ci_visibility.recorder._is_item_itr_skippable", return_value=True),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -2826,12 +2561,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -2925,12 +2655,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 9  # 1 session + 2 modules + 2 suites + 4 tests
@@ -3013,12 +2738,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 9  # 1 session + 2 modules + 2 suites + 4 tests
@@ -3089,12 +2809,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -3150,12 +2865,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
         self.testdir.chdir()
         with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -3231,12 +2941,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -3309,12 +3014,7 @@ class PytestTestCase(PytestTestCaseBase):
                 return_value=True,
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 7
@@ -3418,12 +3118,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12
@@ -3570,12 +3265,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12
@@ -3718,12 +3408,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12
@@ -3836,12 +3521,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12
@@ -3988,12 +3668,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12
@@ -4135,12 +3810,7 @@ class PytestTestCase(PytestTestCaseBase):
                 _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
             ),
         ):
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 12
@@ -4299,12 +3969,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 26
@@ -4400,13 +4065,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            "--ddtrace-include-class-name",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace", "--ddtrace-include-class-name")
 
         spans = self.pop_spans()
         assert len(spans) == 6
@@ -4473,12 +4132,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 4
@@ -4546,12 +4200,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
         assert len(spans) == 8
@@ -4623,13 +4272,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            "--no-cov",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace", "--cov")
 
         spans = self.pop_spans()
         assert len(spans) == 4
@@ -4687,13 +4330,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            "--cov=tools",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace", "--cov=tools")
 
         spans = self.pop_spans()
         assert len(spans) == 4
@@ -4748,14 +4385,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            "--cov=tools",
-            "--no-cov",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace", "--cov=tools", "--no-cov")
 
         spans = self.pop_spans()
         assert len(spans) == 4
@@ -4810,14 +4440,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
 
         self.testdir.chdir()
-        self.inline_run(
-            "--ddtrace",
-            "--no-cov",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-            project_dir=str(self.git_repo),
-        )
+        self.inline_run("--ddtrace", "--no-cov")
 
         spans = self.pop_spans()
         assert len(spans) == 4
@@ -4915,13 +4538,7 @@ class PytestTestCase(PytestTestCaseBase):
                 )
             )
 
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-            project_dir=str(self.git_repo),
-        )
+        self.inline_run("--ddtrace", project_dir=str(self.git_repo))
 
         spans = self.pop_spans()
         assert len(spans) == 9
@@ -4997,12 +4614,7 @@ class PytestTestCase(PytestTestCaseBase):
             ) as mock_ddconfig,
         ):
             mock_ddconfig._ci_visibility_agentless_enabled = True
-            self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
-                },
-            )
+            self.inline_run("--ddtrace")
 
             spans = self.pop_spans()
             assert len(spans) == 4
@@ -5032,11 +4644,7 @@ class PytestTestCase(PytestTestCaseBase):
         )
         file_name = os.path.basename(py_file.strpath)
 
-        result = self.subprocess_run(
-            "--ddtrace",
-            file_name,
-            env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        result = self.subprocess_run("--ddtrace", file_name)
         assert result.ret == 0
 
     def test_pytest_ddtrace_logger_unaffected_by_log_capture(self):
@@ -5079,11 +4687,7 @@ class PytestTestCase(PytestTestCaseBase):
         )
         file_name = os.path.basename(py_file.strpath)
 
-        result = self.subprocess_run(
-            "--ddtrace",
-            file_name,
-            env={"DD_PYTEST_USE_NEW_PLUGIN": "false"},
-        )
+        result = self.subprocess_run("--ddtrace", file_name)
         assert "I/O operation on closed file" not in result.stderr.str()
         assert result.ret == 0
 
@@ -5142,12 +4746,7 @@ class PytestTestCase(PytestTestCaseBase):
             """
         )
 
-        self.inline_run(
-            "--ddtrace",
-            extra_env={
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
-            },
-        )
+        self.inline_run("--ddtrace")
         assert len(reports_by_item) == reports_by_item_count_before
         assert len(excinfo_by_report) == excinfo_by_report_count_before
 
@@ -5221,7 +4820,6 @@ def test_coverage_target():
             rec = self.inline_run(
                 "--ddtrace",
                 extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "0",  # Enable test-level ITR
                 },
             )
@@ -5308,7 +4906,6 @@ def test_coverage_target():
             self.inline_run(
                 "--ddtrace",
                 extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "0",  # Enable test-level ITR
                 },
             )
@@ -5398,7 +4995,6 @@ def test_simple():
             rec = self.inline_run(
                 "--ddtrace",
                 extra_env={
-                    "DD_PYTEST_USE_NEW_PLUGIN": "false",
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "0",  # Enable test-level ITR
                 },
             )
