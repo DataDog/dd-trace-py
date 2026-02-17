@@ -3016,7 +3016,7 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.12"),
-                    pkgs={"llama-index": "~=0.1.0"},
+                    pkgs={"llama-index": "~=0.10.0"},
                 ),
                 Venv(
                     pys=select_pys(),
