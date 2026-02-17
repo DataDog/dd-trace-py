@@ -134,7 +134,7 @@ class TracingEvent(Event):
     _end_span: bool = field(default=True, init=False)
 
     # Optional tracing related attibutes
-    activate: bool = True  # if True, activate the span as active span context
+    activate: bool = False  # if True, activate the span as active span context
     use_active_context: bool = True  # if True, use the active span ctx as parent
     service: Optional[str] = None
     distributed_context: Optional["ActiveTrace"] = None  # if set, use the context as parent
