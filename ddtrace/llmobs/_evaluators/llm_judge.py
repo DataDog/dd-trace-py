@@ -177,6 +177,56 @@ def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LL
     return call
 
 
+def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
+    client_options = client_options or {}
+    api_key = client_options.get("api_key") or os.environ.get("AZURE_OPENAI_API_KEY")
+    azure_endpoint = client_options.get("azure_endpoint") or os.environ.get("AZURE_OPENAI_ENDPOINT")
+    api_version = client_options.get("api_version") or os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
+
+    if not api_key:
+        raise ValueError(
+            "Azure OpenAI API key not provided. "
+            "Pass 'api_key' in client_options or set AZURE_OPENAI_API_KEY environment variable"
+        )
+    if not azure_endpoint:
+        raise ValueError(
+            "Azure OpenAI endpoint not provided. "
+            "Pass 'azure_endpoint' in client_options or set AZURE_OPENAI_ENDPOINT environment variable"
+        )
+
+    try:
+        from openai import AzureOpenAI
+    except ImportError:
+        raise ImportError("openai package required: pip install openai")
+
+    client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version)
+    deployment_name = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+
+    def call(
+        provider: Optional[str],
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
+        model: str,
+        model_params: Optional[dict[str, Any]],
+    ) -> str:
+        kwargs: dict[str, Any] = {"model": deployment_name or model, "messages": messages}
+        if model_params:
+            kwargs.update(model_params)
+        if json_schema:
+            kwargs["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "evaluation", "strict": True, "schema": json_schema},
+            }
+        response = client.chat.completions.create(**kwargs)
+        choices = getattr(response, "choices", None)
+        if choices and isinstance(choices, list):
+            message = getattr(choices[0], "message", None)
+            return getattr(message, "content", None) or ""
+        return ""
+
+    return call
+
+
 def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
     api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
@@ -456,7 +506,7 @@ class LLMJudge(BaseEvaluator):
         user_prompt: str,
         system_prompt: Optional[str] = None,
         structured_output: Optional[StructuredOutput] = None,
-        provider: Optional[Literal["openai", "anthropic", "vertexai", "bedrock"]] = None,
+        provider: Optional[Literal["openai", "anthropic", "azure_openai", "vertexai", "bedrock"]] = None,
         model: Optional[str] = None,
         model_params: Optional[dict[str, Any]] = None,
         client: Optional[LLMClient] = None,
@@ -466,7 +516,7 @@ class LLMJudge(BaseEvaluator):
         """Initialize an LLMJudge evaluator.
 
         LLMJudge enables automated evaluation of LLM outputs using another LLM as the judge.
-        It supports multiple providers (OpenAI, Anthropic, Vertex AI, Bedrock) and output formats
+        It supports multiple providers (OpenAI, Anthropic, Azure OpenAI, Vertex AI, Bedrock) and output formats
         for flexible evaluation criteria.
 
         Supported Output Types:
@@ -490,7 +540,7 @@ class LLMJudge(BaseEvaluator):
             structured_output: Output format specification (BooleanStructuredOutput, ScoreStructuredOutput,
                 CategoricalStructuredOutput, or a custom JSON schema dict).
             provider: LLM provider to use. Supported values: ``"openai"``, ``"anthropic"``,
-                ``"vertexai"``, ``"bedrock"``. Required if ``client`` is not provided.
+                ``"azure_openai"``, ``"vertexai"``, ``"bedrock"``. Required if ``client`` is not provided.
             model: Model identifier (e.g., ``"gpt-4o"``, ``"claude-sonnet-4-20250514"``).
             model_params: Additional parameters passed to the LLM API (e.g., temperature).
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
@@ -504,6 +554,14 @@ class LLMJudge(BaseEvaluator):
 
                 **Anthropic:**
                     - ``api_key``: API key. Falls back to ``ANTHROPIC_API_KEY`` env var.
+
+                **Azure OpenAI:**
+                    - ``api_key``: API key. Falls back to ``AZURE_OPENAI_API_KEY`` env var.
+                    - ``azure_endpoint``: Endpoint URL. Falls back to ``AZURE_OPENAI_ENDPOINT``.
+                    - ``api_version``: API version (default: "2024-10-21").
+                      Falls back to ``AZURE_OPENAI_API_VERSION``.
+                    - ``azure_deployment``: Deployment name. Falls back to
+                      ``AZURE_OPENAI_DEPLOYMENT`` or uses ``model`` param.
 
                 **Vertex AI:**
                     - ``project``: Google Cloud project ID. Falls back to
@@ -587,12 +645,14 @@ class LLMJudge(BaseEvaluator):
             self._client = _create_openai_client(client_options=client_options)
         elif provider == "anthropic":
             self._client = _create_anthropic_client(client_options=client_options)
+        elif provider == "azure_openai":
+            self._client = _create_azure_openai_client(client_options=client_options)
         elif provider == "vertexai":
             self._client = _create_vertexai_client(client_options=client_options)
         elif provider == "bedrock":
             self._client = _create_bedrock_client(client_options=client_options)
         else:
-            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/vertexai/bedrock)")
+            raise ValueError("Provide either 'client' or 'provider' (openai/anthropic/azure_openai/vertexai/bedrock)")
 
     def evaluate(self, context: EvaluatorContext) -> Union[EvaluatorResult, str, Any]:
         if self._model is None:

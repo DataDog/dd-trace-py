@@ -1,6 +1,5 @@
 import enum
 import os
-from typing import Callable  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -8,7 +7,6 @@ from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
@@ -141,7 +139,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self,
         product: str,
         callback: RCCallback,
-        preprocess: Optional[Callable[[list[Payload]], list[Payload]]] = None,
         skip_enabled: bool = False,
         capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
@@ -150,7 +147,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         Args:
             product: Product name (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
             callback: Callback function to invoke when payloads are received in child processes
-            preprocess: Optional preprocessing function to run in the main process before publishing
             skip_enabled: If True, skip enabling the remote config client
             capabilities: list of capabilities to register for this product
         """
@@ -160,7 +156,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
             if not skip_enabled:
                 self.enable()
 
-            self._client.register_product(product, callback, preprocess)
+            self._client.register_product(product, callback)
 
             # Check for potential conflicts in capabilities
             for capability in capabilities:
