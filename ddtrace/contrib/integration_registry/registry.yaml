@@ -603,6 +603,16 @@ integrations:
       min: 2.2.1
       max: 2.2.6
 
+- integration_name: niquests
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - niquests
+  tested_versions_by_dependency:
+    niquests:
+      min: 3.17.0
+      max: 3.17.0
+
 - integration_name: openai
   is_external_package: true
   is_tested: true

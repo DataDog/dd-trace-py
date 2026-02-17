@@ -1579,6 +1579,29 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="niquests",
+            command="pytest {cmdargs} tests/contrib/niquests",
+            pkgs={
+                "pytest-randomly": latest,
+                "httpretty": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={
+                        "niquests": [
+                            "~=3.17.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="wsgi",
             command="pytest {cmdargs} tests/contrib/wsgi",
             venvs=[

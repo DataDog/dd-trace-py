@@ -464,6 +464,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "niquests",
+        "integration": "niquests",
+        "minimum_tracer_supported": "3.17.0",
+        "max_tracer_supported": "3.17.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",

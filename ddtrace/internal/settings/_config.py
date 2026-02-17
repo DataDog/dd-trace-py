@@ -197,6 +197,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mcp",
         "ray",
         "aiokafka",
+        "niquests",
     }
 )
 
