@@ -726,9 +726,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog
         :param context: The evaluation context
         :return: EvaluatorInferResponse with status, value, assessment, and reasoning
-        :raises RemoteEvaluatorError: Raised isn the following scenarios:
-            - Evaluation error: Backend returns status ERROR or WARN
-            - HTTP error: Backend returns 4xx/5xx status
+        :raises RemoteEvaluatorError: If backend returns status ERROR or WARN
+        :raises RuntimeError: If HTTP request fails (4xx/5xx status)
         """
         from ddtrace.llmobs._experiment import RemoteEvaluatorError
 
@@ -739,11 +738,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         response_data = resp.get_json() or {}
 
         if resp.status != 200:
-            backend_error = self._build_http_error(response_data, resp.status)
-            raise RemoteEvaluatorError(
-                f"Failed to call evaluator '{eval_name}': {backend_error['message']}",
-                backend_error=backend_error,
-            )
+            error_msg = f"HTTP {resp.status}"
+            if "errors" in response_data and response_data["errors"]:
+                error = response_data["errors"][0]
+                if isinstance(error, dict):
+                    error_msg = error.get("detail") or error.get("title") or error_msg
+            raise RuntimeError(f"Failed to call evaluator '{eval_name}': {error_msg}")
 
         attributes = response_data.get("data", {}).get("attributes", {})
         status = attributes.get("status", "")
@@ -758,26 +758,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "value": attributes.get("value"),
             "assessment": attributes.get("assessment"),
             "reasoning": attributes.get("reasoning"),
-        }
-
-    def _build_http_error(self, error_data: dict[str, Any], status: int) -> dict[str, str]:
-        """Build backend_error dict from HTTP error response."""
-        # Try JSON:API format
-        if "errors" in error_data and error_data["errors"]:
-            error = error_data["errors"][0]
-            if isinstance(error, dict):
-                return {
-                    "type": error.get("meta", {}).get("type", "http_error"),
-                    "message": error.get("detail") or error.get("title") or f"HTTP {status}",
-                    "recommended_resolution": error.get("meta", {}).get("recommended_resolution", ""),
-                }
-            return {"type": "http_error", "message": str(error), "recommended_resolution": ""}
-
-        # Fallback
-        return {
-            "type": "http_error",
-            "message": f"HTTP {status}: {str(error_data)[:200]}",
-            "recommended_resolution": "Check backend logs",
         }
 
 

@@ -473,17 +473,10 @@ class TestRemoteEvaluator:
         assert exc_info.value.backend_error["type"] == "invalid_config"
 
     def test_evaluate_http_error(self):
-        """Test that generic HTTP errors are wrapped in RemoteEvaluatorError."""
+        """Test that HTTP errors raise RuntimeError."""
         mock_client = mock.MagicMock()
-        # Simulate evaluator_infer raising RemoteEvaluatorError for HTTP error
-        mock_client.evaluator_infer.side_effect = RemoteEvaluatorError(
-            "Failed to call evaluator 'test-eval': HTTP 500",
-            backend_error={
-                "type": "http_error",
-                "message": "HTTP 500: Internal Server Error",
-                "recommended_resolution": "Check backend logs for details",
-            },
-        )
+        # Simulate evaluator_infer raising RuntimeError for HTTP error
+        mock_client.evaluator_infer.side_effect = RuntimeError("Failed to call evaluator 'test-eval': HTTP 500")
 
         evaluator = RemoteEvaluator(
             eval_name="test-eval",
@@ -493,12 +486,10 @@ class TestRemoteEvaluator:
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
-        # HTTP errors are wrapped in RemoteEvaluatorError, not ValueError
-        with pytest.raises(RemoteEvaluatorError) as exc_info:
+        with pytest.raises(RuntimeError) as exc_info:
             evaluator.evaluate(ctx)
 
-        assert "HTTP 500" in str(exc_info.value)
-        assert exc_info.value.backend_error["type"] == "http_error"
+        assert "Failed to call evaluator 'test-eval': HTTP 500" in str(exc_info.value)
 
     def test_evaluate_llmobs_not_enabled(self, llmobs):
         """Test that AttributeError is raised if LLMObs not enabled."""
@@ -581,15 +572,10 @@ class TestRemoteEvaluator:
         assert "integrations settings" in exc_info.value.backend_error["recommended_resolution"]
 
     def test_evaluate_http_404_jsonapi_error(self):
-        """Test that HTTP 404 with JSON:API error format is properly parsed."""
+        """Test that HTTP 404 errors raise RuntimeError with parsed message."""
         mock_client = mock.MagicMock()
-        mock_client.evaluator_infer.side_effect = RemoteEvaluatorError(
-            "Failed to call evaluator 'missing-eval': Evaluator not found in organization",
-            backend_error={
-                "type": "evaluator_not_found",
-                "message": "Evaluator not found in organization",
-                "recommended_resolution": "Check evaluator name in Datadog UI",
-            },
+        mock_client.evaluator_infer.side_effect = RuntimeError(
+            "Failed to call evaluator 'missing-eval': Evaluator not found in organization"
         )
 
         evaluator = RemoteEvaluator(
@@ -600,23 +586,16 @@ class TestRemoteEvaluator:
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
-        with pytest.raises(RemoteEvaluatorError) as exc_info:
+        with pytest.raises(RuntimeError) as exc_info:
             evaluator.evaluate(ctx)
 
         assert "Evaluator not found" in str(exc_info.value)
-        assert exc_info.value.backend_error["type"] == "evaluator_not_found"
-        assert exc_info.value.backend_error["message"] == "Evaluator not found in organization"
-        assert exc_info.value.backend_error["recommended_resolution"] == "Check evaluator name in Datadog UI"
 
     def test_evaluate_http_500_jsonapi_error(self):
-        """Test that HTTP 500 with JSON:API error format is properly parsed."""
+        """Test that HTTP 500 errors raise RuntimeError with parsed message."""
         mock_client = mock.MagicMock()
-        mock_client.evaluator_infer.side_effect = RemoteEvaluatorError(
-            "Failed to call evaluator 'test-eval': Internal server error processing evaluation",
-            backend_error={
-                "type": "internal_server_error",
-                "message": "Internal server error processing evaluation",
-            },
+        mock_client.evaluator_infer.side_effect = RuntimeError(
+            "Failed to call evaluator 'test-eval': Internal server error processing evaluation"
         )
 
         evaluator = RemoteEvaluator(
@@ -627,9 +606,7 @@ class TestRemoteEvaluator:
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
-        with pytest.raises(RemoteEvaluatorError) as exc_info:
+        with pytest.raises(RuntimeError) as exc_info:
             evaluator.evaluate(ctx)
 
         assert "Internal server error" in str(exc_info.value)
-        assert exc_info.value.backend_error["type"] == "internal_server_error"
-        assert exc_info.value.backend_error["message"] == "Internal server error processing evaluation"
