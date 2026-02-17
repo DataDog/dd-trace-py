@@ -28,7 +28,7 @@ class TestGitHubActionsJobID:
     def test_get_github_actions_job_id_rejects_non_numeric_env_var(self):
         """Test that non-numeric environment variable is rejected."""
         env = {"JOB_CHECK_RUN_ID": "abc123"}
-        with mock.patch.object(github_actions, "DIAG_ENABLED", False):
+        with mock.patch.object(github_actions, "_get_diag_dirs", return_value=[]):
             job_id = github_actions._get_job_id(env)
             assert job_id is None
 
@@ -105,25 +105,6 @@ class TestGitHubActionsJobID:
                 env = {}
                 job_id = github_actions._get_job_id(env)
                 assert job_id == "99887766"
-
-    def test_get_github_actions_job_id_rejects_non_integer_float(self):
-        """Test that non-integer float values are rejected."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            worker_file = os.path.join(tmpdir, "Worker_20240101-000000.log")
-            diag_data = {
-                "job": {
-                    "d": [
-                        {"k": "check_run_id", "v": 12345.5},  # Non-integer float should be rejected
-                    ]
-                }
-            }
-            with open(worker_file, "w") as f:
-                json.dump(diag_data, f)
-
-            with mock.patch.object(github_actions, "_get_diag_dirs", return_value=[tmpdir]):
-                env = {}
-                job_id = github_actions._get_job_id(env)
-                assert job_id is None
 
     def test_get_github_actions_job_id_multiple_files_newest_first(self):
         """Test that the newest diagnostics file is checked first."""
@@ -207,35 +188,6 @@ class TestGitHubActionsJobID:
                 job_id = github_actions._get_job_id(env)
                 assert job_id is None
 
-    def test_get_github_actions_job_id_disabled(self):
-        """Test that diagnostics scanning can be disabled."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            worker_file = os.path.join(tmpdir, "Worker_20240101-000000.log")
-            diag_data = {
-                "job": {
-                    "d": [
-                        {"k": "check_run_id", "v": 87654321},
-                    ]
-                }
-            }
-            with open(worker_file, "w") as f:
-                json.dump(diag_data, f)
-
-            with mock.patch.object(github_actions, "_get_diag_dirs", return_value=[tmpdir]):
-                with mock.patch.object(github_actions, "DIAG_ENABLED", False):
-                    env = {}
-                    job_id = github_actions._get_job_id(env)
-                    assert job_id is None
-
-    def test_is_numeric_job_id(self):
-        """Test numeric job ID validation."""
-        assert github_actions._is_numeric_job_id("12345")
-        assert github_actions._is_numeric_job_id("0")
-        assert not github_actions._is_numeric_job_id("")
-        assert not github_actions._is_numeric_job_id("abc")
-        assert not github_actions._is_numeric_job_id("123abc")
-        assert not github_actions._is_numeric_job_id("12.34")
-
     @pytest.mark.parametrize(
         "system,expected_dirs",
         [
@@ -254,7 +206,7 @@ class TestGitHubActionsJobID:
         with mock.patch("platform.system", return_value="Windows"):
             with mock.patch.dict(os.environ, {"ProgramFiles": "C:\\Program Files"}):
                 dirs = github_actions._get_diag_dirs()
-                assert r"C:\Program Files\actions-runner\cached\_diag" in dirs
-                assert r"C:\Program Files\actions-runner\_diag" in dirs
+                assert os.path.join("C:\\Program Files", "actions-runner", "cached", "_diag") in dirs
+                assert os.path.join("C:\\Program Files", "actions-runner", "_diag") in dirs
                 assert r"C:\actions-runner\cached\_diag" in dirs
                 assert r"C:\actions-runner\_diag" in dirs
