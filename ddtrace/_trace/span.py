@@ -172,7 +172,7 @@ class Span(SpanData):
                 raise TypeError("parent_id must be an integer")
             return
 
-        self._meta_struct: Dict[str, Dict[str, Any]] = {}
+        self._meta_struct: dict[str, dict[str, Any]] = {}
 
         if trace_id is not None:
             self.trace_id: int = trace_id

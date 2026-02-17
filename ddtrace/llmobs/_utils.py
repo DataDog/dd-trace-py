@@ -347,7 +347,7 @@ class LinkTracker:
     - Linking LLM spans to their associated guardrail spans and vice versa
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tool_calls: dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
         self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
         self._active_guardrail_spans: set[Span] = set()
