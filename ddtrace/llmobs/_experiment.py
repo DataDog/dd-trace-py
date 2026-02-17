@@ -20,14 +20,6 @@ from typing import cast
 from typing import overload
 import uuid
 
-try:
-    from deepeval.metrics import BaseMetric, BaseConversationalMetric
-    from deepeval.test_case import LLMTestCase
-except ImportError:
-    BaseMetric = None  # type: ignore[misc, assignment]
-    BaseConversationalMetric = None  # type: ignore[misc, assignment]
-    LLMTestCase = None  # type: ignore[misc, assignment]
-
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -301,9 +293,11 @@ def _is_deep_eval_evaluator(evaluator: Any) -> bool:
     :param evaluator: The evaluator to check
     :return: True if it's a class-based deepeval evaluator, False otherwise
     """
-    if BaseMetric is None or BaseConversationalMetric is None:
+    try:
+        from deepeval.metrics import BaseMetric, BaseConversationalMetric
+    except ImportError:
         return False
-    return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
+    return isinstance(evaluator, (BaseMetric, BaseConversationalMetric))
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
@@ -323,54 +317,34 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     """
     return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deep_eval_evaluator(evaluator)
 
-if BaseMetric is not None and BaseConversationalMetric is not None:
-    def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric) -> Callable[[dict[str, Any], Any, Optional[JSONType]], EvaluatorResult]:
-        """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
-        
-        :param evaluator: The deep eval evaluator to run
-        :return: A callable function that can be used as an evaluator
-        """
-        def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
-            """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
-            
-            :param input_data: The input data
-            :param output_data: The output data
-            :param expected_output: The expected output
-            :return: An EvaluatorResult containing the score, reasoning, and assessment
-            """
-            deepEvalTestCase = LLMTestCase(
-                input=str(input_data),
-                actual_output=str(output_data),
-                expected_output=str(expected_output),
-            )
-            evaluator.measure(deepEvalTestCase)
-            score = evaluator.score
-            reasoning = None
-            assessment = None
-            metadata = None
-            if hasattr(evaluator, "reason"):
-                reasoning = evaluator.reason
-            if hasattr(evaluator, "success"):
-                assessment = "pass" if evaluator.success else "fail"
-            if hasattr(evaluator, "score_breakdown"):
-                metadata = evaluator.score_breakdown
-            eval_result = EvaluatorResult(
-                value=score,
-                reasoning=reasoning,
-                assessment=assessment,
-                metadata=metadata,
-            )
-            return eval_result
-        wrapped_evaluator.__name__ = getattr(evaluator, "name", "deep_eval_evaluator")
-        return wrapped_evaluator
-else:
-    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
-        """Dummy wrapper; should never be called but used to satisfy type checking.
-        
-        :param evaluator: The deep eval evaluator to run
-        :return: A callable function that can be used as an evaluator
-        """
-        return evaluator
+
+def _deep_eval_evaluator_wrapper(evaluator: Any) -> Callable[[dict[str, Any], Any, Optional[JSONType]], EvaluatorResult]:
+    """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
+
+    :param evaluator: The deep eval evaluator to run
+    :return: A callable function that can be used as an evaluator
+    """
+    from deepeval.test_case import LLMTestCase
+
+    def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
+        test_case = LLMTestCase(
+            input=str(input_data),
+            actual_output=str(output_data),
+            expected_output=str(expected_output),
+        )
+        evaluator.measure(test_case)
+        score = evaluator.score
+        reasoning = getattr(evaluator, "reason", None)
+        assessment = "pass" if evaluator.success else "fail" if hasattr(evaluator, "success") else None
+        metadata = getattr(evaluator, "score_breakdown", None)
+        return EvaluatorResult(
+            value=score,
+            reasoning=reasoning,
+            assessment=assessment,
+            metadata=metadata,
+        )
+    wrapped_evaluator.__name__ = getattr(evaluator, "name", "deep_eval_evaluator")
+    return wrapped_evaluator
 
 
 class Project(TypedDict):

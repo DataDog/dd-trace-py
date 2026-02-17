@@ -14,13 +14,6 @@ from typing import Sequence
 from typing import Union
 from typing import cast
 
-try:
-    import deepeval
-    from deepeval.metrics import BaseMetric, BaseConversationalMetric
-except ImportError:
-    BaseMetric = None  # type: ignore[misc, assignment]
-    BaseConversationalMetric = None  # type: ignore[misc, assignment]
-
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
@@ -112,6 +105,7 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
+from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
@@ -144,17 +138,10 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
 
 
-if BaseMetric is not None and BaseConversationalMetric is not None:
-    _ExperimentEvaluatorType = Union[
-        Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-        BaseEvaluator,
-        Union[list[BaseMetric], list[BaseConversationalMetric]],
-    ]
-else:
-    _ExperimentEvaluatorType = Union[
-        Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-        BaseEvaluator,
-    ]
+_ExperimentEvaluatorType = Union[
+    Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+    BaseEvaluator,
+]
 
 
 log = get_logger(__name__)
@@ -1177,17 +1164,22 @@ class LLMObs(Service):
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(
-            callable(evaluator) or isinstance(evaluator, BaseEvaluator) or isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric) for evaluator in evaluators
+            callable(evaluator) or isinstance(evaluator, BaseEvaluator) or _is_deep_eval_evaluator(evaluator)
+            for evaluator in evaluators
         ):
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
+        evaluators = list(evaluators)  # to allow mutation in the loop
         for idx, evaluator in enumerate(evaluators):
             if isinstance(evaluator, BaseEvaluator):
                 continue
-            if BaseMetric is not None and BaseConversationalMetric is not None and (isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)):
+            if _is_deep_eval_evaluator(evaluator):
                 evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator)
                 continue
             if not callable(evaluator):
-                raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator, BaseMetric, or BaseConversationalMetric.")
+                raise TypeError(
+                    f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator, "
+                    "BaseMetric, or BaseConversationalMetric."
+                )
             sig = inspect.signature(evaluator)
             params = sig.parameters
             evaluator_required_params = ("input_data", "output_data", "expected_output")
