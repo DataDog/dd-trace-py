@@ -241,6 +241,8 @@ tests/opentelemetry/                               @DataDog/apm-sdk-capabilities
 tests/tracer/                                      @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
+tests/tracer/test_ci_utils.py                      @DataDog/ci-app-libraries
+
 
 # AWS Lambda
 ddtrace/contrib/internal/aws_lambda                       @DataDog/apm-serverless @DataDog/serverless-aws
