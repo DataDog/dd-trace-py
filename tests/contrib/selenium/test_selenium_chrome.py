@@ -6,6 +6,7 @@ Selenium's webdriver-manager doesn't support Linux on non-x86_64).
 """
 
 import http.server
+import json
 import multiprocessing
 import os
 from pathlib import Path
@@ -118,7 +119,8 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
-                # DD_PYTEST_USE_NEW_PLUGIN="false",
+                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
+                DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
     )
@@ -170,7 +172,8 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
-                # DD_PYTEST_USE_NEW_PLUGIN="false",
+                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
+                DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
     )
@@ -225,7 +228,70 @@ def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_serv
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
-                # DD_PYTEST_USE_NEW_PLUGIN="false",
+                # Snapshot test expects traces from the agent; v3 plugin uses TestOptWriter and does not send them.
+                DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
     )
+
+
+def test_selenium_v3_plugin_tags(tmp_path, pytester, git_repo):
+    events_file = tmp_path / "events.json"
+
+    # conftest.py that captures events emitted by the v3 plugin to a JSON file
+    pytester.makeconftest(
+        f"""
+import json, atexit
+from ddtrace.testing.internal.writer import TestOptWriter
+
+_events = []
+_orig_put = TestOptWriter.put_event
+def _capture(self, event):
+    _events.append(event)
+    return _orig_put(self, event)
+TestOptWriter.put_event = _capture
+
+@atexit.register
+def _dump():
+    with open(r"{events_file}", "w") as f:
+        json.dump(_events, f, default=str)
+"""
+    )
+
+    pytester.makepyfile(
+        test_selenium="""
+from selenium.webdriver.remote.webdriver import WebDriver
+
+def test_selenium_browser_tags():
+    driver = WebDriver.__new__(WebDriver)
+    driver.caps = {"browserName": "chrome", "browserVersion": "120.0"}
+    driver.add_cookie = lambda cookie: None
+    driver.execute = lambda *a, **kw: None
+
+    driver.get("http://example.com")
+"""
+    )
+
+    subprocess.run(
+        ["pytest", "--ddtrace", "--ddtrace-patch-all", "-v", "-s"],
+        cwd=str(pytester.path),
+        env=_get_default_ci_env_vars(
+            dict(
+                DD_API_KEY="foobar.baz",
+                DD_CIVISIBILITY_ITR_ENABLED="false",
+                DD_PATCH_MODULES="sqlite3:false",
+                CI_PROJECT_DIR=str(pytester.path),
+                DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                DD_PYTEST_USE_NEW_PLUGIN="true",
+            )
+        ),
+    )
+
+    events = json.loads(events_file.read_text())
+    test_events = [e for e in events if e["type"] == "test"]
+    meta = test_events[0]["content"]["meta"]
+    assert meta["test.is_browser"] == "true"
+    assert meta["test.browser.driver"] == "selenium"
+    assert meta["test.browser.name"] == "chrome"
+    assert meta["test.browser.version"] == "120.0"

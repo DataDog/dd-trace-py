@@ -10,7 +10,7 @@ from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import tracer
 
 
-# AIDEV-NOTE: This integration relies on the global ddtrace tracer having an active root span with tag "type"="test".
+# NOTE: This integration relies on the global ddtrace tracer having an active root span with tag "type"="test".
 # - V2 pytest plugin (ddtrace.contrib.internal.pytest): uses CI Visibility API which creates such spans; Selenium
 #   is patched when ddtrace-run or _patch_all() is used, so it works.
 # - V3 pytest plugin (ddtrace.testing.internal.pytest): creates a trace context with type=test in trace_context(), but
