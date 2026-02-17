@@ -3293,6 +3293,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
+                "openai": latest,
                 "google-cloud-aiplatform": latest,
                 "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
