@@ -51,7 +51,6 @@ NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONTyp
 ConfigType = Dict[str, JSONType]
 DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
-# Task types
 TaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType]
 AsyncTaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], Awaitable[JSONType]]
 
@@ -289,24 +288,7 @@ class BaseSummaryEvaluator(ABC):
 
 
 class BaseAsyncEvaluator(ABC):
-    """Base class for async row-level evaluators.
-
-    Subclasses must implement the async `evaluate` method.
-
-    Example::
-
-        class AsyncSemanticSimilarityEvaluator(BaseAsyncEvaluator):
-            def __init__(self, threshold=0.8):
-                super().__init__(name="async_semantic_similarity")
-                self.threshold = threshold
-
-            async def evaluate(self, context: EvaluatorContext):
-                score = await self.async_compare(context.output_data, context.expected_output)
-                return score
-
-    Note: The ``evaluate`` method may be called concurrently from multiple coroutines.
-    Avoid modifying instance attributes inside ``evaluate()``; use local variables instead.
-    """
+    """Base class for async row-level evaluators."""
 
     def __init__(self, name: Optional[str] = None):
         """Initialize the async evaluator.
@@ -325,38 +307,12 @@ class BaseAsyncEvaluator(ABC):
 
     @abstractmethod
     async def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
-        """Perform async evaluation.
-
-        This method must be implemented by all subclasses.
-
-        :param context: The evaluation context containing input, output, and metadata
-        :return: Evaluation results - can be a JSONType value (dict, primitive, list, None)
-                 or an EvaluatorResult object containing the value plus additional metadata
-        """
+        """Perform async evaluation."""
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
 class BaseAsyncSummaryEvaluator(ABC):
-    """Base class for async summary evaluators that operate on aggregated experiment results.
-
-    Summary evaluators receive all inputs, outputs, expected outputs, and per-row
-    evaluation results at once, allowing them to compute aggregate metrics asynchronously.
-
-    Subclasses must implement the async `evaluate` method.
-
-    Example::
-
-        class AsyncAverageScoreEvaluator(BaseAsyncSummaryEvaluator):
-            def __init__(self, target_evaluator: str):
-                super().__init__(name="async_average_score")
-                self.target_evaluator = target_evaluator
-
-            async def evaluate(self, context: SummaryEvaluatorContext):
-                scores = context.evaluation_results.get(self.target_evaluator, [])
-                if not scores:
-                    return None
-                return sum(scores) / len(scores)
-    """
+    """Base class for async summary evaluators that operate on aggregated experiment results."""
 
     def __init__(self, name: Optional[str] = None):
         """Initialize the async summary evaluator.
@@ -375,14 +331,7 @@ class BaseAsyncSummaryEvaluator(ABC):
 
     @abstractmethod
     async def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
-        """Perform async summary evaluation on aggregated experiment results.
-
-        This method must be implemented by all subclasses.
-
-        :param context: The summary evaluation context containing all inputs, outputs,
-                        expected outputs, and per-row evaluation results
-        :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None)
-        """
+        """Perform async summary evaluation on aggregated experiment results."""
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
 
@@ -434,33 +383,6 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     :return: True if it's a function evaluator, False otherwise
     """
     return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator)
-
-
-def _is_async_evaluator(evaluator: Any) -> bool:
-    """Check if evaluator is an async class evaluator (inherits from BaseAsyncEvaluator).
-
-    :param evaluator: The evaluator to check
-    :return: True if it's an async class-based evaluator, False otherwise
-    """
-    return isinstance(evaluator, BaseAsyncEvaluator)
-
-
-def _is_async_summary_evaluator(evaluator: Any) -> bool:
-    """Check if evaluator is an async summary evaluator (inherits from BaseAsyncSummaryEvaluator).
-
-    :param evaluator: The evaluator to check
-    :return: True if it's an async class-based summary evaluator, False otherwise
-    """
-    return isinstance(evaluator, BaseAsyncSummaryEvaluator)
-
-
-def _is_async_callable(func: Any) -> bool:
-    """Check if a callable is a coroutine function.
-
-    :param func: The callable to check
-    :return: True if it's an async function, False otherwise
-    """
-    return asyncio.iscoroutinefunction(func)
 
 
 class Project(TypedDict):
@@ -760,13 +682,8 @@ class Dataset:
 
 
 class BaseExperiment(ABC):
-    """Base class for sync and async experiments.
+    """Base class for sync and async experiments."""
 
-    This class contains shared initialization logic and non-execution methods
-    that are common to both synchronous and asynchronous experiment implementations.
-    """
-
-    # Type declarations using Sequence for covariance in subclasses
     _task: Union[TaskType, AsyncTaskType]
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
@@ -807,7 +724,6 @@ class BaseExperiment(ABC):
                 "or as an argument to `LLMObs.experiment(project_name=...)`."
             )
         self._project_name = project_name
-        # Below values are set at experiment creation time
         self._project_id: Optional[str] = None
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
@@ -952,11 +868,7 @@ class BaseExperiment(ABC):
         return eval_metrics
 
     def _get_subset_dataset(self, sample_size: Optional[int]) -> Dataset:
-        """Get dataset subset if sample_size is specified.
-
-        :param sample_size: Number of records to sample, or None for full dataset
-        :return: A Dataset (either a subset or the original)
-        """
+        """Get dataset containing the first sample_size records of the original dataset."""
         if sample_size is not None and sample_size < len(self._dataset):
             subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
@@ -975,11 +887,6 @@ class BaseExperiment(ABC):
     def _extract_evaluator_result(
         self, eval_result: Union[JSONType, EvaluatorResult]
     ) -> Tuple[JSONType, Dict[str, JSONType]]:
-        """Extract value and extra fields from evaluator result.
-
-        :param eval_result: The raw result from an evaluator
-        :return: Tuple of (value, extra_return_values dict)
-        """
         extra_return_values: Dict[str, JSONType] = {}
         if isinstance(eval_result, EvaluatorResult):
             if eval_result.reasoning:
@@ -994,11 +901,6 @@ class BaseExperiment(ABC):
         return eval_result, extra_return_values
 
     def _build_evaluator_error(self, exc: Exception) -> Dict[str, Any]:
-        """Build error dict from exception.
-
-        :param exc: The exception that occurred
-        :return: Dict with message, type, and stack trace
-        """
         exc_type, exc_value, exc_tb = sys.exc_info()
         exc_type_name = type(exc).__name__ if exc_type is not None else "Unknown Exception"
         exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -1017,12 +919,6 @@ class BaseExperiment(ABC):
         List[Dict[str, Any]],
         Dict[str, List[JSONType]],
     ]:
-        """Prepare aggregated data for summary evaluators.
-
-        :param task_results: List of task results
-        :param eval_results: List of evaluation results
-        :return: Tuple of (inputs, outputs, expected_outputs, metadata_list, eval_results_by_name)
-        """
         inputs: List[DatasetRecordInputType] = []
         outputs: List[JSONType] = []
         expected_outputs: List[JSONType] = []
@@ -1046,11 +942,6 @@ class BaseExperiment(ABC):
         return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
 
     def _setup_experiment(self, llmobs_not_enabled_error: str) -> None:
-        """Set up the experiment by creating project and experiment in the backend.
-
-        :param llmobs_not_enabled_error: Error message to use if LLMObs is not enabled
-        :raises ValueError: If jobs < 1 or LLMObs is not enabled
-        """
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
 
@@ -1073,11 +964,6 @@ class BaseExperiment(ABC):
         self._run_name = experiment_run_name
 
     def _build_experiment_result(self, run_results: List[ExperimentRun]) -> ExperimentResult:
-        """Build final ExperimentResult from run results.
-
-        :param run_results: List of ExperimentRun objects
-        :return: ExperimentResult dict
-        """
         return {
             "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
             "rows": run_results[0].rows if run_results else [],
@@ -1085,15 +971,6 @@ class BaseExperiment(ABC):
         }
 
     def _build_task_result(self, idx: int, span: Any, span_id: str, trace_id: str, output_data: JSONType) -> TaskResult:
-        """Build TaskResult dict from span and output.
-
-        :param idx: Record index
-        :param span: The span object
-        :param span_id: Span ID string
-        :param trace_id: Trace ID string
-        :param output_data: Output from task execution
-        :return: TaskResult dict
-        """
         return {
             "idx": idx,
             "span_id": span_id,
@@ -1113,11 +990,6 @@ class BaseExperiment(ABC):
         }
 
     def _get_record_tags(self, record_id: str) -> Dict[str, str]:
-        """Build tags dict for a record.
-
-        :param record_id: The record ID
-        :return: Dict of tags
-        """
         return {
             **self._tags,
             "dataset_id": str(self._dataset._id),
@@ -1126,12 +998,6 @@ class BaseExperiment(ABC):
         }
 
     def _check_and_raise_task_error(self, task_result: TaskResult, raise_errors: bool) -> None:
-        """Check task result for errors and raise if configured.
-
-        :param task_result: The task result to check
-        :param raise_errors: Whether to raise on errors
-        :raises RuntimeError: If raise_errors is True and there's an error
-        """
         err_dict = task_result.get("error") or {}
         if isinstance(err_dict, dict):
             err_msg = err_dict.get("message")
@@ -1281,14 +1147,6 @@ class Experiment(BaseExperiment):
     def _run_evaluators(
         self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 1
     ) -> List[EvaluationResult]:
-        """Run evaluators on task results with concurrent execution using ThreadPoolExecutor.
-
-        Supports both class-based (BaseEvaluator) and literal function evaluators.
-
-        :param task_results: List of task results to evaluate
-        :param raise_errors: Whether to raise exceptions on evaluation errors
-        :param jobs: Maximum number of concurrent evaluator executions (default: 1)
-        """
 
         def _evaluate_row(idx: int, task_result: TaskResult) -> Dict[str, Dict[str, JSONType]]:
             record: DatasetRecord = self._dataset[idx]
@@ -1537,7 +1395,6 @@ class AsyncExperiment(BaseExperiment):
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
     ) -> List[TaskResult]:
-        """Run task on all records using asyncio.gather with semaphore."""
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
@@ -1564,7 +1421,6 @@ class AsyncExperiment(BaseExperiment):
     async def _run_evaluators(
         self, task_results: List[TaskResult], raise_errors: bool = False, jobs: int = 10
     ) -> List[EvaluationResult]:
-        """Run evaluators - supports both sync and async evaluators."""
         semaphore = asyncio.Semaphore(jobs)
 
         async def _evaluate_row(idx: int, task_result: TaskResult) -> Dict[str, Dict[str, JSONType]]:
@@ -1583,8 +1439,7 @@ class AsyncExperiment(BaseExperiment):
                     evaluator_name = ""
 
                     try:
-                        if _is_async_evaluator(evaluator):
-                            # Async class evaluator - native async call
+                        if isinstance(evaluator, BaseAsyncEvaluator):
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {**metadata, "experiment_config": self._config}
                             context = EvaluatorContext(
@@ -1596,12 +1451,10 @@ class AsyncExperiment(BaseExperiment):
                                 trace_id=task_result.get("trace_id"),
                             )
                             eval_result = await evaluator.evaluate(context)  # type: ignore[union-attr, misc]
-                        elif _is_async_callable(evaluator):
-                            # Async function evaluator - native async call
+                        elif asyncio.iscoroutinefunction(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                             eval_result = await evaluator(input_data, output_data, expected_output)  # type: ignore[operator, misc]
                         elif _is_class_evaluator(evaluator):
-                            # Sync class evaluator - run in thread
                             evaluator_name = evaluator.name  # type: ignore[union-attr]
                             combined_metadata = {**metadata, "experiment_config": self._config}
                             context = EvaluatorContext(
@@ -1614,7 +1467,6 @@ class AsyncExperiment(BaseExperiment):
                             )
                             eval_result = await asyncio.to_thread(evaluator.evaluate, context)  # type: ignore[union-attr]
                         elif _is_function_evaluator(evaluator):
-                            # Sync function evaluator - run in thread
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
                             eval_result = await asyncio.to_thread(
                                 evaluator,  # type: ignore[arg-type]
@@ -1646,15 +1498,11 @@ class AsyncExperiment(BaseExperiment):
                 return row_results
 
         coros = [_evaluate_row(idx, task_result) for idx, task_result in enumerate(task_results)]
-        results = await asyncio.gather(*coros, return_exceptions=not raise_errors)
+        results: list[Dict[str, Dict[str, JSONType]]] = await asyncio.gather(*coros)
 
         evaluations: List[EvaluationResult] = []
         for idx, row_results in enumerate(results):
-            if isinstance(row_results, BaseException):
-                # This shouldn't happen if raise_errors=False, but handle gracefully
-                evaluations.append({"idx": idx, "evaluations": {}})
-            else:
-                evaluations.append({"idx": idx, "evaluations": row_results})
+            evaluations.append({"idx": idx, "evaluations": row_results})
 
         return evaluations
 
@@ -1665,7 +1513,6 @@ class AsyncExperiment(BaseExperiment):
         raise_errors: bool = False,
         jobs: int = 10,
     ) -> List[EvaluationResult]:
-        """Run summary evaluators - supports both sync and async."""
         inputs, outputs, expected_outputs, metadata_list, eval_results_by_name = self._prepare_summary_evaluator_data(
             task_results, eval_results
         )
@@ -1679,8 +1526,7 @@ class AsyncExperiment(BaseExperiment):
                 evaluator_name = ""
 
                 try:
-                    if _is_async_summary_evaluator(summary_evaluator):
-                        # Async class summary evaluator
+                    if isinstance(summary_evaluator, BaseAsyncSummaryEvaluator):
                         evaluator_name = summary_evaluator.name
                         context = SummaryEvaluatorContext(
                             inputs=inputs,
@@ -1690,12 +1536,10 @@ class AsyncExperiment(BaseExperiment):
                             metadata=metadata_list,
                         )
                         eval_result = await summary_evaluator.evaluate(context)
-                    elif _is_async_callable(summary_evaluator):
-                        # Async function summary evaluator
+                    elif asyncio.iscoroutinefunction(summary_evaluator):
                         evaluator_name = summary_evaluator.__name__
                         eval_result = await summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
                     elif _is_class_summary_evaluator(summary_evaluator):
-                        # Sync class summary evaluator - run in thread
                         evaluator_name = summary_evaluator.name
                         context = SummaryEvaluatorContext(
                             inputs=inputs,
@@ -1706,7 +1550,6 @@ class AsyncExperiment(BaseExperiment):
                         )
                         eval_result = await asyncio.to_thread(summary_evaluator.evaluate, context)
                     else:
-                        # Sync function summary evaluator - run in thread
                         evaluator_name = summary_evaluator.__name__
                         eval_result = await asyncio.to_thread(
                             summary_evaluator, inputs, outputs, expected_outputs, eval_results_by_name

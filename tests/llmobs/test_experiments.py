@@ -93,6 +93,37 @@ def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _Ex
     return eri
 
 
+def mock_async_process_record():
+    """Context manager that mocks AsyncExperiment._process_record with stable IDs and timestamps."""
+    from contextlib import contextmanager
+
+    @contextmanager
+    def _mock_context():
+        with mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._process_record") as mock_process_record:
+
+            async def mock_process(*args, **kwargs):
+                return {
+                    "idx": 0,
+                    "span_id": "123",
+                    "trace_id": "456",
+                    "timestamp": MOCK_TIMESTAMP_NS,
+                    "output": {"prompt": "What is the capital of France?"},
+                    "metadata": {
+                        "dataset_record_index": 0,
+                        "experiment_name": "test_async_experiment",
+                        "dataset_name": "test-dataset-123",
+                    },
+                    "error": {"message": None, "type": None, "stack": None},
+                }
+
+            mock_process_record.side_effect = mock_process
+            with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+                mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+                yield
+
+    return _mock_context()
+
+
 @pytest.fixture
 def test_dataset_records() -> List[DatasetRecord]:
     return []
@@ -1262,8 +1293,8 @@ def test_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_reco
 
 
 def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_record):
-    expected_err = "Evaluator function must have parameters"
-    with pytest.raises(TypeError, match=expected_err):
+    expected_err = "Evaluator function must have parameters ('input_data', 'output_data', 'expected_output')."
+    with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         def my_evaluator_missing_expected_output(input_data, output_data):
             pass
@@ -1274,7 +1305,7 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
             test_dataset_one_record,
             [my_evaluator_missing_expected_output],
         )
-    with pytest.raises(TypeError, match=expected_err):
+    with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         def my_evaluator_missing_input(output_data, expected_output):
             pass
@@ -1285,7 +1316,7 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
             test_dataset_one_record,
             [my_evaluator_missing_input],
         )
-    with pytest.raises(TypeError, match=expected_err):
+    with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         def my_evaluator_missing_output(input_data, expected_output):
             pass
@@ -2162,7 +2193,8 @@ def test_async_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_on
 def test_async_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_record):
     """Test that async_experiment raises TypeError if evaluator has wrong signature."""
     # Use a pattern that matches regardless of parameter order (since it's derived from a set)
-    with pytest.raises(TypeError, match=r"Evaluator function must have parameters"):
+    expected_err = "Evaluator function must have parameters ('input_data', 'output_data', 'expected_output')."
+    with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         async def my_async_evaluator_missing_expected_output(input_data, output_data):
             pass
@@ -2470,34 +2502,15 @@ async def test_async_experiment_run_summary_evaluators_error_raises(llmobs, test
 @pytest.mark.asyncio
 async def test_async_experiment_run(llmobs, test_dataset_one_record):
     """Test AsyncExperiment.run() integration."""
-    with mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._process_record") as mock_process_record:
-        # This is to ensure that the eval event post request contains the same span/trace IDs and timestamp.
-        async def mock_process(*args, **kwargs):
-            return {
-                "idx": 0,
-                "span_id": "123",
-                "trace_id": "456",
-                "timestamp": MOCK_TIMESTAMP_NS,
-                "output": {"prompt": "What is the capital of France?"},
-                "metadata": {
-                    "dataset_record_index": 0,
-                    "experiment_name": "test_async_experiment",
-                    "dataset_name": "test-dataset-123",
-                },
-                "error": {"message": None, "type": None, "stack": None},
-            }
-
-        mock_process_record.side_effect = mock_process
-        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
-            exp = llmobs.async_experiment(
-                "test_async_experiment",
-                async_dummy_task,
-                test_dataset_one_record,
-                [async_dummy_evaluator],
-            )
-            exp._tags = {"ddtrace.version": "1.2.3"}
-            exp_results = await exp.run()
+    with mock_async_process_record():
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator],
+        )
+        exp._tags = {"ddtrace.version": "1.2.3"}
+        exp_results = await exp.run()
 
     assert len(exp_results.get("summary_evaluations")) == 0
     assert len(exp_results.get("rows")) == 1
@@ -2515,35 +2528,16 @@ async def test_async_experiment_run(llmobs, test_dataset_one_record):
 @pytest.mark.asyncio
 async def test_async_experiment_run_with_summary(llmobs, test_dataset_one_record):
     """Test AsyncExperiment.run() with summary evaluators."""
-    with mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._process_record") as mock_process_record:
-
-        async def mock_process(*args, **kwargs):
-            return {
-                "idx": 0,
-                "span_id": "123",
-                "trace_id": "456",
-                "timestamp": MOCK_TIMESTAMP_NS,
-                "output": {"prompt": "What is the capital of France?"},
-                "metadata": {
-                    "dataset_record_index": 0,
-                    "experiment_name": "test_async_experiment",
-                    "dataset_name": "test-dataset-123",
-                },
-                "error": {"message": None, "type": None, "stack": None},
-            }
-
-        mock_process_record.side_effect = mock_process
-        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
-            exp = llmobs.async_experiment(
-                "test_async_experiment",
-                async_dummy_task,
-                test_dataset_one_record,
-                [async_dummy_evaluator],
-                summary_evaluators=[async_dummy_summary_evaluator],
-            )
-            exp._tags = {"ddtrace.version": "1.2.3"}
-            exp_results = await exp.run()
+    with mock_async_process_record():
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator],
+            summary_evaluators=[async_dummy_summary_evaluator],
+        )
+        exp._tags = {"ddtrace.version": "1.2.3"}
+        exp_results = await exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 1
     summary_eval = exp_results["summary_evaluations"]["async_dummy_summary_evaluator"]
@@ -2560,35 +2554,16 @@ async def test_async_experiment_run_with_summary(llmobs, test_dataset_one_record
 @pytest.mark.asyncio
 async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_one_record):
     """Test AsyncExperiment.run() with mixed sync and async evaluators."""
-    with mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._process_record") as mock_process_record:
-
-        async def mock_process(*args, **kwargs):
-            return {
-                "idx": 0,
-                "span_id": "123",
-                "trace_id": "456",
-                "timestamp": MOCK_TIMESTAMP_NS,
-                "output": {"prompt": "What is the capital of France?"},
-                "metadata": {
-                    "dataset_record_index": 0,
-                    "experiment_name": "test_async_experiment",
-                    "dataset_name": "test-dataset-123",
-                },
-                "error": {"message": None, "type": None, "stack": None},
-            }
-
-        mock_process_record.side_effect = mock_process
-        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
-            exp = llmobs.async_experiment(
-                "test_async_experiment",
-                async_dummy_task,
-                test_dataset_one_record,
-                [dummy_evaluator, async_dummy_evaluator],  # mixed
-                summary_evaluators=[dummy_summary_evaluator, async_dummy_summary_evaluator],  # mixed
-            )
-            exp._tags = {"ddtrace.version": "1.2.3"}
-            exp_results = await exp.run()
+    with mock_async_process_record():
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummy_task,
+            test_dataset_one_record,
+            [dummy_evaluator, async_dummy_evaluator],  # mixed
+            summary_evaluators=[dummy_summary_evaluator, async_dummy_summary_evaluator],  # mixed
+        )
+        exp._tags = {"ddtrace.version": "1.2.3"}
+        exp_results = await exp.run()
 
     assert len(exp_results["rows"]) == 1
     exp_result = exp_results["rows"][0]

@@ -181,18 +181,11 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 
 # Constants for validation
 _TASK_REQUIRED_PARAMS = {"input_data", "config"}
-_EVALUATOR_REQUIRED_PARAMS = {"input_data", "output_data", "expected_output"}
-_SUMMARY_EVALUATOR_REQUIRED_PARAMS = {"inputs", "outputs", "expected_outputs", "evaluators_results"}
+_EVALUATOR_REQUIRED_PARAMS = ("input_data", "output_data", "expected_output")
+_SUMMARY_EVALUATOR_REQUIRED_PARAMS = ("inputs", "outputs", "expected_outputs", "evaluators_results")
 
 
-def _validate_task_signature(task: Callable, is_async: bool = False) -> None:
-    """Validate task has required parameters (input_data, config).
-
-    :param task: The task function to validate
-    :param is_async: Whether the task must be an async function
-    :raises TypeError: If task is not callable, not async when required, or missing required params
-    """
-
+def _validate_task_signature(task: Callable, is_async: bool) -> None:
     if not callable(task):
         raise TypeError("task must be a callable function.")
     if is_async and not asyncio.iscoroutinefunction(task):
@@ -203,22 +196,17 @@ def _validate_task_signature(task: Callable, is_async: bool = False) -> None:
         raise TypeError("Task function must have 'input_data' and 'config' parameters.")
 
 
-def _validate_evaluator_signature(evaluator: Any, is_async_allowed: bool = False) -> None:
-    """Validate evaluator is callable/BaseEvaluator with required params.
-
-    :param evaluator: The evaluator to validate
-    :param is_async_allowed: Whether async evaluators are allowed
-    :raises TypeError: If evaluator is invalid or missing required params
-    """
+def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
     valid_base_classes: tuple[type, ...] = (BaseEvaluator,)
-    if is_async_allowed:
+    if is_async:
+        # async experiment allows both sync and async evaluators
         valid_base_classes = (BaseEvaluator, BaseAsyncEvaluator)
 
     if isinstance(evaluator, valid_base_classes):
         return
 
     if not callable(evaluator):
-        if is_async_allowed:
+        if is_async:
             raise TypeError(
                 f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator/BaseAsyncEvaluator."
             )
@@ -231,22 +219,17 @@ def _validate_evaluator_signature(evaluator: Any, is_async_allowed: bool = False
         raise TypeError("Evaluator function must have parameters {}.".format(tuple(_EVALUATOR_REQUIRED_PARAMS)))
 
 
-def _validate_summary_evaluator_signature(evaluator: Any, is_async_allowed: bool = False) -> None:
-    """Validate summary evaluator has required params.
-
-    :param evaluator: The summary evaluator to validate
-    :param is_async_allowed: Whether async summary evaluators are allowed
-    :raises TypeError: If evaluator is invalid or missing required params
-    """
+def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> None:
     valid_base_classes: tuple[type, ...] = (BaseSummaryEvaluator,)
-    if is_async_allowed:
+    if is_async:
+        # async experiment allows both sync and async summary evaluators
         valid_base_classes = (BaseSummaryEvaluator, BaseAsyncSummaryEvaluator)
 
     if isinstance(evaluator, valid_base_classes):
         return
 
     if not callable(evaluator):
-        if is_async_allowed:
+        if is_async:
             raise TypeError(
                 f"Summary evaluator {evaluator} must be callable "
                 "or an instance of BaseSummaryEvaluator/BaseAsyncSummaryEvaluator."
@@ -1233,10 +1216,10 @@ class LLMObs(Service):
         if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         for evaluator in evaluators:
-            _validate_evaluator_signature(evaluator, is_async_allowed=False)
+            _validate_evaluator_signature(evaluator, is_async=False)
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
-                _validate_summary_evaluator_signature(summary_evaluator, is_async_allowed=False)
+                _validate_summary_evaluator_signature(summary_evaluator, is_async=False)
         return Experiment(
             name,
             task,
@@ -1300,10 +1283,10 @@ class LLMObs(Service):
                 "Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator instances."
             )
         for evaluator in evaluators:
-            _validate_evaluator_signature(evaluator, is_async_allowed=True)
+            _validate_evaluator_signature(evaluator, is_async=True)
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
-                _validate_summary_evaluator_signature(summary_evaluator, is_async_allowed=True)
+                _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
         return AsyncExperiment(
             name,
             task,
