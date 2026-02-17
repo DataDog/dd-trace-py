@@ -26,12 +26,21 @@ import json
 import os
 import platform
 import re
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import MutableMapping  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Callable
+from typing import MutableMapping
+from typing import Optional
+from typing import Protocol
 
 from ddtrace.internal.logger import get_logger
+
+
+class _GitModuleLike(Protocol):
+    """Protocol for the git module passed from ddtrace.ext.ci (ddtrace.ext.git)."""
+
+    BRANCH: str
+    COMMIT_SHA: str
+    REPOSITORY_URL: str
+    COMMIT_HEAD_SHA: str
 
 
 log = get_logger(__name__)
@@ -57,16 +66,14 @@ DIAG_DIRS_DARWIN = [
 CHECK_RUN_ID_REGEX = re.compile(r'"k"\s*:\s*"check_run_id"\s*,\s*"v"\s*:\s*([0-9]+)(?:\.0)?')
 
 
-def _is_numeric_job_id(job_id):
-    # type: (str) -> bool
+def _is_numeric_job_id(job_id: str) -> bool:
     """Validate that the job ID contains only digits."""
     if not job_id:
         return False
     return job_id.isdigit()
 
 
-def _get_diag_dirs():
-    # type: () -> List[str]
+def _get_diag_dirs() -> list[str]:
     """Get OS-specific diagnostics directory paths."""
     system = platform.system()
     if system == "Windows":
@@ -109,8 +116,7 @@ def _get_diag_dirs():
         return DIAG_DIRS_LINUX
 
 
-def _try_extract_job_id_from_json(content):
-    # type: (str) -> Optional[str]
+def _try_extract_job_id_from_json(content: str) -> Optional[str]:
     """Attempt to parse content as JSON and extract check_run_id."""
     try:
         data = json.loads(content)
@@ -134,8 +140,7 @@ def _try_extract_job_id_from_json(content):
     return None
 
 
-def _try_extract_job_id_from_regex(content):
-    # type: (str) -> Optional[str]
+def _try_extract_job_id_from_regex(content: str) -> Optional[str]:
     """Attempt to extract check_run_id using regex."""
     match = CHECK_RUN_ID_REGEX.search(content)
     if match:
@@ -145,8 +150,7 @@ def _try_extract_job_id_from_regex(content):
     return None
 
 
-def _try_extract_job_id_from_file(file_path):
-    # type: (str) -> Optional[str]
+def _try_extract_job_id_from_file(file_path: str) -> Optional[str]:
     """Extract job ID from a single Worker log file."""
     try:
         # Check file size
@@ -177,8 +181,7 @@ def _try_extract_job_id_from_file(file_path):
     return None
 
 
-def _try_extract_job_id_from_diag(diag_dirs):
-    # type: (List[str]) -> Optional[str]
+def _try_extract_job_id_from_diag(diag_dirs: list[str]) -> Optional[str]:
     """Attempt to extract job ID from GitHub Actions diagnostics files."""
     for diag_dir in diag_dirs:
         # Check if directory exists
@@ -210,8 +213,7 @@ def _try_extract_job_id_from_diag(diag_dirs):
     return None
 
 
-def _get_job_id(env):
-    # type: (MutableMapping[str, str]) -> Optional[str]
+def _get_job_id(env: MutableMapping[str, str]) -> Optional[str]:
     """
     Get the numeric job ID for GitHub Actions.
 
@@ -232,29 +234,28 @@ def _get_job_id(env):
 
     # Priority 2: Diagnostics files (can be disabled in tests)
     if DIAG_ENABLED:
-        job_id = _try_extract_job_id_from_diag(_get_diag_dirs())
-        if job_id:
-            return job_id
+        diag_job_id = _try_extract_job_id_from_diag(_get_diag_dirs())
+        if diag_job_id:
+            return diag_job_id
 
     return None
 
 
 def extract_github_actions(
-    env,
-    _ci_env_vars_tag,
-    _filter_sensitive_info,
-    git_module,
-    job_id_tag,
-    job_name_tag,
-    job_url_tag,
-    pipeline_id_tag,
-    pipeline_name_tag,
-    pipeline_number_tag,
-    pipeline_url_tag,
-    provider_name_tag,
-    workspace_path_tag,
-):
-    # type: (...) -> Dict[str, Optional[str]]
+    env: MutableMapping[str, str],
+    _ci_env_vars_tag: str,
+    _filter_sensitive_info: Callable[[Optional[str]], Optional[str]],
+    git_module: _GitModuleLike,
+    job_id_tag: str,
+    job_name_tag: str,
+    job_url_tag: str,
+    pipeline_id_tag: str,
+    pipeline_name_tag: str,
+    pipeline_number_tag: str,
+    pipeline_url_tag: str,
+    provider_name_tag: str,
+    workspace_path_tag: str,
+) -> dict[str, Optional[str]]:
     """Extract CI tags from Github Actions environment."""
     github_server_url = _filter_sensitive_info(env.get("GITHUB_SERVER_URL"))
     github_repository = env.get("GITHUB_REPOSITORY")
