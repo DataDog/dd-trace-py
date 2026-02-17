@@ -3,7 +3,7 @@ aiobotocore,aiobotocore,1.0.7,2.24.1,False
 aiohttp,aiohttp,3.7.4.post0,3.13.2,True
 aiohttp-jinja2,aiohttp_jinja2,1.5.1,1.6,True
 aiohttp_jinja2,aiohttp_jinja2,1.5.1,1.6,True
-aiokafka,aiokafka,0.9.0,0.12.0,True
+aiokafka,aiokafka,0.9.0,0.13.0,True
 aiomysql,aiomysql,0.1.1,0.2.0,True
 aiopg,aiopg *,0.16.0,1.4.0,True
 algoliasearch,algoliasearch *,2.6.3,2.6.3,True
