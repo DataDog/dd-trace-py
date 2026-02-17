@@ -280,8 +280,8 @@ def test_span_context_event_with_exception(test_spans):
     assert span._meta["error.message"] == "test error"
 
 
-def test_span_context_event_call_trace_false_with_distributed_context(test_spans):
-    """Test that call_trace=False keeps active span and links parent from distributed context."""
+def test_span_context_event_no_active_context_with_distributed_context(test_spans):
+    """Test that use_active_context=False keeps active span and links parent from distributed context."""
 
     @dataclass
     class TestSpanEvent(TracingEvent):
@@ -296,7 +296,10 @@ def test_span_context_event_call_trace_false_with_distributed_context(test_spans
     with tracer.trace("local.processing"):
         with core.context_with_event(
             TestSpanEvent(
-                component="test_component", activate=False, distributed_context=tracer.context_provider.active()
+                component="test_component",
+                use_active_context=False,
+                activate=False,
+                distributed_context=tracer.context_provider.active(),
             )
         ):
             # The current active span should still be "local.processing"

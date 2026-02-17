@@ -46,17 +46,19 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         "service": event.service,
     }
 
-    if event.distributed_context and not event.activate:
-        span_kwargs["child_of"] = event.distributed_context
+    if not event.use_active_context:
+        span_kwargs["activate"] = event.activate
+        if event.distributed_context:
+            span_kwargs["child_of"] = event.distributed_context
 
     if config._inferred_proxy_services_enabled:
         # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, span_kwargs, event.activate))
+        core.dispatch("inferred_proxy.start", (ctx, span_kwargs, event.use_active_context))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
-    span = (tracer.trace if event.activate else tracer.start_span)(event.span_name, **span_kwargs)
+    span = (tracer.trace if event.use_active_context else tracer.start_span)(event.span_name, **span_kwargs)
 
     span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
 
