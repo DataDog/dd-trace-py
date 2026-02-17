@@ -1,12 +1,13 @@
 import enum
 import os
 from typing import Iterable  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._pubsub import PubSub  # noqa:F401
+from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
@@ -33,7 +34,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()
-        self._products_to_restart_on_fork = set()
         self._capabilities_map: dict[enum.IntFlag, str] = dict()
 
     def _agent_check(self) -> None:
@@ -89,37 +89,28 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._enable = False
         log.debug("[%d][P: %d] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
         self._client.renew_id()
-        self.start_subscribers_by_product(self._products_to_restart_on_fork)
+
+        # Restart the global subscriber if needed and if there are registered products
+        if self._client._product_callbacks:
+            self._client.restart_subscriber()
+            log.debug(
+                "[%d][P: %d] Restarted global subscriber for registered products: %s",
+                os.getpid(),
+                os.getppid(),
+                list(self._client._product_callbacks.keys()),
+            )
+
+    def stop_subscriber(self, join: bool = False) -> None:
+        """Stop the global subscriber thread."""
         log.debug(
-            "[%d][P: %d] Remote Config Poller restarted services: %s",
-            os.getpid(),
-            os.getppid(),
-            str(self._products_to_restart_on_fork),
-        )
-
-    def start_subscribers_by_product(self, products: set[str]) -> None:
-        self._client.start_products(products)
-
-    def _poll_data(self):
-        """Force subscribers to poll new data. This function is only used in tests"""
-        for pubsub in self._client.get_pubsubs():
-            pubsub._poll_data()
-
-    def stop_subscribers(self, join: bool = False) -> None:
-        """
-        Disable the remote config service and drop, remote config can be re-enabled
-        by calling ``enable`` again.
-        """
-        log.debug(
-            "[%s][P: %s] Remote Config Poller fork. Stopping  Pubsub services",
+            "[%s][P: %s] Remote Config Poller. Stopping subscriber",
             os.getpid(),
             self._parent_id,
         )
-        for pubsub in self._client.get_pubsubs():
-            pubsub.stop(join=join)
+        self._client.stop_subscriber(join=join)
 
     def disable(self, join: bool = False) -> None:
-        self.stop_subscribers(join=join)
+        self.stop_subscriber(join=join)
         self._client.reset_products()
 
         if self.status == ServiceStatus.STOPPED:
@@ -128,15 +119,17 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self.stop(join=join)
 
     def _stop_service(self, *args, **kwargs) -> None:
-        self.stop_subscribers()
+        self.stop_subscriber()
 
         if self.status == ServiceStatus.STOPPED or self._worker is None:
             return
 
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
-    def update_product_callback(self, product, callback):
-        """Some Products fork and restart their instances when application creates new process. In that case,
+    def update_product_callback(self, product: str, callback: RCCallback) -> bool:
+        """Update the callback for a registered product.
+
+        Some Products fork and restart their instances when application creates new process. In that case,
         we need to update the callback instance to ensure the instance of the child process receives correctly the
         Remote Configuration payloads.
         """
@@ -145,18 +138,25 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def register(
         self,
         product: str,
-        pubsub_instance: PubSub,
+        callback: RCCallback,
         skip_enabled: bool = False,
-        restart_on_fork: bool = False,
         capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
+        """Register a product with a callback for remote configuration updates.
+
+        Args:
+            product: Product name (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
+            callback: Callback function to invoke when payloads are received in child processes
+            skip_enabled: If True, skip enabling the remote config client
+            capabilities: list of capabilities to register for this product
+        """
         try:
             # By enabling on registration we ensure we start the RCM client only
             # if there is at least one registered product.
             if not skip_enabled:
                 self.enable()
 
-            self._client.register_product(product, pubsub_instance)
+            self._client.register_product(product, callback)
 
             # Check for potential conflicts in capabilities
             for capability in capabilities:
@@ -171,11 +171,10 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             self._client.add_capabilities(capabilities)
 
-            if not self._client.is_subscriber_running(pubsub_instance):
-                pubsub_instance.start_subscriber()
+            # Start the global subscriber if not already running
+            if not self._client.is_subscriber_running():
+                self._client.start_subscriber()
 
-            if restart_on_fork:
-                self._products_to_restart_on_fork.add(product)
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
@@ -191,8 +190,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
-    def get_registered(self, product):
-        return self._client._products.get(product)
+    def get_registered(self, product: str) -> Optional[RCCallback]:
+        """Get the registered callback for a product."""
+        return self._client._product_callbacks.get(product)
 
     def __enter__(self) -> "RemoteConfigPoller":
         self.enable()
