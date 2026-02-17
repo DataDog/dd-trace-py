@@ -523,9 +523,10 @@ class SpanData:
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     _span_api: str
-    _meta: Dict[str, str]
-    _metrics: Dict[str, Union[int, float]]
+    _meta: dict[str, str]
+    _metrics: dict[str, Union[int, float]]
 
+    def _set_attribute(self, key: str, value: Union[str, int, float, None]) -> None: ...
     def __new__(
         cls: type[_SpanDataT],
         name: str,

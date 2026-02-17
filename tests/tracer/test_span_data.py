@@ -1073,3 +1073,242 @@ def test_span_api_invalid_utf8_falls_back_to_empty_string(invalid_bytes):
     span = SpanData(name="test")
     span._span_api = invalid_bytes
     assert span._span_api == ""
+
+
+# =============================================================================
+# _set_attribute Tests
+# =============================================================================
+
+
+def test_set_attribute_string_to_meta():
+    """_set_attribute stores string values in _meta."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", "value1")
+    assert span._meta["key1"] == "value1"
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_int_to_metrics():
+    """_set_attribute stores int values in _metrics."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", 42)
+    assert span._metrics["metric1"] == 42
+    assert "metric1" not in span._meta
+
+
+def test_set_attribute_float_to_metrics():
+    """_set_attribute stores float values in _metrics."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", 3.14)
+    assert span._metrics["metric1"] == 3.14
+    assert "metric1" not in span._meta
+
+
+def test_set_attribute_none_removes_from_both():
+    """_set_attribute with None removes key from both dicts."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", "value")
+    span._set_attribute("key1", None)
+    assert "key1" not in span._meta
+    assert "key1" not in span._metrics
+
+    span._set_attribute("metric1", 42)
+    span._set_attribute("metric1", None)
+    assert "metric1" not in span._meta
+    assert "metric1" not in span._metrics
+
+
+def test_set_attribute_mutual_exclusion_string_overwrites_metric():
+    """Setting a string removes the key from _metrics."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", 42)
+    assert span._metrics["key1"] == 42
+    assert "key1" not in span._meta
+
+    span._set_attribute("key1", "string_value")
+    assert span._meta["key1"] == "string_value"
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_mutual_exclusion_metric_overwrites_string():
+    """Setting a metric removes the key from _meta."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", "value")
+    assert span._meta["key1"] == "value"
+    assert "key1" not in span._metrics
+
+    span._set_attribute("key1", 100)
+    assert span._metrics["key1"] == 100
+    assert "key1" not in span._meta
+
+
+def test_set_attribute_bool_to_metrics():
+    """_set_attribute stores bool values in _metrics (bool subclasses int)."""
+    span = SpanData(name="test")
+    span._set_attribute("flag1", True)
+    assert span._metrics["flag1"] is True
+    assert "flag1" not in span._meta
+
+    span._set_attribute("flag2", False)
+    assert span._metrics["flag2"] is False
+    assert "flag2" not in span._meta
+
+
+def test_set_attribute_nan_silently_dropped():
+    """_set_attribute silently drops NaN values (no-op)."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", float("nan"))
+    assert "metric1" not in span._metrics
+    assert "metric1" not in span._meta
+
+    # Setting NaN on existing key doesn't remove it
+    span._set_attribute("metric2", 42)
+    span._set_attribute("metric2", float("nan"))
+    assert span._metrics["metric2"] == 42
+
+
+def test_set_attribute_inf_silently_dropped():
+    """_set_attribute silently drops Inf values (no-op)."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", float("inf"))
+    assert "metric1" not in span._metrics
+    assert "metric1" not in span._meta
+
+    # Setting Inf on existing key doesn't remove it
+    span._set_attribute("metric2", 42)
+    span._set_attribute("metric2", float("inf"))
+    assert span._metrics["metric2"] == 42
+
+
+def test_set_attribute_negative_inf_silently_dropped():
+    """_set_attribute silently drops -Inf values (no-op)."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", float("-inf"))
+    assert "metric1" not in span._metrics
+    assert "metric1" not in span._meta
+
+    # Setting -Inf on existing key doesn't remove it
+    span._set_attribute("metric2", 42)
+    span._set_attribute("metric2", float("-inf"))
+    assert span._metrics["metric2"] == 42
+
+
+def test_set_attribute_bytes_to_meta():
+    """_set_attribute stores bytes values in _meta."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", b"bytes_value")
+    assert span._meta["key1"] == b"bytes_value"
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_list_stringified_to_meta():
+    """_set_attribute stringifies list values to _meta."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", [1, 2, 3])
+    assert span._meta["key1"] == "[1, 2, 3]"
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_dict_stringified_to_meta():
+    """_set_attribute stringifies dict values to _meta."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", {"nested": "value"})
+    # Dict string representation
+    assert "nested" in span._meta["key1"]
+    assert "value" in span._meta["key1"]
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_object_stringified_to_meta():
+    """_set_attribute stringifies custom objects to _meta."""
+
+    class CustomObject:
+        def __str__(self):
+            return "custom_string_representation"
+
+    span = SpanData(name="test")
+    span._set_attribute("key1", CustomObject())
+    assert span._meta["key1"] == "custom_string_representation"
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_preserves_python_float_object():
+    """_set_attribute stores the original Python float object, not a copy."""
+    span = SpanData(name="test")
+    original_float = 3.14159
+    span._set_attribute("metric1", original_float)
+    # The stored value should be the same object (no rewrapping)
+    assert span._metrics["metric1"] == original_float
+    assert isinstance(span._metrics["metric1"], float)
+
+
+def test_set_attribute_preserves_python_int_object():
+    """_set_attribute stores the original Python int object, not a copy."""
+    span = SpanData(name="test")
+    original_int = 42
+    span._set_attribute("metric1", original_int)
+    # The stored value should be the same object (no rewrapping)
+    assert span._metrics["metric1"] == original_int
+    assert isinstance(span._metrics["metric1"], int)
+
+
+def test_set_attribute_preserves_python_string_object():
+    """_set_attribute stores the original Python string object, not a copy."""
+    span = SpanData(name="test")
+    original_string = "test_value"
+    span._set_attribute("key1", original_string)
+    # The stored value should be the same object (no str() call)
+    assert span._meta["key1"] == original_string
+    assert isinstance(span._meta["key1"], str)
+
+
+def test_set_attribute_unicode_strings():
+    """_set_attribute handles unicode strings correctly."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", "日本語")
+    assert span._meta["key1"] == "日本語"
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_empty_string():
+    """_set_attribute handles empty strings correctly."""
+    span = SpanData(name="test")
+    span._set_attribute("key1", "")
+    assert span._meta["key1"] == ""
+    assert "key1" not in span._metrics
+
+
+def test_set_attribute_zero_values():
+    """_set_attribute handles zero values correctly."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", 0)
+    assert span._metrics["metric1"] == 0
+    assert "metric1" not in span._meta
+
+    span._set_attribute("metric2", 0.0)
+    assert span._metrics["metric2"] == 0.0
+    assert "metric2" not in span._meta
+
+
+def test_set_attribute_negative_values():
+    """_set_attribute handles negative numeric values correctly."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", -42)
+    assert span._metrics["metric1"] == -42
+    assert "metric1" not in span._meta
+
+    span._set_attribute("metric2", -3.14)
+    assert span._metrics["metric2"] == -3.14
+    assert "metric2" not in span._meta
+
+
+def test_set_attribute_large_numbers():
+    """_set_attribute handles large numeric values correctly."""
+    span = SpanData(name="test")
+    span._set_attribute("metric1", 2**63 - 1)  # Max i64
+    assert span._metrics["metric1"] == 2**63 - 1
+    assert "metric1" not in span._meta
+
+    span._set_attribute("metric2", 1.7976931348623157e308)  # Near max float
+    assert span._metrics["metric2"] == 1.7976931348623157e308
+    assert "metric2" not in span._meta

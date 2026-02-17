@@ -287,30 +287,13 @@ class Span(SpanData):
         #   calculated in the trace agent
         if key == http.STATUS_CODE:
             value = str(value)
-
-        # Determine once up front
-        val_is_an_int = is_integer(value)
-
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
-        INT_TYPES = (net.TARGET_PORT,)
-        if key in INT_TYPES and not val_is_an_int:
+        elif key == net.TARGET_PORT:
             try:
                 value = int(value)  # type: ignore
-                val_is_an_int = True
             except (ValueError, TypeError):
                 pass
-
-        # Set integers that are less than equal to 2^53 as metrics
-        if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
-            self.set_metric(key, value)  # type: ignore
-            return
-
-        # All floats should be set as a metric
-        elif isinstance(value, float):
-            self.set_metric(key, value)
-            return
-
         elif key == MANUAL_KEEP_KEY:
             self._override_sampling_decision(USER_KEEP)
             return
@@ -322,19 +305,15 @@ class Span(SpanData):
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
-            self.set_tag(VERSION_KEY, value)
+            self._set_attribute(VERSION_KEY, value)
         elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)  # type: ignore
-            return
 
         try:
-            self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
+            self._set_attribute(key, value)
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -355,7 +334,7 @@ class Span(SpanData):
         U+FFFD.
         """
         try:
-            self._meta[key] = ensure_text(value, errors="replace")
+            self._set_attribute(key, ensure_text(value, errors="replace"))
         except Exception as e:
             if config._raise:
                 raise e
@@ -387,25 +366,7 @@ class Span(SpanData):
                 log.warning("failed to convert %r tag to an integer from %r", key, value)
                 return
 
-        # FIXME[matt] we could push this check to serialization time as well.
-        # only permit types that are commonly serializable (don't use
-        # isinstance so that we convert unserializable types like numpy
-        # numbers)
-        if not isinstance(value, (int, float)):
-            try:
-                value = float(value)
-            except (ValueError, TypeError):
-                log.debug("ignoring not number metric %s:%s", key, value)
-                return
-
-        # don't allow nan or inf
-        if math.isnan(value) or math.isinf(value):
-            log.debug("ignoring not real metric %s:%s", key, value)
-            return
-
-        if key in self._meta:
-            del self._meta[key]
-        self._metrics[key] = value
+        self._set_attribute(key, value)
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
