@@ -987,26 +987,8 @@ class LLMObs(Service):
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: list[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-            ]
-        ],
-        summary_evaluators: list[
-            Union[
-                Callable[
-                    [
-                        list[DatasetRecordInputType],
-                        list[JSONType],
-                        list[JSONType],
-                        dict[str, list[JSONType]],
-                    ],
-                    JSONType,
-                ],
-                BaseSummaryEvaluator,
-            ]
-        ],
+        evaluators: Sequence[EvaluatorType],
+        summary_evaluators: Sequence[SummaryEvaluatorType],
         labelization_function: Optional[Callable[[dict[str, Any]], str]],
         compute_score: Callable[[dict[str, dict[str, Any]]], float],
         config: ConfigType,
