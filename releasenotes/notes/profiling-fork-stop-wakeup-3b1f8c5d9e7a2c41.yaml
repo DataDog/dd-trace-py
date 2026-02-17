@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: fixes an issue that could trigger unexpected profile exports
+    immediately after fork in pre-fork servers (for example, gunicorn).

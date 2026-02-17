@@ -266,6 +266,7 @@ typedef struct periodic_thread
     bool _stopping;
     bool _atexit;
     bool _skip_shutdown;
+    bool _request_from_fork_stop;
 
     std::chrono::time_point<std::chrono::steady_clock> _next_call_time;
 
@@ -334,6 +335,7 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->_stopping = false;
     self->_atexit = false;
     self->_skip_shutdown = false;
+    self->_request_from_fork_stop = false;
 
     self->_started = std::make_unique<Event>();
     self->_stopped = std::make_unique<Event>();
@@ -488,6 +490,9 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
         AllowThreads _;
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
+        // A real awake() request should be preserved across the parent restart
+        // window after fork.
+        self->_request_from_fork_stop = false;
         self->_served->clear();
         self->_request->set();
         self->_served->wait();
@@ -584,8 +589,12 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_atexit = false;
     self->_skip_shutdown = false;
 
-    // We don't clear the request event because we might have pending awake
-    // requests.
+    // During prefork, stop() sets _request to wake the thread promptly so it
+    // can exit before fork. That wakeup should not trigger a synthetic
+    // periodic() run right after restart.
+    if (self->_request_from_fork_stop)
+        self->_request->clear();
+    self->_request_from_fork_stop = false;
     self->_started->clear();
     self->_stopped->clear();
     self->_served->clear();
@@ -600,6 +609,7 @@ static PyObject*
 PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_skip_shutdown = true;
+    self->_request_from_fork_stop = true;
 
     PeriodicThread_stop(self, NULL);
 

@@ -2,6 +2,7 @@ import ctypes
 import os
 import platform
 from threading import Event
+from threading import Thread
 from time import monotonic
 from time import sleep
 
@@ -161,6 +162,69 @@ def test_forksafe_awakeable_periodic_service():
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)
     assert exit_code == 42
+
+
+def test_periodic_service_no_immediate_run_after_fork():
+    periodic_ran = Event()
+
+    class EveryMinute(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    # Use a long interval so any periodic() call right after fork comes from a
+    # wakeup signal, not from the timer.
+    service = EveryMinute(60)
+    service.start()
+
+    pid = os.fork()
+    if pid == 0:
+        # Child should not run periodic() immediately after fork restart.
+        assert not periodic_ran.wait(timeout=0.5)
+
+        # The restarted worker should still execute periodic() when awakened.
+        assert service._worker is not None
+        service._worker.awake()
+        assert periodic_ran.wait(timeout=5)
+        os._exit(42)
+
+    service.stop()
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 42
+
+
+def test_periodic_thread_preserves_awake_during_restart_window():
+    """Ensure awake() isn't lost while a periodic thread is paused for fork.
+
+    The fork-safe runtime stops periodic threads before fork and restarts them
+    afterwards. A stop wakeup from that path should not trigger an immediate
+    periodic() run after restart, but a real awake() call made during this
+    restart window must still be honored.
+    """
+    periodic_ran = Event()
+    awake_done = Event()
+
+    def _run_periodic():
+        periodic_ran.set()
+
+    t = periodic.PeriodicThread(60, _run_periodic)
+    t.start()
+    t._before_fork()
+    t.join()
+
+    awaker = Thread(target=lambda: (t.awake(), awake_done.set()))
+    awaker.start()
+
+    # Simulate thread restart after fork in parent.
+    t._after_fork()
+
+    assert awake_done.wait(timeout=1), "awake() should complete after restart"
+    assert periodic_ran.wait(timeout=1), "periodic() should run for the awake request"
+
+    t.stop()
+    t.join()
+    awaker.join(timeout=1)
 
 
 def test_timer():
