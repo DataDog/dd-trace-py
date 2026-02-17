@@ -498,7 +498,7 @@ profiling_native:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
-        - .gitlab-ci.yml
+        # - .gitlab-ci.yml
         # Native source files by extension (C, C++, Cython, CMake modules)
         - ddtrace/internal/datadog/profiling/**/*.cpp
         - ddtrace/internal/datadog/profiling/**/*.cc
