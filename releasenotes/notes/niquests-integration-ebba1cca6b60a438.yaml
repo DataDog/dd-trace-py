@@ -1,0 +1,3 @@
+  features:
+    - |
+      Add automatic instrumentation for the niquests HTTP client library.
