@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import niquests
 from wrapt import wrap_function_wrapper as _w
@@ -38,7 +37,7 @@ def get_version() -> str:
     return getattr(niquests, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"niquests": ">=3.17.0"}
 
 

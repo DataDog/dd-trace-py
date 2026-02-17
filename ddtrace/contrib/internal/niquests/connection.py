@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from urllib import parse
 
 import niquests
@@ -81,7 +80,7 @@ def _wrap_send_sync(func, instance, args, kwargs):
     else:
         host_without_port = None
 
-    cfg: Dict[str, Any] = {}
+    cfg: dict[str, Any] = {}
     pin = Pin.get_from(instance)
     if pin:
         cfg = pin._config
@@ -147,7 +146,7 @@ async def _wrap_send_async(func, instance, args, kwargs):
     else:
         host_without_port = None
 
-    cfg: Dict[str, Any] = {}
+    cfg: dict[str, Any] = {}
     pin = Pin.get_from(instance)
     if pin:
         cfg = pin._config
