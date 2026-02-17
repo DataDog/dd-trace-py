@@ -131,7 +131,6 @@ callback = MyProductCallback()
 remoteconfig_poller.register(
     product=PRODUCTS.MY_PRODUCT,  # e.g., "ASM_FEATURES", "LIVE_DEBUGGING"
     callback=callback,
-    preprocess=None,  # Optional: preprocessing function (runs in main process)
     skip_enabled=False,  # Set True to skip enabling RC client
     capabilities=[],  # Optional: RC capabilities to report
 )
@@ -140,8 +139,6 @@ remoteconfig_poller.register(
 **Registration parameters:**
 - `product` (str): Product identifier (use constants from `PRODUCTS`)
 - `callback` (RCCallback): Your callback instance
-- `preprocess` (callable, optional): Function to preprocess payloads in main
-  process before subscriber
 - `skip_enabled` (bool): If True, don't auto-enable RC client on registration
 - `capabilities` (list): RC capabilities to advertise for this product
 
@@ -158,29 +155,3 @@ remoteconfig_poller.register(
    shared state is thread-safe
 5. **Clean registration**: Call `remoteconfig_poller.unregister(product)` in
    cleanup/test teardown
-
-### Preprocessing (Advanced)
-
-For advanced use cases, you can provide a preprocessing function that runs in
-the main process before payloads are sent to the subscriber:
-
-```python
-def preprocess_payloads(payloads: list[Payload]) -> list[Payload]:
-    """Preprocess payloads in main process before subscriber receives them."""
-    # Perform expensive operations in main process
-    # Can modify, filter, or enrich payloads
-    return [p for p in payloads if should_process(p)]
-
-remoteconfig_poller.register(
-    product="MY_PRODUCT",
-    callback=my_callback,
-    preprocess=preprocess_payloads,  # Runs in main process
-)
-```
-
-Preprocessing is useful for:
-- Heavy computations that shouldn't block the subscriber
-- Filtering payloads before subscriber processing
-- Enriching payloads with main process state
-- Managing product registration based on configuration (e.g., 1-click
-  activation)
