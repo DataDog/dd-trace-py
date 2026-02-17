@@ -9,7 +9,7 @@ void
 FrameStack::render(EchionSampler& echion)
 {
     auto& renderer = echion.renderer();
-    bool pushed = false;
+    bool c_frame_rendered = false;
     for (auto it = this->rbegin(); it != this->rend(); ++it) {
 #if PY_VERSION_HEX >= 0x030c0000
         if ((*it).get().is_entry)
@@ -17,12 +17,13 @@ FrameStack::render(EchionSampler& echion)
             continue;
 #endif
         auto& frame = it->get();
-        if (frame.is_c_frame && !pushed) {
+        if (frame.is_c_frame) {
+            if (!c_frame_rendered) {
+                renderer.render_frame(frame);
+                c_frame_rendered = true;
+            }
+        } else {
             renderer.render_frame(frame);
-            pushed = true;
-        } else if (!frame.is_c_frame) {
-            renderer.render_frame(frame);
-            pushed = true;
         }
     }
 }
