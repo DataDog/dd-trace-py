@@ -30,7 +30,7 @@ components:
     - ddtrace/commands/*
     - ddtrace/auto.py
   ci:
-    - ddtrace/ext/ci.py
+    - ddtrace/ext/ci/*
   codeowners:
     - ddtrace/internal/codeowners.py
   core:
