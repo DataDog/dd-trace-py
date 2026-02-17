@@ -16,10 +16,7 @@ def start():
 
 
 def restart(join=False):
-    if ffe_config.experimental_flagging_provider_enabled:
-        from ddtrace.internal.openfeature._remoteconfiguration import _forksafe_featureflags_rc
-
-        _forksafe_featureflags_rc()
+    pass
 
 
 def stop(join=False):

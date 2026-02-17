@@ -3293,6 +3293,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
+                "openai": latest,
                 "google-cloud-aiplatform": latest,
                 "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -3326,7 +3327,7 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3539,7 +3540,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="profile-memalloc",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501
                     pys=select_pys(),
                     pkgs={
                         "protobuf": latest,

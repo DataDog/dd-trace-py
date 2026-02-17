@@ -1,4 +1,4 @@
-from ddtrace.internal.openfeature._remoteconfiguration import featureflag_rc_callback
+from ddtrace.internal.openfeature._remoteconfiguration import FeatureFlagCallback
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 
@@ -16,7 +16,8 @@ def test_rc_callback_with_deletion():
     payload = Payload(metadata=metadata, path="datadog/1/FFE_FLAGS/test/config.json", content=None)
 
     # Should not raise
-    featureflag_rc_callback([payload])
+    callback = FeatureFlagCallback()
+    callback([payload])
 
 
 def test_rc_callback_with_no_metadata():
@@ -25,7 +26,8 @@ def test_rc_callback_with_no_metadata():
     payload = Payload(metadata=None, path="datadog/1/FFE_FLAGS/test/config.json", content={"test": True})
 
     # Should handle gracefully
-    featureflag_rc_callback([payload])
+    callback = FeatureFlagCallback()
+    callback([payload])
 
 
 def test_rc_callback_with_complex_config():
@@ -95,4 +97,5 @@ def test_rc_callback_with_complex_config():
     payload = Payload(metadata=metadata, path="datadog/1/FFE_FLAGS/test/config.json", content=content)
 
     # Should process without errors
-    featureflag_rc_callback([payload])
+    callback = FeatureFlagCallback()
+    callback([payload])
