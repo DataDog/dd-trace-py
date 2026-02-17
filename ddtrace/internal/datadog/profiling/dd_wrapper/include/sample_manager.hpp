@@ -5,7 +5,7 @@
 namespace Datadog {
 
 // SampleManager provides static methods for sample lifecycle management.
-// Configuration state is stored in the Ddup singleton.
+// Configuration state is stored in the ProfilerState singleton.
 class SampleManager
 {
   public:

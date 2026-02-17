@@ -75,7 +75,7 @@ intern_function(string_id name, string_id filename);
 class SampleManager; // friend
 
 // Sample represents a single profiling sample being built.
-// Profile state is stored in the Ddup singleton.
+// Profile state is stored in the ProfilerState singleton.
 class Sample
 {
   private:

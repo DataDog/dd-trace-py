@@ -118,19 +118,19 @@ ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {
-    return Datadog::Ddup::get().is_initialized();
+    return Datadog::ProfilerState::get().is_initialized();
 }
 
 void
 ddup_start() // cppcheck-suppress unusedFunction
 {
-    Datadog::Ddup::get().start();
+    Datadog::ProfilerState::get().start();
 }
 
 void
 ddup_cleanup()
 {
-    Datadog::Ddup::get().cleanup();
+    Datadog::ProfilerState::get().cleanup();
 }
 
 Datadog::Sample*
@@ -360,7 +360,7 @@ ddup_profile_set_endpoints(
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto borrowed = Datadog::Ddup::get().profile_state.borrow();
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
@@ -384,7 +384,7 @@ void
 ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto borrowed = Datadog::Ddup::get().profile_state.borrow();
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);

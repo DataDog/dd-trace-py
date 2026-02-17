@@ -10,7 +10,7 @@
 namespace Datadog {
 
 // UploaderBuilder provides static methods to configure and build an Uploader.
-// Configuration state is stored in the Ddup singleton.
+// Configuration state is stored in the ProfilerState singleton.
 class UploaderBuilder
 {
     static constexpr std::string_view language{ g_language_name };

@@ -24,7 +24,7 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
     // Private helper function for creating a ddog_prof_Profile from arguments
 
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto maybe_dict = Datadog::Ddup::get().get_profiles_dictionary();
+    auto maybe_dict = Datadog::ProfilerState::get().get_profiles_dictionary();
     if (!maybe_dict) {
         return false;
     }

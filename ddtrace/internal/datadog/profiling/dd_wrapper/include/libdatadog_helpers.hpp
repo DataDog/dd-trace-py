@@ -147,7 +147,7 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 namespace internal {
 
 // Fork-safe cached interning for tag and label keys
-// Caches are stored in the Ddup singleton and reset on fork
+// Caches are stored in the ProfilerState singleton and reset on fork
 std::optional<ddog_prof_StringId2>
 to_interned_string(ExportTagKey key);
 

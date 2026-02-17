@@ -8,7 +8,7 @@ namespace Datadog::internal {
 std::optional<ddog_prof_StringId2>
 to_interned_string(ExportTagKey key)
 {
-    auto& ddup = Ddup::get();
+    auto& ddup = ProfilerState::get();
     const auto idx = static_cast<size_t>(key);
 
     if (idx >= ddup.tag_cache.size()) {
@@ -32,7 +32,7 @@ to_interned_string(ExportTagKey key)
 std::optional<ddog_prof_StringId2>
 to_interned_string(ExportLabelKey key)
 {
-    auto& ddup = Ddup::get();
+    auto& ddup = ProfilerState::get();
     const auto idx = static_cast<size_t>(key);
 
     if (idx >= ddup.label_cache.size()) {

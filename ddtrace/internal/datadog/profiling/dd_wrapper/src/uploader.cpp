@@ -29,7 +29,7 @@ Datadog::Uploader::Uploader(std::string_view _output_filename,
 {
     // Increment the upload sequence number every time we build an uploader.
     // Uploaders are use-once-and-destroy.
-    Ddup::get().upload_seq++;
+    ProfilerState::get().upload_seq++;
 }
 
 Datadog::Uploader::~Uploader()
@@ -38,7 +38,7 @@ Datadog::Uploader::~Uploader()
     // as their inner pointers are allocated on the Rust side. And since
     // there could be a request in flight, we first need to cancel it. Then,
     // we drop the exporter and the cancellation token.
-    auto current_cancel = Ddup::get().upload_cancel.exchange({ .inner = nullptr });
+    auto current_cancel = ProfilerState::get().upload_cancel.exchange({ .inner = nullptr });
 
     if (current_cancel.inner != nullptr) {
         ddog_CancellationToken_cancel(&current_cancel);
@@ -55,7 +55,7 @@ Datadog::Uploader::export_to_file(ddog_prof_EncodedProfile& encoded, std::string
     // Write the profile to a file using the following format for filename:
     // <output_filename>.<process_id>.<sequence_number>
     std::ostringstream oss;
-    oss << output_filename << "." << getpid() << "." << Ddup::get().upload_seq.load();
+    oss << output_filename << "." << getpid() << "." << ProfilerState::get().upload_seq.load();
     const std::string base_filename = oss.str();
     const std::string pprof_filename = base_filename + ".pprof";
 
@@ -133,7 +133,7 @@ Datadog::Uploader::upload_unlocked()
     // cancels our upload and drops the handle (which would free the token).
     auto new_cancel = ddog_CancellationToken_new();
     auto new_cancel_clone_for_request = ddog_CancellationToken_clone(&new_cancel);
-    auto current_cancel = Ddup::get().upload_cancel.exchange(new_cancel);
+    auto current_cancel = ProfilerState::get().upload_cancel.exchange(new_cancel);
 
     if (current_cancel.inner != nullptr) {
         ddog_CancellationToken_cancel(&current_cancel);
@@ -168,20 +168,20 @@ Datadog::Uploader::upload()
 {
     // The upload operation sets up some global state in libdatadog (the tokio runtime), so
     // we ensure exclusivity here.
-    const std::lock_guard<std::mutex> lock_guard(Ddup::get().upload_lock);
+    const std::lock_guard<std::mutex> lock_guard(ProfilerState::get().upload_lock);
     return upload_unlocked();
 }
 
 void
 Datadog::Uploader::lock()
 {
-    Ddup::get().upload_lock.lock();
+    ProfilerState::get().upload_lock.lock();
 }
 
 void
 Datadog::Uploader::unlock()
 {
-    Ddup::get().upload_lock.unlock();
+    ProfilerState::get().upload_lock.unlock();
 }
 
 void
@@ -190,7 +190,7 @@ Datadog::Uploader::cancel_inflight()
     // Cancel the current upload if there is one.
     // We replace the cancellation token with a null token as we don't have anything
     // else to provide (here, we are not starting a new upload).
-    auto current_cancel = Ddup::get().upload_cancel.exchange({ .inner = nullptr });
+    auto current_cancel = ProfilerState::get().upload_cancel.exchange({ .inner = nullptr });
 
     if (current_cancel.inner != nullptr) {
         ddog_CancellationToken_cancel(&current_cancel);

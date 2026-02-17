@@ -15,15 +15,15 @@ extern "C"
 
 namespace Datadog {
 
-Ddup&
-Ddup::get()
+ProfilerState&
+ProfilerState::get()
 {
-    static Ddup instance;
+    static ProfilerState instance;
     return instance;
 }
 
 bool
-Ddup::init_profiles_dictionary()
+ProfilerState::init_profiles_dictionary()
 {
     ddog_prof_ProfilesDictionaryHandle temp = nullptr;
     auto result = ddog_prof_ProfilesDictionary_new(&temp);
@@ -37,7 +37,7 @@ Ddup::init_profiles_dictionary()
 }
 
 std::optional<ddog_prof_ProfilesDictionaryHandle>
-Ddup::get_profiles_dictionary()
+ProfilerState::get_profiles_dictionary()
 {
     auto handle = dict_handle_.load(std::memory_order_acquire);
     if (handle == nullptr) {
@@ -47,7 +47,7 @@ Ddup::get_profiles_dictionary()
 }
 
 void
-Ddup::release_profiles_dictionary()
+ProfilerState::release_profiles_dictionary()
 {
     ddog_prof_ProfilesDictionaryHandle temp = dict_handle_.load(std::memory_order_relaxed);
     ddog_prof_ProfilesDictionary_drop(&temp);
@@ -55,7 +55,7 @@ Ddup::release_profiles_dictionary()
 }
 
 bool
-Ddup::init_interned_strings()
+ProfilerState::init_interned_strings()
 {
     auto maybe_dict = get_profiles_dictionary();
     if (!maybe_dict) {
@@ -77,7 +77,7 @@ Ddup::init_interned_strings()
 }
 
 void
-Ddup::reset_key_caches()
+ProfilerState::reset_key_caches()
 {
     for (auto& entry : tag_cache) {
         entry.store(nullptr, std::memory_order_relaxed);
@@ -89,7 +89,7 @@ Ddup::reset_key_caches()
 }
 
 void
-Ddup::start()
+ProfilerState::start()
 {
     std::call_once(init_flag_, [this]() {
         // Initialize the profiles dictionary at process start
@@ -106,12 +106,12 @@ Ddup::start()
         profile_state.one_time_init(type_mask, max_nframes);
 
         // Install fork handlers
-        pthread_atfork([]() { Ddup::get().prefork(); },
-                       []() { Ddup::get().postfork_parent(); },
-                       []() { Ddup::get().postfork_child(); });
+        pthread_atfork([]() { ProfilerState::get().prefork(); },
+                       []() { ProfilerState::get().postfork_parent(); },
+                       []() { ProfilerState::get().postfork_child(); });
 
         // Register cleanup function to free resources on exit
-        std::atexit([]() { Ddup::get().cleanup(); });
+        std::atexit([]() { ProfilerState::get().cleanup(); });
 
         // Set the global initialization flag
         initialized_.store(true, std::memory_order_release);
@@ -119,7 +119,7 @@ Ddup::start()
 }
 
 void
-Ddup::cleanup()
+ProfilerState::cleanup()
 {
     // Clear the profile, decreasing the refcount on the Profiles Dictionary
     profile_state.cleanup();
@@ -129,7 +129,7 @@ Ddup::cleanup()
 }
 
 void
-Ddup::prefork()
+ProfilerState::prefork()
 {
     // Cancel inflight uploads to prevent state leaking to children
     auto current_cancel = upload_cancel.exchange({ .inner = nullptr });
@@ -151,13 +151,13 @@ Ddup::prefork()
 }
 
 void
-Ddup::postfork_parent()
+ProfilerState::postfork_parent()
 {
     upload_lock.unlock();
 }
 
 void
-Ddup::postfork_child()
+ProfilerState::postfork_child()
 {
     // Re-init the mutex (placement-new to avoid UB with mutex in undefined state after fork)
     new (&upload_lock) std::mutex();

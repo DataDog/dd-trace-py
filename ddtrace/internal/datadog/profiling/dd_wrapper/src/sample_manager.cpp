@@ -8,14 +8,14 @@
 void
 Datadog::SampleManager::add_type(unsigned int type)
 {
-    auto& ddup = Ddup::get();
+    auto& ddup = ProfilerState::get();
     ddup.type_mask = static_cast<SampleType>((ddup.type_mask | type) & SampleType::All);
 }
 
 void
 Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
 {
-    auto& ddup = Ddup::get();
+    auto& ddup = ProfilerState::get();
     if (_max_nframes > 0) {
         ddup.max_nframes = _max_nframes;
     }
@@ -37,7 +37,7 @@ void
 Datadog::SampleManager::set_sample_pool_capacity(size_t capacity)
 {
     if (capacity > 0) {
-        Ddup::get().sample_pool_capacity = capacity;
+        ProfilerState::get().sample_pool_capacity = capacity;
     }
 }
 
@@ -52,7 +52,7 @@ Datadog::SampleManager::start_sample()
     // Create a new Sample if we failed to get one.
     // Note that this could be leaked if another thread calls fork() before
     // the Sample is returned to the pool.
-    auto& ddup = Ddup::get();
+    auto& ddup = ProfilerState::get();
     return new Datadog::Sample(ddup.type_mask, ddup.max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
 }
 

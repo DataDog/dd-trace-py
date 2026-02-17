@@ -19,7 +19,7 @@
 std::optional<Datadog::string_id>
 Datadog::intern_string(std::string_view s)
 {
-    auto maybe_dict = Ddup::get().get_profiles_dictionary();
+    auto maybe_dict = ProfilerState::get().get_profiles_dictionary();
     if (!maybe_dict) {
         return std::nullopt;
     }
@@ -39,7 +39,7 @@ Datadog::intern_string(std::string_view s)
 std::optional<Datadog::function_id>
 Datadog::intern_function(string_id name, string_id filename)
 {
-    auto& ddup = Ddup::get();
+    auto& ddup = ProfilerState::get();
     auto maybe_dict = ddup.get_profiles_dictionary();
     if (!maybe_dict) {
         return std::nullopt;
@@ -99,7 +99,7 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
   , type_mask{ _type_mask }
 {
     // Initialize values
-    values.resize(Ddup::get().profile_state.get_sample_type_length());
+    values.resize(ProfilerState::get().profile_state.get_sample_type_length());
     std::fill(values.begin(), values.end(), 0);
 
     // Initialize other state
@@ -358,7 +358,7 @@ Datadog::Sample::export_sample()
     };
 
     // Export to profile without clearing buffers
-    return Ddup::get().profile_state.collect(sample, endtime_ns);
+    return ProfilerState::get().profile_state.collect(sample, endtime_ns);
 }
 
 bool
@@ -368,8 +368,8 @@ Datadog::Sample::push_cputime(int64_t cputime, int64_t count)
     // NB all push-type operations return bool for semantic uniformity,
     // even if they can't error.  This should promote generic code.
     if (0U != (type_mask & SampleType::CPU)) {
-        values[Ddup::get().profile_state.val().cpu_time] += cputime * count;
-        values[Ddup::get().profile_state.val().cpu_count] += count;
+        values[ProfilerState::get().profile_state.val().cpu_time] += cputime * count;
+        values[ProfilerState::get().profile_state.val().cpu_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -384,8 +384,8 @@ Datadog::Sample::push_walltime(int64_t walltime, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::Wall)) {
-        values[Ddup::get().profile_state.val().wall_time] += walltime * count;
-        values[Ddup::get().profile_state.val().wall_count] += count;
+        values[ProfilerState::get().profile_state.val().wall_time] += walltime * count;
+        values[ProfilerState::get().profile_state.val().wall_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -401,7 +401,7 @@ Datadog::Sample::push_exceptioninfo(std::string_view exception_type, int64_t cou
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::Exception)) {
         push_label(ExportLabelKey::exception_type, exception_type);
-        values[Ddup::get().profile_state.val().exception_count] += count;
+        values[ProfilerState::get().profile_state.val().exception_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -416,8 +416,8 @@ Datadog::Sample::push_acquire(int64_t acquire_time, int64_t count) // NOLINT (bu
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockAcquire)) {
-        values[Ddup::get().profile_state.val().lock_acquire_time] += acquire_time;
-        values[Ddup::get().profile_state.val().lock_acquire_count] += count;
+        values[ProfilerState::get().profile_state.val().lock_acquire_time] += acquire_time;
+        values[ProfilerState::get().profile_state.val().lock_acquire_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -432,8 +432,8 @@ Datadog::Sample::push_release(int64_t lock_time, int64_t count) // NOLINT (bugpr
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::LockRelease)) {
-        values[Ddup::get().profile_state.val().lock_release_time] += lock_time;
-        values[Ddup::get().profile_state.val().lock_release_count] += count;
+        values[ProfilerState::get().profile_state.val().lock_release_time] += lock_time;
+        values[ProfilerState::get().profile_state.val().lock_release_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -458,8 +458,8 @@ Datadog::Sample::push_alloc(int64_t size, int64_t count) // NOLINT (bugprone-eas
     }
 
     if (0U != (type_mask & SampleType::Allocation)) {
-        values[Ddup::get().profile_state.val().alloc_space] += size;
-        values[Ddup::get().profile_state.val().alloc_count] += count;
+        values[ProfilerState::get().profile_state.val().alloc_space] += size;
+        values[ProfilerState::get().profile_state.val().alloc_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -484,7 +484,7 @@ Datadog::Sample::push_heap(int64_t size)
     }
 
     if (0U != (type_mask & SampleType::Heap)) {
-        values[Ddup::get().profile_state.val().heap_space] += size;
+        values[ProfilerState::get().profile_state.val().heap_space] += size;
         return true;
     }
     if (!already_warned) {
@@ -498,8 +498,8 @@ void
 Datadog::Sample::reset_alloc()
 {
     if (0U != (type_mask & SampleType::Allocation)) {
-        const size_t alloc_space_idx = Ddup::get().profile_state.val().alloc_space;
-        const size_t alloc_count_idx = Ddup::get().profile_state.val().alloc_count;
+        const size_t alloc_space_idx = ProfilerState::get().profile_state.val().alloc_space;
+        const size_t alloc_count_idx = ProfilerState::get().profile_state.val().alloc_count;
         if (alloc_space_idx < values.size() && alloc_count_idx < values.size()) {
             values[alloc_space_idx] = 0;
             values[alloc_count_idx] = 0;
@@ -511,7 +511,7 @@ void
 Datadog::Sample::reset_heap()
 {
     if (0U != (type_mask & SampleType::Heap)) {
-        const size_t heap_space_idx = Ddup::get().profile_state.val().heap_space;
+        const size_t heap_space_idx = ProfilerState::get().profile_state.val().heap_space;
         if (heap_space_idx < values.size()) {
             values[heap_space_idx] = 0;
         }
@@ -523,8 +523,8 @@ Datadog::Sample::push_gpu_gputime(int64_t time, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUTime)) {
-        values[Ddup::get().profile_state.val().gpu_time] += time * count;
-        values[Ddup::get().profile_state.val().gpu_count] += count;
+        values[ProfilerState::get().profile_state.val().gpu_time] += time * count;
+        values[ProfilerState::get().profile_state.val().gpu_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -539,8 +539,8 @@ Datadog::Sample::push_gpu_memory(int64_t size, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUMemory)) {
-        values[Ddup::get().profile_state.val().gpu_alloc_space] += size * count;
-        values[Ddup::get().profile_state.val().gpu_alloc_count] += count;
+        values[ProfilerState::get().profile_state.val().gpu_alloc_space] += size * count;
+        values[ProfilerState::get().profile_state.val().gpu_alloc_count] += count;
         return true;
     }
     if (!already_warned) {
@@ -555,8 +555,8 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     if (0U != (type_mask & SampleType::GPUFlops)) {
-        values[Ddup::get().profile_state.val().gpu_flops] += size * count;
-        values[Ddup::get().profile_state.val().gpu_flops_samples] += count;
+        values[ProfilerState::get().profile_state.val().gpu_flops] += size * count;
+        values[ProfilerState::get().profile_state.val().gpu_flops_samples] += count;
         return true;
     }
     if (!already_warned) {
@@ -740,29 +740,29 @@ Datadog::Sample::push_monotonic_ns(int64_t _monotonic_ns)
 void
 Datadog::Sample::set_timeline(bool enabled)
 {
-    Ddup::get().timeline_enabled = enabled;
+    ProfilerState::get().timeline_enabled = enabled;
 }
 
 bool
 Datadog::Sample::is_timeline_enabled()
 {
-    return Ddup::get().timeline_enabled;
+    return ProfilerState::get().timeline_enabled;
 }
 
 Datadog::ProfileBorrow
 Datadog::Sample::profile_borrow()
 {
-    return Ddup::get().profile_state.borrow();
+    return ProfilerState::get().profile_state.borrow();
 }
 
 void
 Datadog::Sample::postfork_child()
 {
-    Ddup::get().profile_state.postfork_child();
+    ProfilerState::get().profile_state.postfork_child();
 }
 
 void
 Datadog::Sample::cleanup()
 {
-    Ddup::get().profile_state.cleanup();
+    ProfilerState::get().profile_state.cleanup();
 }

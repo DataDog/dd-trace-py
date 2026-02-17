@@ -12,7 +12,7 @@ extern "C"
 namespace Datadog {
 
 // Uploader handles uploading encoded profiles to the Datadog backend.
-// Upload state (lock, cancellation token, sequence number) is stored in the Ddup singleton.
+// Upload state (lock, cancellation token, sequence number) is stored in the ProfilerState singleton.
 class Uploader
 {
   private:

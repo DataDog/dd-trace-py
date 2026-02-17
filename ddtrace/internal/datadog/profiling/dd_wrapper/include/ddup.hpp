@@ -15,18 +15,18 @@ namespace Datadog {
 
 class Sample;
 
-// Ddup is a singleton class that holds all Profiler "global" state.
+// ProfilerState is a singleton class that holds all Profiler "global" state.
 // Consolidating it here makes lifecycle management (init, cleanup, fork handling) clearer.
 //
 // This class owns all shared mutable state for the profiler.
 // When adding new state, consider whether it belongs here or in a specific component.
-class Ddup
+class ProfilerState
 {
   public:
     using ExporterTagset = std::unordered_map<std::string, std::string>;
 
     // Singleton access
-    static Ddup& get();
+    static ProfilerState& get();
 
     // Lifecycle
     void start();
@@ -96,14 +96,14 @@ class Ddup
     void reset_key_caches();
 
   private:
-    Ddup() = default;
-    ~Ddup() = default;
+    ProfilerState() = default;
+    ~ProfilerState() = default;
 
     // Non-copyable, non-movable
-    Ddup(const Ddup&) = delete;
-    Ddup& operator=(const Ddup&) = delete;
-    Ddup(Ddup&&) = delete;
-    Ddup& operator=(Ddup&&) = delete;
+    ProfilerState(const ProfilerState&) = delete;
+    ProfilerState& operator=(const ProfilerState&) = delete;
+    ProfilerState(ProfilerState&&) = delete;
+    ProfilerState& operator=(ProfilerState&&) = delete;
 
     // Initialization state
     std::atomic<bool> initialized_{ false };
