@@ -162,6 +162,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai_agents": "openai_agents",
     "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
+    "claude_agent_sdk": "claude_agent_sdk",
     # requests/concurrent frameworks for distributed injection/extraction
     "requests": "requests",
     "httpx": "httpx",
