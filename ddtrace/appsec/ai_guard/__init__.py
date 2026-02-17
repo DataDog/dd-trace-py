@@ -13,6 +13,7 @@ from ._api_client import Message
 from ._api_client import Options
 from ._api_client import ToolCall
 from ._api_client import new_ai_guard_client
+from .strands import AIGuardStrandsHookProvider
 
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "AIGuardClient",
     "AIGuardClientError",
     "AIGuardAbortError",
+    "AIGuardStrandsHookProvider",
     "ContentPart",
     "Evaluation",
     "Function",
