@@ -13,6 +13,18 @@ def stop() -> None: ...
 
 # Sampling configuration
 def set_adaptive_sampling(do_adaptive_sampling: bool = False) -> None: ...
+def set_uvloop_mode(thread_id: int, uvloop_mode: bool) -> None:
+    """Enable uvloop-specific stack unwinding in the native profiler for a specific thread.
+
+    This changes the boundary frame detection from `Handle._run` to `Runner.run`,
+    and skips the uvloop wrapper frame in task stacks.
+
+    Args:
+        thread_id: The Python thread ID (threading.current_thread().ident) to set uvloop mode for.
+        uvloop_mode: Whether to enable uvloop mode for this thread.
+    """
+    ...
+
 def set_interval(new_interval: float) -> None: ...
 
 # span <-> profile association
