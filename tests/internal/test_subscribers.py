@@ -140,12 +140,13 @@ def test_base_tracing_subscriber(test_spans):
         span_name = "test.subscriber.span"
         span_type = "custom"
         span_kind = "internal"
-        component = "test-component"
 
     class TestTracingSubscriber(TracingSubscriber):
         event_name = TestTracingEvent.event_name
 
-    with core.context_with_event(TestTracingEvent(service="my-service", resource="/api/endpoint")):
+    with core.context_with_event(
+        TestTracingEvent(component="test-component", service="my-service", resource="/api/endpoint")
+    ):
         pass
 
     test_spans.assert_span_count(1)
@@ -167,13 +168,12 @@ def test_span_context_event_missing_required_field(test_spans):
         span_name = "test.operation"
         # Missing service_type
         span_kind = "client"
-        component = "component"
 
     class TestTracingSubscriber(TracingSubscriber):
         event_name = TestTracingEvent.event_name
 
     with pytest.raises(AttributeError):
-        with core.context_with_event(TestTracingEvent()):
+        with core.context_with_event(TestTracingEvent(component="component")):
             pass
 
     test_spans.assert_span_count(0)
@@ -185,16 +185,15 @@ def test_span_context_event_with_custom_fields(test_spans):
     @dataclass
     class TestTracingEvent(TracingEvent):
         event_name = "test.span"
-        span_name = "test.operation"
         span_type = "test"
         span_kind = "client"
-        component = "test_component"
 
-        my_component: InitVar[str] = event_field()
+        my_op: InitVar[str] = event_field()
+        my_arg: InitVar[str] = event_field()
         status_code: int = event_field()
 
-        def __post_init__(self, my_component):
-            self.set_component(my_component)
+        def __post_init__(self, my_op, my_arg):
+            self.span_name = f"{my_op}.{my_arg}"
 
     class TestSpanSubscriber(TracingSubscriber):
         event_name = TestTracingEvent.event_name
@@ -204,12 +203,12 @@ def test_span_context_event_with_custom_fields(test_spans):
             span = ctx.span
             span.set_metric("http.status_code", ctx.event.status_code)
 
-    with core.context_with_event(TestTracingEvent(my_component="test", status_code=200)):
+    with core.context_with_event(TestTracingEvent(my_op="op", my_arg="arg", component="comp", status_code=200)):
         pass
 
     test_spans.assert_span_count(1)
     span = test_spans.spans[0]
-    assert span._meta[COMPONENT] == "test"
+    assert span.name == "op.arg"
     assert span._metrics["http.status_code"] == 200
 
 
@@ -222,7 +221,6 @@ def test_span_context_event_inheritance(test_spans):
         span_name = "http.request"
         span_type = "http"
         span_kind = "client"
-        component = "http"
 
         url: str = event_field()
 
@@ -248,7 +246,7 @@ def test_span_context_event_inheritance(test_spans):
             span = ctx.span
             span._set_tag_str("http.method", ctx.event.method)
 
-    with core.context_with_event(HTTPClientEvent(url="http://example.com", method="GET")):
+    with core.context_with_event(HTTPClientEvent(url="http://example.com", component="http", method="GET")):
         pass
 
     test_spans.assert_span_count(1)
@@ -267,13 +265,12 @@ def test_span_context_event_with_exception(test_spans):
         span_name = "test.operation"
         span_type = "test"
         span_kind = "client"
-        component = "test_component"
 
     class TestSpanSubscriber(TracingSubscriber):
         event_name = TestSpanEvent.event_name
 
     with pytest.raises(ValueError):
-        with core.context_with_event(TestSpanEvent()):
+        with core.context_with_event(TestSpanEvent(component="test_component")):
             raise ValueError("test error")
 
     test_spans.assert_span_count(1)
@@ -283,8 +280,8 @@ def test_span_context_event_with_exception(test_spans):
     assert span._meta["error.message"] == "test error"
 
 
-def test_span_context_event_call_trace_false_with_distributed_context(test_spans):
-    """Test that call_trace=False keeps active span and links parent from distributed context."""
+def test_span_context_event_no_active_context_with_distributed_context(test_spans):
+    """Test that use_active_context=False keeps active span and links parent from distributed context."""
 
     @dataclass
     class TestSpanEvent(TracingEvent):
@@ -292,14 +289,18 @@ def test_span_context_event_call_trace_false_with_distributed_context(test_spans
         span_name = "remote.operation"
         span_type = "worker"
         span_kind = "consumer"
-        component = "test_component"
 
     class TestSpanSubscriber(TracingSubscriber):
         event_name = TestSpanEvent.event_name
 
     with tracer.trace("local.processing"):
         with core.context_with_event(
-            TestSpanEvent(call_trace=False, distributed_context=tracer.context_provider.active())
+            TestSpanEvent(
+                component="test_component",
+                use_active_context=False,
+                activate=False,
+                distributed_context=tracer.context_provider.active(),
+            )
         ):
             # The current active span should still be "local.processing"
             current_span = tracer.current_span()
@@ -319,13 +320,12 @@ def test_span_context_event_end_span_false(test_spans):
         span_name = "test.operation"
         span_type = "test"
         span_kind = "client"
-        component = "test_component"
 
     class TestSpanSubscriber(TracingSubscriber):
         event_name = TestSpanEvent.event_name
         _end_span = False
 
-    with core.context_with_event(TestSpanEvent()):
+    with core.context_with_event(TestSpanEvent(component="test_component")):
         pass
 
     # Span should be started but not finished

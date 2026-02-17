@@ -1,7 +1,6 @@
 """Semantic similarity evaluators for LLMObs."""
 
 from typing import Callable
-from typing import List
 from typing import Optional
 
 from ddtrace.llmobs._experiment import BaseEvaluator
@@ -9,7 +8,7 @@ from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 
 
-def _cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
+def _cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
     """Calculate cosine similarity between two vectors.
 
     Uses numpy if available for optimized performance, otherwise falls back
@@ -94,7 +93,7 @@ class SemanticSimilarityEvaluator(BaseEvaluator):
 
     def __init__(
         self,
-        embedding_fn: Callable[[str], List[float]],
+        embedding_fn: Callable[[str], list[float]],
         threshold: float = 0.7,
         name: Optional[str] = None,
     ):

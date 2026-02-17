@@ -4,8 +4,6 @@ import random
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -58,7 +56,7 @@ class IterationData(TypedDict):
     results: ExperimentResult
     score: float
     experiment_url: str
-    summary_evaluations: Dict[str, Dict[str, JSONType]]
+    summary_evaluations: dict[str, dict[str, JSONType]]
 
 
 class OptimizationIteration:
@@ -74,7 +72,7 @@ class OptimizationIteration:
         current_results: ExperimentResult,
         optimization_task: Callable,
         config: ConfigType,
-        labelization_function: Optional[Callable[[Dict[str, Any]], str]],
+        labelization_function: Optional[Callable[[dict[str, Any]], str]],
     ) -> None:
         """Initialize an optimization iteration.
 
@@ -195,22 +193,22 @@ class OptimizationIteration:
 
         return system_prompt
 
-    def _add_examples(self, individual_results: List[ExperimentRowResult]) -> str:
+    def _add_examples(self, individual_results: list[ExperimentRowResult]) -> str:
         """Add examples of each label type using the labelization function.
 
         Applies the labelization function to each individual result to generate labels,
         then selects one random example for each unique label.
 
-        :param individual_results: List of experiment result dicts.
+        :param individual_results: list of experiment result dicts.
         :return: Formatted string with examples, or empty string if no examples found.
         """
         if not individual_results or self._labelization_function is None:
             return ""
 
         # Step 1: Apply labelization function to each result and collect by label
-        examples_by_label: Dict[str, List[ExperimentRowResult]] = {}
+        examples_by_label: dict[str, list[ExperimentRowResult]] = {}
         for result in individual_results:
-            # Cast ExperimentRowResult to Dict[str, Any] for labelization function
+            # Cast ExperimentRowResult to dict[str, Any] for labelization function
             label = self._labelization_function(dict(result))
             if label:  # Only add if label is not None or empty
                 if label not in examples_by_label:
@@ -334,14 +332,14 @@ class OptimizationResult:
         self,
         name: str,
         initial_prompt: str,
-        iterations: List[IterationData],
+        iterations: list[IterationData],
         best_iteration: int,
     ) -> None:
         """Initialize optimization results.
 
         :param name: Name of the optimization run.
         :param initial_prompt: The starting prompt.
-        :param iterations: List of results from each iteration (IterationData).
+        :param iterations: list of results from each iteration (IterationData).
         :param best_iteration: Index of the iteration with best performance.
         """
         self.name = name
@@ -375,26 +373,26 @@ class OptimizationResult:
         """Get the total number of iterations run (including baseline)."""
         return len(self.iterations)
 
-    def get_history(self) -> List[IterationData]:
+    def get_history(self) -> list[IterationData]:
         """Get the full optimization history with all iterations.
 
         Returns a list of IterationData dicts, one per iteration.
 
-        :return: List of iteration results.
+        :return: list of iteration results.
         """
         return self.iterations
 
-    def get_score_history(self) -> List[float]:
+    def get_score_history(self) -> list[float]:
         """Get list of scores across all iterations.
 
-        :return: List of scores in iteration order.
+        :return: list of scores in iteration order.
         """
         return [it["score"] for it in self.iterations]
 
-    def get_prompt_history(self) -> List[str]:
+    def get_prompt_history(self) -> list[str]:
         """Get list of prompts across all iterations.
 
-        :return: List of prompts in iteration order.
+        :return: list of prompts in iteration order.
         """
         return [it["prompt"] for it in self.iterations]
 
@@ -443,7 +441,7 @@ class PromptOptimization:
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: List[
+        evaluators: list[
             Union[
                 Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
                 BaseEvaluator,
@@ -451,26 +449,26 @@ class PromptOptimization:
         ],
         project_name: str,
         config: ConfigType,
-        summary_evaluators: List[
+        summary_evaluators: list[
             Union[
                 Callable[
                     [
-                        List[DatasetRecordInputType],
-                        List[JSONType],
-                        List[JSONType],
-                        Dict[str, List[JSONType]],
+                        list[DatasetRecordInputType],
+                        list[JSONType],
+                        list[JSONType],
+                        dict[str, list[JSONType]],
                     ],
                     JSONType,
                 ],
                 BaseSummaryEvaluator,
             ]
         ],
-        compute_score: Callable[[Dict[str, Dict[str, Any]]], float],
-        labelization_function: Optional[Callable[[Dict[str, Any]], str]],
+        compute_score: Callable[[dict[str, dict[str, Any]]], float],
+        labelization_function: Optional[Callable[[dict[str, Any]], str]],
         _llmobs_instance: Optional["LLMObs"] = None,
-        tags: Optional[Dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
         max_iterations: int = 5,
-        stopping_condition: Optional[Callable[[Dict[str, Dict[str, Any]]], bool]] = None,
+        stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
     ) -> None:
         """Initialize a prompt optimization.
 
@@ -480,7 +478,7 @@ class PromptOptimization:
                                   ``system_prompt`` (str), ``user_prompt`` (str), and ``config`` (dict).
                                   Must return the new prompt.
         :param dataset: Dataset to run experiments on.
-        :param evaluators: List of evaluators to measure task performance. Can be either
+        :param evaluators: list of evaluators to measure task performance. Can be either
                           class-based evaluators (inheriting from BaseEvaluator) or function-based
                           evaluators that accept (input_data, output_data, expected_output) parameters.
         :param project_name: Project name for organizing optimization runs.
@@ -490,10 +488,10 @@ class PromptOptimization:
                       - ``evaluation_output_format`` (optional): the output format wanted
                       - ``runs`` (optional): The number of times to run the experiment, or, run the task for every
                                              dataset record the defined number of times.
-        :param summary_evaluators: List of summary evaluators (REQUIRED). Can be either
+        :param summary_evaluators: list of summary evaluators (REQUIRED). Can be either
                                    class-based evaluators (inheriting from BaseSummaryEvaluator) or function-based
-                                   evaluators that accept (inputs: List, outputs: List, expected_outputs: List,
-                                   evaluations: Dict) and return aggregated metrics.
+                                   evaluators that accept (inputs: list, outputs: list, expected_outputs: list,
+                                   evaluations: dict) and return aggregated metrics.
         :param compute_score: Function to compute iteration score (REQUIRED).
                              Takes summary_evaluations dict from the experiment result and returns float score.
                              Used to compare and rank different prompt iterations.
@@ -518,7 +516,7 @@ class PromptOptimization:
         self._stopping_condition = stopping_condition
         self._labelization_function = labelization_function
         self._compute_score = compute_score
-        self._tags: Dict[str, str] = tags or {}
+        self._tags: dict[str, str] = tags or {}
         self._tags["project_name"] = project_name
         self._llmobs_instance = _llmobs_instance
         self._max_iterations = max_iterations
@@ -556,7 +554,7 @@ class PromptOptimization:
         log.info("Starting prompt optimization: %s", self.name)
 
         # Track all iteration results
-        all_iterations: List[IterationData] = []
+        all_iterations: list[IterationData] = []
         best_iteration = 0
         best_score = None
         best_prompt = None

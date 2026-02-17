@@ -30,8 +30,7 @@ def is_otlp_export(request: requests.models.Request) -> bool:
     return False
 
 
-def _extract_hostname_and_path(uri):
-    # type: (str) -> str
+def _extract_hostname_and_path(uri: str) -> str:
     parsed_uri = parse.urlparse(uri)
     hostname = parsed_uri.hostname
     try:
@@ -43,8 +42,7 @@ def _extract_hostname_and_path(uri):
     return hostname, parsed_uri.path
 
 
-def _extract_query_string(uri):
-    # type: (str) -> Optional[str]
+def _extract_query_string(uri: str) -> Optional[str]:
     start = uri.find("?") + 1
     if start == 0:
         return None

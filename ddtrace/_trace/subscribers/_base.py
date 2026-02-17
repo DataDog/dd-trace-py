@@ -1,9 +1,7 @@
 from types import TracebackType
 from typing import Any
-from typing import Dict
 from typing import Generic
 from typing import Optional
-from typing import Tuple
 from typing import TypeVar
 
 from ddtrace import config
@@ -23,7 +21,7 @@ TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
 
 
 def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
-    """Start a span from an event stored in the context.
+    """Adaptation of _start_span from trace_handlers to use the event directly
 
     Args:
         ctx: ExecutionContext containing the event
@@ -42,22 +40,25 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
             override=ctx.get_item("distributed_headers_config_override"),
         )
 
-    span_kwargs: Dict[str, Any] = {
+    span_kwargs: dict[str, Any] = {
         "span_type": event.span_type,
         "resource": event.resource,
         "service": event.service,
     }
 
-    if event.distributed_context and not event.call_trace:
-        span_kwargs["child_of"] = event.distributed_context
+    if not event.use_active_context:
+        span_kwargs["activate"] = event.activate
+        if event.distributed_context:
+            span_kwargs["child_of"] = event.distributed_context
 
     if config._inferred_proxy_services_enabled:
+        # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, span_kwargs, event.call_trace))
+        core.dispatch("inferred_proxy.start", (ctx, span_kwargs, event.use_active_context))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
-    span = (tracer.trace if event.call_trace else tracer.start_span)(event.span_name, **span_kwargs)
+    span = (tracer.trace if event.use_active_context else tracer.start_span)(event.span_name, **span_kwargs)
 
     span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
 
@@ -67,6 +68,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
+        # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
 
@@ -108,7 +110,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     def _on_context_ended(
         cls,
         ctx: core.ExecutionContext[TracingEventType],
-        exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         try:
             for handler in cls._ended_handlers:

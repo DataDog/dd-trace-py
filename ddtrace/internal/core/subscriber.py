@@ -1,11 +1,14 @@
+import logging
 from types import TracebackType
 from typing import Generic
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal import core
 
 from .events import EventType
+
+
+log = logging.getLogger(__name__)
 
 
 class Subscriber:
@@ -48,6 +51,7 @@ class Subscriber:
         )
 
         if "event_name" not in cls.__dict__:
+            log.warning("Subscriber class %s does not define 'event_name' and will not be registered. ", cls.__name__)
             return
 
         core.on(
@@ -125,6 +129,8 @@ class ContextSubscriber(Generic[EventType]):
             and base_cls is not ContextSubscriber
         )
 
+        # Register only classes that define their own event_name.
+        # This avoids auto-registering abstract/shared base subscribers that inherit event_name.
         if "event_name" not in cls.__dict__:
             return
 
@@ -152,7 +158,7 @@ class ContextSubscriber(Generic[EventType]):
     def on_ended(
         cls,
         ctx: core.ExecutionContext[EventType],
-        exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ):
         """Override this method in child classes to handle context end events.
 
@@ -172,7 +178,7 @@ class ContextSubscriber(Generic[EventType]):
     def _on_context_ended(
         cls,
         ctx: core.ExecutionContext[EventType],
-        exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         """Internal handler that calls all _on_context_ended methods from parent to children"""
         for handler in cls._ended_handlers:

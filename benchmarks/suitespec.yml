@@ -54,9 +54,6 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
-    - ddtrace/internal/_rand.pyi
-    - ddtrace/internal/_rand.pyx
-    - ddtrace/internal/_stdint.h
     - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
@@ -120,6 +117,14 @@ suites:
       - '@vendor'
     cpus_per_run: 1
     type: 'microbenchmark'
+  # events_api:
+  #   paths:
+  #     - '@bootstrap'
+  #     - '@core'
+  #     - '@tracing'
+  #     - '@vendor'
+  #   cpus_per_run: 1
+  #   type: 'microbenchmark'
   set_http_meta:
     paths:
       - '@bootstrap'
@@ -297,4 +302,9 @@ suites:
       - '@flask'
       - '@django'
     cpus_per_run: 2
+    type: 'microbenchmark'
+  rand:
+    paths:
+      - 'src/native/rand.rs'
+    cpus_per_run: 1
     type: 'microbenchmark'
