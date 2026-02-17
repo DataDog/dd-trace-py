@@ -203,49 +203,83 @@ class PyRef
     PyObject* _obj;
 };
 
+// Reasons associated with the _request wake channel.
+static constexpr unsigned char REQUEST_REASON_NONE = 0;
+static constexpr unsigned char REQUEST_REASON_AWAKE = 1 << 0;
+static constexpr unsigned char REQUEST_REASON_STOP = 1 << 1;
+static constexpr unsigned char REQUEST_REASON_FORK_STOP = 1 << 2;
+
 // ----------------------------------------------------------------------------
 class Event
 {
   public:
-    void set()
+    void set(unsigned char reasons = 1)
     {
         std::lock_guard<std::mutex> lock(_mutex);
 
-        if (_set)
+        unsigned char old_reasons = _reasons;
+        _reasons |= reasons;
+
+        if (old_reasons == _reasons)
             return;
 
-        _set = true;
         _cond.notify_all();
     }
 
     void wait()
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        _cond.wait(lock, [this]() { return _set; });
+        _cond.wait(lock, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     bool wait(std::chrono::milliseconds timeout)
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        return _cond.wait_for(lock, timeout, [this]() { return _set; });
+        return _cond.wait_for(lock, timeout, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     bool wait(std::chrono::time_point<std::chrono::steady_clock> until)
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        return _cond.wait_until(lock, until, [this]() { return _set; });
+        return _cond.wait_until(lock, until, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     void clear()
     {
         std::lock_guard<std::mutex> lock(_mutex);
-        _set = false;
+        _reasons = REQUEST_REASON_NONE;
+    }
+
+    void clear(unsigned char reasons)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _reasons &= static_cast<unsigned char>(~reasons);
+    }
+
+    unsigned char consume(unsigned char reasons)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        unsigned char matched = _reasons & reasons;
+        _reasons &= static_cast<unsigned char>(~reasons);
+
+        return matched;
+    }
+
+    unsigned char consume_all()
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        unsigned char reasons = _reasons;
+        _reasons = REQUEST_REASON_NONE;
+
+        return reasons;
     }
 
   private:
     std::condition_variable _cond;
     std::mutex _mutex;
-    bool _set = false;
+    unsigned char _reasons = REQUEST_REASON_NONE;
 };
 
 // ----------------------------------------------------------------------------
@@ -266,7 +300,6 @@ typedef struct periodic_thread
     bool _stopping;
     bool _atexit;
     bool _skip_shutdown;
-    bool _request_from_fork_stop;
 
     std::chrono::time_point<std::chrono::steady_clock> _next_call_time;
 
@@ -335,7 +368,6 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->_stopping = false;
     self->_atexit = false;
     self->_skip_shutdown = false;
-    self->_request_from_fork_stop = false;
 
     self->_started = std::make_unique<Event>();
     self->_stopped = std::make_unique<Event>();
@@ -415,18 +447,29 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 
         bool error = false;
         if (self->_no_wait_at_start)
-            self->_request->set();
+            self->_request->set(REQUEST_REASON_AWAKE);
 
         while (!self->_stopping) {
             {
                 AllowThreads _;
 
                 if (self->_request->wait(self->_next_call_time)) {
-                    if (self->_stopping)
+                    if (self->_stopping) {
+                        // _stopping can be set by:
+                        // 1. pre-fork stop: preserve non-fork reasons (e.g. awake)
+                        //    so they survive restart;
+                        // 2. regular stop(): consume all pending reasons.
+                        const unsigned char stop_reasons =
+                          self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
+                        const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
+                        if (!has_fork_stop)
+                            self->_request->consume_all();
                         break;
+                    }
 
-                    // Awake signal
-                    self->_request->clear();
+                    // Request wakeup while running (awake/no_wait_at_start).
+                    // Timer wakeups are the wait(...) == false branch.
+                    self->_request->consume_all();
                 }
             }
 
@@ -490,11 +533,9 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
         AllowThreads _;
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
-        // A real awake() request should be preserved across the parent restart
-        // window after fork.
-        self->_request_from_fork_stop = false;
         self->_served->clear();
-        self->_request->set();
+        self->_request->set(REQUEST_REASON_AWAKE);
+
         self->_served->wait();
     }
 
@@ -511,7 +552,7 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
     }
 
     self->_stopping = true;
-    self->_request->set();
+    self->_request->set(REQUEST_REASON_STOP);
 
     Py_RETURN_NONE;
 }
@@ -592,9 +633,7 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     // During prefork, stop() sets _request to wake the thread promptly so it
     // can exit before fork. That wakeup should not trigger a synthetic
     // periodic() run right after restart.
-    if (self->_request_from_fork_stop)
-        self->_request->clear();
-    self->_request_from_fork_stop = false;
+    self->_request->clear(REQUEST_REASON_FORK_STOP);
     self->_started->clear();
     self->_stopped->clear();
     self->_served->clear();
@@ -609,9 +648,10 @@ static PyObject*
 PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_skip_shutdown = true;
-    self->_request_from_fork_stop = true;
 
-    PeriodicThread_stop(self, NULL);
+    // Equivalent to PeriodicThread_stop(), with an explicit fork-stop reason.
+    self->_stopping = true;
+    self->_request->set(REQUEST_REASON_FORK_STOP);
 
     Py_RETURN_NONE;
 }
