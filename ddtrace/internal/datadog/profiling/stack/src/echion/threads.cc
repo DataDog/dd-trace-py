@@ -640,7 +640,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             const auto& task_name = maybe_task_name->get();
             renderer.render_task_begin(task_name, task_stack_info->on_cpu);
-            renderer.render_stack_begin();
 
             task_stack_info->stack.render(echion);
 
@@ -657,7 +656,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             const auto& task_name = maybe_task_name->get();
             renderer.render_task_begin(task_name, greenlet_stack->on_cpu);
-            renderer.render_stack_begin();
 
             auto& stack = greenlet_stack->stack;
             stack.render(echion);
@@ -667,7 +665,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
         current_greenlets.clear();
     } else {
-        renderer.render_stack_begin();
         python_stack.render(echion);
         renderer.render_stack_end();
     }
