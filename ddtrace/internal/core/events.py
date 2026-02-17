@@ -117,7 +117,9 @@ class TracingEvent(Event):
     on any TracingEvent.
     """
 
-    # This attributes are most of the time not instance specific and should be set at Event definition
+    # These are typically set at class level but can be overridden per-instance
+    # via set_span_name() / set_component() to avoid race conditions.
+    # Using ClassVar so dataclass ignores them; instance override via __dict__.
     span_name: ClassVar[str]
     span_type: ClassVar[str]
     span_kind: ClassVar[str]
@@ -133,13 +135,13 @@ class TracingEvent(Event):
     measured: bool = False
 
     def set_component(self, component):
-        """component is likely to be set a runtime and we do not want users to
-        interact with class object.
+        """Set component as an instance attribute to avoid race conditions
+        when multiple events are constructed concurrently.
         """
-        self.__class__.component = component
+        self.__dict__["component"] = component
 
     def set_span_name(self, span_name):
-        """span_name is likely to be set a runtime and we do not want users to
-        interact with class object.
+        """Set span_name as an instance attribute to avoid race conditions
+        when multiple events are constructed concurrently.
         """
-        self.__class__.span_name = span_name
+        self.__dict__["span_name"] = span_name

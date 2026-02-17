@@ -408,6 +408,22 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "llama-index-core",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.14.14",
+        "max_tracer_supported": "0.14.14",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "llama_index",
+        "integration": "llama_index",
+        "minimum_tracer_supported": "0.14.14",
+        "max_tracer_supported": "0.14.14",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "logbook",
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",

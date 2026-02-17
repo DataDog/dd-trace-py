@@ -314,6 +314,13 @@ LiteLLM
 ^^^^^^^
 .. automodule:: ddtrace.contrib.internal.litellm
 
+.. _llama_index:
+
+llama_index
+^^^^^^^^^^^
+
+.. automodule:: ddtrace.contrib.internal.llama_index
+
 .. _logbook:
 
 Logbook

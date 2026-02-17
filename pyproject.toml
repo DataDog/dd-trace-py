@@ -90,6 +90,7 @@ exclude = '''
   | .venv*
   | \.sg
   | \.riot
+  | \.analysis/
   | ddtrace/profiling/
   | test_ci_visibility_api_client_skippable_real_world_responses\.py
 )
@@ -152,6 +153,7 @@ exclude = [
     "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
     "tests/appsec/iast/aspects/test_template_string_aspect.py",  # Python 3.14+ syntax (t-strings)
     "benchmarks/bm/iast_fixtures/template_strings.py",  # Python 3.14+ syntax (t-strings)
+    ".analysis",
 ]
 lint.ignore = [
     "A003",
@@ -193,7 +195,6 @@ lint.select = [
     "F",
     "G",
     "I",
-    "PLW0244",  # redefined-slots-in-subclass
     "W",
 ]
 lint.unfixable =[

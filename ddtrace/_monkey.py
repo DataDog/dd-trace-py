@@ -56,6 +56,7 @@ PATCH_MODULES = {
     "kafka": True,
     "langgraph": True,
     "litellm": True,
+    "llama_index": True,
     "mysql": True,
     "mysqldb": True,
     "pymysql": True,
@@ -172,6 +173,7 @@ _MODULES_FOR_CONTRIB = {
         "langgraph.prebuilt",
     ),
     "openai_agents": ("agents",),
+    "llama_index": ("llama_index.core",),
 }
 
 _NOT_PATCHABLE_VIA_ENVVAR = {"ddtrace_api"}

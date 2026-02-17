@@ -200,6 +200,7 @@ INTEGRATION_CONFIGS = frozenset(
         "mcp",
         "ray",
         "aiokafka",
+        "llama_index",
     }
 )
 
