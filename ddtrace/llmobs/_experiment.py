@@ -398,41 +398,15 @@ class RemoteEvaluator(BaseEvaluator):
         """Evaluate using the remote LLM-as-Judge evaluator.
 
         :param context: The evaluation context containing input, output, and metadata
-        :return: Evaluation result from the backend
-        :raises RemoteEvaluatorError: If the backend returns an error or call fails
+        :return: EvaluationResult or raw value if no reasoning or assessment is provided
         """
-        client = self._client
-        if client is None:
-            from ddtrace.llmobs import LLMObs
+        from ddtrace.llmobs import LLMObs
 
-            if LLMObs._instance is None:
-                raise RemoteEvaluatorError(
-                    "LLMObs is not enabled. Enable LLMObs before using RemoteEvaluator.",
-                    backend_error={
-                        "type": "configuration_error",
-                        "message": "LLMObs not enabled",
-                        "recommended_resolution": "Call LLMObs.enable() before running the experiment",
-                    },
-                )
-            client = LLMObs._instance._dne_client
+        client = self._client or LLMObs._instance._dne_client
 
-        try:
-            transformed_context = self._transform_fn(context)
-        except Exception as e:
-            raise RemoteEvaluatorError(
-                f"transform_fn raised an exception: {e}",
-                backend_error={
-                    "type": "transform_error",
-                    "message": str(e),
-                    "recommended_resolution": "Check your transform_fn implementation",
-                },
-            ) from e
-
-        # - Raises ValueError for HTTP errors (400/500)
-        # - Raises RemoteEvaluatorError for evaluation errors (200 + ERROR/WARN) with backend error details
         result = client.evaluator_infer(
             eval_name=self._eval_name,
-            context=transformed_context,
+            context=self._transform_fn(context),
         )
 
         value = result.get("value")

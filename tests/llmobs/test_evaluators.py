@@ -433,7 +433,7 @@ class TestRemoteEvaluator:
         assert result == "good"
 
     def test_evaluate_transform_error(self):
-        """Test that transform_fn errors are wrapped in RemoteEvaluatorError."""
+        """Test that transform_fn errors propagate naturally."""
 
         def bad_transform(ctx):
             raise ValueError("Transform failed")
@@ -447,11 +447,10 @@ class TestRemoteEvaluator:
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
-        with pytest.raises(RemoteEvaluatorError) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             evaluator.evaluate(ctx)
 
-        assert "transform_fn raised an exception" in str(exc_info.value)
-        assert exc_info.value.backend_error["type"] == "transform_error"
+        assert "Transform failed" in str(exc_info.value)
 
     def test_evaluate_backend_error(self):
         """Test that backend errors are propagated."""
@@ -502,7 +501,7 @@ class TestRemoteEvaluator:
         assert exc_info.value.backend_error["type"] == "http_error"
 
     def test_evaluate_llmobs_not_enabled(self, llmobs):
-        """Test that error is raised if LLMObs not enabled."""
+        """Test that AttributeError is raised if LLMObs not enabled."""
         evaluator = RemoteEvaluator(
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
@@ -512,11 +511,10 @@ class TestRemoteEvaluator:
         with mock.patch("ddtrace.llmobs.LLMObs._instance", None):
             ctx = EvaluatorContext(input_data={}, output_data="")
 
-            with pytest.raises(RemoteEvaluatorError) as exc_info:
+            with pytest.raises(AttributeError) as exc_info:
                 evaluator.evaluate(ctx)
 
-            assert "LLMObs is not enabled" in str(exc_info.value)
-            assert exc_info.value.backend_error["type"] == "configuration_error"
+            assert "'NoneType' object has no attribute '_dne_client'" in str(exc_info.value)
 
     def test_is_remote_evaluator_marker(self):
         """Test that RemoteEvaluator has _is_remote_evaluator marker."""
