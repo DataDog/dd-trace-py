@@ -352,7 +352,7 @@ SummaryEvaluatorType = Union[
 ]
 AsyncSummaryEvaluatorType = Union[
     Callable[
-        [Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], Sequence[str, Sequence[JSONType]]],
+        [Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], dict[str, Sequence[JSONType]]],
         Awaitable[JSONType],
     ],
     BaseAsyncSummaryEvaluator,
