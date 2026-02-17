@@ -526,7 +526,7 @@ class SpanData:
     _meta: dict[str, str]
     _metrics: dict[str, Union[int, float]]
 
-    def _set_attribute(self, key: str, value: Union[str, int, float, None]) -> None: ...
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
     def __new__(
         cls: type[_SpanDataT],
         name: str,

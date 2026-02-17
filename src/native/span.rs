@@ -376,7 +376,7 @@ impl SpanData {
     /// This is a unified setter that enforces mutual exclusion:
     /// - String/bytes values are stored in _meta
     /// - Int/float values are stored in _metrics
-    /// - None removes the key from both dicts
+    /// - None is stringified to "None" and stored in _meta (matches old set_tag behavior)
     /// - Setting a key in one dict removes it from the other
     /// - NaN and Inf float values are silently dropped (no-op)
     ///
@@ -388,11 +388,7 @@ impl SpanData {
         let meta = self.meta.bind(py);
         let metrics = self.metrics.bind(py);
 
-        if value.is_none() {
-            // None means remove from both dicts
-            let _ = meta.del_item(key); // Ignore KeyError if key doesn't exist
-            let _ = metrics.del_item(key);
-        } else if value.is_instance_of::<pyo3::types::PyFloat>() {
+        if value.is_instance_of::<pyo3::types::PyFloat>() {
             // Float branch first: check NaN/Inf and silently drop if invalid
             let f = value.extract::<f64>()?;
             if f.is_nan() || f.is_infinite() {

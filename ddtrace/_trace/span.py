@@ -36,7 +36,6 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
@@ -282,35 +281,46 @@ class Span(SpanData):
         :param value: Value to assign for the tag
         :type value: ``str``-able value
         """
-        # Special case, force `http.status_code` as a string
-        # DEV: `http.status_code` *has* to be in `meta` for metrics
-        #   calculated in the trace agent
-        if key == http.STATUS_CODE:
-            value = str(value)
-        # Explicitly try to convert expected integers to `int`
-        # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
-        elif key == net.TARGET_PORT:
-            try:
-                value = int(value)  # type: ignore
-            except (ValueError, TypeError):
-                pass
-        elif key == MANUAL_KEEP_KEY:
+
+        if key == MANUAL_KEEP_KEY:
             self._override_sampling_decision(USER_KEEP)
             return
         elif key == MANUAL_DROP_KEY:
             self._override_sampling_decision(USER_REJECT)
             return
-        elif key == SERVICE_KEY:
-            self.service = value
-        elif key == SERVICE_VERSION_KEY:
-            # Also set the `version` tag to the same value
-            # DEV: Note that we do no return, we want to set both
-            self._set_attribute(VERSION_KEY, value)
         elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
-                value = 1  # type: ignore
+                self._set_attribute(key, 1)
+            else:
+                self._set_attribute(key, int(bool(value)))
+            return
+
+        if value is not None:
+            # Special case, force `http.status_code` as a string
+            # DEV: `http.status_code` *has* to be in `meta` for metrics
+            #   calculated in the trace agent
+            if key == http.STATUS_CODE:
+                value = str(value)
+            # Explicitly try to convert expected integers to `int`
+            # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
+            elif key == net.TARGET_PORT:
+                try:
+                    self._set_attribute(key, int(value))
+                    return
+                except (ValueError, TypeError):
+                    pass
+            elif key == SERVICE_KEY:
+                self.service = value
+            elif key == SERVICE_VERSION_KEY:
+                # Also set the `version` tag to the same value
+                # DEV: Note that we do no return, we want to set both
+                self._set_attribute(VERSION_KEY, value)
+        # Convert None to string "None" for backward compatibility
+        # DEV: _set_attribute doesn't accept None, so stringify here
+        else:
+            value = "None"
 
         try:
             self._set_attribute(key, value)

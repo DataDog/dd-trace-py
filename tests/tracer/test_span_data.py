@@ -1104,17 +1104,17 @@ def test_set_attribute_float_to_metrics():
     assert "metric1" not in span._meta
 
 
-def test_set_attribute_none_removes_from_both():
-    """_set_attribute with None removes key from both dicts."""
+def test_set_attribute_none_stringifies_to_none():
+    """_set_attribute with None stringifies to 'None' (matches old set_tag behavior)."""
     span = SpanData(name="test")
     span._set_attribute("key1", "value")
     span._set_attribute("key1", None)
-    assert "key1" not in span._meta
+    assert span._meta["key1"] == "None"
     assert "key1" not in span._metrics
 
     span._set_attribute("metric1", 42)
     span._set_attribute("metric1", None)
-    assert "metric1" not in span._meta
+    assert span._meta["metric1"] == "None"
     assert "metric1" not in span._metrics
 
 
