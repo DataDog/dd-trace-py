@@ -3995,5 +3995,17 @@ venv = Venv(
                 "pytest-asyncio": latest,
             },
         ),
+        Venv(
+            name="ai_guard_strands",
+            command="pytest {cmdargs} tests/appsec/ai_guard/strands/",
+            pkgs={
+                "strands-agents": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                ),
+            ],
+        ),
     ],
 )
