@@ -39,7 +39,7 @@ class BenchmarkDispatchEvent(Event):
 
 
 class SpanContextSubscriber(TracingSubscriber):
-    event_name = BenchmarkTracingEvent.event_name
+    event_names = (BenchmarkTracingEvent.event_name,)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
