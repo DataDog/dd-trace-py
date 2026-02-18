@@ -222,11 +222,21 @@ def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shall
 
     github_event_path = f"{git_repo}/event.json"
     with open(github_event_path, "w") as f:
-        json.dump({"pull_request": {"head": {"sha": head_sha}}}, f)
+        json.dump(
+            {
+                "pull_request": {
+                    "number": 456,
+                    "head": {"sha": head_sha},
+                    "base": {"sha": head_sha, "ref": "main"},
+                }
+            },
+            f,
+        )
 
     ci_env = {
         "GITHUB_SHA": github_sha,
         "GITHUB_EVENT_PATH": github_event_path,
+        "GITHUB_WORKSPACE": git_repo,
     }
 
     monkeypatch.setattr(os, "environ", ci_env)
@@ -251,6 +261,11 @@ def test_extract_git_head_commit_data(monkeypatch: pytest.MonkeyPatch, git_shall
     assert tags[GitTag.COMMIT_HEAD_COMMITTER_DATE] == "2020-01-20T04:37:21-0400"
     assert tags[GitTag.COMMIT_HEAD_MESSAGE] == "initial commit"
     assert tags[GitTag.COMMIT_HEAD_SHA] == head_sha
+    assert tags[GitTag.PULL_REQUEST_NUMBER] == "456"
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH] == "main"
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] == head_sha
+    assert tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == head_sha
+    assert tags[GitTag.PULL_REQUEST_HEAD_SHA] == head_sha
 
 
 def test_git_executable_not_found_error(monkeypatch: pytest.MonkeyPatch, git_repo: str) -> None:

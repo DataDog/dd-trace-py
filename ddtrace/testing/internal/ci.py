@@ -284,11 +284,25 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> dict[str, t.Optio
     )
 
     git_commit_head_sha = None
+    pull_request_number = None
+    pull_request_base_branch = None
+    pull_request_base_sha = None
+    pull_request_head_sha = None
+    pull_request_merge_base_sha = None
     if "GITHUB_EVENT_PATH" in env:
         try:
             with open(env["GITHUB_EVENT_PATH"]) as f:
                 github_event_data = json.load(f)
-                git_commit_head_sha = github_event_data.get("pull_request", {}).get("head", {}).get("sha")
+                pull_request_data = github_event_data.get("pull_request", {})
+                pull_request_head_sha = pull_request_data.get("head", {}).get("sha")
+                pull_request_base = pull_request_data.get("base", {})
+                pull_request_base_sha = pull_request_base.get("sha")
+                pull_request_base_branch = pull_request_base.get("ref")
+                pull_request_number = pull_request_data.get("number")
+                git_commit_head_sha = pull_request_head_sha
+                pull_request_merge_base_sha = _get_pull_request_merge_base(
+                    pull_request_base_sha, pull_request_head_sha, env.get("GITHUB_WORKSPACE")
+                )
         except Exception as e:
             log.warning("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
 
@@ -306,6 +320,11 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> dict[str, t.Optio
         GitTag.COMMIT_SHA: git_commit_sha,
         GitTag.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
         GitTag.COMMIT_HEAD_SHA: git_commit_head_sha,
+        GitTag.PULL_REQUEST_NUMBER: str(pull_request_number) if pull_request_number is not None else None,
+        GitTag.PULL_REQUEST_BASE_BRANCH: pull_request_base_branch,
+        GitTag.PULL_REQUEST_BASE_BRANCH_SHA: pull_request_merge_base_sha,
+        GitTag.PULL_REQUEST_BASE_BRANCH_HEAD_SHA: pull_request_base_sha,
+        GitTag.PULL_REQUEST_HEAD_SHA: pull_request_head_sha,
         CITag.JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
         CITag.PIPELINE_ID: github_run_id,
         CITag.PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
@@ -317,6 +336,20 @@ def extract_github_actions(env: t.MutableMapping[str, str]) -> dict[str, t.Optio
         CITag.WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
         CITag._CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
+
+
+def _get_pull_request_merge_base(
+    base_sha: t.Optional[str], head_sha: t.Optional[str], workspace_path: t.Optional[str]
+) -> t.Optional[str]:
+    if not base_sha or not head_sha or not workspace_path:
+        return None
+    try:
+        git_client = git.Git(cwd=workspace_path)
+    except RuntimeError as e:
+        log.warning("Git executable not found, cannot compute pull request merge base: %s", e)
+        return None
+    merge_base = git_client.get_merge_base(base_sha, head_sha)
+    return merge_base or None
 
 
 @register_provider("GITLAB_CI")

@@ -478,7 +478,13 @@ def test_build_git_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
 
 
 def test_github_pull_request_head_sha():
-    fake_event_data = {"pull_request": {"head": {"sha": "headCommitSha"}}}
+    fake_event_data = {
+        "pull_request": {
+            "number": 123,
+            "head": {"sha": "headCommitSha"},
+            "base": {"sha": "baseBranchHeadSha", "ref": "main"},
+        }
+    }
     with tempfile.NamedTemporaryFile(mode="w+", delete=False) as event_file:
         json.dump(fake_event_data, event_file)
         event_file_path = event_file.name
@@ -497,7 +503,8 @@ def test_github_pull_request_head_sha():
         "GITHUB_WORKSPACE": "/workspace",
     }
 
-    tags = ci.extract_github_actions(env=env)
+    with mock.patch("ddtrace.ext.ci._get_pull_request_merge_base", return_value="mergeBaseSha"):
+        tags = ci.extract_github_actions(env=env)
 
     os.remove(event_file_path)
 
@@ -505,6 +512,11 @@ def test_github_pull_request_head_sha():
     assert tags[git.COMMIT_SHA] == "mainCommitSha"
     assert tags[git.REPOSITORY_URL] == "https://github.com/DataDog/dd-trace-py.git"
     assert tags[git.COMMIT_HEAD_SHA] == "headCommitSha"
+    assert tags[git.PULL_REQUEST_NUMBER] == "123"
+    assert tags[git.PULL_REQUEST_BASE_BRANCH] == "main"
+    assert tags[git.PULL_REQUEST_BASE_BRANCH_SHA] == "mergeBaseSha"
+    assert tags[git.PULL_REQUEST_BASE_BRANCH_HEAD_SHA] == "baseBranchHeadSha"
+    assert tags[git.PULL_REQUEST_HEAD_SHA] == "headCommitSha"
     assert tags[ci.JOB_URL] == "https://github.com/DataDog/dd-trace-py/commit/mainCommitSha/checks"
     assert tags[ci.PIPELINE_ID] == "12345"
     assert tags[ci.PIPELINE_NAME] == "CI"
