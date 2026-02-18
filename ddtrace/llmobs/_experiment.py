@@ -504,9 +504,7 @@ class Dataset:
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
-    def push(
-        self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
-    ):
+    def push(self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None):
         """Pushes any local changes in this dataset since the last push.
 
         :param deduplicate:

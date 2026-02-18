@@ -933,7 +933,7 @@ class LLMObs(Service):
                 num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 batch_size = math.ceil(len(records) / num_batches)
                 log.debug("batched upload num_batches :%d, batch_size: %d", num_batches, batch_size)
-                create_new_version = True # wether the server should attempt to bump the data version or not
+                create_new_version = True  # wether the server should attempt to bump the data version or not
                 for record_batch in _batched(records, batch_size):
                     for record in record_batch:
                         ds.append(record)
