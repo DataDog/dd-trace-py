@@ -327,6 +327,7 @@ class TestAPIClientGetKnownTests:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "configurations": {"os.platform": "Linux"},
+                            "page_info": {"page_size": 2000},
                         },
                     }
                 },

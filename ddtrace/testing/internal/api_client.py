@@ -24,6 +24,9 @@ from ddtrace.testing.internal.test_data import TestRef
 
 log = logging.getLogger(__name__)
 
+_KNOWN_TESTS_PAGE_SIZE = 2000
+_KNOWN_TESTS_MAX_PAGES = 1000
+
 
 class APIClient:
     def __init__(
@@ -109,46 +112,73 @@ class APIClient:
             error="known_tests.request_errors",
         )
 
-        try:
-            request_data: dict[str, t.Any] = {
-                "data": {
-                    "id": str(uuid.uuid4()),
-                    "type": "ci_app_libraries_tests_request",
-                    "attributes": {
-                        "service": self.service,
-                        "env": self.env,
-                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                        "configurations": self.configurations,
-                    },
+        page_state: t.Optional[str] = None
+        known_test_ids: set[TestRef] = set()
+
+        for page_number in range(_KNOWN_TESTS_MAX_PAGES):
+            page_info: dict[str, t.Any] = {"page_size": _KNOWN_TESTS_PAGE_SIZE}
+            if page_state:
+                page_info["page_state"] = page_state
+
+            try:
+                request_data: dict[str, t.Any] = {
+                    "data": {
+                        "id": str(uuid.uuid4()),
+                        "type": "ci_app_libraries_tests_request",
+                        "attributes": {
+                            "service": self.service,
+                            "env": self.env,
+                            "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                            "configurations": self.configurations,
+                            "page_info": page_info,
+                        },
+                    }
                 }
-            }
 
-        except KeyError as e:
-            log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
-            telemetry.record_error(ErrorType.UNKNOWN)
-            return set()
+            except KeyError as e:
+                log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
+                telemetry.record_error(ErrorType.UNKNOWN)
+                return set()
 
-        try:
-            result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
-            result.on_error_raise_exception()
+            try:
+                result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+                result.on_error_raise_exception()
 
-        except Exception as e:
-            log.warning("Error getting known tests from API: %s", e)
-            return set()
+            except Exception as e:
+                log.warning("Error getting known tests from API: %s", e)
+                return set()
 
-        try:
-            tests_data = result.parsed_response["data"]["attributes"]["tests"]
-            known_test_ids = set()
+            try:
+                attributes = result.parsed_response["data"]["attributes"]
+                tests_data = attributes["tests"]
 
-            for module, suites in tests_data.items():
-                module_ref = ModuleRef(module)
-                for suite, tests in suites.items():
-                    suite_ref = SuiteRef(module_ref, suite)
-                    for test in tests:
-                        known_test_ids.add(TestRef(suite_ref, test))
+                for module, suites in tests_data.items():
+                    module_ref = ModuleRef(module)
+                    for suite, tests in suites.items():
+                        suite_ref = SuiteRef(module_ref, suite)
+                        for test in tests:
+                            known_test_ids.add(TestRef(suite_ref, test))
 
-        except Exception:
-            log.warning("Error getting known tests from API")
+                page_info = attributes.get("page_info")
+                if not page_info:
+                    break
+
+                has_next = page_info.get("has_next")
+                if not has_next:
+                    break
+
+                page_state = page_info.get("cursor")
+                if not page_state:
+                    log.warning("Known tests response missing pagination cursor on page %d", page_number + 1)
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
+
+            except Exception:
+                log.warning("Error getting known tests from API")
+                telemetry.record_error(ErrorType.BAD_JSON)
+                return set()
+        else:
+            log.warning("Known tests pagination exceeded max pages: %d", _KNOWN_TESTS_MAX_PAGES)
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 

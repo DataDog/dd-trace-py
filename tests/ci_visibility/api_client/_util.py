@@ -99,11 +99,17 @@ def _get_skippable_api_response():
     )
 
 
-def _get_tests_api_response(tests_body: t.Optional[dict] = None):
+def _get_tests_api_response(
+    tests_body: t.Optional[dict] = None,
+    page_info: t.Optional[dict] = None,
+):
     response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}}
 
     if tests_body is not None:
         response["data"]["attributes"]["tests"].update(tests_body)
+
+    if page_info is not None:
+        response["data"]["attributes"]["page_info"] = page_info
 
     return Response(200, json.dumps(response))
 
@@ -278,9 +284,14 @@ class TestTestVisibilityAPIClientBase:
         repository_url: t.Optional[str] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
+        page_state: t.Optional[str] = None,
     ):
         if repository_url is None:
             repository_url = self.default_git_data.repository_url
+
+        page_info = {"page_size": 2000}
+        if page_state:
+            page_info["page_state"] = page_state
 
         return {
             "data": {
@@ -297,6 +308,7 @@ class TestTestVisibilityAPIClientBase:
                         "runtime.name": "RPython",
                         "runtime.version": "11.5.2",
                     },
+                    "page_info": page_info,
                 },
             },
         }
