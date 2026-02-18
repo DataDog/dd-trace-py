@@ -11,6 +11,7 @@ from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
 from ._native import RequestError  # noqa: F401
 from ._native import SerializationError  # noqa: F401
+from ._native import SpanEvent  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import ffe  # noqa: F401

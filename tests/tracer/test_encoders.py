@@ -628,8 +628,6 @@ def test_span_link_v04_encoding():
 def test_span_event_encoding_msgpack():
     import os
 
-    import mock
-
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
     from ddtrace.trace import Span
     from tests.tracer.test_encoders import decode
@@ -668,8 +666,7 @@ def test_span_event_encoding_msgpack():
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=2234567890123456):
-        span._add_event("We are going to the moon")
+    span._add_event("We are going to the moon", timestamp=2234567890123456)
 
     # Get test parameters from environment variables
     version = os.getenv("DD_TRACE_API_VERSION")
