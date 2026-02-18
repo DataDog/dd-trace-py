@@ -7,7 +7,6 @@ import os
 import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
-from typing import Callable
 from typing import Iterable
 from typing import Mapping
 from typing import Optional
@@ -241,7 +240,6 @@ class RemoteConfigClient:
 
         # Product callbacks for single subscriber architecture
         self._product_callbacks: dict[str, RCCallback] = {}
-        self._product_preprocess: dict[str, Callable[[list[Payload]], list[Payload]]] = {}
 
         # Single global connector and subscriber for all products
         self._global_connector = PublisherSubscriberConnector()
@@ -335,7 +333,6 @@ class RemoteConfigClient:
         self,
         product_name: str,
         callback: RCCallback,
-        preprocess: Optional[Callable[[list[Payload]], list[Payload]]] = None,
     ) -> None:
         """
         Register a product callback for the single-subscriber architecture.
@@ -343,11 +340,8 @@ class RemoteConfigClient:
         Args:
             product_name: Name of the product (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
             callback: Callback function to invoke when payloads are received in child processes
-            preprocess: Optional preprocessing function to run in the main process before publishing
         """
         self._product_callbacks[product_name] = callback
-        if preprocess:
-            self._product_preprocess[product_name] = preprocess
         log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
 
     def add_capabilities(self, capabilities: Iterable[enum.IntFlag]) -> None:
@@ -365,7 +359,6 @@ class RemoteConfigClient:
     def unregister_product(self, product_name: str) -> None:
         """Unregister a product."""
         self._product_callbacks.pop(product_name, None)
-        self._product_preprocess.pop(product_name, None)
         log.debug("[%s][P: %s] Unregistered product %s", os.getpid(), os.getppid(), product_name)
 
     def is_subscriber_running(self) -> bool:
@@ -392,7 +385,6 @@ class RemoteConfigClient:
     def reset_products(self) -> None:
         """Clear all registered products."""
         self._product_callbacks = dict()
-        self._product_preprocess = dict()
 
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
         conn = None
@@ -605,48 +597,17 @@ class RemoteConfigClient:
                 )
 
     def _publish_configuration(self, payload_list: list[Payload]) -> None:
-        """
-        Publish all accumulated payloads to the global connector.
-        Optionally runs preprocess functions for each product in the main process.
-        """
+        """Publish all accumulated payloads to the global connector."""
         if not payload_list:
             return
 
-        # Group payloads by product for preprocessing
-        product_payloads: dict[str, list[Payload]] = {}
-        for payload in payload_list:
-            if payload.metadata and payload.metadata.product_name:
-                product_name = payload.metadata.product_name
-                if product_name not in product_payloads:
-                    product_payloads[product_name] = []
-                product_payloads[product_name].append(payload)
-
-        # Apply preprocessing functions (runs in main process)
-        processed_payloads: list[Payload] = []
-        for product_name, product_payload_list in product_payloads.items():
-            preprocess_func = self._product_preprocess.get(product_name)
-            if preprocess_func:
-                try:
-                    product_payload_list = preprocess_func(product_payload_list)
-                except Exception:
-                    log.error(
-                        "[%s][P: %s] Error preprocessing payloads for product %s",
-                        os.getpid(),
-                        os.getppid(),
-                        product_name,
-                        exc_info=True,
-                    )
-            processed_payloads.extend(product_payload_list)
-
-        # Write all payloads to the global connector
-        if processed_payloads:
-            log.debug(
-                "[%s][P: %s] Publishing %d payloads to global connector",
-                os.getpid(),
-                os.getppid(),
-                len(processed_payloads),
-            )
-            self._global_connector.write(processed_payloads)
+        log.debug(
+            "[%s][P: %s] Publishing %d payloads to global connector",
+            os.getpid(),
+            os.getppid(),
+            len(payload_list),
+        )
+        self._global_connector.write(payload_list)
 
     def _process_targets(self, payload: AgentPayload) -> tuple[Optional[int], Optional[str], Optional[TargetsType]]:
         if payload.targets is None:
