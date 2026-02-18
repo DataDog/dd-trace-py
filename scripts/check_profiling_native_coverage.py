@@ -7,8 +7,9 @@ Catches two classes of drift:
      breakage would only surface on scheduled/main pipelines).
   2. Over-triggering — a non-native file IS matched (wastes CI).
 
-Also flags stale patterns that no longer match any tracked file, and unknown
-extensions that need explicit classification.
+Raises ``ValueError`` for unclassified file extensions, forcing explicit
+categorization when new file types appear. Also warns on stale patterns
+that no longer match any tracked file.
 
 Run:
     python scripts/check_profiling_native_coverage.py
@@ -25,8 +26,6 @@ import sys
 
 ROOT: Path = Path(__file__).resolve().parents[1]
 
-# Directories that the OLD broad globs covered — any native file here must be
-# matched by the new extension-based patterns.
 SCAN_DIRS: list[str] = [
     "ddtrace/internal/datadog/profiling",
     "ddtrace/profiling",
@@ -51,35 +50,33 @@ NATIVE_EXTENSIONS: frozenset[str] = frozenset(
 )
 NATIVE_EXACT_NAMES: frozenset[str] = frozenset({"CMakeLists.txt"})
 
-# File extensions that must NOT trigger.
-NON_NATIVE_EXTENSIONS: frozenset[str] = frozenset({".py", ".pyi", ".md"})
-
-# Files that don't affect the build and are acceptable gaps (not native, but
-# also not worth adding as triggers).
-KNOWN_GAPS: frozenset[str] = frozenset(
+# File extensions and paths that do NOT affect the native build.
+NON_NATIVE_EXTENSIONS: frozenset[str] = frozenset({".py", ".pyi", ".md", ".clang-format", ".gitignore"})
+NON_NATIVE_FILES: frozenset[str] = frozenset(
     {
-        ".clang-format",
-        ".gitignore",
-    }
-)
-KNOWN_GAP_FILES: frozenset[str] = frozenset(
-    {
-        # Checksum for a static-analysis download; doesn't affect build output
         "ddtrace/internal/datadog/profiling/cmake/tools/infer_checksums.txt",
     }
 )
 
 
+# Implementation constants — not user-editable configuration.
 _CHANGES_RE: re.Pattern[str] = re.compile(r"^\s+- changes:\s*$")
 _LIST_ITEM_RE: re.Pattern[str] = re.compile(r"^\s+- (.+)$")
 
+# Glob tokens → regex replacements for GitLab CI pattern conversion.
+_GLOB_RECURSIVE_SEP: str = "/**/"  # zero or more directory levels
+_GLOB_RECURSIVE: str = "**"  # match everything (including /)
+_GLOB_WILDCARD: str = "*"  # match within a single segment
+_GLOB_SINGLE: str = "?"  # match one non-separator char
+_RE_RECURSIVE_SEP: str = "(?:/.*)?/"
+_RE_RECURSIVE: str = ".*"
+_RE_WILDCARD: str = "[^/]*"
+_RE_SINGLE: str = "[^/]"
+_RE_SPECIAL_CHARS: str = r"\.+^${}()|[]"
+
 
 def extract_profiling_native_patterns(ci_path: Path) -> list[str]:
-    """Extract rules:changes patterns for the profiling_native job.
-
-    Uses line-by-line parsing instead of a YAML library so the script has
-    zero external dependencies (stdlib only).
-    """
+    """Extract rules:changes patterns for the profiling_native job."""
     lines: list[str] = ci_path.read_text().splitlines()
     in_job: bool = False
     in_changes: bool = False
@@ -115,6 +112,7 @@ def extract_profiling_native_patterns(ci_path: Path) -> list[str]:
 
     if not patterns:
         raise ValueError("No 'changes' patterns found in profiling_native job")
+
     return patterns
 
 
@@ -130,21 +128,28 @@ def tracked_files(dirs: list[str]) -> list[str]:
     return [f for f in result.stdout.strip().split("\n") if f]
 
 
-def classify_extension(path: str) -> str:
-    """Return 'native', 'non_native', 'known_gap', or 'unknown'."""
-    if path in KNOWN_GAP_FILES:
-        return "known_gap"
+def is_native(path: str) -> bool:
+    """Decide whether *path* belongs to the native build graph.
+
+    Raises ``ValueError`` for unclassified extensions so new file types
+    are forced into an explicit bucket.
+    """
+    if path in NON_NATIVE_FILES:
+        return False
+
     name: str = path.rsplit("/", 1)[-1]
     if name in NATIVE_EXACT_NAMES:
-        return "native"
-    ext: str = ("." + name.rsplit(".", 1)[-1]) if "." in name else ""
+        return True
+    if name.startswith("."):
+        return False
+
+    ext: str = f".{name.rsplit('.', 1)[-1]}" if "." in name else ""
     if ext in NATIVE_EXTENSIONS:
-        return "native"
+        return True
     if ext in NON_NATIVE_EXTENSIONS:
-        return "non_native"
-    if ext in KNOWN_GAPS or name.startswith("."):
-        return "known_gap"
-    return "unknown"
+        return False
+
+    raise ValueError(f"Unclassified extension for {path!r} — add to NATIVE_EXTENSIONS or NON_NATIVE_EXTENSIONS")
 
 
 def _glob_to_re(pattern: str) -> re.Pattern[str]:
@@ -158,30 +163,29 @@ def _glob_to_re(pattern: str) -> re.Pattern[str]:
     of nested directories".
     """
     result: str = ""
-    i: int
-    n: int
-    i, n = 0, len(pattern)
+    i: int = 0
+    n: int = len(pattern)
     while i < n:
-        if pattern[i : i + 4] == "/**/":
-            # /**/ = zero or more directory levels between two fixed parts
-            result += "(?:/.*)?/"
-            i += 4
-        elif pattern[i : i + 2] == "**":
-            result += ".*"
-            i += 2
-        elif pattern[i] == "*":
-            result += "[^/]*"
+        if pattern[i : i + len(_GLOB_RECURSIVE_SEP)] == _GLOB_RECURSIVE_SEP:
+            result += _RE_RECURSIVE_SEP
+            i += len(_GLOB_RECURSIVE_SEP)
+        elif pattern[i : i + len(_GLOB_RECURSIVE)] == _GLOB_RECURSIVE:
+            result += _RE_RECURSIVE
+            i += len(_GLOB_RECURSIVE)
+        elif pattern[i] == _GLOB_WILDCARD:
+            result += _RE_WILDCARD
             i += 1
-        elif pattern[i] == "?":
-            result += "[^/]"
+        elif pattern[i] == _GLOB_SINGLE:
+            result += _RE_SINGLE
             i += 1
-        elif pattern[i] in r"\.+^${}()|[]":
+        elif pattern[i] in _RE_SPECIAL_CHARS:
             result += "\\" + pattern[i]
             i += 1
         else:
             result += pattern[i]
             i += 1
-    return re.compile("^" + result + "$")
+
+    return re.compile(f"^{result}$")
 
 
 def matches_any(path: str, patterns: list[str]) -> bool:
@@ -193,21 +197,18 @@ def main() -> int:
     patterns: list[str] = extract_profiling_native_patterns(ci_path)
     files: list[str] = tracked_files(SCAN_DIRS)
 
-    under_triggered: list[str] = []  # native file not matched
-    over_triggered: list[str] = []  # non-native file matched
-    unknown_files: list[str] = []  # extension needs classification
-    stale_patterns: list[str] = []  # pattern matches nothing
+    under_triggered: list[str] = []
+    over_triggered: list[str] = []
+    stale_patterns: list[str] = []
 
     for f in files:
-        cat: str = classify_extension(f)
+        native: bool = is_native(f)
         matched: bool = matches_any(f, patterns)
 
-        if cat == "native" and not matched:
+        if native and not matched:
             under_triggered.append(f)
-        elif cat == "non_native" and matched:
+        elif not native and matched:
             over_triggered.append(f)
-        elif cat == "unknown":
-            unknown_files.append(f)
 
     all_tracked: list[str] = tracked_files(["."])
     for p in patterns:
@@ -227,13 +228,6 @@ def main() -> int:
         errors += 1
         print(f"FAIL  {len(over_triggered)} non-native file(s) matched by a pattern (over-triggering):")
         for f in sorted(over_triggered):
-            print(f"      {f}")
-        print()
-
-    if unknown_files:
-        errors += 1
-        print(f"FAIL  {len(unknown_files)} file(s) with unclassified extensions (add to NATIVE/NON_NATIVE/KNOWN_GAPS):")
-        for f in sorted(unknown_files):
             print(f"      {f}")
         print()
 
