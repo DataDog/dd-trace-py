@@ -1,8 +1,8 @@
 #include "ddup_interface.hpp"
 
-#include "ddup.hpp"
 #include "defer.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profiler_state.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"

@@ -1,8 +1,8 @@
 #include "profile.hpp"
 
-#include "ddup.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
+#include "profiler_state.hpp"
 #include "profiler_stats.hpp"
 
 #include <datadog/profiling.h>

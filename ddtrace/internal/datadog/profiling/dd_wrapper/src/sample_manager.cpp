@@ -1,29 +1,29 @@
 #include "sample_manager.hpp"
 
 #include "constants.hpp"
-#include "ddup.hpp"
+#include "profiler_state.hpp"
 #include "static_sample_pool.hpp"
 #include "types.hpp"
 
 void
 Datadog::SampleManager::add_type(unsigned int type)
 {
-    auto& ddup = ProfilerState::get();
-    ddup.type_mask = static_cast<SampleType>((ddup.type_mask | type) & SampleType::All);
+    auto& state = ProfilerState::get();
+    state.type_mask = static_cast<SampleType>((state.type_mask | type) & SampleType::All);
 }
 
 void
 Datadog::SampleManager::set_max_nframes(unsigned int _max_nframes)
 {
-    auto& ddup = ProfilerState::get();
+    auto& state = ProfilerState::get();
     if (_max_nframes > 0) {
-        ddup.max_nframes = _max_nframes;
+        state.max_nframes = _max_nframes;
     }
 
     // If the user has requested more than we're allowed to give, reduce the limit and warn the user.
-    if (ddup.max_nframes > g_backend_max_nframes) {
+    if (state.max_nframes > g_backend_max_nframes) {
         // We don't emit an error here for now.
-        ddup.max_nframes = g_backend_max_nframes;
+        state.max_nframes = g_backend_max_nframes;
     }
 }
 
@@ -52,8 +52,8 @@ Datadog::SampleManager::start_sample()
     // Create a new Sample if we failed to get one.
     // Note that this could be leaked if another thread calls fork() before
     // the Sample is returned to the pool.
-    auto& ddup = ProfilerState::get();
-    return new Datadog::Sample(ddup.type_mask, ddup.max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
+    auto& state = ProfilerState::get();
+    return new Datadog::Sample(state.type_mask, state.max_nframes); // NOLINT(cppcoreguidelines-owning-memory)
 }
 
 void

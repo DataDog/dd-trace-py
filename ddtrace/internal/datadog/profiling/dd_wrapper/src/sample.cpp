@@ -5,8 +5,8 @@
 #include <Python.h>
 #include <frameobject.h>
 
-#include "ddup.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profiler_state.hpp"
 #include "pymacro.hpp"
 #include "python_helpers.hpp"
 
@@ -39,15 +39,15 @@ Datadog::intern_string(std::string_view s)
 std::optional<Datadog::function_id>
 Datadog::intern_function(string_id name, string_id filename)
 {
-    auto& ddup = ProfilerState::get();
-    auto maybe_dict = ddup.get_profiles_dictionary();
+    auto& state = ProfilerState::get();
+    auto maybe_dict = state.get_profiles_dictionary();
     if (!maybe_dict) {
         return std::nullopt;
     }
 
     ddog_prof_Function2 my_function = {
         .name = name,
-        .system_name = ddup.cached_empty_string_id, // No support for system_name in Python
+        .system_name = state.cached_empty_string_id, // No support for system_name in Python
         .file_name = filename,
     };
 

@@ -1,16 +1,14 @@
 #include "uploader.hpp"
 
 #include "code_provenance.hpp"
-#include "ddup.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profiler_state.hpp"
 #include "profiler_stats.hpp"
 
 #include <cerrno>   // errno
-#include <chrono>   // milliseconds
 #include <cstring>  // strerror
 #include <fstream>  // ofstream
 #include <sstream>  // ostringstream
-#include <thread>   // sleep_for
 #include <unistd.h> // getpid
 #include <vector>
 

@@ -1,7 +1,7 @@
 #include "uploader_builder.hpp"
 
-#include "ddup.hpp"
 #include "libdatadog_helpers.hpp"
+#include "profiler_state.hpp"
 #include "sample.hpp"
 
 #include <numeric>
@@ -133,7 +133,7 @@ join(const std::vector<std::string>& vec, const std::string& delim)
 std::variant<Datadog::Uploader, std::string>
 Datadog::UploaderBuilder::build()
 {
-    auto& ddup = ProfilerState::get();
+    auto& state = ProfilerState::get();
 
     // Setup the ddog_Exporter
     ddog_Vec_Tag tags = ddog_Vec_Tag_new();
@@ -143,15 +143,15 @@ Datadog::UploaderBuilder::build()
     // tags, so we'll just collect all the reasons and report them all at once.
     std::vector<std::string> reasons{};
     const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
-        { ExportTagKey::dd_env, ddup.dd_env },
-        { ExportTagKey::service, ddup.service },
-        { ExportTagKey::version, ddup.version },
+        { ExportTagKey::dd_env, state.dd_env },
+        { ExportTagKey::service, state.service },
+        { ExportTagKey::version, state.version },
         { ExportTagKey::language, language },
-        { ExportTagKey::runtime, ddup.runtime },
-        { ExportTagKey::runtime_id, ddup.runtime_id },
-        { ExportTagKey::runtime_version, ddup.runtime_version },
-        { ExportTagKey::profiler_version, ddup.profiler_version },
-        { ExportTagKey::process_id, ddup.process_id }
+        { ExportTagKey::runtime, state.runtime },
+        { ExportTagKey::runtime_id, state.runtime_id },
+        { ExportTagKey::runtime_version, state.runtime_version },
+        { ExportTagKey::profiler_version, state.profiler_version },
+        { ExportTagKey::process_id, state.process_id }
     };
 
     for (const auto& [tag, data] : tag_data) {
@@ -164,7 +164,7 @@ Datadog::UploaderBuilder::build()
     }
 
     // Add the user-defined tags, if any.
-    for (const auto& tag : ddup.user_tags) {
+    for (const auto& tag : state.user_tags) {
         std::string errmsg;
         if (!add_tag(tags, tag.first, tag.second, errmsg)) {
             reasons.push_back(std::string(tag.first) + ": " + errmsg);
@@ -179,10 +179,10 @@ Datadog::UploaderBuilder::build()
     // If we're here, the tags are good, so we can initialize the exporter
     ddog_prof_ProfileExporter_Result res =
       ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                             to_slice(ddup.profiler_version),
+                             to_slice(state.profiler_version),
                              to_slice(family),
                              &tags,
-                             ddog_prof_Endpoint_agent(to_slice(ddup.url), ddup.max_timeout_ms));
+                             ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
@@ -200,7 +200,7 @@ Datadog::UploaderBuilder::build()
     Datadog::ProfilerStats stats;
     {
         // Only keep the lock for the duration of the encoding operation.
-        auto borrowed = ddup.profile_state.borrow();
+        auto borrowed = state.profile_state.borrow();
 
         // Swap the ProfilerStats (which replaces the one being written to with an empty state).
         // We do this first as we still want to reset ProfilerStats if the serialization fails.
@@ -225,9 +225,9 @@ Datadog::UploaderBuilder::build()
     // This was necessary to avoid double-free from calling ddog_prof_Exporter_drop()
     // in the destructor of Uploader. See comments in uploader.hpp for more details.
     return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         ddup.output_filename,
+                                                         state.output_filename,
                                                          *ddog_exporter,
                                                          encoded.ok,
                                                          stats,
-                                                         ddup.process_tags };
+                                                         state.process_tags };
 }
