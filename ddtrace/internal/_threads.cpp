@@ -213,7 +213,7 @@ static constexpr unsigned char REQUEST_REASON_FORK_STOP = 1 << 2;
 class Event
 {
   public:
-    void set(unsigned char reasons = 1)
+    void set(unsigned char reasons = REQUEST_REASON_AWAKE)
     {
         std::lock_guard<std::mutex> lock(_mutex);
 
