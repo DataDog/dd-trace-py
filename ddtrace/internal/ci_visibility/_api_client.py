@@ -235,13 +235,21 @@ _DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
 def _get_known_tests_max_pages() -> int:
     """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
     try:
-        return int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
     except ValueError:
         log.warning(
             "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
             _DEFAULT_KNOWN_TESTS_MAX_PAGES,
         )
         return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    if value <= 0:
+        log.warning(
+            "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive (%s), using default: %s",
+            value,
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    return value
 
 
 class _TestVisibilityAPIClientBase(abc.ABC):
@@ -625,6 +633,10 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             response_page_info = attributes.get("page_info")
             if not response_page_info:
                 break
+            if not isinstance(response_page_info, dict):
+                log.debug("Known tests response page_info is not a dict")
+                record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
+                return None
 
             has_next = response_page_info.get("has_next")
             if not has_next:

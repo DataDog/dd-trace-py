@@ -31,13 +31,21 @@ _DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
 def _get_known_tests_max_pages() -> int:
     """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
     try:
-        return int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
     except ValueError:
         log.warning(
             "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
             _DEFAULT_KNOWN_TESTS_MAX_PAGES,
         )
         return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    if value <= 0:
+        log.warning(
+            "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive (%s), using default: %s",
+            value,
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    return value
 
 
 class APIClient:
@@ -175,6 +183,10 @@ class APIClient:
                 page_info = attributes.get("page_info")
                 if not page_info:
                     break
+                if not isinstance(page_info, dict):
+                    log.warning("Known tests response page_info is not a dict")
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
 
                 has_next = page_info.get("has_next")
                 if not has_next:
