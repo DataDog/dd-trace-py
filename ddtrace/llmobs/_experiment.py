@@ -352,11 +352,11 @@ else:
         Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, "EvaluatorResult"]],
         BaseEvaluator,
     ]
-if BaseAsyncMetric is not None and BaseAsyncConversationalMetric is not None:
+if BaseMetric is not None and BaseConversationalMetric is not None:
     AsyncEvaluatorType = Union[
         Callable[[DatasetRecordInputType, JSONType, JSONType], Awaitable[Union[JSONType, "EvaluatorResult"]]],
         BaseAsyncEvaluator,
-        Union[list[BaseAsyncMetric], list[BaseAsyncConversationalMetric]],
+        Union[list[BaseMetric], list[BaseConversationalMetric]],
     ]
 else:
     AsyncEvaluatorType = Union[
@@ -442,7 +442,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
                 expected_output=str(expected_output),
             )
             if is_async:
-                await evaluator.a_measure(deepEvalTestCase)
+                evaluator.a_measure(deepEvalTestCase)
             else:
                 evaluator.measure(deepEvalTestCase)
             score = evaluator.score
@@ -459,7 +459,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
         wrapped_evaluator.__name__ = getattr(evaluator, "name", "deep_eval_evaluator")
         return wrapped_evaluator
 else:
-    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
+    def _deep_eval_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking.
         
         :param evaluator: The deep eval evaluator to run
