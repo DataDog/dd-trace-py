@@ -17,9 +17,11 @@ from ddtrace.debugging._session import Session
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
-from ddtrace.internal.forksafe import Lock
+from ddtrace.internal.compat import NO_EXCEPTION
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 
 
@@ -79,7 +81,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
     __enabled__ = False
     __priority__ = 199
 
-    def __init__(self, uploader: t.Type[SignalUploader], f: FunctionType) -> None:
+    def __init__(self, uploader: type[SignalUploader], f: FunctionType) -> None:
         super().__init__(f)
 
         self.uploader = uploader
@@ -118,7 +120,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
 
         return self
 
-    def _close_signal(self, retval=None, exc_info=(None, None, None)):
+    def _close_signal(self, retval: t.Any = None, exc_info: ExcInfoType = NO_EXCEPTION) -> None:
         if not self.__enabled__:
             return
 
@@ -156,12 +158,17 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             if (collector := self.uploader.get_collector()) is not None:
                 collector.push(snapshot)
 
-    def __return__(self, retval):
+    def __return__(self, retval: t.Any) -> t.Any:
         self._close_signal(retval=retval)
         return super().__return__(retval)
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._close_signal(exc_info=(exc_type, exc_value, traceback))
+    def __exit__(
+        self,
+        exc_type: t.Optional[type[BaseException]],
+        exc_value: t.Optional[BaseException],
+        traceback: t.Optional[t.Any],
+    ) -> None:
+        self._close_signal(exc_info=t.cast(ExcInfoType, (exc_type, exc_value, traceback)))
         super().__exit__(exc_type, exc_value, traceback)
 
 
@@ -171,7 +178,7 @@ class SpanCodeOriginProcessorEntry:
 
     _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
 
-    _pending: t.List = []
+    _pending: list = []
     _lock = Lock()
 
     @classmethod

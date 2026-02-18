@@ -20,6 +20,7 @@ typedef struct _frame PyFrameObject;
 extern "C"
 {
 #endif
+
     void ddup_config_env(std::string_view dd_env);
     void ddup_config_service(std::string_view service);
     void ddup_config_version(std::string_view version);
@@ -39,10 +40,20 @@ extern "C"
 
     bool ddup_is_initialized();
     void ddup_start();
+    void ddup_cleanup();
     void ddup_set_runtime_id(std::string_view runtime_id);
     void ddup_set_process_id();
+
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    // Pass by value is intentional: the map may be modified concurrently by other threads,
+    // so we take a copy to avoid data races while iterating.
     void ddup_profile_set_endpoints(std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints);
+
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
+    // Pass by value is intentional: the map may be modified concurrently by other threads,
+    // so we take a copy to avoid data races while iterating.
     void ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
+
     bool ddup_upload();
 
     // Proxy functions to the underlying sample

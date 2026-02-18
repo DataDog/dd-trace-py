@@ -70,8 +70,12 @@ extern "C"
 class GenInfo
 {
   public:
-    typedef std::unique_ptr<GenInfo> Ptr;
+    using Ptr = std::unique_ptr<GenInfo>;
 
+  private:
+    [[nodiscard]] static Result<GenInfo::Ptr> create_impl(PyObject* gen_addr, size_t recursion_depth);
+
+  public:
     // The address of the Task PyObject* the GenInfo represents
     PyObject* origin = nullptr;
 
@@ -99,9 +103,13 @@ class GenInfo
 class TaskInfo
 {
   public:
-    typedef std::unique_ptr<TaskInfo> Ptr;
-    typedef std::reference_wrapper<TaskInfo> Ref;
+    using Ptr = std::unique_ptr<TaskInfo>;
+    using Ref = std::reference_wrapper<TaskInfo>;
 
+  private:
+    [[nodiscard]] static Result<TaskInfo::Ptr> create_impl(EchionSampler& echion, TaskObj*, size_t recursion_depth);
+
+  public:
     // The address of the Task PyObject* the TaskInfo represents
     PyObject* origin = nullptr;
 

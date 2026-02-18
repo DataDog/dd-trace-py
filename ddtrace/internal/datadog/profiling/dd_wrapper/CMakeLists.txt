@@ -56,6 +56,7 @@ add_library(
     src/code_provenance.cpp
     src/code_provenance_interface.cpp
     src/ddup_interface.cpp
+    src/libdatadog_helpers.cpp
     src/profile.cpp
     src/profile_borrow.cpp
     src/profiler_stats.cpp
@@ -108,8 +109,9 @@ set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAM
 # Force .so extension for both Linux and macOS to match Python extension expectations
 set_target_properties(dd_wrapper PROPERTIES SUFFIX ".so")
 if(APPLE)
-    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../native" INSTALL_RPATH
-                                                                                        "@loader_path/../../native")
+    # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../../native;@loader_path/../../native"
+                                                INSTALL_RPATH "@loader_path/../../../native;@loader_path/../../native")
     # Add a post-build step to fix the library dependency to use @rpath
     add_custom_command(
         TARGET dd_wrapper
@@ -118,8 +120,9 @@ if(APPLE)
                 $<TARGET_FILE:dd_wrapper>
         COMMENT "Fixing library dependency to use @rpath")
 else()
-    # To make sure that dd_wrapper finds _native.so for real
-    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../native" INSTALL_RPATH "$ORIGIN/../../native")
+    # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native"
+                                                INSTALL_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native")
 endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.

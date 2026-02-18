@@ -7,8 +7,6 @@ from types import FunctionType
 from types import ModuleType
 from typing import Any
 from typing import ClassVar
-from typing import Dict
-from typing import List
 from typing import Mapping
 from typing import Optional
 from typing import cast
@@ -35,6 +33,7 @@ from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
+from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.utils.time import HourGlass
 
@@ -53,7 +52,7 @@ def _capture_context(
     throwable: ExcInfoType,
     retval: Any = _NOTSET,
     limits: CaptureLimits = DEFAULT_CAPTURE_LIMITS,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
         def timeout(_):
@@ -90,9 +89,9 @@ def _capture_context(
 
 
 def _capture_expressions(
-    exprs: List[CaptureExpression],
+    exprs: list[CaptureExpression],
     scope: Mapping[str, Any],
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     with HourGlass(duration=CAPTURE_TIME_BUDGET) as hg:
 
         def timeout(_):
@@ -113,7 +112,7 @@ def _capture_expressions(
         }
 
 
-_EMPTY_CAPTURED_CONTEXT: Dict[str, Any] = {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None}
+_EMPTY_CAPTURED_CONTEXT: dict[str, Any] = {"arguments": {}, "locals": {}, "staticFields": {}, "throwable": None}
 
 
 @dataclass
@@ -170,7 +169,7 @@ class Snapshot(LogSignal):
         return None
 
     def enter(self, scope: Mapping[str, Any]) -> None:
-        self.entry_capture = self._do(_NOTSET, (None, None, None), scope)
+        self.entry_capture = self._do(_NOTSET, NO_EXCEPTION, scope)
 
     def exit(self, retval, exc_info, duration, scope) -> None:
         self.duration = duration

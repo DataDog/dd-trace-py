@@ -6,6 +6,9 @@
 #include "dd_wrapper/include/sample_manager.hpp"
 
 #include "echion/echion_sampler.h"
+#include "echion/strings.h"
+#include <ddup_interface.hpp>
+#include <unordered_map>
 
 using namespace Datadog;
 
@@ -63,7 +66,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
+StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 {
     static bool failed = false;
     if (failed) {
@@ -129,20 +132,43 @@ StackRenderer::render_frame(Frame& frame)
     static constexpr std::string_view missing_filename = "<unknown file>";
     static constexpr std::string_view missing_name = "<unknown function>";
 
+    const auto& string_table = Sampler::get().get_echion().string_table();
+
     auto line = frame.location.line;
 
-    std::string_view name_str;
-    auto maybe_name_str = Sampler::get().get_echion().string_table().lookup(frame.name);
-    if (maybe_name_str) {
-        name_str = maybe_name_str->get();
+    string_id name_id;
+    auto maybe_name_id = string_id_cache.find(frame.name);
+    if (maybe_name_id == string_id_cache.end()) {
+        std::string_view name_str;
+        auto maybe_name_str = string_table.lookup(frame.name);
+        if (maybe_name_str) {
+            name_str = maybe_name_str->get();
+        } else {
+            name_str = missing_name;
+        }
+
+        auto maybe_interned_name_id = Datadog::intern_string(name_str);
+        if (!maybe_interned_name_id) {
+            return;
+        }
+        name_id = *maybe_interned_name_id;
+        string_id_cache.insert({ frame.name, name_id });
     } else {
-        name_str = missing_name;
+        name_id = maybe_name_id->second;
     }
 
     // DEV: Echion pushes a dummy frame containing task name, and its line
     // number is set to 0.
     if (line == 0) {
         if (!pushed_task_name) {
+            std::string_view name_str;
+            auto maybe_name_str = string_table.lookup(frame.name);
+            if (maybe_name_str) {
+                name_str = maybe_name_str->get();
+            } else {
+                name_str = missing_name;
+            }
+
             sample->push_task_name(name_str);
             pushed_task_name = true;
         }
@@ -151,15 +177,41 @@ StackRenderer::render_frame(Frame& frame)
         return;
     }
 
-    std::string_view filename_str;
-    auto maybe_filename_str = Sampler::get().get_echion().string_table().lookup(frame.filename);
-    if (maybe_filename_str) {
-        filename_str = maybe_filename_str->get();
+    string_id filename_id;
+    auto maybe_filename_id = string_id_cache.find(frame.filename);
+    if (maybe_filename_id == string_id_cache.end()) {
+        std::string_view filename_str;
+        auto maybe_filename_str = string_table.lookup(frame.filename);
+        if (maybe_filename_str) {
+            filename_str = maybe_filename_str->get();
+        } else {
+            filename_str = missing_filename;
+        }
+
+        auto maybe_interned_filename_id = Datadog::intern_string(filename_str);
+        if (!maybe_interned_filename_id) {
+            return;
+        }
+        filename_id = *maybe_interned_filename_id;
+        string_id_cache.insert({ frame.filename, filename_id });
     } else {
-        filename_str = missing_filename;
+        filename_id = maybe_filename_id->second;
     }
 
-    sample->push_frame(name_str, filename_str, 0, line);
+    function_id function_id;
+    auto maybe_function_id = function_id_cache.find({ name_id, filename_id });
+    if (maybe_function_id == function_id_cache.end()) {
+        auto maybe_interned_function_id = Datadog::intern_function(name_id, filename_id);
+        if (!maybe_interned_function_id) {
+            return;
+        }
+        function_id = *maybe_interned_function_id;
+        function_id_cache.insert({ { static_cast<void*>(name_id), static_cast<void*>(filename_id) }, function_id });
+    } else {
+        function_id = maybe_function_id->second;
+    }
+
+    sample->push_frame(function_id, 0, line);
 }
 
 void
@@ -188,4 +240,21 @@ StackRenderer::render_stack_end()
     sample->flush_sample();
     SampleManager::drop_sample(sample);
     sample = nullptr;
+}
+
+Datadog::StackRenderer::StackRenderer()
+{
+    function_id_cache.reserve(100'000);
+    function_id_cache.max_load_factor(0.7f);
+    string_id_cache.reserve(100'000);
+    string_id_cache.max_load_factor(0.7f);
+}
+
+void
+Datadog::StackRenderer::postfork_child()
+{
+    // Clear the caches to avoid using stale interned string/function IDs
+    // from the parent process's dictionary
+    string_id_cache.clear();
+    function_id_cache.clear();
 }

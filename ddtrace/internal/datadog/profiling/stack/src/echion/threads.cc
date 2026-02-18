@@ -87,7 +87,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             if (is_boundary_frame) {
                 // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
                 // even if the Frame gets evicted from the cache.
-                // This means we can keep the cache key and re-use it to determine
+                // This means we can keep the cache key and reuse it to determine
                 // whether we see the boundary Frame in the Python stack.
                 frame_cache_key = frame.cache_key;
                 upper_python_stack_size = python_stack.size() - i;
@@ -211,7 +211,12 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
+        // Safety: prevent infinite loops from cycles in task chain maps
+        size_t task_chain_depth = 0;
         for (auto current_task = leaf_task;;) {
+            if (++task_chain_depth > MAX_RECURSION_DEPTH) {
+                break;
+            }
             auto& task = current_task.get();
 
             auto task_stack_size = task.unwind(echion, stack, using_uvloop);
@@ -495,7 +500,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 
         auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_wr.wr_object));
         if (maybe_task_info) {
-            if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+            if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
                 tasks.push_back(std::move(*maybe_task_info));
             }
         }
@@ -519,7 +524,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
         for (auto task_addr : eager_tasks) {
             auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
             if (maybe_task_info) {
-                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+                if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
                     tasks.push_back(std::move(*maybe_task_info));
                 }
             }
@@ -718,7 +723,7 @@ ThreadInfo::update_cpu_time()
 }
 
 void
-for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback)
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadStateCallback& callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;
