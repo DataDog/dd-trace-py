@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/79648ac7-fdc8-4f62-8a53-886b9238b91e/records
+  response:
+    body:
+      string: '{"data":[{"id":"1eb96c1e-fa2d-46ab-873a-654361e9658e","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"6f5ab1bc-72d5-4d73-afea-e86cbf252dcf","created_at":"2026-02-18T06:24:28.353761Z","dataset_id":"79648ac7-fdc8-4f62-8a53-886b9238b91e","input":{"prompt":"What
+        is the capital of Sealand?"},"updated_at":"2026-02-18T06:24:28.353761Z"}},{"id":"4db45391-14f2-433e-b851-b0996fe55c03","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"680e2cba-108b-4548-9974-5837fa677341","created_at":"2026-02-18T06:24:24.187257Z","dataset_id":"79648ac7-fdc8-4f62-8a53-886b9238b91e","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"updated_at":"2026-02-18T06:24:24.187257Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '824'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 18 Feb 2026 06:24:30 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
