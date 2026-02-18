@@ -1433,9 +1433,9 @@ def _on_niquests_gather_start(ctx: core.ExecutionContext, call_trace: bool = Tru
     if multiplexed:
         span.set_tag("niquests.multiplexed", str(multiplexed))
     if response_count is not None:
-        span.set_tag("niquests.gather.response_count", str(response_count))
+        span.set_metric("niquests.gather.response_count", response_count)
     if max_fetch is not None:
-        span.set_tag("niquests.gather.max_fetch", str(max_fetch))
+        span.set_metric("niquests.gather.max_fetch", max_fetch)
 
 
 def _on_niquests_gather_completed(
