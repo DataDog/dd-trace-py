@@ -240,6 +240,15 @@ suites:
       - '@core'
     cpus_per_run: 1
     type: 'microbenchmark'
+  fork_time:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@flask'
+    cpus_per_run: 1
+    type: 'microbenchmark'
   django_simple:
     paths:
       - '@bootstrap'

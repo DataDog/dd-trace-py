@@ -217,7 +217,7 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
             else:
                 log.info("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
 
-    def periodic(self):
+    def periodic(self) -> None:
         with self._lock:
             serialized_stats = self._serialize_buckets()
 
