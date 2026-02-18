@@ -1,6 +1,6 @@
 ---
 fixes:
   - |
-    profiling: This fixes an issue where the profiler was patching gevent module
+    profiling: This fixes an issue where the profiler was patching the ``gevent`` module
     unnecessarily even when the profiler was not enabled.
 
