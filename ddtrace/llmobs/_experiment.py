@@ -426,7 +426,7 @@ class Dataset:
 
     def push(
         self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
-    ) -> None:
+    ) -> bool:
         """Pushes any local changes in this dataset since the last push.
 
         :param deduplicate:
@@ -461,6 +461,7 @@ class Dataset:
                 )
             )
 
+        version_bumped = False
         delta_size = self._estimate_delta_size()
         if bulk_upload or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
@@ -484,11 +485,10 @@ class Dataset:
 
             if new_version != -1:
                 self._latest_version = new_version
+                version_bumped = True
             else:
                 # FIXME: we don't get version numbers in responses to deletion requests
-                # If there are no deletion requests, the lack of new_version indicates no version bumps
-                # if len(self._deleted_record_ids) > 0:
-                    self._latest_version = self._latest_version + 1
+                self._latest_version = self._latest_version + 1
             logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
             # no matter what the version was before the push, pushing will result in the dataset being on the current
             # version tracked by the backend
@@ -496,6 +496,7 @@ class Dataset:
         self._new_records_by_record_id = {}
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
+        return version_bumped
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
         if all(k not in record for k in ("input_data", "expected_output", "metadata")):
