@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "ruamel.yaml>=0.18,<1",
+# ]
+# ///
 """Validate that profiling_native rules:changes patterns in .gitlab-ci.yml stay
 in sync with the actual file tree.
 
@@ -12,8 +19,8 @@ categorization when new file types appear. Also warns on stale patterns
 that no longer match any tracked file.
 
 Run:
-    python scripts/check_profiling_native_coverage.py
-    hatch run lint:profiling-native-check          # once wired into hatch.toml
+    scripts/check_profiling_native_coverage.py     # via uv-run-script (auto-installs deps)
+    hatch run lint:profiling-native-check           # via hatch lint environment
 """
 
 from __future__ import annotations
@@ -22,6 +29,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+
+from ruamel.yaml import YAML
 
 
 ROOT: Path = Path(__file__).resolve().parents[1]
@@ -69,10 +78,6 @@ TOP_LEVEL_TRIGGERS: frozenset[str] = frozenset(
 )
 
 
-# Implementation constants — not user-editable configuration.
-_CHANGES_RE: re.Pattern[str] = re.compile(r"^\s+- changes:\s*$")
-_LIST_ITEM_RE: re.Pattern[str] = re.compile(r"^\s+- (.+)$")
-
 # Glob tokens → regex replacements for GitLab CI pattern conversion.
 _GLOB_RECURSIVE_SEP: str = "/**/"  # zero or more directory levels
 _GLOB_RECURSIVE: str = "**"  # match everything (including /)
@@ -87,43 +92,16 @@ _RE_SPECIAL_CHARS: str = r"\.+^${}()|[]"
 
 def extract_profiling_native_patterns(ci_path: Path) -> list[str]:
     """Extract rules:changes patterns for the profiling_native job."""
-    lines: list[str] = ci_path.read_text().splitlines()
-    in_job: bool = False
-    in_changes: bool = False
-    changes_indent: int = 0
-    patterns: list[str] = []
+    yaml: YAML = YAML()
+    yaml.allow_duplicate_keys = True
+    data: dict = yaml.load(ci_path)
 
-    for line in lines:
-        stripped: str = line.lstrip()
+    rules: list[dict] = data["profiling_native"]["rules"]
+    for rule in rules:
+        if "changes" in rule:
+            return list(rule["changes"])
 
-        # Top-level key (zero indentation) — detect profiling_native:
-        if not line.startswith(" ") and not line.startswith("#") and stripped:
-            in_job = stripped.startswith("profiling_native:")
-            in_changes = False
-            continue
-
-        if not in_job:
-            continue
-
-        if _CHANGES_RE.match(line):
-            in_changes = True
-            changes_indent = len(line) - len(stripped)
-            continue
-
-        if in_changes:
-            m: re.Match[str] | None = _LIST_ITEM_RE.match(line)
-            item_indent: int = len(line) - len(stripped) if stripped else 0
-            if m and item_indent > changes_indent:
-                value: str = m.group(1).strip()
-                if not value.startswith("#"):
-                    patterns.append(value)
-            elif stripped and not stripped.startswith("#") and item_indent <= changes_indent:
-                break
-
-    if not patterns:
-        raise ValueError("No 'changes' patterns found in profiling_native job")
-
-    return patterns
+    raise ValueError("No 'changes' rule found in profiling_native job")
 
 
 def tracked_files(dirs: list[str] | None = None) -> list[str]:
