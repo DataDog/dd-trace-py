@@ -948,7 +948,6 @@ def _value():
     "data",
     [
         {"trace_id": "trace_id"},
-        {"span_id": "span_id"},
         # {"span_id": "span_id"},  # Now handled gracefully by Rust (generates random ID)
         # {"parent_id": "parent_id"},  # Now handled gracefully by Rust (invalid types ignored)
         # {"service": True},  # Now handled gracefully by Rust (converts to None)
