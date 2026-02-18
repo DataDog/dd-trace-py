@@ -289,9 +289,8 @@ class TestTestVisibilityAPIClientBase:
         if repository_url is None:
             repository_url = self.default_git_data.repository_url
 
-        page_info = {"page_size": 2000}
-        if page_state:
-            page_info["page_state"] = page_state
+        # First page: empty page_info; subsequent pages: only page_state.
+        page_info = {} if page_state is None else {"page_state": page_state}
 
         return {
             "data": {

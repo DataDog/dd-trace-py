@@ -24,7 +24,6 @@ from ddtrace.testing.internal.test_data import TestRef
 
 log = logging.getLogger(__name__)
 
-_KNOWN_TESTS_PAGE_SIZE = 2000
 _KNOWN_TESTS_MAX_PAGES = 1000
 
 
@@ -116,9 +115,9 @@ class APIClient:
         known_test_ids: set[TestRef] = set()
 
         for page_number in range(_KNOWN_TESTS_MAX_PAGES):
-            page_info: dict[str, t.Any] = {"page_size": _KNOWN_TESTS_PAGE_SIZE}
-            if page_state:
-                page_info["page_state"] = page_state
+            # First page: empty page_info lets backend use its default max (10k).
+            # Subsequent pages: only send page_state.
+            page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
 
             try:
                 request_data: dict[str, t.Any] = {

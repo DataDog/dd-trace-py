@@ -229,7 +229,6 @@ def _parse_skippable_tests(
     return tests_to_skip
 
 
-_KNOWN_TESTS_PAGE_SIZE = 2000
 _KNOWN_TESTS_MAX_PAGES = 1000
 
 
@@ -561,9 +560,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         page_state: t.Optional[str] = None
 
         for page_number in range(_KNOWN_TESTS_MAX_PAGES):
-            request_page_info: dict[str, t.Any] = {"page_size": _KNOWN_TESTS_PAGE_SIZE}
-            if page_state:
-                request_page_info["page_state"] = page_state
+            # First page: empty page_info lets backend use its default max (10k).
+            # Subsequent pages: only send page_state.
+            request_page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
 
             payload = {
                 "data": {

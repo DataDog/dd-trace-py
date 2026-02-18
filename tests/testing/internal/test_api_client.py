@@ -327,7 +327,7 @@ class TestAPIClientGetKnownTests:
                             "env": "some-env",
                             "repository_url": "http://github.com/DataDog/some-repo.git",
                             "configurations": {"os.platform": "Linux"},
-                            "page_info": {"page_size": 2000},
+                            "page_info": {},
                         },
                     }
                 },
@@ -341,6 +341,63 @@ class TestAPIClientGetKnownTests:
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_01"),
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_02"),
             TestRef(SuiteRef(ModuleRef("some-module"), "test_second.py"), "test_03"),
+        }
+
+    def test_get_known_tests_pagination_sends_page_info_correctly(self, mock_telemetry: Mock) -> None:
+        """First page sends empty page_info; second page sends only page_state."""
+        page1_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod1": {"suite1.py": ["test_a"]}},
+                    "page_info": {"has_next": True, "cursor": "cursor-page-1"},
+                },
+                "id": "F4Go_FYpcB0",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        page2_response = {
+            "data": {
+                "attributes": {
+                    "tests": {"mod2": {"suite2.py": ["test_b"]}},
+                },
+                "id": "F4Go_FYpcB0",
+                "type": "ci_app_libraries_tests",
+            }
+        }
+        mock_connector = mock_backend_connector().build()
+        mock_connector.post_json.side_effect = [
+            BackendResult(response=Mock(status=200), parsed_response=page1_response),
+            BackendResult(response=Mock(status=200), parsed_response=page2_response),
+        ]
+        mock_connector_setup = Mock()
+        mock_connector_setup.get_connector_for_subdomain.return_value = mock_connector
+
+        api_client = APIClient(
+            service="svc",
+            env="env",
+            env_tags={
+                GitTag.REPOSITORY_URL: "http://github.com/org/repo.git",
+                GitTag.COMMIT_SHA: "sha",
+                GitTag.BRANCH: "main",
+                GitTag.COMMIT_MESSAGE: "msg",
+            },
+            itr_skipping_level=ITRSkippingLevel.TEST,
+            configurations={"os.platform": "Linux"},
+            connector_setup=mock_connector_setup,
+            telemetry_api=mock_telemetry,
+        )
+
+        with patch("uuid.uuid4", return_value=uuid.UUID("00000000-0000-0000-0000-000000000000")):
+            known_tests = api_client.get_known_tests()
+
+        assert len(mock_connector.post_json.call_args_list) == 2
+        assert mock_connector.post_json.call_args_list[0][0][1]["data"]["attributes"]["page_info"] == {}
+        assert mock_connector.post_json.call_args_list[1][0][1]["data"]["attributes"]["page_info"] == {
+            "page_state": "cursor-page-1"
+        }
+        assert known_tests == {
+            TestRef(SuiteRef(ModuleRef("mod1"), "suite1.py"), "test_a"),
+            TestRef(SuiteRef(ModuleRef("mod2"), "suite2.py"), "test_b"),
         }
 
     def test_get_known_tests_missing_git_data(self, mock_telemetry: Mock, caplog: pytest.LogCaptureFixture) -> None:
