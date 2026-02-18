@@ -863,8 +863,10 @@ class LLMObs(Service):
                 for record_batch in _batched(records, batch_size):
                     for record in record_batch:
                         ds.append(record)
-                    version_bumped = ds.push(deduplicate=deduplicate, create_new_version=create_new_version, bulk_upload=False)
-                    if version_bumped:
+                    data_changed = ds.push(
+                        deduplicate=deduplicate, create_new_version=create_new_version, bulk_upload=False
+                    )
+                    if data_changed:
                         # Since we are batching a single upload, we should only bump the version at most once
                         create_new_version = False
 
