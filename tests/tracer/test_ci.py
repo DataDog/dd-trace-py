@@ -184,7 +184,7 @@ def test_git_safe_directory_override_added_for_repo_root(tmp_path, monkeypatch):
     assert captured["args"][:3] == ["/usr/bin/git", "-c", "safe.directory={0}".format(str(repo))]
 
 
-def test_git_safe_directory_override_skipped_without_repo(monkeypatch, tmp_path):
+def test_git_safe_directory_override_uses_start_dir_without_repo(monkeypatch, tmp_path):
     captured = {}
 
     class FakePopen:
@@ -200,7 +200,46 @@ def test_git_safe_directory_override_skipped_without_repo(monkeypatch, tmp_path)
 
     git._git_subprocess_cmd_with_details("status", cwd=str(tmp_path))
 
-    assert captured["args"] == ["/usr/bin/git", "status"]
+    assert captured["args"] == [
+        "/usr/bin/git",
+        "-c",
+        "safe.directory={0}".format(os.path.realpath(str(tmp_path))),
+        "status",
+    ]
+
+
+def test_git_safe_directory_override_uses_realpath_for_symlinked_repo(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    subdir = repo / "subdir"
+    subdir.mkdir()
+    symlink = tmp_path / "repo-link"
+    try:
+        os.symlink(repo, symlink)
+    except OSError:
+        pytest.skip("Symlinks not supported on this platform")
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
+
+        def communicate(self, input=None):
+            return b"", b""
+
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
+
+    git._git_subprocess_cmd_with_details("status", cwd=str(symlink / "subdir"))
+
+    assert captured["args"][:3] == [
+        "/usr/bin/git",
+        "-c",
+        "safe.directory={0}".format(os.path.realpath(str(repo))),
+    ]
 
 
 def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):

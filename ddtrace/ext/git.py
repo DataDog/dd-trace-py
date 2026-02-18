@@ -161,23 +161,24 @@ def _git_subprocess_cmd(cmd: Union[str, list[str]], cwd: Optional[str] = None, s
     raise ValueError(stderr)
 
 
-def _resolve_git_root(cwd: Optional[str]) -> Optional[str]:
-    base = os.path.abspath(cwd or os.getcwd())
-    current = base
-    while True:
+def _resolve_git_root(cwd: Optional[str]) -> str:
+    start_dir = os.path.abspath(cwd or os.getcwd())
+    current = os.path.realpath(start_dir)
+    log.debug("Finding git repository root for %s", current)
+    while current:
         git_marker = os.path.join(current, ".git")
         if os.path.isdir(git_marker) or os.path.isfile(git_marker):
+            log.debug("Git repository root found as %s", current)
             return current
         parent = os.path.dirname(current)
         if parent == current:
-            return None
+            log.debug("No .git found for repository root, defaulting to original starting directory")
+            return os.path.realpath(start_dir)
         current = parent
 
 
 def _add_safe_directory_override(cmd: list[str], cwd: Optional[str]) -> list[str]:
     root = _resolve_git_root(cwd)
-    if root is None:
-        return cmd
     return ["-c", "safe.directory={0}".format(root), *cmd]
 
 
