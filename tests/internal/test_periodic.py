@@ -171,27 +171,27 @@ def test_periodic_service_no_immediate_run_after_fork():
         def periodic(self):
             periodic_ran.set()
 
-    # Use a long interval so any periodic() call right after fork comes from a
-    # wakeup signal, not from the timer.
+    # Use a long interval so periodic() can only run on an explicit wakeup.
     service = EveryMinute(60)
     service.start()
 
-    pid = os.fork()
-    if pid == 0:
-        # Child should not run periodic() immediately after fork restart.
+    try:
+        assert service._worker is not None
+
+        # Simulate fork stop/restart around the worker.
+        service._worker._before_fork()
+        service._worker.join()
+        service._worker._after_fork()
+
+        # Prefork stop wakeup must not trigger a synthetic run after restart.
         assert not periodic_ran.wait(timeout=0.5)
 
-        # The restarted worker should still execute periodic() when awakened.
-        assert service._worker is not None
+        # A real wakeup after restart must still run periodic().
         service._worker.awake()
-        assert periodic_ran.wait(timeout=5)
-        os._exit(42)
-
-    service.stop()
-
-    _, status = os.waitpid(pid, 0)
-    exit_code = os.WEXITSTATUS(status)
-    assert exit_code == 42
+        assert periodic_ran.wait(timeout=1)
+    finally:
+        service.stop()
+        service.join()
 
 
 def test_periodic_thread_preserves_awake_during_restart_window():
