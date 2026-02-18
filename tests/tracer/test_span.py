@@ -838,7 +838,7 @@ def test_on_finish_multi_callback():
 def test_span_trace_id_preconditions():
     """Test that trace_id accepts None or generates random value for invalid types.
 
-    Unlike parent_id, trace_id no longer raises TypeError for invalid types.
+    trace_id no longer raises TypeError for invalid types.
     Instead, SpanData.__new__ generates a random ID when extraction fails.
     """
     # None is valid - generates random ID
@@ -852,21 +852,23 @@ def test_span_trace_id_preconditions():
     assert span2.trace_id > 0
 
 
-def test_span_id_preconditions():
-    """Test that invalid span_id types generate a random ID instead of raising"""
-    # None should generate random ID
-    s1 = Span("test", span_id=None)
-    assert isinstance(s1.span_id, int)
-    assert s1.span_id > 0
+def test_span_parent_id_preconditions():
+    """Test that parent_id with invalid types is silently ignored (defaults to None).
 
-    # Invalid type (string) should generate random ID, not raise
-    s2 = Span("test", span_id="foo")
-    assert isinstance(s2.span_id, int)
-    assert s2.span_id > 0
+    parent_id no longer raises TypeError for invalid types.
+    Instead, SpanData.__new__ defaults to None when extraction fails.
+    """
+    # None is valid - sets parent_id to None
+    span1 = Span("test", parent_id=None)
+    assert span1.parent_id is None
 
-    # Valid int should be used
-    s3 = Span("test", span_id=12345)
-    assert s3.span_id == 12345
+    # Invalid type silently ignored, defaults to None
+    span2 = Span("test", parent_id="foo")
+    assert span2.parent_id is None
+
+    # Valid int is used
+    span3 = Span("test", parent_id=12345)
+    assert span3.parent_id == 12345
 
 
 def test_span_id_preconditions():
