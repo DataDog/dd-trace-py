@@ -24,6 +24,12 @@
 #include <pthread_np.h>
 #endif
 
+#if PY_VERSION_HEX >= 0x30d0000
+#define py_is_finalizing Py_IsFinalizing
+#else
+#define py_is_finalizing _Py_IsFinalizing
+#endif
+
 // ----------------------------------------------------------------------------
 /**
  * Truncate thread names with format "module.path:ClassName".
@@ -139,17 +145,12 @@ class GILGuard
   public:
     inline GILGuard()
     {
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             _state = PyGILState_Ensure();
-        }
     }
     inline ~GILGuard()
     {
-        if (PyGILState_Check())
+        if (!py_is_finalizing() && PyGILState_Check())
             PyGILState_Release(_state);
     }
 
@@ -166,23 +167,13 @@ class AllowThreads
   public:
     inline AllowThreads()
     {
-#if PY_VERSION_HEX >= 0x30d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             _state = PyEval_SaveThread();
-        }
     }
     inline ~AllowThreads()
     {
-#if PY_VERSION_HEX >= 0x30d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             PyEval_RestoreThread(_state);
-        }
     }
 
   private:
@@ -204,13 +195,8 @@ class PyRef
         // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
         // dereferences tstate immediately. This check uses relaxed atomics
         // so it's not perfectly synchronized, but provides a safety net.
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             Py_DECREF(_obj);
-        }
     }
 
   private:
@@ -442,13 +428,8 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
                 }
             }
 
-#if PY_VERSION_HEX >= 0x30d0000
-            if (Py_IsFinalizing()) {
-#else
-            if (_Py_IsFinalizing()) {
-#endif
+            if (py_is_finalizing())
                 break;
-            }
 
             if (PeriodicThread__periodic(self)) {
                 // Error
@@ -467,24 +448,13 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
         // stopping.
         self->_served->set();
 
-        // Run the shutdown callback if there was no error and we are not
-        // at Python shutdown.
-        if (!self->_atexit && !error && self->_on_shutdown != Py_None && !self->_skip_shutdown) {
-#if PY_VERSION_HEX >= 0x30d0000
-            if (!Py_IsFinalizing()) {
-#else
-            if (!_Py_IsFinalizing()) {
-#endif
+        if (!self->_atexit && !py_is_finalizing()) {
+            // Run the shutdown callback if there was no error and we are not
+            // at Python shutdown.
+            if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
                 PeriodicThread__on_shutdown(self);
-            }
-        }
 
-        // Don't attempt dictionary operations during interpreter finalization
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+            // Remove the thread from the mapping of active threads
             PyDict_DelItem(_periodic_threads, self->ident);
         }
 
@@ -643,11 +613,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // Since the native thread holds a strong reference to this object, we
     // can only get here if the thread has actually stopped.
 
-#if PY_VERSION_HEX >= 0x30d0000
-    if (Py_IsFinalizing()) {
-#else
-    if (_Py_IsFinalizing()) {
-#endif
+    if (py_is_finalizing()) {
         // Do nothing. We are about to terminate and release resources anyway.
         return;
     }
