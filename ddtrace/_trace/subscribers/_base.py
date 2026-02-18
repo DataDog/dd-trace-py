@@ -83,7 +83,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
     Example:
         class MySpanSubscriber(SpanTracingSubscriber):
-            event_name = "my.span"
+            event_names = ("my.span",)
 
             @classmethod
             def on_started(cls, ctx):

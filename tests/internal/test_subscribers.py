@@ -36,7 +36,7 @@ def test_base_subscriber():
     """Test that a direct BaseSubscriber receives dispatched events."""
 
     class DirectSubscriber(Subscriber):
-        event_name = TestEvent.event_name
+        event_names = (TestEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
@@ -56,7 +56,7 @@ def test_base_subscriber_inheritance():
             called.append("parent")
 
     class ChildSubscriber(ParentSubscriber):
-        event_name = TestEvent.event_name
+        event_names = (TestEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
@@ -65,6 +65,30 @@ def test_base_subscriber_inheritance():
     core.dispatch_event(TestEvent())
 
     assert called == ["parent", "child"]
+
+
+def test_base_subscriber_multiple_event_names():
+    """Test that a Subscriber can register for and handle multiple events."""
+
+    @dataclass
+    class TestEventOne(Event):
+        event_name = "test.subscriber.event.one"
+
+    @dataclass
+    class TestEventTwo(Event):
+        event_name = "test.subscriber.event.two"
+
+    class MultiEventSubscriber(Subscriber):
+        event_names = (TestEventOne.event_name, TestEventTwo.event_name)
+
+        @classmethod
+        def on_event(cls, event_instance):
+            called.append(event_instance.event_name)
+
+    core.dispatch_event(TestEventOne())
+    core.dispatch_event(TestEventTwo())
+
+    assert called == [TestEventOne.event_name, TestEventTwo.event_name]
 
 
 def test_base_context_subscriber():
@@ -78,7 +102,7 @@ def test_base_context_subscriber():
         not_in_context: InitVar[str] = event_field()
 
     class DirectSubscriber(ContextSubscriber):
-        event_name = TestContextEventWithAttributes.event_name
+        event_names = (TestContextEventWithAttributes.event_name,)
 
         @classmethod
         def on_started(cls, ctx):
@@ -115,7 +139,7 @@ def test_base_context_subscriber_inheritance():
             called.append("parent_ended")
 
     class ChildSubscriber(ParentSubscriber):
-        event_name = TestContextEvent.event_name
+        event_names = (TestContextEvent.event_name,)
 
         @classmethod
         def on_started(cls, ctx):
@@ -142,7 +166,7 @@ def test_base_tracing_subscriber(test_spans):
         span_kind = "internal"
 
     class TestTracingSubscriber(TracingSubscriber):
-        event_name = TestTracingEvent.event_name
+        event_names = (TestTracingEvent.event_name,)
 
     with core.context_with_event(
         TestTracingEvent(component="test-component", service="my-service", resource="/api/endpoint")
@@ -170,7 +194,7 @@ def test_span_context_event_missing_required_field(test_spans):
         span_kind = "client"
 
     class TestTracingSubscriber(TracingSubscriber):
-        event_name = TestTracingEvent.event_name
+        event_names = (TestTracingEvent.event_name,)
 
     with pytest.raises(AttributeError):
         with core.context_with_event(TestTracingEvent(component="component")):
@@ -196,7 +220,7 @@ def test_span_context_event_with_custom_fields(test_spans):
             self.span_name = f"{my_op}.{my_arg}"
 
     class TestSpanSubscriber(TracingSubscriber):
-        event_name = TestTracingEvent.event_name
+        event_names = (TestTracingEvent.event_name,)
 
         @classmethod
         def on_ended(cls, ctx: core.ExecutionContext, exc_info) -> None:
@@ -225,7 +249,7 @@ def test_span_context_event_inheritance(test_spans):
         url: str = event_field()
 
     class BaseHTTPSubscriber(TracingSubscriber):
-        event_name = BaseHTTPEvent.event_name
+        event_names = (BaseHTTPEvent.event_name,)
 
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
@@ -239,7 +263,7 @@ def test_span_context_event_inheritance(test_spans):
         method: str = event_field()
 
     class HTTPClientSubscriber(BaseHTTPSubscriber):
-        event_name = HTTPClientEvent.event_name
+        event_names = (HTTPClientEvent.event_name,)
 
         @classmethod
         def on_started(cls, ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
@@ -267,7 +291,7 @@ def test_span_context_event_with_exception(test_spans):
         span_kind = "client"
 
     class TestSpanSubscriber(TracingSubscriber):
-        event_name = TestSpanEvent.event_name
+        event_names = (TestSpanEvent.event_name,)
 
     with pytest.raises(ValueError):
         with core.context_with_event(TestSpanEvent(component="test_component")):
@@ -291,7 +315,7 @@ def test_span_context_event_no_active_context_with_distributed_context(test_span
         span_kind = "consumer"
 
     class TestSpanSubscriber(TracingSubscriber):
-        event_name = TestSpanEvent.event_name
+        event_names = (TestSpanEvent.event_name,)
 
     with tracer.trace("local.processing"):
         with core.context_with_event(
@@ -322,7 +346,7 @@ def test_span_context_event_end_span_false(test_spans):
         span_kind = "client"
 
     class TestSpanSubscriber(TracingSubscriber):
-        event_name = TestSpanEvent.event_name
+        event_names = (TestSpanEvent.event_name,)
         _end_span = False
 
     with core.context_with_event(TestSpanEvent(component="test_component")):
