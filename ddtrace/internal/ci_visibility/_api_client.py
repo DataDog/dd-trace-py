@@ -229,7 +229,19 @@ def _parse_skippable_tests(
     return tests_to_skip
 
 
-_KNOWN_TESTS_MAX_PAGES = 1000
+_DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+
+
+def _get_known_tests_max_pages() -> int:
+    """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
+    try:
+        return int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+    except ValueError:
+        log.warning(
+            "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
 
 
 class _TestVisibilityAPIClientBase(abc.ABC):
@@ -558,8 +570,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         known_test_ids: set[TestId] = set()
         page_state: t.Optional[str] = None
+        max_pages = _get_known_tests_max_pages()
 
-        for page_number in range(_KNOWN_TESTS_MAX_PAGES):
+        for page_number in range(max_pages):
             # First page: empty page_info lets backend use its default max (10k).
             # Subsequent pages: only send page_state.
             request_page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
@@ -623,7 +636,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
                 return None
         else:
-            log.debug("Known tests pagination exceeded max pages: %d", _KNOWN_TESTS_MAX_PAGES)
+            log.debug("Known tests pagination exceeded max pages: %d", max_pages)
             record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
             return None
 

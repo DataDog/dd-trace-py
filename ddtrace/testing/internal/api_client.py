@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import os
 from pathlib import Path
 import typing as t
 import uuid
@@ -24,7 +25,19 @@ from ddtrace.testing.internal.test_data import TestRef
 
 log = logging.getLogger(__name__)
 
-_KNOWN_TESTS_MAX_PAGES = 1000
+_DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+
+
+def _get_known_tests_max_pages() -> int:
+    """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
+    try:
+        return int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+    except ValueError:
+        log.warning(
+            "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
 
 
 class APIClient:
@@ -113,8 +126,9 @@ class APIClient:
 
         page_state: t.Optional[str] = None
         known_test_ids: set[TestRef] = set()
+        max_pages = _get_known_tests_max_pages()
 
-        for page_number in range(_KNOWN_TESTS_MAX_PAGES):
+        for page_number in range(max_pages):
             # First page: empty page_info lets backend use its default max (10k).
             # Subsequent pages: only send page_state.
             page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
@@ -177,7 +191,7 @@ class APIClient:
                 telemetry.record_error(ErrorType.BAD_JSON)
                 return set()
         else:
-            log.warning("Known tests pagination exceeded max pages: %d", _KNOWN_TESTS_MAX_PAGES)
+            log.warning("Known tests pagination exceeded max pages: %d", max_pages)
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 
