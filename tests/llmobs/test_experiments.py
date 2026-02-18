@@ -199,12 +199,11 @@ def test_dataset_large_num_records(llmobs):
         description="A test dataset with a large number of records",
         records=records,
     )
-    print(ds.latest_version)
     wait_for_backend()
 
     yield ds
 
-   # llmobs._delete_dataset(dataset_id=ds._id)
+    llmobs._delete_dataset(dataset_id=ds._id)
 
 
 def test_dataset_create_delete(llmobs):
@@ -497,11 +496,7 @@ def test_dataset_pull_non_existent_project(llmobs):
 
 
 def test_dataset_pull_large_num_records(llmobs, test_dataset_large_num_records):
-    print("pulling")
-    pds = llmobs.pull_dataset(test_dataset_large_num_records.name)
-    print(len(pds))
-    print(pds.version)
-    print(pds.latest_version)
+    pds = llmobs.pull_dataset(dataset_name=test_dataset_large_num_records.name)
     assert pds.project.get("name") == "test-project"
     assert pds.project.get("_id")
     assert len(pds) == len(test_dataset_large_num_records)
