@@ -9,7 +9,7 @@ from typing import Union
 import azure.functions as azure_functions
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace import tracer
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -17,11 +17,12 @@ from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_cloud_faas_operation
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.propagation.http import HTTPPropagator
 
 
 def create_context(
-    context_name: str, pin: Pin, resource: Optional[str] = None, headers: Optional[dict] = None
+    context_name: str, resource: Optional[str] = None, headers: Optional[dict] = None
 ) -> core.ExecutionContext:
     operation_name = schematize_cloud_faas_operation(
         "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
@@ -29,9 +30,8 @@ def create_context(
     return core.context_with_data(
         context_name,
         span_name=operation_name,
-        pin=pin,
         resource=resource,
-        service=int_service(pin, config.azure_functions),
+        service=int_service(None, config.azure_functions),
         span_type=SpanTypes.SERVERLESS,
         distributed_headers=headers,
         integration_config=config.azure_functions,
@@ -80,10 +80,10 @@ def wrap_function_with_tracing(
     return wrapper
 
 
-def wrap_durable_trigger(pin, func, function_name, trigger_type, context_name):
+def wrap_durable_trigger(func, function_name, trigger_type, context_name):
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        return create_context(context_name, pin, resource_name)
+        return create_context(context_name, resource_name)
 
     def pre_dispatch(ctx, kwargs):
         return (
@@ -94,12 +94,12 @@ def wrap_durable_trigger(pin, func, function_name, trigger_type, context_name):
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
 
-def wrap_http_trigger(pin, func, function_name, trigger_arg_name):
+def wrap_http_trigger(func, function_name, trigger_arg_name):
     trigger_type = "Http"
 
     def context_factory(kwargs):
         req = kwargs.get(trigger_arg_name)
-        return create_context("azure.functions.patched_route_request", pin, headers=req.headers)
+        return create_context("azure.functions.patched_route_request", headers=req.headers)
 
     def pre_dispatch(ctx, kwargs):
         req = kwargs.get(trigger_arg_name)
@@ -111,12 +111,12 @@ def wrap_http_trigger(pin, func, function_name, trigger_arg_name):
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch, post_dispatch=post_dispatch)
 
 
-def wrap_timer_trigger(pin, func, function_name):
+def wrap_timer_trigger(func, function_name):
     trigger_type = "Timer"
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        return create_context("azure.functions.patched_timer", pin, resource_name)
+        return create_context("azure.functions.patched_timer", resource_name)
 
     def pre_dispatch(ctx, kwargs):
         return (
@@ -127,12 +127,12 @@ def wrap_timer_trigger(pin, func, function_name):
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
 
-def wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigger_details):
+def wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_details):
     trigger_type = "ServiceBus"
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        return create_context("azure.functions.patched_service_bus", pin, resource_name)
+        return create_context("azure.functions.patched_service_bus", resource_name)
 
     def pre_dispatch(ctx, kwargs):
         entity_name = trigger_details.get("topicName") or trigger_details.get("queueName")
@@ -191,12 +191,12 @@ def wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigger
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
 
-def wrap_event_hubs_trigger(pin, func, function_name, trigger_arg_name, trigger_details):
+def wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_details):
     trigger_type = "EventHubs"
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        return create_context("azure.functions.patched_event_hubs", pin, resource_name)
+        return create_context("azure.functions.patched_event_hubs", resource_name)
 
     def pre_dispatch(ctx, kwargs):
         entity_name = trigger_details.get("eventHubName")
@@ -258,8 +258,7 @@ def wrap_event_hubs_trigger(pin, func, function_name, trigger_arg_name, trigger_
 
 
 def patched_get_functions(wrapped, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not (tracer.enabled or asm_config._apm_opt_out):
         return wrapped(*args, **kwargs)
 
     try:
@@ -284,20 +283,20 @@ def patched_get_functions(wrapped, instance, args, kwargs):
         func = function.get_user_function()
 
         if trigger_type == "httpTrigger":
-            function._func = wrap_http_trigger(pin, func, function_name, trigger_arg_name)
+            function._func = wrap_http_trigger(func, function_name, trigger_arg_name)
         elif trigger_type == "timerTrigger":
-            function._func = wrap_timer_trigger(pin, func, function_name)
+            function._func = wrap_timer_trigger(func, function_name)
         elif trigger_type == "serviceBusTrigger":
-            function._func = wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigger_details)
+            function._func = wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_details)
         elif trigger_type == "eventHubTrigger":
-            function._func = wrap_event_hubs_trigger(pin, func, function_name, trigger_arg_name, trigger_details)
+            function._func = wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_details)
         elif durable_patched and trigger_type == "activityTrigger":
             function._func = wrap_durable_trigger(
-                pin, func, function_name, "Activity", "azure.durable_functions.patched_activity"
+                func, function_name, "Activity", "azure.durable_functions.patched_activity"
             )
         elif durable_patched and trigger_type == "entityTrigger":
             function._func = wrap_durable_trigger(
-                pin, func, function_name, "Entity", "azure.durable_functions.patched_entity"
+                func, function_name, "Entity", "azure.durable_functions.patched_entity"
             )
         elif trigger_type == "orchestrationTrigger":
             # Orchestration triggers are explicitly skipped as they are not traced
