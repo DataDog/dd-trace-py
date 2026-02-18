@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/ac406d6c-27a1-4faa-9c12-b494c4e3c521/records
+  response:
+    body:
+      string: '{"data":[{"id":"830c48b6-7acf-4a4a-a1bd-251982634a22","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-18T06:04:43.070323Z","dataset_id":"ac406d6c-27a1-4faa-9c12-b494c4e3c521","expected_output":{"out0":"r0v4","out1":"r0v5"},"input":{"in0":"r0v1","in1":"r0v2","in2":"r0v3"},"metadata":{"m0":"r0v6"},"updated_at":"2026-02-18T06:04:43.070323Z"}},{"id":"a3607ea1-21b7-4d38-a470-c1ffbd1301f0","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-18T06:04:43.070323Z","dataset_id":"ac406d6c-27a1-4faa-9c12-b494c4e3c521","expected_output":{"out0":"r1v4","out1":"r1v5"},"input":{"in0":"r1v1","in1":"r1v2","in2":"r1v3"},"metadata":{"m0":"r1v6"},"updated_at":"2026-02-18T06:04:43.070323Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '926'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 18 Feb 2026 06:04:45 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
