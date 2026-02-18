@@ -20,7 +20,6 @@ on:
       - '*.rst'
       - 'LICENSE*'
       - 'NOTICE'
-      - 'MANIFEST.in'
       # Tests, benchmarks, scripts (not packaged into the wheel)
       - 'tests/**'
       - 'benchmarks/**'
