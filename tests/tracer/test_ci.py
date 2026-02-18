@@ -227,7 +227,7 @@ def test_git_safe_directory_override_uses_realpath_for_symlinked_repo(monkeypatc
             captured["args"] = args
             self.returncode = 0
 
-        def communicate(self, input=None):
+        def communicate(self, input=None):  # noqa: A002
             return b"", b""
 
     monkeypatch.setattr(git.subprocess, "Popen", FakePopen)

@@ -94,9 +94,6 @@ _GitSubprocessDetails = NamedTuple(
     "_GitSubprocessDetails", [("stdout", str), ("stderr", str), ("duration", float), ("returncode", int)]
 )
 
-# AIDEV-NOTE: Apply safe.directory as a per-command override to avoid mutating
-# global Git config and to keep security checks scoped to the repo root.
-
 
 def normalize_ref(name: Optional[str]) -> Optional[str]:
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
@@ -175,6 +172,7 @@ def _resolve_git_root(cwd: Optional[str]) -> str:
             log.debug("No .git found for repository root, defaulting to original starting directory")
             return os.path.realpath(start_dir)
         current = parent
+    return current
 
 
 def _add_safe_directory_override(cmd: list[str], cwd: Optional[str]) -> list[str]:
