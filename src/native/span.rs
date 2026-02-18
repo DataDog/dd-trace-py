@@ -1,6 +1,6 @@
 use pyo3::{
     types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
-    Bound, PyAny, PyResult, Python,
+    Bound, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
 
@@ -70,10 +70,13 @@ impl SpanLinkData {
 }
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
 pub struct SpanData {
     data: libdd_trace_utils::span::v04::Span<PyTraceData>,
     span_api: PyBackedString,
+    #[pyo3(get, set, name = "_meta")]
+    meta: Py<PyDict>,
+    #[pyo3(get, set, name = "_metrics")]
+    metrics: Py<PyDict>,
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -159,7 +162,14 @@ impl SpanData {
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
-        let mut span = Self::default();
+        let mut span = SpanData {
+            data: Default::default(),
+            span_api: span_api
+                .map(|obj| extract_backed_string_or_default(obj))
+                .unwrap_or_else(|| PyBackedString::from_static_str("datadog")),
+            meta: PyDict::new(py).unbind(),
+            metrics: PyDict::new(py).unbind(),
+        };
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
@@ -192,10 +202,6 @@ impl SpanData {
         span.data.span_id = span_id
             .and_then(|obj| obj.extract::<u64>().ok())
             .unwrap_or_else(crate::rand::rand64bits);
-        // Initialize span_api: use provided value or default to "datadog"
-        span.span_api = span_api
-            .map(|obj| extract_backed_string_or_default(obj))
-            .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         span
     }
 
@@ -384,6 +390,7 @@ impl SpanData {
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
     }
+
 }
 
 pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {

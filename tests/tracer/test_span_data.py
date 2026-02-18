@@ -674,6 +674,356 @@ def test_start_ns_invalid_value_falls_back_to_current_time():
 
 
 # =============================================================================
+# _meta and _metrics Dict Property Tests
+# =============================================================================
+
+
+def test_meta_metrics_default_initialization():
+    """_meta and _metrics are initialized as empty dicts."""
+    span = SpanData(name="test")
+    assert span._meta == {}
+    assert span._metrics == {}
+    assert isinstance(span._meta, dict)
+    assert isinstance(span._metrics, dict)
+
+
+def test_meta_dict_operations():
+    """_meta supports standard dict operations."""
+    span = SpanData(name="test")
+
+    # __setitem__
+    span._meta["key1"] = "value1"
+    assert span._meta["key1"] == "value1"
+
+    # __getitem__
+    assert span._meta["key1"] == "value1"
+
+    # __contains__
+    assert "key1" in span._meta
+    assert "nonexistent" not in span._meta
+
+    # __len__
+    assert len(span._meta) == 1
+
+    # .get()
+    assert span._meta.get("key1") == "value1"
+    assert span._meta.get("nonexistent") is None
+    assert span._meta.get("nonexistent", "default") == "default"
+
+    # .items()
+    span._meta["key2"] = "value2"
+    items = list(span._meta.items())
+    assert ("key1", "value1") in items
+    assert ("key2", "value2") in items
+
+    # .keys()
+    keys = list(span._meta.keys())
+    assert "key1" in keys
+    assert "key2" in keys
+
+    # .copy()
+    meta_copy = span._meta.copy()
+    assert meta_copy == {"key1": "value1", "key2": "value2"}
+    assert meta_copy is not span._meta
+
+    # .setdefault()
+    span._meta.setdefault("key3", "value3")
+    assert span._meta["key3"] == "value3"
+    span._meta.setdefault("key3", "different")
+    assert span._meta["key3"] == "value3"
+
+    # __delitem__
+    del span._meta["key1"]
+    assert "key1" not in span._meta
+    assert len(span._meta) == 2
+
+
+def test_metrics_dict_operations():
+    """_metrics supports standard dict operations."""
+    span = SpanData(name="test")
+
+    # __setitem__
+    span._metrics["metric1"] = 42
+    assert span._metrics["metric1"] == 42
+
+    # __getitem__
+    assert span._metrics["metric1"] == 42
+
+    # __contains__
+    assert "metric1" in span._metrics
+    assert "nonexistent" not in span._metrics
+
+    # __len__
+    assert len(span._metrics) == 1
+
+    # .get()
+    assert span._metrics.get("metric1") == 42
+    assert span._metrics.get("nonexistent") is None
+    assert span._metrics.get("nonexistent", 0) == 0
+
+    # .items()
+    span._metrics["metric2"] = 3.14
+    items = list(span._metrics.items())
+    assert ("metric1", 42) in items
+    assert ("metric2", 3.14) in items
+
+    # .keys()
+    keys = list(span._metrics.keys())
+    assert "metric1" in keys
+    assert "metric2" in keys
+
+    # .copy()
+    metrics_copy = span._metrics.copy()
+    assert metrics_copy == {"metric1": 42, "metric2": 3.14}
+    assert metrics_copy is not span._metrics
+
+    # .setdefault()
+    span._metrics.setdefault("metric3", 100)
+    assert span._metrics["metric3"] == 100
+    span._metrics.setdefault("metric3", 200)
+    assert span._metrics["metric3"] == 100
+
+    # __delitem__
+    del span._metrics["metric1"]
+    assert "metric1" not in span._metrics
+    assert len(span._metrics) == 2
+
+
+def test_metrics_int_and_float_values():
+    """_metrics stores both int and float values correctly."""
+    span = SpanData(name="test")
+
+    # Store int values
+    span._metrics["int_metric"] = 42
+    assert span._metrics["int_metric"] == 42
+    assert isinstance(span._metrics["int_metric"], int)
+
+    # Store float values
+    span._metrics["float_metric"] = 3.14
+    assert span._metrics["float_metric"] == 3.14
+    assert isinstance(span._metrics["float_metric"], float)
+
+    # Can update from int to float and vice versa
+    span._metrics["int_metric"] = 2.71
+    assert span._metrics["int_metric"] == 2.71
+    assert isinstance(span._metrics["int_metric"], float)
+
+    span._metrics["float_metric"] = 100
+    assert span._metrics["float_metric"] == 100
+    assert isinstance(span._metrics["float_metric"], int)
+
+
+def test_meta_whole_dict_reassignment():
+    """_meta can be reassigned to a different dict."""
+    span = SpanData(name="test")
+    span._meta["original"] = "value"
+
+    new_meta = {"new_key": "new_value"}
+    span._meta = new_meta
+    assert span._meta == {"new_key": "new_value"}
+    assert "original" not in span._meta
+
+
+def test_metrics_whole_dict_reassignment():
+    """_metrics can be reassigned to a different dict."""
+    span = SpanData(name="test")
+    span._metrics["original"] = 100
+
+    new_metrics = {"new_metric": 200}
+    span._metrics = new_metrics
+    assert span._metrics == {"new_metric": 200}
+    assert "original" not in span._metrics
+
+
+def test_meta_reference_identity_on_reassignment():
+    """Reassigning _meta preserves reference identity."""
+    span = SpanData(name="test")
+
+    # Create a new dict and assign it
+    d = {"key": "value"}
+    span._meta = d
+
+    # The getter should return the same dict
+    assert span._meta is d
+
+    # Modifying the original dict should be reflected
+    d["new_key"] = "new_value"
+    assert span._meta["new_key"] == "new_value"
+
+
+def test_metrics_reference_identity_on_reassignment():
+    """Reassigning _metrics preserves reference identity."""
+    span = SpanData(name="test")
+
+    # Create a new dict and assign it
+    d = {"metric": 42}
+    span._metrics = d
+
+    # The getter should return the same dict
+    assert span._metrics is d
+
+    # Modifying the original dict should be reflected
+    d["new_metric"] = 100
+    assert span._metrics["new_metric"] == 100
+
+
+def test_meta_dict_sharing_between_instances():
+    """Two SpanData instances can share the same _meta dict via assignment."""
+    span1 = SpanData(name="span1")
+    span2 = SpanData(name="span2")
+
+    # Initially independent
+    span1._meta["key1"] = "value1"
+    assert "key1" not in span2._meta
+
+    # Share the dict
+    span2._meta = span1._meta
+    assert span2._meta is span1._meta
+
+    # Modifications in one are reflected in the other
+    span1._meta["key2"] = "value2"
+    assert span2._meta["key2"] == "value2"
+
+    span2._meta["key3"] = "value3"
+    assert span1._meta["key3"] == "value3"
+
+
+def test_metrics_dict_sharing_between_instances():
+    """Two SpanData instances can share the same _metrics dict via assignment."""
+    span1 = SpanData(name="span1")
+    span2 = SpanData(name="span2")
+
+    # Initially independent
+    span1._metrics["metric1"] = 100
+    assert "metric1" not in span2._metrics
+
+    # Share the dict
+    span2._metrics = span1._metrics
+    assert span2._metrics is span1._metrics
+
+    # Modifications in one are reflected in the other
+    span1._metrics["metric2"] = 200
+    assert span2._metrics["metric2"] == 200
+
+    span2._metrics["metric3"] = 300
+    assert span1._metrics["metric3"] == 300
+
+
+def test_meta_independent_instances():
+    """Separate SpanData instances get independent _meta dicts."""
+    span1 = SpanData(name="span1")
+    span2 = SpanData(name="span2")
+
+    # Dicts should be independent
+    assert span1._meta is not span2._meta
+
+    # Modifications to one don't affect the other
+    span1._meta["key"] = "value"
+    assert "key" not in span2._meta
+
+
+def test_metrics_independent_instances():
+    """Separate SpanData instances get independent _metrics dicts."""
+    span1 = SpanData(name="span1")
+    span2 = SpanData(name="span2")
+
+    # Dicts should be independent
+    assert span1._metrics is not span2._metrics
+
+    # Modifications to one don't affect the other
+    span1._metrics["metric"] = 42
+    assert "metric" not in span2._metrics
+
+
+def test_meta_subclass_inheritance():
+    """Subclass of SpanData inherits _meta property."""
+
+    class CustomSpanData(SpanData):
+        pass
+
+    span = CustomSpanData(name="test")
+    assert span._meta == {}
+
+    span._meta["key"] = "value"
+    assert span._meta["key"] == "value"
+
+    new_meta = {"custom": "meta"}
+    span._meta = new_meta
+    assert span._meta == {"custom": "meta"}
+
+
+def test_metrics_subclass_inheritance():
+    """Subclass of SpanData inherits _metrics property."""
+
+    class CustomSpanData(SpanData):
+        pass
+
+    span = CustomSpanData(name="test")
+    assert span._metrics == {}
+
+    span._metrics["metric"] = 100
+    assert span._metrics["metric"] == 100
+
+    new_metrics = {"custom": 200}
+    span._metrics = new_metrics
+    assert span._metrics == {"custom": 200}
+
+
+def test_meta_setter_rejects_non_dict():
+    """Assigning non-dict to _meta raises TypeError."""
+    span = SpanData(name="test")
+
+    with pytest.raises(TypeError):
+        span._meta = "not a dict"
+
+    with pytest.raises(TypeError):
+        span._meta = 42
+
+    with pytest.raises(TypeError):
+        span._meta = ["list"]
+
+    with pytest.raises(TypeError):
+        span._meta = None
+
+
+def test_metrics_setter_rejects_non_dict():
+    """Assigning non-dict to _metrics raises TypeError."""
+    span = SpanData(name="test")
+
+    with pytest.raises(TypeError):
+        span._metrics = "not a dict"
+
+    with pytest.raises(TypeError):
+        span._metrics = 42
+
+    with pytest.raises(TypeError):
+        span._metrics = ["list"]
+
+    with pytest.raises(TypeError):
+        span._metrics = None
+
+
+def test_meta_getter_returns_same_object():
+    """Multiple calls to _meta getter return the same dict object."""
+    span = SpanData(name="test")
+
+    meta1 = span._meta
+    meta2 = span._meta
+
+    assert meta1 is meta2
+
+
+def test_metrics_getter_returns_same_object():
+    """Multiple calls to _metrics getter return the same dict object."""
+    span = SpanData(name="test")
+
+    metrics1 = span._metrics
+    metrics2 = span._metrics
+
+    assert metrics1 is metrics2
+
+
+# =============================================================================
 # span_id Tests
 # =============================================================================
 

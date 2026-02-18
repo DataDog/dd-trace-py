@@ -106,10 +106,8 @@ class Span(SpanData):
         # Public span attributes
         "trace_id",
         "parent_id",
-        "_meta",
         "_meta_struct",
         "context",
-        "_metrics",
         "_store",
         # Internal attributes
         "_parent_context",
@@ -168,9 +166,6 @@ class Span(SpanData):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
-
-        self._meta: dict[str, str] = {}
-        self._metrics: dict[str, NumericType] = {}
 
         self._meta_struct: dict[str, dict[str, Any]] = {}
 
@@ -330,12 +325,15 @@ class Span(SpanData):
             self.set_metric(key, value)  # type: ignore
             return
 
+        # Past this point, we're not a float or int, stringify the value
         try:
             self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
+
+        # DEV: Maintain mutual exclusion with metrics
+        if key in self._metrics:
+            del self._metrics[key]
 
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None:
         """
