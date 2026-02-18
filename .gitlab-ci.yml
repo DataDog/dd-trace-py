@@ -496,11 +496,11 @@ lib_injection_tests:
     - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
 
-# Run on PRs where files in the C++ build graph changed.
-# This job builds C++ tests via CMake (build_standalone.sh), so only C/C++,
-# Cython, and CMake files should trigger it. Extension-based patterns keep Python,
-# Rust, and docs out automatically; non-extension build files (CMakeLists.txt,
-# .sh, .supp) are listed separately.
+# Run on PRs where files in the native Profiling build graph changed.
+# build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests
+# via CMake, so Rust, C/C++, Cython, and CMake files should all trigger it.
+# Extension-based patterns keep Python and docs out automatically; non-extension
+# build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
   extends: .profiling_native_base
   rules:
@@ -525,6 +525,11 @@ profiling_native:
         - ddtrace/internal/datadog/profiling/**/*.sh
         - ddtrace/internal/datadog/profiling/**/*.supp
         - ddtrace/profiling/**/CMakeLists.txt
+        # Rust source (build_standalone.sh compiles Rust first; CMake links
+        # against generated FFI headers from src/native/target/.../include/)
+        - src/native/**/*.rs
+        - src/native/**/*.toml
+        - src/native/**/Cargo.lock
         # Top-level build config
         - setup.py
         - pyproject.toml
