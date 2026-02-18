@@ -40,7 +40,11 @@ class PromptManager:
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout
-        self._headers: Dict[str, str] = {"DD-API-KEY": api_key}
+        self._headers: Dict[str, str] = {
+            "DD-API-KEY": api_key,
+            "X-Datadog-Source": "sdk",
+            "X-Datadog-Language": "python",
+        }
         self._cache_enabled = cache_ttl > 0
 
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
