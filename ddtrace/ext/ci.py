@@ -418,12 +418,13 @@ def _get_pull_request_merge_base(
     if not base_sha or not head_sha or not workspace_path:
         return None
     try:
-        return git._git_subprocess_cmd(["merge-base", base_sha, head_sha], cwd=workspace_path)
+        merge_base = git._git_subprocess_cmd(["merge-base", base_sha, head_sha], cwd=workspace_path)
+        return merge_base or base_sha
     except git.GitNotFoundError:
         log.warning("Git executable not found, cannot compute pull request merge base")
     except ValueError as e:
         log.warning("Error computing pull request merge base: %s", e)
-    return None
+    return base_sha
 
 
 def extract_gitlab(env: MutableMapping[str, str]) -> dict[str, Optional[str]]:

@@ -349,7 +349,7 @@ def _get_pull_request_merge_base(
         log.warning("Git executable not found, cannot compute pull request merge base: %s", e)
         return None
     merge_base = git_client.get_merge_base(base_sha, head_sha)
-    return merge_base or None
+    return merge_base or base_sha
 
 
 @register_provider("GITLAB_CI")
