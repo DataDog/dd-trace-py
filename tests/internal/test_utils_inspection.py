@@ -115,12 +115,12 @@ def test_unwind_current_thread():
 
 
 def test_unwind_current_thread_with_frame():
-    """Test unwinding from a specific frame."""
+    """Test unwinding from a specific frame using unwind_from_frame."""
 
     def inner_function():
         # Capture the current frame and unwind from it
         frame = sys._getframe()
-        frames_from_frame = inspection.unwind_current_thread(frame)
+        frames_from_frame = inspection.unwind_from_frame(frame)
 
         # Verify we got valid frames
         assert len(frames_from_frame) > 0
@@ -133,7 +133,7 @@ def test_unwind_current_thread_with_frame():
     def outer_function():
         # Get the current frame and unwind from outer function
         outer_frame = sys._getframe()
-        frames_from_outer = inspection.unwind_current_thread(outer_frame)
+        frames_from_outer = inspection.unwind_from_frame(outer_frame)
 
         # Call inner function to get its frames
         frames_from_inner = inner_function()
@@ -159,6 +159,62 @@ def test_unwind_current_thread_with_frame():
     assert "test_unwind_current_thread_with_frame" in frames_default[0].name
 
     # Test with providing a frame
+    outer_function()
+
+
+def test_unwind_current_thread_with_max_depth():
+    """Test unwinding with max_depth parameter."""
+
+    def deeply_nested_function(depth):
+        if depth == 0:
+            # Test with different max_depth values
+            frames_unlimited = inspection.unwind_current_thread()
+            frames_limited_5 = inspection.unwind_current_thread(5)
+            frames_limited_10 = inspection.unwind_current_thread(10)
+
+            # Verify max_depth is enforced
+            assert len(frames_limited_5) == 5
+            assert len(frames_limited_10) == 10
+            assert len(frames_unlimited) > len(frames_limited_10)
+
+            # Verify the frames are the same (just truncated)
+            # Note: line numbers may differ slightly since calls are on different lines
+            for i in range(5):
+                assert frames_limited_5[i].name == frames_unlimited[i].name
+                assert frames_limited_5[i].file == frames_unlimited[i].file
+
+            return frames_unlimited, frames_limited_5, frames_limited_10
+
+        return deeply_nested_function(depth - 1)
+
+    # Create a stack at least 20 frames deep
+    deeply_nested_function(20)
+
+
+def test_unwind_from_frame_with_max_depth():
+    """Test unwinding from a frame with max_depth parameter."""
+
+    def inner_function():
+        frame = sys._getframe()
+        frames_unlimited = inspection.unwind_from_frame(frame)
+        frames_limited_3 = inspection.unwind_from_frame(frame, 3)
+        frames_limited_7 = inspection.unwind_from_frame(frame, 7)
+
+        # Verify max_depth is enforced
+        assert len(frames_limited_3) == 3
+        assert len(frames_limited_7) == 7
+        assert len(frames_unlimited) >= len(frames_limited_7)
+
+        # Verify the frames are the same (just truncated)
+        for i in range(3):
+            assert frames_limited_3[i].name == frames_unlimited[i].name
+            assert frames_limited_3[i].file == frames_unlimited[i].file
+
+        return frames_unlimited, frames_limited_3
+
+    def outer_function():
+        return inner_function()
+
     outer_function()
 
 

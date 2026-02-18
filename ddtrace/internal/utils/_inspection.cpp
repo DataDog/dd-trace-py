@@ -565,40 +565,23 @@ unwrap_frame(PyObject* frame)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-unwind_current_thread(PyObject* module, PyObject* args)
+_unwind_frame(ModuleState* state, PyObject* initial_frame, Py_ssize_t max_depth)
 {
-    // Get module state for cache access
-    ModuleState* state = (ModuleState*)PyModule_GetState(module);
-    if (state == NULL || state->cache_map == NULL || state->cache_ring == NULL) {
-        PyErr_SetString(PyExc_RuntimeError, "Module state not initialized");
-        return NULL;
-    }
-
-    // Parse optional frame argument
-    PyObject* start_frame = NULL;
-    if (!PyArg_ParseTuple(args, "|O", &start_frame)) {
-        return NULL;
-    }
-
-    // Validate the frame argument if provided
-    if (start_frame != NULL && !PyFrame_Check(start_frame)) {
-        PyErr_SetString(PyExc_TypeError, "frame argument must be a frame object");
-        return NULL;
-    }
-
     PyObject* frames_list = PyList_New(0);
     if (frames_list == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to create list for frames");
         return NULL;
     }
 
-    // Determine the starting frame
-    PyObject* initial_frame =
-      start_frame != NULL ? unwrap_frame(start_frame) : get_frame_from_thread_state(PyThreadState_Get());
-
+    Py_ssize_t depth = 0;
     for (PyObject* py_frame = initial_frame; py_frame != NULL; py_frame = get_previous_frame(py_frame)) {
         if (should_skip_frame(py_frame))
             continue;
+
+        // Check if we've reached the maximum depth
+        if (max_depth > 0 && depth >= max_depth) {
+            break;
+        }
 
         PyCodeObject* code_obj = get_code_from_frame(py_frame);
         if (code_obj == NULL) {
@@ -623,9 +606,64 @@ unwind_current_thread(PyObject* module, PyObject* args)
             PyErr_SetString(PyExc_RuntimeError, "Failed to append Frame to list");
             return NULL;
         }
+
+        depth++;
     }
 
     return frames_list;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+unwind_current_thread(PyObject* module, PyObject* args)
+{
+    // Get module state for cache access
+    ModuleState* state = (ModuleState*)PyModule_GetState(module);
+    if (state == NULL || state->cache_map == NULL || state->cache_ring == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Module state not initialized");
+        return NULL;
+    }
+
+    // Parse optional max_depth argument (0 or negative means no limit)
+    Py_ssize_t max_depth = 0;
+    if (!PyArg_ParseTuple(args, "|n", &max_depth)) {
+        return NULL;
+    }
+
+    // Get the current thread's frame
+    PyObject* initial_frame = get_frame_from_thread_state(PyThreadState_Get());
+
+    return _unwind_frame(state, initial_frame, max_depth);
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+unwind_from_frame(PyObject* module, PyObject* args)
+{
+    // Get module state for cache access
+    ModuleState* state = (ModuleState*)PyModule_GetState(module);
+    if (state == NULL || state->cache_map == NULL || state->cache_ring == NULL) {
+        PyErr_SetString(PyExc_RuntimeError, "Module state not initialized");
+        return NULL;
+    }
+
+    // Parse required frame argument and optional max_depth argument
+    PyObject* start_frame = NULL;
+    Py_ssize_t max_depth = 0;
+    if (!PyArg_ParseTuple(args, "O|n", &start_frame, &max_depth)) {
+        return NULL;
+    }
+
+    // Validate the frame argument
+    if (!PyFrame_Check(start_frame)) {
+        PyErr_SetString(PyExc_TypeError, "frame argument must be a frame object");
+        return NULL;
+    }
+
+    // Unwrap the frame to get the internal representation
+    PyObject* initial_frame = unwrap_frame(start_frame);
+
+    return _unwind_frame(state, initial_frame, max_depth);
 }
 
 // ----------------------------------------------------------------------------
@@ -681,7 +719,11 @@ static PyMethodDef _inspection_methods[] = {
     { "unwind_current_thread",
       (PyCFunction)unwind_current_thread,
       METH_VARARGS,
-      "Unwind the current thread's call stack, optionally starting from a specific frame" },
+      "Unwind the current thread's call stack with optional max_depth limit" },
+    { "unwind_from_frame",
+      (PyCFunction)unwind_from_frame,
+      METH_VARARGS,
+      "Unwind from a specific frame object with optional max_depth limit" },
     { "set_frame_cache_size", (PyCFunction)set_frame_cache_size, METH_VARARGS, "Set the maximum frame cache size" },
     { "get_frame_cache_size", (PyCFunction)get_frame_cache_size, METH_NOARGS, "Get the current frame cache size" },
     { NULL, NULL, 0, NULL } /* Sentinel */
