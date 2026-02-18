@@ -82,7 +82,7 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
 # To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1770919108685181000
+MOCK_TIMESTAMP_NS = 1771430149829292000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -2250,7 +2250,7 @@ def test_async_experiment_init(llmobs, test_dataset_one_record):
     assert exp._task == async_dummy_task
     assert exp._dataset == test_dataset_one_record
     assert exp._evaluators == [async_dummy_evaluator]
-    assert exp._project_name == "test-project"
+    assert exp._project_name == "test-project-clean"
     assert exp._description == "async lorem ipsum"
     assert exp._project_id is None
     assert exp._run_name is None
