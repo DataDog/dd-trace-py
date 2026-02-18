@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from ddtrace.contrib.events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 
 
 class HttpxEvents(Enum):

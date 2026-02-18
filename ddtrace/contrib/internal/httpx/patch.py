@@ -8,7 +8,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.events.httpx import HttpxRequestEvent
+from ddtrace.contrib._events.httpx import HttpxRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core

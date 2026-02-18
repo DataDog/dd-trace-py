@@ -4,8 +4,8 @@ from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.events.http_client import HttpClientRequestEvent
-from ddtrace.contrib.events.httpx import HttpxRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.httpx import HttpxRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator

@@ -555,9 +555,6 @@ def test_public_modules_in_ddtrace_contrib():
         if "internal" in relative_dir.parts:
             # ignore modules in ddtrace/contrib/internal
             continue
-        if "events" in relative_dir.parts:
-            # ignore modules in ddtrace/contrib/events
-            continue
 
         for file_name in file_names:
             if file_name.endswith(".py"):

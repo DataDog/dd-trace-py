@@ -21,7 +21,7 @@ from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.events.httpx import HttpxRequestEvent
+from ddtrace.contrib._events.httpx import HttpxRequestEvent
 from ddtrace.contrib.internal.httpx.utils import httpx_url_to_str
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag

@@ -5,7 +5,7 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.contrib.events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
