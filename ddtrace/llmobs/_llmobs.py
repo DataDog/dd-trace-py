@@ -534,14 +534,12 @@ class LLMObs(Service):
             "ml_app": ml_app,
             "ddtrace.version": __version__,
             "language": "python",
-            "error": span.error,
         }
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
-        # TODO: Integration tag is added after span is created at integration base trace() step
         if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
 

@@ -64,7 +64,7 @@ def _get_llmobs_parent_id(span: Span):
 
 def _get_llmobs_span_kind(span: Span):
     llmobs_span_data = _get_llmobs_data_metastruct(span)
-    return llmobs_span_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.SPAN_KIND)
+    return llmobs_span_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
 
 def _annotate_llmobs_span_data(
     span: Span,
@@ -100,7 +100,8 @@ def _annotate_llmobs_span_data(
         if ml_app is not None:
             llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
         if kind is not None:
-            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.SPAN_KIND] = kind
+            span_field = llmobs_span_data[LLMOBS_STRUCT.META].setdefault(LLMOBS_STRUCT.SPAN, {})
+            span_field[LLMOBS_STRUCT.KIND] = kind
         if model_name is not None:
             llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.MODEL_NAME] = model_name
         if model_provider is not None:

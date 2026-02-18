@@ -46,7 +46,8 @@ class LLMOBS_STRUCT:
     MESSAGES = "messages"
     DOCUMENTS = "documents"
     AGENT_MANIFEST = "agent_manifest"
-    SPAN_KIND = "span.kind"
+    SPAN = "span"
+    KIND = "kind"
     MODEL_NAME = "model_name"
     MODEL_PROVIDER = "model_provider"
 
