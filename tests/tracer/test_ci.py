@@ -173,7 +173,7 @@ def test_git_safe_directory_override_added_for_repo_root(tmp_path, monkeypatch):
             captured["args"] = args
             self.returncode = 0
 
-        def communicate(self, input=None):
+        def communicate(self, input=None):  # noqa: A002
             return b"", b""
 
     monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
@@ -192,7 +192,7 @@ def test_git_safe_directory_override_skipped_without_repo(monkeypatch, tmp_path)
             captured["args"] = args
             self.returncode = 0
 
-        def communicate(self, input=None):
+        def communicate(self, input=None):  # noqa: A002
             return b"", b""
 
     monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
