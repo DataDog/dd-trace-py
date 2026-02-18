@@ -58,6 +58,16 @@ NON_NATIVE_FILES: frozenset[str] = frozenset(
     }
 )
 
+# Patterns that intentionally match files outside SCAN_DIRS.  Any pattern not
+# covered by SCAN_DIRS and not in this set is flagged as potentially accidental.
+TOP_LEVEL_TRIGGERS: frozenset[str] = frozenset(
+    {
+        ".gitlab-ci.yml",
+        "setup.py",
+        "pyproject.toml",
+    }
+)
+
 
 # Implementation constants — not user-editable configuration.
 _CHANGES_RE: re.Pattern[str] = re.compile(r"^\s+- changes:\s*$")
@@ -215,6 +225,17 @@ def main() -> int:
     all_tracked: list[str] = tracked_files()
     stale_patterns: list[str] = [p for p in patterns if not any(_glob_to_re(p).match(f) for f in all_tracked)]
 
+    # Patterns that match files only outside SCAN_DIRS must be explicitly
+    # allowed via TOP_LEVEL_TRIGGERS — catches accidentally broad patterns.
+    scanned_set: frozenset[str] = frozenset(files)
+    unscoped_patterns: list[str] = [
+        p
+        for p in patterns
+        if p not in TOP_LEVEL_TRIGGERS
+        and p not in stale_patterns
+        and not any(_glob_to_re(p).match(f) for f in scanned_set)
+    ]
+
     errors: int = 0
 
     if under_triggered:
@@ -229,6 +250,15 @@ def main() -> int:
         print(f"FAIL  {len(over_triggered)} non-native file(s) matched by a pattern (over-triggering):")
         for f in sorted(over_triggered):
             print(f"      {f}")
+        print()
+
+    if unscoped_patterns:
+        errors += 1
+        print(
+            f"FAIL  {len(unscoped_patterns)} pattern(s) match files only outside SCAN_DIRS (add to TOP_LEVEL_TRIGGERS):"
+        )
+        for p in sorted(unscoped_patterns):
+            print(f"      {p}")
         print()
 
     if stale_patterns:
