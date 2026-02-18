@@ -570,7 +570,6 @@ class LLMObs(Service):
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
         LLMObs._prompt_manager = None
-        LLMObs._prompt_manager_initialized = False
         if self.enabled:
             self._start_service()
 
@@ -1259,7 +1258,6 @@ class LLMObs(Service):
         cls._instance.stop()
         cls.enabled = False
         cls._prompt_manager = None
-        cls._prompt_manager_initialized = False
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
@@ -1366,19 +1364,21 @@ class LLMObs(Service):
 
         return AnnotationContext(register_annotation, deregister_annotation)
 
-    _prompt_manager = None
-    _prompt_manager_initialized = False
+    _prompt_manager: Optional[PromptManager] = None
     _prompt_manager_lock = forksafe.Lock()
 
     @classmethod
     def _ensure_prompt_manager(cls) -> PromptManager:
-        # Double-checked locking for thread-safe initialization.
-        if not cls._prompt_manager_initialized:
-            with cls._prompt_manager_lock:
-                if not cls._prompt_manager_initialized:
-                    cls._prompt_manager = cls._initialize_prompt_manager()
-                    cls._prompt_manager_initialized = True
-        return cls._prompt_manager
+        """Thread-safe get-or-initialize for the prompt manager."""
+        manager = cls._prompt_manager
+        if manager is not None:
+            return manager
+        with cls._prompt_manager_lock:
+            manager = cls._prompt_manager
+            if manager is None:
+                manager = cls._initialize_prompt_manager()
+                cls._prompt_manager = manager
+            return manager
 
     @classmethod
     def get_prompt(
