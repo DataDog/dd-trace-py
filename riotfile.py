@@ -1582,12 +1582,9 @@ venv = Venv(
             name="niquests",
             command="pytest {cmdargs} tests/contrib/niquests",
             pkgs={
+                "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "httpretty": latest,
-            },
-            env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
-                "AGENT_VERSION": "testagent",
             },
             venvs=[
                 Venv(

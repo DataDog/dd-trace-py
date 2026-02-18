@@ -159,7 +159,6 @@ components:
     - ddtrace/contrib/requests.py
     - ddtrace/contrib/internal/requests/*
   niquests:
-    - ddtrace/contrib/niquests.py
     - ddtrace/contrib/internal/niquests/*
   rq:
     - ddtrace/contrib/internal/rq/*

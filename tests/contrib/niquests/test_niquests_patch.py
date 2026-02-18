@@ -10,18 +10,18 @@ except ImportError:
 from tests.contrib.patch import PatchTestCase
 
 
-class TestRequestsPatch(PatchTestCase.Base):
+class TestNiquestsPatch(PatchTestCase.Base):
     __integration_name__ = "niquests"
     __module_name__ = "niquests"
     __patch_func__ = patch
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    def assert_module_patched(self, requests):
+    def assert_module_patched(self, niquests):
         pass
 
-    def assert_not_module_patched(self, requests):
+    def assert_not_module_patched(self, niquests):
         pass
 
-    def assert_not_module_double_patched(self, requests):
+    def assert_not_module_double_patched(self, niquests):
         pass

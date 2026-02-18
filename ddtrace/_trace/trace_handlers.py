@@ -1385,6 +1385,70 @@ def _on_httpx_send_completed(
         _finish_span(ctx, exc_info)
 
 
+def _on_niquests_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    span = _start_span(ctx, call_trace, **kwargs)
+    span._metrics[_SPAN_MEASURED_KEY] = 1
+
+    request = ctx.get_item("request")
+
+    if trace_utils.distributed_tracing_enabled(config.niquests):
+        HTTPPropagator.inject(span.context, request.headers)
+
+
+def _on_niquests_send_completed(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    span = ctx.span
+    request = ctx.get_item("request")
+    response = ctx.get_item("response")
+
+    try:
+        trace_utils.set_http_meta(
+            span,
+            config.niquests,
+            method=request.method.upper() if request.method else "",
+            url=str(request.url),
+            status_code=response.status_code if response else None,
+            request_headers=request.headers,
+            response_headers=response.headers if response else None,
+        )
+    finally:
+        _finish_span(ctx, exc_info)
+
+
+def _on_niquests_gather_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    """
+    Handler called when a niquests gather() context starts.
+    Creates a span for multiplexed response gathering.
+    """
+    span = _start_span(ctx, call_trace, **kwargs)
+    span._metrics[_SPAN_MEASURED_KEY] = 1
+
+    # Add gather-specific tags
+    multiplexed = ctx.get_item("multiplexed")
+    response_count = ctx.get_item("response_count")
+    max_fetch = ctx.get_item("max_fetch")
+
+    if multiplexed:
+        span.set_tag("niquests.multiplexed", "true")
+    if response_count is not None:
+        span.set_tag("niquests.gather.response_count", str(response_count))
+    if max_fetch is not None:
+        span.set_tag("niquests.gather.max_fetch", str(max_fetch))
+
+
+def _on_niquests_gather_completed(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    """
+    Handler called when a niquests gather() context ends.
+    Finishes the gather span.
+    """
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1531,6 +1595,8 @@ def listen():
     ):
         core.on(f"context.started.{context_name}", _start_span)
     core.on("context.started.httpx.request", _on_httpx_request_start)
+    core.on("context.started.niquests.request", _on_niquests_request_start)
+    core.on("context.started.niquests.gather", _on_niquests_gather_start)
 
     for name in (
         "asgi.request",
@@ -1569,6 +1635,8 @@ def listen():
     # Special/extra handling before calling _finish_span
     core.on("context.ended.django.cache", _on_django_cache)
     core.on("context.ended.httpx.request", _on_httpx_send_completed)
+    core.on("context.ended.niquests.request", _on_niquests_send_completed)
+    core.on("context.ended.niquests.gather", _on_niquests_gather_completed)
 
 
 listen()
