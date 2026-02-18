@@ -91,7 +91,7 @@ class ProbeRegistry(dict):
 
                 self.logger.received(probe)
 
-    def update(self, probe):
+    def update(self, probe: Probe) -> None:  # type: ignore[override]
         with self._lock:
             if probe not in self:
                 logger.error("Attempted to update unregistered probe %s", probe.probe_id)

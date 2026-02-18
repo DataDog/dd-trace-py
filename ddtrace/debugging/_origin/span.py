@@ -95,7 +95,7 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             probe=t.cast(EntrySpanProbe, EntrySpanProbe.build(name=name, module=module, function=name)),
         )
 
-    def __enter__(self):
+    def __enter__(self) -> "EntrySpanWrappingContext":
         super().__enter__()
 
         if self.__enabled__:
@@ -156,11 +156,11 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             if (collector := self.uploader.get_collector()) is not None:
                 collector.push(snapshot)
 
-    def __return__(self, retval):
+    def __return__(self, retval: t.Any) -> t.Any:
         self._close_signal(retval=retval)
         return super().__return__(retval)
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: t.Any, exc_value: t.Any, traceback: t.Any) -> None:
         self._close_signal(exc_info=(exc_type, exc_value, traceback))
         super().__exit__(exc_type, exc_value, traceback)
 
@@ -195,7 +195,7 @@ class SpanCodeOriginProcessorEntry:
             EntrySpanWrappingContext(cls.__uploader__, _f).wrap()
 
     @classmethod
-    def enable(cls):
+    def enable(cls) -> None:
         if cls._instance is not None:
             return
 
@@ -215,7 +215,7 @@ class SpanCodeOriginProcessorEntry:
         log.debug("Code Origin for Spans (entry) enabled")
 
     @classmethod
-    def disable(cls):
+    def disable(cls) -> None:
         if cls._instance is None:
             return
 

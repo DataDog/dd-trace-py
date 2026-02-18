@@ -11,6 +11,7 @@ import time
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
+from typing import Any
 from typing import Iterable
 from typing import Optional
 from typing import TypeVar
@@ -72,7 +73,12 @@ class DebuggerWrappingContext(WrappingContext):
     __priority__ = 99  # Execute after all other contexts
 
     def __init__(
-        self, f, collector: SignalCollector, registry: ProbeRegistry, tracer: Tracer, probe_meter: Metrics.Meter
+        self,
+        f: FunctionType,
+        collector: SignalCollector,
+        registry: ProbeRegistry,
+        tracer: Tracer,
+        probe_meter: Metrics.Meter,
     ) -> None:
         super().__init__(f)
 
@@ -133,7 +139,7 @@ class DebuggerWrappingContext(WrappingContext):
             self.set("start_time", time.monotonic_ns())
             self.set("signals", signals)
 
-    def _close_signals(self, retval=None, exc_info=(None, None, None)) -> None:
+    def _close_signals(self, retval: Any = None, exc_info: tuple[Any, Any, Any] = (None, None, None)) -> None:
         end_time = time.monotonic_ns()
 
         try:
