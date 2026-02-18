@@ -5,20 +5,19 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Sequence
 from typing import TypedDict
-from typing import Union
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.llmobs._experiment import BaseEvaluator
-from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecordInputType
-from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import ExperimentRowResult
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import SummaryEvaluatorType
 
 
 if TYPE_CHECKING:
@@ -441,28 +440,10 @@ class PromptOptimization:
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         optimization_task: Callable[[str, str, ConfigType], str],
         dataset: Dataset,
-        evaluators: list[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                BaseEvaluator,
-            ]
-        ],
+        evaluators: Sequence[EvaluatorType],
         project_name: str,
         config: ConfigType,
-        summary_evaluators: list[
-            Union[
-                Callable[
-                    [
-                        list[DatasetRecordInputType],
-                        list[JSONType],
-                        list[JSONType],
-                        dict[str, list[JSONType]],
-                    ],
-                    JSONType,
-                ],
-                BaseSummaryEvaluator,
-            ]
-        ],
+        summary_evaluators: Sequence[SummaryEvaluatorType],
         compute_score: Callable[[dict[str, dict[str, Any]]], float],
         labelization_function: Optional[Callable[[dict[str, Any]], str]],
         _llmobs_instance: Optional["LLMObs"] = None,
