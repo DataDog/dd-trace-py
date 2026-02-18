@@ -761,8 +761,8 @@ def test_parent_id_constructor_invalid_types_default_to_none():
 
     span = SpanData(name="test", parent_id=["list"])
     assert span.parent_id is None
-    
-    
+
+
 # =============================================================================
 # span_id Tests
 # =============================================================================
