@@ -49,7 +49,8 @@ class PromptManager:
 
         self._refresh_threads: Dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
-        atexit.register(self._wait_for_refreshes)
+        if file_cache_enabled:
+            atexit.register(self._wait_for_refreshes)
 
     def get_prompt(
         self,
