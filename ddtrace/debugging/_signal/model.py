@@ -205,8 +205,7 @@ class Signal(abc.ABC):
         frame = self.frame
         extra: dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
 
-        exc = exc_info[1]
-        if exc is not None:
+        if (exc := exc_info[1]) is not None:
             extra["@exception"] = exc
         else:
             extra["@return"] = retval
