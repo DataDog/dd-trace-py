@@ -30,9 +30,8 @@ from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._probe.model import LineProbe
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.registry import ProbeRegistry
+from ddtrace.debugging._probe.remoteconfig import DebuggerRCCallback
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
-from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
-from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
 from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
@@ -189,7 +188,7 @@ class Debugger(Service):
     _instance: Optional["Debugger"] = None
     _probe_meter = _probe_metrics.get_meter("probe")
 
-    __rc_adapter__ = ProbeRCAdapter
+    __rc_adapter__ = DebuggerRCCallback
     __uploader__ = SignalUploader
     __watchdog__ = DebuggerModuleWatchdog
     __logger__ = ProbeStatusLogger
@@ -235,7 +234,7 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
-        adapter = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
+        callback = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
 
         remoteconfig_poller.unregister("LIVE_DEBUGGING")
 
@@ -243,8 +242,8 @@ class Debugger(Service):
         # tied together within the RC client so here we have to pretend that
         # once we have disabled the debugger we also get an empty configuration
         # payload from RC.
-        if adapter is not None:
-            cast(ProbeRCAdapter, adapter).delete_all_probes()
+        if callback is not None:
+            cast(DebuggerRCCallback, callback).delete_all_probes()
 
         unregister_post_run_module_hook(cls._on_run_module)
 
@@ -288,8 +287,14 @@ class Debugger(Service):
                 log.info("Disabled Remote Configuration enabled by Dynamic Instrumentation.")
 
             # Register the debugger with the RCM client.
-            di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
-            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
+            # The callback handles periodic probe status emission internally
+            di_callback = self.__rc_adapter__(
+                self._on_configuration,
+                status_logger,
+                self._probe_registry,
+                di_config.diagnostics_interval,
+            )
+            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
 
             # Load local probes from the probe file.
             self._load_local_config()
@@ -579,7 +584,7 @@ class Debugger(Service):
                 except ValueError:
                     log.error("Cannot unregister wrapping import hook for module %r", module_name, exc_info=True)
 
-    def _on_configuration(self, event: ProbePollerEventType, probes: Iterable[Probe]) -> None:
+    def _on_configuration(self, event: ProbePollerEvent, probes: Iterable[Probe]) -> None:
         log.debug("[%s][P: %s] Received poller event %r with probes %r", os.getpid(), os.getppid(), event, probes)
 
         if event == ProbePollerEvent.STATUS_UPDATE:

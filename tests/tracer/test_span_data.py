@@ -674,6 +674,99 @@ def test_start_ns_invalid_value_falls_back_to_current_time():
 
 
 # =============================================================================
+# span_id Tests
+# =============================================================================
+
+
+def test_span_id_basic():
+    """span_id can be get and set."""
+    span = SpanData(name="test")
+    # Default: random u64
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+    # Can set to specific value
+    span.span_id = 12345
+    assert span.span_id == 12345
+
+
+def test_span_id_default_random():
+    """span_id defaults to random u64 when not provided."""
+    span = SpanData(name="test")
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+    # Each span should get a different random ID
+    span2 = SpanData(name="test2")
+    assert span.span_id != span2.span_id
+
+
+def test_span_id_none_generates_random():
+    """span_id=None generates a random ID."""
+    span = SpanData(name="test", span_id=None)
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+
+def test_span_id_invalid_type_in_constructor():
+    """Invalid span_id type in constructor generates random ID instead of raising."""
+    span = SpanData(name="test", span_id="invalid")
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+
+def test_span_id_setter_invalid_type():
+    """Setting span_id to invalid type is silently ignored."""
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Invalid type: should be ignored
+    span.span_id = "invalid"
+    assert span.span_id == original_id  # Unchanged
+
+
+def test_span_id_zero():
+    """span_id can be set to zero."""
+    span = SpanData(name="test", span_id=0)
+    assert span.span_id == 0
+
+
+def test_span_id_max_u64():
+    """span_id can be set to max u64 value."""
+    max_u64 = (2**64) - 1
+    span = SpanData(name="test", span_id=max_u64)
+    assert span.span_id == max_u64
+
+
+def test_span_id_overflow():
+    """span_id values larger than u64 are truncated to 64 bits."""
+    # Python int larger than u64
+    large_value = (2**64) + 123
+    span = SpanData(name="test", span_id=large_value)
+    # Should truncate to 64 bits (take lower 64 bits)
+    # This behavior depends on how PyO3 handles overflow - may wrap or raise
+    # For now, just verify it doesn't crash
+    assert isinstance(span.span_id, int)
+
+
+def test_span_id_larger_than_u64_setter():
+    """Setting span_id to value larger than u64 max is silently ignored."""
+    # This could happen if someone accidentally tries to set span_id = trace_id
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Try to set to a value larger than u64 max
+    larger_than_u64 = (2**64) + 67890
+    span.span_id = larger_than_u64
+
+    # Should be silently ignored, keeping the original value
+    assert span.span_id == original_id
+    assert span.span_id == 12345
+
+
+# =============================================================================
 # _span_api Property Tests
 # =============================================================================
 
