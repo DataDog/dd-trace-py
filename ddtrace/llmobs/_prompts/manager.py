@@ -7,7 +7,6 @@ from typing import Tuple
 from typing import Union
 from urllib.parse import quote
 from urllib.parse import urlencode
-from urllib.parse import urlparse
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import _telemetry as telemetry
@@ -39,7 +38,7 @@ class PromptManager:
         file_cache_enabled: bool = True,
         cache_dir: Optional[str] = None,
     ) -> None:
-        self._base_url = self._normalize_base_url(base_url)
+        self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout
         self._headers: Dict[str, str] = {"DD-API-KEY": api_key}
         self._cache_enabled = cache_ttl > 0
@@ -220,30 +219,11 @@ class PromptManager:
                 conn.close()
 
     def _build_path(self, prompt_id: str, label: Optional[str]) -> str:
-        """Build the request path for fetching a prompt."""
-        endpoint = PROMPTS_ENDPOINT.lstrip("/")
+        """Build the absolute request path for fetching a prompt."""
         escaped_id = quote(prompt_id, safe="")
         if label:
-            query_params = urlencode({"label": label})
-            return f"{endpoint}/{escaped_id}?{query_params}"
-        return f"{endpoint}/{escaped_id}"
-
-    @staticmethod
-    def _normalize_base_url(base_url: str) -> str:
-        """Normalize base URL for prompt fetches.
-
-        - Default missing scheme to ``https://``.
-        - For HTTP(S), normalize to a trailing ``/`` so relative endpoint joins
-          always resolve from a directory base path.
-        """
-        url = base_url
-        if "://" not in url:
-            url = "https://" + url
-
-        parsed = urlparse(url)
-        if parsed.scheme in ("http", "https") and not parsed.path.endswith("/"):
-            parsed = parsed._replace(path=parsed.path + "/")
-        return parsed.geturl()
+            return f"{PROMPTS_ENDPOINT}/{escaped_id}?{urlencode({'label': label})}"
+        return f"{PROMPTS_ENDPOINT}/{escaped_id}"
 
     def _parse_response(self, body: str, prompt_id: str, label: Optional[str]) -> Optional[ManagedPrompt]:
         """Parse the API response into a ManagedPrompt."""
