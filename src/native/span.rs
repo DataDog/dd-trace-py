@@ -374,17 +374,17 @@ impl SpanData {
     /// Set an attribute on the span, routing to _meta (strings) or _metrics (numerics).
     ///
     /// This is a unified setter that enforces mutual exclusion:
-    /// - String/bytes values are stored in _meta
+    /// - String values are stored in _meta
     /// - Int/float values are stored in _metrics
     /// - None is stringified to "None" and stored in _meta (matches old set_tag behavior)
     /// - Setting a key in one dict removes it from the other
     /// - NaN and Inf float values are silently dropped (no-op)
-    ///
-    /// This method provides better performance than accessing _meta/_metrics properties
-    /// directly from Python, as it avoids property getter overhead and does the routing
-    /// in compiled Rust code.
-    #[inline]
-    fn _set_attribute(&mut self, py: Python<'_>, key: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<()> {
+    fn _set_attribute(
+        &mut self,
+        py: Python<'_>,
+        key: &Bound<'_, PyAny>,
+        value: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
         let meta = self.meta.bind(py);
         let metrics = self.metrics.bind(py);
 
@@ -402,8 +402,8 @@ impl SpanData {
             // Int (includes bool subclass): store directly, no extraction needed
             metrics.set_item(key, value)?;
             let _ = meta.del_item(key);
-        } else if value.is_instance_of::<pyo3::types::PyString>() || value.is_instance_of::<pyo3::types::PyBytes>() {
-            // String or bytes: store directly, no str() call needed
+        } else if value.is_instance_of::<pyo3::types::PyString>() {
+            // String: store directly, no str() call needed
             meta.set_item(key, value)?;
             let _ = metrics.del_item(key);
         } else {

@@ -1194,10 +1194,10 @@ def test_set_attribute_negative_inf_silently_dropped():
 
 
 def test_set_attribute_bytes_to_meta():
-    """_set_attribute stores bytes values in _meta."""
+    """_set_attribute stringifies bytes values to _meta."""
     span = SpanData(name="test")
     span._set_attribute("key1", b"bytes_value")
-    assert span._meta["key1"] == b"bytes_value"
+    assert span._meta["key1"] == "b'bytes_value'"
     assert "key1" not in span._metrics
 
 
