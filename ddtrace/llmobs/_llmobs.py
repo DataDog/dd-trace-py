@@ -1370,9 +1370,6 @@ class LLMObs(Service):
     @classmethod
     def _ensure_prompt_manager(cls) -> PromptManager:
         """Thread-safe get-or-initialize for the prompt manager."""
-        manager = cls._prompt_manager
-        if manager is not None:
-            return manager
         with cls._prompt_manager_lock:
             manager = cls._prompt_manager
             if manager is None:
