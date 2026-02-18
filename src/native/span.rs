@@ -136,7 +136,7 @@ impl SpanData {
         resource=None,
         span_type=None,
         trace_id=None,     // placeholder for Span.__init__ positional arg
-        span_id=None,      // placeholder for Span.__init__ positional arg
+        span_id=None,
         parent_id=None,    // placeholder for Span.__init__ positional arg
         start=None,
         context=None,      // placeholder for Span.__init__ positional arg
@@ -152,7 +152,7 @@ impl SpanData {
         resource: Option<&Bound<'p, PyAny>>,
         span_type: Option<&Bound<'p, PyAny>>,
         trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
-        span_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
+        span_id: Option<&Bound<'p, PyAny>>,
         parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
         start: Option<&Bound<'p, PyAny>>,
         context: Option<&Bound<'p, PyAny>>, // placeholder, not used
@@ -198,6 +198,10 @@ impl SpanData {
         };
         // Set duration to -1 (our sentinel for "not set")
         span.data.duration = -1;
+        // Initialize span_id from parameter or generate random
+        span.data.span_id = span_id
+            .and_then(|obj| obj.extract::<u64>().ok())
+            .unwrap_or_else(crate::rand::rand64bits);
         span
     }
 
@@ -308,6 +312,22 @@ impl SpanData {
     #[inline(always)]
     fn set_error(&mut self, value: &Bound<'_, PyAny>) {
         self.data.error = extract_i32_or_default(value);
+    }
+
+    // span_id property
+    #[getter]
+    #[inline(always)]
+    fn get_span_id(&self) -> u64 {
+        self.data.span_id
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_span_id(&mut self, value: &Bound<'_, PyAny>) {
+        // Extract u64, silently ignore invalid types (keep existing value)
+        if let Ok(id) = value.extract::<u64>() {
+            self.data.span_id = id;
+        }
     }
 
     // finished property (native for performance - avoids Python property hop)

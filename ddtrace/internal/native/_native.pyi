@@ -520,6 +520,7 @@ class SpanData:
     start_ns: int
     duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
     error: int
+    span_id: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     _span_api: str
@@ -534,7 +535,7 @@ class SpanData:
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
         trace_id: Optional[int] = None,  # placeholder for Span.__init__
-        span_id: Optional[int] = None,  # placeholder for Span.__init__
+        span_id: Optional[int] = None,
         parent_id: Optional[int] = None,  # placeholder for Span.__init__
         start: Optional[float] = None,
         context: Optional[Any] = None,  # placeholder for Span.__init__

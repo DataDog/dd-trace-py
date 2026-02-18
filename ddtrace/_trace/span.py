@@ -104,7 +104,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "span_id",
         "trace_id",
         "parent_id",
         "_meta_struct",
@@ -159,10 +158,6 @@ class Span(SpanData):
         :param on_finish: list of functions called when the span finishes.
         """
 
-        if not (span_id is None or isinstance(span_id, int)):
-            if config._raise:
-                raise TypeError("span_id must be an integer")
-            return
         if not (trace_id is None or isinstance(trace_id, int)):
             if config._raise:
                 raise TypeError("trace_id must be an integer")
@@ -180,7 +175,6 @@ class Span(SpanData):
             self.trace_id: int = generate_128bit_trace_id()  # type: ignore[no-redef]
         else:
             self.trace_id: int = rand64bits()  # type: ignore[no-redef]
-        self.span_id: int = span_id or rand64bits()
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
