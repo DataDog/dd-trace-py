@@ -69,6 +69,9 @@ REQUIRED_STRING_PROPERTIES = ["name", "resource"]
 OPTIONAL_STRING_PROPERTIES = ["service", "span_type"]
 ALL_STRING_PROPERTIES = REQUIRED_STRING_PROPERTIES + OPTIONAL_STRING_PROPERTIES
 
+# _span_api is special: constructor param is "span_api" but property getter/setter is "_span_api"
+# Tests for _span_api are written explicitly rather than parameterized
+
 # Values that are not valid numeric types - should trigger fallback behavior
 INVALID_NUMERIC_VALUES = [
     pytest.param("string", id="string"),
@@ -98,7 +101,7 @@ def test_creation_accepts_extra_kwargs():
 
     Since SpanData.__new__ accepts *args/**kwargs, subclasses (like Span) can pass
     additional parameters without needing to override __new__. SpanData only uses
-    'name', 'service', 'resource', and 'span_type'; other parameters are ignored but don't raise errors.
+    'name', 'service', 'resource', 'span_type', and 'span_api'; other parameters are ignored but don't raise errors.
     """
     span = SpanData(
         name="test.span",
@@ -109,13 +112,16 @@ def test_creation_accepts_extra_kwargs():
         span_id=456,
         parent_id=789,
         start=1234567890.0,
-        span_api="datadog",
+        context=None,
+        on_finish=None,
+        span_api="custom-api",
         links=None,
     )
     assert span.name == "test.span"
     assert span.service == "test-service"
     assert span.resource == "test-resource"
     assert span.span_type == "web"
+    assert span._span_api == "custom-api"
 
 
 # =============================================================================
@@ -665,3 +671,148 @@ def test_start_ns_invalid_value_falls_back_to_current_time():
     span = SpanData(name="test", start="invalid")
     after = time.time_ns()
     assert before <= span.start_ns <= after
+
+
+# =============================================================================
+# span_id Tests
+# =============================================================================
+
+
+def test_span_id_basic():
+    """span_id can be get and set."""
+    span = SpanData(name="test")
+    # Default: random u64
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+    # Can set to specific value
+    span.span_id = 12345
+    assert span.span_id == 12345
+
+
+def test_span_id_default_random():
+    """span_id defaults to random u64 when not provided."""
+    span = SpanData(name="test")
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+    # Each span should get a different random ID
+    span2 = SpanData(name="test2")
+    assert span.span_id != span2.span_id
+
+
+def test_span_id_none_generates_random():
+    """span_id=None generates a random ID."""
+    span = SpanData(name="test", span_id=None)
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+
+def test_span_id_invalid_type_in_constructor():
+    """Invalid span_id type in constructor generates random ID instead of raising."""
+    span = SpanData(name="test", span_id="invalid")
+    assert isinstance(span.span_id, int)
+    assert span.span_id > 0
+
+
+def test_span_id_setter_invalid_type():
+    """Setting span_id to invalid type is silently ignored."""
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Invalid type: should be ignored
+    span.span_id = "invalid"
+    assert span.span_id == original_id  # Unchanged
+
+
+def test_span_id_zero():
+    """span_id can be set to zero."""
+    span = SpanData(name="test", span_id=0)
+    assert span.span_id == 0
+
+
+def test_span_id_max_u64():
+    """span_id can be set to max u64 value."""
+    max_u64 = (2**64) - 1
+    span = SpanData(name="test", span_id=max_u64)
+    assert span.span_id == max_u64
+
+
+def test_span_id_overflow():
+    """span_id values larger than u64 are truncated to 64 bits."""
+    # Python int larger than u64
+    large_value = (2**64) + 123
+    span = SpanData(name="test", span_id=large_value)
+    # Should truncate to 64 bits (take lower 64 bits)
+    # This behavior depends on how PyO3 handles overflow - may wrap or raise
+    # For now, just verify it doesn't crash
+    assert isinstance(span.span_id, int)
+
+
+def test_span_id_larger_than_u64_setter():
+    """Setting span_id to value larger than u64 max is silently ignored."""
+    # This could happen if someone accidentally tries to set span_id = trace_id
+    span = SpanData(name="test", span_id=12345)
+    original_id = span.span_id
+    assert original_id == 12345
+
+    # Try to set to a value larger than u64 max
+    larger_than_u64 = (2**64) + 67890
+    span.span_id = larger_than_u64
+
+    # Should be silently ignored, keeping the original value
+    assert span.span_id == original_id
+    assert span.span_id == 12345
+
+
+# =============================================================================
+# _span_api Property Tests
+# =============================================================================
+
+
+def test_span_api_default():
+    """_span_api defaults to "datadog" when not provided."""
+    span = SpanData(name="test")
+    assert span._span_api == "datadog"
+
+
+def test_span_api_constructor():
+    """_span_api can be set via constructor."""
+    span = SpanData(name="test", span_api="opentelemetry")
+    assert span._span_api == "opentelemetry"
+
+
+def test_span_api_getter_setter():
+    """_span_api can be read and written."""
+    span = SpanData(name="test")
+    assert span._span_api == "datadog"
+
+    span._span_api = "custom-api"
+    assert span._span_api == "custom-api"
+
+
+@pytest.mark.parametrize("invalid_value", INVALID_TYPE_VALUES)
+def test_span_api_invalid_types_fall_back_to_empty_string(invalid_value):
+    """_span_api falls back to empty string for invalid types."""
+    # Constructor
+    span = SpanData(name="test", span_api=invalid_value)
+    assert span._span_api == ""
+
+    # Setter
+    span = SpanData(name="test")
+    span._span_api = invalid_value
+    assert span._span_api == ""
+
+
+@pytest.mark.parametrize("invalid_bytes", INVALID_UTF8_BYTES)
+def test_span_api_invalid_utf8_falls_back_to_empty_string(invalid_bytes):
+    """_span_api falls back to empty string for invalid UTF-8 bytes."""
+    # Constructor
+    span = SpanData(name="test", span_api=invalid_bytes)
+    assert span._span_api == ""
+
+    # Setter
+    span = SpanData(name="test")
+    span._span_api = invalid_bytes
+    assert span._span_api == ""

@@ -162,7 +162,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
             )
             resp = conn.getresponse()
-            # DEV: We don't care if the result was successful or not, just that we succesfully
+            # DEV: We don't care if the result was successful or not, just that we successfully
             #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
             status = resp.status
 
@@ -403,7 +403,7 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
             url,
             headers={"Accept": "text/plain", "User-Agent": "ddtrace-test"},
         )
-        # DEV: We don't care if the result was successful or not, just that we succesfully
+        # DEV: We don't care if the result was successful or not, just that we successfully
         #   traced an HTTPS request. Relying on third party services is not ideal and can be flaky
         with override_global_tracer(self.tracer):
             try:

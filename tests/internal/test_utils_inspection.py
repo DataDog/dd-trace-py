@@ -33,7 +33,7 @@ class TelescopicFunction:
         self.chain_id = chain_id
         self.chain_depth = chain_depth
         self.unwinder = unwinder
-        self._namespace: t.Dict[str, t.Any] = globals().copy()  # Start with global namespace for access to built-ins
+        self._namespace: dict[str, t.Any] = globals().copy()  # Start with global namespace for access to built-ins
         self._generate_functions()
 
     def _generate_functions(self) -> None:
@@ -504,7 +504,7 @@ def test_unwind_cache_eviction_with_threads_and_dynamic_functions():
 # ==============================================================================
 
 
-def capture_stack(top_frame: FrameType, max_height: int = 4096) -> t.List[dict]:
+def capture_stack(top_frame: FrameType, max_height: int = 4096) -> list[dict]:
     frame: t.Optional[FrameType] = top_frame
     stack = []
     h = 0
@@ -522,7 +522,7 @@ def capture_stack(top_frame: FrameType, max_height: int = 4096) -> t.List[dict]:
     return stack
 
 
-def create_deep_stack(depth: int, capture_func: t.Callable) -> t.List[t.Dict[str, t.Any]]:
+def create_deep_stack(depth: int, capture_func: t.Callable) -> list[dict[str, t.Any]]:
     """
     Recursively create a deep call stack and capture it.
 

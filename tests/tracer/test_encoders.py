@@ -5,7 +5,6 @@ import random
 import string
 import threading
 from typing import Any
-from typing import Dict
 from unittest import TestCase
 
 from hypothesis import given
@@ -949,7 +948,7 @@ def _value():
     "data",
     [
         {"trace_id": "trace_id"},
-        {"span_id": "span_id"},
+        # {"span_id": "span_id"},  # Now handled gracefully by Rust (generates random ID)
         {"parent_id": "parent_id"},
         # {"service": True},  # Now handled gracefully by Rust (converts to None)
         # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
@@ -962,8 +961,8 @@ def _value():
 def test_encoding_invalid_data_raises(data):
     """Test that invalid data types for certain fields raise during encoding.
 
-    Note: name, service, resource, start_ns, and duration_ns are now validated at the
-    Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
+    Note: name, service, resource, span_id, start_ns, and duration_ns are now validated
+    at the Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
     """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
@@ -1041,7 +1040,7 @@ def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_v
         ({}, {"key": "value"}),
     ],
 )
-def test_encoding_invalid_data_ok(meta: Dict[str, Any], metrics: Dict[str, Any]):
+def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any]):
     """Encoding invalid meta/metrics data should not raise an exception"""
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 

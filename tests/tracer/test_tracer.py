@@ -29,8 +29,6 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
-import ddtrace.internal  # noqa: F401
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
@@ -1137,10 +1135,6 @@ def test_runtime_id_parent_only(tracer):
     assert isinstance(rtid, str)
 
 
-@pytest.mark.skipif(
-    PYTHON_VERSION_INFO >= (3, 12),
-    reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child processes",
-)
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_runtime_id_fork():
     import os
@@ -1255,7 +1249,7 @@ def test_early_exit(tracer, test_spans):
     ]
     mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
-    assert s2.parent_id is s1.span_id
+    assert s2.parent_id == s1.span_id
 
     traces = test_spans.pop_traces()
     assert len(traces) == 1

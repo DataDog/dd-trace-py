@@ -393,12 +393,12 @@ def test_debugger_multiple_threads(stuff):
 def mock_metrics():
     from ddtrace.debugging._debugger import _probe_metrics
 
-    old_client = _probe_metrics._client
+    old_client = _probe_metrics.client
     try:
-        client = _probe_metrics._client = mock.Mock()
+        client = _probe_metrics.client = mock.Mock()
         yield client
     finally:
-        _probe_metrics._client = old_client
+        _probe_metrics.client = old_client
 
 
 def create_stuff_line_metric_probe(kind, value=None):
@@ -418,7 +418,7 @@ def test_debugger_metric_probe_simple_count(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER))
         stuff.Stuff().instancestuff()
         assert (
-            call("probe.test.counter", 1.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 1.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.increment.mock_calls
         )
 
@@ -428,7 +428,7 @@ def test_debugger_metric_probe_decimal(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, value=Decimal(value := 3.14)))
         stuff.Stuff().instancestuff()
         assert (
-            call("probe.test.counter", value, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", value, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.increment.mock_calls
         )
 
@@ -438,7 +438,7 @@ def test_debugger_metric_probe_count_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.COUNTER, {"ref": "bar"}))
         stuff.Stuff().instancestuff(40)
         assert (
-            call("probe.test.counter", 40.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 40.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.increment.mock_calls
         )
 
@@ -448,7 +448,7 @@ def test_debugger_metric_probe_guage_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.GAUGE, {"ref": "bar"}))
         stuff.Stuff().instancestuff(41)
         assert (
-            call("probe.test.counter", 41.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 41.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.gauge.mock_calls
         )
 
@@ -458,7 +458,7 @@ def test_debugger_metric_probe_histogram_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.HISTOGRAM, {"ref": "bar"}))
         stuff.Stuff().instancestuff(42)
         assert (
-            call("probe.test.counter", 42.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 42.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.histogram.mock_calls
         )
 
@@ -468,7 +468,7 @@ def test_debugger_metric_probe_distribution_value(mock_metrics, stuff):
         d.add_probes(create_stuff_line_metric_probe(MetricProbeKind.DISTRIBUTION, {"ref": "bar"}))
         stuff.Stuff().instancestuff(43)
         assert (
-            call("probe.test.counter", 43.0, ["foo:bar", "debugger.probeid:metric-probe-test"])
+            call("probe.test.counter", 43.0, {"foo": "bar", "debugger.probeid": "metric-probe-test"})
             in mock_metrics.distribution.mock_calls
         )
 
@@ -725,7 +725,7 @@ def test_debugger_function_probe_on_lazy_wrapped_function(stuff):
 def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
+    with rcm_endpoint(), debugger(enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="line-probe-ok",
@@ -763,7 +763,7 @@ def test_probe_status_logging(remote_config_worker, stuff):
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
+    with rcm_endpoint(), debugger(enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 version=1,
@@ -1185,7 +1185,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == "child"
 
-            assert span.parent_id is root.span_id
+            assert span.parent_id == root.span_id
 
     def test_debugger_function_probe_ordering(self):
         from tests.submod.stuff import mutator
