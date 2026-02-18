@@ -345,15 +345,9 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
             )
             evaluator.measure(deepEvalTestCase)
             score = evaluator.score
-            reasoning = None
-            assessment = None
-            metadata = None
-            if hasattr(evaluator, "reason"):
-                reasoning = evaluator.reason
-            if hasattr(evaluator, "success"):
-                assessment = "pass" if evaluator.success else "fail"
-            if hasattr(evaluator, "score_breakdown"):
-                metadata = evaluator.score_breakdown
+            reasoning = evaluator.reason
+            assessment = "pass" if evaluator.success else "fail"
+            metadata = evaluator.score_breakdown
             eval_result = EvaluatorResult(
                 value=score,
                 reasoning=reasoning,
