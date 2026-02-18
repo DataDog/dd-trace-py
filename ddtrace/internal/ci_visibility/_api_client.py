@@ -561,9 +561,9 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         page_state: t.Optional[str] = None
 
         for page_number in range(_KNOWN_TESTS_MAX_PAGES):
-            page_info = {"page_size": _KNOWN_TESTS_PAGE_SIZE}
+            request_page_info: dict[str, t.Any] = {"page_size": _KNOWN_TESTS_PAGE_SIZE}
             if page_state:
-                page_info["page_state"] = page_state
+                request_page_info["page_state"] = page_state
 
             payload = {
                 "data": {
@@ -574,7 +574,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                         "env": self._dd_env,
                         "repository_url": self._git_data.repository_url,
                         "configurations": self._configurations,
-                        "page_info": page_info,
+                        "page_info": request_page_info,
                     },
                 }
             }
@@ -610,15 +610,15 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
                 return None
 
-            page_info = attributes.get("page_info")
-            if not page_info:
+            response_page_info = attributes.get("page_info")
+            if not response_page_info:
                 break
 
-            has_next = page_info.get("has_next")
+            has_next = response_page_info.get("has_next")
             if not has_next:
                 break
 
-            page_state = page_info.get("cursor")
+            page_state = response_page_info.get("cursor")
             if not page_state:
                 log.debug("Known tests response missing pagination cursor on page %d", page_number + 1)
                 record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
