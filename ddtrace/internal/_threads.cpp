@@ -649,9 +649,18 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_skip_shutdown = true;
 
-    // Equivalent to PeriodicThread_stop(), with an explicit fork-stop reason.
-    self->_stopping = true;
-    self->_request->set(REQUEST_REASON_FORK_STOP);
+    // Synchronize with awake() so there is no window where _stopping is visible
+    // before the fork-stop wake reason is published.
+    {
+        AllowThreads _;
+        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+
+        // Equivalent to PeriodicThread_stop(), with an explicit fork-stop
+        // reason. Keep this order so the worker cannot consume fork-stop as a
+        // normal wakeup.
+        self->_stopping = true;
+        self->_request->set(REQUEST_REASON_FORK_STOP);
+    }
 
     Py_RETURN_NONE;
 }
