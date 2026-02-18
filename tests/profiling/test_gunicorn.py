@@ -38,7 +38,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 RunGunicornFunc: TypeAlias = Callable[..., subprocess.Popen[bytes]]
 
 
-def _run_gunicorn(*args: str) -> subprocess.Popen[bytes]:
+def _run_gunicorn(*args: str, app: str = "tests.profiling.gunicorn-app:app") -> subprocess.Popen[bytes]:
     cmd = (
         [
             "ddtrace-run",
@@ -53,7 +53,7 @@ def _run_gunicorn(*args: str) -> subprocess.Popen[bytes]:
             os.path.dirname(__file__),
         ]
         + list(args)
-        + ["tests.profiling.gunicorn-app:app"]
+        + [app]
     )
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -176,7 +176,7 @@ def test_gunicorn_profile_export_count_two_workers(
     monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
 
     args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
-    proc = gunicorn("-w", "2", *args)
+    proc = gunicorn("-w", "2", *args, app="tests.profiling.gunicorn_count_app:app")
     time.sleep(5)
 
     if proc.poll() is not None:
@@ -239,7 +239,7 @@ def test_gunicorn_profile_export_count_two_workers_flush_false(
             "-w",
             "2",
             *args,
-            "tests.profiling.gunicorn-app:app",
+            "tests.profiling.gunicorn_count_app:app",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
