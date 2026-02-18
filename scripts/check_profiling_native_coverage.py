@@ -22,21 +22,19 @@ import re
 import subprocess
 import sys
 
-from ruamel.yaml import YAML
 
-
-ROOT = Path(__file__).resolve().parents[1]
+ROOT: Path = Path(__file__).resolve().parents[1]
 
 # Directories that the OLD broad globs covered — any native file here must be
 # matched by the new extension-based patterns.
-SCAN_DIRS = [
+SCAN_DIRS: list[str] = [
     "ddtrace/internal/datadog/profiling",
     "ddtrace/profiling",
     "src/native",
 ]
 
 # File extensions that belong to the native build graph.
-NATIVE_EXTENSIONS = frozenset(
+NATIVE_EXTENSIONS: frozenset[str] = frozenset(
     {
         ".cpp",
         ".cc",
@@ -51,20 +49,20 @@ NATIVE_EXTENSIONS = frozenset(
         ".lock",  # Cargo.lock
     }
 )
-NATIVE_EXACT_NAMES = frozenset({"CMakeLists.txt"})
+NATIVE_EXACT_NAMES: frozenset[str] = frozenset({"CMakeLists.txt"})
 
 # File extensions that must NOT trigger.
-NON_NATIVE_EXTENSIONS = frozenset({".py", ".pyi", ".md"})
+NON_NATIVE_EXTENSIONS: frozenset[str] = frozenset({".py", ".pyi", ".md"})
 
 # Files that don't affect the build and are acceptable gaps (not native, but
 # also not worth adding as triggers).
-KNOWN_GAPS = frozenset(
+KNOWN_GAPS: frozenset[str] = frozenset(
     {
         ".clang-format",
         ".gitignore",
     }
 )
-KNOWN_GAP_FILES = frozenset(
+KNOWN_GAP_FILES: frozenset[str] = frozenset(
     {
         # Checksum for a static-analysis download; doesn't affect build output
         "ddtrace/internal/datadog/profiling/cmake/tools/infer_checksums.txt",
@@ -72,23 +70,57 @@ KNOWN_GAP_FILES = frozenset(
 )
 
 
+_CHANGES_RE: re.Pattern[str] = re.compile(r"^\s+- changes:\s*$")
+_LIST_ITEM_RE: re.Pattern[str] = re.compile(r"^\s+- (.+)$")
+
+
 def extract_profiling_native_patterns(ci_path: Path) -> list[str]:
-    """Parse .gitlab-ci.yml and return the rules:changes patterns for
-    the profiling_native job.
+    """Extract rules:changes patterns for the profiling_native job.
+
+    Uses line-by-line parsing instead of a YAML library so the script has
+    zero external dependencies (stdlib only).
     """
-    yaml = YAML()
-    yaml.allow_duplicate_keys = True
-    data = yaml.load(ci_path)
-    rules = data["profiling_native"]["rules"]
-    for rule in rules:
-        if "changes" in rule:
-            return list(rule["changes"])
-    raise ValueError("No 'changes' rule found in profiling_native job")
+    lines: list[str] = ci_path.read_text().splitlines()
+    in_job: bool = False
+    in_changes: bool = False
+    changes_indent: int = 0
+    patterns: list[str] = []
+
+    for line in lines:
+        stripped: str = line.lstrip()
+
+        # Top-level key (zero indentation) — detect profiling_native:
+        if not line.startswith(" ") and not line.startswith("#") and stripped:
+            in_job = stripped.startswith("profiling_native:")
+            in_changes = False
+            continue
+
+        if not in_job:
+            continue
+
+        if _CHANGES_RE.match(line):
+            in_changes = True
+            changes_indent = len(line) - len(stripped)
+            continue
+
+        if in_changes:
+            m: re.Match[str] | None = _LIST_ITEM_RE.match(line)
+            item_indent: int = len(line) - len(stripped) if stripped else 0
+            if m and item_indent > changes_indent:
+                value: str = m.group(1).strip()
+                if not value.startswith("#"):
+                    patterns.append(value)
+            elif stripped and not stripped.startswith("#") and item_indent <= changes_indent:
+                break
+
+    if not patterns:
+        raise ValueError("No 'changes' patterns found in profiling_native job")
+    return patterns
 
 
 def tracked_files(dirs: list[str]) -> list[str]:
     """Return git-tracked files under the given directories."""
-    result = subprocess.run(
+    result: subprocess.CompletedProcess[str] = subprocess.run(
         ["git", "ls-files", "--"] + dirs,
         capture_output=True,
         text=True,
@@ -102,10 +134,10 @@ def classify_extension(path: str) -> str:
     """Return 'native', 'non_native', 'known_gap', or 'unknown'."""
     if path in KNOWN_GAP_FILES:
         return "known_gap"
-    name = path.rsplit("/", 1)[-1]
+    name: str = path.rsplit("/", 1)[-1]
     if name in NATIVE_EXACT_NAMES:
         return "native"
-    ext = ("." + name.rsplit(".", 1)[-1]) if "." in name else ""
+    ext: str = ("." + name.rsplit(".", 1)[-1]) if "." in name else ""
     if ext in NATIVE_EXTENSIONS:
         return "native"
     if ext in NON_NATIVE_EXTENSIONS:
@@ -125,7 +157,9 @@ def _glob_to_re(pattern: str) -> re.Pattern[str]:
     treated as a single token meaning "one slash, then optionally any number
     of nested directories".
     """
-    result = ""
+    result: str = ""
+    i: int
+    n: int
     i, n = 0, len(pattern)
     while i < n:
         if pattern[i : i + 4] == "/**/":
@@ -155,9 +189,9 @@ def matches_any(path: str, patterns: list[str]) -> bool:
 
 
 def main() -> int:
-    ci_path = ROOT / ".gitlab-ci.yml"
-    patterns = extract_profiling_native_patterns(ci_path)
-    files = tracked_files(SCAN_DIRS)
+    ci_path: Path = ROOT / ".gitlab-ci.yml"
+    patterns: list[str] = extract_profiling_native_patterns(ci_path)
+    files: list[str] = tracked_files(SCAN_DIRS)
 
     under_triggered: list[str] = []  # native file not matched
     over_triggered: list[str] = []  # non-native file matched
@@ -165,8 +199,8 @@ def main() -> int:
     stale_patterns: list[str] = []  # pattern matches nothing
 
     for f in files:
-        cat = classify_extension(f)
-        matched = matches_any(f, patterns)
+        cat: str = classify_extension(f)
+        matched: bool = matches_any(f, patterns)
 
         if cat == "native" and not matched:
             under_triggered.append(f)
@@ -175,12 +209,12 @@ def main() -> int:
         elif cat == "unknown":
             unknown_files.append(f)
 
-    all_tracked = tracked_files(["."])
+    all_tracked: list[str] = tracked_files(["."])
     for p in patterns:
         if not any(_glob_to_re(p).match(f) for f in all_tracked):
             stale_patterns.append(p)
 
-    errors = 0
+    errors: int = 0
 
     if under_triggered:
         errors += 1
@@ -212,7 +246,7 @@ def main() -> int:
     if not errors:
         print(f"OK    {len(files)} files checked, {len(patterns)} patterns validated, no issues found")
 
-    return 1 if errors else 0
+    return int(bool(errors))
 
 
 if __name__ == "__main__":
