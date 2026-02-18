@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    LLM Observability: Consolidates the internal sync ``Experiment`` and ``AsyncExperiment`` classes into a single
+    async-native ``Experiment`` class with a thin ``SyncExperiment`` wrapper for synchronous callers. This is an
+    internal refactoring with no changes to the public API.
