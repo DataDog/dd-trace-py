@@ -162,6 +162,52 @@ def test_extract_git_metadata(git_repo):
     assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
 
 
+def test_set_safe_directory_adds_repo_root_once(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    subdir = repo / "subdir"
+    subdir.mkdir()
+
+    monkeypatch.setattr(git, "_SAFE_DIRECTORY_ENTRIES", None)
+    calls = []
+
+    def fake_details(*args, **kwargs):
+        return git._GitSubprocessDetails("", "", 0.0, 1)
+
+    def fake_cmd(cmd, cwd=None, std_in=None):
+        calls.append((cmd, cwd))
+        return ""
+
+    monkeypatch.setattr(git, "_git_subprocess_cmd_with_details", fake_details)
+    monkeypatch.setattr(git, "_git_subprocess_cmd", fake_cmd)
+
+    git._set_safe_directory(cwd=str(subdir))
+    git._set_safe_directory(cwd=str(subdir))
+
+    assert calls == [(["config", "--global", "--add", "safe.directory", str(repo)], None)]
+
+
+def test_set_safe_directory_skips_when_global_wildcard(monkeypatch, tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+
+    monkeypatch.setattr(git, "_SAFE_DIRECTORY_ENTRIES", None)
+
+    def fake_details(*args, **kwargs):
+        return git._GitSubprocessDetails("*", "", 0.0, 0)
+
+    mock_cmd = mock.Mock(return_value="")
+
+    monkeypatch.setattr(git, "_git_subprocess_cmd_with_details", fake_details)
+    monkeypatch.setattr(git, "_git_subprocess_cmd", mock_cmd)
+
+    git._set_safe_directory(cwd=str(repo))
+
+    mock_cmd.assert_not_called()
+
+
 def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
     """Test that user-provided git metadata overwrites CI provided env vars."""
     ci_env = {

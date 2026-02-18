@@ -94,6 +94,10 @@ _GitSubprocessDetails = NamedTuple(
     "_GitSubprocessDetails", [("stdout", str), ("stderr", str), ("duration", float), ("returncode", int)]
 )
 
+_SAFE_DIRECTORY_ENTRIES: Optional[set[str]] = None
+# AIDEV-NOTE: Keep safe.directory changes idempotent and scoped to a repo root to avoid
+# adding multiple global entries or weakening Git's security checks.
+
 
 def normalize_ref(name: Optional[str]) -> Optional[str]:
     return _RE_TAGS.sub("", _RE_ORIGIN.sub("", _RE_REFS.sub("", name))) if name is not None else None
@@ -158,9 +162,61 @@ def _git_subprocess_cmd(cmd: Union[str, list[str]], cwd: Optional[str] = None, s
     raise ValueError(stderr)
 
 
-def _set_safe_directory():
+def _normalize_safe_directory(path: str) -> str:
+    expanded = os.path.expanduser(path)
+    return os.path.normcase(os.path.realpath(expanded))
+
+
+def _resolve_git_root(cwd: Optional[str]) -> Optional[str]:
+    base = os.path.abspath(cwd or os.getcwd())
+    current = base
+    while True:
+        git_marker = os.path.join(current, ".git")
+        if os.path.isdir(git_marker) or os.path.isfile(git_marker):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
+def _get_safe_directory_entries() -> set[str]:
+    global _SAFE_DIRECTORY_ENTRIES
+    if _SAFE_DIRECTORY_ENTRIES is not None:
+        return _SAFE_DIRECTORY_ENTRIES
+
+    stdout, _, _, returncode = _git_subprocess_cmd_with_details("config", "--global", "--get-all", "safe.directory")
+    entries: set[str] = set()
+    if returncode == 0 and stdout:
+        for line in stdout.splitlines():
+            value = line.strip()
+            if not value:
+                continue
+            if value == "*":
+                entries.add("*")
+            else:
+                entries.add(_normalize_safe_directory(value))
+
+    _SAFE_DIRECTORY_ENTRIES = entries
+    return entries
+
+
+def _set_safe_directory(cwd: Optional[str] = None) -> None:
     try:
-        _git_subprocess_cmd("config --global --add safe.directory *")
+        root = _resolve_git_root(cwd)
+        if root is None:
+            return
+
+        entries = _get_safe_directory_entries()
+        if "*" in entries:
+            return
+
+        normalized_root = _normalize_safe_directory(root)
+        if normalized_root in entries:
+            return
+
+        _git_subprocess_cmd(["config", "--global", "--add", "safe.directory", root])
+        entries.add(normalized_root)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
     except ValueError:
@@ -363,7 +419,7 @@ def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -
 def extract_git_metadata(cwd: Optional[str] = None) -> dict[str, Optional[str]]:
     """Extract git commit metadata."""
     tags: dict[str, Optional[str]] = {}
-    _set_safe_directory()
+    _set_safe_directory(cwd=cwd)
     try:
         tags[REPOSITORY_URL] = extract_repository_url(cwd=cwd)
         tags[COMMIT_MESSAGE] = extract_commit_message(cwd=cwd)
