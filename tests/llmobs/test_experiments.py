@@ -31,6 +31,7 @@ from tests.utils import override_global_config
 
 
 TMP_CSV_FILE = "tmp.csv"
+TEST_PROJECT_NAME = os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")
 
 
 def wait_for_backend(sleep_dur=2):
@@ -81,7 +82,7 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
 # To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1770919108685181000
+MOCK_TIMESTAMP_NS = 1771430149829292000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -246,7 +247,7 @@ def test_dataset_create_delete(llmobs):
     dataset = llmobs.create_dataset(dataset_name="test-dataset-2", description="A second test dataset")
     assert dataset._id is not None
     assert dataset.url == f"https://app.datadoghq.com/llm/datasets/{dataset._id}"
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == TEST_PROJECT_NAME
     assert dataset.project.get("_id")
 
     llmobs._delete_dataset(dataset_id=dataset._id)
@@ -429,7 +430,7 @@ def test_dataset_csv(llmobs, tmp_csv_file_for_upload):
                 input_data_columns=["in0", "in1", "in2"],
                 expected_output_columns=["out0", "out1"],
             )
-            assert dataset.project.get("name") == "test-project"
+            assert dataset.project.get("name") == TEST_PROJECT_NAME
             assert dataset.project.get("_id")
             dataset_id = dataset._id
             assert len(dataset) == 2
@@ -482,7 +483,7 @@ def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
                 metadata_columns=["m0"],
                 csv_delimiter="|",
             )
-            assert dataset.project.get("name") == "test-project"
+            assert dataset.project.get("name") == TEST_PROJECT_NAME
             assert dataset.project.get("_id")
             dataset_id = dataset._id
             assert len(dataset) == 2
@@ -533,7 +534,7 @@ def test_dataset_pull_non_existent_project(llmobs):
 
 def test_dataset_pull_large_num_records(llmobs, test_dataset_large_num_records):
     pds = llmobs.pull_dataset(dataset_name=test_dataset_large_num_records.name)
-    assert pds.project.get("name") == "test-project"
+    assert pds.project.get("name") == TEST_PROJECT_NAME
     assert pds.project.get("_id")
     assert len(pds) == len(test_dataset_large_num_records)
     assert pds.name == test_dataset_large_num_records.name
@@ -550,7 +551,7 @@ def test_dataset_pull_large_num_records(llmobs, test_dataset_large_num_records):
 @pytest.mark.parametrize("test_dataset_records", [[]])
 def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_records, test_dataset_name):
     dataset = llmobs.pull_dataset(dataset_name=test_dataset.name)
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == TEST_PROJECT_NAME
     assert dataset.project.get("_id")
     assert dataset._id is not None
     assert len(dataset) == 0
@@ -559,7 +560,7 @@ def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_r
 def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     wait_for_backend(4)
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record.name)
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == TEST_PROJECT_NAME
     assert dataset.project.get("_id")
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
@@ -1016,10 +1017,13 @@ def test_dataset_extend(llmobs, test_dataset):
     assert ds.latest_version == 2
     assert ds.version == 2
     assert len(ds) == 3
-    assert ds[2]["input_data"] == {"prompt": "What is the capital of France?"}
     # order is non deterministic
-    assert ds[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
-    assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    input_data_set = {r["input_data"]["prompt"] for r in ds}
+    assert input_data_set == {
+        "What is the capital of France?",
+        "What is the capital of Italy?",
+        "What is the capital of Sweden?",
+    }
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
 
@@ -1254,9 +1258,9 @@ def test_project_create_new_project(llmobs):
 
 
 def test_project_get_existing_project(llmobs):
-    project = llmobs._instance._dne_client.project_create_or_get(name="test-project")
-    assert project.get("_id") == "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"
-    assert project.get("name") == "test-project"
+    project = llmobs._instance._dne_client.project_create_or_get(name=TEST_PROJECT_NAME)
+    assert project.get("_id")
+    assert project.get("name") == TEST_PROJECT_NAME
 
 
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
@@ -1406,7 +1410,7 @@ def test_experiment_init(llmobs, test_dataset_one_record):
     assert exp._task == dummy_task
     assert exp._dataset == test_dataset_one_record
     assert exp._evaluators == [dummy_evaluator]
-    assert exp._project_name == "test-project"
+    assert exp._project_name == TEST_PROJECT_NAME
     assert exp._description == "lorem ipsum"
     assert exp._project_id is None
     assert exp._run_name is None
@@ -1423,7 +1427,7 @@ def test_experiment_create(llmobs, test_dataset_one_record):
         tags={"tag1": "value1", "tag2": "value2"},
         config={"models": ["gpt-4.1"]},
     )
-    project = llmobs._instance._dne_client.project_create_or_get("test-project")
+    project = llmobs._instance._dne_client.project_create_or_get(TEST_PROJECT_NAME)
     project_id = project.get("_id")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
         exp.name, exp._dataset._id, project_id, exp._dataset.latest_version, exp._config
@@ -1799,9 +1803,9 @@ def test_experiment_run(llmobs, test_dataset_one_record):
     assert exp_result["expected_output"] == {"answer": "Paris"}
     assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
 
-    project = llmobs._instance._dne_client.project_create_or_get(name="test-project")
-    assert project.get("_id") == "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"
-    assert project.get("name") == "test-project"
+    project = llmobs._instance._dne_client.project_create_or_get(name=TEST_PROJECT_NAME)
+    assert project.get("_id")
+    assert project.get("name") == TEST_PROJECT_NAME
     assert exp._project_id == project.get("_id")
     assert exp._project_name == project.get("name")
 
@@ -1914,7 +1918,7 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert event["meta"]["expected_output"] == {"answer": "Paris"}
     assert event["meta"]["metadata"] == {"difficulty": "easy"}
     assert "dataset_name:{}".format(test_dataset_one_record_w_metadata.name) in event["tags"]
-    assert "project_name:test-project" in event["tags"]
+    assert f"project_name:{TEST_PROJECT_NAME}" in event["tags"]
     assert "experiment_name:test_experiment" in event["tags"]
     assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record_w_metadata._records[0]["record_id"]) in event["tags"]
@@ -1953,7 +1957,7 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert event["meta"]["expected_output"] == {"answer": "Paris"}
         assert event["meta"]["metadata"] == {"difficulty": "easy"}
         assert "dataset_name:{}".format(test_dataset_one_record_w_metadata.name) in event["tags"]
-        assert "project_name:test-project" in event["tags"]
+        assert f"project_name:{TEST_PROJECT_NAME}" in event["tags"]
         assert "experiment_name:test_experiment" in event["tags"]
         assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
         assert (
@@ -2246,7 +2250,7 @@ def test_async_experiment_init(llmobs, test_dataset_one_record):
     assert exp._task == async_dummy_task
     assert exp._dataset == test_dataset_one_record
     assert exp._evaluators == [async_dummy_evaluator]
-    assert exp._project_name == "test-project"
+    assert exp._project_name == "test-project-clean"
     assert exp._description == "async lorem ipsum"
     assert exp._project_id is None
     assert exp._run_name is None
