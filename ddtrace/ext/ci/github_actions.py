@@ -95,7 +95,7 @@ def _try_extract_job_id_from_file(file_path: str) -> Optional[str]:
             log.debug("Skipping oversized diagnostics file %s (%d bytes)", file_path, file_stat.st_size)
             return None
 
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
 
         # Try JSON parsing first
@@ -208,25 +208,15 @@ def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[
         pipeline_url = "{0}/attempts/{1}".format(pipeline_url, run_attempt)
 
     # Resolve job ID and URL
-    # Priority: JOB_CHECK_RUN_ID env var > diagnostics files > GITHUB_JOB (job name)
-    github_job_id = job_name = env.get("GITHUB_JOB")
-    job_url = "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha)
+    # Priority: JOB_CHECK_RUN_ID env var > diagnostics files
+    job_name = env.get("GITHUB_JOB")
     numeric_job_id = _get_job_id(env)
 
-    if numeric_job_id and github_run_id:
-        github_job_id = numeric_job_id
-        job_url = "{0}/{1}/actions/runs/{2}/job/{3}".format(
-            github_server_url, github_repository, github_run_id, numeric_job_id
-        )
-        log.debug("GitHub Actions job URL with numeric job ID: %s", job_url)
-
-    return {
+    tags = {
         git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
         git.COMMIT_SHA: git_commit_sha,
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
         git.COMMIT_HEAD_SHA: git_commit_head_sha,
-        _JOB_ID: github_job_id,
-        _JOB_URL: job_url,
         _PIPELINE_ID: github_run_id,
         _PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),
         _PIPELINE_NUMBER: env.get("GITHUB_RUN_NUMBER"),
@@ -236,3 +226,16 @@ def extract_github_actions(env: MutableMapping[str, str]) -> dict[str, Optional[
         _WORKSPACE_PATH: env.get("GITHUB_WORKSPACE"),
         _CI_ENV_VARS: json.dumps(env_vars, separators=(",", ":")),
     }
+
+    if numeric_job_id and github_run_id:
+        # Use numeric job ID to build direct job URL
+        tags[_JOB_ID] = numeric_job_id
+        tags[_JOB_URL] = "{0}/{1}/actions/runs/{2}/job/{3}".format(
+            github_server_url, github_repository, github_run_id, numeric_job_id
+        )
+        log.debug("GitHub Actions job URL with numeric job ID: %s", tags[_JOB_URL])
+    else:
+        # Fallback: use commit-based URL and omit ci.job.id
+        tags[_JOB_URL] = "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha)
+
+    return tags
