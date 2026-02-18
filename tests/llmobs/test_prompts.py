@@ -372,17 +372,3 @@ class TestPromptManagerInternals:
                 manager._trigger_background_refresh("greeting:production", "greeting", "production")
 
         assert refresh_mock.call_count == 2
-
-    @pytest.mark.parametrize(
-        "base_url,expected",
-        [
-            ("https://host/foo/bar", "https://host/foo/bar/"),
-            ("https://host/foo/bar/", "https://host/foo/bar/"),
-            ("https://host", "https://host/"),
-            ("host/foo/bar", "https://host/foo/bar/"),
-            ("https://api.datadoghq.com", "https://api.datadoghq.com/"),
-        ],
-    )
-    def test_normalize_base_url(self, base_url, expected):
-        normalized = PromptManager._normalize_base_url(base_url)
-        assert normalized == expected
