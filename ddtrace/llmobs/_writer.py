@@ -99,6 +99,7 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     score_value: float
     boolean_value: bool
     json_value: dict[str, JSONType]
+    status: str
     error: Optional[dict[str, str]]
     tags: list[str]
     experiment_id: str
@@ -111,10 +112,10 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
 class EvaluatorInferResponse(TypedDict, total=False):
     """Response from the evaluator_infer API endpoint."""
 
-    status: str
     value: Union[float, bool, str, None]
     assessment: Optional[str]
     reasoning: Optional[str]
+    status: Optional[str]
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -726,8 +727,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog
         :param context: The evaluation context
         :return: EvaluatorInferResponse with status, value, assessment, and reasoning
-        :raises RemoteEvaluatorError: If backend returns status ERROR or WARN
-        :raises RuntimeError: If HTTP request fails (4xx/5xx status)
+        :raises RemoteEvaluatorError: If backend returns an evaluation error (structured error with
+            type/message/recommended_resolution)
+        :raises RuntimeError: If HTTP request fails and no structured error info is available
         """
         from ddtrace.llmobs._experiment import RemoteEvaluatorError
 
@@ -737,7 +739,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         resp = self.request("POST", path, body)
         response_data = resp.get_json() or {}
 
+        attributes = response_data.get("data", {}).get("attributes", {})
+
         if resp.status != 200:
+            error_details = attributes.get("error", {})
+            if error_details:
+                raise RemoteEvaluatorError(
+                    f"Remote evaluator '{eval_name}' failed: {error_details.get('message', f'HTTP {resp.status}')}",
+                    status=attributes.get("status", "ERROR"),
+                    backend_error=error_details,
+                )
             error_msg = f"HTTP {resp.status}"
             if "errors" in response_data and response_data["errors"]:
                 error = response_data["errors"][0]
@@ -745,19 +756,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     error_msg = error.get("detail") or error.get("title") or error_msg
             raise RuntimeError(f"Failed to call evaluator '{eval_name}': {error_msg}")
 
-        attributes = response_data.get("data", {}).get("attributes", {})
-        status = attributes.get("status", "")
-        if status in ("ERROR", "WARN"):
-            raise RemoteEvaluatorError(
-                f"Remote evaluator '{eval_name}' failed: {attributes.get('error', {}).get('message', status)}",
-                backend_error=attributes.get("error", {}),
-            )
-
         return {
-            "status": status,
             "value": attributes.get("value"),
             "assessment": attributes.get("assessment"),
             "reasoning": attributes.get("reasoning"),
+            "status": attributes.get("status"),
         }
 
 

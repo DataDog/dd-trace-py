@@ -90,6 +90,20 @@ class EvaluatorResult:
         self.tags = tags
 
 
+class RemoteEvaluatorResult(EvaluatorResult):
+    """Internal result type for remote evaluators that includes backend status."""
+
+    def __init__(
+        self,
+        value: JSONType,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> None:
+        super().__init__(value=value, reasoning=reasoning, assessment=assessment)
+        self.status = status
+
+
 def _validate_evaluator_name(name: str) -> None:
     """Validate that evaluator name is valid.
 
@@ -114,13 +128,15 @@ class RemoteEvaluatorError(Exception):
     for proper error handling in the experiment framework.
     """
 
-    def __init__(self, message: str, backend_error: Optional[dict[str, Any]] = None) -> None:
+    def __init__(self, message: str, status: str, backend_error: Optional[dict[str, Any]] = None) -> None:
         """Initialize a RemoteEvaluatorError.
 
         :param message: The error message
+        :param status: The backend evaluation status (e.g. "ERROR", "WARN")
         :param backend_error: The backend error details dict with type, message, recommended_resolution
         """
         super().__init__(message)
+        self.status = status
         self.backend_error = backend_error or {}
 
 
@@ -381,7 +397,7 @@ class RemoteEvaluator(BaseEvaluator):
         """Evaluate using the remote LLM-as-Judge evaluator.
 
         :param context: The evaluation context containing input, output, and metadata
-        :return: EvaluationResult or raw value if no reasoning or assessment is provided
+        :return: RemoteEvaluatorResult or raw value if no reasoning or assessment is provided
         """
         from ddtrace.llmobs import LLMObs
 
@@ -395,9 +411,10 @@ class RemoteEvaluator(BaseEvaluator):
         value = result.get("value")
         reasoning = result.get("reasoning")
         assessment = result.get("assessment")
+        status = result.get("status")
 
         if reasoning or assessment:
-            return EvaluatorResult(value=value, reasoning=reasoning, assessment=assessment)
+            return RemoteEvaluatorResult(value=value, reasoning=reasoning, assessment=assessment, status=status)
         return value
 
 
@@ -1020,11 +1037,17 @@ class Experiment:
                             extra_return_values["metadata"] = eval_result.metadata
                         if eval_result.tags:
                             extra_return_values["tags"] = eval_result.tags
+                        if isinstance(eval_result, RemoteEvaluatorResult) and eval_result.status:
+                            extra_return_values["status"] = eval_result.status
                         eval_result_value = eval_result.value
                     else:
                         eval_result_value = eval_result
 
                 except Exception as e:
+                    if isinstance(e, RemoteEvaluatorError):
+                        extra_return_values["status"] = e.status
+                    else:
+                        extra_return_values["status"] = "ERROR"
                     exc_type, exc_value, exc_tb = sys.exc_info()
                     exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
                     exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -1184,6 +1207,7 @@ class Experiment:
         span_id: str,
         trace_id: str,
         timestamp_ns: int,
+        status: Optional[str] = None,
         source: str = "custom",
         reasoning: Optional[str] = None,
         assessment: Optional[str] = None,
@@ -1214,6 +1238,8 @@ class Experiment:
             "tags": convert_tags_dict_to_list(tags),
             "experiment_id": self._id,
         }
+        if status:
+            eval_metric["status"] = status
         if reasoning:
             eval_metric["reasoning"] = reasoning
         if assessment:
@@ -1265,6 +1291,7 @@ class Experiment:
                     if isinstance(eval_data.get("tags"), dict)
                     else None,
                     eval_source_type="managed" if eval_name in remote_evaluator_names else None,
+                    status=str(eval_data.get("status")) if isinstance(eval_data.get("status"), str) else "OK",
                 )
                 eval_metrics.append(eval_metric)
 

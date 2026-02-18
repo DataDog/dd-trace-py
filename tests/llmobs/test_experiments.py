@@ -1554,7 +1554,7 @@ def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY}},
+        "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}},
     }
     err = eval_results[0]["evaluations"]["faulty_evaluator"]["error"]
     assert err["message"] == "This is a test error in evaluator"
@@ -1709,7 +1709,7 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     assert exp_result["timestamp"] == mock.ANY
     assert exp_result["span_id"] == mock.ANY
     assert exp_result["trace_id"] == mock.ANY
-    assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY}}
+    assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}}
     assert exp_result["evaluations"]["faulty_evaluator"]["error"] == {
         "message": "This is a test error in evaluator",
         "type": "ValueError",
