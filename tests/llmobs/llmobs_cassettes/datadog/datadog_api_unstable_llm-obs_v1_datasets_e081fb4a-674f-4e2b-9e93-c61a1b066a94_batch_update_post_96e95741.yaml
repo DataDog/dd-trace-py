@@ -1,0 +1,51 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "e081fb4a-674f-4e2b-9e93-c61a1b066a94",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of France?"}, "expected_output": {"answer": "Paris"}, "metadata": null}, {"input":
+      {"prompt": "What is the capital of Italy?"}, "expected_output": {"answer": "Rome"},
+      "metadata": null}], "update_records": [], "delete_records": [], "deduplicate":
+      true, "create_new_version": true}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '433'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/e081fb4a-674f-4e2b-9e93-c61a1b066a94/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"dce1c68c-fd88-4e3d-a34f-3c2b4360aff3","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"e2d68efc-fd70-49d2-877b-9e414ab1ea35","created_at":"2026-02-18T06:24:46.327296771Z","dataset_id":"e081fb4a-674f-4e2b-9e93-c61a1b066a94","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"tags":[],"updated_at":"2026-02-18T06:24:46.327296771Z","version":1}},{"id":"b1bd870c-589d-4b64-825b-17da6f0e97a8","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"1c1caf9a-2bd9-44e2-9d73-c9e12e9e9525","created_at":"2026-02-18T06:24:46.327296771Z","dataset_id":"e081fb4a-674f-4e2b-9e93-c61a1b066a94","expected_output":{"answer":"Rome"},"input":{"prompt":"What
+        is the capital of Italy?"},"tags":[],"updated_at":"2026-02-18T06:24:46.327296771Z","version":1}}]}'
+    headers:
+      content-length:
+      - '894'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 18 Feb 2026 06:24:46 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
