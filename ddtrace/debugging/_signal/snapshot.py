@@ -33,6 +33,7 @@ from ddtrace.debugging._signal.model import EvaluationError
 from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
+from ddtrace.internal.compat import NO_EXCEPTION
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.utils.time import HourGlass
 
@@ -168,7 +169,7 @@ class Snapshot(LogSignal):
         return None
 
     def enter(self, scope: Mapping[str, Any]) -> None:
-        self.entry_capture = self._do(_NOTSET, (None, None, None), scope)
+        self.entry_capture = self._do(_NOTSET, NO_EXCEPTION, scope)
 
     def exit(self, retval, exc_info, duration, scope) -> None:
         self.duration = duration

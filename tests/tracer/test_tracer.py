@@ -1080,7 +1080,7 @@ def test_enable():
 @pytest.mark.subprocess(
     err=b"Shutting down tracer with 2 spans. "
     b"These spans will not be sent to Datadog: "
-    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
+    b"trace_id=123 parent_id=None span_id=456 name=unfinished_span1 "
     b"resource=my_resource1 started=1234567890.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
     b"resource=my_resource1 started=1987654321.0 sampling_priority=2\n"
