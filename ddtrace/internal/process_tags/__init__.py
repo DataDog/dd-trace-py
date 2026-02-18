@@ -18,6 +18,8 @@ ENTRYPOINT_WORKDIR_TAG = "entrypoint.workdir"
 ENTRYPOINT_TYPE_TAG = "entrypoint.type"
 ENTRYPOINT_TYPE_SCRIPT = "script"
 ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
+SVC_USER_TAG = "svc.user"
+SVC_AUTO_TAG = "svc.auto"
 
 _CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
 _ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/._-")
@@ -67,6 +69,8 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
         (ENTRYPOINT_BASEDIR_TAG, lambda: Path(sys.argv[0]).resolve().parent.name),
         (ENTRYPOINT_NAME_TAG, lambda: os.path.splitext(os.path.basename(sys.argv[0]))[0]),
         (ENTRYPOINT_TYPE_TAG, lambda: ENTRYPOINT_TYPE_SCRIPT),
+        (SVC_USER_TAG, lambda: None),
+        (SVC_AUTO_TAG, lambda: None),
     ]
 
     process_tags_list = sorted(
