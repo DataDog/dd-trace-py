@@ -391,49 +391,6 @@ impl SpanData {
         self.span_api = extract_backed_string_or_default(value);
     }
 
-    /// Set an attribute on the span, routing to _meta (strings) or _metrics (numerics).
-    ///
-    /// This is a unified setter that enforces mutual exclusion:
-    /// - String values are stored in _meta
-    /// - Int/float values are stored in _metrics
-    /// - None is stringified to "None" and stored in _meta (matches old set_tag behavior)
-    /// - Setting a key in one dict removes it from the other
-    /// - NaN and Inf float values are silently dropped (no-op)
-    fn _set_attribute(
-        &mut self,
-        py: Python<'_>,
-        key: &Bound<'_, PyAny>,
-        value: &Bound<'_, PyAny>,
-    ) -> PyResult<()> {
-        let meta = self.meta.bind(py);
-        let metrics = self.metrics.bind(py);
-
-        if value.is_instance_of::<pyo3::types::PyFloat>() {
-            // Float branch first: check NaN/Inf and silently drop if invalid
-            let f = value.extract::<f64>()?;
-            if f.is_nan() || f.is_infinite() {
-                // Silently drop NaN/Inf - matches old set_metric behavior
-                return Ok(());
-            }
-            // Valid float: store original Python object (no rewrapping)
-            metrics.set_item(key, value)?;
-            let _ = meta.del_item(key);
-        } else if value.is_instance_of::<pyo3::types::PyInt>() {
-            // Int (includes bool subclass): store directly, no extraction needed
-            metrics.set_item(key, value)?;
-            let _ = meta.del_item(key);
-        } else if value.is_instance_of::<pyo3::types::PyString>() {
-            // String: store directly, no str() call needed
-            meta.set_item(key, value)?;
-            let _ = metrics.del_item(key);
-        } else {
-            // Other types: stringify via str() before storing
-            let str_value = value.str()?;
-            meta.set_item(key, str_value)?;
-            let _ = metrics.del_item(key);
-        }
-        Ok(())
-    }
 }
 
 pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
