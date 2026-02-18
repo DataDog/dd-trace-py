@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import logging
 from typing import Callable
-from typing import Dict
 from typing import Optional
 
 from ddtrace import config
@@ -53,7 +52,7 @@ def _api_gateway_http_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str
     return None
 
 
-supported_proxies: Dict[str, ProxyInfo] = {
+supported_proxies: dict[str, ProxyInfo] = {
     "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
     "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
 }
@@ -199,5 +198,5 @@ def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:
     )
 
 
-def normalize_headers(headers) -> Dict[str, str]:
+def normalize_headers(headers) -> dict[str, str]:
     return {key.lower(): value for key, value in headers.items()}

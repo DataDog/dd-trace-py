@@ -19,6 +19,7 @@ build_base_venvs:
   script: |
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
+    echo "NIGHTLY_BUILD: {nightly_build}"
     if [[ {unpin_dependencies} == "true" ]]
     then
       python scripts/allow_prerelease_dependencies.py

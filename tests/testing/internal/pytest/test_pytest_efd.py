@@ -30,7 +30,7 @@ class TestEFD:
         """
         )
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -87,7 +87,7 @@ class TestEFD:
         """
         )
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -132,7 +132,7 @@ class TestEFD:
         """
         )
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -172,7 +172,7 @@ class TestEFD:
         """
         )
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {}
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {}
 
         with (
             patch(
@@ -214,7 +214,7 @@ class TestEFD:
 
         pytester.makepyfile(test_foo=lots_of_new_tests)
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -251,7 +251,7 @@ class TestEFD:
         """
         )
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -317,7 +317,7 @@ class TestEFD:
         """
         )
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 
@@ -385,7 +385,7 @@ class TestEFD:
         """
         )
 
-        known_tests: t.Set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[t.Union[TestRef, SuiteRef]] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_known"),
         }
 

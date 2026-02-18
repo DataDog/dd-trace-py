@@ -37,7 +37,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t.Optional[t.Dict[str, t.Any]] = None):
+def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t.Optional[dict[str, t.Any]] = None):
     """Utility decorator that tries to call a check until there is a
     timeout.  The default timeout is about 20 seconds.
 

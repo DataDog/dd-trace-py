@@ -28,7 +28,9 @@ class Sampler
     // stopped or started in a straightforward manner without finer-grained control (locks)
     std::atomic<uint64_t> thread_seq_num{ 0 };
 
-    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit
+    // Thread exit synchronization - allows stop() to wait for the sampling thread to exit.
+    // The mutex + condition variable pair is used to avoid the "lost wake-up" race condition
+    // where stop() could miss the notification and hang forever (or until timeout).
     std::atomic<bool> thread_running{ false };
     std::mutex thread_exit_mutex;
     std::condition_variable thread_exit_cv;
@@ -80,6 +82,9 @@ class Sampler
 
     // Delegates to the StackRenderer to clear its caches after fork
     void postfork_child();
+
+    // Restart the sampler after fork if it was running
+    void restart_after_fork();
 };
 
 } // namespace Datadog
