@@ -102,7 +102,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "parent_id",
         "_meta",
         "_meta_struct",
         "context",
@@ -156,12 +155,6 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-
-        if not (parent_id is None or isinstance(parent_id, int)):
-            if config._raise:
-                raise TypeError("parent_id must be an integer")
-            return
-
         self._meta: dict[str, str] = {}
         self._metrics: dict[str, NumericType] = {}
 
@@ -174,7 +167,6 @@ class Span(SpanData):
             self._trace_id_128bit_mode = trace_id > _MAX_UINT_64BITS
         else:
             self._trace_id_128bit_mode = config._128_bit_trace_id_enabled
-        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context

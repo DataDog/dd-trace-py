@@ -835,15 +835,6 @@ def test_on_finish_multi_callback():
     m2.assert_called_once_with(s)
 
 
-def test_span_preconditions():
-    """Test that parent_id must be an integer or None."""
-    # None is valid
-    Span("test", parent_id=None)
-    # Invalid type raises TypeError
-    with pytest.raises(TypeError):
-        Span("test", parent_id="foo")
-
-
 def test_span_trace_id_preconditions():
     """Test that trace_id accepts None or generates random value for invalid types.
 
@@ -859,6 +850,23 @@ def test_span_trace_id_preconditions():
     span2 = Span("test", trace_id="foo")
     assert isinstance(span2.trace_id, int)
     assert span2.trace_id > 0
+
+
+def test_span_id_preconditions():
+    """Test that invalid span_id types generate a random ID instead of raising"""
+    # None should generate random ID
+    s1 = Span("test", span_id=None)
+    assert isinstance(s1.span_id, int)
+    assert s1.span_id > 0
+
+    # Invalid type (string) should generate random ID, not raise
+    s2 = Span("test", span_id="foo")
+    assert isinstance(s2.span_id, int)
+    assert s2.span_id > 0
+
+    # Valid int should be used
+    s3 = Span("test", span_id=12345)
+    assert s3.span_id == 12345
 
 
 def test_span_id_preconditions():
