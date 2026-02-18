@@ -21,12 +21,14 @@ from contrib.config import MYSQL_CONFIG
 from contrib.config import OPENSEARCH_CONFIG
 from contrib.config import POSTGRES_CONFIG
 from contrib.config import RABBITMQ_CONFIG
+from contrib.config import REDIS_CONFIG
 from contrib.config import VERTICA_CONFIG
 import kombu
 import mysql.connector
 from psycopg2 import OperationalError
 from psycopg2 import connect
 import pymssql
+import redis
 import requests
 import vertica_python
 
@@ -35,7 +37,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t.Optional[t.Dict[str, t.Any]] = None):
+def try_until_timeout(exception, tries: int = 100, timeout: float = 0.2, args: t.Optional[dict[str, t.Any]] = None):
     """Utility decorator that tries to call a check until there is a
     timeout.  The default timeout is about 20 seconds.
 
@@ -109,6 +111,15 @@ def check_rabbitmq(url):
         conn.connect()
     finally:
         conn.release()
+
+
+@try_until_timeout(Exception, args={"redis_config": REDIS_CONFIG})
+def check_redis(redis_config):
+    client = redis.Redis(**redis_config)
+    try:
+        client.ping()
+    finally:
+        client.close()
 
 
 @try_until_timeout(Exception, args={"url": os.environ.get("DD_TRACE_AGENT_URL", "http://localhost:8126")})
@@ -201,6 +212,7 @@ if __name__ == "__main__":
         "opensearch": check_opensearch,
         "postgres": check_postgres,
         "rabbitmq": check_rabbitmq,
+        "redis": check_redis,
         "testagent": check_agent,
         "vertica": check_vertica,
         "azureeventhubsemulator": check_azureeventhubsemulator,

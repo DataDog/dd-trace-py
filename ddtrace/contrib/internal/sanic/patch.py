@@ -1,5 +1,4 @@
 import asyncio
-from typing import Dict
 
 import sanic
 import wrapt
@@ -15,6 +14,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -24,12 +24,11 @@ config._add("sanic", dict(_default_service=schematize_service_name("sanic"), dis
 SANIC_VERSION = (0, 0, 0)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(sanic, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"sanic": ">=20.12.0"}
 
 
@@ -38,7 +37,7 @@ def _get_current_span(request):
     if not pin or not pin.enabled():
         return None
 
-    return pin.tracer.current_span()
+    return tracer.current_span()
 
 
 def update_span(span, response):

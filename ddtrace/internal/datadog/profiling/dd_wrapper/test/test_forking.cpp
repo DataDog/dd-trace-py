@@ -121,12 +121,8 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     waitpid(pid, &status, 0);
     ddup_upload();
     join_pthread_samplers(thread_handles, done);
-    if (!is_exit_normal(status)) {
-        ddup_cleanup();
-        std::exit(1);
-    }
     ddup_cleanup();
-    std::exit(0);
+    std::exit(is_exit_normal(status) ? 0 : 1);
 }
 
 TEST(ForkDeathTest, SampleInThreadsAndForkNormal)

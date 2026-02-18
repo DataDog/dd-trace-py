@@ -6,8 +6,6 @@ import threading
 import time
 from typing import TYPE_CHECKING
 from typing import Generator
-from typing import List
-from typing import Tuple
 from unittest.mock import patch
 import uuid
 
@@ -174,7 +172,7 @@ def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
 
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -229,7 +227,7 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
 
         profile = pprof_utils.parse_newest_profile(output_filename)
         samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-        samples: List[Sample] = []
+        samples: list[Sample] = []
         for sample in samples_with_span_id:
             locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
             if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -278,7 +276,7 @@ def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -327,7 +325,7 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -563,7 +561,8 @@ def _fib(n: int) -> int:
 
 
 @pytest.mark.skipif(
-    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION, reason=f"gevent is not compatible with Python {sys.version_info}"
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task() -> None:
@@ -646,6 +645,80 @@ def test_collect_gevent_thread_task() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_gevent_task_started_before_profiler",
+    ),
+    err=None,
+)
+def test_collect_gevent_task_started_before_profiler() -> None:
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import threading
+    import time
+
+    import gevent
+
+    should_stop = threading.Event()
+
+    def pre_started_greenlet_task() -> None:
+        # Keep this greenlet alive long enough to be sampled after profiler start.
+        while not should_stop.is_set():
+            start = time.time()
+            while time.time() - start < 0.01:
+                pass
+            gevent.sleep(0)
+
+    # Start a named greenlet before profiler startup (remote-enable scenario).
+    pre_started_greenlet_name = "pre-started-before-profiler"
+    pre_started_greenlet = gevent.spawn(pre_started_greenlet_task)
+    pre_started_greenlet.name = pre_started_greenlet_name
+    gevent.sleep(0.05)
+
+    # Import profiler modules after gevent patching and greenlet creation
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    p = profiler.Profiler()
+    p.start()
+
+    try:
+        gevent.sleep(1.0)
+    finally:
+        should_stop.set()
+        pre_started_greenlet.join(timeout=2)
+        p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=pre_started_greenlet_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name=pre_started_greenlet_task.__name__,
+                    filename="test_stack.py",
+                    line_no=-1,
+                )
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
@@ -712,7 +785,7 @@ def test_stress_threads_run_as_thread(tmp_path: Path) -> None:
 @pytest.fixture
 def tracer_and_collector(
     tracer: Tracer, request: FixtureRequest, tmp_path: Path
-) -> Generator[Tuple[Tracer, stack.StackCollector], None, None]:
+) -> Generator[tuple[Tracer, stack.StackCollector], None, None]:
     test_name = get_original_test_name(request)
     pprof_prefix = str(tmp_path / test_name)
 
@@ -828,10 +901,13 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
     ddup.upload()
 
     with stack.StackCollector(tracer=tracer):
+        # Give the Profiler some time to start
+        time.sleep(0.1)
+
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with tracer.start_span("foobar", activate=True, resource=resource, span_type=span_type) as span:
-            _fib(28)
+            _fib(35)
 
     ddup.upload(tracer=tracer)
 
@@ -847,7 +923,7 @@ def test_resource_not_collected(tmp_path: Path, tracer: Tracer) -> None:
                 pprof_utils.StackLocation(
                     filename=os.path.basename(__file__),
                     function_name=test_name,
-                    line_no=test_resource_not_collected.__code__.co_firstlineno + 14,
+                    line_no=test_resource_not_collected.__code__.co_firstlineno + 17,
                 )
             ],
         ),
@@ -898,7 +974,7 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
     )
 
 
-def test_stress_trace_collection(tracer_and_collector: Tuple[Tracer, stack.StackCollector]) -> None:
+def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:
     tracer, _ = tracer_and_collector
 
     def _trace() -> None:

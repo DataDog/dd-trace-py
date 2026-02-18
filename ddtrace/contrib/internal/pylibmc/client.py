@@ -20,6 +20,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.trace import tracer
 
 
 # Original Client class
@@ -30,7 +31,7 @@ log = get_logger(__name__)
 
 
 class TracedClient(ObjectProxy):
-    """TracedClient is a proxy for a pylibmc.Client that times it's network operations."""
+    """TracedClient is a proxy for a pylibmc.Client that times its network operations."""
 
     def __init__(self, client=None, service=memcached.SERVICE, tracer=None, *args, **kwargs):
         """Create a traced client that wraps the given memcached client."""
@@ -51,8 +52,7 @@ class TracedClient(ObjectProxy):
 
         schematized_service = schematize_service_name(service)
         pin = Pin(service=schematized_service)
-        if tracer is not None:
-            pin._tracer = tracer
+
         pin.onto(self)
 
         # attempt to collect the pool of urls this client talks to
@@ -160,7 +160,7 @@ class TracedClient(ObjectProxy):
         if not pin or not pin.enabled():
             return self._no_span()
 
-        span = pin.tracer.trace(
+        span = tracer.trace(
             schematize_cache_operation("memcached.cmd", cache_provider="memcached"),
             service=pin.service,
             resource=cmd_name,

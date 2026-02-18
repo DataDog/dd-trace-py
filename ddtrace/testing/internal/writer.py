@@ -35,7 +35,7 @@ class BaseWriter(ABC):
         self.lock = threading.RLock()
         self.should_finish = threading.Event()
         self.flush_interval_seconds = 60
-        self.events: t.List[Event] = []
+        self.events: list[Event] = []
         # 4.5MB max uncompressed payload size, following <https://github.com/DataDog/datadog-ci-rb/pull/272>.
         self.max_payload_size = int(4.5 * 1024 * 1024)
 
@@ -43,7 +43,7 @@ class BaseWriter(ABC):
         with self.lock:
             self.events.append(event)
 
-    def pop_events(self) -> t.List[Event]:
+    def pop_events(self) -> list[Event]:
         with self.lock:
             events = self.events
             self.events = []
@@ -79,14 +79,14 @@ class BaseWriter(ABC):
             self._send_events(events)
 
     @abstractmethod
-    def _send_events(self, events: t.List[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> None:
         pass
 
     @abstractmethod
-    def _encode_events(self, events: t.List[Event]) -> bytes:
+    def _encode_events(self, events: list[Event]) -> bytes:
         pass
 
-    def _split_pack_events(self, events: t.List[Event]) -> t.List[bytes]:
+    def _split_pack_events(self, events: list[Event]) -> list[bytes]:
         pack = self._encode_events(events)
 
         if len(pack) > self.max_payload_size and len(events) > 1:
@@ -105,7 +105,7 @@ class TestOptWriter(BaseWriter):
     def __init__(self, connector_setup: BackendConnectorSetup) -> None:
         super().__init__()
 
-        self.metadata: t.Dict[str, t.Dict[str, str]] = {
+        self.metadata: dict[str, dict[str, str]] = {
             "*": {
                 "language": "python",
                 "runtime-id": uuid.uuid4().hex,
@@ -121,26 +121,27 @@ class TestOptWriter(BaseWriter):
                 "_dd.library_capabilities.test_management.quarantine": "1",
                 "_dd.library_capabilities.test_management.disable": "1",
                 "_dd.library_capabilities.test_management.attempt_to_fix": "5",
+                "_dd.library_capabilities.coverage_report_upload": "1",
             },
         }
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
 
-        self.serializers: t.Dict[t.Type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
+        self.serializers: dict[type[TestItem[t.Any, t.Any]], EventSerializer[t.Any]] = {
             TestRun: serialize_test_run,
             TestSuite: serialize_suite,
             TestModule: serialize_module,
             TestSession: serialize_session,
         }
 
-    def add_metadata(self, event_type: str, metadata: t.Dict[str, str]) -> None:
+    def add_metadata(self, event_type: str, metadata: dict[str, str]) -> None:
         self.metadata[event_type].update(metadata)
 
     def put_item(self, item: TestItem[t.Any, t.Any]) -> None:
         event = self.serializers[type(item)](item)
         self.put_event(event)
 
-    def _encode_events(self, events: t.List[Event]) -> bytes:
+    def _encode_events(self, events: list[Event]) -> bytes:
         payload = {
             "version": 1,
             "metadata": self.metadata,
@@ -148,7 +149,7 @@ class TestOptWriter(BaseWriter):
         }
         return msgpack_packb(payload)
 
-    def _send_events(self, events: t.List[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> None:
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 
@@ -182,7 +183,7 @@ class TestCoverageWriter(BaseWriter):
 
         self.connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCOV)
 
-    def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[t.Tuple[str, bytes]]) -> None:
+    def put_coverage(self, test_run: TestRun, coverage_bitmaps: t.Iterable[tuple[str, bytes]]) -> None:
         files = [{"filename": pathname, "bitmap": bitmap} for pathname, bitmap in coverage_bitmaps]
         TelemetryAPI.get().record_coverage_files(len(files))
 
@@ -198,10 +199,10 @@ class TestCoverageWriter(BaseWriter):
         )
         self.put_event(event)
 
-    def _encode_events(self, events: t.List[Event]) -> bytes:
+    def _encode_events(self, events: list[Event]) -> bytes:
         return msgpack_packb({"version": 2, "coverages": events})
 
-    def _send_events(self, events: t.List[Event]) -> None:
+    def _send_events(self, events: list[Event]) -> None:
         with StopWatch() as serialization_time:
             packs = self._split_pack_events(events)
 

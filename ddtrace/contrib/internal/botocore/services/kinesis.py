@@ -2,9 +2,6 @@ from datetime import datetime
 import json
 from time import time_ns
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Tuple
 
 import botocore.client  # noqa: F401
 import botocore.exceptions
@@ -17,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.trace import tracer
 
 from ..utils import extract_DD_json
 from ..utils import get_kinesis_data_object
@@ -33,7 +31,7 @@ class TraceInjectionSizeExceed(Exception):
     pass
 
 
-def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context: bool = True) -> None:
+def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context: bool = True) -> None:
     line_break, data_obj = get_kinesis_data_object(record["Data"])
     if data_obj is not None:
         core.dispatch(
@@ -56,7 +54,7 @@ def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context
         record["Data"] = data_json
 
 
-def select_records_for_injection(params: List[Any], inject_trace_context: bool) -> List[Tuple[Any, bool]]:
+def select_records_for_injection(params: list[Any], inject_trace_context: bool) -> list[tuple[Any, bool]]:
     records_to_inject_into = []
     if "Records" in params and params["Records"]:
         for i, record in enumerate(params["Records"]):
@@ -142,7 +140,7 @@ def _patched_kinesis_api_call(parent_ctx, original_func, instance, args, kwargs,
                 args=args,
                 params=params,
                 endpoint_name=endpoint_name,
-                child_of=child_of if child_of is not None else pin.tracer.context_provider.active(),
+                child_of=child_of if child_of is not None else tracer.context_provider.active(),
                 operation=operation,
                 service=schematize_service_name(
                     "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)

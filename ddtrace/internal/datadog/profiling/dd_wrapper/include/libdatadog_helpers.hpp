@@ -1,7 +1,9 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -12,7 +14,7 @@ extern "C"
 
 namespace Datadog {
 
-ddog_prof_StringId2
+std::optional<ddog_prof_StringId2>
 intern_string(std::string_view s);
 
 // There's currently no need to offer custom tags, so there's no interface for
@@ -54,12 +56,12 @@ intern_string(std::string_view s);
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,
 
-enum class ExportTagKey
+enum class ExportTagKey : std::uint8_t
 {
     EXPORTER_TAGS(X_ENUM) Length_
 };
 
-enum class ExportLabelKey
+enum class ExportLabelKey : std::uint8_t
 {
     EXPORTER_LABELS(X_ENUM) Length_
 };
@@ -144,7 +146,7 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 
 namespace internal {
 
-ddog_prof_ProfilesDictionaryHandle
+std::optional<ddog_prof_ProfilesDictionaryHandle>
 get_profiles_dictionary();
 
 // Decreases the refcount on the Profiles Dictionary handle.
@@ -155,7 +157,8 @@ void
 release_profiles_dictionary();
 
 // Initialize cached interned strings (required after creating/recreating the ProfilesDictionary)
-void
+// Returns true if successful, false if not.
+bool
 init_interned_strings();
 
 // Reset tag and label key caches (required after fork)
@@ -165,14 +168,10 @@ reset_key_caches();
 // Fork-safe cached interning for tag and label keys
 // Must come after enum definitions to know the sizes
 
-// Reset tag key and label key caches
-void
-reset_key_caches();
-
-ddog_prof_StringId2
+std::optional<ddog_prof_StringId2>
 to_interned_string(ExportTagKey key);
 
-ddog_prof_StringId2
+std::optional<ddog_prof_StringId2>
 to_interned_string(ExportLabelKey key);
 
 } // namespace internal

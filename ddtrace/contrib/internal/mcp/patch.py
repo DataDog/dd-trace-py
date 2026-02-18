@@ -1,7 +1,6 @@
 import os
 import sys
 from typing import TYPE_CHECKING
-from typing import Dict
 from typing import Optional
 
 import mcp
@@ -27,6 +26,7 @@ from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -46,13 +46,13 @@ def get_version() -> str:
     return version("mcp")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
 def _set_distributed_headers_into_mcp_request(pin: Pin, request: "ClientRequest") -> "ClientRequest":
     """Inject distributed tracing headers into MCP request metadata."""
-    span = pin.tracer.current_span()
+    span = tracer.current_span()
     if span is None:
         return request
 
@@ -90,7 +90,7 @@ def _set_distributed_headers_into_mcp_request(pin: Pin, request: "ClientRequest"
         return request
 
 
-def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[Dict[str, str]]:
+def _extract_distributed_headers_from_mcp_request(request_root: "Request") -> Optional[dict[str, str]]:
     """Extract distributed tracing headers from MCP request params.meta field."""
     request_params = _get_attr(request_root, "params", None)
     meta = _get_attr(request_params, "meta", None) if request_params else None
@@ -228,7 +228,7 @@ def traced_request_responder_enter(mcp, pin: Pin, func, instance, args: tuple, k
         and config.mcp.distributed_tracing
         and (headers := _extract_distributed_headers_from_mcp_request(request_root))
     ):
-        activate_distributed_headers(pin.tracer, config.mcp, headers)
+        activate_distributed_headers(tracer, config.mcp, headers)
 
     operation_name = (
         SERVER_TOOL_CALL_OPERATION_NAME if isinstance(request_root, CallToolRequest) else SERVER_REQUEST_OPERATION_NAME

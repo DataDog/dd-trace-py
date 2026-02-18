@@ -7,27 +7,32 @@
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
+#include <atomic>
+#include <cstdio>
 #include <cstdlib>
 #include <datadog/profiling.h>
 #include <iostream>
+#include <string_view>
 #include <unistd.h>
 #include <unordered_map>
 
 namespace {
 
 // The Profiles Dictionary used for interning strings and functions
-ddog_prof_ProfilesDictionaryHandle dict_handle = nullptr;
+std::atomic<ddog_prof_ProfilesDictionaryHandle> dict_handle{ nullptr };
 
 // Initializes the Profiles Dictionary
 bool
 init_profiles_dictionary()
 {
-    auto result = ddog_prof_ProfilesDictionary_new(&dict_handle);
+    ddog_prof_ProfilesDictionaryHandle temp = nullptr;
+    auto result = ddog_prof_ProfilesDictionary_new(&temp);
     if (result.flags) {
         std::cerr << "could not initialise profiles dictionary: " << result.err << std::endl;
         return false;
     }
 
+    dict_handle.store(temp, std::memory_order_release);
     return true;
 }
 
@@ -35,17 +40,23 @@ init_profiles_dictionary()
 
 namespace Datadog::internal {
 
-ddog_prof_ProfilesDictionaryHandle
+std::optional<ddog_prof_ProfilesDictionaryHandle>
 get_profiles_dictionary()
 {
-    return dict_handle;
+    auto handle = dict_handle.load(std::memory_order_acquire);
+    if (handle == nullptr) {
+        return std::nullopt;
+    }
+
+    return handle;
 }
 
 void
 release_profiles_dictionary()
 {
-    ddog_prof_ProfilesDictionary_drop(&dict_handle);
-    dict_handle = nullptr;
+    ddog_prof_ProfilesDictionaryHandle temp = dict_handle.load(std::memory_order_relaxed);
+    ddog_prof_ProfilesDictionary_drop(&temp);
+    dict_handle.store(nullptr, std::memory_order_release);
 }
 
 } // namespace Datadog::internal
@@ -72,7 +83,11 @@ ddup_postfork_child()
     }
 
     // Initialize cached interned strings with the new Profiles Dictionary
-    Datadog::internal::init_interned_strings();
+    if (!Datadog::internal::init_interned_strings()) {
+        std::cerr << "failed to initialise interned strings in child process, profiler will be disabled" << std::endl;
+        is_ddup_initialized = false;
+        return;
+    }
 
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
@@ -226,7 +241,7 @@ ddup_start() // cppcheck-suppress unusedFunction
         // This is a prerequisite for Datadog::SampleManager::init()
         // which sets the Profiles Dictionary on the Profile object.
         if (!init_profiles_dictionary()) {
-            return false;
+            return;
         }
 
         // Initialize cached interned strings (must happen after profiles dictionary is created)
@@ -244,7 +259,6 @@ ddup_start() // cppcheck-suppress unusedFunction
 
         // Set the global initialization flag
         is_ddup_initialized = true;
-        return true;
     });
 }
 
@@ -393,6 +407,12 @@ ddup_push_frame(Datadog::Sample* sample, // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame) // cppcheck-suppress unusedFunction
+{
+    sample->push_pyframes(frame);
+}
+
+void
 ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns) // cppcheck-suppress unusedFunction
 {
     sample->push_absolute_ns(timestamp_ns);
@@ -462,6 +482,9 @@ ddup_upload() // cppcheck-suppress unusedFunction
     return result;
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+// Pass by value is intentional: the map may be modified concurrently by other threads,
+// so we take a copy to avoid data races while iterating.
 void
 ddup_profile_set_endpoints(
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
@@ -484,6 +507,9 @@ ddup_profile_set_endpoints(
     }
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+// Pass by value is intentional: the map may be modified concurrently by other threads,
+// so we take a copy to avoid data races while iterating.
 void
 ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {

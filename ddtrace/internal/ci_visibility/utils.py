@@ -9,7 +9,7 @@ import typing as t
 
 import ddtrace
 from ddtrace import config as ddconfig
-from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+from ddtrace.contrib.internal.coverage.patch import PCT_COVERED_KEY
 from ddtrace.ext import test
 from ddtrace.internal.ci_visibility.constants import CIVISIBILITY_LOG_FILTER_RE
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
@@ -42,7 +42,7 @@ def get_source_file_path_for_test_method(test_method_object, repo_directory: str
 
 def get_source_lines_for_test_method(
     test_method_object,
-) -> t.Union[t.Tuple[int, int], t.Tuple[None, None]]:
+) -> t.Union[tuple[int, int], tuple[None, None]]:
     """
     Get the start and end line numbers for a test method.
 
@@ -169,7 +169,7 @@ def _get_test_framework_telemetry_name(test_framework: str) -> TEST_FRAMEWORKS:
 
 def retry_on_exceptions(
     after: t.Iterable[float],
-    exceptions: t.Tuple[t.Type[BaseException], ...],
+    exceptions: tuple[type[BaseException], ...],
 ) -> t.Callable:
     """
     Decorator to automatically retry a function if it raises specified exceptions.
@@ -195,7 +195,7 @@ def retry_on_exceptions(
 
 
 def fibonacci_backoff_with_jitter_on_exceptions(
-    attempts: int, exceptions: t.Tuple[t.Type[BaseException], ...]
+    attempts: int, exceptions: tuple[type[BaseException], ...]
 ) -> t.Callable:
     """
     Decorator to automatically retry a function if it raises specified exceptions, with exponential backoff delays.

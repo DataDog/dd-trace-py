@@ -1,5 +1,4 @@
 from inspect import unwrap
-from typing import Dict
 
 import flask
 import werkzeug
@@ -74,17 +73,15 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return get_version_for_package("flask")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"flask": ">=1.1.4"}
 
 
-def get_werkzeug_version():
-    # type: () -> str
+def get_werkzeug_version() -> str:
     return get_version_for_package("werkzeug")
 
 
@@ -394,7 +391,7 @@ def patched_wsgi_app(pin, wrapped, instance, args, kwargs):
     # DEV: This is safe before this is the args for a WSGI handler
     #   https://www.python.org/dev/peps/pep-3333/
     environ, start_response = args
-    middleware = _FlaskWSGIMiddleware(wrapped, pin.tracer, config.flask, pin)
+    middleware = _FlaskWSGIMiddleware(wrapped, None, config.flask, pin)
     return middleware(environ, start_response)
 
 

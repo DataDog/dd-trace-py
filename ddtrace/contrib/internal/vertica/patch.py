@@ -1,5 +1,4 @@
 import importlib
-from typing import Dict
 
 import wrapt
 
@@ -19,6 +18,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 from ddtrace.vendor.debtcollector import deprecate
 
 
@@ -121,14 +121,13 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import vertica_python
 
     return vertica_python.__version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"vertica": ">=0.6"}
 
 
@@ -229,7 +228,6 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
                 return result
 
             operation_name = conf["operation_name"]
-            tracer = pin.tracer
             with tracer.trace(
                 operation_name,
                 service=trace_utils.ext_service(pin, config),

@@ -6,11 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Mapping
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace.debugging._expressions import DDExpression
@@ -77,7 +74,7 @@ class Probe(abc.ABC):
 
     probe_id: str
     version: int
-    tags: Dict[str, Any] = field(compare=False)
+    tags: dict[str, Any] = field(compare=False)
 
     def update(self, other: "Probe") -> None:
         """Update the mutable fields from another probe."""
@@ -143,7 +140,7 @@ class ProbeConditionMixin(AbstractProbeMixIn):
 
 @dataclass
 class ProbeLocationMixin(AbstractProbeMixIn):
-    def location(self) -> Tuple[Optional[str], Optional[Union[str, int]]]:
+    def location(self) -> tuple[Optional[str], Optional[Union[str, int]]]:
         """Return a tuple of (location, sublocation) for the probe.
         For example, line probe returns the (file, line) and method probe return (module, method)
         """
@@ -234,7 +231,7 @@ class ExpressionTemplateSegment(TemplateSegment):
 @dataclass
 class StringTemplate:
     template: str
-    segments: List[TemplateSegment]
+    segments: list[TemplateSegment]
 
     def render(self, scope: Mapping[str, Any], serializer: Callable[[Any], str]) -> str:
         def _to_str(value):
@@ -244,27 +241,35 @@ class StringTemplate:
 
 
 @dataclass
+class CaptureExpression:
+    name: str
+    expr: DDExpression
+    limits: CaptureLimits = field(compare=False)
+
+
+@dataclass
 class LogProbeMixin(AbstractProbeMixIn):
     template: str
-    segments: List[TemplateSegment]
+    segments: list[TemplateSegment]
     take_snapshot: bool
+    capture_expressions: list[CaptureExpression]
     limits: CaptureLimits = field(compare=False)
 
     @property
     def __budget__(self) -> int:
-        return 10 if self.take_snapshot else 100
+        return 10 if self.take_snapshot or self.capture_expressions else 100
 
 
 @dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     def is_global_rate_limited(self) -> bool:
-        return self.take_snapshot
+        return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     def is_global_rate_limited(self) -> bool:
-        return self.take_snapshot
+        return self.take_snapshot or bool(self.capture_expressions)
 
 
 @dataclass
@@ -291,13 +296,13 @@ class SpanDecorationTag:
 @dataclass
 class SpanDecoration:
     when: Optional[DDExpression]
-    tags: List[SpanDecorationTag]
+    tags: list[SpanDecorationTag]
 
 
 @dataclass
 class SpanDecorationMixin:
     target_span: SpanDecorationTargetSpan
-    decorations: List[SpanDecoration]
+    decorations: list[SpanDecoration]
 
 
 @dataclass(eq=False)

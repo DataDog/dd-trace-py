@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 from openai import version
 
@@ -13,6 +12,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -25,7 +25,7 @@ def get_version() -> str:
     return version.VERSION
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"openai": ">=1.0"}
 
 
@@ -391,7 +391,7 @@ def _patched_endpoint_async(openai, patch_hook):
 @with_traced_module
 def patched_convert(openai, pin, func, instance, args, kwargs):
     """Patch convert captures header information in the openai response"""
-    span = pin.tracer.current_span()
+    span = tracer.current_span()
     if not span:
         return func(*args, **kwargs)
 

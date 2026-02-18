@@ -7,10 +7,6 @@ import os
 import struct
 import threading
 import time
-import typing
-from typing import DefaultDict  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import NamedTuple  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
@@ -22,13 +18,13 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.fnv import fnv1_64
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
 from .._encoding import packb
 from ..agent import get_connection
-from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
@@ -64,7 +60,7 @@ SHUTDOWN_TIMEOUT = 5
 """
 PathwayAggrKey uniquely identifies a pathway to aggregate stats on.
 """
-PathwayAggrKey = typing.Tuple[
+PathwayAggrKey = tuple[
     str,  # edge tags
     int,  # hash_value
     int,  # parent hash
@@ -87,9 +83,9 @@ ConsumerPartitionKey = NamedTuple("ConsumerPartitionKey", [("group", str), ("top
 Bucket = NamedTuple(
     "Bucket",
     [
-        ("pathway_stats", DefaultDict[PathwayAggrKey, PathwayStats]),
-        ("latest_produce_offsets", DefaultDict[PartitionKey, int]),
-        ("latest_commit_offsets", DefaultDict[ConsumerPartitionKey, int]),
+        ("pathway_stats", defaultdict[PathwayAggrKey, PathwayStats]),
+        ("latest_produce_offsets", defaultdict[PartitionKey, int]),
+        ("latest_commit_offsets", defaultdict[ConsumerPartitionKey, int]),
     ],
 )
 
@@ -112,21 +108,23 @@ class DataStreamsProcessor(PeriodicService):
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
         self._timeout = timeout
         # Have the bucket size match the interval in which flushes occur.
-        self._bucket_size_ns = int(interval * 1e9)  # type: int
-        self._buckets = defaultdict(lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int)))  # type: DefaultDict[int, Bucket]
+        self._bucket_size_ns: int = int(interval * 1e9)
+        self._buckets: defaultdict[int, Bucket] = defaultdict(
+            lambda: Bucket(defaultdict(PathwayStats), defaultdict(int), defaultdict(int))
+        )
         self._version = __version__
-        self._headers = {
+        self._headers: dict[str, str] = {
             "Datadog-Meta-Lang": "python",
             "Datadog-Meta-Tracer-Version": self._version,
             "Content-Type": "application/msgpack",
             "Content-Encoding": "gzip",
-        }  # type: Dict[str, str]
+        }
         self._hostname = compat.ensure_text(get_hostname())
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
         self._enabled = True
-        self._schema_samplers: Dict[str, SchemaSampler] = {}
+        self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
@@ -137,9 +135,15 @@ class DataStreamsProcessor(PeriodicService):
         self.start()
 
     def on_checkpoint_creation(
-        self, hash_value, parent_hash, edge_tags, now_sec, edge_latency_sec, full_pathway_latency_sec, payload_size=0
-    ):
-        # type: (int, int, List[str], float, float, float, int) -> None
+        self,
+        hash_value: int,
+        parent_hash: int,
+        edge_tags: list[str],
+        now_sec: float,
+        edge_latency_sec: float,
+        full_pathway_latency_sec: float,
+        payload_size: int = 0,
+    ) -> None:
         """
         on_checkpoint_creation is called every time a new checkpoint is created on a pathway. It records the
         latency to the previous checkpoint in the pathway (edge latency),
@@ -188,8 +192,7 @@ class DataStreamsProcessor(PeriodicService):
                 offset, self._buckets[bucket_time_ns].latest_commit_offsets[key]
             )
 
-    def _serialize_buckets(self):
-        # type: () -> List[Dict]
+    def _serialize_buckets(self) -> list[dict]:
         """Serialize and update the buckets."""
         serialized_buckets = []
         serialized_bucket_keys = []
@@ -270,27 +273,26 @@ class DataStreamsProcessor(PeriodicService):
             else:
                 log.debug("sent %s to %s", _human_size(len(payload)), self._agent_endpoint)
 
-    def periodic(self):
-        # type: () -> None
+    def periodic(self) -> None:
         with self._lock:
             serialized_stats = self._serialize_buckets()
 
         if not serialized_stats:
             log.debug("No data streams reported. Skipping flushing.")
             return
-        raw_payload = {
+        raw_payload: dict[str, Union[list[dict], str, list[str]]] = {
             "Service": self._service,
             "TracerVersion": self._version,
             "Lang": "python",
             "Stats": serialized_stats,
             "Hostname": self._hostname,
-        }  # type: Dict[str, Union[List[Dict], str]]
+        }
         if config.env:
             raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
             raw_payload["Version"] = compat.ensure_text(config.version)
-        if p_tags := process_tags.process_tags:
-            raw_payload["ProcessTags"] = compat.ensure_text(p_tags)
+        if p_tags := process_tags.process_tags_list:
+            raw_payload["ProcessTags"] = p_tags
 
         payload = packb(raw_payload)
         compressed = gzip_compress(payload)
@@ -303,13 +305,11 @@ class DataStreamsProcessor(PeriodicService):
                 exc_info=True,
             )
 
-    def shutdown(self, timeout):
-        # type: (Optional[float]) -> None
+    def shutdown(self, timeout: Optional[float]) -> None:
         self.periodic()
         self.stop(timeout)
 
-    def decode_pathway(self, data):
-        # type: (bytes) -> DataStreamsCtx
+    def decode_pathway(self, data: bytes) -> "DataStreamsCtx":
         try:
             hash_value = struct.unpack("<Q", data[:8])[0]
             data = data[8:]
@@ -322,8 +322,7 @@ class DataStreamsProcessor(PeriodicService):
         except (EOFError, TypeError, struct.error):
             return self.new_pathway()
 
-    def decode_pathway_b64(self, data):
-        # type: (Optional[Union[str, bytes]]) -> DataStreamsCtx
+    def decode_pathway_b64(self, data: Optional[Union[str, bytes]]) -> "DataStreamsCtx":
         if not data:
             return self.new_pathway()
 
@@ -351,7 +350,7 @@ class DataStreamsProcessor(PeriodicService):
 
     def set_checkpoint(self, tags, now_sec=None, payload_size=0, span=None):
         """
-        type: (List[str], Optional[int], Optional[int]) -> DataStreamsCtx
+        type: (list[str], Optional[int], Optional[int]) -> DataStreamsCtx
         :param tags: a list of strings identifying the pathway and direction
         :param now_sec: The time in seconds to count as "now" when computing latencies
         :param payload_size: The size of the payload being sent in bytes
@@ -388,8 +387,9 @@ class DataStreamsProcessor(PeriodicService):
 
 
 class DataStreamsCtx:
-    def __init__(self, processor, hash_value, pathway_start_sec, current_edge_start_sec):
-        # type: (DataStreamsProcessor, int, float, float) -> None
+    def __init__(
+        self, processor: DataStreamsProcessor, hash_value: int, pathway_start_sec: float, current_edge_start_sec: float
+    ) -> None:
         self.processor = processor
         self.pathway_start_sec = pathway_start_sec
         self.current_edge_start_sec = current_edge_start_sec
@@ -401,16 +401,14 @@ class DataStreamsCtx:
         self.closest_opposite_direction_hash = 0
         self.closest_opposite_direction_edge_start = current_edge_start_sec
 
-    def encode(self):
-        # type: () -> bytes
+    def encode(self) -> bytes:
         return (
             struct.pack("<Q", self.hash)
             + encode_var_int_64(int(self.pathway_start_sec * 1e3))
             + encode_var_int_64(int(self.current_edge_start_sec * 1e3))
         )
 
-    def encode_b64(self):
-        # type: () -> str
+    def encode_b64(self) -> str:
         encoded_pathway = self.encode()
         binary_pathway = base64.b64encode(encoded_pathway)
         data_streams_context = binary_pathway.decode("utf-8")
@@ -437,7 +435,7 @@ class DataStreamsCtx:
         span=None,
     ):
         """
-        type: (List[str], float, float, float) -> None
+        type: (list[str], float, float, float) -> None
 
         :param tags: an list of tags identifying the pathway and direction
         :param now_sec: The time in seconds to count as "now" when computing latencies
@@ -493,15 +491,13 @@ class DsmPathwayCodec:
     """
 
     @staticmethod
-    def encode(ctx, carrier):
-        # type: (DataStreamsCtx, dict) -> None
+    def encode(ctx: DataStreamsCtx, carrier: dict) -> None:
         if not isinstance(ctx, DataStreamsCtx) or not ctx or not ctx.hash:
             return
         carrier[PROPAGATION_KEY_BASE_64] = ctx.encode_b64()
 
     @staticmethod
-    def decode(carrier, data_streams_processor):
-        # type: (dict, DataStreamsProcessor) -> DataStreamsCtx
+    def decode(carrier: dict, data_streams_processor: DataStreamsProcessor) -> DataStreamsCtx:
         if not carrier:
             return data_streams_processor.new_pathway()
 

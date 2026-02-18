@@ -27,18 +27,21 @@ include(FindInfer)
 include(CheckSymbolExists)
 
 find_package(LibNative)
+find_package(Python3 COMPONENTS Interpreter Development.Module)
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Since this file is currently only loaded as a subdirectory, we need to propagate certain libdatadog variables up to
 # the parent scope.
-set(Datadog_INCLUDE_DIRS
-    ${Datadog_INCLUDE_DIRS}
-    PARENT_SCOPE)
-set(Datadog_LIBRARIES
-    ${Datadog_LIBRARIES}
-    PARENT_SCOPE)
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(Datadog_INCLUDE_DIRS
+        ${Datadog_INCLUDE_DIRS}
+        PARENT_SCOPE)
+    set(Datadog_LIBRARIES
+        ${Datadog_LIBRARIES}
+        PARENT_SCOPE)
+endif()
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
@@ -66,7 +69,10 @@ add_library(
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
-target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
+# Disable -Wold-style-cast for sample.cpp because Python C API headers use old-style casts
+set_source_files_properties(src/sample.cpp PROPERTIES COMPILE_FLAGS "-Wno-old-style-cast")
+
+target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
 
@@ -103,8 +109,9 @@ set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAM
 # Force .so extension for both Linux and macOS to match Python extension expectations
 set_target_properties(dd_wrapper PROPERTIES SUFFIX ".so")
 if(APPLE)
-    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../native" INSTALL_RPATH
-                                                                                        "@loader_path/../../native")
+    # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../../native;@loader_path/../../native"
+                                                INSTALL_RPATH "@loader_path/../../../native;@loader_path/../../native")
     # Add a post-build step to fix the library dependency to use @rpath
     add_custom_command(
         TARGET dd_wrapper
@@ -113,8 +120,9 @@ if(APPLE)
                 $<TARGET_FILE:dd_wrapper>
         COMMENT "Fixing library dependency to use @rpath")
 else()
-    # To make sure that dd_wrapper finds _native.so for real
-    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../native" INSTALL_RPATH "$ORIGIN/../../native")
+    # Include both paths: 3 levels for local builds (lib/ subdirectory), 2 levels for wheel installs
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native"
+                                                INSTALL_RPATH "$ORIGIN/../../../native:$ORIGIN/../../native")
 endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.

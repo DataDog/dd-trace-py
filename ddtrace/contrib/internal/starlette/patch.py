@@ -1,8 +1,6 @@
 import inspect
 import os
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import starlette
@@ -31,6 +29,7 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Span  # noqa:F401
+from ddtrace.trace import tracer
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -57,8 +56,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(starlette, "__version__", "")
 
 
@@ -66,7 +64,7 @@ _STARLETTE_VERSION = parse_version(get_version())
 _STARLETTE_VERSION_LTE_0_33_0 = _STARLETTE_VERSION <= parse_version("0.33.0")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"starlette": ">=0.14.0"}
 
 
@@ -141,7 +139,7 @@ def unpatch():
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
-    scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
+    scope: Optional[dict[str, Any]] = get_argument_value(args, kwargs, 0, "scope")
     if not scope:
         return wrapped(*args, **kwargs)
 
@@ -158,8 +156,8 @@ def traced_handler(wrapped, instance, args, kwargs):
     else:
         scope["datadog"]["resource_paths"].append(instance.path)
 
-    request_spans = scope["datadog"].get("request_spans", [])  # type: List[Span]
-    resource_paths = scope["datadog"].get("resource_paths", [])  # type: List[str]
+    request_spans: list[Span] = scope["datadog"].get("request_spans", [])
+    resource_paths: list[str] = scope["datadog"].get("resource_paths", [])
 
     if len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
@@ -225,12 +223,12 @@ def traced_handler(wrapped, instance, args, kwargs):
 @with_traced_module
 def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
     task = get_argument_value(args, kwargs, 0, "func")
-    current_span = pin.tracer.current_span()
+    current_span = tracer.current_span()
     module_name = getattr(module, "__name__", "<unknown>")
     task_name = getattr(task, "__name__", "<unknown>")
 
     async def traced_task(*args, **kwargs):
-        with pin.tracer.start_span(
+        with tracer.start_span(
             f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
         ) as span:
             if current_span:

@@ -3,7 +3,6 @@ Some utils used by the dogtrace valkey integration
 """
 
 from contextlib import contextmanager
-from typing import List
 from typing import Optional
 
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -18,13 +17,14 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import stringify_cache_args
+from ddtrace.trace import tracer
 
 
 format_command_args = stringify_cache_args
 
 
 def _set_span_tags(
-    span, pin, config_integration, args: Optional[List], instance, query: Optional[List], is_cluster: bool = False
+    span, pin, config_integration, args: Optional[list], instance, query: Optional[list], is_cluster: bool = False
 ):
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span._set_tag_str(COMPONENT, config_integration.integration_name)
@@ -71,7 +71,7 @@ def _instrument_valkey_execute_pipeline(pin, config_integration, cmds, instance,
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),
@@ -87,7 +87,7 @@ def _instrument_valkey_execute_async_cluster_pipeline(pin, config_integration, c
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cache_operation(valkeyx.CMD, cache_provider=valkeyx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),

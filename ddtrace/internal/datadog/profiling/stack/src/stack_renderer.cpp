@@ -1,21 +1,16 @@
 #include "stack_renderer.hpp"
 
+#include "sampler.hpp"
 #include "thread_span_links.hpp"
 
 #include "dd_wrapper/include/sample_manager.hpp"
 
+#include "echion/echion_sampler.h"
 #include "echion/strings.h"
 #include <ddup_interface.hpp>
 #include <unordered_map>
 
 using namespace Datadog;
-
-void
-StackRenderer::render_message(std::string_view msg)
-{
-    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
-    (void)msg;
-}
 
 void
 StackRenderer::render_thread_begin(PyThreadState* tstate,
@@ -71,7 +66,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
+StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 {
     static bool failed = false;
     if (failed) {
@@ -116,7 +111,7 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
 }
 
 void
-StackRenderer::render_stack_begin(long long, long long, const std::string&)
+StackRenderer::render_stack_begin()
 {
     // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
@@ -137,6 +132,8 @@ StackRenderer::render_frame(Frame& frame)
     static constexpr std::string_view missing_filename = "<unknown file>";
     static constexpr std::string_view missing_name = "<unknown function>";
 
+    const auto& string_table = Sampler::get().get_echion().string_table();
+
     auto line = frame.location.line;
 
     string_id name_id;
@@ -150,7 +147,11 @@ StackRenderer::render_frame(Frame& frame)
             name_str = missing_name;
         }
 
-        name_id = Datadog::intern_string(name_str);
+        auto maybe_interned_name_id = Datadog::intern_string(name_str);
+        if (!maybe_interned_name_id) {
+            return;
+        }
+        name_id = *maybe_interned_name_id;
         string_id_cache.insert({ frame.name, name_id });
     } else {
         name_id = maybe_name_id->second;
@@ -187,7 +188,11 @@ StackRenderer::render_frame(Frame& frame)
             filename_str = missing_filename;
         }
 
-        filename_id = Datadog::intern_string(filename_str);
+        auto maybe_interned_filename_id = Datadog::intern_string(filename_str);
+        if (!maybe_interned_filename_id) {
+            return;
+        }
+        filename_id = *maybe_interned_filename_id;
         string_id_cache.insert({ frame.filename, filename_id });
     } else {
         filename_id = maybe_filename_id->second;
@@ -196,7 +201,11 @@ StackRenderer::render_frame(Frame& frame)
     function_id function_id;
     auto maybe_function_id = function_id_cache.find({ name_id, filename_id });
     if (maybe_function_id == function_id_cache.end()) {
-        function_id = Datadog::intern_function(name_id, filename_id);
+        auto maybe_interned_function_id = Datadog::intern_function(name_id, filename_id);
+        if (!maybe_interned_function_id) {
+            return;
+        }
+        function_id = *maybe_interned_function_id;
         function_id_cache.insert({ { static_cast<void*>(name_id), static_cast<void*>(filename_id) }, function_id });
     } else {
         function_id = maybe_function_id->second;
@@ -220,7 +229,7 @@ StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 }
 
 void
-StackRenderer::render_stack_end(MetricType, uint64_t)
+StackRenderer::render_stack_end()
 {
     if (sample == nullptr) {
         std::cerr << "Ending a stack without any context.  Some profiling data has been lost." << std::endl;
@@ -233,23 +242,12 @@ StackRenderer::render_stack_end(MetricType, uint64_t)
     sample = nullptr;
 }
 
-bool
-StackRenderer::is_valid()
-{
-    // In general, echion may need to check whether the extension has invalid state before calling into it,
-    // but in this case it doesn't matter
-    return true;
-}
-
-Result<void>
-Datadog::StackRenderer::open()
+Datadog::StackRenderer::StackRenderer()
 {
     function_id_cache.reserve(100'000);
     function_id_cache.max_load_factor(0.7f);
     string_id_cache.reserve(100'000);
     string_id_cache.max_load_factor(0.7f);
-
-    return Result<void>::ok();
 }
 
 void

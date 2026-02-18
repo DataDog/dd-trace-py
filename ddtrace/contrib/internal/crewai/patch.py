@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 import crewai
 
@@ -11,6 +10,7 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
+from ddtrace.trace import tracer
 
 
 def get_version() -> str:
@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 config._add("crewai", {})
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"crewai": ">=0.102"}
 
 
@@ -92,7 +92,7 @@ def traced_task_execute_async(crewai, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_task_get_context(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
-    span = pin.tracer.current_span()
+    span = tracer.current_span()
     result = func(*args, **kwargs)
     integration._llmobs_set_span_link_on_task(span, args, kwargs)
     return result
@@ -175,7 +175,7 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
 def patched_find_triggered_methods(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
     result = func(*args, **kwargs)
-    current_span = pin.tracer.current_span()
+    current_span = tracer.current_span()
     integration.llmobs_set_span_links_on_flow(current_span, args, kwargs, instance)
     return result
 

@@ -23,7 +23,12 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
     // Private helper function for creating a ddog_prof_Profile from arguments
 
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto dict = Datadog::internal::get_profiles_dictionary();
+    auto maybe_dict = Datadog::internal::get_profiles_dictionary();
+    if (!maybe_dict) {
+        return false;
+    }
+
+    auto& dict = maybe_dict.value();
     auto res = ddog_prof_Profile_with_dictionary(&profile, &dict, sample_types, period);
     if (res.flags) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         if (!already_warned) {
@@ -64,7 +69,7 @@ Datadog::Profile::reset_profile()
 void
 Datadog::Profile::cleanup()
 {
-    // Clear the profile before using it
+    // Drop the profile and release its resources
     ddog_prof_Profile_drop(&cur_profile);
 }
 

@@ -1,6 +1,5 @@
 import inspect
 import os
-from typing import Dict
 
 from boto import __version__
 import boto.connection
@@ -22,6 +21,7 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 
 
 # Original boto client class
@@ -49,12 +49,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return __version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"boto": "*"}
 
 
@@ -87,7 +86,7 @@ def patched_query_request(original_func, instance, args, kwargs):
 
     endpoint_name = instance.host.split(".")[0]
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),
@@ -168,7 +167,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
 
     endpoint_name = instance.host.split(".")[0]
 
-    with pin.tracer.trace(
+    with tracer.trace(
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
         ),

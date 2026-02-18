@@ -6,11 +6,7 @@ import copy
 import os
 import sys
 from typing import Any
-from typing import Dict  # noqa:F401
-from typing import List
-from typing import Set
 from typing import Text
-from typing import Tuple  # noqa:F401
 
 from ..._constants import IAST
 from .._metrics import _set_metric_iast_instrumented_propagation
@@ -20,8 +16,6 @@ from ..constants import DEFAULT_SOURCE_IO_FUNCTIONS
 from ..constants import DEFAULT_SSRF_FUNCTIONS
 from ..constants import DEFAULT_WEAK_RANDOMNESS_FUNCTIONS
 
-
-PY39_PLUS = sys.version_info >= (3, 9, 0)
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
 CODE_TYPE_FIRST_PARTY = "first_party"
@@ -39,7 +33,7 @@ def _mark_avoid_convert_recursively(node):
             _mark_avoid_convert_recursively(child)
 
 
-_ASPECTS_SPEC: Dict[Text, Any] = {
+_ASPECTS_SPEC: dict[Text, Any] = {
     "definitions_module": "ddtrace.appsec._iast._taint_tracking.aspects",
     "alias_module": _PREFIX + "aspects",
     "functions": {
@@ -109,6 +103,7 @@ _ASPECTS_SPEC: Dict[Text, Any] = {
         "FORMAT_VALUE": _PREFIX + "aspects.format_value_aspect",
         ast.Mod: _PREFIX + "aspects.modulo_aspect",
         "BUILD_STRING": _PREFIX + "aspects.build_string_aspect",
+        "TEMPLATE_STRING": _PREFIX + "aspects.template_string_aspect",
     },
     "excluded_from_patching": {
         # Key: module being patched
@@ -181,6 +176,7 @@ class AstVisitor(ast.NodeTransformer):
         self._aspect_modules = _ASPECTS_SPEC["module_functions"]
         self._aspect_format_value = _ASPECTS_SPEC["operators"]["FORMAT_VALUE"]
         self._aspect_build_string = _ASPECTS_SPEC["operators"]["BUILD_STRING"]
+        self._aspect_template_string = _ASPECTS_SPEC["operators"]["TEMPLATE_STRING"]
 
         # Sink points
         self._taint_sink_replace_any = self._merge_dicts(
@@ -203,7 +199,7 @@ class AstVisitor(ast.NodeTransformer):
         self.module_name = module_name
         self.ast_modified = False
 
-        excluded_from_patching: Dict[str, Dict[str, Tuple[str]]] = _ASPECTS_SPEC["excluded_from_patching"]
+        excluded_from_patching: dict[str, dict[str, tuple[str]]] = _ASPECTS_SPEC["excluded_from_patching"]
         self.excluded_functions = excluded_from_patching.get(self.module_name, {})
         self.dont_patch_these_functionsdefs = set()
         for _, v in self.excluded_functions.items():
@@ -226,7 +222,7 @@ class AstVisitor(ast.NodeTransformer):
             self.codetype = CODE_TYPE_STDLIB
 
     @staticmethod
-    def _merge_dicts(*args_functions: Set[str]) -> Set[str]:
+    def _merge_dicts(*args_functions: set[str]) -> set[str]:
         merged_set = set()
 
         for functions in args_functions:
@@ -347,7 +343,7 @@ class AstVisitor(ast.NodeTransformer):
         name_node = self._name_node(from_node, name_attr, ctx=ctx)
         return self._node(ast.Attribute, from_node, attr=attr_attr, ctx=ctx, value=name_node)
 
-    def _assign_node(self, from_node: Any, targets: List[Any], value: Any) -> Any:
+    def _assign_node(self, from_node: Any, targets: list[Any], value: Any) -> Any:
         return self._node(
             ast.Assign,
             from_node,
@@ -412,7 +408,7 @@ class AstVisitor(ast.NodeTransformer):
             kind=None,
         )
 
-    def _call_node(self, from_node: Any, func: Any, args: List[Any]) -> Any:
+    def _call_node(self, from_node: Any, func: Any, args: list[Any]) -> Any:
         return self._node(ast.Call, from_node, func=func, args=args, keywords=[])
 
     def visit_Module(self, module_node: ast.Module) -> Any:
@@ -752,6 +748,94 @@ class AstVisitor(ast.NodeTransformer):
         _set_metric_iast_instrumented_propagation()
         return call_node
 
+    def visit_TemplateStr(self, templatestr_node: Any) -> Any:
+        """
+        Replace the TemplateStr AST node (PEP-750 template strings) with a Call to the replacement function.
+        Template strings contain Interpolation nodes and Constant nodes.
+        We pass enough information to reconstruct the Template object with correct metadata.
+        """
+        # IMPORTANT: Extract original expression texts BEFORE transforming the AST
+        # Store them as attributes on the nodes so we can access them after transformation
+        for node in templatestr_node.values:
+            if hasattr(node, "value") and not isinstance(node, ast.Constant):
+                # This is an Interpolation node - save the original expression text
+                node._original_expr_text = ast.unparse(node.value)
+
+        # Now transform the AST (this will wrap expressions with aspect calls)
+        self.generic_visit(templatestr_node)
+
+        # Build args for the aspect call:
+        # - String constants: passed as-is (ast.Constant nodes)
+        # - Interpolations: pass as ast.Tuple with (value_expr, expr_text, conversion, format_spec)
+        args = []
+        for node in templatestr_node.values:
+            if hasattr(node, "value") and not isinstance(node, ast.Constant):
+                # This is an Interpolation node
+                # Use the original expression text we saved earlier
+                expr_text = getattr(node, "_original_expr_text", ast.unparse(node.value))
+
+                # Get conversion: -1 means no conversion, otherwise 's', 'r', or 'a'
+                conversion_value = getattr(node, "conversion", -1)
+                if conversion_value == -1:
+                    conversion_node = ast.Constant(value=None)
+                else:
+                    # Convert integer to character: 115='s', 114='r', 97='a'
+                    conversion_char = chr(conversion_value) if isinstance(conversion_value, int) else conversion_value
+                    conversion_node = ast.Constant(value=conversion_char)
+
+                # Get format_spec
+                format_spec_node = getattr(node, "format_spec", None)
+                if format_spec_node is None:
+                    format_spec_ast = ast.Constant(value="")
+                else:
+                    # format_spec could be an expression, we'll evaluate it at runtime
+                    format_spec_ast = format_spec_node
+
+                # Create a tuple: (value_expr, expr_text, conversion, format_spec)
+                interp_tuple = ast.Tuple(
+                    elts=[
+                        node.value,  # The expression to evaluate
+                        ast.Constant(value=expr_text),  # Expression text
+                        conversion_node,  # Conversion
+                        format_spec_ast,  # Format spec
+                    ],
+                    ctx=ast.Load(),
+                )
+                args.append(interp_tuple)
+            else:
+                # This is a Constant node (string part)
+                args.append(node)
+
+        func_name_node = self._attr_node(
+            templatestr_node,
+            self._aspect_template_string,
+            ctx=ast.Load(),
+        )
+        call_node = self._call_node(
+            templatestr_node,
+            func=func_name_node,
+            args=args,
+        )
+
+        self.ast_modified = True
+        _set_metric_iast_instrumented_propagation()
+        return call_node
+
+    def visit_Interpolation(self, interpolation_node: Any) -> Any:
+        """
+        Visit an Interpolation node (part of a template string).
+        Interpolation nodes contain a value expression that needs to be evaluated.
+        """
+        self.generic_visit(interpolation_node)
+
+        # Optimization: if the value is a constant or binop, no need to wrap
+        if hasattr(interpolation_node, "value") and self._is_node_constant_or_binop(interpolation_node.value):
+            return interpolation_node
+
+        # For now, just return the node as-is since the template_string_aspect
+        # will handle taint propagation from the interpolation values
+        return interpolation_node
+
     def visit_Assign(self, assign_node: ast.Assign) -> Any:
         """
         Add the ignore marks for left-side subscripts or list/tuples to avoid problems
@@ -760,14 +844,18 @@ class AstVisitor(ast.NodeTransformer):
         if isinstance(assign_node.value, ast.Subscript):
             if hasattr(assign_node.value, "value") and hasattr(assign_node.value.value, "id"):
                 # Best effort to avoid converting type definitions
+                # Support both typing module style (Dict, List, Tuple) and Python 3.9+ style (dict, list, tuple)
                 if assign_node.value.value.id in (
                     "Callable",
                     "Dict",
+                    "dict",
                     "Generator",
                     "List",
+                    "list",
                     "Optional",
                     "Sequence",
                     "Tuple",
+                    "tuple",
                     "Type",
                     "TypeVar",
                     "Union",
@@ -779,7 +867,7 @@ class AstVisitor(ast.NodeTransformer):
                 # We can't assign to a function call, which is anyway going to rewrite
                 # the index destination so we just ignore that target
                 target.avoid_convert = True  # type: ignore[attr-defined]
-            elif isinstance(target, (List, ast.Tuple)):
+            elif isinstance(target, (ast.List, ast.Tuple)):
                 # Same for lists/tuples on the left side of the assignment
                 for element in target.elts:
                     if isinstance(element, ast.Subscript):
@@ -853,17 +941,15 @@ class AstVisitor(ast.NodeTransformer):
             step = none_node if subscr_node.slice.step is None else subscr_node.slice.step
             call_node.args.extend([subscr_node.value, lower, upper, step])
             self.ast_modified = True
-        elif PY39_PLUS:
+        else:
+            # Index case: subscr_node.slice is directly an unwrapped value
+            # (e.g. Constant for a number, Name for a var, etc)
             if self._is_string_node(subscr_node.slice):
                 return subscr_node
-            # In Py39+ the if subscr_node.slice member is not a Slice, is directly an unwrapped value
-            # for the index (e.g. Constant for a number, Name for a var, etc)
             aspect_split = self._aspect_index.split(".")
             call_node.func.attr = aspect_split[1]
             call_node.func.value.id = aspect_split[0]
             call_node.args.extend([subscr_node.value, subscr_node.slice])
-        else:
-            return subscr_node
+            self.ast_modified = True
 
-        self.ast_modified = True
         return call_node

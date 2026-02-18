@@ -1,5 +1,3 @@
-from typing import Dict
-
 from google import protobuf
 from google.protobuf.internal import builder
 import wrapt
@@ -7,6 +5,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils.wrappers import unwrap
+from ddtrace.trace import tracer
 
 from .schema_iterator import SchemaExtractor
 
@@ -20,12 +19,11 @@ config._add(
 _WRAPPED_MESSAGE_CLASSES = []
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(protobuf, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"protobuf": "*"}
 
 
@@ -103,7 +101,7 @@ def _traced_deserialize_message(func, instance, args, kwargs, msg_descriptor):
     if not pin or not pin.enabled():
         func(*args, **kwargs)
 
-    active = pin.tracer.current_span()
+    active = tracer.current_span()
 
     try:
         func(*args, **kwargs)
@@ -117,7 +115,7 @@ def _traced_serialize_message(func, instance, args, kwargs, msg_descriptor):
     if not pin or not pin.enabled() or not msg_descriptor:
         return func(*args, **kwargs)
 
-    active = pin.tracer.current_span()
+    active = tracer.current_span()
 
     try:
         return func(*args, **kwargs)

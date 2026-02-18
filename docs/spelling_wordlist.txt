@@ -59,6 +59,8 @@ CGroup
 cgroups
 cherrypy
 ciapp
+claude
+claude-agent-sdk
 client_ip
 CMake
 codepath
@@ -283,6 +285,7 @@ runtimes
 Runtimes
 sanic
 screenshots
+sdk
 serializable
 serverless
 Serverless
@@ -343,6 +346,7 @@ url
 urls
 username
 uvicorn
+uvloop
 uWSGI
 valkey
 vendored

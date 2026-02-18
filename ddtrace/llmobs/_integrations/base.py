@@ -1,7 +1,5 @@
 import abc
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
@@ -16,6 +14,7 @@ from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.trace import Span
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -52,9 +51,9 @@ class BaseLLMIntegration:
         """
         span_name = kwargs.get("span_name", None) or "{}.request".format(self._integration_name)
         span_type = SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None
-        parent_context = kwargs.get("parent_context") or pin.tracer.context_provider.active()
+        parent_context = kwargs.get("parent_context") or tracer.context_provider.active()
 
-        span = pin.tracer.start_span(
+        span = tracer.start_span(
             span_name,
             child_of=parent_context,
             service=int_service(pin, self.integration_config),
@@ -79,8 +78,8 @@ class BaseLLMIntegration:
     def llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -96,14 +95,14 @@ class BaseLLMIntegration:
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
         raise NotImplementedError()
 
-    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None
 
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:

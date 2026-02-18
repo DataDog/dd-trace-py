@@ -23,6 +23,8 @@ jobs:
             cp-version: 'cp312'
           - python-version: '3.13'
             cp-version: 'cp313'
+          - python-version: '3.14'
+            cp-version: 'cp314'
     env:
       CIBW_BUILD: ${{ matrix.cp-version }}-manylinux_x86_64
       CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
@@ -30,17 +32,17 @@ jobs:
       CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6.1.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.13"
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@63fd63b352a9a8bdcc24791c9dbee952ee9a8abc # v3.3.0
+        uses: pypa/cibuildwheel@298ed2fb2c105540f5ed055e8a6ad78d82dd3a7e # v3.3.1
 
       - name: Upload artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -62,6 +64,7 @@ jobs:
           # runs django-poc for 3.12
           - weblog-variant: python3.12
           - weblog-variant: django-py3.13
+          - weblog-variant: tornado
       fail-fast: false
     env:
       TEST_LIBRARY: python
@@ -72,12 +75,12 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'bafc8bc606d76170d98ce3cdb13c75a1ea9cf924'
+          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -106,7 +109,7 @@ jobs:
     needs: [system-tests-build-weblog]
     strategy:
       matrix:
-        weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13]
+        weblog-variant: [flask-poc, uwsgi-poc , django-poc, fastapi, python3.12, django-py3.13, tornado]
         scenario: [remote-config, appsec, appsec-1, other]
         include:
           - weblog-variant: flask-poc
@@ -125,12 +128,12 @@ jobs:
     steps:
 
       - name: Checkout system tests
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'bafc8bc606d76170d98ce3cdb13c75a1ea9cf924'
+          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -330,12 +333,12 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'bafc8bc606d76170d98ce3cdb13c75a1ea9cf924'
+          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -367,7 +370,7 @@ jobs:
     needs: [build-wheels]
     steps:
       - name: Checkout datadog-lambda-python
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
           repository: "DataDog/datadog-lambda-python"
@@ -381,8 +384,7 @@ jobs:
       - name: Build datadog_lambda layer
         run: |
           wheel_path=$(find ./artifacts -name "*.whl" | head -n 1)
-          sed -i 's|^ddtrace =.*$|ddtrace = { file = "'"$wheel_path"'" }|' pyproject.toml
-          ARCH=amd64 PYTHON_VERSION=3.13 ./scripts/build_layers.sh
+          ARCH=amd64 PYTHON_VERSION=3.13 DD_TRACE_WHEEL=$wheel_path ./scripts/build_layers.sh
 
       - name: Upload layer artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -393,7 +395,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@bafc8bc606d76170d98ce3cdb13c75a1ea9cf924
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
     secrets: inherit
     permissions:
       contents: read
@@ -424,7 +426,7 @@ jobs:
   integration-frameworks-system-tests:
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@bafc8bc606d76170d98ce3cdb13c75a1ea9cf924
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
     secrets: inherit
     permissions:
       contents: read

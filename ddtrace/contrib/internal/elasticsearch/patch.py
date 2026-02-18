@@ -1,7 +1,6 @@
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as get_package_version
-from typing import Dict
 from urllib import parse
 
 from wrapt import wrap_function_wrapper as _w
@@ -23,6 +22,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
+from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -63,17 +63,15 @@ def get_version_tuple(elasticsearch):
     return getattr(elasticsearch, "__version__", "")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"elasticsearch": ">=1.10"}
 
 
-def get_versions():
-    # type: () -> Dict[str, str]
+def get_versions() -> dict[str, str]:
     if not ES_MODULE_VERSIONS:
         for es_module in ES_PACKAGE_TO_MODULE_NAME.keys():
             try:
@@ -139,7 +137,7 @@ def _get_perform_request_coro(transport):
             yield func(*args, **kwargs)
             return
 
-        with pin.tracer.trace(
+        with tracer.trace(
             "elasticsearch.query", service=ext_service(pin, config.elasticsearch), span_type=SpanTypes.ELASTICSEARCH
         ) as span:
             if pin.tags:

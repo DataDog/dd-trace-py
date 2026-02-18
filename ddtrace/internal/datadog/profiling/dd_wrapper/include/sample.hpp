@@ -5,6 +5,7 @@
 #include "profile_borrow.hpp"
 #include "types.hpp"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -13,6 +14,13 @@ extern "C"
 {
 #include "datadog/profiling.h"
 }
+
+// Forward declaration of Python types.
+// We avoid including Python.h in this public C++ header because CPython headers
+// use old-style casts and our build treats old-style casts as errors. Keep
+// Python includes in implementation files when full API access is required.
+struct _frame;
+typedef struct _frame PyFrameObject;
 
 namespace Datadog {
 
@@ -32,7 +40,8 @@ struct StringArena
     // allocate) that is bigger than any actual sample string size seen over a
     // random selection of a few hundred Python profiles at Datadog. So ideally
     // we only need one chunk, which we can reuse between samples
-    static constexpr size_t DEFAULT_SIZE = 16 * 1024;
+    static constexpr size_t KB = 1024;
+    static constexpr size_t DEFAULT_SIZE = 16 * KB;
     // Strings are backed by fixed-size Chunks. The Chunks can't grow, or
     // they'll move and invalidate pointers into the arena. At the same time,
     // they must be dynamically sized at creation because we get arbitrary
@@ -57,9 +66,10 @@ struct StringArena
 using string_id = ddog_prof_StringId2;
 using function_id = ddog_prof_FunctionId2;
 
-string_id
+std::optional<string_id>
 intern_string(std::string_view s);
-function_id
+
+std::optional<function_id>
 intern_function(string_id name, string_id filename);
 
 class SampleManager; // friend
@@ -81,6 +91,7 @@ class Sample
     // Keeps temporary buffer of frames in the stack
     std::vector<ddog_prof_Location2> locations;
     size_t dropped_frames = 0;
+    bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
     // Storage for labels
@@ -143,6 +154,14 @@ class Sample
                     uint64_t address,        // for ddog_prof_Location
                     int64_t line             // for ddog_prof_Location
     );
+
+    // Push an entire PyFrameObject chain to the sample.
+    // This walks the frame chain and pushes each frame in leaf-to-root order.
+    // Ownership: this function does not take ownership of the initial `frame`
+    // argument. The caller is responsible for DECREF'ing that frame after this
+    // call returns. Frames obtained internally via PyFrame_GetBack() are
+    // released by this function.
+    void push_pyframes(PyFrameObject* frame);
 
     // Set whether to reverse locations when exporting/flushing
     void set_reverse_locations(bool reverse) { reverse_locations = reverse; }
