@@ -84,11 +84,13 @@ def _wrap_send(func, instance, args, kwargs):
 
     with core.context_with_event(
         HttpClientRequestEvent(
-            operation_name="requests.request",
+            http_operation="requests.request",
             service=_get_service_name(request, hostname),
+            component=config.requests.integration_name,
             resource=f"{method} {path}",
             config=config.requests,
-            request=request,
+            request_method=request.method,
+            request_headers=request.headers,
             url=request.url,
             query=_extract_query_string(url),
             target_host=host_without_port,
@@ -99,4 +101,7 @@ def _wrap_send(func, instance, args, kwargs):
             response = func(*args, **kwargs)
             return response
         finally:
-            ctx.set_item("response", response)
+            if response is not None:
+                event: HttpClientRequestEvent = ctx.event
+                event.response_headers = getattr(response, "headers", {})
+                event.response_status_code = response.status_code

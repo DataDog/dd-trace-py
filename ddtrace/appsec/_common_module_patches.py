@@ -209,10 +209,10 @@ def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[
 
 
 def wrapped_request(original_request_callable, instance, args, kwargs):
-    full_url = core.get_item("full_url")
+    full_url = core.find_item("full_url")
     env = _get_asm_context()
     if _get_rasp_capability("ssrf") and full_url is not None and env is not None:
-        use_body = core.get_item("use_body", False)
+        use_body = core.find_item("use_body", False)
         method = args[0] if len(args) > 0 else kwargs.get("method", None)
         body = args[2] if len(args) > 2 else kwargs.get("body", None)
         headers = args[3] if len(args) > 3 else kwargs.get("headers", {})
@@ -330,11 +330,11 @@ def _parse_headers_urllib3(headers):
 
 
 def wrapped_urllib3_make_request(original_request_callable, instance, args, kwargs):
-    full_url = core.get_item("full_url")
+    full_url = core.find_item("full_url")
     env = _get_asm_context()
     do_rasp = _get_rasp_capability("ssrf") and full_url is not None and env is not None
     if do_rasp:
-        use_body = core.get_item("use_body", False)
+        use_body = core.find_item("use_body", False)
         method = args[1] if len(args) > 1 else kwargs.get("method", None)
         body = args[3] if len(args) > 3 else kwargs.get("body", None)
         headers = _parse_headers_urllib3(args[4] if len(args) > 4 else kwargs.get("headers", {}))
@@ -370,7 +370,7 @@ def wrapped_urllib3_make_request(original_request_callable, instance, args, kwar
 
 def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
     full_url = args[2] if len(args) > 2 else kwargs.get("url", None)
-    if core.get_item("full_url") is None:
+    if core.find_item("full_url") is None:
         core.set_item("full_url", full_url)
     try:
         return original_open_callable(*args, **kwargs)

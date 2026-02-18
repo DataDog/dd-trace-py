@@ -8,7 +8,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.events.http_client import HttpClientRequestEvent
+from ddtrace.contrib.events.httpx import HttpxRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
@@ -95,10 +95,12 @@ async def _wrapped_async_send(
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(
-        HttpClientRequestEvent(
-            operation_name="http.request",
+        HttpxRequestEvent(
+            http_operation="http.request",
             service=_get_service_name(req),
-            request=req,
+            component=config.httpx.integration_name,
+            request_method=req.method,
+            request_headers=req.headers,
             config=config.httpx,
             url=httpx_url_to_str(req.url),
             query=req.url.query,
@@ -110,7 +112,12 @@ async def _wrapped_async_send(
             resp = await wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                event: HttpxRequestEvent = ctx.event
+                event.response_headers = getattr(resp, "headers", {})
+                event.response_status_code = resp.status_code
+                # Keep raw response available for AppSec body analysis hooks.
+                ctx.set_item("response", resp)
 
 
 def _wrapped_sync_send(
@@ -119,10 +126,12 @@ def _wrapped_sync_send(
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(
-        HttpClientRequestEvent(
-            operation_name="http.request",
+        HttpxRequestEvent(
+            component=config.httpx.integration_name,
+            http_operation="http.request",
             service=_get_service_name(req),
-            request=req,
+            request_method=req.method,
+            request_headers=req.headers,
             config=config.httpx,
             url=httpx_url_to_str(req.url),
             query=req.url.query,
@@ -134,7 +143,12 @@ def _wrapped_sync_send(
             resp = wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                event: HttpxRequestEvent = ctx.event
+                event.response_headers = getattr(resp, "headers", {})
+                event.response_status_code = resp.status_code
+                # Keep raw response available for AppSec body analysis hooks.
+                ctx.set_item("response", resp)
 
 
 def patch() -> None:

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
-from typing import Any
+from typing import MutableMapping
 from typing import Optional
 
 from ddtrace.ext import SpanKind
@@ -32,17 +32,19 @@ class HttpClientRequestEvent(TracingEvent):
     span_kind = SpanKind.CLIENT
     span_type = SpanTypes.HTTP
 
-    operation_name: str = event_field()
+    http_operation: str = event_field()
     url: str = event_field()
     query: str = event_field()
     target_host: Optional[str] = event_field()
-    request: Any = event_field()
+    request_method: str = event_field()
+    request_headers: MutableMapping[str, str] = event_field()
+    response_headers: MutableMapping[str, str] = event_field(default_factory=dict)
+    response_status_code: Optional[int] = event_field(default=None)
     config: "IntegrationConfig" = event_field()
 
     measured: bool = True
 
     def __post_init__(self):
-        self.set_component(self.config.integration_name)
-        self.set_span_name(
-            schematize_url_operation(self.operation_name, protocol="http", direction=SpanDirection.OUTBOUND)
+        self.span_name = schematize_url_operation(
+            self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
