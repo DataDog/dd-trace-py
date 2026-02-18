@@ -3937,5 +3937,14 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="claude_agent_sdk",
+            command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
+            pys=select_pys(min_version="3.10"),
+            pkgs={
+                "claude-agent-sdk": ["==0.0.23", "==0.1.29", latest],
+                "pytest-asyncio": latest,
+            },
+        ),
     ],
 )
