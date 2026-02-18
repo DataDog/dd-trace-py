@@ -242,6 +242,33 @@ def test_git_safe_directory_override_uses_realpath_for_symlinked_repo(monkeypatc
     ]
 
 
+def test_git_safe_directory_override_uses_bare_repo_root(monkeypatch, tmp_path):
+    repo = tmp_path / "repo.git"
+    repo.mkdir()
+    (repo / "objects").mkdir()
+    (repo / "refs").mkdir()
+    (repo / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    subdir = repo / "objects" / "pack"
+    subdir.mkdir(parents=True)
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
+
+        def communicate(self, input=None):  # noqa: A002
+            return b"", b""
+
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
+
+    git._git_subprocess_cmd_with_details("status", cwd=str(subdir))
+
+    assert captured["args"][:3] == ["/usr/bin/git", "-c", "safe.directory={0}".format(str(repo))]
+
+
 def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
     """Test that user-provided git metadata overwrites CI provided env vars."""
     ci_env = {
