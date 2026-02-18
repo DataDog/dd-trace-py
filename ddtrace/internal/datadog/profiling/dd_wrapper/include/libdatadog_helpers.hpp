@@ -41,6 +41,7 @@ intern_string(std::string_view s);
 // to have spaces in the names.
 #define EXPORTER_LABELS(X)                                                                                             \
     X(exception_type, "exception type")                                                                                \
+    X(exception_message, "exception message")                                                                          \
     X(thread_id, "thread id")                                                                                          \
     X(thread_native_id, "thread native id")                                                                            \
     X(thread_name, "thread name")                                                                                      \
