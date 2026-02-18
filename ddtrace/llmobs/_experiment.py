@@ -506,7 +506,7 @@ class Dataset:
 
     def push(
         self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
-    ) -> bool:
+    ):
         """Pushes any local changes in this dataset since the last push.
 
         :param deduplicate:
@@ -526,6 +526,11 @@ class Dataset:
             - None:
                 The SDK chooses between the above two approaches using data size.
         """
+        self._push(deduplicate, create_new_version, bulk_upload)
+
+    def _push(
+        self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
+    ) -> bool:
         if not self._id:
             raise ValueError(
                 (
