@@ -4,6 +4,7 @@ from _pytest.pytester import Pytester
 import pytest
 from pytest import MonkeyPatch
 
+from ddtrace.contrib.internal.coverage.patch import reset_coverage_state
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
@@ -17,6 +18,12 @@ class TestPytestCovPercentage:
     def isolate_coverage_upload_env(self, monkeypatch: MonkeyPatch) -> None:
         """Unset coverage upload env var so tests are not affected by external environment."""
         monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
+
+    @pytest.fixture(autouse=True)
+    def reset_coverage_cache(self) -> None:
+        reset_coverage_state()
+        yield
+        reset_coverage_state()
 
     def test_pytest_cov_percentage_enabled(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         pytester.makepyfile(
