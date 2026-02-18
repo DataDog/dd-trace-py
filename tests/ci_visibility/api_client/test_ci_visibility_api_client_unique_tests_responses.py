@@ -122,7 +122,5 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
 
         with mock.patch.object(client, "_do_request", side_effect=[response_page_1, response_page_2]):
             assert client.fetch_known_tests(read_from_cache=False) == set(
-                _make_fqdn_test_ids(
-                    [("module1", "suite1.py", "test1"), ("module1", "suite1.py", "test2")]
-                )
+                _make_fqdn_test_ids([("module1", "suite1.py", "test1"), ("module1", "suite1.py", "test2")])
             )
