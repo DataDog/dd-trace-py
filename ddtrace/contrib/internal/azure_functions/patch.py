@@ -2,7 +2,6 @@ import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings._config import _get_config
@@ -37,7 +36,6 @@ def patch():
         return
     azure_functions._datadog_patch = True
 
-    Pin().onto(azure_functions.FunctionApp)
     _w("azure.functions", "FunctionApp.get_functions", patched_get_functions)
 
 
