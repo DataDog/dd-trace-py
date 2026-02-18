@@ -115,6 +115,12 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
+from ddtrace.llmobs._prompt_optimization import validate_dataset
+from ddtrace.llmobs._prompt_optimization import validate_dataset_split
+from ddtrace.llmobs._prompt_optimization import validate_evaluators
+from ddtrace.llmobs._prompt_optimization import validate_optimization_task
+from ddtrace.llmobs._prompt_optimization import validate_task
+from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _batched
@@ -1020,99 +1026,6 @@ class LLMObs(Service):
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
-    @staticmethod
-    def _validate_task(task):
-        """Validate the task function signature.
-
-        :raises TypeError: If task is not callable or missing required parameters.
-        """
-        if not callable(task):
-            raise TypeError("task must be a callable function.")
-        sig = inspect.signature(task)
-        params = sig.parameters
-        if "input_data" not in params or "config" not in params:
-            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
-
-    @staticmethod
-    def _validate_optimization_task(optimization_task):
-        """Validate the optimization_task function signature.
-
-        :raises TypeError: If optimization_task is not callable or missing required parameters.
-        """
-        if not callable(optimization_task):
-            raise TypeError("optimization_task must be a callable function.")
-        sig = inspect.signature(optimization_task)
-        params = sig.parameters
-        if "system_prompt" not in params or "user_prompt" not in params or "config" not in params:
-            raise TypeError(
-                "optimization_task function must have 'system_prompt' and 'user_prompt' parameters. "
-                "It should call an LLM with these prompts and return an optimized prompt."
-            )
-
-    @staticmethod
-    def _validate_dataset(dataset):
-        """Validate that dataset is an LLMObs Dataset object.
-
-        :raises TypeError: If dataset is not a Dataset instance.
-        """
-        if not isinstance(dataset, Dataset):
-            raise TypeError("Dataset must be an LLMObs Dataset object.")
-
-    @staticmethod
-    def _validate_test_dataset(test_dataset):
-        """Validate the test_dataset parameter type.
-
-        :raises TypeError: If test_dataset is provided but not a string.
-        """
-        if test_dataset is not None and not isinstance(test_dataset, str):
-            raise TypeError("test_dataset must be a dataset name (string).")
-
-    @staticmethod
-    def _validate_dataset_split(dataset_split, test_dataset):
-        """Validate dataset_split parameter when it is a tuple of ratios.
-
-        :raises ValueError: If tuple ratios are invalid, don't sum to 1.0, or are
-                           incompatible with the test_dataset parameter.
-        """
-        if not isinstance(dataset_split, tuple):
-            return
-        if not all(isinstance(v, (int, float)) and 0 < v < 1 for v in dataset_split):
-            raise ValueError("dataset_split ratios must be floats between 0 and 1 (exclusive).")
-        if not (0.99 <= sum(dataset_split) <= 1.01):
-            raise ValueError("dataset_split ratios must sum to 1.0, got {:.4f}.".format(sum(dataset_split)))
-        if len(dataset_split) == 3 and test_dataset is not None:
-            raise ValueError(
-                "Cannot use a 3-tuple dataset_split with test_dataset. "
-                "Use a 2-tuple (train, valid) when providing a separate test dataset, "
-                "or a 3-tuple (train, valid, test) without test_dataset."
-            )
-        if len(dataset_split) == 2 and test_dataset is None:
-            raise ValueError(
-                "A 2-tuple dataset_split requires test_dataset. "
-                "Use a 3-tuple (train, valid, test) to split without a separate test dataset."
-            )
-        if len(dataset_split) not in (2, 3):
-            raise ValueError("dataset_split tuple must have 2 or 3 elements.")
-
-    @staticmethod
-    def _validate_evaluators(evaluators):
-        """Validate the list of evaluators.
-
-        :raises TypeError: If evaluators is empty or contains invalid entries.
-        """
-        if not evaluators:
-            raise TypeError("Evaluators must be a non-empty list of BaseEvaluator instances or callable functions.")
-        for evaluator in evaluators:
-            if isinstance(evaluator, BaseEvaluator):
-                continue
-            if not callable(evaluator):
-                raise TypeError("Evaluator must be a BaseEvaluator instance or a callable function.")
-            sig = inspect.signature(evaluator)
-            params = sig.parameters
-            evaluator_required_params = ("input_data", "output_data", "expected_output")
-            if not all(param in params for param in evaluator_required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
-
     @classmethod
     def _prompt_optimization(
         cls,
@@ -1250,12 +1163,12 @@ class LLMObs(Service):
             )
             results = opt.run()
         """
-        cls._validate_task(task)
-        cls._validate_optimization_task(optimization_task)
-        cls._validate_dataset(dataset)
-        cls._validate_test_dataset(test_dataset)
-        cls._validate_dataset_split(dataset_split, test_dataset)
-        cls._validate_evaluators(evaluators)
+        validate_task(task)
+        validate_optimization_task(optimization_task)
+        validate_dataset(dataset)
+        validate_test_dataset(test_dataset)
+        validate_dataset_split(dataset_split, test_dataset)
+        validate_evaluators(evaluators)
 
         pulled_test_dataset = None
         if test_dataset is not None:
