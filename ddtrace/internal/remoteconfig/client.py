@@ -340,7 +340,7 @@ class RemoteConfigClient:
                             "RC callback operation exceeded threshold",
                             tags={
                                 "product": product_name,
-                                "callback_type": "periodic",
+                                "callback_type": "payload",
                                 "elapsed_time": "%.3f" % elapsed_time,
                             },
                         )
