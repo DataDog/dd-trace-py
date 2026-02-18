@@ -166,8 +166,16 @@ def _is_bare_git_root(path: str) -> bool:
     )
 
 
-def _resolve_git_root(cwd: Optional[str]) -> str:
-    start_dir = os.path.abspath(cwd or os.getcwd())
+@cached(maxsize=256)
+def _resolve_git_root_cached(start_dir: str) -> str:
+    """Cached implementation of git root resolution.
+
+    Args:
+        start_dir: Absolute path to start searching from
+
+    Returns:
+        The git repository root path
+    """
     current = os.path.realpath(start_dir)
     log.debug("Finding git repository root for %s", current)
     while current:
@@ -184,6 +192,20 @@ def _resolve_git_root(cwd: Optional[str]) -> str:
             return os.path.realpath(start_dir)
         current = parent
     return os.path.realpath(start_dir)
+
+
+def _resolve_git_root(cwd: Optional[str]) -> str:
+    """Resolve the git repository root from a given directory.
+
+    Args:
+        cwd: Directory to start searching from, or None to use current directory
+
+    Returns:
+        The git repository root path
+    """
+    # Normalize to absolute path for consistent caching
+    start_dir = os.path.abspath(cwd or os.getcwd())
+    return _resolve_git_root_cached(start_dir)
 
 
 def _add_safe_directory_override(cmd: list[str], cwd: Optional[str]) -> list[str]:
