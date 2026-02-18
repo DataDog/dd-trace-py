@@ -4,7 +4,9 @@ from pathlib import Path
 import sys
 import threading
 import time
+from typing import Any
 
+from ddtrace.trace import Tracer
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
@@ -16,7 +18,7 @@ from tests.profiling.collector import pprof_utils
 pytestmark = pytest.mark.skipif(sys.version_info < (3, 10), reason="Exception profiling requires Python 3.10+")
 
 
-def _setup_profiler(tmp_path, test_name):
+def _setup_profiler(tmp_path: Path, test_name: str) -> str:
     """Configure ddup and return the output filename for profile parsing."""
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -29,54 +31,54 @@ def _setup_profiler(tmp_path, test_name):
 # Helper functions to throw exceptions
 
 
-def _raise_value_error():
+def _raise_value_error() -> None:
     raise ValueError("test value error")
 
 
-def _handle_value_error():
+def _handle_value_error() -> None:
     try:
         _raise_value_error()
     except ValueError:
         pass
 
 
-def _level_3():
+def _level_3() -> None:
     raise RuntimeError("deep error")
 
 
-def _level_2():
+def _level_2() -> None:
     _level_3()
 
 
-def _level_1():
+def _level_1() -> None:
     try:
         _level_2()
     except RuntimeError:
         pass
 
 
-def _raise_value_error_handled():
+def _raise_value_error_handled() -> None:
     try:
         raise ValueError("value error")
     except ValueError:
         pass
 
 
-def _raise_type_error_handled():
+def _raise_type_error_handled() -> None:
     try:
         raise TypeError("type error")
     except TypeError:
         pass
 
 
-def _raise_runtime_error_handled():
+def _raise_runtime_error_handled() -> None:
     try:
         raise RuntimeError("runtime error")
     except RuntimeError:
         pass
 
 
-def _nested_exception_handling():
+def _nested_exception_handling() -> None:
     try:
         try:
             raise ValueError("inner error")
@@ -86,13 +88,13 @@ def _nested_exception_handling():
         pass
 
 
-def _deep_recursion(depth):
+def _deep_recursion(depth: int) -> None:
     if depth == 0:
         raise ValueError("deep error")
     return _deep_recursion(depth - 1)
 
 
-def _handle_deep_exception():
+def _handle_deep_exception() -> None:
     try:
         _deep_recursion(20)
     except ValueError:
@@ -103,14 +105,14 @@ class CustomError(Exception):
     pass
 
 
-def _raise_custom_error():
+def _raise_custom_error() -> None:
     try:
         raise CustomError("custom exception")
     except CustomError:
         pass
 
 
-def _thread_raise_value_errors():
+def _thread_raise_value_errors() -> None:
     for _ in range(5):
         try:
             raise ValueError("thread exception")
@@ -118,7 +120,7 @@ def _thread_raise_value_errors():
             pass
 
 
-def _thread_raise_runtime_errors():
+def _thread_raise_runtime_errors() -> None:
     for _ in range(5):
         try:
             raise RuntimeError("thread exception")
@@ -126,7 +128,7 @@ def _thread_raise_runtime_errors():
             pass
 
 
-def test_exception_config_defaults():
+def test_exception_config_defaults() -> None:
     """Test that exception profiling config has expected default values."""
     from ddtrace.internal.settings.profiling import config as profiling_config
 
@@ -135,7 +137,7 @@ def test_exception_config_defaults():
     assert profiling_config.exception.collect_message is True
 
 
-def test_poisson_sampling_distribution():
+def test_poisson_sampling_distribution() -> None:
     """Test that Poisson sampling mean is close to the configured lambda."""
     from ddtrace.profiling.collector import _fast_poisson
 
@@ -151,7 +153,7 @@ def test_poisson_sampling_distribution():
 # Pprof profile tests
 
 
-def test_simple_exception_profiling(tmp_path: Path):
+def test_simple_exception_profiling(tmp_path: Path) -> None:
     """Test that exception type, stack locations, and thread info are captured."""
     output_filename = _setup_profiler(tmp_path, "test_simple_exception")
 
@@ -183,7 +185,7 @@ def test_simple_exception_profiling(tmp_path: Path):
     )
 
 
-def test_exception_stack_trace(tmp_path: Path):
+def test_exception_stack_trace(tmp_path: Path) -> None:
     """Test that a multi-level call chain is captured in the stack trace."""
     output_filename = _setup_profiler(tmp_path, "test_exception_stack")
 
@@ -212,7 +214,7 @@ def test_exception_stack_trace(tmp_path: Path):
     )
 
 
-def test_multiple_exception_types(tmp_path: Path):
+def test_multiple_exception_types(tmp_path: Path) -> None:
     """Test that all distinct exception types are captured."""
     output_filename = _setup_profiler(tmp_path, "test_multiple_exceptions")
 
@@ -238,7 +240,7 @@ def test_multiple_exception_types(tmp_path: Path):
         )
 
 
-def test_nested_exception_handling(tmp_path: Path):
+def test_nested_exception_handling(tmp_path: Path) -> None:
     """Test that both inner and outer exceptions are captured in nested try-except."""
     output_filename = _setup_profiler(tmp_path, "test_nested_exceptions")
 
@@ -269,7 +271,7 @@ def test_nested_exception_handling(tmp_path: Path):
         )
 
 
-def test_custom_exception_class(tmp_path: Path):
+def test_custom_exception_class(tmp_path: Path) -> None:
     """Test that custom exception classes are tracked with module-qualified names."""
     output_filename = _setup_profiler(tmp_path, "test_custom_exception")
 
@@ -298,7 +300,7 @@ def test_custom_exception_class(tmp_path: Path):
     )
 
 
-def test_max_nframe_limit(tmp_path: Path):
+def test_max_nframe_limit(tmp_path: Path) -> None:
     """Test that stack traces are truncated to max_nframe."""
     output_filename = _setup_profiler(tmp_path, "test_max_nframe")
 
@@ -325,12 +327,12 @@ def test_max_nframe_limit(tmp_path: Path):
         pytest.fail("No ValueError exception sample found")
 
 
-def test_multithreaded_exception_profiling(tmp_path: Path):
+def test_multithreaded_exception_profiling(tmp_path: Path) -> None:
     """Test exceptions from multiple threads are captured with correct types."""
     output_filename = _setup_profiler(tmp_path, "test_multithreaded")
 
     with exception.ExceptionCollector(sampling_interval=1):
-        threads = []
+        threads: list[threading.Thread] = []
         for i in range(3):
             t_val = threading.Thread(target=_thread_raise_value_errors, name=f"ExcThread-{i}")
             t_val.start()
@@ -358,7 +360,7 @@ def test_multithreaded_exception_profiling(tmp_path: Path):
         )
 
     # Verify samples came from multiple threads
-    thread_names = set()
+    thread_names: set[str] = set()
     for sample in samples:
         label = pprof_utils.get_label_with_key(profile.string_table, sample, "thread name")
         if label:
@@ -366,7 +368,7 @@ def test_multithreaded_exception_profiling(tmp_path: Path):
     assert len(thread_names) > 1, f"Expected multiple thread names, got: {thread_names}"
 
 
-def test_exception_with_tracer(tmp_path: Path, tracer):
+def test_exception_with_tracer(tmp_path: Path, tracer: Tracer) -> None:
     """Test exception profiling captures samples during active tracer spans."""
     from ddtrace import ext
     from ddtrace.profiling.collector import stack
@@ -401,7 +403,7 @@ def test_exception_with_tracer(tmp_path: Path, tracer):
     )
 
 
-def test_exception_message_collection(tmp_path: Path):
+def test_exception_message_collection(tmp_path: Path) -> None:
     """Test that exception messages are collected."""
     output_filename = _setup_profiler(tmp_path, "test_exception_message_collection")
 
@@ -430,7 +432,7 @@ def test_exception_message_collection(tmp_path: Path):
 
 
 class _ExceptionInMethod:
-    def handle(self):
+    def handle(self) -> None:
         try:
             raise ValueError("method error")
         except ValueError:
@@ -439,7 +441,7 @@ class _ExceptionInMethod:
 
 class _ExceptionInStaticMethod:
     @staticmethod
-    def handle():
+    def handle() -> None:
         try:
             raise ValueError("static error")
         except ValueError:
@@ -448,7 +450,7 @@ class _ExceptionInStaticMethod:
 
 class _ExceptionInClassMethod:
     @classmethod
-    def handle(cls):
+    def handle(cls) -> None:
         try:
             raise ValueError("classmethod error")
         except ValueError:
@@ -456,14 +458,14 @@ class _ExceptionInClassMethod:
 
 
 class _CallableWithException:
-    def __call__(self):
+    def __call__(self) -> None:
         try:
             raise ValueError("callable error")
         except ValueError:
             pass
 
 
-def test_exception_in_instance_method(tmp_path: Path):
+def test_exception_in_instance_method(tmp_path: Path) -> None:
     """Test that exceptions in instance methods are captured."""
     output_filename = _setup_profiler(tmp_path, "test_instance_method")
 
@@ -491,7 +493,7 @@ def test_exception_in_instance_method(tmp_path: Path):
     )
 
 
-def test_exception_in_static_method(tmp_path: Path):
+def test_exception_in_static_method(tmp_path: Path) -> None:
     """Test that exceptions in static methods are captured."""
     output_filename = _setup_profiler(tmp_path, "test_static_method")
 
@@ -518,7 +520,7 @@ def test_exception_in_static_method(tmp_path: Path):
     )
 
 
-def test_exception_in_class_method(tmp_path: Path):
+def test_exception_in_class_method(tmp_path: Path) -> None:
     """Test that exceptions in class methods are captured."""
     output_filename = _setup_profiler(tmp_path, "test_class_method")
 
@@ -545,7 +547,7 @@ def test_exception_in_class_method(tmp_path: Path):
     )
 
 
-def test_exception_in_callable_instance(tmp_path: Path):
+def test_exception_in_callable_instance(tmp_path: Path) -> None:
     """Test that exceptions in callable instances (__call__) are captured."""
     output_filename = _setup_profiler(tmp_path, "test_callable_instance")
 

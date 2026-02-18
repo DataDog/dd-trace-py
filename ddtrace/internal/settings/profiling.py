@@ -387,7 +387,7 @@ class ProfilingConfigException(DDConfig):
         "collect_message",
         default=True,
         help_type="Boolean",
-        help="Whether to collect exception messages. Set to false to avoid capturing sensitive data.",
+        help="Whether to collect exception messages, which can contain sensitive data.",
     )
 
 

@@ -26,7 +26,7 @@ INSTRUMENTABLE_TYPES = (types.FunctionType, types.MethodType, staticmethod, clas
 py_version = sys.version_info[:2]
 
 
-def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
+def _find_except_bytecode_indexes_3_10(code: CodeType) -> list[int]:
     """Find the offset of the starting line after the except keyword for Python 3.10
 
     There are two ways of detecting an except in the bytecodes:
@@ -58,7 +58,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
     LOAD_GLOBAL = dis.opmap["LOAD_GLOBAL"]
     SETUP_FINALLY = dis.opmap["SETUP_FINALLY"]
 
-    injection_indexes: t.Set[int] = set()
+    injection_indexes: set[int] = set()
     lines_offsets = [o for o, _ in dis.findlinestarts(code)]
 
     def inject_next_start_of_line_offset(offset: int) -> None:
@@ -74,7 +74,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
             start += 2
         return start
 
-    potential_marks: t.Set[int] = set()
+    potential_marks: set[int] = set()
     co_code = code.co_code
 
     for idx in range(0, len(code.co_code), 2):
@@ -102,7 +102,7 @@ def _find_except_bytecode_indexes_3_10(code: CodeType) -> t.List[int]:
     return sorted(list(injection_indexes))
 
 
-def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
+def _find_except_bytecode_indexes_3_11(code: CodeType) -> list[int]:
     """Find the offset of the starting line after the except keyword for Python 3.11
 
     There are two ways of detecting an except in the bytecodes:
@@ -126,7 +126,7 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
     PUSH_EXC_INFO = dis.opmap["PUSH_EXC_INFO"]
 
     lines_offsets = [o for o, _ in dis.findlinestarts(code)]
-    injection_indexes: t.Set[int] = set()
+    injection_indexes: set[int] = set()
     co_code = code.co_code
 
     def inject_next_start_of_line_offset(offset: int) -> None:
@@ -170,19 +170,19 @@ def _find_except_bytecode_indexes_3_11(code: CodeType) -> t.List[int]:
 # Select the appropriate offset finder for the current Python version
 if py_version == (3, 10):
 
-    def _get_offsets(ctx: InjectionContext) -> t.List[int]:
+    def _get_offsets(ctx: InjectionContext) -> list[int]:
         return _find_except_bytecode_indexes_3_10(ctx.original_code)
 
     _offsets_callback = _get_offsets
 elif py_version == (3, 11):
 
-    def _get_offsets(ctx: InjectionContext) -> t.List[int]:
+    def _get_offsets(ctx: InjectionContext) -> list[int]:
         return _find_except_bytecode_indexes_3_11(ctx.original_code)
 
     _offsets_callback = _get_offsets
 else:
 
-    def _get_offsets_noop(ctx: InjectionContext) -> t.List[int]:
+    def _get_offsets_noop(ctx: InjectionContext) -> list[int]:
         return []
 
     _offsets_callback = _get_offsets_noop
@@ -210,8 +210,8 @@ def _inject_exception_profiling(func: t.Any, callback: CallbackType) -> None:
 class ExceptionProfilingInjector:
     # Injects exception profiling callbacks into module functions.
 
-    _instrumented_modules: t.Set[str]
-    _instrumented_obj: t.Set[int]
+    _instrumented_modules: set[str]
+    _instrumented_obj: set[int]
     _callback: CallbackType
 
     def __init__(self, callback: CallbackType):
@@ -307,22 +307,24 @@ class ExceptionProfilingInjector:
 
 
 # Global state
-_injector: t.Optional[ExceptionProfilingInjector] = None
-_callback: t.Optional[CallbackType] = None
+_injector: ExceptionProfilingInjector | None = None
+_callback: CallbackType | None = None
 
 
 class ExceptionProfilingWatchdog(BaseModuleWatchdog):
     # Watches for module imports and instruments them for exception profiling.
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         global _injector
+
+        # This should never happen, so we raise to surface the issue if it does
         if _callback is None:
             raise RuntimeError("Callback must be set before installing watchdog")
         _injector = ExceptionProfilingInjector(_callback)
 
         # Instrument already-loaded modules
-        existing_modules = set(sys.modules.keys())
+        existing_modules = set(sys.modules)
         for module_name in existing_modules:
             _injector.instrument_module(module_name)
 

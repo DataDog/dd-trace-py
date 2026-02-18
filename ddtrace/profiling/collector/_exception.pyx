@@ -13,11 +13,13 @@ HAS_MONITORING = hasattr(sys, "monitoring")
 _current_thread = threading.current_thread
 
 
+# These are global variables. We are okay with this because this is only ever accessed
+# with the GIL held
 cdef int _sampling_interval = 100
 cdef bool _collect_message = False
 cdef int _sample_counter = 0
 cdef int _next_sample = 100
-cdef int _max_nframe = 64
+cdef int _max_nframe = config.max_frames
 
 
 cdef void _collect_exception(object exc_type, object exc_value, object exc_traceback):
@@ -76,7 +78,8 @@ cpdef void _on_exception_handled(object code, int instruction_offset, object exc
 
 
 def _on_exception_bytecode(arg: object) -> None:
-    # Bytecode injection callback for Python 3.10/3.11 - HOT PATH
+    # This is the callback that is injected into the bytecode of each except block in
+    # Python 3.10/3.11 
     # Called at the start of each except block. Exception is in sys.exc_info().
     # arg is the (line, path, dependency_info) tuple from bytecode injection.
     global _sample_counter, _next_sample
