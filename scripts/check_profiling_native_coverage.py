@@ -115,9 +115,11 @@ def extract_profiling_native_patterns(ci_path: Path) -> list[str]:
 
     return patterns
 
-
-def tracked_files(dirs: list[str]) -> list[str]:
+def tracked_files(dirs: list[str] | None = None) -> list[str]:
     """Return git-tracked files under the given directories."""
+    if dirs is None:
+        dirs = ["."]
+
     result: subprocess.CompletedProcess[str] = subprocess.run(
         ["git", "ls-files", "--"] + dirs,
         capture_output=True,
@@ -172,23 +174,21 @@ def _glob_to_re(pattern: str) -> re.Pattern[str]:
         elif pattern[i : i + len(_GLOB_RECURSIVE)] == _GLOB_RECURSIVE:
             result += _RE_RECURSIVE
             i += len(_GLOB_RECURSIVE)
-        elif pattern[i] == _GLOB_WILDCARD:
-            result += _RE_WILDCARD
-            i += 1
-        elif pattern[i] == _GLOB_SINGLE:
-            result += _RE_SINGLE
-            i += 1
-        elif pattern[i] in _RE_SPECIAL_CHARS:
-            result += "\\" + pattern[i]
-            i += 1
         else:
-            result += pattern[i]
+            if pattern[i] == _GLOB_WILDCARD:
+                result += _RE_WILDCARD
+            elif pattern[i] == _GLOB_SINGLE:
+                result += _RE_SINGLE
+            elif pattern[i] in _RE_SPECIAL_CHARS:
+                result += "\\" + pattern[i]
+            else:
+                result += pattern[i]
             i += 1
 
     return re.compile(f"^{result}$")
 
 
-def matches_any(path: str, patterns: list[str]) -> bool:
+def path_matches(path: str, patterns: list[str]) -> bool:
     return any(_glob_to_re(p).match(path) for p in patterns)
 
 
@@ -199,21 +199,23 @@ def main() -> int:
 
     under_triggered: list[str] = []
     over_triggered: list[str] = []
-    stale_patterns: list[str] = []
 
     for f in files:
         native: bool = is_native(f)
-        matched: bool = matches_any(f, patterns)
+        matched: bool = path_matches(f, patterns)
 
-        if native and not matched:
-            under_triggered.append(f)
-        elif not native and matched:
-            over_triggered.append(f)
+        if native:
+            if not matched:
+                under_triggered.append(f)
+        else:
+            if matched:
+                over_triggered.append(f)
 
-    all_tracked: list[str] = tracked_files(["."])
-    for p in patterns:
-        if not any(_glob_to_re(p).match(f) for f in all_tracked):
-            stale_patterns.append(p)
+    all_tracked: list[str] = tracked_files()
+    stale_patterns: list[str] = [
+        p for p in patterns
+        if not any(_glob_to_re(p).match(f) for f in all_tracked)
+    ]
 
     errors: int = 0
 
