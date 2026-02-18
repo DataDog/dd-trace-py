@@ -1,5 +1,3 @@
-from typing import Dict
-
 from wrapt import wrap_function_wrapper as _w
 
 
@@ -8,7 +6,6 @@ try:
 except Exception:
     durable_functions = None
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.azure_functions.utils import patched_get_functions
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 
@@ -22,7 +19,7 @@ def get_version() -> str:
         return getattr(durable_functions, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"azure.durable_functions": ">=1.2.1"}
 
 
@@ -47,7 +44,6 @@ def _patch_dfapp():
     if not hasattr(durable_app, "DFApp"):
         return
 
-    Pin().onto(durable_app.DFApp)
     _w("azure.durable_functions", "DFApp.get_functions", patched_get_functions)
 
 

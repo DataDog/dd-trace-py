@@ -6,7 +6,6 @@ import time
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
 from ddtrace.contrib.internal.azure_functions.utils import wrap_durable_trigger
@@ -95,13 +94,11 @@ def _wait_for_durable_completion(client: Client, response) -> None:
 )
 def test_trigger_wrapper(func_name, trigger_name, context_name):
     with scoped_tracer() as tracer:
-        pin = Pin()
 
         def trigger_func():
             return "ok"
 
         wrapped = wrap_durable_trigger(
-            pin,
             trigger_func,
             func_name,
             trigger_name,
@@ -117,7 +114,7 @@ def test_trigger_wrapper(func_name, trigger_name, context_name):
             "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
         )
         assert span.name == expected_name
-        assert span.service == int_service(pin, config.azure_functions)
+        assert span.service == int_service(None, config.azure_functions)
         assert span.resource == f"{trigger_name} {func_name}"
         assert span.span_type == SpanTypes.SERVERLESS
         assert span.get_tag("aas.function.name") == func_name
