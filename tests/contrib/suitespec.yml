@@ -1108,6 +1108,7 @@ suites:
       - '@tracing'
       - '@niquests'
       - tests/contrib/niquests/*
+      - tests/snapshots/tests.contrib.niquests.*
     runner: riot
     services:
       - httpbin

@@ -1,12 +1,6 @@
 from ddtrace.contrib.internal.niquests.patch import get_version
 from ddtrace.contrib.internal.niquests.patch import patch
-
-
-try:
-    from ddtrace.contrib.internal.niquests.patch import unpatch
-except ImportError:
-    unpatch = None
-
+from ddtrace.contrib.internal.niquests.patch import unpatch
 from tests.contrib.patch import PatchTestCase
 
 
