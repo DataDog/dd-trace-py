@@ -15,6 +15,8 @@ class Sample;
 // Python includes in implementation files when full API access is required.
 struct _frame;
 typedef struct _frame PyFrameObject;
+struct _traceback;
+typedef struct _traceback PyTracebackObject;
 
 #ifdef __cplusplus
 extern "C"
@@ -78,6 +80,7 @@ extern "C"
     void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
     void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
     void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
+    void ddup_push_exception_message(Datadog::Sample* sample, std::string_view exception_message);
     void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
     void ddup_push_gpu_device_name(Datadog::Sample*, std::string_view device_name);
     void ddup_push_frame(Datadog::Sample* sample,
@@ -86,6 +89,7 @@ extern "C"
                          uint64_t address,
                          int64_t line);
     void ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame);
+    void ddup_push_pytraceback(Datadog::Sample* sample, PyTracebackObject* tb);
     void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
     void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
 
