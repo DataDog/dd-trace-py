@@ -146,10 +146,7 @@ def test_git_extract_workspace_path_error(tmpdir):
 
 def test_extract_git_metadata(git_repo):
     """Test that extract_git_metadata() sets all tags correctly."""
-    with mock.patch("ddtrace.ext.git._set_safe_directory") as mock_git_set_safe_directory:
-        extracted_tags = git.extract_git_metadata(cwd=git_repo)
-
-    mock_git_set_safe_directory.assert_called()
+    extracted_tags = git.extract_git_metadata(cwd=git_repo)
     assert extracted_tags["git.repository_url"] == "git@github.com:test-repo-url.git"
     assert extracted_tags["git.commit.message"] == "this is a commit msg"
     assert extracted_tags["git.commit.author.name"] == "John Doe"
@@ -162,50 +159,48 @@ def test_extract_git_metadata(git_repo):
     assert extracted_tags.get("git.commit.sha") is not None  # Commit hash will always vary, just ensure a value is set
 
 
-def test_set_safe_directory_adds_repo_root_once(tmp_path, monkeypatch):
+def test_git_safe_directory_override_added_for_repo_root(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / ".git").mkdir()
     subdir = repo / "subdir"
     subdir.mkdir()
 
-    monkeypatch.setattr(git, "_SAFE_DIRECTORY_ENTRIES", None)
-    calls = []
+    captured = {}
 
-    def fake_details(*args, **kwargs):
-        return git._GitSubprocessDetails("", "", 0.0, 1)
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
 
-    def fake_cmd(cmd, cwd=None, std_in=None):
-        calls.append((cmd, cwd))
-        return ""
+        def communicate(self, input=None):
+            return b"", b""
 
-    monkeypatch.setattr(git, "_git_subprocess_cmd_with_details", fake_details)
-    monkeypatch.setattr(git, "_git_subprocess_cmd", fake_cmd)
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
 
-    git._set_safe_directory(cwd=str(subdir))
-    git._set_safe_directory(cwd=str(subdir))
+    git._git_subprocess_cmd_with_details("status", cwd=str(subdir))
 
-    assert calls == [(["config", "--global", "--add", "safe.directory", str(repo)], None)]
+    assert captured["args"][:3] == ["/usr/bin/git", "-c", "safe.directory={0}".format(str(repo))]
 
 
-def test_set_safe_directory_skips_when_global_wildcard(monkeypatch, tmp_path):
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    (repo / ".git").mkdir()
+def test_git_safe_directory_override_skipped_without_repo(monkeypatch, tmp_path):
+    captured = {}
 
-    monkeypatch.setattr(git, "_SAFE_DIRECTORY_ENTRIES", None)
+    class FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["args"] = args
+            self.returncode = 0
 
-    def fake_details(*args, **kwargs):
-        return git._GitSubprocessDetails("*", "", 0.0, 0)
+        def communicate(self, input=None):
+            return b"", b""
 
-    mock_cmd = mock.Mock(return_value="")
+    monkeypatch.setattr(git.subprocess, "Popen", FakePopen)
+    monkeypatch.setattr(git, "_get_executable_path", lambda name, mode=None: "/usr/bin/git")
 
-    monkeypatch.setattr(git, "_git_subprocess_cmd_with_details", fake_details)
-    monkeypatch.setattr(git, "_git_subprocess_cmd", mock_cmd)
+    git._git_subprocess_cmd_with_details("status", cwd=str(tmp_path))
 
-    git._set_safe_directory(cwd=str(repo))
-
-    mock_cmd.assert_not_called()
+    assert captured["args"] == ["/usr/bin/git", "status"]
 
 
 def test_extract_git_user_provided_metadata_overwrites_ci(git_repo):
