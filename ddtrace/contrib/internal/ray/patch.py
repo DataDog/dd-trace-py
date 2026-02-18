@@ -202,7 +202,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     of creating the root span.
     It will also inject _RAY_SUBMISSION_ID and _RAY_JOB_NAME
     in the env variable as some spans will not have access to them
-    trough ray_ctx
+    through ray_ctx
     """
     from ray.dashboard.modules.job.job_manager import generate_job_id
 
