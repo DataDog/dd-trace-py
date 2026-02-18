@@ -328,7 +328,7 @@ def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
 @dataclass
 class TrackedToolCall:
     """
-    Holds information about a tool call and it's associated LLM/Tool spans
+    Holds information about a tool call and its associated LLM/Tool spans
     for span linking purposes.
     """
 
@@ -383,8 +383,8 @@ class LinkTracker:
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
-        of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
-        so that we can link to the input of an LLM span if it's output is used in an LLM call.
+        of the LLM span responsible for generating its input. We also save the span/trace id of the tool call
+        so that we can link to the input of an LLM span if its output is used in an LLM call.
 
         If possible, we use the tool_id provided to lookup the tool call; otherwise, we perform a best effort
         lookup based on the tool_name and tool_arg.
