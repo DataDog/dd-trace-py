@@ -115,6 +115,7 @@ def extract_profiling_native_patterns(ci_path: Path) -> list[str]:
 
     return patterns
 
+
 def tracked_files(dirs: list[str] | None = None) -> list[str]:
     """Return git-tracked files under the given directories."""
     if dirs is None:
@@ -212,10 +213,7 @@ def main() -> int:
                 over_triggered.append(f)
 
     all_tracked: list[str] = tracked_files()
-    stale_patterns: list[str] = [
-        p for p in patterns
-        if not any(_glob_to_re(p).match(f) for f in all_tracked)
-    ]
+    stale_patterns: list[str] = [p for p in patterns if not any(_glob_to_re(p).match(f) for f in all_tracked)]
 
     errors: int = 0
 
