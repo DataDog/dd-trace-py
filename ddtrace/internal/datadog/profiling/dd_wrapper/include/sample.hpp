@@ -10,11 +10,6 @@
 #include <string_view>
 #include <vector>
 
-extern "C"
-{
-#include "datadog/profiling.h"
-}
-
 // Forward declaration of Python types.
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
@@ -36,21 +31,25 @@ namespace internal {
 // whole time we build samples.
 struct StringArena
 {
+  private:
     // Default size, in bytes, of each Chunk. The value is a power of 2 (nice to
     // allocate) that is bigger than any actual sample string size seen over a
     // random selection of a few hundred Python profiles at Datadog. So ideally
     // we only need one chunk, which we can reuse between samples
     static constexpr size_t KB = 1024;
     static constexpr size_t DEFAULT_SIZE = 16 * KB;
+
     // Strings are backed by fixed-size Chunks. The Chunks can't grow, or
     // they'll move and invalidate pointers into the arena. At the same time,
     // they must be dynamically sized at creation because we get arbitrary
     // user-provided strings.
     using Chunk = std::vector<char>;
+
     // We keep the Chunks for this arena in a vector so we can track them, and
     // free them when the StringArena is deallocated.
     std::vector<Chunk> chunks;
 
+  public:
     StringArena();
     // Clear the backing data of the arena, except for a smaller initial segment.
     // Views returned by insert are invalid after this call.
@@ -173,7 +172,6 @@ class Sample
     static void cleanup();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
-    // friend class SampleManager;
     friend class SampleManager;
 };
 

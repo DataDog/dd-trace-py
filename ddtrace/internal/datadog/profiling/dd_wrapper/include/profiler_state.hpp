@@ -17,6 +17,8 @@ class Sample;
 
 // ProfilerState is a singleton class that holds all Profiler "global" state.
 // Consolidating it here makes lifecycle management (init, cleanup, fork handling) clearer.
+// Note: this class does not start or stop threads. However, it installs fork handlers that
+//   may stop threads through libdatadog helpers (abstracted away / out of our control).
 //
 // This class owns all shared mutable state for the profiler.
 // When adding new state, consider whether it belongs here or in a specific component.
