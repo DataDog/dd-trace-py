@@ -76,22 +76,7 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
 
 
 def dispatch_event(event) -> None:
-    try:
-        event_id = event.event_name
-    except AttributeError:
-        log.warning("dispatch_event() called with event without 'event_name': %r", event)
-        return
-
-    listeners = _listeners.get(event_id)
-    if not listeners:
-        return
-
-    for local_hook in listeners.values():
-        try:
-            local_hook(event)
-        except Exception:
-            if config._raise:
-                raise
+    dispatch(event.event_name, (event,))
 
 
 def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:

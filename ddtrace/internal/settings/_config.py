@@ -95,6 +95,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 # This allows users to set integration configs before an integration is patched.
 INTEGRATION_CONFIGS = frozenset(
     {
+        "claude_agent_sdk",
         "pyodbc",
         "dramatiq",
         "flask",
@@ -422,7 +423,7 @@ class Config(object):
                     return True
             return False
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
 
@@ -431,7 +432,7 @@ class Config(object):
         self._config = _default_config()
 
         # Use a dict as underlying storing mechanism for integration configs
-        self._integration_configs = {}
+        self._integration_configs: dict[str, IntegrationConfig] = {}
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
@@ -502,7 +503,7 @@ class Config(object):
         if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
-        self._extra_services = set()
+        self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
 

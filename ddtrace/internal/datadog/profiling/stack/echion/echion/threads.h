@@ -131,4 +131,4 @@ class ThreadInfo
 using PyThreadStateCallback = std::function<void(PyThreadState*, ThreadInfo&)>;
 
 void
-for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback);
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadStateCallback& callback);

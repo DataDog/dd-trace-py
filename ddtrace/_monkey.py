@@ -113,6 +113,7 @@ PATCH_MODULES = {
     "openai_agents": True,
     "ray": False,
     "protobuf": config._data_streams_enabled,
+    "claude_agent_sdk": True,
 }
 
 
