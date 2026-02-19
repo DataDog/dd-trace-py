@@ -408,12 +408,9 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
-class _DatasetRecordOptionalFields(TypedDict, total=False):
-    canonical_id: str
-
-
-class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptionalFields):
+class DatasetRecord(DatasetRecordRaw):
     record_id: str
+    canonical_id: str
 
 
 class TaskResult(TypedDict):
@@ -1163,8 +1160,7 @@ class Experiment(BaseExperiment):
             span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
             if "metadata" in record:
                 span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-            if "canonical_id" in record:
-                span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
+            span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
 
             return self._build_task_result(idx, span, span_id, trace_id, output_data)
 
@@ -1432,8 +1428,7 @@ class AsyncExperiment(BaseExperiment):
                 span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-                if "canonical_id" in record:
-                    span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
+                span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
 
                 return self._build_task_result(idx, span, span_id, trace_id, output_data)
 
