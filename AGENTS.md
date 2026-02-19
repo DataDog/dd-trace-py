@@ -15,7 +15,6 @@
 3. Assume business logic (always ask)
 4. Remove AIDEV- comments without instruction
 5. Skip linting before committing
-6. Check and remove unexpected prints
 
 **Always:**
 1. Use the run-tests skill for test execution
@@ -24,12 +23,13 @@
 4. Update AIDEV- anchors when modifying related code
 5. Consider performance impact (this runs in production)
 6. Consider architecture (try to use well-established patterns for the problem at hand)
+7. Check for and remove unexpected prints
 
 ## Initial Setup for AI Assistants
 
 When starting a new chat session, ALWAYS read and apply the rules from:
 
-2. `.cursor/rules/*.mdc` - All rule files in this directory (version controlled):
+1. `.cursor/rules/*.mdc` - All rule files in this directory (version controlled):
    - `dd-trace-py.mdc` - Core project guidelines
    - `linting.mdc` - Code quality and formatting
    - `testing.mdc` - Test execution guidelines
@@ -96,6 +96,16 @@ This project has custom skills that provide specialized workflows. **Always chec
 - Assesses impact on our codebase
 
 **Usage:** Use the Skill tool with command "compare-cpython-versions"
+
+### releasenote
+
+**Use whenever:** Creating or updating release notes for changes in the current branch.
+
+**Purpose:** Creates or updates release notes using Reno, following dd-trace-py's conventions:
+- Generates Reno release note files for the current branch changes
+- Follows the guidelines in `docs/releasenotes.rst`
+
+**Usage:** Use the Skill tool with command "releasenote"
 
 ---
 
