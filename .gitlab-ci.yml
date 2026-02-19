@@ -15,10 +15,10 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "b8d5e051fb307f031a9ce32c894c388f4501d7dc"
+  SYSTEM_TESTS_REF: "8c86fdebd50a46ca9eccb1c8323b6295040db04b"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v96371602-f288245-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
@@ -62,12 +62,14 @@ tests-gen:
   extends: .testrunner
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
     - |
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
       if [ -z ${GH_TOKEN} ]
       then
@@ -87,6 +89,7 @@ run-tests-trigger:
  needs: [ tests-gen ]
  variables:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+   NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
@@ -104,8 +107,7 @@ serverless lambda tests:
     project: DataDog/datadog-lambda-python
     strategy: depend
     branch: main
-  needs:
-    - job: "upload all"
+  needs: []
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
@@ -375,7 +377,13 @@ detect_circular_imports:
 
 
 package-oci:
-  needs: [ "ddtrace package", download_dependency_wheels ]
+  needs:
+    - job: "package version"
+      artifacts: true
+    - job: "build linux"
+      artifacts: true
+    - job: "download_dependency_wheels"
+      artifacts: true
 
 promote-oci-to-prod:
   stage: release
