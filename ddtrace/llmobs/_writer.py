@@ -531,14 +531,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
             for record in records_data.get("data", []):
                 attrs = record.get("attributes", {})
-                dataset_record: DatasetRecord = {                                                                                                            
-                    "record_id": record["id"],                                                                                                               
-                    "input_data": attrs["input"],                                                                                                            
-                    "expected_output": attrs.get("expected_output"),                                                                                         
-                    "metadata": attrs.get("metadata", {}),                                                                                                   
-                }                                                                                                                                            
-                if canonical_id := attrs.get("canonical_id"):                                                                                                
-                    dataset_record["canonical_id"] = canonical_id                                                                                            
+                dataset_record: DatasetRecord = {
+                    "record_id": record["id"],
+                    "input_data": attrs["input"],
+                    "expected_output": attrs.get("expected_output"),
+                    "metadata": attrs.get("metadata", {}),
+                }
+                if canonical_id := attrs.get("canonical_id"):
+                    dataset_record["canonical_id"] = canonical_id
                 class_records.append(dataset_record)
             next_cursor = records_data.get("meta", {}).get("after")
 
