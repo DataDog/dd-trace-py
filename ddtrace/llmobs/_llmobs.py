@@ -97,7 +97,6 @@ from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
-from ddtrace.llmobs._experiment import AsyncExperiment
 from ddtrace.llmobs._experiment import AsyncSummaryEvaluatorType
 from ddtrace.llmobs._experiment import AsyncTaskType
 from ddtrace.llmobs._experiment import BaseAsyncEvaluator
@@ -113,8 +112,15 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
+from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
+from ddtrace.llmobs._prompt_optimization import validate_dataset
+from ddtrace.llmobs._prompt_optimization import validate_dataset_split
+from ddtrace.llmobs._prompt_optimization import validate_evaluators
+from ddtrace.llmobs._prompt_optimization import validate_optimization_task
+from ddtrace.llmobs._prompt_optimization import validate_task
+from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _batched
@@ -1036,6 +1042,8 @@ class LLMObs(Service):
         tags: Optional[dict[str, str]] = None,
         max_iterations: int = 5,
         stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
+        dataset_split: Union[bool, tuple[float, ...]] = False,
+        test_dataset: Optional[str] = None,
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -1083,6 +1091,17 @@ class LLMObs(Service):
         :param stopping_condition: Optional function to determine when to stop optimization early.
                                    Takes summary_evaluations dict from the experiment result and returns True if
                                    optimization should stop.
+        :param dataset_split: Controls dataset splitting. Accepts:
+            - ``False`` (default): No splitting, use full dataset for everything.
+            - ``True``: Split with default ratios (60/20/20 without test_dataset, 80/20 with).
+            - ``(train, valid, test)`` tuple: Custom 3-way split ratios. Must sum to 1.0.
+              Cannot be combined with ``test_dataset``.
+            - ``(train, valid)`` tuple: Custom 2-way split ratios. Must sum to 1.0.
+              Requires ``test_dataset`` for the test set.
+        :param test_dataset: Optional name of a separate test dataset. When provided, the dataset is
+                            pulled automatically, the main dataset is split into train/valid (80/20),
+                            and the test dataset is used for the final unbiased score.
+                            Implicitly enables dataset splitting.
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -1144,37 +1163,16 @@ class LLMObs(Service):
             )
             results = opt.run()
         """
-        if not callable(task):
-            raise TypeError("task must be a callable function.")
-        sig = inspect.signature(task)
-        params = sig.parameters
-        if "input_data" not in params or "config" not in params:
-            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+        validate_task(task)
+        validate_optimization_task(optimization_task)
+        validate_dataset(dataset)
+        validate_test_dataset(test_dataset)
+        validate_dataset_split(dataset_split, test_dataset)
+        validate_evaluators(evaluators)
 
-        if not callable(optimization_task):
-            raise TypeError("optimization_task must be a callable function.")
-        sig = inspect.signature(optimization_task)
-        params = sig.parameters
-        if "system_prompt" not in params or "user_prompt" not in params or "config" not in params:
-            raise TypeError(
-                "optimization_task function must have 'system_prompt' and 'user_prompt' parameters. "
-                "It should call an LLM with these prompts and return an optimized prompt."
-            )
-
-        if not isinstance(dataset, Dataset):
-            raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators:
-            raise TypeError("Evaluators must be a non-empty list of BaseEvaluator instances or callable functions.")
-        for evaluator in evaluators:
-            if isinstance(evaluator, BaseEvaluator):
-                continue
-            if not callable(evaluator):
-                raise TypeError("Evaluator must be a BaseEvaluator instance or a callable function.")
-            sig = inspect.signature(evaluator)
-            params = sig.parameters
-            evaluator_required_params = ("input_data", "output_data", "expected_output")
-            if not all(param in params for param in evaluator_required_params):
-                raise TypeError("Evaluator function must have parameters {}.".format(evaluator_required_params))
+        pulled_test_dataset = None
+        if test_dataset is not None:
+            pulled_test_dataset = cls.pull_dataset(dataset_name=test_dataset, project_name=project_name)
 
         return PromptOptimization(
             name=name,
@@ -1191,6 +1189,8 @@ class LLMObs(Service):
             tags=tags,
             max_iterations=max_iterations,
             stopping_condition=stopping_condition,
+            dataset_split=dataset_split,
+            test_dataset=pulled_test_dataset,
         )
 
     @classmethod
@@ -1206,7 +1206,7 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = 1,
-    ) -> Experiment:
+    ) -> SyncExperiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
         :param name: The name of the experiment.
@@ -1239,7 +1239,7 @@ class LLMObs(Service):
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=False)
-        return Experiment(
+        return SyncExperiment(
             name,
             task,
             dataset,
@@ -1266,8 +1266,8 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = 1,
-    ) -> AsyncExperiment:
-        """Initializes an AsyncExperiment to run an async task on a Dataset with evaluators.
+    ) -> Experiment:
+        """Initializes an Experiment to run an async task on a Dataset with evaluators.
 
         This is the async version of experiment() that supports async tasks, evaluators, and summary evaluators.
         Sync evaluators are also supported and will be run via asyncio.to_thread().
@@ -1306,7 +1306,7 @@ class LLMObs(Service):
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
-        return AsyncExperiment(
+        return Experiment(
             name,
             task,
             dataset,
