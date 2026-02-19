@@ -407,7 +407,7 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
-class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptionalFields):
+class DatasetRecord(DatasetRecordRaw):
     record_id: str
     canonical_id: Optional[str]
 
