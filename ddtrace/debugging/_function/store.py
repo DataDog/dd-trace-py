@@ -42,10 +42,10 @@ class FunctionStore(object):
         if extra_attrs:
             self._extra_attrs.extend(extra_attrs)
 
-    def __enter__(self):
+    def __enter__(self) -> "FunctionStore":
         return self
 
-    def __exit__(self, *exc):
+    def __exit__(self, *exc: Any) -> None:
         self.restore_all()
 
     def _store(self, function: FunctionType) -> None:
@@ -58,7 +58,8 @@ class FunctionStore(object):
         Returns the set of probe IDs for those probes that failed to inject.
         """
         try:
-            f = cast(FunctionType, cast(FullyNamedContextWrappedFunction, function.__dd_context_wrapped__.__wrapped__))  # type: ignore[union-attr]
+            wrapped_func = cast(FullyNamedContextWrappedFunction, function)
+            f = cast(FunctionType, wrapped_func.__dd_context_wrapped__.__wrapped__)  # type: ignore[union-attr]
         except AttributeError:
             f = cast(FunctionType, function)
         self._store(f)
@@ -70,7 +71,8 @@ class FunctionStore(object):
         Returns the set of probe IDs for those probes that failed to eject.
         """
         try:
-            f = cast(FullyNamedContextWrappedFunction, function).__dd_context_wrapped__.__wrapped__  # type: ignore[union-attr]
+            wrapped_func = cast(FullyNamedContextWrappedFunction, function)
+            f = wrapped_func.__dd_context_wrapped__.__wrapped__  # type: ignore[union-attr]
         except AttributeError:
             # Not a wrapped function so we can actually eject from it
             f = function
