@@ -369,6 +369,7 @@ openai-agents
 validators
 jitter
 durations
+PyO
 PyO3
 pyclass
 dereference
