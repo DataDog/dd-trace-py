@@ -175,7 +175,7 @@ class Scope:
 
     @_get_from.register
     @classmethod
-    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True):
+    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if module in data.seen:
             return None
         data.seen.add(module)
@@ -229,7 +229,7 @@ class Scope:
 
     @_get_from.register
     @classmethod
-    def _(cls, obj: type, data: ScopeData, recursive: bool = True):
+    def _(cls, obj: type, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if obj in data.seen:
             return None
         data.seen.add(obj)
@@ -319,7 +319,7 @@ class Scope:
 
     @_get_from.register
     @classmethod
-    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True):
+    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         # DEV: A code object with a mutable probe is currently not hashable, so
         # we cannot put it directly into the set.
         code_id = f"code-{id(code)}"
@@ -352,7 +352,7 @@ class Scope:
 
     @_get_from.register
     @classmethod
-    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True):
+    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if f in data.seen:
             return None
         data.seen.add(f)
@@ -400,7 +400,7 @@ class Scope:
 
     @_get_from.register
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -410,7 +410,7 @@ class Scope:
 
     @_get_from.register
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -420,7 +420,7 @@ class Scope:
 
     @_get_from.register
     @classmethod
-    def _(cls, pr: property, data: ScopeData, recursive: bool = True):
+    def _(cls, pr: property, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if pr.fget in data.seen:
             return None
         data.seen.add(pr.fget)
@@ -669,7 +669,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             self._processed_files_count += 1
 
     @classmethod
-    def update(cls):
+    def update(cls) -> None:
         instance = t.cast(SymbolDatabaseUploader, cls._instance)
         if instance is None:
             return
@@ -684,6 +684,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         instance._update_called = True
 
     @classmethod
-    def install(cls, shallow=True):
+    def install(cls, shallow: bool = True) -> None:
         cls.shallow = shallow
         return super().install()
