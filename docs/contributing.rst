@@ -166,6 +166,7 @@ about Instrumentation Telemetry.
     contributing-integrations
     contributing-testing
     contributing-fuzzing
+    contributing-pyo3
     contributing-tracing
     contributing-release
     releasenotes
