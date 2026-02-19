@@ -2592,7 +2592,7 @@ async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_re
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"async_faulty_evaluator": {"value": None, "error": mock.ANY}},
+        "evaluations": {"async_faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}},
     }
     err = eval_results[0]["evaluations"]["async_faulty_evaluator"]["error"]
     assert err["message"] == "This is an async test error in evaluator"
