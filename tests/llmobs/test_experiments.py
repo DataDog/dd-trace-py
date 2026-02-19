@@ -2129,6 +2129,7 @@ def test_experiment_remote_evaluator_error_handling(llmobs, test_dataset_one_rec
         "evaluator_infer",
         side_effect=RemoteEvaluatorError(
             "Backend failed",
+            status="ERROR",
             backend_error={
                 "type": "evaluator_not_found",
                 "message": "Evaluator not configured",
@@ -2166,6 +2167,7 @@ def test_experiment_remote_evaluator_warn_status(llmobs, test_dataset_one_record
         "evaluator_infer",
         side_effect=RemoteEvaluatorError(
             "Remote evaluator 'rate-limited-eval' failed: Rate limit exceeded",
+            status="WARN",
             backend_error={
                 "type": "RATE_LIMIT_EXCEEDED",
                 "message": "Rate limit exceeded for OpenAI API",

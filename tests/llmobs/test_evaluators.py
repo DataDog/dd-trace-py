@@ -456,7 +456,9 @@ class TestRemoteEvaluator:
         """Test that backend errors are propagated."""
         mock_client = mock.MagicMock()
         mock_client.evaluator_infer.side_effect = RemoteEvaluatorError(
-            "Backend error", backend_error={"type": "invalid_config", "message": "Bad config"}
+            "Backend error",
+            status="ERROR",
+            backend_error={"type": "invalid_config", "message": "Bad config"},
         )
 
         evaluator = RemoteEvaluator(
@@ -520,6 +522,7 @@ class TestRemoteEvaluator:
         mock_client = mock.MagicMock()
         mock_client.evaluator_infer.side_effect = RemoteEvaluatorError(
             "Remote evaluator 'test-eval' failed: Evaluation was skipped",
+            status="WARN",
             backend_error={
                 "type": "EVALUATION_SKIPPED",
                 "message": "Evaluation was skipped due to rate limiting",
@@ -548,6 +551,7 @@ class TestRemoteEvaluator:
         mock_client = mock.MagicMock()
         mock_client.evaluator_infer.side_effect = RemoteEvaluatorError(
             "Remote evaluator 'test-eval' failed: API key not configured",
+            status="ERROR",
             backend_error={
                 "type": "API_KEY_MISSING",
                 "message": "API key not configured for provider OpenAI",

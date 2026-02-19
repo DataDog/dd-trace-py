@@ -112,7 +112,7 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
 class EvaluatorInferResponse(TypedDict, total=False):
     """Response from the evaluator_infer API endpoint."""
 
-    value: Union[float, bool, str, None]
+    value: JSONType
     assessment: Optional[str]
     reasoning: Optional[str]
     status: Optional[str]
