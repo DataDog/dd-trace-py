@@ -66,7 +66,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
+StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 {
     static bool failed = false;
     if (failed) {

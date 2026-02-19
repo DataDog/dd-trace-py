@@ -1,0 +1,51 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "7cca2e83-cab9-4297-9731-ed43bb4cfb32",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of Nauru?"}, "expected_output": null, "metadata": null}, {"input": {"prompt":
+      "What is the capital of Sealand?"}, "expected_output": null, "metadata": null}],
+      "update_records": [], "delete_records": [], "deduplicate": true, "create_new_version":
+      true}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '405'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/7cca2e83-cab9-4297-9731-ed43bb4cfb32/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"ecd159ca-0786-4812-a083-6d71507055d1","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"3b6e6d8d-b61d-44b1-982c-1f9b7d3d09df","created_at":"2026-02-18T06:24:39.240717939Z","dataset_id":"7cca2e83-cab9-4297-9731-ed43bb4cfb32","input":{"prompt":"What
+        is the capital of Nauru?"},"tags":[],"updated_at":"2026-02-18T06:24:39.240717939Z","version":1}},{"id":"e8ba0224-3f87-4d30-a859-35a9b4169d6e","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"7d8cc596-842c-46ac-8c07-c365521180b8","created_at":"2026-02-18T06:24:39.240717939Z","dataset_id":"7cca2e83-cab9-4297-9731-ed43bb4cfb32","input":{"prompt":"What
+        is the capital of Sealand?"},"tags":[],"updated_at":"2026-02-18T06:24:39.240717939Z","version":1}}]}'
+    headers:
+      content-length:
+      - '822'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 18 Feb 2026 06:24:39 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

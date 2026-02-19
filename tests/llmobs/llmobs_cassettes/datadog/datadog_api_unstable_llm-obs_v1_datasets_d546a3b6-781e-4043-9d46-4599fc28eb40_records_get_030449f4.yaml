@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/d546a3b6-781e-4043-9d46-4599fc28eb40/records
+  response:
+    body:
+      string: '{"data":[{"id":"0cbaee1c-9082-4e68-ac20-18118e7cee0a","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"e3f705a0-b104-4929-9381-4593fd909913","created_at":"2026-02-18T06:23:49.691211Z","dataset_id":"d546a3b6-781e-4043-9d46-4599fc28eb40","expected_output":{"answer":"Berlin"},"input":{"prompt":"What
+        is the capital of Germany?"},"updated_at":"2026-02-18T06:23:49.691211Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '447'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 18 Feb 2026 06:23:52 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

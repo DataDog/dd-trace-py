@@ -465,6 +465,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         insert_records: list[DatasetRecordRaw],
         update_records: list[UpdatableDatasetRecord],
         delete_record_ids: list[str],
+        deduplicate: bool = True,
+        create_new_version: bool = True,
     ) -> tuple[int, list[str]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
@@ -477,12 +479,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "insert_records": irs,
                     "update_records": urs,
                     "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
+                    "deduplicate": deduplicate,
+                    "create_new_version": create_new_version,
                 },
             }
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
+            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
         response_data = resp.get_json()
         data = response_data["data"]
 
@@ -565,7 +569,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             _dne_client=self,
         )
 
-    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord]):
+    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True):
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -593,7 +597,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             with open(tmp.name, mode="rb") as f:
                 file_content = f.read()
 
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload"
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload?deduplicate={deduplicate}"
         BOUNDARY = b"----------boundary------"
         CRLF = b"\r\n"
 
