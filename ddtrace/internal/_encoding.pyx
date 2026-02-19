@@ -656,12 +656,14 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef str attr_k
         cdef object attr_v
         cdef object event
+        cdef object attrs
         ret = msgpack_pack_array(&self.pk, len(span_events))
         if ret != 0:
             return ret
 
         for event in span_events:
-            L = 2 + bool(event.attributes)
+            attrs = event.attributes
+            L = 2 + bool(attrs)
             ret = msgpack_pack_map(&self.pk, L)
             if ret != 0:
                 return ret
@@ -682,16 +684,16 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
             if ret != 0:
                 return ret
 
-            if event.attributes:
+            if attrs:
                 ret = pack_bytes(&self.pk, <char*> b"attributes", 10)
                 if ret != 0:
                     return ret
 
-                ret = msgpack_pack_map(&self.pk, len(event.attributes))
+                ret = msgpack_pack_map(&self.pk, len(attrs))
                 if ret != 0:
                     return ret
 
-                for attr_k, attr_v in event.attributes.items():
+                for attr_k, attr_v in attrs.items():
                     ret = pack_text(&self.pk, attr_k)
                     if ret != 0:
                         return ret

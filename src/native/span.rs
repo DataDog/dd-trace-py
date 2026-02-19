@@ -17,6 +17,20 @@ use libdd_trace_utils::span::v04::{
     SpanEvent as LibSpanEvent,
 };
 
+/// Try to get a string from a Python object:
+/// 1. If it's already a str, extract directly
+/// 2. Otherwise, call Python's str() to convert
+/// 3. Return Err if str() itself fails
+fn try_stringify(obj: &Bound<'_, PyAny>) -> PyResult<PyBackedString> {
+    // Fast path: already a string
+    if let Ok(s) = obj.extract::<PyBackedString>() {
+        return Ok(s);
+    }
+    // Slow path: call str(obj)
+    let py_str = obj.str()?;
+    py_str.extract::<PyBackedString>()
+}
+
 // bool must be checked before int (Python bool subclasses int).
 fn py_to_array_value(
     obj: &Bound<'_, PyAny>,
@@ -37,7 +51,7 @@ fn py_to_array_value(
         return Ok(LibAttributeArrayValue::Double(f));
     }
     Ok(LibAttributeArrayValue::String(
-        extract_backed_string_or_default(obj),
+        try_stringify(obj).unwrap_or_default(),
     ))
 }
 
@@ -75,7 +89,7 @@ fn py_to_attribute_value(
         return Ok(LibAttributeAnyValue::Array(values));
     }
     Ok(LibAttributeAnyValue::SingleValue(
-        LibAttributeArrayValue::String(extract_backed_string_or_default(obj)),
+        LibAttributeArrayValue::String(try_stringify(obj).unwrap_or_default()),
     ))
 }
 
@@ -84,7 +98,7 @@ fn py_dict_to_attributes(
 ) -> PyResult<HashMap<PyBackedString, LibAttributeAnyValue<PyTraceData>>> {
     let mut result = HashMap::with_capacity(dict.len());
     for (k, v) in dict.iter() {
-        let key = extract_backed_string_or_default(&k);
+        let key = try_stringify(&k).unwrap_or_default();
         let val = py_to_attribute_value(&v)?;
         result.insert(key, val);
     }
