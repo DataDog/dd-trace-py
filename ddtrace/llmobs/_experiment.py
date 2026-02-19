@@ -407,12 +407,9 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
-class _DatasetRecordOptionalFields(TypedDict, total=False):
-    canonical_id: str
-
-
 class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptionalFields):
     record_id: str
+    canonical_id: Optional[str]
 
 
 class TaskResult(TypedDict):
