@@ -170,10 +170,13 @@ class Span(SpanData):
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
+        # PERF: cache trace_id/span_id to avoid repeated Rust property calls
+        _trace_id = self.trace_id
+        _span_id = self.span_id
         self.context: Context = (
-            context.copy(self.trace_id, self.span_id)
+            context.copy(_trace_id, _span_id)
             if context
-            else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+            else Context(trace_id=_trace_id, span_id=_span_id, is_remote=False)
         )
 
         self._links: list[Union[SpanLink, _SpanPointer]] = []
