@@ -9,7 +9,7 @@
 
 extern "C"
 {
-#include "datadog/profiling.h"
+#include "datadog/common.h"
 }
 
 namespace Datadog {
@@ -146,28 +146,8 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 
 namespace internal {
 
-std::optional<ddog_prof_ProfilesDictionaryHandle>
-get_profiles_dictionary();
-
-// Decreases the refcount on the Profiles Dictionary handle.
-// This should be called before the process exits.
-// Note that this may not free it immediately if something else
-// (e.g. the Profile object) still holds a reference to it.
-void
-release_profiles_dictionary();
-
-// Initialize cached interned strings (required after creating/recreating the ProfilesDictionary)
-// Returns true if successful, false if not.
-bool
-init_interned_strings();
-
-// Reset tag and label key caches (required after fork)
-void
-reset_key_caches();
-
 // Fork-safe cached interning for tag and label keys
-// Must come after enum definitions to know the sizes
-
+// Caches are stored in the ProfilerState singleton and reset on fork
 std::optional<ddog_prof_StringId2>
 to_interned_string(ExportTagKey key);
 
