@@ -98,17 +98,21 @@ variables:
   tags: [ "macos:sonoma-$ARCH_TAG", "specific:true" ]
   parallel:
     matrix:
-      - ARCH_TAG:
-          - "amd64"
-          - "arm64"
+      # amd64 runners are slower
+      - ARCH_TAG: "amd64"
         PYTHON_VERSIONS:
-          - "3.9 3.10"
-          - "3.11 3.12"
-          - "3.13 3.14"
+          - "3.9 3.10 3.11"
+          - "3.12 3.13 3.14"
+      - ARCH_TAG: "arm64"
+        PYTHON_VERSIONS: "3.9 3.10 3.11 3.12 3.13 3.14"
   variables:
     SYSTEM_VERSION_COMPAT: "0"
+    DD_USE_SCCACHE: "1"
   script: |
     set -euo pipefail
+    if ! command -v sccache &> /dev/null; then
+      brew install sccache
+    fi
     for python_version in ${PYTHON_VERSIONS}; do
       echo -e "\e[0Ksection_start:`date +%s`:build_macos_${python_version}\r\e[0KBuilding macOS wheel for Python ${python_version}"
 
@@ -117,6 +121,7 @@ variables:
 
       echo -e "\e[0Ksection_end:`date +%s`:build_macos_${python_version}\r\e[0K"
     done
+    sccache --show-stats
 
 "upload manylinux2014_x86_64":
   extends: .upload_wheels_base
