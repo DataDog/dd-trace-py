@@ -407,9 +407,12 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
-class DatasetRecord(DatasetRecordRaw):
-    record_id: str
+class _DatasetRecordOptionalFields(TypedDict, total=False):
     canonical_id: str
+
+
+class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptionalFields):
+    record_id: str
 
 
 class TaskResult(TypedDict):
@@ -1031,14 +1034,16 @@ class BaseExperiment(ABC):
             },
         }
 
-    def _get_record_tags(self, record_id: str, canonical_id: str) -> dict[str, str]:
-        return {
+    def _get_record_tags(self, record_id: str, canonical_id: Optional[str] = None) -> dict[str, str]:
+        tags = {
             **self._tags,
             "dataset_id": str(self._dataset._id),
             "dataset_record_id": str(record_id),
-            "dataset_record_canonical_id": canonical_id,
             "experiment_id": str(self._id),
         }
+        if canonical_id:
+            tags["dataset_record_canonical_id"] = canonical_id
+        return tags
 
     def _check_and_raise_task_error(self, task_result: TaskResult, raise_errors: bool) -> None:
         err_dict = task_result.get("error") or {}
@@ -1149,7 +1154,7 @@ class Experiment(BaseExperiment):
                 span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            tags = self._get_record_tags(record_id, record["canonical_id"])
+            tags = self._get_record_tags(record_id, record.get("canonical_id"))
             output_data: JSONType = None
             try:
                 output_data = self._task(input_data, self._config)
@@ -1416,7 +1421,7 @@ class AsyncExperiment(BaseExperiment):
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
-                tags = self._get_record_tags(record_id, record["canonical_id"])
+                tags = self._get_record_tags(record_id, record.get("canonical_id"))
                 output_data = None
                 try:
                     output_data = await self._task(input_data, self._config)
