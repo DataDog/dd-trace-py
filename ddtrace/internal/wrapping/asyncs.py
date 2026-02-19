@@ -711,7 +711,7 @@ else:
     raise RuntimeError(msg)
 
 
-def wrap_async(instrs: list, code: CodeType, lineno: int) -> None:
+def wrap_async(instrs: list[bc.Instr], code: CodeType, lineno: int) -> None:
     if (bc.CompilerFlags.ASYNC_GENERATOR | bc.CompilerFlags.COROUTINE) & code.co_flags:
         if ASYNC_HEAD_ASSEMBLY is not None:
             instrs[0:0] = ASYNC_HEAD_ASSEMBLY.bind()
