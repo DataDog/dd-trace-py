@@ -1,3 +1,4 @@
 features:
   - |
-    LLM Observability experiments propagate canonical_ids when present to the experiments span.
+    LLM Observability: experiments propagate canonical_ids from dataset records
+    to the corresponding experiments span when present.
