@@ -19,16 +19,16 @@ def test_debugger_disabled_ddtrace_run():
 def test_debugger_enabled_programmatically():
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    assert "LIVE_DEBUGGING" not in remoteconfig_poller._client._products
+    assert "LIVE_DEBUGGING" not in remoteconfig_poller._client._product_callbacks
     from ddtrace.debugging import DynamicInstrumentation
 
     DynamicInstrumentation.enable()
     assert DynamicInstrumentation._instance is not None
-    assert "LIVE_DEBUGGING" in remoteconfig_poller._client._products
+    assert "LIVE_DEBUGGING" in remoteconfig_poller._client._product_callbacks
 
     DynamicInstrumentation.disable()
     assert DynamicInstrumentation._instance is None
-    assert "LIVE_DEBUGGING" not in remoteconfig_poller._client._products
+    assert "LIVE_DEBUGGING" not in remoteconfig_poller._client._product_callbacks
 
 
 @pytest.mark.subprocess(err=None)

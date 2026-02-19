@@ -50,6 +50,22 @@ class SpanTestCase(TracerTestCase):
         trace_id64_binary = format(s._trace_id_64bits, "b")
         assert int(trace_id64_binary, 2) == int(trace_id_binary[-64:], 2)
 
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED="true"))
+    def test_128bit_trace_id_config_deprecation_warning(self):
+        """Test that setting DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED emits a deprecation warning."""
+        import warnings
+
+        from ddtrace.internal.settings._config import Config
+        from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+
+        warnings.simplefilter("always")
+        with warnings.catch_warnings(record=True) as warns:
+            Config()
+
+        deprecation_warns = [w for w in warns if issubclass(w.category, DDTraceDeprecationWarning)]
+        assert len(deprecation_warns) >= 1
+        assert "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED is deprecated" in str(deprecation_warns[0].message)
+
     def test_tags(self):
         s = Span(name="test.span")
         s.set_tag("a", "a")
@@ -819,11 +835,28 @@ def test_on_finish_multi_callback():
     m2.assert_called_once_with(s)
 
 
-@pytest.mark.parametrize("arg", ["span_id", "trace_id", "parent_id"])
+@pytest.mark.parametrize("arg", ["trace_id", "parent_id"])
 def test_span_preconditions(arg):
     Span("test", **{arg: None})
     with pytest.raises(TypeError):
         Span("test", **{arg: "foo"})
+
+
+def test_span_id_preconditions():
+    """Test that invalid span_id types generate a random ID instead of raising"""
+    # None should generate random ID
+    s1 = Span("test", span_id=None)
+    assert isinstance(s1.span_id, int)
+    assert s1.span_id > 0
+
+    # Invalid type (string) should generate random ID, not raise
+    s2 = Span("test", span_id="foo")
+    assert isinstance(s2.span_id, int)
+    assert s2.span_id > 0
+
+    # Valid int should be used
+    s3 = Span("test", span_id=12345)
+    assert s3.span_id == 12345
 
 
 def test_manual_context_usage():
@@ -987,3 +1020,11 @@ def test_get_traceback_honors_config_traceback_max_size():
     split_result = [s + "\n" for item in split_result for s in item.split("\n") if s]
     assert len(split_result) < 8  # Value is 5 for Python 3.10
     assert len(result) < 410  # Value is 377 for Python 3.10
+
+
+def test_span_repr_metastruct():
+    span = Span("span_test")
+    assert "metastruct={}" in repr(span)
+    span._set_struct_tag("key1", {"a": 1, "b": 2})
+    span._set_struct_tag("key2", ["bad item"])  # type: ignore
+    assert "metastruct={'key1': dict_keys(['a', 'b']), 'key2': 'wrong type [list]'}" in repr(span)

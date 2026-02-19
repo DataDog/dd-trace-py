@@ -1,0 +1,311 @@
+---
+components:
+  bootstrap:
+    - ddtrace/bootstrap/*
+    - ddtrace/commands/*
+    - ddtrace/auto.py
+  tracing:
+    - ddtrace/_logger.py
+    - ddtrace/_monkey.py
+    - ddtrace/_trace/*
+    - ddtrace/trace/*
+    - ddtrace/constants.py
+    - ddtrace/internal/settings/__init__.py
+    - ddtrace/internal/settings/_config.py
+    - ddtrace/internal/settings/http.py
+    - ddtrace/internal/settings/integration.py
+    - ddtrace/internal/_encoding.py*
+    - ddtrace/internal/_tagset.py*
+    - ddtrace/internal/_utils.*
+    - ddtrace/internal/constants.py
+    - ddtrace/internal/encoding.py
+    - ddtrace/internal/flare/*
+    - ddtrace/internal/pack.h
+    - ddtrace/internal/pack_template.h
+    - ddtrace/internal/peer_service/*
+    - ddtrace/internal/settings/peer_service.py
+    - ddtrace/internal/processor/__init__.py
+    - ddtrace/internal/processor/stats.py
+    - ddtrace/internal/runtime/*
+    - ddtrace/internal/sampling.py
+    - ddtrace/internal/schema/*
+    - ddtrace/internal/sma.py
+    - ddtrace/internal/tracemethods.py
+    - ddtrace/internal/sysdep.h
+    - ddtrace/internal/writer/*
+  vendor:
+    - ddtrace/vendor/*
+  opentelemetry:
+    - ddtrace/opentelemetry/*
+    - ddtrace/internal/opentelemetry/*
+  django:
+    - ddtrace/contrib/internal/django/*
+  flask:
+    - ddtrace/contrib/internal/flask/*
+    - ddtrace/contrib/flask_cache.py
+    - ddtrace/contrib/internal/flask_cache/*
+  errortracking:
+    - ddtrace/errortracking/*
+    - ddtrace/internal/settings/errortracking.py
+  appsec_iast:
+    - ddtrace/appsec/iast/*
+    - ddtrace/appsec/*
+    - ddtrace/internal/settings/asm.py
+  core:
+    - ddtrace/internal/__init__.py
+    - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/_threads.*
+    - ddtrace/internal/_unpatched.py
+    - ddtrace/internal/agent.py
+    - ddtrace/internal/assembly.py
+    - ddtrace/internal/atexit.py
+    - ddtrace/internal/compat.py
+    - ddtrace/internal/core/*
+    - ddtrace/internal/datadog/__init__.py
+    - ddtrace/internal/debug.py
+    - ddtrace/internal/dogstatsd.py
+    - ddtrace/internal/forksafe.py
+    - ddtrace/internal/gitmetadata.py
+    - ddtrace/internal/glob_matching.py
+    - ddtrace/internal/ipc.py
+    - ddtrace/internal/logger.py
+    - ddtrace/_logger.py
+    - ddtrace/internal/hostname.py
+    - ddtrace/internal/http.py
+    - ddtrace/internal/bytecode_injection/*
+    - ddtrace/internal/metrics.py
+    - ddtrace/internal/module.py
+    - ddtrace/internal/native/*
+    - ddtrace/internal/packages.py
+    - ddtrace/internal/third-party.tar.gz
+    - ddtrace/internal/periodic.py
+    - ddtrace/internal/products.py
+    - ddtrace/internal/rate_limiter.py
+    - ddtrace/internal/safety.py
+    - ddtrace/internal/service.py
+    - ddtrace/internal/uds.py
+    - ddtrace/internal/utils/*
+    - ddtrace/internal/uwsgi.py
+    - ddtrace/internal/wrapping/*
+    - ddtrace/__init__.py
+    - ddtrace/py.typed
+    - ddtrace/version.py
+    - ddtrace/internal/settings/_config.py
+    - src/native/*
+suites:
+  span:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  tracer:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  core_api:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  set_http_meta:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  telemetry_add_metric:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  otel_span:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@opentelemetry'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  otel_sdk_span:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@opentelemetry'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  recursive_computation:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  sampling_rule_matches:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  http_propagation_extract:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  http_propagation_inject:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  rate_limiter:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  appsec_iast_aspects:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  appsec_iast_aspects_ospath:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - '@appsec_iast'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  appsec_iast_aspects_re_module:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - '@appsec_iast'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  appsec_iast_aspects_split:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - '@appsec_iast'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  appsec_iast_propagation:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - '@appsec_iast'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  packages_package_for_root_module_mapping:
+    paths:
+      - '@core'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  packages_update_imported_dependencies:
+    paths:
+      - '@core'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  fork_time:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@flask'
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  django_simple:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@django'
+    cpus_per_run: 2
+    type: 'microbenchmark'
+  flask_simple:
+    paths:
+      - '@bootstrap'
+      - '@tracing'
+      - '@core'
+      - '@vendor'
+      - '@flask'
+    cpus_per_run: 2
+    type: 'microbenchmark'
+  flask_sqli:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@flask'
+    cpus_per_run: 2
+    type: 'microbenchmark'
+  errortracking_django_simple:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - '@tracing'
+      - '@django'
+    cpus_per_run: 2
+    type: 'microbenchmark'
+  errortracking_flask_sqli:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - '@tracing'
+      - '@flask'
+    cpus_per_run: 2
+    type: 'microbenchmark'
+  startup:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@vendor'
+      - '@tracing'
+      - '@flask'
+      - '@django'
+    cpus_per_run: 2
+    type: 'microbenchmark'
+  rand:
+    paths:
+      - 'src/native/rand.rs'
+    cpus_per_run: 1
+    type: 'microbenchmark'

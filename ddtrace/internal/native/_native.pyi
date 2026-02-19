@@ -1,10 +1,7 @@
 from enum import Enum
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Literal
 from typing import Optional
-from typing import Type
 from typing import TypeVar
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
@@ -41,7 +38,7 @@ class PyConfigurator:
         :param file: The path to the managed file to override.
         """
         ...
-    def get_configuration(self) -> List[Dict[str, str]]:
+    def get_configuration(self) -> list[dict[str, str]]:
         """
         Retrieve the on-disk configuration.
         :return: A list of dictionaries containing the configuration:
@@ -72,7 +69,7 @@ class StacktraceCollection:
 class CrashtrackerConfiguration:
     def __init__(
         self,
-        additional_files: List[str],
+        additional_files: list[str],
         create_alt_stack: bool,
         use_alt_stack: bool,
         timeout_ms: int,
@@ -84,15 +81,15 @@ class CrashtrackerConfiguration:
 class CrashtrackerReceiverConfig:
     def __init__(
         self,
-        args: List[str],
-        env: Dict[str, str],
+        args: list[str],
+        env: dict[str, str],
         path_to_receiver_binary: str,
         stderr_filename: Optional[str],
         stdout_filename: Optional[str],
     ): ...
 
 class CrashtrackerMetadata:
-    def __init__(self, library_name: str, library_version: str, family: str, tags: Dict[str, str]): ...
+    def __init__(self, library_name: str, library_version: str, family: str, tags: dict[str, str]): ...
 
 class CrashtrackerStatus:
     NotInitialized: "CrashtrackerStatus"
@@ -103,8 +100,6 @@ def crashtracker_init(
     config: CrashtrackerConfiguration,
     receiver_config: CrashtrackerReceiverConfig,
     metadata: CrashtrackerMetadata,
-    # TODO: Add this back in post Code Freeze (need to update config registry)
-    # emit_runtime_stacks: bool,
 ) -> None: ...
 def crashtracker_on_fork(
     config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
@@ -519,15 +514,36 @@ class ffe:
 class SpanData:
     name: str
     service: Optional[str]
+    resource: str
+    span_type: Optional[str]
+    start_ns: int
+    duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
+    error: int
+    span_id: int
+    start: float  # Convenience property: start_ns / 1e9 (in seconds)
+    duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
+    _span_api: str
 
     def __new__(
-        cls: Type[_SpanDataT],
+        cls: type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+        trace_id: Optional[int] = None,  # placeholder for Span.__init__
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
+        start: Optional[float] = None,
+        context: Optional[Any] = None,  # placeholder for Span.__init__
+        on_finish: Optional[Any] = None,  # placeholder for Span.__init__
+        span_api: Optional[str] = None,
     ) -> _SpanDataT: ...
+    @property
+    def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
 class SpanEventData:
-    def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...
+    def __init__(self, name: str, attributes: Optional[dict[str, Any]], time_unix_nano: Optional[int]): ...
 
 class SpanLinkData:
     def __init__(
@@ -536,6 +552,10 @@ class SpanLinkData:
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Dict[str, str]] = None,
+        attributes: Optional[dict[str, str]] = None,
         _dropped_attributes: int = 0,
     ): ...
+
+def seed() -> None: ...
+def rand64bits() -> int: ...
+def generate_128bit_trace_id() -> int: ...

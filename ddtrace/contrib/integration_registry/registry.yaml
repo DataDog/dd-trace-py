@@ -41,7 +41,7 @@ integrations:
   tested_versions_by_dependency:
     aiokafka:
       min: 0.9.0
-      max: 0.12.0
+      max: 0.13.0
 
 - integration_name: aiomysql
   is_external_package: true
@@ -218,6 +218,16 @@ integrations:
     cherrypy:
       min: 17.0.0
       max: 18.10.0
+
+- integration_name: claude_agent_sdk
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - claude-agent-sdk
+  tested_versions_by_dependency:
+    claude-agent-sdk:
+      min: 0.0.23
+      max: 0.1.29
 
 - integration_name: consul
   is_external_package: true
@@ -571,7 +581,7 @@ integrations:
   tested_versions_by_dependency:
     mcp:
       min: 1.10.1
-      max: 1.26.0
+      max: 1.16.0
 
 - integration_name: molten
   is_external_package: true
@@ -685,7 +695,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.15.0
+      max: 4.16.0
 
 - integration_name: pymysql
   is_external_package: true

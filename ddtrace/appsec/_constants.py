@@ -4,15 +4,26 @@ from _io import BytesIO
 from _io import StringIO
 import os
 from re import Match
+import sys
 from typing import Any
 from typing import Iterator
 from typing import Literal  # noqa:F401
-from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.constants import STATUS_403_TYPE_AUTO
+
+
+TEXT_TYPES = (str, bytes, bytearray)
+
+TAINTEABLE_TYPES = TEXT_TYPES + (Match, BytesIO, StringIO)
+
+# Python 3.14+ template strings support
+if sys.version_info >= (3, 14):
+    from string.templatelib import Template as TemplateType
+
+    TAINTEABLE_TYPES += (TemplateType,)
 
 
 class Constant_Class(type):
@@ -27,7 +38,7 @@ class Constant_Class(type):
     def __setattr__(self, __name: str, __value: Any) -> None:
         raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
-    def __iter__(self) -> Iterator[Tuple[str, Any]]:
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
         def aux():
             for t in self.__dict__.items():
                 if not t[0].startswith("_"):
@@ -53,9 +64,9 @@ class APPSEC(metaclass=Constant_Class):
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
+    ENABLED_ORIGIN_DEFAULT: Literal["default"] = "default"
     ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
     ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
-    ENABLED_ORIGIN_SSI: Literal["ssi"] = "ssi"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -179,8 +190,8 @@ class IAST(metaclass=Constant_Class):
         (TELEMETRY_OFF_VERBOSITY, TELEMETRY_OFF_NAME),
     )
 
-    TEXT_TYPES = (str, bytes, bytearray)
-    TAINTEABLE_TYPES = (str, bytes, bytearray, Match, BytesIO, StringIO)
+    TEXT_TYPES = TEXT_TYPES
+    TAINTEABLE_TYPES = TAINTEABLE_TYPES
     REQUEST_CONTEXT_KEY: Literal["_iast_env"] = "_iast_env"
 
 

@@ -3,6 +3,7 @@
 
 #include "structmember.h"
 
+#include <cstring>
 #include <stddef.h>
 
 #include <chrono>
@@ -10,6 +11,130 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+
+// Platform-specific includes for thread naming
+#if defined(__linux__)
+#include <pthread.h>
+#elif defined(__APPLE__)
+#include <pthread.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#elif defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#include <pthread.h>
+#include <pthread_np.h>
+#endif
+
+#if PY_VERSION_HEX >= 0x30d0000
+#define py_is_finalizing Py_IsFinalizing
+#else
+#define py_is_finalizing _Py_IsFinalizing
+#endif
+
+// ----------------------------------------------------------------------------
+/**
+ * Truncate thread names with format "module.path:ClassName".
+ * Prioritizes keeping the part after the colon (class name) as it's more useful.
+ */
+static void
+truncate_at_class_name(char* dest, size_t dest_size, const char* name)
+{
+    size_t name_len = strlen(name);
+
+    // If the name fits, just copy it
+    if (name_len < dest_size) {
+        strcpy(dest, name);
+        return;
+    }
+
+    // Look for a colon separator (e.g., "some.module:SomeThreadSubclass")
+    const char* colon = strchr(name, ':');
+    if (colon != NULL) {
+        // Skip the colon to get the class name part
+        const char* class_name = colon + 1;
+        size_t class_name_len = strlen(class_name);
+
+        // If the class name fits, use it; otherwise truncate it
+        if (class_name_len < dest_size) {
+            strcpy(dest, class_name);
+        } else {
+            strncpy(dest, class_name, dest_size - 1);
+            dest[dest_size - 1] = '\0';
+        }
+    } else {
+        // No colon found, just truncate from the start
+        strncpy(dest, name, dest_size - 1);
+        dest[dest_size - 1] = '\0';
+    }
+}
+
+// ----------------------------------------------------------------------------
+/**
+ * Set the native thread name for the current thread.
+ * This is a cross-platform utility that handles platform-specific APIs.
+ */
+static void
+set_native_thread_name(PyObject* name_obj)
+{
+    if (name_obj == Py_None || name_obj == NULL) {
+        return;
+    }
+
+    // Extract the thread name as a UTF-8 C string
+    const char* name = PyUnicode_AsUTF8(name_obj);
+    if (name == NULL) {
+        PyErr_Clear(); // Clear any error and continue without setting the name
+        return;
+    }
+
+#if defined(__linux__)
+    // Linux: pthread_setname_np with thread handle and name (max 15 chars + null terminator)
+    char truncated_name[16];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(pthread_self(), truncated_name);
+
+#elif defined(__APPLE__)
+    // macOS: pthread_setname_np with just the name (applies to current thread)
+    // macOS has a longer limit but we'll still truncate for safety
+    char truncated_name[64];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(truncated_name);
+
+#elif defined(_WIN32)
+    // Windows 10+: SetThreadDescription (no length limit in practice)
+    // Convert UTF-8 to wide string
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, name, -1, NULL, 0);
+    if (wlen > 0) {
+        wchar_t* wname = (wchar_t*)malloc(wlen * sizeof(wchar_t));
+        if (wname != NULL) {
+            MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, wlen);
+            SetThreadDescription(GetCurrentThread(), wname);
+            free(wname);
+        }
+    }
+
+#elif defined(__FreeBSD__)
+    // FreeBSD: pthread_set_name_np (no documented length limit, but use truncation for safety)
+    char truncated_name[64];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_set_name_np(pthread_self(), truncated_name);
+
+#elif defined(__OpenBSD__)
+    // OpenBSD: pthread_setname_np with just the name (similar limits to Linux)
+    char truncated_name[32];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(pthread_self(), truncated_name);
+
+#elif defined(__NetBSD__)
+    // NetBSD: pthread_setname_np with format string
+    char truncated_name[32];
+    truncate_at_class_name(truncated_name, sizeof(truncated_name), name);
+    pthread_setname_np(pthread_self(), "%s", (void*)truncated_name);
+
+#else
+    // Unsupported platform: do nothing
+    (void)name; // Suppress unused variable warning
+#endif
+}
 
 // ----------------------------------------------------------------------------
 /**
@@ -20,17 +145,12 @@ class GILGuard
   public:
     inline GILGuard()
     {
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             _state = PyGILState_Ensure();
-        }
     }
     inline ~GILGuard()
     {
-        if (PyGILState_Check())
+        if (!py_is_finalizing() && PyGILState_Check())
             PyGILState_Release(_state);
     }
 
@@ -47,23 +167,13 @@ class AllowThreads
   public:
     inline AllowThreads()
     {
-#if PY_VERSION_HEX >= 0x30d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             _state = PyEval_SaveThread();
-        }
     }
     inline ~AllowThreads()
     {
-#if PY_VERSION_HEX >= 0x30d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             PyEval_RestoreThread(_state);
-        }
     }
 
   private:
@@ -85,56 +195,91 @@ class PyRef
         // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
         // dereferences tstate immediately. This check uses relaxed atomics
         // so it's not perfectly synchronized, but provides a safety net.
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             Py_DECREF(_obj);
-        }
     }
 
   private:
     PyObject* _obj;
 };
 
+// Reasons associated with the _request wake channel.
+static constexpr unsigned char REQUEST_REASON_NONE = 0;
+static constexpr unsigned char REQUEST_REASON_AWAKE = 1 << 0;
+static constexpr unsigned char REQUEST_REASON_STOP = 1 << 1;
+static constexpr unsigned char REQUEST_REASON_FORK_STOP = 1 << 2;
+
 // ----------------------------------------------------------------------------
 class Event
 {
   public:
-    void set()
+    void set(unsigned char reasons = REQUEST_REASON_AWAKE)
     {
         std::lock_guard<std::mutex> lock(_mutex);
 
-        if (_set)
+        unsigned char old_reasons = _reasons;
+        _reasons |= reasons;
+
+        if (old_reasons == _reasons)
             return;
 
-        _set = true;
         _cond.notify_all();
     }
 
     void wait()
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        _cond.wait(lock, [this]() { return _set; });
+        _cond.wait(lock, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     bool wait(std::chrono::milliseconds timeout)
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        return _cond.wait_for(lock, timeout, [this]() { return _set; });
+        return _cond.wait_for(lock, timeout, [this]() { return _reasons != REQUEST_REASON_NONE; });
+    }
+
+    bool wait(std::chrono::time_point<std::chrono::steady_clock> until)
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        return _cond.wait_until(lock, until, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     void clear()
     {
         std::lock_guard<std::mutex> lock(_mutex);
-        _set = false;
+        _reasons = REQUEST_REASON_NONE;
+    }
+
+    void clear(unsigned char reasons)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _reasons &= static_cast<unsigned char>(~reasons);
+    }
+
+    unsigned char consume(unsigned char reasons)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        unsigned char matched = _reasons & reasons;
+        _reasons &= static_cast<unsigned char>(~reasons);
+
+        return matched;
+    }
+
+    unsigned char consume_all()
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        unsigned char reasons = _reasons;
+        _reasons = REQUEST_REASON_NONE;
+
+        return reasons;
     }
 
   private:
     std::condition_variable _cond;
     std::mutex _mutex;
-    bool _set = false;
+    unsigned char _reasons = REQUEST_REASON_NONE;
 };
 
 // ----------------------------------------------------------------------------
@@ -154,7 +299,9 @@ typedef struct periodic_thread
 
     bool _stopping;
     bool _atexit;
-    bool _after_fork;
+    bool _skip_shutdown;
+
+    std::chrono::time_point<std::chrono::steady_clock> _next_call_time;
 
     std::unique_ptr<Event> _started;
     std::unique_ptr<Event> _stopped;
@@ -184,8 +331,6 @@ static PyMemberDef PeriodicThread_members[] = {
       offsetof(PeriodicThread, _ddtrace_profiling_ignore),
       0,
       "whether to ignore the thread for profiling" },
-
-    { "_is_after_fork", T_BOOL, offsetof(PeriodicThread, _after_fork), READONLY, "whether the thread is after fork" },
 
     { NULL } /* Sentinel */
 };
@@ -222,7 +367,7 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     self->_stopping = false;
     self->_atexit = false;
-    self->_after_fork = false;
+    self->_skip_shutdown = false;
 
     self->_started = std::make_unique<Event>();
     self->_stopped = std::make_unique<Event>();
@@ -264,16 +409,8 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_start(PeriodicThread* self, PyObject* args)
+PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    // After fork, the child process should not restart threads that were running in the parent
-    // until properly reinitialized through forksafe handlers. This prevents crashes when
-    // pthread_create is called before threading state is safe (e.g., in uvloop's _after_fork).
-    // Check this first because after fork, self->_thread is non-null but the thread doesn't exist.
-    if (self->_after_fork) {
-        Py_RETURN_NONE;
-    }
-
     if (self->_thread != nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread already started");
         return NULL;
@@ -281,6 +418,11 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
     if (self->_stopping)
         Py_RETURN_NONE;
+
+    // Initialize the next call time to the current time plus the interval.
+    // This ensures that the first call happens after the specified interval.
+    self->_next_call_time =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
 
     // Start the thread
     self->_thread = std::make_unique<std::thread>([self]() {
@@ -297,40 +439,51 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
             PyDict_SetItem(_periodic_threads, self->ident, (PyObject*)self);
         }
 
+        // Set the native thread name for better debugging and profiling
+        set_native_thread_name(self->name);
+
         // Mark the thread as started from this point.
         self->_started->set();
 
         bool error = false;
-        auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
         if (self->_no_wait_at_start)
-            self->_request->set();
+            self->_request->set(REQUEST_REASON_AWAKE);
 
         while (!self->_stopping) {
             {
                 AllowThreads _;
 
-                if (self->_request->wait(interval)) {
-                    if (self->_stopping)
+                if (self->_request->wait(self->_next_call_time)) {
+                    if (self->_stopping) {
+                        // _stopping can be set by:
+                        // 1. pre-fork stop: preserve non-fork reasons (e.g. awake)
+                        //    so they survive restart;
+                        // 2. regular stop(): consume all pending reasons.
+                        const unsigned char stop_reasons =
+                          self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
+                        const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
+                        if (!has_fork_stop)
+                            self->_request->consume_all();
                         break;
+                    }
 
-                    // Awake signal
-                    self->_request->clear();
+                    // Request wakeup while running (awake/no_wait_at_start).
+                    // Timer wakeups are the wait(...) == false branch.
+                    self->_request->consume_all();
                 }
             }
 
-#if PY_VERSION_HEX >= 0x30d0000
-            if (Py_IsFinalizing()) {
-#else
-            if (_Py_IsFinalizing()) {
-#endif
+            if (py_is_finalizing())
                 break;
-            }
 
             if (PeriodicThread__periodic(self)) {
                 // Error
                 error = true;
                 break;
             }
+
+            self->_next_call_time =
+              std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
 
             // If this came from a request mark it as served
             self->_served->set();
@@ -340,16 +493,14 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
         // stopping.
         self->_served->set();
 
-        // Run the shutdown callback if there was no error and we are not
-        // at Python shutdown.
-        if (!self->_atexit && !error && self->_on_shutdown != Py_None) {
-#if PY_VERSION_HEX >= 0x30d0000
-            if (!Py_IsFinalizing()) {
-#else
-            if (!_Py_IsFinalizing()) {
-#endif
+        if (!self->_atexit && !py_is_finalizing()) {
+            // Run the shutdown callback if there was no error and we are not
+            // at Python shutdown.
+            if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
                 PeriodicThread__on_shutdown(self);
-            }
+
+            // Remove the thread from the mapping of active threads
+            PyDict_DelItem(_periodic_threads, self->ident);
         }
 
         // Notify the join method that the thread has stopped
@@ -371,19 +522,20 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_awake(PeriodicThread* self, PyObject* args)
+PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     if (self->_thread == nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread not started");
         return NULL;
     }
 
-    if (!self->_after_fork) {
+    {
         AllowThreads _;
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
         self->_served->clear();
-        self->_request->set();
+        self->_request->set(REQUEST_REASON_AWAKE);
+
         self->_served->wait();
     }
 
@@ -392,19 +544,15 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* args)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread_stop(PeriodicThread* self, PyObject* args)
+PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     if (self->_thread == nullptr) {
         PyErr_SetString(PyExc_RuntimeError, "Thread not started");
         return NULL;
     }
 
-    if (!self->_after_fork) {
-        // The thread is no longer running so it makes no sense to stop it.
-        // Attempting to acquire the Event lock could deadlock.
-        self->_stopping = true;
-        self->_request->set();
-    }
+    self->_stopping = true;
+    self->_request->set(REQUEST_REASON_STOP);
 
     Py_RETURN_NONE;
 }
@@ -421,11 +569,6 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     if (self->_thread->get_id() == std::this_thread::get_id()) {
         PyErr_SetString(PyExc_RuntimeError, "Cannot join the current periodic thread");
         return NULL;
-    }
-
-    if (self->_after_fork) {
-        // The thread is no longer running so it makes no sense to join it.
-        Py_RETURN_NONE;
     }
 
     PyObject* timeout = Py_None;
@@ -464,7 +607,7 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__atexit(PeriodicThread* self, PyObject* args)
+PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_atexit = true;
 
@@ -479,9 +622,45 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* args)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__after_fork(PeriodicThread* self, PyObject* args)
+PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    self->_after_fork = true;
+    self->_thread = nullptr;
+
+    self->_stopping = false;
+    self->_atexit = false;
+    self->_skip_shutdown = false;
+
+    // During prefork, stop() sets _request to wake the thread promptly so it
+    // can exit before fork. That wakeup should not trigger a synthetic
+    // periodic() run right after restart.
+    self->_request->clear(REQUEST_REASON_FORK_STOP);
+    self->_started->clear();
+    self->_stopped->clear();
+    self->_served->clear();
+
+    PeriodicThread_start(self, NULL);
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
+{
+    self->_skip_shutdown = true;
+
+    // Synchronize with awake() so there is no window where _stopping is visible
+    // before the fork-stop wake reason is published.
+    {
+        AllowThreads _;
+        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+
+        // Equivalent to PeriodicThread_stop(), with an explicit fork-stop
+        // reason. Keep this order so the worker cannot consume fork-stop as a
+        // normal wakeup.
+        self->_stopping = true;
+        self->_request->set(REQUEST_REASON_FORK_STOP);
+    }
 
     Py_RETURN_NONE;
 }
@@ -493,11 +672,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // Since the native thread holds a strong reference to this object, we
     // can only get here if the thread has actually stopped.
 
-#if PY_VERSION_HEX >= 0x30d0000
-    if (Py_IsFinalizing()) {
-#else
-    if (_Py_IsFinalizing()) {
-#endif
+    if (py_is_finalizing()) {
         // Do nothing. We are about to terminate and release resources anyway.
         return;
     }
@@ -539,8 +714,9 @@ static PyMethodDef PeriodicThread_methods[] = {
     { "join", (PyCFunction)PeriodicThread_join, METH_VARARGS | METH_KEYWORDS, "Join the thread" },
     /* Private */
     { "_atexit", (PyCFunction)PeriodicThread__atexit, METH_NOARGS, "Stop the thread at exit" },
-    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Mark the thread as after fork" },
-    { NULL } /* Sentinel */
+    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork" },
+    { "_before_fork", (PyCFunction)PeriodicThread__before_fork, METH_NOARGS, "Prepare the thread for fork" },
+    { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
 // ----------------------------------------------------------------------------

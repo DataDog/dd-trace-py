@@ -12,10 +12,7 @@ import subprocess
 import sys
 import time
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import TypedDict
 from typing import cast
 from urllib import parse
@@ -122,7 +119,7 @@ def override_global_config(values):
         >>> with self.override_global_config(dict(name=value,...)):
             # Your test
     """
-    # List of global variables we allow overriding
+    # list of global variables we allow overriding
     # DEV: We do not do `ddtrace.config.keys()` because we have all of our integrations
     global_config_keys = [
         "_tracing_enabled",
@@ -374,43 +371,6 @@ class BaseTestCase(SubprocessTestCase):
     assert_is_not_measured = staticmethod(assert_is_not_measured)
 
 
-def _build_tree(
-    spans,  # type: List[Span]
-    root,  # type: Span
-):
-    # type: (...) -> TestSpanNode
-    """helper to build a tree structure for the provided root span"""
-    children = []
-    for span in spans:
-        if span.parent_id == root.span_id:
-            children.append(_build_tree(spans, span))
-
-    return TestSpanNode(root, children)
-
-
-def get_root_span(
-    spans,  # type: List[Span]
-):
-    # type: (...) -> TestSpanNode
-    """
-    Helper to get the root span from the list of spans in this container
-
-    :returns: The root span if one was found, None if not, and AssertionError if multiple roots were found
-    :rtype: :class:`tests.utils.span.TestSpanNode`, None
-    :raises: AssertionError
-    """
-    root = None
-    for span in spans:
-        if span.parent_id is None:
-            if root is not None:
-                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
-            root = span
-
-    assert root, "No root span found in {0!r}".format(spans)
-
-    return _build_tree(spans, root)
-
-
 class TestSpanContainer(object):
     """
     Helper class for a container of Spans.
@@ -438,7 +398,7 @@ class TestSpanContainer(object):
         """
         internal helper to ensure the list of spans are all :class:`tests.utils.span.TestSpan`
 
-        :param spans: List of :class:`ddtrace.trace.Span` or :class:`tests.utils.span.TestSpan`
+        :param spans: list of :class:`ddtrace.trace.Span` or :class:`tests.utils.span.TestSpan`
         :type spans: list
         :returns: A list og :class:`tests.utils.span.TestSpan`
         :rtype: list
@@ -453,8 +413,7 @@ class TestSpanContainer(object):
         """subclass required property"""
         raise NotImplementedError
 
-    def get_root_span(self):
-        # type: (...) -> TestSpanNode
+    def get_root_span(self) -> "TestSpanNode":
         """
         Helper to get the root span from the list of spans in this container
 
@@ -464,8 +423,7 @@ class TestSpanContainer(object):
         """
         return get_root_span(self.spans)
 
-    def get_root_spans(self):
-        # type: (...) -> List[Span]
+    def get_root_spans(self) -> list[Span]:
         """
         Helper to get all root spans from the list of spans in this container
 
@@ -545,7 +503,6 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     def setUp(self):
         """Before each test case, configure the global tracer with a DummyWriter"""
-        self.tracer = ddtrace.tracer
         self.scoped_tracer = scoped_tracer()
         self.tracer = self.scoped_tracer.__enter__()
         super(TracerTestCase, self).setUp()
@@ -565,17 +522,15 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
             return writer.spans
         return []
 
-    def pop_spans(self):
+    def pop_spans(self) -> list[Span]:
         """Pop and return all spans from the writer"""
-        # type: () -> List[Span]
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop"):
             return writer.pop()
         return []
 
-    def pop_traces(self):
+    def pop_traces(self) -> list[list[Span]]:
         """Pop and return all traces from the writer"""
-        # type: () -> List[List[Span]]
         writer = self.tracer._span_aggregator.writer
         if hasattr(writer, "pop_traces"):
             return writer.pop_traces()
@@ -602,15 +557,9 @@ class TracerTestCase(TestSpanContainer, BaseTestCase):
 
     @contextlib.contextmanager
     def override_global_tracer(self, tracer=None):
-        original = ddtrace.tracer
-        tracer = tracer or self.tracer
-        ddtrace.tracer = tracer
-        core.tracer = tracer
-        try:
-            yield
-        finally:
-            ddtrace.tracer = original
-            core.tracer = original
+        # TODO(munir): Remove this context manager. We no longer override
+        # the global tracer in tests.
+        yield
 
 
 class DummyWriterMixin:
@@ -629,14 +578,12 @@ class DummyWriterMixin:
             self.spans += spans
             self.traces += traces
 
-    def pop(self):
-        # type: () -> List[Span]
+    def pop(self) -> list[Span]:
         s = self.spans
         self.spans = []
         return s
 
-    def pop_traces(self):
-        # type: () -> List[List[Span]]
+    def pop_traces(self) -> list[list[Span]]:
         traces = self.traces
         self.traces = []
         return traces
@@ -1009,7 +956,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     A :class:`tests.utils.span.TestSpan` which is used as part of a span tree.
 
     Each :class:`tests.utils.span.TestSpanNode` represents the current :class:`ddtrace.trace.Span`
-    along with any children who have that span as it's parent.
+    along with any children who have that span as its parent.
 
     This class can be used to assert on the parent/child relationships between spans.
 
@@ -1040,10 +987,10 @@ class TestSpanNode(TestSpan, TestSpanContainer):
 
     def assert_structure(self, root, children=NO_CHILDREN):
         """
-        Assertion to assert on the structure of this node and it's children.
+        Assertion to assert on the structure of this node and its children.
 
         This assertion takes a dictionary of properties to assert for this node
-        along with a list of assertions to make for it's children.
+        along with a list of assertions to make for its children.
 
         Example::
 
@@ -1060,7 +1007,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
                     dict(name='root_span'),
 
                     (
-                        # Child span with one child of it's own
+                        # Child span with one child of its own
                         (
                             dict(name='child_span'),
 
@@ -1078,7 +1025,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
         :param root: Properties to assert for this root span, these are passed to
             :meth:`tests.utils.span.TestSpan.assert_matches`
         :type root: dict
-        :param children: List of child assertions to make, if children is None then do not make any
+        :param children: list of child assertions to make, if children is None then do not make any
             assertions about this nodes children. Each list element must be a list with 2 items
             the first is a ``dict`` of property assertions on that child, and the second is a ``list``
             of child assertions to make.
@@ -1104,23 +1051,52 @@ class TestSpanNode(TestSpan, TestSpanContainer):
             spans[i].assert_structure(root, _children)
 
 
+def _build_tree(
+    spans: list[Span],
+    root: Span,
+) -> TestSpanNode:
+    """helper to build a tree structure for the provided root span"""
+    children = []
+    for span in spans:
+        if span.parent_id == root.span_id:
+            children.append(_build_tree(spans, span))
+
+    return TestSpanNode(root, children)
+
+
+def get_root_span(
+    spans: list[Span],
+) -> TestSpanNode:
+    """
+    Helper to get the root span from the list of spans in this container
+
+    :returns: The root span if one was found, None if not, and AssertionError if multiple roots were found
+    :rtype: :class:`tests.utils.span.TestSpanNode`, None
+    :raises: AssertionError
+    """
+    root = None
+    for span in spans:
+        if span.parent_id is None:
+            if root is not None:
+                raise AssertionError("Multiple root spans found {0!r} {1!r}".format(root, span))
+            root = span
+
+    assert root, "No root span found in {0!r}".format(spans)
+
+    return _build_tree(spans, root)
+
+
 def assert_dict_issuperset(a, b):
     assert set(a.items()).issuperset(set(b.items())), "{a} is not a superset of {b}".format(a=a, b=b)
 
 
 @contextmanager
 def override_global_tracer(tracer):
-    """Helper functions that overrides the global tracer available in the
-    `ddtrace` package. This is required because in some `httplib` tests we
-    can't get easily the PIN object attached to the `HTTPConnection` to
-    replace the used tracer with a dummy tracer.
     """
-    original_tracer = ddtrace.tracer
-    ddtrace.tracer = tracer
-    core.tracer = tracer
+    TODO(munir): Remove this context manager. We no longer overrid
+    the global tracer in tests.
+    """
     yield
-    ddtrace.tracer = original_tracer
-    core.tracer = original_tracer
 
 
 class SnapshotFailed(Exception):
@@ -1130,7 +1106,7 @@ class SnapshotFailed(Exception):
 class TestAgentRequest(TypedDict):
     method: str
     url: str
-    headers: Dict[str, str]
+    headers: dict[str, str]
     body: bytes
     status: int
     response: bytes
@@ -1151,7 +1127,7 @@ class TestAgentClient:
         assert parsed.hostname is not None
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
-    def _request(self, method: str, url: str) -> Tuple[int, bytes]:
+    def _request(self, method: str, url: str) -> tuple[int, bytes]:
         conn = self.create_connection()
         MAX_RETRY = 9
         exp_time = 1.618034
@@ -1168,13 +1144,13 @@ class TestAgentClient:
                 conn.close()
         return 0, b""
 
-    def requests(self) -> List[TestAgentRequest]:
+    def requests(self) -> list[TestAgentRequest]:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
-        return cast(List[Dict[str, Any]], data)
+        return cast(list[dict[str, Any]], data)
 
-    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[TestAgentRequest]:
+    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> list[TestAgentRequest]:
         reqs = []
         for req in self.requests():
             if "dd-telemetry-request-type" not in req["headers"]:
@@ -1186,7 +1162,7 @@ class TestAgentClient:
                 reqs.append(req)
         return reqs
 
-    def crash_messages(self) -> List[TestAgentRequest]:
+    def crash_messages(self) -> list[TestAgentRequest]:
         reqs = []
         for req in self.telemetry_requests(telemetry_type="logs"):
             # Parse the json data in order to filter based on "origin" key,
@@ -1215,16 +1191,12 @@ class TestAgentClient:
 
 class SnapshotTest:
     token: str
-    tracer: ddtrace.trace.Tracer
     _client: TestAgentClient
 
-    def __init__(self, token: str, tracer: Optional[ddtrace.trace.Tracer] = None):
-        if not tracer:
-            tracer = ddtrace.tracer
-        self.tracer = tracer
-        self._client = TestAgentClient(base_url=self.tracer.agent_trace_url, token=token)
+    def __init__(self, token: str):
+        self._client = TestAgentClient(base_url=ddtrace.tracer.agent_trace_url, token=token)
 
-    def requests(self) -> List[Dict[str, Any]]:
+    def requests(self) -> list[dict[str, Any]]:
         return self._client.requests()
 
     def clear(self):
@@ -1237,7 +1209,6 @@ def snapshot_context(
     token,
     agent_sample_rate_by_service=None,
     ignores=None,
-    tracer=None,
     async_mode=True,
     variants=None,
     wait_for_num_traces=None,
@@ -1251,8 +1222,7 @@ def snapshot_context(
         token = "{}_{}".format(token, variant_id) if variant_id else token
 
     ignores = ignores or []
-    if not tracer:
-        tracer = ddtrace.tracer
+    tracer = ddtrace.tracer
 
     parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
@@ -1302,7 +1272,6 @@ def snapshot_context(
                 pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
         try:
             yield SnapshotTest(
-                tracer=tracer,
                 token=token,
             )
         finally:
@@ -1372,7 +1341,6 @@ def snapshot(
     :param ignores: A list of keys to ignore when comparing snapshots. To refer
                     to keys in the meta or metrics maps use "meta.key" and
                     "metrics.key"
-    :param tracer: A tracer providing the agent connection information to use.
     """
     ignores = ignores or []
 
@@ -1397,7 +1365,6 @@ def snapshot(
         with snapshot_context(
             token,
             ignores=ignores,
-            tracer=ddtrace.tracer,
             async_mode=async_mode,
             variants=variants,
             wait_for_num_traces=wait_for_num_traces,
@@ -1447,8 +1414,7 @@ def call_program(*args, **kwargs):
     return stdout, stderr, subp.wait(), subp.pid
 
 
-def request_token(request):
-    # type: (pytest.FixtureRequest) -> str
+def request_token(request: pytest.FixtureRequest) -> str:
     from tests.conftest import get_original_test_name
 
     token = ""
@@ -1576,7 +1542,7 @@ def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_
 
 
 @contextmanager
-def override_third_party_packages(packages: List[str]):
+def override_third_party_packages(packages: list[str]):
     try:
         original_callonce = _third_party_packages.__wrapped__.__callonce_result__
     except AttributeError:

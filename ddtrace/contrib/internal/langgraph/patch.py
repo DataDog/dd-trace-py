@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 import langgraph
 
@@ -42,7 +41,7 @@ def _get_module_name(module_name: str) -> str:
     return LANGGRAPH_MODULE_MAP.get(module_name, module_name)
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"langgraph": "*"}
 
 

@@ -1,6 +1,5 @@
 import sys
 from typing import Any
-from typing import Dict
 from typing import Union
 
 import google.adk as adk
@@ -21,7 +20,7 @@ logger = get_logger(__name__)
 config._add("google_adk", {})
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"google.adk": ">=1.0.0"}
 
 

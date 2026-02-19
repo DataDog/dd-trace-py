@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 import pydantic_ai
 
@@ -22,7 +21,7 @@ def get_version() -> str:
     return getattr(pydantic_ai, "__version__", "0.0.0")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"pydantic_ai": "*"}
 
 

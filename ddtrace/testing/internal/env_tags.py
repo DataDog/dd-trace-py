@@ -9,7 +9,7 @@ from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.utils import _filter_sensitive_info
 
 
-_TagDict = t.Dict[str, t.Optional[str]]
+_TagDict = dict[str, t.Optional[str]]
 
 
 def merge_tags(target: _TagDict, *tag_dicts: _TagDict) -> None:
@@ -25,7 +25,7 @@ def merge_tags(target: _TagDict, *tag_dicts: _TagDict) -> None:
                 target[k] = v
 
 
-def get_env_tags() -> t.Dict[str, str]:
+def get_env_tags() -> dict[str, str]:
     tags: _TagDict = {}
 
     merge_tags(
@@ -73,7 +73,7 @@ def normalize_git_tags(tags: _TagDict) -> None:
     tags[GitTag.REPOSITORY_URL] = _filter_sensitive_info(tags.get(GitTag.REPOSITORY_URL))
 
 
-def parse_tags_str(tags_str: t.Optional[str]) -> t.Dict[str, str]:
+def parse_tags_str(tags_str: t.Optional[str]) -> dict[str, str]:
     """
     Parses a string containing key-value pairs and returns a dictionary.
     Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
@@ -83,7 +83,7 @@ def parse_tags_str(tags_str: t.Optional[str]) -> t.Dict[str, str]:
     :param tags_str: A string of the above form to parse tags from.
     :return: A dict containing the tags that were parsed.
     """
-    tags: t.Dict[str, str] = {}
+    tags: dict[str, str] = {}
     if not tags_str:
         return tags
 

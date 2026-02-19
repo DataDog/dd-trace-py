@@ -1,7 +1,5 @@
 import abc
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
@@ -79,8 +77,8 @@ class BaseLLMIntegration:
     def llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -96,14 +94,14 @@ class BaseLLMIntegration:
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
         raise NotImplementedError()
 
-    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None
 
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:

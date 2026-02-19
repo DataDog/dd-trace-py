@@ -3,6 +3,8 @@
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
 
+#include "echion/echion_sampler.h"
+
 using namespace Datadog;
 
 static PyObject*
@@ -28,16 +30,18 @@ _stack_start(PyObject* self, PyObject* args, PyObject* kwargs)
 PyCFunction stack_start = cast_to_pycfunction(_stack_start);
 
 static PyObject*
-stack_stop(PyObject* self, PyObject* args)
+stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    (void)self;
-    (void)args;
     Sampler::get().stop();
+
     // Explicitly clear ThreadSpanLinks. The memory should be cleared up
     // when the program exits as ThreadSpanLinks is a static singleton instance.
     // However, this was necessary to make sure that the state is not shared
     // across tests, as the tests are run in the same process.
+    Py_BEGIN_ALLOW_THREADS; // Release GIL before busy-waiting
     ThreadSpanLinks::get_instance().reset();
+    Py_END_ALLOW_THREADS; // Re-acquire GIL
+
     Py_RETURN_NONE;
 }
 
@@ -217,6 +221,21 @@ stack_set_adaptive_sampling(PyObject* Py_UNUSED(self), PyObject* args)
 }
 
 static PyObject*
+stack_set_uvloop_mode(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    uintptr_t thread_id;
+    int uvloop_mode;
+
+    if (!PyArg_ParseTuple(args, "lp", &thread_id, &uvloop_mode)) {
+        return nullptr;
+    }
+
+    Sampler::get().set_uvloop_mode(thread_id, static_cast<bool>(uvloop_mode));
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
 {
     uintptr_t greenlet_id; // map key
@@ -226,7 +245,8 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     if (!PyArg_ParseTuple(args, "lOO", &greenlet_id, &name, &frame))
         return NULL;
 
-    auto maybe_greenlet_name = string_table.key(name, StringTag::GreenletName);
+    auto& sampler = Sampler::get();
+    auto maybe_greenlet_name = sampler.get_echion().string_table().key(name, StringTag::GreenletName);
     if (!maybe_greenlet_name) {
         // We failed to get this task but we keep going
         PyErr_SetString(PyExc_RuntimeError, "Failed to get greenlet name from the string table");
@@ -236,7 +256,7 @@ track_greenlet(PyObject* Py_UNUSED(m), PyObject* args)
     auto greenlet_name = *maybe_greenlet_name;
 
     Py_BEGIN_ALLOW_THREADS;
-    Sampler::get().track_greenlet(greenlet_id, greenlet_name, frame);
+    sampler.track_greenlet(greenlet_id, greenlet_name, frame);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -309,6 +329,7 @@ static PyMethodDef _stack_methods[] = {
     { "update_greenlet_frame", update_greenlet_frame, METH_VARARGS, "Update the frame of a greenlet" },
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
+    { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     { NULL, NULL, 0, NULL }
 };
 

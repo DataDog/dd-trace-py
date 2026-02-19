@@ -1,5 +1,4 @@
 import sys
-from typing import Dict
 
 import crewai
 
@@ -23,7 +22,7 @@ logger = get_logger(__name__)
 config._add("crewai", {})
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"crewai": ">=0.102"}
 
 

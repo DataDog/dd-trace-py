@@ -5,7 +5,6 @@ import random
 import string
 import threading
 from typing import Any
-from typing import Dict
 from unittest import TestCase
 
 from hypothesis import given
@@ -949,21 +948,21 @@ def _value():
     "data",
     [
         {"trace_id": "trace_id"},
-        {"span_id": "span_id"},
-        {"parent_id": "parent_id"},
+        # {"span_id": "span_id"},  # Now handled gracefully by Rust (generates random ID)
+        # {"parent_id": "parent_id"},  # Now handled gracefully by Rust (invalid types ignored)
         # {"service": True},  # Now handled gracefully by Rust (converts to None)
-        {"resource": 50},
+        # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
         # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
-        {"start_ns": []},
-        {"duration_ns": {}},
-        {"span_type": 100},
+        # {"span_type": 100},  # Now handled gracefully by Rust (converts to None)
+        # {"start_ns": []},  # Now handled gracefully by Rust (falls back to 0)
+        # {"duration_ns": {}},  # Now handled gracefully by Rust (falls back to -1/None)
     ],
 )
 def test_encoding_invalid_data_raises(data):
     """Test that invalid data types for certain fields raise during encoding.
 
-    Note: name and service are now validated at the Rust layer and convert
-    invalid types gracefully, so they no longer raise during encoding.
+    Note: name, service, resource, span_id, parent_id, start_ns, and duration_ns are now validated
+    at the Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
     """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
@@ -981,26 +980,41 @@ def test_encoding_invalid_data_raises(data):
 
 
 @pytest.mark.parametrize(
-    "field,invalid_value,expected_value",
+    "field,invalid_value,expected_value,span_name",
     [
-        ("service", True, None),  # Invalid service type -> None
-        ("name", [1, 2, 3], ""),  # Invalid name type -> "" (default)
-        ("service", {"dict": "value"}, None),  # Invalid service type -> None
-        ("name", 123, ""),  # Invalid name type -> ""
+        ("service", True, None, "test"),  # Invalid service type -> None
+        ("name", [1, 2, 3], "", "test"),  # Invalid name type -> "" (default)
+        ("service", {"dict": "value"}, None, "test"),  # Invalid service type -> None
+        ("name", 123, "", "test"),  # Invalid name type -> ""
+        ("resource", 50, "", "test"),  # Invalid resource type -> "" (empty string)
+        ("resource", [1, 2, 3], "", "test"),  # Invalid resource type -> "" (empty string)
+        ("resource", {"dict": "value"}, "", "my-name"),  # Invalid resource type -> "" (empty string)
+        ("span_type", 100, None, "test"),  # Invalid span_type -> None
+        ("span_type", True, None, "test"),  # Invalid span_type -> None
+        ("span_type", {"dict": "value"}, None, "test"),  # Invalid span_type -> None
+        ("start_ns", [], 0, "test"),  # Invalid start_ns type -> 0 (default)
+        ("start_ns", {}, 0, "test"),  # Invalid start_ns type -> 0 (default)
+        ("duration_ns", {}, None, "test"),  # Invalid duration_ns type -> None (sentinel -1)
+        ("duration_ns", [], None, "test"),  # Invalid duration_ns type -> None (sentinel -1)
     ],
 )
-def test_encoding_invalid_name_service_handled_gracefully(field, invalid_value, expected_value):
-    """Test that invalid data types for name/service are handled gracefully.
+def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_value, expected_value, span_name):
+    """Test that invalid data types for Rust-backed string fields are handled gracefully.
 
-    Since name and service are now backed by Rust PyBackedString, invalid types
+    Since name, service, resource, span_type, start_ns, and duration_ns are now backed by Rust, invalid types
     are converted at setter time rather than raising during encoding.
 
     - Invalid name types -> "" (empty string)
     - Invalid service types -> None (allows inheritance from parent/config)
+    - Invalid resource types -> "" (empty string)
+      Note: fallback to name only happens when resource=None in __new__, not on setter
+    - Invalid span_type types -> None
+    - Invalid start_ns types -> 0 (default)
+    - Invalid duration_ns types -> None (sentinel -1 for "not set")
     """
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
-    span = Span(name="test")
+    span = Span(name=span_name)
     setattr(span, field, invalid_value)
 
     # Ensure name is never None (must always be a string)
@@ -1026,7 +1040,7 @@ def test_encoding_invalid_name_service_handled_gracefully(field, invalid_value, 
         ({}, {"key": "value"}),
     ],
 )
-def test_encoding_invalid_data_ok(meta: Dict[str, Any], metrics: Dict[str, Any]):
+def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any]):
     """Encoding invalid meta/metrics data should not raise an exception"""
     encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
 
