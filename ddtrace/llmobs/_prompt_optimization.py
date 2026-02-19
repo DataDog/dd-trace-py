@@ -19,7 +19,6 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import EvaluatorType
-from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import ExperimentRowResult
 from ddtrace.llmobs._experiment import JSONType
@@ -1021,14 +1020,13 @@ class PromptOptimization:
         if runs_value is not None and isinstance(runs_value, int):
             runs_int = runs_value
 
-        experiment = Experiment(
+        experiment = self._llmobs_instance.experiment(  # type: ignore[union-attr]
             name=f"{self.name}_{iteration_name}",
             project_name=self._tags["project_name"],
             dataset=ds,
             task=self._task,
             evaluators=self._evaluators,
             summary_evaluators=self._summary_evaluators,
-            _llmobs_instance=self._llmobs_instance,
             config=experiment_config,
             runs=runs_int,
         )
