@@ -17,6 +17,14 @@
 #if PY_VERSION_HEX >= 0x030b0000
 #if PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
+#if PY_VERSION_HEX < 0x030e0000
+// Python 3.13: _PyOpcode_Caches and _PyOpcode_Deopt are in pycore_opcode_metadata.h.
+// Define NEED_OPCODE_METADATA to get the actual array definitions (not just extern decls)
+// so we can link them into our extension module without depending on unexported CPython symbols.
+#define NEED_OPCODE_METADATA
+#include <internal/pycore_opcode_metadata.h>
+#undef NEED_OPCODE_METADATA
+#endif
 #else
 #include <internal/pycore_opcode.h>
 #endif
@@ -115,7 +123,7 @@ is_load_global_opcode(uint8_t opcode)
 }
 
 // Check if a LOAD_ATTR variant is a method load (pushes 2 values: self + method)
-static inline bool
+[[maybe_unused]] static inline bool
 is_load_method_variant([[maybe_unused]] uint8_t opcode, [[maybe_unused]] uint8_t arg)
 {
 #if PY_VERSION_HEX >= 0x030c0000
@@ -131,7 +139,7 @@ is_load_method_variant([[maybe_unused]] uint8_t opcode, [[maybe_unused]] uint8_t
 
 #if PY_VERSION_HEX >= 0x030d0000
 // Check if an opcode is a CALL_KW variant (consumes an extra kwnames tuple)
-static inline bool
+[[maybe_unused]] static inline bool
 is_call_kw_opcode(uint8_t opcode)
 {
     return opcode == CALL_KW
@@ -144,7 +152,7 @@ is_call_kw_opcode(uint8_t opcode)
 
 #if PY_VERSION_HEX >= 0x030e0000
 // Superinstructions that push 2 values onto the stack
-static inline bool
+[[maybe_unused]] static inline bool
 is_double_load_opcode(uint8_t opcode)
 {
     return opcode == LOAD_FAST_LOAD_FAST || opcode == LOAD_FAST_BORROW_LOAD_FAST_BORROW;
@@ -473,8 +481,112 @@ extract_callable_name(EchionSampler& echion, _Py_CODEUNIT* instr_ptr, PyCodeObje
         if (bytecode != stack_buf)
             delete[] bytecode;
     }
+#elif PY_VERSION_HEX >= 0x030d0000
+    // Python 3.13: Forward scan to find instruction boundaries, then backward depth tracking.
+    // Uses _PyOpcode_Caches and _PyOpcode_Deopt arrays (compiled in via NEED_OPCODE_METADATA)
+    // to correctly handle CACHE entries in adaptive bytecode.
+    int total_units = static_cast<int>(instr_ptr - code_start);
+    if (total_units <= 0 || total_units > 4096)
+        goto done;
+
+    {
+        _Py_CODEUNIT stack_buf[256];
+        _Py_CODEUNIT* bytecode = total_units <= 256 ? stack_buf : new _Py_CODEUNIT[total_units];
+
+        if (copy_generic(code_start, bytecode, total_units * sizeof(_Py_CODEUNIT))) {
+            if (bytecode != stack_buf)
+                delete[] bytecode;
+            goto done;
+        }
+
+        // Forward scan: walk through bytecode from the start, using _PyOpcode_Caches
+        // to skip CACHE entries. Record the last MAX_INSTRS instruction offsets.
+        constexpr int MAX_INSTRS = 64;
+        int instr_offsets[MAX_INSTRS];
+        int num_instrs = 0;
+
+        for (int pos = 0; pos < total_units;) {
+            instr_offsets[num_instrs % MAX_INSTRS] = pos;
+            num_instrs++;
+            uint8_t op = _Py_OPCODE(bytecode[pos]);
+            pos += 1 + _PyOpcode_Caches[_PyOpcode_Deopt[op]];
+        }
+
+        // Read the CALL instruction to get its oparg
+        _Py_CODEUNIT call_instr;
+        if (copy_type(instr_ptr, call_instr)) {
+            if (bytecode != stack_buf)
+                delete[] bytecode;
+            goto done;
+        }
+        uint8_t call_opcode = _Py_OPCODE(call_instr);
+        int call_oparg = _Py_OPARG(call_instr);
+
+        // Depth = number of stack values to skip (NULL/self + args [+ kwnames])
+        int depth = call_oparg + 1;
+        if (is_call_kw_opcode(call_opcode))
+            depth += 1;
+
+        // Walk backward through real instruction offsets only
+        int start_idx = num_instrs > MAX_INSTRS ? num_instrs - MAX_INSTRS : 0;
+        for (int i = num_instrs - 1; i >= start_idx && depth >= 0; --i) {
+            int pos = instr_offsets[i % MAX_INSTRS];
+            uint8_t opcode = _Py_OPCODE(bytecode[pos]);
+            uint8_t arg = _Py_OPARG(bytecode[pos]);
+
+            int produced = 1;
+            int consumed = 0;
+
+            if (is_call_opcode(opcode)) {
+                if (opcode == CALL_FUNCTION_EX)
+                    break;
+                consumed = arg + 2;
+                // CALL_KW variants consume an extra kwnames tuple
+                if (is_call_kw_opcode(opcode))
+                    consumed = arg + 3;
+            } else if (is_load_attr_opcode(opcode)) {
+                consumed = 1;
+                if (is_load_method_variant(opcode, arg))
+                    produced = 2;
+            } else if (is_load_global_opcode(opcode)) {
+                if (arg & 1)
+                    produced = 2;
+            } else if (_PyOpcode_Deopt[opcode] == BINARY_OP
+#ifdef BINARY_SUBSCR
+                       || _PyOpcode_Deopt[opcode] == BINARY_SUBSCR
+#endif
+            ) {
+                consumed = 2;
+#ifdef LOAD_FAST_LOAD_FAST
+            } else if (opcode == LOAD_FAST_LOAD_FAST) {
+                produced = 2;
+#endif
+            } else if (opcode == POP_TOP) {
+                produced = 0;
+                consumed = 1;
+            }
+
+            depth -= produced;
+
+            if (depth < 0) {
+                if (is_load_attr_opcode(opcode)) {
+                    int name_idx = arg >> 1;
+                    result = lookup_name_from_code(echion, code_addr, name_idx);
+                } else if (is_load_global_opcode(opcode)) {
+                    int name_idx = arg >> 1;
+                    result = lookup_name_from_code(echion, code_addr, name_idx);
+                }
+                break;
+            }
+
+            depth += consumed;
+        }
+
+        if (bytecode != stack_buf)
+            delete[] bytecode;
+    }
 #else
-    // Python 3.11-3.13: Simple backward scan. CACHE entries in the adaptive bytecode
+    // Python 3.11-3.12: Simple backward scan. CACHE entries in the adaptive bytecode
     // can have non-zero opcode bytes, but they rarely match LOAD_ATTR or LOAD_GLOBAL
     // opcode values, so the simple scan works in practice.
     {
@@ -495,11 +607,7 @@ extract_callable_name(EchionSampler& echion, _Py_CODEUNIT* instr_ptr, PyCodeObje
             uint8_t opcode = _Py_OPCODE(bytecode[i]);
             if (is_load_attr_opcode(opcode)) {
                 int arg = _Py_OPARG(bytecode[i]);
-#if PY_VERSION_HEX >= 0x030c0000
-                int name_idx = arg >> 1;
-#else
                 int name_idx = arg;
-#endif
                 result = lookup_name_from_code(echion, code_addr, name_idx);
                 goto done;
             }
