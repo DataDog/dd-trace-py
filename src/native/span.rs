@@ -1,6 +1,6 @@
 use pyo3::{
     types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
-    Bound, PyAny, PyResult, Python,
+    Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
 
@@ -74,7 +74,23 @@ impl SpanLinkData {
 pub struct SpanData {
     data: libdd_trace_utils::span::v04::Span<PyTraceData>,
     span_api: PyBackedString,
-    _trace_id_128bit_mode: bool,
+    /// Lazy Python int cache for the `trace_id` getter.
+    /// Populated on first read; invalidated on every write to `data.trace_id`.
+    /// `data.trace_id` is always the source of truth.
+    _trace_id_py: Option<Py<PyAny>>,
+}
+
+impl SpanData {
+    /// Set `data.trace_id` and invalidate `_trace_id_py`.
+    ///
+    /// **All writes to `data.trace_id` must go through this method** to keep `_trace_id_py`
+    /// consistent. Bypassing it leaves a stale cached Python int that silently returns the
+    /// old value on the next `span.trace_id` read.
+    #[inline(always)]
+    fn set_trace_id_native(&mut self, id: u128) {
+        self.data.trace_id = id;
+        self._trace_id_py = None;
+    }
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -197,12 +213,45 @@ impl SpanData {
         span.data.span_id = span_id
             .and_then(|obj| obj.extract::<u64>().ok())
             .unwrap_or_else(crate::rand::rand64bits);
-        // Initialize trace_id from parameter or generate random 128-bit
-        span.data.trace_id = trace_id
-            .and_then(|obj| obj.extract::<u128>().ok())
-            .unwrap_or_else(crate::rand::generate_128bit_trace_id);
-        // Initialize 128-bit mode flag to true (default)
-        span._trace_id_128bit_mode = true;
+        // Initialize trace_id: use provided value, or generate based on 128-bit mode config.
+        // When auto-generating, reads the Rust-owned AtomicBool set by Python Config.__init__:
+        //   enabled  → generate_128bit_trace_id() (SystemTime upper bits + random lower bits)
+        //   disabled → rand64bits() cast to u128   (random 64-bit value, upper bits zero)
+        // The stored value is always the full intended ID; no masking is applied on reads.
+        //
+        // Optimization: when the caller passes a Python int, we seed `_trace_id_py` with it
+        // directly.  This avoids allocating a brand-new PyLong when `span.trace_id` is first
+        // read — the caller's object is already alive and can be reused.
+        let trace_id_cached = match trace_id {
+            Some(obj) => match obj.extract::<u128>() {
+                Ok(id) => {
+                    span.set_trace_id_native(id);
+                    // Seed the cache with the caller-provided Python int.
+                    Some(obj.clone().unbind())
+                }
+                Err(_) => {
+                    // Invalid type — fall through to auto-generation.
+                    let id = if crate::config::get_128_bit_trace_id_enabled() {
+                        crate::rand::generate_128bit_trace_id()
+                    } else {
+                        crate::rand::rand64bits() as u128
+                    };
+                    span.set_trace_id_native(id);
+                    None
+                }
+            },
+            None => {
+                let id = if crate::config::get_128_bit_trace_id_enabled() {
+                    crate::rand::generate_128bit_trace_id()
+                } else {
+                    crate::rand::rand64bits() as u128
+                };
+                span.set_trace_id_native(id);
+                None
+            }
+        };
+        // Override the None left by set_trace_id_native with the pre-seeded cache (if any).
+        span._trace_id_py = trace_id_cached;
         // Initialize span_api: use provided value or default to "datadog"
         span.span_api = span_api
             .map(|obj| extract_backed_string_or_default(obj))
@@ -335,17 +384,25 @@ impl SpanData {
         }
     }
 
-    // trace_id property - returns full 128-bit or lower 64 bits based on mode
+    // trace_id property - returns the stored trace_id as-is
     #[getter]
     #[inline(always)]
-    fn get_trace_id(&self) -> u128 {
-        if self._trace_id_128bit_mode {
-            // Return full 128-bit trace ID
-            self.data.trace_id
-        } else {
-            // Return lower 64 bits only (masked to u64 range)
-            self.data.trace_id & 0xFFFFFFFFFFFFFFFF
+    fn get_trace_id<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyAny> {
+        // Lazy-init: create the Python int on first read, reuse on subsequent reads.
+        // Invalidated (set to None) on every write to data.trace_id.
+        // data.trace_id is always the source of truth; _trace_id_py is purely a Python-side cache.
+        if self._trace_id_py.is_none() {
+            let val = self.data.trace_id;
+            // SAFETY: u128 can always be converted to a Python int
+            self._trace_id_py = Some(
+                val.into_pyobject(py)
+                    .expect("u128 into_pyobject")
+                    .into_any()
+                    .unbind(),
+            );
         }
+        // SAFETY: guaranteed Some above
+        self._trace_id_py.as_ref().unwrap().bind(py).clone()
     }
 
     #[setter]
@@ -353,34 +410,16 @@ impl SpanData {
     fn set_trace_id(&mut self, value: &Bound<'_, PyAny>) {
         // Extract u128, silently ignore invalid types (keep existing value)
         if let Ok(id) = value.extract::<u128>() {
-            self.data.trace_id = id;
+            self.set_trace_id_native(id);
         }
     }
 
-    // _trace_id_64bits property - always returns lower 64 bits regardless of mode
+    // _trace_id_64bits property - always returns lower 64 bits
     #[getter]
     #[inline(always)]
     #[allow(non_snake_case)]
     fn get__trace_id_64bits(&self) -> u64 {
-        (self.data.trace_id & 0xFFFFFFFFFFFFFFFF) as u64
-    }
-
-    // _trace_id_128bit_mode property - controls whether trace_id getter returns full 128-bit
-    #[getter]
-    #[inline(always)]
-    #[allow(non_snake_case)]
-    fn get__trace_id_128bit_mode(&self) -> bool {
-        self._trace_id_128bit_mode
-    }
-
-    #[setter]
-    #[inline(always)]
-    #[allow(non_snake_case)]
-    fn set__trace_id_128bit_mode(&mut self, value: &Bound<'_, PyAny>) {
-        // Extract bool, silently ignore invalid types
-        if let Ok(mode) = value.extract::<bool>() {
-            self._trace_id_128bit_mode = mode;
-        }
+        (self.data.trace_id & 0xFFFF_FFFF_FFFF_FFFF) as u64
     }
 
     // finished property (native for performance - avoids Python property hop)

@@ -22,6 +22,7 @@ from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
@@ -690,6 +691,14 @@ class Config(object):
         self._long_running_initial_flush_interval = _get_config(
             "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
+
+    @property
+    def _128_bit_trace_id_enabled(self) -> bool:
+        return _native_config.get_128_bit_trace_id_enabled()
+
+    @_128_bit_trace_id_enabled.setter
+    def _128_bit_trace_id_enabled(self, value: bool) -> None:
+        _native_config.set_128_bit_trace_id_enabled(bool(value))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

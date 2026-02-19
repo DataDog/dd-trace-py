@@ -160,13 +160,6 @@ class Span(SpanData):
 
         self._meta_struct: dict[str, dict[str, Any]] = {}
 
-        # Determine 128-bit mode based on the trace_id value:
-        # - Explicit trace_id (valid integer): mode based on whether value exceeds u64
-        # - Auto-generated (None or invalid type): mode based on config
-        if trace_id is not None and isinstance(trace_id, int):
-            self._trace_id_128bit_mode = trace_id > _MAX_UINT_64BITS
-        else:
-            self._trace_id_128bit_mode = config._128_bit_trace_id_enabled
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context

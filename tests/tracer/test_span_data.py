@@ -891,36 +891,30 @@ def test_trace_id_invalid_type_generates_random():
     assert span2.trace_id != 0
 
 
-def test_trace_id_128bit_mode_roundtrip():
-    """128-bit trace_id values are stored and retrieved correctly in 128-bit mode."""
+def test_trace_id_128bit_roundtrip():
+    """128-bit trace_id values are stored and retrieved as-is."""
     max_u64 = (2**64) - 1
     trace_id_128 = max_u64 + 12345  # Value larger than 64 bits
 
     span = SpanData(name="test", trace_id=trace_id_128)
-    span._trace_id_128bit_mode = True  # Enable 128-bit mode
 
     assert span.trace_id == trace_id_128
     assert span.trace_id > max_u64
 
 
-def test_trace_id_64bit_mode_masking():
-    """In 64-bit mode, trace_id getter returns only lower 64 bits."""
-    max_u64 = (2**64) - 1
-    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+def test_trace_id_64bit_roundtrip():
+    """64-bit trace_id values are stored and retrieved as-is (no masking)."""
+    trace_id_64 = 0x1234567890ABCDEF
 
-    span = SpanData(name="test", trace_id=trace_id_128)
-    span._trace_id_128bit_mode = False  # Disable 128-bit mode
+    span = SpanData(name="test", trace_id=trace_id_64)
 
-    # Should return only lower 64 bits
-    assert span.trace_id == 0x1234567890ABCDEF
-    assert span.trace_id <= max_u64
+    assert span.trace_id == trace_id_64
 
 
 def test_trace_id_max_u128():
     """trace_id can handle max u128 value."""
     max_u128 = (2**128) - 1
     span = SpanData(name="test", trace_id=max_u128)
-    span._trace_id_128bit_mode = True
 
     assert span.trace_id == max_u128
 
@@ -940,47 +934,23 @@ def test_trace_id_setter_invalid_ignored():
     assert span.trace_id == 456
 
 
-def test_trace_id_128bit_mode_flag_default():
-    """_trace_id_128bit_mode flag defaults to True."""
+def test_trace_id_setter_128bit_roundtrip():
+    """Setting trace_id to a 128-bit value after construction is stored and returned as-is."""
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+
     span = SpanData(name="test")
-    assert span._trace_id_128bit_mode is True
+    span.trace_id = trace_id_128
+
+    assert span.trace_id == trace_id_128
 
 
 def test_trace_id_64bits_property():
     """_trace_id_64bits property always returns lower 64 bits."""
-    # 128-bit trace ID with distinct upper and lower halves
     trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
 
     span = SpanData(name="test", trace_id=trace_id_128)
 
-    # _trace_id_64bits should always return lower 64 bits regardless of mode
     assert span._trace_id_64bits == 0x1234567890ABCDEF
-
-    # Verify it works in both modes
-    span._trace_id_128bit_mode = True
-    assert span._trace_id_64bits == 0x1234567890ABCDEF
-
-    span._trace_id_128bit_mode = False
-    assert span._trace_id_64bits == 0x1234567890ABCDEF
-
-
-def test_trace_id_mode_toggle():
-    """Toggling _trace_id_128bit_mode flag changes trace_id getter behavior."""
-    trace_id_128 = (0xABCDEF << 64) | 0x123456
-
-    span = SpanData(name="test", trace_id=trace_id_128)
-
-    # Start in 128-bit mode
-    span._trace_id_128bit_mode = True
-    assert span.trace_id == trace_id_128
-
-    # Switch to 64-bit mode
-    span._trace_id_128bit_mode = False
-    assert span.trace_id == 0x123456
-
-    # Switch back to 128-bit mode
-    span._trace_id_128bit_mode = True
-    assert span.trace_id == trace_id_128
 
 
 def test_trace_id_native_generation_format():
