@@ -504,7 +504,31 @@ class Dataset:
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
-    def push(self) -> None:
+    def push(self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None):
+        """Pushes any local changes in this dataset since the last push.
+
+        :param deduplicate:
+            Wether to deduplicate the records or not. Does not deduplicate against existing
+            data if bulk_upload is False.
+        :param create_new_version:
+            Whether to create a new version of the dataset when changes are detected, or update the
+            existing version.
+        :param bulk_upload:
+            - True:
+                Uploads all records in a single request. This method does not support deduplication
+                against existing data and is best suited for initial uploads.
+            - False:
+                Splits the data into batches and uploads them individually. This method supports
+                deduplication against existing records but does not provide transactional guarantees
+                when the same dataset is modified concurrently by multiple clients.
+            - None:
+                The SDK chooses between the above two approaches using data size.
+        """
+        self._push(deduplicate, create_new_version, bulk_upload)
+
+    def _push(
+        self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
+    ) -> bool:
         if not self._id:
             raise ValueError(
                 (
@@ -520,33 +544,49 @@ class Dataset:
                 )
             )
 
+        data_changed = False
         delta_size = self._estimate_delta_size()
-        if delta_size > self.BATCH_UPDATE_THRESHOLD:
+        if bulk_upload or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
             # TODO must return version too
-            self._dne_client.dataset_bulk_upload(self._id, self._records)
+            self._dne_client.dataset_bulk_upload(self._id, self._records, deduplicate=deduplicate)
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             new_version, new_record_ids = self._dne_client.dataset_batch_update(
-                self._id,
-                list(self._new_records_by_record_id.values()),
-                updated_records,
-                self._deleted_record_ids,
+                dataset_id=self._id,
+                insert_records=list(self._new_records_by_record_id.values()),
+                update_records=updated_records,
+                delete_record_ids=self._deleted_record_ids,
+                deduplicate=deduplicate,
+                create_new_version=create_new_version,
             )
 
-            # attach record ids to newly created records
-            for record, record_id in zip(self._new_records_by_record_id.values(), new_record_ids):
-                record["record_id"] = record_id  # type: ignore
+            # Attach server-assigned record ids to newly created records.
+            # Use a snapshot of the keys so we can selectively remove only the records
+            # that the server acknowledged. Records the server did not return (e.g. because
+            # they were deduplicated against records in another dataset) keep their local
+            # placeholder id and stay in _new_records_by_record_id so that a subsequent
+            # delete() call treats them as local-only rather than sending the non-deterministic
+            # placeholder id to the server as a delete_record_id.
+            pending_keys = list(self._new_records_by_record_id.keys())
+            for key, record_id in zip(pending_keys, new_record_ids):
+                self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
+                del self._new_records_by_record_id[key]
 
-            # FIXME: we don't get version numbers in responses to deletion requests
-            self._latest_version = new_version if new_version != -1 else self._latest_version + 1
+            data_changed = len(new_record_ids) > 0
+            if new_version != -1:
+                self._latest_version = new_version
+            else:
+                # FIXME: we don't get version numbers in responses to deletion requests
+                self._latest_version = self._latest_version + 1
+            logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
             # no matter what the version was before the push, pushing will result in the dataset being on the current
             # version tracked by the backend
             self._version = self._latest_version
-        self._new_records_by_record_id = {}
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
+        return data_changed
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
         if all(k not in record for k in ("input_data", "expected_output", "metadata")):

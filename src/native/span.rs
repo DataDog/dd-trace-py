@@ -490,7 +490,7 @@ impl SpanData {
         span_type=None,
         trace_id=None,     // placeholder for Span.__init__ positional arg
         span_id=None,
-        parent_id=None,    // placeholder for Span.__init__ positional arg
+        parent_id=None,
         start=None,
         context=None,      // placeholder for Span.__init__ positional arg
         on_finish=None,    // placeholder for Span.__init__ positional arg
@@ -506,7 +506,7 @@ impl SpanData {
         span_type: Option<&Bound<'p, PyAny>>,
         trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
         span_id: Option<&Bound<'p, PyAny>>,
-        parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        parent_id: Option<&Bound<'p, PyAny>>,
         start: Option<&Bound<'p, PyAny>>,
         context: Option<&Bound<'p, PyAny>>, // placeholder, not used
         on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
@@ -531,6 +531,10 @@ impl SpanData {
         span.data.r#type = span_type
             .map(|obj| extract_backed_string_or_none(obj))
             .unwrap_or_else(|| PyBackedString::py_none(py));
+        // Initialize parent_id: None or invalid → 0 (no parent), Some(int) → parent_id
+        span.data.parent_id = parent_id
+            .and_then(|obj| obj.extract::<u64>().ok())
+            .unwrap_or(0);
         // Handle start parameter: None means capture current time, otherwise convert seconds to nanoseconds
         span.data.start = match start {
             None => wall_clock_ns(), // Common case: native time capture
@@ -726,6 +730,27 @@ impl SpanData {
             .map(|s| (s * 1e9) as i64)
             .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
             .unwrap_or(-1);
+    }
+
+    // parent_id property
+    // Returns None if parent_id is 0 (no parent), else returns the value
+    #[getter]
+    #[inline(always)]
+    fn get_parent_id(&self) -> Option<u64> {
+        if self.data.parent_id == 0 {
+            None
+        } else {
+            Some(self.data.parent_id)
+        }
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_parent_id(&mut self, value: Option<&Bound<'_, PyAny>>) {
+        self.data.parent_id = match value {
+            None => 0,
+            Some(obj) => obj.extract::<u64>().unwrap_or(self.data.parent_id),
+        };
     }
 
     // _span_api property
