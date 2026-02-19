@@ -126,6 +126,7 @@ ddtrace/internal/iast/              @DataDog/asm-python
 tests/appsec/                       @DataDog/asm-python
 tests/contrib/subprocess            @DataDog/asm-python
 tests/snapshots/tests*appsec*.json  @DataDog/asm-python
+tests/lib_injection/test_appsec.py           @DataDog/asm-python
 scripts/iast/*                      @DataDog/asm-python
 
 
@@ -137,6 +138,7 @@ tests/profiling                     @DataDog/profiling-python
 .github/workflows/profiling-native.yml       @DataDog/profiling-python
 .gitlab/tests/profiling.yml         @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml @DataDog/profiling-python
+tests/lib_injection/test_profiler.py         @DataDog/profiling-python
 
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
