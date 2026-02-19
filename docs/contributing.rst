@@ -18,6 +18,8 @@ If you're trying to set up a local development environment, read `this <https://
 
 `Fuzzing native code documentation for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-fuzzing.rst>`_.
 
+`Rust/PyO3 native extension guidelines for contributors <https://github.com/DataDog/dd-trace-py/tree/main/docs/contributing-pyo3.rst>`_.
+
 Thanks for working with us!
 
 .. _change_process:

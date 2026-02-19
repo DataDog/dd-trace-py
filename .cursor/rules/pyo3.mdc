@@ -1,0 +1,51 @@
+---
+description: Rust/PyO3 native extension performance guidelines
+globs:
+  - "src/native/**/*.rs"
+  - "src/native/Cargo.toml"
+alwaysApply: false
+---
+# PyO3 Performance Quick Reference
+
+When writing or reviewing Rust code in `src/native/`, follow these rules.
+Full guidelines with code examples: `docs/contributing-pyo3.rst`
+
+## Critical Rules Checklist
+
+- **Use `#[pyclass(frozen)]`** for any class whose fields don't change after `__new__`.
+  Mutable pyclasses incur an atomic borrow check on every field access.
+
+- **Use typed `Py<ConcreteType>` instead of `Py<PyAny>`** when the type is known.
+  `Py<PyAny>` forces a runtime isinstance check on every access.
+
+- **Use `Bound::get()` instead of `extract()`** for `frozen` + `Sync` pyclasses.
+  `get()` is a direct pointer dereference; `extract()` builds a `PyRef` guard with
+  refcount overhead.
+
+- **Use `cast()` instead of `extract()`** for native PyO3 types (`PyString`, `PyList`, …).
+  `cast()` is a pointer operation; `extract()` allocates a `PyErr` on failure.
+
+- **Use `#[inline(always)]`** on hot-path getters and setters to eliminate call overhead.
+
+- **Release the GIL with `py.detach()`** for any Rust work that takes more than a few
+  milliseconds (I/O, heavy computation). Critical for both GIL and free-threaded builds.
+
+- **Minimize data copies** — borrow Python object memory instead of copying strings/bytes
+  into new Rust allocations when possible.
+
+- **Use Rust tuples for callable arguments** (`callable.call1((a, b))?`). This uses the
+  fast `vectorcall` protocol. `PyTuple` objects fall back to the slower `tp_call`.
+
+- **Get the Python token from `Bound::py()`**, not `Python::attach()`, when you already
+  have a bound reference available.
+
+- **Batch boundary crossings** — process entire collections in a single Rust call rather
+  than crossing the Python/Rust boundary per element.
+
+## Anti-Patterns to Avoid
+
+- Storing `Bound<'py, T>` in struct fields (GIL-lifetime; use `Py<T>` instead)
+- Calling Python functions inside tight Rust loops
+- Holding the GIL during blocking I/O
+- Using `Py<PyAny>` when the concrete type is known at compile time
+- Calling `Python::attach()` when a bound reference already provides a token
