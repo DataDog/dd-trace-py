@@ -28,7 +28,6 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
-from ddtrace.llmobs._constants import EXPERIMENT_DATASET_RECORD_CANONICAL_ID
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
@@ -1032,11 +1031,12 @@ class BaseExperiment(ABC):
             },
         }
 
-    def _get_record_tags(self, record_id: str) -> dict[str, str]:
+    def _get_record_tags(self, record_id: str, canonical_id: str) -> dict[str, str]:
         return {
             **self._tags,
             "dataset_id": str(self._dataset._id),
             "dataset_record_id": str(record_id),
+            "dataset_record_canonical_id": canonical_id,
             "experiment_id": str(self._id),
         }
 
@@ -1149,7 +1149,7 @@ class Experiment(BaseExperiment):
                 span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            tags = self._get_record_tags(record_id)
+            tags = self._get_record_tags(record_id, record["canonical_id"])
             output_data: JSONType = None
             try:
                 output_data = self._task(input_data, self._config)
@@ -1160,7 +1160,6 @@ class Experiment(BaseExperiment):
             span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
             if "metadata" in record:
                 span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-            span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
 
             return self._build_task_result(idx, span, span_id, trace_id, output_data)
 
@@ -1417,7 +1416,7 @@ class AsyncExperiment(BaseExperiment):
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
-                tags = self._get_record_tags(record_id)
+                tags = self._get_record_tags(record_id, record["canonical_id"])
                 output_data = None
                 try:
                     output_data = await self._task(input_data, self._config)
@@ -1428,7 +1427,6 @@ class AsyncExperiment(BaseExperiment):
                 span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-                span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
 
                 return self._build_task_result(idx, span, span_id, trace_id, output_data)
 

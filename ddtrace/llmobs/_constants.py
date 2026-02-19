@@ -134,7 +134,6 @@ EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 # experiment context keys
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
-EXPERIMENT_DATASET_RECORD_CANONICAL_ID = "_ml_obs.meta.dataset_record_canonical_id"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
 EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
