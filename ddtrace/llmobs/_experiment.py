@@ -1370,16 +1370,20 @@ class SyncExperiment:
                             (default: None, uses full dataset)
         :return: ExperimentResult containing evaluation results and metadata
         """
+        coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            pass  # No loop — expected for sync
+            # No running loop, so go ahead and run in a new event loop.
+            return asyncio.run(coro)
         else:
-            raise RuntimeError(
-                "Cannot use SyncExperiment.run() from an async context. "
-                "Use 'await exp.run()' with LLMObs.async_experiment() instead."
-            )
-        return asyncio.run(self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size))
+            # A loop is already running (e.g. Jupyter notebook).
+            # Run the coroutine in a background thread with its own event loop.
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
 
     @property
     def url(self) -> str:
