@@ -930,22 +930,6 @@ class Experiment:
             )
         return self._dataset
 
-    def _extract_evaluator_result(
-        self, eval_result: Union[JSONType, EvaluatorResult]
-    ) -> tuple[JSONType, dict[str, JSONType]]:
-        extra_return_values: dict[str, JSONType] = {}
-        if isinstance(eval_result, EvaluatorResult):
-            if eval_result.reasoning:
-                extra_return_values["reasoning"] = eval_result.reasoning
-            if eval_result.assessment:
-                extra_return_values["assessment"] = eval_result.assessment
-            if eval_result.metadata:
-                extra_return_values["metadata"] = eval_result.metadata
-            if eval_result.tags:
-                extra_return_values["tags"] = eval_result.tags
-            return eval_result.value, extra_return_values
-        return eval_result, extra_return_values
-
     def _build_evaluator_error(self, exc: Exception) -> dict[str, Any]:
         exc_type, exc_value, exc_tb = sys.exc_info()
         exc_type_name = type(exc).__name__ if exc_type is not None else "Unknown Exception"
@@ -1009,51 +993,6 @@ class Experiment:
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
 
-    def _build_experiment_result(self, run_results: list[ExperimentRun]) -> ExperimentResult:
-        return {
-            "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
-            "rows": run_results[0].rows if run_results else [],
-            "runs": run_results,
-        }
-
-    def _build_task_result(self, idx: int, span: Any, span_id: str, trace_id: str, output_data: JSONType) -> TaskResult:
-        return {
-            "idx": idx,
-            "span_id": span_id,
-            "trace_id": trace_id,
-            "timestamp": span.start_ns,
-            "output": output_data,
-            "metadata": {
-                "dataset_record_index": idx,
-                "experiment_name": self.name,
-                "dataset_name": self._dataset.name,
-            },
-            "error": {
-                "message": span.get_tag(ERROR_MSG),
-                "stack": span.get_tag(ERROR_STACK),
-                "type": span.get_tag(ERROR_TYPE),
-            },
-        }
-
-    def _get_record_tags(self, record_id: str) -> dict[str, str]:
-        return {
-            **self._tags,
-            "dataset_id": str(self._dataset._id),
-            "dataset_record_id": str(record_id),
-            "experiment_id": str(self._id),
-        }
-
-    def _check_and_raise_task_error(self, task_result: TaskResult, raise_errors: bool) -> None:
-        err_dict = task_result.get("error") or {}
-        if isinstance(err_dict, dict):
-            err_msg = err_dict.get("message")
-            err_stack = err_dict.get("stack")
-            err_type = err_dict.get("type")
-            if raise_errors and err_msg:
-                raise RuntimeError(
-                    "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
-                )
-
     async def run(
         self,
         jobs: int = 10,
@@ -1091,7 +1030,11 @@ class Experiment:
             )
             run_results.append(run_result)
 
-        return self._build_experiment_result(run_results)
+        return {
+            "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
+            "rows": run_results[0].rows if run_results else [],
+            "runs": run_results,
+        }
 
     async def _process_record(
         self,
@@ -1122,7 +1065,12 @@ class Experiment:
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
-                tags = self._get_record_tags(record_id)
+                tags = {
+                    **self._tags,
+                    "dataset_id": str(self._dataset._id),
+                    "dataset_record_id": str(record_id),
+                    "experiment_id": str(self._id),
+                }
                 output_data = None
                 try:
                     if asyncio.iscoroutinefunction(self._task):
@@ -1137,7 +1085,23 @@ class Experiment:
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
 
-                return self._build_task_result(idx, span, span_id, trace_id, output_data)
+                return {
+                    "idx": idx,
+                    "span_id": span_id,
+                    "trace_id": trace_id,
+                    "timestamp": span.start_ns,
+                    "output": output_data,
+                    "metadata": {
+                        "dataset_record_index": idx,
+                        "experiment_name": self.name,
+                        "dataset_name": self._dataset.name,
+                    },
+                    "error": {
+                        "message": span.get_tag(ERROR_MSG),
+                        "stack": span.get_tag(ERROR_STACK),
+                        "type": span.get_tag(ERROR_TYPE),
+                    },
+                }
 
     async def _run_task(
         self,
@@ -1164,7 +1128,15 @@ class Experiment:
                 continue
             task_result: TaskResult = result
             task_results.append(task_result)
-            self._check_and_raise_task_error(task_result, raise_errors)
+            err_dict = task_result.get("error") or {}
+            if isinstance(err_dict, dict):
+                err_msg = err_dict.get("message")
+                err_stack = err_dict.get("stack")
+                err_type = err_dict.get("type")
+                if raise_errors and err_msg:
+                    raise RuntimeError(
+                        "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
+                    )
 
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
@@ -1216,8 +1188,8 @@ class Experiment:
                                 span_id=task_result.get("span_id"),
                                 trace_id=task_result.get("trace_id"),
                             )
-                            eval_result = await asyncio.to_thread(  # type: ignore[union-attr]
-                                evaluator.evaluate, context
+                            eval_result = await asyncio.to_thread(
+                                evaluator.evaluate, context  # type: ignore[union-attr]
                             )
                         elif _is_function_evaluator(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
@@ -1234,7 +1206,19 @@ class Experiment:
                             evaluator_name = str(evaluator)
                             eval_result = None
 
-                        eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
+                        extra_return_values: dict[str, JSONType] = {}
+                        if isinstance(eval_result, EvaluatorResult):
+                            if eval_result.reasoning:
+                                extra_return_values["reasoning"] = eval_result.reasoning
+                            if eval_result.assessment:
+                                extra_return_values["assessment"] = eval_result.assessment
+                            if eval_result.metadata:
+                                extra_return_values["metadata"] = eval_result.metadata
+                            if eval_result.tags:
+                                extra_return_values["tags"] = eval_result.tags
+                            eval_result_value = eval_result.value
+                        else:
+                            eval_result_value = eval_result
 
                     except Exception as e:
                         extra_return_values = {}

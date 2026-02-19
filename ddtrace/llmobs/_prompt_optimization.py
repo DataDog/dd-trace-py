@@ -648,7 +648,7 @@ class PromptOptimization:
         if runs_value is not None and isinstance(runs_value, int):
             runs_int = runs_value
 
-        experiment = self._llmobs_instance.experiment(
+        experiment = self._llmobs_instance.experiment(  # type: ignore[union-attr]
             name=f"{self.name}_{iteration_name}",
             project_name=self._tags["project_name"],
             dataset=self._dataset,
