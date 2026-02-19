@@ -548,7 +548,8 @@ cdef class SampleHandle:
         if self.ptr is not NULL:
             exc_name = None
             if isinstance(exc_type, type):
-                exc_name = exc_type.__module__ + "." + exc_type.__name__
+                module = exc_type.__module__
+                exc_name = f"{module}.{exc_type.__name__}" if module else exc_type.__name__
             else:
                 exc_name = exc_type
             call_ddup_push_exceptioninfo(self.ptr, exc_name, clamp_to_uint64_unsigned(count))

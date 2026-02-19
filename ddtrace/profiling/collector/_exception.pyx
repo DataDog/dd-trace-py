@@ -1,104 +1,162 @@
 import logging
+import sysconfig as _sysconfig
 import sys
 import threading
+import time
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
-from ddtrace.profiling.collector import _fast_poisson
+from ddtrace.profiling.collector._fast_poisson import PoissonSampler
 
 
 LOG = logging.getLogger(__name__)
 HAS_MONITORING = hasattr(sys, "monitoring")
+_GIL_DISABLED = _sysconfig.get_config_var("Py_GIL_DISABLED")
 _current_thread = threading.current_thread
 
-
-# These are global variables. We are okay with this because this is only ever accessed
-# with the GIL held
-cdef int _sampling_interval = 100
-cdef bool _collect_message = False
-cdef int _sample_counter = 0
-cdef int _next_sample = 100
+MAX_EXCEPTION_MESSAGE_LEN = 128
 
 
-cdef void _collect_exception(object exc_type, object exc_value, object exc_traceback):
+cdef class _SamplerState:
+    """
+    Accessed via the single module-level ``_state`` global from the
+    sys.monitoring callback
+
+    Free-threaded CPython is guarded in
+    ExceptionCollector._start_service; if free-threading support is
+    added, these fields need synchronization
+    """
+    cdef int sampling_interval
+    cdef bint collect_message
+    cdef int counter
+    cdef int next_sample
+    cdef object sampler  # PoissonSampler
+
+    def __init__(self, int sampling_interval, bint collect_message):
+        self.sampling_interval = sampling_interval
+        self.collect_message = collect_message
+        self.counter = 0
+        self.next_sample = sampling_interval
+        self.sampler = PoissonSampler()
+
+
+# Single module-level global: None when inactive, set by ExceptionCollector. This
+# is okay to be global. Data race is protected by the GIL and we actually want threads
+# to share sampler state, because the profiler is process scoped, not thread scoped
+cdef _SamplerState _state = None
+
+
+cdef void _collect_exception(_SamplerState state, object exc_type, object exc_value, object exc_traceback) except *:
     if not ddup.is_available:
         return
 
     cdef str module = exc_type.__module__
     cdef str exception_type = f"{module}.{exc_type.__name__}" if module else exc_type.__name__
-    cdef str exception_message = str(exc_value) if _collect_message else ""
+
     cdef object handle = ddup.SampleHandle()
+    handle.push_exceptioninfo(exception_type, 1)
 
-    try:
-        handle.push_exceptioninfo(exception_type, 1)
-        if exception_message:
-            handle.push_exception_message(exception_message)
+    # Custom exception __str__ can raise, so guard with fallbacks.
+    if state.collect_message:
+        try:
+            msg = str(exc_value)
+            if len(msg) > MAX_EXCEPTION_MESSAGE_LEN:
+                exception_message = msg[:MAX_EXCEPTION_MESSAGE_LEN] + "... (truncated)"
+            else:
+                exception_message = msg
+        # We don't know the internal implementation of a potential custom exception
+        # raise, so we have to catch all exception types
+        except Exception:
+            exception_message = "<unprintable exception>"
 
-        thread = _current_thread()
-        handle.push_threadinfo(thread.ident or 0, getattr(thread, "native_id", 0) or 0, thread.name)
+        handle.push_exception_message(exception_message)
 
-        handle.push_pytraceback(exc_traceback)
+    thread = _current_thread()
+    handle.push_threadinfo(thread.ident or 0, getattr(thread, "native_id", 0) or 0, thread.name)
 
-        handle.flush_sample()
-    except:
-        handle.drop_sample()
+    handle.push_pytraceback(exc_traceback)
+    handle.push_monotonic_ns(time.monotonic_ns())
+
+    handle.flush_sample()
 
 
 cpdef void _on_exception_handled(object code, int instruction_offset, object exception):
-    # sys.monitoring.EXCEPTION_HANDLED callback - HOT PATH
-    global _sample_counter, _next_sample
-
-    _sample_counter += 1
-
-    if _sample_counter < _next_sample:
+    """sys.monitoring.EXCEPTION_HANDLED callback — HOT PATH."""
+    cdef _SamplerState state = _state
+    if state is None:
         return
 
-    _next_sample = _fast_poisson.sample(_sampling_interval) or 1
-    _sample_counter = 0
+    state.counter += 1
 
-    _collect_exception(type(exception), exception, exception.__traceback__)
+    if state.counter < state.next_sample:
+        return
+
+    state.next_sample = max(state.sampler.sample(state.sampling_interval), 1)
+    state.counter = 0
+
+    # _collect_exception may trigger internal EXCEPTION_HANDLED events (via the
+    # try/except in message collection), but re-entrant calls are safe: the counter
+    # was just reset to 0 so re-entrant invocations will increment and return.
+    _collect_exception(state, type(exception), exception, exception.__traceback__)
 
 
 class ExceptionCollector(collector.Collector):
-    # Collects exception samples using sys.monitoring (Python 3.12+)
+    """Collects exception samples using sys.monitoring (Python 3.12+)."""
 
     def __init__(self, sampling_interval: int = None, collect_message: bool = None):
-        global _sampling_interval, _next_sample, _sample_counter
-        global _collect_message
-
         super().__init__()
-        _sampling_interval = sampling_interval if sampling_interval is not None else config.exception.sampling_interval
-        _collect_message = collect_message if collect_message is not None else config.exception.collect_message
 
-        _next_sample = _sampling_interval
-        _sample_counter = 0
+        raw_interval = sampling_interval if sampling_interval is not None else config.exception.sampling_interval
+        self._sampling_interval = raw_interval if raw_interval >= 1 else 100
+        self._collect_message = collect_message if collect_message is not None else config.exception.collect_message
+        self._monitoring_registered = False
 
     def _start_service(self) -> None:
-        if sys.version_info >= (3, 12) and HAS_MONITORING:
-            # Python 3.12+: Use sys.monitoring
+        global _state
+
+        if _GIL_DISABLED:
+            LOG.debug("Exception profiling is not supported on free-threaded CPython, skipping")
+            return
+
+        if HAS_MONITORING:
             try:
                 sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "dd-trace-exception-profiler")
-                sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
-                sys.monitoring.register_callback(
-                    sys.monitoring.PROFILER_ID,
-                    sys.monitoring.events.EXCEPTION_HANDLED,
-                    _on_exception_handled,
-                )
-                LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
-            except Exception:
+            except ValueError:
                 LOG.exception("Failed to set up exception monitoring")
                 return
+            _state = _SamplerState(self._sampling_interval, self._collect_message)
+            sys.monitoring.set_events(sys.monitoring.PROFILER_ID, sys.monitoring.events.EXCEPTION_HANDLED)
+            sys.monitoring.register_callback(
+                sys.monitoring.PROFILER_ID,
+                sys.monitoring.events.EXCEPTION_HANDLED,
+                _on_exception_handled,
+            )
+            self._monitoring_registered = True
+            LOG.debug("Using sys.monitoring.EXCEPTION_HANDLED")
         else:
             LOG.debug("Exception profiling only supports Python 3.12+, skipping")
             return
 
-        LOG.info("ExceptionCollector started: interval=%d", _sampling_interval)
+        LOG.debug("ExceptionCollector started: interval=%d", _state.sampling_interval)
 
     def _stop_service(self) -> None:
-        if sys.version_info >= (3, 12) and HAS_MONITORING:
-            try:
-                sys.monitoring.set_events(sys.monitoring.PROFILER_ID, 0)
-                sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
-            except:
-                pass
+        global _state
+
+        if not self._monitoring_registered:
+            _state = None
+            return
+
+        try:
+            sys.monitoring.register_callback(
+                sys.monitoring.PROFILER_ID,
+                sys.monitoring.events.EXCEPTION_HANDLED,
+                None,
+            )
+            sys.monitoring.set_events(sys.monitoring.PROFILER_ID, 0)
+            sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+        except Exception:
+            LOG.debug("Failed to clean up exception monitoring", exc_info=True)
+        finally:
+            self._monitoring_registered = False
+            _state = None
