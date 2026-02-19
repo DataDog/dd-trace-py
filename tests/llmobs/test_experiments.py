@@ -569,6 +569,8 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     assert dataset.description == test_dataset_one_record.description
     assert dataset.latest_version == test_dataset_one_record.latest_version == 1
     assert dataset.version == test_dataset_one_record.version == 1
+    assert dataset[0]["record_id"] != ""
+    assert dataset[0]["canonical_id"] != ""
 
 
 @pytest.mark.parametrize(
