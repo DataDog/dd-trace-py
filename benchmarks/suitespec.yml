@@ -235,7 +235,7 @@ suites:
       - '@core'
       - '@vendor'
       - '@appsec_iast'
-      - benchmarks/appsec_iast_aspects_re_split/*
+      - benchmarks/appsec_iast_aspects_split/*
     cpus_per_run: 1
     type: 'microbenchmark'
   appsec_iast_propagation:
