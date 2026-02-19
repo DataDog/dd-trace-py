@@ -17,14 +17,6 @@
 #if PY_VERSION_HEX >= 0x030b0000
 #if PY_VERSION_HEX >= 0x030d0000
 #include <opcode.h>
-#if PY_VERSION_HEX < 0x030e0000
-// Python 3.13: _PyOpcode_Caches and _PyOpcode_Deopt are in pycore_opcode_metadata.h.
-// Define NEED_OPCODE_METADATA to get the actual array definitions (not just extern decls)
-// so we can link them into our extension module without depending on unexported CPython symbols.
-#define NEED_OPCODE_METADATA
-#include <internal/pycore_opcode_metadata.h>
-#undef NEED_OPCODE_METADATA
-#endif
 #else
 #include <internal/pycore_opcode.h>
 #endif
@@ -150,28 +142,40 @@ is_call_kw_opcode(uint8_t opcode)
 }
 #endif // PY_VERSION_HEX >= 0x030d0000
 
-#if PY_VERSION_HEX >= 0x030e0000
+#if PY_VERSION_HEX >= 0x030d0000
 // Superinstructions that push 2 values onto the stack
 [[maybe_unused]] static inline bool
 is_double_load_opcode(uint8_t opcode)
 {
-    return opcode == LOAD_FAST_LOAD_FAST || opcode == LOAD_FAST_BORROW_LOAD_FAST_BORROW;
+    return opcode == LOAD_FAST_LOAD_FAST
+#if PY_VERSION_HEX >= 0x030e0000
+           || opcode == LOAD_FAST_BORROW_LOAD_FAST_BORROW
+#endif
+      ;
 }
 
-// Check if an opcode is a BINARY_OP variant (consumes 2, produces 1)
+// Check if an opcode is a BINARY_OP or BINARY_SUBSCR variant (consumes 2, produces 1)
 static inline bool
 is_binary_op_opcode(uint8_t opcode)
 {
     return opcode == BINARY_OP || opcode == BINARY_OP_INPLACE_ADD_UNICODE || opcode == BINARY_OP_ADD_FLOAT ||
-           opcode == BINARY_OP_ADD_INT || opcode == BINARY_OP_ADD_UNICODE || opcode == BINARY_OP_EXTEND ||
-           opcode == BINARY_OP_MULTIPLY_FLOAT || opcode == BINARY_OP_MULTIPLY_INT || opcode == BINARY_OP_SUBSCR_DICT ||
-           opcode == BINARY_OP_SUBSCR_GETITEM || opcode == BINARY_OP_SUBSCR_LIST_INT ||
-           opcode == BINARY_OP_SUBSCR_LIST_SLICE || opcode == BINARY_OP_SUBSCR_STR_INT ||
-           opcode == BINARY_OP_SUBSCR_TUPLE_INT || opcode == BINARY_OP_SUBTRACT_FLOAT ||
-           opcode == BINARY_OP_SUBTRACT_INT;
+           opcode == BINARY_OP_ADD_INT || opcode == BINARY_OP_ADD_UNICODE || opcode == BINARY_OP_MULTIPLY_FLOAT ||
+           opcode == BINARY_OP_MULTIPLY_INT || opcode == BINARY_OP_SUBTRACT_FLOAT ||
+           opcode == BINARY_OP_SUBTRACT_INT
+#if PY_VERSION_HEX >= 0x030e0000
+           // Python 3.14: BINARY_SUBSCR merged into BINARY_OP
+           || opcode == BINARY_OP_EXTEND || opcode == BINARY_OP_SUBSCR_DICT || opcode == BINARY_OP_SUBSCR_GETITEM ||
+           opcode == BINARY_OP_SUBSCR_LIST_INT || opcode == BINARY_OP_SUBSCR_LIST_SLICE ||
+           opcode == BINARY_OP_SUBSCR_STR_INT || opcode == BINARY_OP_SUBSCR_TUPLE_INT
+#else
+           // Python 3.13: BINARY_SUBSCR is a separate opcode family
+           || opcode == BINARY_SUBSCR || opcode == BINARY_SUBSCR_DICT || opcode == BINARY_SUBSCR_GETITEM ||
+           opcode == BINARY_SUBSCR_LIST_INT || opcode == BINARY_SUBSCR_STR_INT || opcode == BINARY_SUBSCR_TUPLE_INT
+#endif
+      ;
 }
 
-// Number of inline CACHE entries following each opcode in Python 3.14.
+// Number of inline CACHE entries following each opcode.
 // Specialized opcodes inherit the cache count of their base opcode.
 // Used for forward-scanning bytecode to identify instruction boundaries.
 // clang-format off
@@ -179,7 +183,8 @@ static inline int
 opcode_num_caches(uint8_t opcode)
 {
     switch (opcode) {
-    // BINARY_OP family: 5 caches
+#if PY_VERSION_HEX >= 0x030e0000
+    // BINARY_OP family: 5 caches in 3.14 (includes subscript variants)
     case BINARY_OP: case BINARY_OP_INPLACE_ADD_UNICODE:
     case BINARY_OP_ADD_FLOAT: case BINARY_OP_ADD_INT: case BINARY_OP_ADD_UNICODE:
     case BINARY_OP_EXTEND:
@@ -189,9 +194,24 @@ opcode_num_caches(uint8_t opcode)
     case BINARY_OP_SUBSCR_STR_INT: case BINARY_OP_SUBSCR_TUPLE_INT:
     case BINARY_OP_SUBTRACT_FLOAT: case BINARY_OP_SUBTRACT_INT:
         return 5;
+#else
+    // BINARY_OP family: 1 cache in 3.13
+    case BINARY_OP: case BINARY_OP_INPLACE_ADD_UNICODE:
+    case BINARY_OP_ADD_FLOAT: case BINARY_OP_ADD_INT: case BINARY_OP_ADD_UNICODE:
+    case BINARY_OP_MULTIPLY_FLOAT: case BINARY_OP_MULTIPLY_INT:
+    case BINARY_OP_SUBTRACT_FLOAT: case BINARY_OP_SUBTRACT_INT:
+    // BINARY_SUBSCR family: 1 cache in 3.13
+    case BINARY_SUBSCR:
+    case BINARY_SUBSCR_DICT: case BINARY_SUBSCR_GETITEM:
+    case BINARY_SUBSCR_LIST_INT: case BINARY_SUBSCR_STR_INT: case BINARY_SUBSCR_TUPLE_INT:
+        return 1;
+#endif
     // LOAD_ATTR family: 9 caches
     case LOAD_ATTR:
-    case LOAD_ATTR_CLASS: case LOAD_ATTR_CLASS_WITH_METACLASS_CHECK:
+    case LOAD_ATTR_CLASS:
+#if PY_VERSION_HEX >= 0x030e0000
+    case LOAD_ATTR_CLASS_WITH_METACLASS_CHECK:
+#endif
     case LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN: case LOAD_ATTR_INSTANCE_VALUE:
     case LOAD_ATTR_METHOD_LAZY_DICT: case LOAD_ATTR_METHOD_NO_DICT: case LOAD_ATTR_METHOD_WITH_VALUES:
     case LOAD_ATTR_MODULE:
@@ -209,10 +229,12 @@ opcode_num_caches(uint8_t opcode)
     case CALL_NON_PY_GENERAL: case CALL_PY_EXACT_ARGS: case CALL_PY_GENERAL:
     case CALL_STR_1: case CALL_TUPLE_1: case CALL_TYPE_1:
         return 3;
-    // CALL_KW family: 3 caches
+#if PY_VERSION_HEX >= 0x030e0000
+    // CALL_KW family: 3 caches in 3.14 (0 in 3.13, falls to default)
     case CALL_KW:
     case CALL_KW_BOUND_METHOD: case CALL_KW_NON_PY: case CALL_KW_PY:
         return 3;
+#endif
     // STORE_ATTR family: 4 caches
     case STORE_ATTR:
     case STORE_ATTR_INSTANCE_VALUE: case STORE_ATTR_SLOT: case STORE_ATTR_WITH_HINT:
@@ -230,7 +252,10 @@ opcode_num_caches(uint8_t opcode)
     case COMPARE_OP: case COMPARE_OP_FLOAT: case COMPARE_OP_INT: case COMPARE_OP_STR:
     case CONTAINS_OP: case CONTAINS_OP_DICT: case CONTAINS_OP_SET:
     case FOR_ITER: case FOR_ITER_GEN: case FOR_ITER_LIST: case FOR_ITER_RANGE: case FOR_ITER_TUPLE:
-    case JUMP_BACKWARD: case JUMP_BACKWARD_JIT: case JUMP_BACKWARD_NO_JIT:
+    case JUMP_BACKWARD:
+#if PY_VERSION_HEX >= 0x030e0000
+    case JUMP_BACKWARD_JIT: case JUMP_BACKWARD_NO_JIT:
+#endif
     case LOAD_SUPER_ATTR: case LOAD_SUPER_ATTR_ATTR: case LOAD_SUPER_ATTR_METHOD:
     case SEND: case SEND_GEN:
     case STORE_SUBSCR: case STORE_SUBSCR_DICT: case STORE_SUBSCR_LIST_INT:
@@ -243,7 +268,7 @@ opcode_num_caches(uint8_t opcode)
     }
 }
 // clang-format on
-#endif // PY_VERSION_HEX >= 0x030e0000
+#endif // PY_VERSION_HEX >= 0x030d0000
 
 #endif // PY_VERSION_HEX >= 0x030b0000
 
@@ -483,8 +508,7 @@ extract_callable_name(EchionSampler& echion, _Py_CODEUNIT* instr_ptr, PyCodeObje
     }
 #elif PY_VERSION_HEX >= 0x030d0000
     // Python 3.13: Forward scan to find instruction boundaries, then backward depth tracking.
-    // Uses _PyOpcode_Caches and _PyOpcode_Deopt arrays (compiled in via NEED_OPCODE_METADATA)
-    // to correctly handle CACHE entries in adaptive bytecode.
+    // Uses opcode_num_caches() to correctly skip CACHE entries in adaptive bytecode.
     int total_units = static_cast<int>(instr_ptr - code_start);
     if (total_units <= 0 || total_units > 4096)
         goto done;
@@ -499,7 +523,7 @@ extract_callable_name(EchionSampler& echion, _Py_CODEUNIT* instr_ptr, PyCodeObje
             goto done;
         }
 
-        // Forward scan: walk through bytecode from the start, using _PyOpcode_Caches
+        // Forward scan: walk through bytecode from the start, using opcode_num_caches()
         // to skip CACHE entries. Record the last MAX_INSTRS instruction offsets.
         constexpr int MAX_INSTRS = 64;
         int instr_offsets[MAX_INSTRS];
@@ -508,8 +532,7 @@ extract_callable_name(EchionSampler& echion, _Py_CODEUNIT* instr_ptr, PyCodeObje
         for (int pos = 0; pos < total_units;) {
             instr_offsets[num_instrs % MAX_INSTRS] = pos;
             num_instrs++;
-            uint8_t op = _Py_OPCODE(bytecode[pos]);
-            pos += 1 + _PyOpcode_Caches[_PyOpcode_Deopt[op]];
+            pos += 1 + opcode_num_caches(_Py_OPCODE(bytecode[pos]));
         }
 
         // Read the CALL instruction to get its oparg
@@ -551,16 +574,10 @@ extract_callable_name(EchionSampler& echion, _Py_CODEUNIT* instr_ptr, PyCodeObje
             } else if (is_load_global_opcode(opcode)) {
                 if (arg & 1)
                     produced = 2;
-            } else if (_PyOpcode_Deopt[opcode] == BINARY_OP
-#ifdef BINARY_SUBSCR
-                       || _PyOpcode_Deopt[opcode] == BINARY_SUBSCR
-#endif
-            ) {
+            } else if (is_binary_op_opcode(opcode)) {
                 consumed = 2;
-#ifdef LOAD_FAST_LOAD_FAST
-            } else if (opcode == LOAD_FAST_LOAD_FAST) {
+            } else if (is_double_load_opcode(opcode)) {
                 produced = 2;
-#endif
             } else if (opcode == POP_TOP) {
                 produced = 0;
                 consumed = 1;
