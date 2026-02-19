@@ -273,26 +273,41 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
     // Collect frame info root→leaf by following tb_next.
     std::vector<TracebackFrameInfo> frames;
     for (; tb != nullptr; tb = reinterpret_cast<PyTracebackObject*>(tb->tb_next)) {
-        int lineno = tb->tb_lineno < 0 ? 0 : tb->tb_lineno;
+        int lineno = tb->tb_lineno;
+        if (lineno < 0) {
+            // In Python 3.12+, tb_lineno can be -1 (lazy). Resolve it through
+            // the Python property which calls PyCode_Addr2Line internally.
+            PyObject* lineno_obj = PyObject_GetAttrString(reinterpret_cast<PyObject*>(tb), "tb_lineno");
+            if (lineno_obj != nullptr) {
+                lineno = PyLong_AsLong(lineno_obj);
+                Py_DECREF(lineno_obj);
+                if (lineno < 0) {
+                    lineno = 0;
+                }
+            } else {
+                PyErr_Clear();
+                lineno = 0;
+            }
+        }
         PyCodeObject* code = (tb->tb_frame != nullptr) ? PyFrame_GetCode(tb->tb_frame) : nullptr;
         frames.push_back({ code, lineno });
     }
 
     // Push in leaf-to-root order (reverse of collected).
-    for (int i = static_cast<int>(frames.size()) - 1; i >= 0; --i) {
+    for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
         // Early exit: once we've hit the frame limit, count all remaining
         // frames as dropped and release their code refs without further
         // string extraction.
         if (locations.size() > max_nframes) {
-            for (int j = i; j >= 0; --j) {
+            for (auto jt = it; jt != frames.rend(); ++jt) {
                 ++dropped_frames;
-                Py_XDECREF(frames[j].code);
+                Py_XDECREF(jt->code);
             }
             break;
         }
 
-        PyCodeObject* code = frames[i].code;
-        int lineno = frames[i].lineno;
+        PyCodeObject* code = it->code;
+        int lineno = it->lineno;
 
         std::string_view name_sv = "<unknown>";
         std::string_view filename_sv = "<unknown>";
@@ -308,8 +323,7 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
             filename_sv = unicode_to_string_view(code->co_filename);
         }
 
-        // push_frame_impl copies strings immediately into the StringArena.
-        push_frame_impl(name_sv, filename_sv, 0, lineno);
+        push_frame(name_sv, filename_sv, 0, lineno);
         Py_XDECREF(code);
     }
     // Error state is automatically restored by error_restorer destructor.

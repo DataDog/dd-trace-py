@@ -379,13 +379,14 @@ class ProfilingConfigException(DDConfig):
         help=(
             "Average number of exceptions between samples (uses Poisson distribution). "
             "Lower values sample more frequently but add more overhead."
+            "This value must be >= 1. If set to less than 1, it will default to 100."
         ),
     )
 
     collect_message = DDConfig.v(
         bool,
         "collect_message",
-        default=True,
+        default=False,
         help_type="Boolean",
         help="Whether to collect exception messages, which can contain sensitive data.",
     )

@@ -160,10 +160,12 @@ class Sample
     void push_pyframes(PyFrameObject* frame);
 
     // Push frames from a Python traceback chain to the sample.
-    // Walks tb → tb_next (root→leaf) and pushes frames in leaf-to-root order,
+    // Walks tb -> tb_next (root->leaf) and pushes frames in leaf-to-root order,
     // using tb_lineno for accurate exception site line numbers.
     // Ownership: does not take ownership of `tb`; all code object references
     // obtained via PyFrame_GetCode() are released internally.
+    // The GIL must be held when calling this function. Some of its operations,
+    // call Python APIs, such as PyFrame_GetCode()
     void push_pytraceback(PyTracebackObject* tb);
 
     // Flushes the current buffer, clearing it

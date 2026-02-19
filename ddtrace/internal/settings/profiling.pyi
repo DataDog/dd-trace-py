@@ -48,6 +48,8 @@ class ProfilingConfigPytorch(DDConfig):
 
 class ProfilingConfigException(DDConfig):
     enabled: bool
+    sampling_interval: int
+    collect_message: bool
 
 config: ProfilingConfig
 ddup_failure_msg: Optional[str]

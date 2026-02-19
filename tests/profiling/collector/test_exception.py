@@ -1,4 +1,5 @@
 import _thread
+import inspect
 import os
 from pathlib import Path
 import sys
@@ -81,7 +82,7 @@ def _raise_runtime_error_handled() -> None:
         pass
 
 
-def _nested_exception_handling() -> None:
+def _wrapped_exception_handling() -> None:
     try:
         try:
             raise ValueError("inner error")
@@ -131,20 +132,37 @@ def _thread_raise_runtime_errors() -> None:
             pass
 
 
+def _raise_long_exception_message() -> None:
+    try:
+        raise ValueError("a" * 1000)
+    except ValueError:
+        pass
+
+
+def _lineno_of(func, substring):
+    """Return the 1-based line number of the first source line of func containing substring."""
+    source_lines, start_lineno = inspect.getsourcelines(func)
+    for offset, line in enumerate(source_lines):
+        if substring in line:
+            return start_lineno + offset
+    raise AssertionError(f"{substring!r} not found in source of {func.__name__}")
+
+
 def test_exception_config_defaults() -> None:
     """Test that exception profiling config has expected default values."""
     from ddtrace.internal.settings.profiling import config as profiling_config
 
     assert profiling_config.exception.enabled is False
     assert profiling_config.exception.sampling_interval == 100
-    assert profiling_config.exception.collect_message is True
+    assert profiling_config.exception.collect_message is False
 
 
 def test_poisson_sampling_distribution() -> None:
     """Test that Poisson sampling mean is close to the configured lambda."""
-    from ddtrace.profiling.collector import _fast_poisson
+    from ddtrace.profiling.collector._fast_poisson import PoissonSampler
 
-    samples = [_fast_poisson.sample(100) for _ in range(1000)]
+    sampler = PoissonSampler()
+    samples = [sampler.sample(100) for _ in range(1000)]
 
     assert all(s >= 0 for s in samples), "All samples should be non-negative"
 
@@ -178,9 +196,15 @@ def test_simple_exception_profiling(tmp_path: Path) -> None:
             thread_name="MainThread",
             exception_type="builtins\\.ValueError",
             locations=[
-                pprof_utils.StackLocation(function_name="_raise_value_error", filename="test_exception.py", line_no=-1),
                 pprof_utils.StackLocation(
-                    function_name="_handle_value_error", filename="test_exception.py", line_no=-1
+                    function_name="_raise_value_error",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_raise_value_error, "raise ValueError"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="_handle_value_error",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_handle_value_error, "_raise_value_error()"),
                 ),
             ],
         ),
@@ -208,9 +232,21 @@ def test_exception_stack_trace(tmp_path: Path) -> None:
         expected_sample=pprof_utils.StackEvent(
             exception_type="builtins\\.RuntimeError",
             locations=[
-                pprof_utils.StackLocation(function_name="_level_3", filename="test_exception.py", line_no=-1),
-                pprof_utils.StackLocation(function_name="_level_2", filename="test_exception.py", line_no=-1),
-                pprof_utils.StackLocation(function_name="_level_1", filename="test_exception.py", line_no=-1),
+                pprof_utils.StackLocation(
+                    function_name="_level_3",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_level_3, "raise RuntimeError"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="_level_2",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_level_2, "_level_3()"),
+                ),
+                pprof_utils.StackLocation(
+                    function_name="_level_1",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_level_1, "_level_2()"),
+                ),
             ],
         ),
         print_samples_on_failure=True,
@@ -243,13 +279,13 @@ def test_multiple_exception_types(tmp_path: Path) -> None:
         )
 
 
-def test_nested_exception_handling(tmp_path: Path) -> None:
-    """Test that both inner and outer exceptions are captured in nested try-except."""
-    output_filename = _setup_profiler(tmp_path, "test_nested_exceptions")
+def test_wrapped_exception_handling(tmp_path: Path) -> None:
+    """Test that both inner and outer exceptions are captured in wrapped try-except."""
+    output_filename = _setup_profiler(tmp_path, "test_wrapped_exceptions")
 
     with exception.ExceptionCollector(sampling_interval=1):
         for _ in range(10):
-            _nested_exception_handling()
+            _wrapped_exception_handling()
 
     ddup.upload()
 
@@ -258,20 +294,37 @@ def test_nested_exception_handling(tmp_path: Path) -> None:
     assert len(samples) > 0
 
     # Both the inner ValueError and outer RuntimeError should be captured
-    for exc_type in ["builtins\\.ValueError", "builtins\\.RuntimeError"]:
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                exception_type=exc_type,
-                locations=[
-                    pprof_utils.StackLocation(
-                        function_name="_nested_exception_handling", filename="test_exception.py", line_no=-1
-                    ),
-                ],
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.ValueError",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="_wrapped_exception_handling",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_wrapped_exception_handling, 'raise ValueError("inner error")'),
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            exception_type="builtins\\.RuntimeError",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="_wrapped_exception_handling",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_wrapped_exception_handling, 'raise RuntimeError("outer error")'),
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 def test_custom_exception_class(tmp_path: Path) -> None:
@@ -295,10 +348,34 @@ def test_custom_exception_class(tmp_path: Path) -> None:
             exception_type=".*\\.CustomError",
             locations=[
                 pprof_utils.StackLocation(
-                    function_name="_raise_custom_error", filename="test_exception.py", line_no=-1
+                    function_name="_raise_custom_error",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_raise_custom_error, "raise CustomError"),
                 ),
             ],
         ),
+        print_samples_on_failure=True,
+    )
+
+
+def test_long_exception_message(tmp_path: Path) -> None:
+    """Test that long exception messages are truncated."""
+    output_filename = _setup_profiler(tmp_path, "test_long_exception_message")
+
+    with exception.ExceptionCollector(sampling_interval=1, collect_message=True):
+        for _ in range(10):
+            _raise_long_exception_message()
+
+    ddup.upload()
+
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(exception_message=f"{'a' * 128}\\.\\.\\. \\(truncated\\)"),
         print_samples_on_failure=True,
     )
 
@@ -462,7 +539,11 @@ def test_exception_in_instance_method(tmp_path: Path) -> None:
         expected_sample=pprof_utils.StackEvent(
             exception_type="builtins\\.ValueError",
             locations=[
-                pprof_utils.StackLocation(function_name="handle", filename="test_exception.py", line_no=-1),
+                pprof_utils.StackLocation(
+                    function_name="handle",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_ExceptionInMethod.handle, "raise ValueError"),
+                ),
             ],
         ),
         print_samples_on_failure=True,
@@ -489,7 +570,11 @@ def test_exception_in_static_method(tmp_path: Path) -> None:
         expected_sample=pprof_utils.StackEvent(
             exception_type="builtins\\.ValueError",
             locations=[
-                pprof_utils.StackLocation(function_name="handle", filename="test_exception.py", line_no=-1),
+                pprof_utils.StackLocation(
+                    function_name="handle",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_ExceptionInStaticMethod.handle, "raise ValueError"),
+                ),
             ],
         ),
         print_samples_on_failure=True,
@@ -516,7 +601,11 @@ def test_exception_in_class_method(tmp_path: Path) -> None:
         expected_sample=pprof_utils.StackEvent(
             exception_type="builtins\\.ValueError",
             locations=[
-                pprof_utils.StackLocation(function_name="handle", filename="test_exception.py", line_no=-1),
+                pprof_utils.StackLocation(
+                    function_name="handle",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_ExceptionInClassMethod.handle, "raise ValueError"),
+                ),
             ],
         ),
         print_samples_on_failure=True,
@@ -544,7 +633,11 @@ def test_exception_in_callable_instance(tmp_path: Path) -> None:
         expected_sample=pprof_utils.StackEvent(
             exception_type="builtins\\.ValueError",
             locations=[
-                pprof_utils.StackLocation(function_name="__call__", filename="test_exception.py", line_no=-1),
+                pprof_utils.StackLocation(
+                    function_name="__call__",
+                    filename="test_exception.py",
+                    line_no=_lineno_of(_CallableWithException.__call__, "raise ValueError"),
+                ),
             ],
         ),
         print_samples_on_failure=True,

@@ -7,40 +7,35 @@ cdef uint64_t SPLITMIX_MUL2 = 0x94D049BB133111EBULL
 cdef double INV_2_53 = 1.0 / 9007199254740992.0
 cdef double TWO_PI = 6.283185307179586
 
-# Module-level RNG state (seeded randomly at import)
-cdef uint64_t _rng_state
-
 import os as _os
-_rng_state = int.from_bytes(_os.urandom(8), "little")
 
 # SplitMix64: Taken from https://prng.di.unimi.it/splitmix64.c
-cdef inline uint64_t _splitmix64() noexcept nogil:
-    global _rng_state
+cdef inline uint64_t _splitmix64(uint64_t* state):
     cdef uint64_t z
-    _rng_state = _rng_state + SPLITMIX_INC
-    z = _rng_state
+    state[0] = state[0] + SPLITMIX_INC
+    z = state[0]
     z = (z ^ (z >> 30)) * SPLITMIX_MUL1
     z = (z ^ (z >> 27)) * SPLITMIX_MUL2
     return z ^ (z >> 31)
 
 # Convert to double in [0, 1)
-cdef inline double _uniform() noexcept nogil:
-    cdef uint64_t x = _splitmix64() >> 11
+cdef inline double _uniform(uint64_t* state):
+    cdef uint64_t x = _splitmix64(state) >> 11
     return (<double>x + 0.5) * INV_2_53
 
 
 # Taken from: https://en.wikipedia.org/wiki/Poisson_distribution#Generating_Poisson-distributed_random_variables
-cdef inline int _poisson_knuth(double lam) noexcept nogil:
+cdef inline int _poisson_knuth(double lam, uint64_t* state):
     cdef double L = exp(-lam)
     cdef int k = 0
     cdef double p = 1.0
     while p > L:
         k = k + 1
-        p = p * _uniform()
+        p = p * _uniform(state)
     return k - 1 if k > 0 else 0
 
 # Taken from: https://hpaulkeeler.com/simulating-poisson-random-variables-with-large-means-in-c/
-cdef inline int _poisson_ptrs(double lam) noexcept nogil:
+cdef inline int _poisson_ptrs(double lam, uint64_t* state):
     cdef double slam = sqrt(lam)
     cdef double loglam = log(lam)
     cdef double b = 0.931 + 2.53 * slam
@@ -51,8 +46,8 @@ cdef inline int _poisson_ptrs(double lam) noexcept nogil:
     cdef int ik
 
     while True:
-        U = _uniform() - 0.5
-        V = _uniform()
+        U = _uniform(state) - 0.5
+        V = _uniform(state)
         if U < 0:
             us = 0.5 + U
         else:
@@ -71,15 +66,26 @@ cdef inline int _poisson_ptrs(double lam) noexcept nogil:
             return <int>k
 
 
-cpdef void seed(uint64_t s):
-    global _rng_state
-    _rng_state = s
+cdef class PoissonSampler:
+    """Poisson sampler with per-instance RNG state.
 
+    Each instance maintains its own SplitMix64 state, seeded from os.urandom
+    at construction. This ensures that separate callers get independent
+    sequences, and that state is fresh after fork (when the profiler is
+    restarted and a new instance is created).
+    """
+    cdef uint64_t _state
 
-cpdef int sample(double lam):
-    if lam <= 0.0:
-        return 0
-    elif lam < 30.0:
-        return _poisson_knuth(lam)
-    else:
-        return _poisson_ptrs(lam)
+    def __init__(self):
+        self._state = int.from_bytes(_os.urandom(8), "little")
+
+    cpdef void seed(self, uint64_t s):
+        self._state = s
+
+    cpdef int sample(self, double lam):
+        if lam <= 0.0:
+            return 0
+        elif lam < 30.0:
+            return _poisson_knuth(lam, &self._state)
+        else:
+            return _poisson_ptrs(lam, &self._state)

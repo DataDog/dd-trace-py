@@ -1,3 +1,4 @@
+from types import TracebackType
 from typing import Any
 from typing import Optional
 
@@ -15,5 +16,6 @@ class ExceptionCollector(collector.Collector):
     def _stop_service(self) -> None: ...
 
 def _on_exception_handled(code: Any, instruction_offset: int, exception: BaseException) -> None: ...
+def _collect_exception(exc_type: type, exc_value: BaseException, exc_traceback: TracebackType) -> None: ...
 
 # TODO: Define bytecode injection handler for < versions 3.12
