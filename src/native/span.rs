@@ -11,11 +11,11 @@ use std::ops::Deref;
 use std::time::SystemTime;
 
 use crate::py_string::{PyBackedString, PyTraceData};
-use libdd_trace_utils::span::SpanText;
 use libdd_trace_utils::span::v04::{
     AttributeAnyValue as LibAttributeAnyValue, AttributeArrayValue as LibAttributeArrayValue,
     SpanEvent as LibSpanEvent,
 };
+use libdd_trace_utils::span::SpanText;
 
 /// Try to get a string from a Python object:
 /// 1. If it's already a str, extract directly
@@ -32,9 +32,7 @@ fn try_stringify(obj: &Bound<'_, PyAny>) -> PyResult<PyBackedString> {
 }
 
 // bool must be checked before int (Python bool subclasses int).
-fn py_to_array_value(
-    obj: &Bound<'_, PyAny>,
-) -> PyResult<LibAttributeArrayValue<PyTraceData>> {
+fn py_to_array_value(obj: &Bound<'_, PyAny>) -> PyResult<LibAttributeArrayValue<PyTraceData>> {
     if obj.is_instance_of::<PyBool>() {
         let b: bool = obj.extract()?;
         return Ok(LibAttributeArrayValue::Boolean(b));
@@ -55,9 +53,7 @@ fn py_to_array_value(
     ))
 }
 
-fn py_to_attribute_value(
-    obj: &Bound<'_, PyAny>,
-) -> PyResult<LibAttributeAnyValue<PyTraceData>> {
+fn py_to_attribute_value(obj: &Bound<'_, PyAny>) -> PyResult<LibAttributeAnyValue<PyTraceData>> {
     if obj.is_instance_of::<PyBool>() {
         let b: bool = obj.extract()?;
         return Ok(LibAttributeAnyValue::SingleValue(
@@ -81,7 +77,7 @@ fn py_to_attribute_value(
             LibAttributeArrayValue::Double(f),
         ));
     }
-    if let Ok(list) = obj.downcast::<PyList>() {
+    if let Ok(list) = obj.cast::<PyList>() {
         let mut values = Vec::with_capacity(list.len());
         for item in list.iter() {
             values.push(py_to_array_value(&item)?);
@@ -111,9 +107,10 @@ fn array_value_to_py(
 ) -> PyResult<Py<PyAny>> {
     match val {
         LibAttributeArrayValue::String(s) => Ok(s.as_py(py).unbind()),
-        LibAttributeArrayValue::Boolean(b) => {
-            Ok((*pyo3::types::PyBool::new(py, *b)).clone().into_any().unbind())
-        }
+        LibAttributeArrayValue::Boolean(b) => Ok((*pyo3::types::PyBool::new(py, *b))
+            .clone()
+            .into_any()
+            .unbind()),
         LibAttributeArrayValue::Integer(i) => Ok(i.into_pyobject(py)?.into_any().unbind()),
         LibAttributeArrayValue::Double(f) => Ok(f.into_pyobject(py)?.into_any().unbind()),
     }
@@ -128,7 +125,10 @@ fn attribute_value_to_py(
         LibAttributeAnyValue::Array(vec) => {
             let items: PyResult<Vec<Py<PyAny>>> =
                 vec.iter().map(|v| array_value_to_py(py, v)).collect();
-            Ok(PyList::new(py, items?)?.into_pyobject(py)?.into_any().unbind())
+            Ok(PyList::new(py, items?)?
+                .into_pyobject(py)?
+                .into_any()
+                .unbind())
         }
     }
 }
@@ -398,7 +398,7 @@ impl SpanEventAttributes {
             dict.set_item(k.as_py(py), attribute_value_to_py(py, v)?)?;
         }
         drop(parent);
-        Ok(dict.into_any().eq(other)?)
+        dict.into_any().eq(other)
     }
 }
 
