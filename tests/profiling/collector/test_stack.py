@@ -979,9 +979,21 @@ def loc(function_name: str, filename: str = FILE_NAME, line_no: int = -1) -> ppr
 @pytest.mark.subprocess()
 def test_top_c_frame_detection_hashlib() -> None:
     """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
     import hashlib
+    import os
     import pathlib
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_hashlib"
@@ -1028,12 +1040,23 @@ def test_top_c_frame_detection_hashlib() -> None:
 @pytest.mark.subprocess()
 def test_top_c_frame_detection_hashlib_kwarg() -> None:
     """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
     import hashlib
+    import os
     import pathlib
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
-
     test_name = "test_top_c_frame_detection_hashlib"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -1080,13 +1103,24 @@ def test_top_c_frame_detection_hashlib_kwarg() -> None:
 )
 def test_top_c_frame_detection_numpy_flat() -> None:
     """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
 
     import numpy as np
 
-    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_hashlib"
     pprof_prefix = str(tmp_path / test_name)
 
@@ -1136,13 +1170,24 @@ def test_top_c_frame_detection_numpy_flat() -> None:
 )
 def test_top_c_frame_detection_numpy_nested() -> None:
     """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
 
     import numpy as np
 
-    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_hashlib"
     pprof_prefix = str(tmp_path / test_name)
 
@@ -1188,12 +1233,23 @@ def test_top_c_frame_detection_numpy_nested() -> None:
 @pytest.mark.subprocess()
 def test_top_c_frame_detection_zlib() -> None:
     """Test module-level C function: zlib.compress (LOAD_GLOBAL → LOAD_ATTR → PUSH_NULL → CALL)."""
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
     import zlib
 
-    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_zlib"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -1233,8 +1289,20 @@ def test_top_c_frame_detection_zlib() -> None:
 @pytest.mark.subprocess()
 def test_top_c_frame_detection_sorted_builtin() -> None:
     """Test builtin function: sorted() (LOAD_GLOBAL+NULL → CALL, no LOAD_ATTR)."""
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_sorted_builtin"
@@ -1276,8 +1344,20 @@ def test_top_c_frame_detection_sorted_builtin() -> None:
 @pytest.mark.subprocess()
 def test_top_c_frame_detection_list_sort_method() -> None:
     """Test method call: list.sort() (LOAD_FAST → LOAD_ATTR method → CALL)."""
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_list_sort"
@@ -1320,12 +1400,23 @@ def test_top_c_frame_detection_list_sort_method() -> None:
 @pytest.mark.subprocess()
 def test_top_c_frame_detection_regex_method() -> None:
     """Test method call on C object: Pattern.findall() (LOAD_FAST → LOAD_ATTR method → LOAD_FAST → CALL)."""
+    import _thread
+    import os
     import pathlib
     import re
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
-
     test_name = "test_top_c_frame_detection_regex"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -1370,12 +1461,23 @@ def test_top_c_frame_detection_expression_arg() -> None:
     Exercises BINARY_OP and LOAD_FAST_BORROW_LOAD_FAST_BORROW in depth tracking.
     Bytecode: LOAD_GLOBAL → LOAD_ATTR → PUSH_NULL → LOAD_FAST_x2 → BINARY_OP → CALL.
     """
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
     import zlib
 
-    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_expression_arg"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -1420,13 +1522,24 @@ def test_top_c_frame_detection_nested_c_calls() -> None:
     When caught in sha256, backward scan must skip past the inner CALL (compress)
     and its arguments to reach the LOAD_ATTR for sha256.
     """
+    import _thread
     import hashlib
+    import os
     import pathlib
     import tempfile
+    import time
     import zlib
 
-    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_nested_c_calls"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -1474,8 +1587,20 @@ def test_top_c_frame_detection_call_kw() -> None:
     Exercises CALL_KW opcode which consumes an extra kwnames tuple.
     Bytecode: LOAD_GLOBAL+NULL → LOAD_FAST → LOAD_CONST → LOAD_CONST (kwnames) → CALL_KW.
     """
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_call_kw"
@@ -1520,12 +1645,23 @@ def test_top_c_frame_detection_many_args() -> None:
 
     Depth tracking must skip past 4 LOAD_CONST/LOAD_FAST + PUSH_NULL before reaching LOAD_ATTR.
     """
+    import _thread
     import hashlib
+    import os
     import pathlib
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
-
     test_name = "test_top_c_frame_detection_many_args"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -1567,12 +1703,23 @@ def test_top_c_frame_detection_method_two_args() -> None:
 
     Bytecode: LOAD_FAST → LOAD_ATTR (method) → LOAD_CONST → LOAD_FAST → CALL 2.
     """
+    import _thread
+    import os
     import pathlib
     import re
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
-
     test_name = "test_top_c_frame_detection_method_two_args"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -1617,8 +1764,20 @@ def test_top_c_frame_detection_method_on_literal() -> None:
     Receiver is LOAD_CONST (not LOAD_FAST/LOAD_GLOBAL), consumed by LOAD_ATTR method variant.
     Bytecode: LOAD_CONST b'' → LOAD_ATTR (join, method) → LOAD_FAST → CALL 1.
     """
+    import _thread
+    import os
     import pathlib
     import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_method_on_literal"
@@ -1664,13 +1823,24 @@ def test_top_c_frame_detection_sequential_calls() -> None:
     Both C frames should appear in the profile with distinct callable names.
     Tests that STORE_FAST between calls doesn't confuse the backward scan.
     """
+    import _thread
     import hashlib
+    import os
     import pathlib
     import tempfile
+    import time
     import zlib
 
-    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
 
+    FILE_NAME = os.path.basename(__file__)
+
+    def loc(function_name, filename=FILE_NAME, line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
     test_name = "test_top_c_frame_detection_sequential_calls"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
