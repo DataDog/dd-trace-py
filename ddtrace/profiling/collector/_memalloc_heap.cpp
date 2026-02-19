@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <memory>
+#include <time.h>
 #include <vector>
 
 #define PY_SSIZE_T_CLEAN
@@ -275,9 +276,21 @@ heap_tracker_t::export_heap_no_cpython()
 {
     memalloc_gil_debug_guard_t guard(gil_guard);
 
+    // AIDEV-NOTE: Get current monotonic time for heap snapshot.
+    // Updates each sample's timestamp to "now" so heap snapshots appear
+    // at the correct time on the timeline (not at the original allocation time).
+    int64_t now_ns = 0;
+    timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        now_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + static_cast<int64_t>(ts.tv_nsec);
+    }
+
     /* Iterate over live samples and export them */
     for (const auto& [ptr, tb] : allocs_m) {
         (void)ptr; // Suppress unused variable warning
+        if (now_ns > 0) {
+            tb->sample.push_monotonic_ns(now_ns);
+        }
         tb->sample.export_sample();
     }
 }

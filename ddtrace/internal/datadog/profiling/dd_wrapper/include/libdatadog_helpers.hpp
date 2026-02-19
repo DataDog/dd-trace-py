@@ -51,7 +51,11 @@ intern_string(std::string_view s);
     X(trace_type, "trace type")                                                                                        \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")                                                                                          \
-    X(gpu_device_name, "gpu device name")
+    X(gpu_device_name, "gpu device name")                                                                              \
+    /* AIDEV-NOTE: allocation_age_ns is infrastructure for memory leak detection.                                      \
+     * Not currently pushed as a label (labels accumulate on re-export), but the enum                                  \
+     * entry is pre-registered for when we add proper age tracking with clear-on-export. */                            \
+    X(allocation_age_ns, "allocation age")
 
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,
