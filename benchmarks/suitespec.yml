@@ -100,6 +100,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/span/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   tracer:
@@ -109,6 +110,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/tracer/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   core_api:
@@ -118,6 +120,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/core_api/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   set_http_meta:
@@ -127,6 +130,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/set_http_meta/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   telemetry_add_metric:
@@ -136,6 +140,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/telemetry_add_metric/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   otel_span:
@@ -146,6 +151,7 @@ suites:
       - '@vendor'
       - '@opentelemetry'
       - benchmarks/otel_span/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   otel_sdk_span:
@@ -156,6 +162,7 @@ suites:
       - '@vendor'
       - '@opentelemetry'
       - benchmarks/otel_sdk_span/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   recursive_computation:
@@ -165,6 +172,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/recursive_computation/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   sampling_rule_matches:
@@ -174,6 +182,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/sampling_rule_matches/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   http_propagation_extract:
@@ -183,6 +192,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/http_propagation_extract/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   http_propagation_inject:
@@ -192,6 +202,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/http_propagation_inject/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   rate_limiter:
@@ -201,6 +212,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - benchmarks/rate_limiter/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   appsec_iast_aspects:
@@ -209,6 +221,7 @@ suites:
       - '@core'
       - '@vendor'
       - benchmarks/appsec_iast_aspects/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   appsec_iast_aspects_ospath:
@@ -218,6 +231,7 @@ suites:
       - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_aspects_ospath/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   appsec_iast_aspects_re_module:
@@ -227,6 +241,7 @@ suites:
       - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_aspects_re_module/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   appsec_iast_aspects_split:
@@ -236,6 +251,7 @@ suites:
       - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_aspects_split/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   appsec_iast_propagation:
@@ -245,18 +261,21 @@ suites:
       - '@vendor'
       - '@appsec_iast'
       - benchmarks/appsec_iast_propagation/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   packages_package_for_root_module_mapping:
     paths:
       - '@core'
       - benchmarks/packages_package_for_root_module_mapping/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   packages_update_imported_dependencies:
     paths:
       - '@core'
       - benchmarks/packages_update_imported_dependencies/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   fork_time:
@@ -267,6 +286,7 @@ suites:
       - '@vendor'
       - '@flask'
       - benchmarks/fork_time/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
   django_simple:
@@ -277,6 +297,7 @@ suites:
       - '@vendor'
       - '@django'
       - benchmarks/django_simple/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
   flask_simple:
@@ -287,6 +308,7 @@ suites:
       - '@vendor'
       - '@flask'
       - benchmarks/flask_simple/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
   flask_sqli:
@@ -297,6 +319,7 @@ suites:
       - '@vendor'
       - '@flask'
       - benchmarks/flask_sqli/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
   errortracking_django_simple:
@@ -307,6 +330,7 @@ suites:
       - '@tracing'
       - '@django'
       - benchmarks/errortracking_django_simple/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
   errortracking_flask_sqli:
@@ -317,6 +341,7 @@ suites:
       - '@tracing'
       - '@flask'
       - benchmarks/errortracking_flask_sqli/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
   startup:
@@ -328,11 +353,13 @@ suites:
       - '@flask'
       - '@django'
       - benchmarks/startup/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 2
     type: 'microbenchmark'
   rand:
     paths:
       - 'src/native/rand.rs'
       - benchmarks/rand/*
+      - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
