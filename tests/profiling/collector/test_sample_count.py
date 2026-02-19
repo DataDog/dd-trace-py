@@ -49,7 +49,7 @@ def test_sample_count():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = glob.glob(output_filename + ".*.internal_metadata.json")
+    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
 
     found_at_least_one_with_more_samples_than_sampling_events = False
     for i, f in enumerate(files):
