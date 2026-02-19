@@ -5,12 +5,12 @@ from typing import Optional
 
 import pytest
 
+from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.events import event_field
 
 
