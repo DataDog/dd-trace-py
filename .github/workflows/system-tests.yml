@@ -7,6 +7,26 @@ on:
       - mq-working-branch-*
   merge_group:
   pull_request:
+    paths-ignore:
+      # CI config (GitLab / editor / AI tooling)
+      - '.gitlab-ci.yml'
+      - '.gitlab/**'
+      - '.cursor/**'
+      - '.claude/**'
+      # Documentation and legal
+      - 'docs/**'
+      - 'releasenotes/**'
+      - '*.md'
+      - '*.rst'
+      - 'LICENSE*'
+      - 'NOTICE'
+      # Tests, benchmarks, scripts (not packaged into the wheel)
+      - 'tests/**'
+      - 'benchmarks/**'
+      - 'scripts/**'
+      # Git/repo config
+      - '.gitignore'
+      - '.gitattributes'
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
@@ -80,7 +100,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0382c548169eae1b20cf218d9f29ba067ded8a39'
+          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -133,7 +153,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0382c548169eae1b20cf218d9f29ba067ded8a39'
+          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -338,7 +358,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '0382c548169eae1b20cf218d9f29ba067ded8a39'
+          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -442,9 +462,11 @@ jobs:
     needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
     if: success() || failure()
     steps:
-      - name: True when everything else succeeded
-        if: needs.parametric.result == 'success' && needs.system-tests.result == 'success' && needs.serverless-system-tests.result == 'success'
-        run: exit 0
-      - name: Fails if anything else failed
+      - name: Print results
+        run: |
+          echo "parametric: ${{ needs.parametric.result }}"
+          echo "system-tests: ${{ needs.system-tests.result }}"
+          echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
+      - name: Fail if any dependency failed
         if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
         run: exit 1

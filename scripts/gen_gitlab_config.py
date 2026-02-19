@@ -36,7 +36,7 @@ class BenchmarkSpec:
     name: str
     cpus_per_run: t.Optional[int] = 1
     pattern: t.Optional[str] = None
-    paths: t.Optional[t.Set[str]] = None  # ignored
+    paths: t.Optional[set[str]] = None  # ignored
     skip: bool = False
     type: str = "benchmark"  # ignored
 
@@ -48,16 +48,16 @@ class JobSpec:
     stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
-    services: t.Optional[t.List[str]] = None
-    env: t.Optional[t.Dict[str, str]] = None
+    services: t.Optional[list[str]] = None
+    env: t.Optional[dict[str, str]] = None
     parallelism: t.Optional[int] = None
     venvs_per_job: t.Optional[int] = None
     retry: t.Optional[int] = None
     timeout: t.Optional[int] = None
     skip: bool = False
     allow_failure: bool = False
-    paths: t.Optional[t.Set[str]] = None  # ignored
-    only: t.Optional[t.Set[str]] = None  # ignored
+    paths: t.Optional[set[str]] = None  # ignored
+    only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
 
@@ -98,9 +98,13 @@ class JobSpec:
         if self.snapshot:
             wait_for.add("testagent")
 
+        # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
+        # so the value is set when tests-gen runs and is present in the child job.
+        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
         lines.append("    - pip cache info")
+        lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             if self.runner == "riot" and wait_for:
                 lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
@@ -223,7 +227,7 @@ def gen_required_suites() -> None:
 
     suites = suitespec.get_suites()
 
-    required_suites: t.List[str] = []
+    required_suites: list[str] = []
 
     for_each_testrun_needed(
         suites=sorted(suites.keys()),
@@ -241,19 +245,18 @@ def gen_required_suites() -> None:
     _gen_benchmarks(suites, required_suites)
 
 
-def _gen_benchmarks(suites: t.Dict, required_suites: t.List[str]) -> None:
+def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
     suites = {k: v for k, v in suites.items() if "benchmark" in v.get("type", "test")}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
     if not required_suites:
         MICROBENCHMARKS_GEN.write_text(
             """
-noop:
+microbenchmark-noop:
   image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   script: |
     echo "noop"
-
 """
         )
         return
@@ -304,7 +307,7 @@ def _get_benchmark_class_name(suite_name: str) -> str:
             return match.group(1).lower()
 
 
-def _filter_benchmarks_slos_file(classnames: t.List) -> None:
+def _filter_benchmarks_slos_file(classnames: list) -> None:
     in_scenario_to_keep = True
     new_contents = []
     contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
@@ -325,7 +328,7 @@ def _filter_benchmarks_slos_file(classnames: t.List) -> None:
     MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
 
-def _gen_tests(suites: t.Dict, required_suites: t.List[str]) -> None:
+def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
@@ -422,7 +425,7 @@ def gen_pre_checks() -> None:
 
     checks: list[tuple[str, str]] = []
 
-    def check(name: str, command: str, paths: t.Set[str]) -> None:
+    def check(name: str, command: str, paths: set[str]) -> None:
         if pr_matches_patterns(paths):
             checks.append((name, command))
 
@@ -532,7 +535,13 @@ def gen_build_base_venvs() -> None:
     on the cached testrunner job, which is also generated dynamically.
     """
     with TESTS_GEN.open("a") as f:
-        f.write(template("build-base-venvs", unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false"))
+        f.write(
+            template(
+                "build-base-venvs",
+                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
+                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+            )
+        )
 
 
 def gen_debugger_exploration() -> None:

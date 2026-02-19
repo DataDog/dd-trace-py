@@ -20,7 +20,6 @@ tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
-README.md                           @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
 
@@ -55,15 +54,10 @@ tests/smoke_test.py                 @DataDog/python-guild
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
 tests/lib-injection                 @DataDog/apm-core-python
-tests/opentelemetry                 @DataDog/apm-core-python
 tests/opentracer                    @DataDog/apm-core-python
 
 # Test Visibility and related
 ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
-ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
@@ -85,7 +79,6 @@ ddtrace/internal/coverage                             @DataDog/apm-core-python @
 tests/internal/test_codeowners.py                     @DataDog/ci-app-libraries
 tests/ci_visibility                                   @DataDog/ci-app-libraries
 tests/coverage                                        @DataDog/apm-core-python @DataDog/ci-app-libraries
-tests/tracer/test_ci.py                               @DataDog/ci-app-libraries
 ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
 scripts/ci_visibility/*                               @DataDog/ci-app-libraries
 # Test Visibility owns the freezegun integration because it's the team most affected by it
@@ -137,13 +130,14 @@ scripts/iast/*                      @DataDog/asm-python
 
 
 # Profiling
-ddtrace/profiling                   @DataDog/profiling-python
+ddtrace/profiling                            @DataDog/profiling-python
 ddtrace/internal/settings/profiling.py       @DataDog/profiling-python
-ddtrace/internal/datadog/profiling  @DataDog/profiling-python
-tests/profiling                     @DataDog/profiling-python
+ddtrace/internal/settings/profiling.pyi      @DataDog/profiling-python
+ddtrace/internal/datadog/profiling           @DataDog/profiling-python
+tests/profiling                              @DataDog/profiling-python
 .github/workflows/profiling-native.yml       @DataDog/profiling-python
-.gitlab/tests/profiling.yml         @DataDog/profiling-python
-.github/workflows/pytorch_gpu_tests.yml @DataDog/profiling-python
+.gitlab/tests/profiling.yml                  @DataDog/profiling-python
+.github/workflows/pytorch_gpu_tests.yml      @DataDog/profiling-python
 
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
@@ -244,7 +238,7 @@ tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities
 tests/runtime/                                     @DataDog/apm-sdk-capabilities-python
 tests/test_sampling.py                             @DataDog/apm-sdk-capabilities-python
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
-tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
+tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 tests/tracer/                                      @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
