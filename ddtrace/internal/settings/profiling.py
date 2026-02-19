@@ -318,6 +318,20 @@ class ProfilingConfigMemory(DDConfig):
         help="",
     )
 
+    # AIDEV-NOTE: Feature flag for enhanced memory leak detection data collection.
+    # When enabled, collects additional data: RSS snapshots, allocation timestamps,
+    # object type tracking (Phase 2), and heap diff analysis (Phase 2).
+    # Disabled by default to avoid impacting existing customers until the feature is validated.
+    leak_detection_enabled = DDConfig.v(
+        bool,
+        "leak_detection_enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to enable enhanced memory leak detection data collection. "
+        "When enabled, the profiler collects additional metrics including RSS snapshots, "
+        "allocation timestamps, and object type information to help identify memory leaks.",
+    )
+
 
 class ProfilingConfigHeap(DDConfig):
     __item__ = __prefix__ = "heap"
@@ -409,6 +423,8 @@ def config_str(config) -> str:
         configured_features.append("lock")
     if config.memory.enabled:
         configured_features.append("mem")
+    if config.memory.leak_detection_enabled:
+        configured_features.append("memleak")
     if config.heap.sample_size > 0:
         configured_features.append("heap")
     if config.pytorch.enabled:

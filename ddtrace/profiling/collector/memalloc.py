@@ -108,9 +108,10 @@ class MemoryCollector:
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
 
-        self.last_rss_bytes = _get_rss_bytes()
-        if self.last_rss_bytes is not None:
-            self._emit_rss_sample(self.last_rss_bytes)
+        if config.memory.leak_detection_enabled:  # pyright: ignore[reportAttributeAccessIssue]
+            self.last_rss_bytes = _get_rss_bytes()
+            if self.last_rss_bytes is not None:
+                self._emit_rss_sample(self.last_rss_bytes)
 
     def _emit_rss_sample(self, rss_bytes: int) -> None:
         """Emit a synthetic heap sample representing the process RSS.
