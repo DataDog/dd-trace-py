@@ -573,7 +573,8 @@ class Dataset:
             pending_keys = list(self._new_records_by_record_id.keys())
             for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
                 self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
-                self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
+                if canonical_id:  # avoid overriding if not present in response
+                    self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
                 del self._new_records_by_record_id[key]
 
             data_changed = len(new_record_ids) > 0
