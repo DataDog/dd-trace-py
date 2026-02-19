@@ -1189,7 +1189,8 @@ class Experiment:
                                 trace_id=task_result.get("trace_id"),
                             )
                             eval_result = await asyncio.to_thread(
-                                evaluator.evaluate, context  # type: ignore[union-attr]
+                                evaluator.evaluate,
+                                context,  # type: ignore[union-attr]
                             )
                         elif _is_function_evaluator(evaluator):
                             evaluator_name = evaluator.__name__  # type: ignore[union-attr]
