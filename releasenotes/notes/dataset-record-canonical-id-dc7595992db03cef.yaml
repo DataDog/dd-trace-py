@@ -1,0 +1,3 @@
+features:
+  - |
+    LLM Observability experiments propagate canonical_ids when present to the experiments span.
