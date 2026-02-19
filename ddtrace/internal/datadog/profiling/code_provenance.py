@@ -170,17 +170,17 @@ def _cache_file_and_lock():
 def _try_exclusive_lock_nonblocking(lock_filename: str):
     try:
         with open(lock_filename, "a+b") as f:
+            # Datadog profiling is not supported on Windows, so we do not need
+            # platform-specific non-blocking file locking there.
+            if os.name == "nt":
+                yield False
+                return
+
             acquired = False
             try:
-                if os.name == "nt":
-                    import msvcrt
+                import fcntl
 
-                    f.seek(0)
-                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
-                else:
-                    import fcntl
-
-                    fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 acquired = True
             except OSError:
                 pass
@@ -193,15 +193,7 @@ def _try_exclusive_lock_nonblocking(lock_filename: str):
                 yield True
             finally:
                 try:
-                    if os.name == "nt":
-                        import msvcrt
-
-                        f.seek(0)
-                        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
-                    else:
-                        import fcntl
-
-                        fcntl.lockf(f, fcntl.LOCK_UN)
+                    fcntl.lockf(f, fcntl.LOCK_UN)
                 except OSError:
                     pass
     except OSError:
