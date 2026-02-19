@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    profiling: reduces code provenance CPU and memory overhead by reusing
+    generated code provenance metadata across processes running the same
+    Python version, ``ddtrace`` version, and installed dependency environment.
