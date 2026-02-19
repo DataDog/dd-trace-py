@@ -1068,6 +1068,7 @@ class Experiment:
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
+                canonical_id = record.get("canonical_id")
                 tags = {
                     **self._tags,
                     "dataset_id": str(self._dataset._id),
