@@ -540,7 +540,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "metadata": attrs.get("metadata", {}),
                     }
                 )
-                class_records.append(dataset_record)
             next_cursor = records_data.get("meta", {}).get("after")
 
             url_options = {}
