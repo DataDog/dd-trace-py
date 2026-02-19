@@ -19,10 +19,12 @@ on:
       - '*.rst'
       - 'LICENSE*'
       - 'NOTICE'
-      # Tests, benchmarks, scripts (not packaged into the wheel)
+      # Tests and benchmarks (not packaged into the wheel)
       - 'tests/**'
       - 'benchmarks/**'
+      # Scripts, except the wheel downloader which this workflow depends on
       - 'scripts/**'
+      - '!scripts/download-s3-wheels.sh'
       # Git/repo config
       - '.gitignore'
       - '.gitattributes'
