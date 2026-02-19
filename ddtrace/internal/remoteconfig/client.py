@@ -31,13 +31,19 @@ from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
 
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
+
+# Threshold for callback execution time warning (in seconds)
+CALLBACK_EXECUTION_WARNING_THRESHOLD = 0.5
 
 
 REQUIRE_SKIP_SHUTDOWN = frozenset({"django-q"})
@@ -282,7 +288,19 @@ class RemoteConfigClient:
                     os.getppid(),
                     product_name,
                 )
-                callback.periodic()
+                with StopWatch() as sw:
+                    callback.periodic()
+
+                if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.WARNING,
+                        "Periodic RC operation exceeded threshold",
+                        tags={
+                            "product": product_name,
+                            "callback_type": "periodic",
+                            "elapsed_time": "%.3f" % elapsed_time,
+                        },
+                    )
             except Exception:
                 log.error(
                     "[%s][P: %s] Error calling periodic method for product %s",
@@ -316,7 +334,19 @@ class RemoteConfigClient:
                         len(product_payload_list),
                         product_name,
                     )
-                    product_callback(product_payload_list)
+                    with StopWatch() as sw:
+                        product_callback(product_payload_list)
+
+                    if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
+                        telemetry_writer.add_log(
+                            TELEMETRY_LOG_LEVEL.WARNING,
+                            "RC callback operation exceeded threshold",
+                            tags={
+                                "product": product_name,
+                                "callback_type": "payload",
+                                "elapsed_time": "%.3f" % elapsed_time,
+                            },
+                        )
                 except Exception:
                     log.error(
                         "[%s][P: %s] Error dispatching to product %s",

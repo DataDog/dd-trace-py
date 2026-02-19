@@ -3,13 +3,16 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 from typing import Any
+from typing import Iterator
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
@@ -36,11 +39,12 @@ log = get_logger(__name__)
 ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
 
 STANDARD_INTEGRATION_SPAN_NAMES = (
+    CLAUDE_AGENT_SDK_APM_SPAN_NAME,
     CREWAI_APM_SPAN_NAME,
     GEMINI_APM_SPAN_NAME,
     LANGCHAIN_APM_SPAN_NAME,
-    VERTEXAI_APM_SPAN_NAME,
     LITELLM_APM_SPAN_NAME,
+    VERTEXAI_APM_SPAN_NAME,
 )
 
 
@@ -323,10 +327,15 @@ def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     return [f"{key}:{value}" for key, value in tags.items()]
 
 
+def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
+
+
 @dataclass
 class TrackedToolCall:
     """
-    Holds information about a tool call and it's associated LLM/Tool spans
+    Holds information about a tool call and its associated LLM/Tool spans
     for span linking purposes.
     """
 
@@ -381,8 +390,8 @@ class LinkTracker:
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
-        of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
-        so that we can link to the input of an LLM span if it's output is used in an LLM call.
+        of the LLM span responsible for generating its input. We also save the span/trace id of the tool call
+        so that we can link to the input of an LLM span if its output is used in an LLM call.
 
         If possible, we use the tool_id provided to lookup the tool call; otherwise, we perform a best effort
         lookup based on the tool_name and tool_arg.

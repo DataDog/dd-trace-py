@@ -40,6 +40,8 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.debugging._uploader import UploaderProduct
 from ddtrace.internal import core
+from ddtrace.internal.compat import NO_EXCEPTION
+from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import DogStatsdClient
 from ddtrace.internal.metrics import Metrics
@@ -133,7 +135,7 @@ class DebuggerWrappingContext(WrappingContext):
             self.set("start_time", time.monotonic_ns())
             self.set("signals", signals)
 
-    def _close_signals(self, retval=None, exc_info=(None, None, None)) -> None:
+    def _close_signals(self, retval=None, exc_info: ExcInfoType = NO_EXCEPTION) -> None:
         end_time = time.monotonic_ns()
 
         try:
@@ -178,7 +180,7 @@ class DebuggerWrappingContext(WrappingContext):
         self, exc_type: Optional[type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
         try:
-            self._close_signals(exc_info=(exc_type, exc_val, exc_tb))
+            self._close_signals(exc_info=cast(ExcInfoType, (exc_type, exc_val, exc_tb)))
         except Exception:
             log.exception("Failed to close debugging contexts from exception block")
         super().__exit__(exc_type, exc_val, exc_tb)

@@ -139,7 +139,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self,
         product: str,
         callback: RCCallback,
-        skip_enabled: bool = False,
         capabilities: Iterable[enum.IntFlag] = [],
     ) -> None:
         """Register a product callback for remote configuration updates.
@@ -150,13 +149,11 @@ class RemoteConfigPoller(periodic.PeriodicService):
         Args:
             product: Product name (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
             callback: Callback function to invoke when payloads are received in child processes
-            skip_enabled: If True, skip enabling the remote config client (deprecated, use enable() separately)
             capabilities: list of capabilities to register for this product
         """
         try:
-            # By enabling on registration we ensure we start the RCM client only
-            # if there is at least one registered product.
-            if not skip_enabled:
+            # Enable if this is the first product being registered
+            if not self._client._product_callbacks:
                 self.enable()
 
             self._client.register_callback(product, callback)
@@ -222,8 +219,12 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         try:
             self._client.unregister_product(product)
+
+            # Disable if no products remain registered
+            if not self._client._product_callbacks:
+                self.disable()
         except Exception:
-            log.debug("error starting the RCM client", exc_info=True)
+            log.debug("error unregistering from RCM client", exc_info=True)
 
     def get_registered(self, product: str) -> Optional[RCCallback]:
         """Get the registered callback for a product."""
