@@ -105,7 +105,6 @@ class Span(SpanData):
     __slots__ = [
         # Public span attributes
         "trace_id",
-        "parent_id",
         "_meta",
         "_meta_struct",
         "context",
@@ -180,7 +179,6 @@ class Span(SpanData):
             self.trace_id: int = generate_128bit_trace_id()  # type: ignore[no-redef]
         else:
             self.trace_id: int = rand64bits()  # type: ignore[no-redef]
-        self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context

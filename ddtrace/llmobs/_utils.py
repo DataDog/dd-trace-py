@@ -3,7 +3,9 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 from typing import Any
+from typing import Iterator
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
 from ddtrace import config
@@ -323,6 +325,11 @@ def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     if not tags:
         return []
     return [f"{key}:{value}" for key, value in tags.items()]
+
+
+def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
 
 
 @dataclass
