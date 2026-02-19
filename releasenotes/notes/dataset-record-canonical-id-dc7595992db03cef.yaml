@@ -1,4 +1,5 @@
 features:
   - |
     LLM Observability: experiments propagate canonical_ids from dataset records
-    to the corresponding experiments span when present.
+    to the corresponding experiments span when present. The canonical_ids are only
+    guaranteed to be available after calling `pull_dataset`.
