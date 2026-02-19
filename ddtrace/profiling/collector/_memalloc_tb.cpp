@@ -2,6 +2,7 @@
 #include <Python.h>
 #include <frameobject.h>
 #include <string_view>
+#include <time.h>
 
 #include "_pymacro.h"
 
@@ -90,6 +91,15 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
     // Push allocation info to sample
     // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
+
+    // AIDEV-NOTE: Capture allocation timestamp for memory leak detection workflow.
+    // Uses CLOCK_MONOTONIC for consistency with the stack profiler (see stack_renderer.cpp).
+    // push_monotonic_ns is a no-op if timeline is disabled, so this is always safe to call.
+    timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        alloc_timestamp_ns = static_cast<int64_t>(ts.tv_sec) * 1'000'000'000LL + static_cast<int64_t>(ts.tv_nsec);
+        sample.push_monotonic_ns(alloc_timestamp_ns);
+    }
 
     // Get thread id and native_id using C-level APIs and push to sample
     push_threadinfo_to_sample(sample);

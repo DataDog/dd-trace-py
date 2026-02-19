@@ -14,6 +14,10 @@ class traceback_t
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
+    /* Monotonic timestamp (ns) of when this allocation was sampled.
+     * Used to compute allocation age during heap exports for memory leak detection. */
+    int64_t alloc_timestamp_ns = 0;
+
     /* Constructor - also collects frames from the current Python frame chain
      * NOTE: Invokes CPython APIs which may release the GIL during frame collection */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
