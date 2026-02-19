@@ -611,7 +611,7 @@ class Dataset:
         record_id: str = uuid.uuid4().hex
         # this record ID will be discarded after push, BE will generate a new one, this is just
         # for tracking new records locally before the push
-        r: DatasetRecord = {**record, "record_id": record_id}
+        r: DatasetRecord = {**record, "record_id": record_id, "canonical_id": None}
         # keep the same reference in both lists to enable us to update the record_id after push
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
