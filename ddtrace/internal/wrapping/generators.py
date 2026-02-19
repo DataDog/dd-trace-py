@@ -1,4 +1,5 @@
 import sys
+from types import CodeType
 
 from ddtrace.internal.assembly import Assembly
 
@@ -481,7 +482,7 @@ else:
     raise RuntimeError(msg)
 
 
-def wrap_generator(instrs, code, lineno):
+def wrap_generator(instrs: list, code: CodeType, lineno: int) -> None:
     if GENERATOR_HEAD_ASSEMBLY is not None:
         instrs[0:0] = GENERATOR_HEAD_ASSEMBLY.bind(lineno=lineno)
 
