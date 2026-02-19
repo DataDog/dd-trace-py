@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 from typing import Callable
+from typing import Mapping
 from typing import Optional
 from typing import Union
 from unittest.mock import MagicMock
@@ -66,22 +67,25 @@ def run_test(test: Callable) -> bool:
         except Exception as e:
             print(e)
             raise e
-            os._exit(1)
     else:
         _, status = os.waitpid(pid, 0)
         return os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
 
 
 # Initialization tests; we run every single type combination
-def InitTest(name, tags, value):
-    def test():
+def InitTest(
+    name: Optional[Union[str, bytes]],
+    tags: Optional[Mapping],
+    value: int,
+) -> Callable[[], None]:
+    def test() -> None:
         _ddup.init(
-            service=name,
-            env=name,
-            version=name,
-            tags=tags,
+            service="" if not name else name if isinstance(name, str) else name.decode(),
+            env="" if not name else name if isinstance(name, str) else name.decode(),
+            version="" if not name else name if isinstance(name, str) else name.decode(),
+            tags=dict(tags) if tags else None,
             max_nframes=value,
-            url=name,
+            url="" if not name else name if isinstance(name, str) else name.decode(),
         )
 
     return test
@@ -116,7 +120,7 @@ InitNormal = InitTest("name", {"tag": "value"}, 10)
 
 
 # Test all sample interfaces
-def SampleTestSimple():
+def SampleTestSimple() -> None:
     InitNormal()
     h = _ddup.SampleHandle()
     h.push_walltime(1, 1)

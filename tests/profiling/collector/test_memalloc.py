@@ -447,7 +447,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
     def get_allocation_info_from_profile(
         profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
     ) -> dict[str, HeapInfo]:
-        got = {}
+        got: dict[str, HeapInfo] = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
                 continue

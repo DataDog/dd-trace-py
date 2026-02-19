@@ -12,12 +12,12 @@ from ddtrace.profiling import profiler
 LOG = get_logger(__name__)
 
 
-def start_profiler():
+def start_profiler() -> None:
     if hasattr(bootstrap, "profiler"):
-        bootstrap.profiler.stop()
+        bootstrap.profiler.stop()  # type: ignore[attr-defined]
     # Export the profiler so we can introspect it if needed
-    bootstrap.profiler = profiler.Profiler()
-    bootstrap.profiler.start()
+    bootstrap.profiler = profiler.Profiler()  # type: ignore[attr-defined]
+    bootstrap.profiler.start()  # type: ignore[attr-defined]
 
 
 if platform.system() == "Linux" and not (sys.maxsize > (1 << 32)):
