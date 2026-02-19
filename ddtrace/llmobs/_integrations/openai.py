@@ -6,19 +6,10 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
@@ -27,6 +18,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Document
@@ -121,8 +113,8 @@ class OpenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_from_tool(span, kwargs, response)
         update_proxy_workflow_input_output_value(span, span_kind)
         metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
-        span._set_ctx_items(
-            {SPAN_KIND: span_kind, MODEL_NAME: model_name, MODEL_PROVIDER: model_provider, METRICS: metrics}
+        _annotate_llmobs_span_data(
+            span, kind=span_kind, model_name=model_name, model_provider=model_provider, metrics=metrics
         )
 
     @staticmethod
@@ -139,16 +131,16 @@ class OpenAIIntegration(BaseLLMIntegration):
         input_documents: list[Document] = []
         for doc in embedding_inputs:
             input_documents.append(Document(text=str(doc)))
-        span._set_ctx_items({METADATA: metadata, INPUT_DOCUMENTS: input_documents})
-        if span.error or not resp:
-            return
-        if encoding_format == "float":
-            embedding_dim = len(resp.data[0].embedding)
-            span._set_ctx_item(
-                OUTPUT_VALUE, "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
-            )
-            return
-        span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
+
+        output_value = None
+        if not span.error and resp:
+            if encoding_format == "float":
+                embedding_dim = len(resp.data[0].embedding)
+                output_value = "[{} embedding(s) returned with size {}]".format(len(resp.data), embedding_dim)
+            else:
+                output_value = "[{} embedding(s) returned]".format(len(resp.data))
+
+        _annotate_llmobs_span_data(span, metadata=metadata, input_documents=input_documents, output_value=output_value)
 
     @staticmethod
     def _llmobs_set_tags_from_tool(span: Span, kwargs: dict[str, Any], response: Any) -> None:
@@ -161,14 +153,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         span_name = "MCP Client Tool Call: {}".format(tool_name)
         span.name = span_name
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "tool",
-                NAME: span_name,
-                INPUT_VALUE: safe_json(tool_arguments) if tool_arguments is not None else "",
-                OUTPUT_VALUE: safe_json(tool_output) if tool_output is not None else "",
-                METADATA: {"tool_id": tool_id},
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="tool",
+            name=span_name,
+            input_value=safe_json(tool_arguments) if tool_arguments is not None else "",
+            output_value=safe_json(tool_output) if tool_output is not None else "",
+            metadata={"tool_id": tool_id},
         )
 
     @staticmethod

@@ -206,7 +206,8 @@ class _ChatCompletionHook(_BaseCompletionHook):
             if stream_options.get("include_usage", None) is not None:
                 # Only perform token chunk auto-extraction if this option is not explicitly set
                 return
-            span._set_ctx_item("_dd.auto_extract_token_chunk", True)
+            # Mark that we auto-enabled include_usage for token extraction
+            kwargs["_dd_auto_extract_token_chunk"] = True
             stream_options["include_usage"] = True
             kwargs["stream_options"] = stream_options
 

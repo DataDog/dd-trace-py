@@ -141,7 +141,7 @@ class TracedPydanticGenerator(wrapt.ObjectProxy):
             return
         self._self_span_finished = True
         self._self_dd_integration.llmobs_set_tags(
-            self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_last_chunkk, operation=self._self_dd_span_kind
+            self._self_dd_span, args=self._self_args, kwargs=self._self_kwargs, response=self._self_last_chunk, operation=self._self_dd_span_kind
         )
         self._self_dd_span.finish()
 
