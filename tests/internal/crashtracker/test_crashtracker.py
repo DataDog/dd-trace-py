@@ -586,7 +586,7 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         report = utils.get_crash_report(client)
         # Now check for the profiler_config tag
         assert b"profiler_config" in report["body"]
-        profiler_config = "stack_v2_lock_mem_heap_exception_exp_dd_CAP1.0_MAXF64"
+        profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
         assert profiler_config.encode() in report["body"]
 
 
