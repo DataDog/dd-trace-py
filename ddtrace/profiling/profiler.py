@@ -204,11 +204,7 @@ class _ProfilerInstance(service.Service):
         if self._exception_profiling_enabled:
             LOG.debug("Profiling collector (exception) enabled")
             try:
-                exc_collector = exception.ExceptionCollector(
-                    sampling_interval=profiling_config.exception.sampling_interval,
-                    collect_message=profiling_config.exception.collect_message,
-                )
-                self._collectors.append(exc_collector)
+                self._collectors.append(exception.ExceptionCollector())
                 LOG.debug("Profiling collector (exception) initialized")
             except Exception:
                 LOG.error("Failed to start exception collector, disabling.", exc_info=True)
