@@ -482,7 +482,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
-        return new_version, new_record_ids
+        new_canonical_ids: list[str] = [r["attributes"]["canonical_id"] for r in data] if data else []
+        return new_version, new_record_ids, new_canonical_ids
 
     def dataset_get_with_records(
         self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None

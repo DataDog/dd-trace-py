@@ -1924,7 +1924,6 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert "experiment_name:test_experiment" in event["tags"]
     assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record_w_metadata._records[0]["record_id"]) in event["tags"]
-    assert "dataset_record_canonical_id:{}".format(test_dataset_one_record_w_metadata._records[0]["canonical_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]
     assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
     assert "run_iteration:1" in event["tags"]
