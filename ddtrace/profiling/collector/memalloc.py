@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -30,6 +31,17 @@ from ddtrace.profiling import collector
 LOG = logging.getLogger(__name__)
 
 
+def _get_rss_bytes() -> Optional[int]:
+    """Get the current process RSS (Resident Set Size) in bytes.
+    Returns None if psutil is unavailable."""
+    try:
+        from ddtrace.vendor import psutil
+
+        return psutil.Process(os.getpid()).memory_info().rss
+    except Exception:
+        return None
+
+
 class MemoryCollector:
     """Memory allocation collector."""
 
@@ -45,6 +57,9 @@ class MemoryCollector:
             heap_sample_size if heap_sample_size is not None else config.heap.sample_size,  # pyright: ignore
         )
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
+        # AIDEV-NOTE: RSS captured at each snapshot for memory leak detection workflow.
+        # Used for RSS decomposition: RSS - managed_heap = native/runtime overhead.
+        self.last_rss_bytes: Optional[int] = None
 
     def start(self) -> None:
         """Start collecting memory profiles."""
@@ -92,6 +107,26 @@ class MemoryCollector:
         except (RuntimeError, ValueError):
             # DEV: This can happen if either _memalloc has not been started or has been stopped.
             LOG.debug("Unable to collect heap events from process %d", os.getpid(), exc_info=True)
+
+        self.last_rss_bytes = _get_rss_bytes()
+        if self.last_rss_bytes is not None:
+            self._emit_rss_sample(self.last_rss_bytes)
+
+    def _emit_rss_sample(self, rss_bytes: int) -> None:
+        """Emit a synthetic heap sample representing the process RSS.
+
+        This creates a distinguishable sample in the pprof profile with
+        a synthetic frame, allowing the backend to correlate RSS with
+        heap profiling data at the same point in time.
+        """
+        try:
+            handle = ddup.SampleHandle()
+            handle.push_heap(rss_bytes)
+            handle.push_monotonic_ns(time.monotonic_ns())
+            handle.push_frame("[process RSS]", "[memalloc]", 0, 0)
+            handle.flush_sample()
+        except Exception:
+            LOG.debug("Failed to emit RSS sample", exc_info=True)
 
     def snapshot_and_parse_pprof(self, output_filename: str, assert_samples: bool = True) -> pprof_pb2.Profile:
         """Export samples to profile, upload, and parse the pprof profile.
