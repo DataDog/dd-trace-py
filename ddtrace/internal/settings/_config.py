@@ -4,11 +4,8 @@ import re
 import sys
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 from ddtrace.internal import gitmetadata
@@ -98,6 +95,7 @@ DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP_DEFAULT = (
 # This allows users to set integration configs before an integration is patched.
 INTEGRATION_CONFIGS = frozenset(
     {
+        "claude_agent_sdk",
         "pyodbc",
         "dramatiq",
         "flask",
@@ -204,8 +202,7 @@ INTEGRATION_CONFIGS = frozenset(
 )
 
 
-def _parse_propagation_styles(styles_str):
-    # type: (str) -> Optional[List[str]]
+def _parse_propagation_styles(styles_str: str) -> Optional[list[str]]:
     """Helper to parse http propagation extract/inject styles via env variables.
 
     The expected format is::
@@ -274,8 +271,7 @@ def _deepmerge(source, destination):
     return destination
 
 
-def get_error_ranges(error_range_str):
-    # type: (str) -> List[Tuple[int, int]]
+def get_error_ranges(error_range_str: str) -> list[tuple[int, int]]:
     error_ranges = []
     error_range_str = error_range_str.strip()
     error_ranges_str = error_range_str.split(",")
@@ -293,14 +289,19 @@ def get_error_ranges(error_range_str):
 
 
 _ConfigSource = Literal["default", "env_var", "code", "remote_config"]
-_JSONType = Union[None, int, float, str, bool, List["_JSONType"], Dict[str, "_JSONType"]]
+_JSONType = Union[None, int, float, str, bool, list["_JSONType"], dict[str, "_JSONType"]]
 
 
 class _ConfigItem:
     """Configuration item that tracks the value of a setting, and where it came from."""
 
-    def __init__(self, default, envs, modifier, otel_env=None):
-        # type: (Union[_JSONType, Callable[[], _JSONType]], List[str], Callable[[str], Any], Optional[str]) -> None
+    def __init__(
+        self,
+        default: Union[_JSONType, Callable[[], _JSONType]],
+        envs: list[str],
+        modifier: Callable[[str], Any],
+        otel_env: Optional[str] = None,
+    ) -> None:
         # _ConfigItem._name is only used in __repr__ and instrumentation telemetry
         self._name = envs[0]
         self._env_value: _JSONType = None
@@ -350,7 +351,7 @@ class _ConfigItem:
         )
 
 
-def _default_config() -> Dict[str, _ConfigItem]:
+def _default_config() -> dict[str, _ConfigItem]:
     return {
         "_trace_sampling_rules": _ConfigItem(
             default=lambda: "",
@@ -396,37 +397,33 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")  # type: str
-        _error_ranges = get_error_ranges(_error_statuses)  # type: List[Tuple[int, int]]
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
+        _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
         @property
-        def error_statuses(self):
-            # type: () -> str
+        def error_statuses(self) -> str:
             return self._error_statuses
 
         @error_statuses.setter
-        def error_statuses(self, value):
-            # type: (str) -> None
+        def error_statuses(self, value: str) -> None:
             self._error_statuses = value
             self._error_ranges = get_error_ranges(value)
             # Mypy can't catch cached method's invalidate()
             self.is_error_code.cache_clear()  # type: ignore[attr-defined]
 
         @property
-        def error_ranges(self):
-            # type: () -> List[Tuple[int, int]]
+        def error_ranges(self) -> list[tuple[int, int]]:
             return self._error_ranges
 
         @cachedmethod()
-        def is_error_code(self, status_code):
-            # type: (int) -> bool
+        def is_error_code(self, status_code: int) -> bool:
             """Returns a boolean representing whether or not a status code is an error code."""
             for error_range in self.error_ranges:
                 if error_range[0] <= status_code <= error_range[1]:
                     return True
             return False
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Must validate Otel configurations before creating the config object.
         validate_otel_envs()
 
@@ -435,7 +432,7 @@ class Config(object):
         self._config = _default_config()
 
         # Use a dict as underlying storing mechanism for integration configs
-        self._integration_configs = {}
+        self._integration_configs: dict[str, IntegrationConfig] = {}
 
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
@@ -506,11 +503,11 @@ class Config(object):
         if self.service is None and DEFAULT_SPAN_SERVICE_NAME:
             self.service = _get_config("DD_SERVICE", DEFAULT_SPAN_SERVICE_NAME)
 
-        self._extra_services = set()
+        self._extra_services: set[str] = set()
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
 
-        self._extra_services_sent = set()  # type: set[str]
+        self._extra_services_sent: set[str] = set()
         self._extra_services_queue = None
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
@@ -715,8 +712,7 @@ class Config(object):
         self._extra_services_queue.put(service_name)
         self._extra_services_sent.add(service_name)
 
-    def _get_extra_services(self):
-        # type: () -> set[str]
+    def _get_extra_services(self) -> set[str]:
         if self._extra_services_queue is None:
             return set()
         self._extra_services.update(set(self._extra_services_queue.snatchall()) - {""})
@@ -762,8 +758,7 @@ class Config(object):
             self._integration_configs[integration] = IntegrationConfig(self, integration, settings)
 
     @cachedmethod()
-    def _header_tag_name(self, header_name):
-        # type: (str) -> Optional[str]
+    def _header_tag_name(self, header_name: str) -> Optional[str]:
         return self._http._header_tag_name(header_name)
 
     def _get_service(self, default=None):
@@ -796,8 +791,7 @@ class Config(object):
         rc_configs = ", ".join(self._config.keys())
         return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
-    def __setattr__(self, key, value):
-        # type: (str, Any) -> None
+    def __setattr__(self, key: str, value: Any) -> None:
         if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
@@ -806,8 +800,7 @@ class Config(object):
         else:
             return super(self.__class__, self).__setattr__(key, value)
 
-    def _reset(self):
-        # type: () -> None
+    def _reset(self) -> None:
         self._config = _default_config()
 
     def _lower(self, value):

@@ -1,6 +1,4 @@
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -49,7 +47,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     _integration_name = "google_genai"
 
     def _set_base_span_tags(
-        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
+        self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: dict[str, Any]
     ) -> None:
         if provider is not None:
             span._set_tag_str("google_genai.request.provider", provider)
@@ -59,8 +57,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -104,8 +102,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             metrics=extract_embedding_metrics_google_genai(response),
         )
 
-    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Message]:
-        messages: List[Message] = []
+    def _extract_input_messages(self, args: list[Any], kwargs: dict[str, Any], config) -> list[Message]:
+        messages: list[Message] = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
@@ -116,15 +114,15 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Message]:
-        messages: List[Message] = []
+    def _extract_messages_from_contents(self, contents, default_role: str) -> list[Message]:
+        messages: list[Message] = []
         for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
             for part in content.get("parts", []):
                 messages.append(extract_message_from_part_google_genai(part, role))
         return messages
 
-    def _extract_output_messages(self, response) -> List[Message]:
+    def _extract_output_messages(self, response) -> list[Message]:
         if not response:
             return [Message(content="", role=GOOGLE_GENAI_DEFAULT_MODEL_ROLE)]
         messages = []
@@ -147,13 +145,13 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
         return ""
 
-    def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
+    def _extract_embedding_input_documents(self, args, kwargs, config) -> list[Document]:
         contents = kwargs.get("contents")
         messages = self._extract_messages_from_contents(contents, "user")
         documents = [Document(text=str(message.get("content", ""))) for message in messages]
         return documents
 
-    def _extract_metadata(self, config, params) -> Dict[str, Any]:
+    def _extract_metadata(self, config, params) -> dict[str, Any]:
         if not config:
             return {}
         metadata = {}
@@ -174,7 +172,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             schema=schema,
         )
 
-    def _extract_tools(self, config) -> List[ToolDefinition]:
+    def _extract_tools(self, config) -> list[ToolDefinition]:
         try:
             from google.genai.types import FunctionDeclaration
         except ImportError:

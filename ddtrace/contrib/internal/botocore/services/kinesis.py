@@ -2,9 +2,6 @@ from datetime import datetime
 import json
 from time import time_ns
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Tuple
 
 import botocore.client  # noqa: F401
 import botocore.exceptions
@@ -34,7 +31,7 @@ class TraceInjectionSizeExceed(Exception):
     pass
 
 
-def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context: bool = True) -> None:
+def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context: bool = True) -> None:
     line_break, data_obj = get_kinesis_data_object(record["Data"])
     if data_obj is not None:
         core.dispatch(
@@ -57,7 +54,7 @@ def update_record(ctx, record: Dict[str, Any], stream: str, inject_trace_context
         record["Data"] = data_json
 
 
-def select_records_for_injection(params: List[Any], inject_trace_context: bool) -> List[Tuple[Any, bool]]:
+def select_records_for_injection(params: list[Any], inject_trace_context: bool) -> list[tuple[Any, bool]]:
     records_to_inject_into = []
     if "Records" in params and params["Records"]:
         for i, record in enumerate(params["Records"]):

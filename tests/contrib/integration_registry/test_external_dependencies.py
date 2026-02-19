@@ -1,15 +1,13 @@
 import subprocess
 import sys
 from typing import Any
-from typing import Dict
-from typing import List
 
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
 import pytest
 
 
-def _validate_version_str(version_str: str, field_name: str, integration_name: str, dep_name: str) -> List[str]:
+def _validate_version_str(version_str: str, field_name: str, integration_name: str, dep_name: str) -> list[str]:
     errors = []
     if version_str != "N/A":
         try:
@@ -22,7 +20,7 @@ def _validate_version_str(version_str: str, field_name: str, integration_name: s
     return errors
 
 
-def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[str]:
+def _validate_external_tested_entry(entry: dict[str, Any], name: str) -> list[str]:
     errors = []
     dependency_names = entry.get("dependency_names")
     if not dependency_names:
@@ -83,7 +81,7 @@ def _validate_external_tested_entry(entry: Dict[str, Any], name: str) -> List[st
     return errors
 
 
-def _validate_non_external_entry(entry: Dict[str, Any], name: str) -> List[str]:
+def _validate_non_external_entry(entry: dict[str, Any], name: str) -> list[str]:
     errors = []
     unexpected_fields = [
         "dependency_names",

@@ -3,17 +3,16 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 from typing import Any
-from typing import Dict
-from typing import List
+from typing import Iterator
 from typing import Optional
-from typing import Set
-from typing import Tuple
+from typing import Sequence
 from typing import Union
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes, SpanKind
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
@@ -36,14 +35,15 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
-ValidatedPromptDict = Dict[str, Union[str, Dict[str, Any], List[str], List[Dict[str, str]], List[Message]]]
+ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
 
 STANDARD_INTEGRATION_SPAN_NAMES = (
+    CLAUDE_AGENT_SDK_APM_SPAN_NAME,
     CREWAI_APM_SPAN_NAME,
     GEMINI_APM_SPAN_NAME,
     LANGCHAIN_APM_SPAN_NAME,
-    VERTEXAI_APM_SPAN_NAME,
     LITELLM_APM_SPAN_NAME,
+    VERTEXAI_APM_SPAN_NAME,
 )
 
 
@@ -149,7 +149,7 @@ def _annotate_llmobs_span_data(
         span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
 
 
-def _validate_prompt(prompt: Union[Dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
+def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
     if not isinstance(prompt, dict):
         raise TypeError(f"Prompt must be a dictionary, received {type(prompt).__name__}.")
 
@@ -412,7 +412,7 @@ def format_tool_call_arguments(tool_args: str) -> str:
 
 
 def add_span_link(llmobs_span_data, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links: List[_SpanLink] = llmobs_span_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
+    current_span_links: list[_SpanLink] = llmobs_span_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
     current_span_links.append(
         _SpanLink(
             span_id=span_id,
@@ -423,31 +423,36 @@ def add_span_link(llmobs_span_data, span_id: str, trace_id: str, from_io: str, t
     llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = current_span_links
 
 
-def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+def enforce_message_role(messages: list[dict[str, str]]) -> list[dict[str, str]]:
     """Enforce that each message includes a role (empty "" by default) field."""
     for message in messages:
         message.setdefault("role", "")
     return messages
 
 
-def convert_tags_dict_to_list(tags: Dict[str, str]) -> List[str]:
+def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     if not tags:
         return []
     return [f"{key}:{value}" for key, value in tags.items()]
 
 
+def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
+
+
 @dataclass
 class TrackedToolCall:
     """
-    Holds information about a tool call and it's associated LLM/Tool spans
+    Holds information about a tool call and its associated LLM/Tool spans
     for span linking purposes.
     """
 
     tool_id: str
     tool_name: str
     arguments: str
-    llm_span_context: Dict[str, str]  # span/trace id of the LLM span that initiated this tool call
-    tool_span_context: Optional[Dict[str, str]] = None  # span/trace id of the tool span that executed this call
+    llm_span_context: dict[str, str]  # span/trace id of the LLM span that initiated this tool call
+    tool_span_context: Optional[dict[str, str]] = None  # span/trace id of the tool span that executed this call
     tool_kind: str = "function"  # one of "function", "handoff"
 
 
@@ -460,14 +465,14 @@ class LinkTracker:
     - Linking LLM spans to their associated guardrail spans and vice versa
     """
 
-    def __init__(self):
-        self._tool_calls: Dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
-        self._lookup_tool_id: Dict[Tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
-        self._active_guardrail_spans: Set[Span] = set()
+    def __init__(self) -> None:
+        self._tool_calls: dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
+        self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
+        self._active_guardrail_spans: set[Span] = set()
         self._last_llm_span: Optional[Span] = None
 
     def on_llm_tool_choice(
-        self, tool_id: str, tool_name: str, arguments: str, llm_span_context: Dict[str, str]
+        self, tool_id: str, tool_name: str, arguments: str, llm_span_context: dict[str, str]
     ) -> None:
         """
         Called when an llm span finishes. This is used to save the tool choice information generated by an LLM
@@ -494,8 +499,8 @@ class LinkTracker:
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
-        of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
-        so that we can link to the input of an LLM span if it's output is used in an LLM call.
+        of the LLM span responsible for generating its input. We also save the span/trace id of the tool call
+        so that we can link to the input of an LLM span if its output is used in an LLM call.
 
         If possible, we use the tool_id provided to lookup the tool call; otherwise, we perform a best effort
         lookup based on the tool_name and tool_arg.
