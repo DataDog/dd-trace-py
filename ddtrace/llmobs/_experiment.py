@@ -1,11 +1,9 @@
 from abc import ABC
 from abc import abstractmethod
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
-import itertools
 import re
 import sys
 import traceback
@@ -861,8 +859,15 @@ class Dataset:
         return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 
-class BaseExperiment(ABC):
-    """Base class for sync and async experiments."""
+class Experiment:
+    """Async-native experiment supporting both sync and async tasks, evaluators, and summary evaluators.
+
+    This is the core experiment class. Sync evaluators are run via asyncio.to_thread().
+    Sync tasks are also supported and will be run via asyncio.to_thread().
+
+    Use ``LLMObs.async_experiment()`` to create an instance directly (for async callers),
+    or ``LLMObs.experiment()`` to get a ``SyncExperiment`` wrapper (for sync callers).
+    """
 
     _task: Union[TaskType, AsyncTaskType]
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
@@ -1166,355 +1171,13 @@ class BaseExperiment(ABC):
         self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
 
-    def _build_experiment_result(self, run_results: list[ExperimentRun]) -> ExperimentResult:
-        return {
-            "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
-            "rows": run_results[0].rows if run_results else [],
-            "runs": run_results,
-        }
-
-    def _build_task_result(self, idx: int, span: Any, span_id: str, trace_id: str, output_data: JSONType) -> TaskResult:
-        return {
-            "idx": idx,
-            "span_id": span_id,
-            "trace_id": trace_id,
-            "timestamp": span.start_ns,
-            "output": output_data,
-            "metadata": {
-                "dataset_record_index": idx,
-                "experiment_name": self.name,
-                "dataset_name": self._dataset.name,
-            },
-            "error": {
-                "message": span.get_tag(ERROR_MSG),
-                "stack": span.get_tag(ERROR_STACK),
-                "type": span.get_tag(ERROR_TYPE),
-            },
-        }
-
-    def _get_record_tags(self, record_id: str) -> dict[str, str]:
-        return {
-            **self._tags,
-            "dataset_id": str(self._dataset._id),
-            "dataset_record_id": str(record_id),
-            "experiment_id": str(self._id),
-        }
-
-    def _check_and_raise_task_error(self, task_result: TaskResult, raise_errors: bool) -> None:
-        err_dict = task_result.get("error") or {}
-        if isinstance(err_dict, dict):
-            err_msg = err_dict.get("message")
-            err_stack = err_dict.get("stack")
-            err_type = err_dict.get("type")
-            if raise_errors and err_msg:
-                raise RuntimeError(
-                    "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
-                )
-
-
-class Experiment(BaseExperiment):
-    """Synchronous experiment using ThreadPoolExecutor for concurrent execution."""
-
-    # Narrower type declarations for sync experiment
-    _task: TaskType
-    _evaluators: Sequence[EvaluatorType]
-    _summary_evaluators: Sequence[SummaryEvaluatorType]
-
-    def __init__(
-        self,
-        name: str,
-        task: TaskType,
-        dataset: Dataset,
-        evaluators: Sequence[EvaluatorType],
-        project_name: str,
-        description: str = "",
-        tags: Optional[dict[str, str]] = None,
-        config: Optional[ConfigType] = None,
-        _llmobs_instance: Optional["LLMObs"] = None,
-        summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
-        runs: Optional[int] = None,
-    ) -> None:
-        super().__init__(
-            name=name,
-            task=task,
-            dataset=dataset,
-            evaluators=evaluators,
-            project_name=project_name,
-            description=description,
-            tags=tags,
-            config=config,
-            _llmobs_instance=_llmobs_instance,
-            summary_evaluators=summary_evaluators,
-            runs=runs,
-        )
-
-    def run(
-        self,
-        jobs: int = 1,
-        raise_errors: bool = False,
-        sample_size: Optional[int] = None,
-    ) -> ExperimentResult:
-        """Run the experiment by executing the task on all dataset records and evaluating the results.
-
-        :param jobs: Maximum number of concurrent task and evaluator executions (default: 1)
-        :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
-        :param sample_size: Optional number of dataset records to sample for testing
-                            (default: None, uses full dataset)
-        :return: ExperimentResult containing evaluation results and metadata
-        """
-        if jobs < 1:
-            raise ValueError("jobs must be at least 1")
-
-        self._setup_experiment(
-            "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
-            "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
-        )
-
-        run_results = []
-        for run_iteration in range(self._runs):
-            run = _ExperimentRunInfo(run_iteration)
-            self._tags["run_id"] = str(run._id)
-            self._tags["run_iteration"] = str(run._run_iteration)
-            task_results = self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
-            summary_evals = self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
-            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
-            experiment_evals = self._generate_metrics_from_exp_results(run_result)
-            self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
-                cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
-            )
-            run_results.append(run_result)
-
-        return self._build_experiment_result(run_results)
-
-    def _process_record(self, idx_record: tuple[int, DatasetRecord], run: _ExperimentRunInfo) -> Optional[TaskResult]:
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            return None
-        idx, record = idx_record
-        with self._llmobs_instance._experiment(
-            name=self._task.__name__,
-            experiment_id=self._id,
-            run_id=str(run._id),
-            run_iteration=run._run_iteration,
-            dataset_name=self._dataset.name,
-            project_name=self._project_name,
-            project_id=self._project_id,
-            experiment_name=self.name,
-        ) as span:
-            span_context = self._llmobs_instance.export_span(span=span)
-            if span_context:
-                span_id = span_context.get("span_id", "")
-                trace_id = span_context.get("trace_id", "")
-            else:
-                span_id, trace_id = "", ""
-            input_data = record["input_data"]
-            record_id = record.get("record_id", "")
-            tags = self._get_record_tags(record_id)
-            output_data: JSONType = None
-            try:
-                output_data = self._task(input_data, self._config)
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
-            self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-
-            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
-            if "metadata" in record:
-                span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
-
-            return self._build_task_result(idx, span, span_id, trace_id, output_data)
-
-    def _run_task(
-        self,
-        jobs: int,
-        run: _ExperimentRunInfo,
-        raise_errors: bool = False,
-        sample_size: Optional[int] = None,
-    ) -> list[TaskResult]:
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            return []
-        subset_dataset = self._get_subset_dataset(sample_size)
-        task_results = []
-        with ThreadPoolExecutor(max_workers=jobs) as executor:
-            for result in executor.map(
-                self._process_record,
-                enumerate(subset_dataset),
-                itertools.repeat(run, len(subset_dataset)),
-            ):
-                if not result:
-                    continue
-                task_results.append(result)
-                self._check_and_raise_task_error(result, raise_errors)
-        self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
-        return task_results
-
-    def _run_evaluators(
-        self, task_results: list[TaskResult], raise_errors: bool = False, jobs: int = 1
-    ) -> list[EvaluationResult]:
-        def _evaluate_row(idx: int, task_result: TaskResult) -> dict[str, dict[str, JSONType]]:
-            record: DatasetRecord = self._dataset[idx]
-            input_data = record["input_data"]
-            output_data = task_result["output"]
-            expected_output = record["expected_output"]
-            metadata = record.get("metadata", {})
-
-            row_results: dict[str, dict[str, JSONType]] = {}
-
-            for evaluator in self._evaluators:
-                eval_result_value: JSONType = None
-                eval_err: JSONType = None
-                evaluator_name = ""
-
-                try:
-                    if _is_class_evaluator(evaluator):
-                        evaluator_name = evaluator.name  # type: ignore[union-attr]
-                        combined_metadata = {**metadata, "experiment_config": self._config}
-                        context = EvaluatorContext(
-                            input_data=input_data,
-                            output_data=output_data,
-                            expected_output=expected_output,
-                            metadata=combined_metadata,
-                            span_id=task_result.get("span_id"),
-                            trace_id=task_result.get("trace_id"),
-                        )
-                        eval_result = evaluator.evaluate(context)  # type: ignore[union-attr]
-                    elif _is_function_evaluator(evaluator):
-                        evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                        eval_result = evaluator(input_data, output_data, expected_output)  # type: ignore[operator]
-                    else:
-                        logger.warning(
-                            "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
-                        )
-                        evaluator_name = str(evaluator)
-                        eval_result = None
-
-                    eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
-
-                except Exception as e:
-                    extra_return_values = {"status": self._build_evaluator_status(e)}
-                    eval_err = self._build_evaluator_error(e)
-                    if raise_errors:
-                        raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
-
-                row_results[evaluator_name] = {
-                    "value": eval_result_value,
-                    "error": eval_err,
-                    **extra_return_values,
-                }
-
-            return row_results
-
-        with ThreadPoolExecutor(max_workers=jobs) as executor:
-            results = list(executor.map(_evaluate_row, range(len(task_results)), task_results))
-
-        evaluations: list[EvaluationResult] = [
-            {"idx": idx, "evaluations": row_results} for idx, row_results in enumerate(results)
-        ]
-        return evaluations
-
-    def _run_summary_evaluators(
-        self,
-        task_results: list[TaskResult],
-        eval_results: list[EvaluationResult],
-        raise_errors: bool = False,
-        jobs: int = 1,
-    ) -> list[EvaluationResult]:
-        inputs, outputs, expected_outputs, metadata_list, eval_results_by_name = self._prepare_summary_evaluator_data(
-            task_results, eval_results
-        )
-
-        def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, dict[str, JSONType]]:
-            eval_result_value: JSONType = None
-            eval_err: JSONType = None
-            evaluator_name = ""
-
-            try:
-                if _is_class_summary_evaluator(summary_evaluator):
-                    evaluator_name = summary_evaluator.name
-                    context = SummaryEvaluatorContext(
-                        inputs=inputs,
-                        outputs=outputs,
-                        expected_outputs=expected_outputs,
-                        evaluation_results=eval_results_by_name,
-                        metadata=metadata_list,
-                    )
-                    eval_result = summary_evaluator.evaluate(context)
-                else:
-                    evaluator_name = summary_evaluator.__name__
-                    eval_result = summary_evaluator(inputs, outputs, expected_outputs, eval_results_by_name)
-                eval_result_value = eval_result
-            except Exception as e:
-                eval_err = self._build_evaluator_error(e)
-                if raise_errors:
-                    raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
-
-            return (
-                evaluator_name,
-                {
-                    "value": eval_result_value,
-                    "error": eval_err,
-                },
-            )
-
-        evaluations: list[EvaluationResult] = []
-        evals_dict: dict[str, dict[str, JSONType]] = {}
-
-        with ThreadPoolExecutor(max_workers=jobs) as executor:
-            results = list(executor.map(_evaluate_summary_single, self._summary_evaluators))
-
-        for idx, (evaluator_name, eval_data) in enumerate(results):
-            evals_dict[evaluator_name] = eval_data
-            evaluations.append({"idx": idx, "evaluations": evals_dict})
-
-        return evaluations
-
-
-class AsyncExperiment(BaseExperiment):
-    """Async experiment using asyncio for concurrent execution.
-
-    This class supports async tasks, evaluators, and summary evaluators.
-    Sync evaluators are also supported and will be run via asyncio.to_thread().
-    """
-
-    # Narrower type declarations for async experiment
-    _task: AsyncTaskType
-    _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
-    _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
-
-    def __init__(
-        self,
-        name: str,
-        task: AsyncTaskType,
-        dataset: Dataset,
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
-        project_name: str,
-        description: str = "",
-        tags: Optional[dict[str, str]] = None,
-        config: Optional[ConfigType] = None,
-        _llmobs_instance: Optional["LLMObs"] = None,
-        summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
-        runs: Optional[int] = None,
-    ) -> None:
-        super().__init__(
-            name=name,
-            task=task,
-            dataset=dataset,
-            evaluators=evaluators,
-            project_name=project_name,
-            description=description,
-            tags=tags,
-            config=config,
-            _llmobs_instance=_llmobs_instance,
-            summary_evaluators=summary_evaluators,
-            runs=runs,
-        )
-
     async def run(
         self,
         jobs: int = 10,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
     ) -> ExperimentResult:
-        """Run the async experiment by executing the task on all dataset records and evaluating the results.
+        """Run the experiment by executing the task on all dataset records and evaluating the results.
 
         :param jobs: Maximum number of concurrent task and evaluator executions (default: 10)
         :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
@@ -1545,7 +1208,11 @@ class AsyncExperiment(BaseExperiment):
             )
             run_results.append(run_result)
 
-        return self._build_experiment_result(run_results)
+        return {
+            "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
+            "rows": run_results[0].rows if run_results else [],
+            "runs": run_results,
+        }
 
     async def _process_record(
         self,
@@ -1576,10 +1243,18 @@ class AsyncExperiment(BaseExperiment):
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
-                tags = self._get_record_tags(record_id)
+                tags = {
+                    **self._tags,
+                    "dataset_id": str(self._dataset._id),
+                    "dataset_record_id": str(record_id),
+                    "experiment_id": str(self._id),
+                }
                 output_data = None
                 try:
-                    output_data = await self._task(input_data, self._config)
+                    if asyncio.iscoroutinefunction(self._task):
+                        output_data = await self._task(input_data, self._config)
+                    else:
+                        output_data = await asyncio.to_thread(self._task, input_data, self._config)
                 except Exception:
                     span.set_exc_info(*sys.exc_info())
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
@@ -1588,7 +1263,23 @@ class AsyncExperiment(BaseExperiment):
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
 
-                return self._build_task_result(idx, span, span_id, trace_id, output_data)
+                return {
+                    "idx": idx,
+                    "span_id": span_id,
+                    "trace_id": trace_id,
+                    "timestamp": span.start_ns,
+                    "output": output_data,
+                    "metadata": {
+                        "dataset_record_index": idx,
+                        "experiment_name": self.name,
+                        "dataset_name": self._dataset.name,
+                    },
+                    "error": {
+                        "message": span.get_tag(ERROR_MSG),
+                        "stack": span.get_tag(ERROR_STACK),
+                        "type": span.get_tag(ERROR_TYPE),
+                    },
+                }
 
     async def _run_task(
         self,
@@ -1615,7 +1306,15 @@ class AsyncExperiment(BaseExperiment):
                 continue
             task_result: TaskResult = result
             task_results.append(task_result)
-            self._check_and_raise_task_error(task_result, raise_errors)
+            err_dict = task_result.get("error") or {}
+            if isinstance(err_dict, dict):
+                err_msg = err_dict.get("message")
+                err_stack = err_dict.get("stack")
+                err_type = err_dict.get("type")
+                if raise_errors and err_msg:
+                    raise RuntimeError(
+                        "Error on record {}: {}\n{}\n{}".format(task_result["idx"], err_msg, err_type, err_stack)
+                    )
 
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
@@ -1787,6 +1486,74 @@ class AsyncExperiment(BaseExperiment):
             evaluations.append({"idx": idx, "evaluations": evals_dict})
 
         return evaluations
+
+
+class SyncExperiment:
+    """Thin synchronous wrapper around the async-native ``Experiment``.
+
+    Provides a blocking ``run()`` method for callers that do not have an event loop.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        task: Union[TaskType, AsyncTaskType],
+        dataset: Dataset,
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
+        project_name: str,
+        description: str = "",
+        tags: Optional[dict[str, str]] = None,
+        config: Optional[ConfigType] = None,
+        _llmobs_instance: Optional["LLMObs"] = None,
+        summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
+        runs: Optional[int] = None,
+    ) -> None:
+        self._experiment = Experiment(
+            name=name,
+            task=task,
+            dataset=dataset,
+            evaluators=evaluators,
+            project_name=project_name,
+            description=description,
+            tags=tags,
+            config=config,
+            _llmobs_instance=_llmobs_instance,
+            summary_evaluators=summary_evaluators,
+            runs=runs,
+        )
+
+    def run(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        sample_size: Optional[int] = None,
+    ) -> ExperimentResult:
+        """Run the experiment synchronously.
+
+        :param jobs: Maximum number of concurrent task and evaluator executions (default: 1)
+        :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
+        :param sample_size: Optional number of dataset records to sample for testing
+                            (default: None, uses full dataset)
+        :return: ExperimentResult containing evaluation results and metadata
+        """
+        coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop, so go ahead and run in a new event loop.
+            return asyncio.run(coro)
+        else:
+            # A loop is already running (e.g. Jupyter notebook).
+            # Run the coroutine in a background thread with its own event loop.
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+
+    @property
+    def url(self) -> str:
+        return self._experiment.url
 
 
 def _get_base_url() -> str:

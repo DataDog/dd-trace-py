@@ -10,6 +10,7 @@ and must have the test agent (>=1.27.0) running locally and configured to use th
 eg. VCR_CASSETTES_DIRECTORY=tests/cassettes ddapm-test-agent ...
 """
 
+import asyncio
 import os
 import re
 import tempfile
@@ -96,12 +97,12 @@ def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _Ex
 
 
 def mock_async_process_record():
-    """Context manager that mocks AsyncExperiment._process_record with stable IDs and timestamps."""
+    """Context manager that mocks Experiment._process_record with stable IDs and timestamps."""
     from contextlib import contextmanager
 
     @contextmanager
     def _mock_context():
-        with mock.patch("ddtrace.llmobs._experiment.AsyncExperiment._process_record") as mock_process_record:
+        with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
 
             async def mock_process(*args, **kwargs):
                 return {
@@ -1408,15 +1409,15 @@ def test_experiment_init(llmobs, test_dataset_one_record):
         [dummy_evaluator],
         description="lorem ipsum",
     )
-    assert exp.name == "test_experiment"
-    assert exp._task == dummy_task
-    assert exp._dataset == test_dataset_one_record
-    assert exp._evaluators == [dummy_evaluator]
-    assert exp._project_name == TEST_PROJECT_NAME
-    assert exp._description == "lorem ipsum"
-    assert exp._project_id is None
-    assert exp._run_name is None
-    assert exp._id is None
+    assert exp._experiment.name == "test_experiment"
+    assert exp._experiment._task == dummy_task
+    assert exp._experiment._dataset == test_dataset_one_record
+    assert exp._experiment._evaluators == [dummy_evaluator]
+    assert exp._experiment._project_name == TEST_PROJECT_NAME
+    assert exp._experiment._description == "lorem ipsum"
+    assert exp._experiment._project_id is None
+    assert exp._experiment._run_name is None
+    assert exp._experiment._id is None
 
 
 def test_experiment_create(llmobs, test_dataset_one_record):
@@ -1432,7 +1433,11 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     project = llmobs._instance._dne_client.project_create_or_get(TEST_PROJECT_NAME)
     project_id = project.get("_id")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
-        exp.name, exp._dataset._id, project_id, exp._dataset.latest_version, exp._config
+        exp._experiment.name,
+        exp._experiment._dataset._id,
+        project_id,
+        exp._experiment._dataset.latest_version,
+        exp._experiment._config,
     )
     assert exp_id is not None
     assert exp_run_name.startswith("test_experiment")
@@ -1461,7 +1466,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
         [dummy_evaluator],
         config={"models": ["gpt-4.1"]},
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 2
     assert task_results[0] == {
         "idx": 0,
@@ -1493,7 +1498,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
 
 def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
     assert task_results == [
         {
@@ -1524,14 +1529,14 @@ def test_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
             flags=re.DOTALL,
         ),
     ):
-        exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=True)
+        asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=True))
 
 
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
@@ -1543,9 +1548,9 @@ def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset
     exp = llmobs.experiment(
         "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_with_extra_return_values]
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
@@ -1570,15 +1575,17 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
     }
-    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
     assert len(summary_eval_results) == 1
     assert summary_eval_results[0] == {
         "idx": 0,
@@ -1588,9 +1595,9 @@ def test_experiment_run_summary_evaluators(llmobs, test_dataset_one_record):
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
@@ -1610,15 +1617,17 @@ def test_experiment_run_summary_evaluators_error(llmobs, test_dataset_one_record
         [dummy_evaluator],
         summary_evaluators=[faulty_summary_evaluator],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
     }
-    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
     assert summary_eval_results[0] == {
         "idx": 0,
         "evaluations": {"faulty_summary_evaluator": {"value": None, "error": mock.ANY}},
@@ -1637,15 +1646,17 @@ def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_o
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
         "evaluations": {"dummy_evaluator": {"value": False, "error": None}},
     }
-    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+    )
     assert summary_eval_results[0] == {
         "idx": 0,
         "evaluations": {
@@ -1663,10 +1674,10 @@ def test_experiment_summary_evaluators_missing_eval_error(llmobs, test_dataset_o
 
 def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
     with pytest.raises(RuntimeError, match="Evaluator faulty_evaluator failed on row 0"):
-        exp._run_evaluators(task_results, raise_errors=True)
+        asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=True))
 
 
 def test_experiment_run_summary_evaluators_error_raises(llmobs, test_dataset_one_record):
@@ -1677,11 +1688,11 @@ def test_experiment_run_summary_evaluators_error_raises(llmobs, test_dataset_one
         [dummy_evaluator],
         summary_evaluators=[faulty_summary_evaluator],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     with pytest.raises(RuntimeError, match="Summary evaluator faulty_summary_evaluator failed"):
-        exp._run_summary_evaluators(task_results, eval_results, raise_errors=True)
+        asyncio.run(exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=True))
 
 
 def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one_record):
@@ -1692,21 +1703,21 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
         [dummy_evaluator],
         summary_evaluators=[dummy_summary_evaluator_using_missing_eval_results],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
     with pytest.raises(
         RuntimeError,
         match="Summary evaluator dummy_summary_evaluator_using_missing_eval_results failed",
     ):
-        exp._run_summary_evaluators(task_results, eval_results, raise_errors=True)
+        asyncio.run(exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=True))
 
 
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    merged_results = exp._experiment._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
 
     assert len(merged_results.rows) == 1
     assert merged_results.run_iteration == 1
@@ -1733,9 +1744,9 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
 
 def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
-    eval_results = exp._run_evaluators(task_results, raise_errors=False)
-    merged_results = exp._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+    merged_results = exp._experiment._merge_results(run_info_with_stable_id(0), task_results, eval_results, None)
 
     assert len(merged_results.rows) == 1
     assert merged_results.run_iteration == 1
@@ -1790,7 +1801,9 @@ def test_experiment_run(llmobs, test_dataset_one_record):
                 test_dataset_one_record,
                 [dummy_evaluator],
             )
-            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp._experiment._tags = {
+                "ddtrace.version": "1.2.3"
+            }  # FIXME: this is a hack to set the tags for the experiment
             exp_results = exp.run()
 
     assert len(exp_results.get("summary_evaluations")) == 0
@@ -1803,13 +1816,13 @@ def test_experiment_run(llmobs, test_dataset_one_record):
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
-    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
+    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._experiment._id}"
 
     project = llmobs._instance._dne_client.project_create_or_get(name=TEST_PROJECT_NAME)
     assert project.get("_id")
     assert project.get("name") == TEST_PROJECT_NAME
-    assert exp._project_id == project.get("_id")
-    assert exp._project_name == project.get("name")
+    assert exp._experiment._project_id == project.get("_id")
+    assert exp._experiment._project_name == project.get("name")
 
 
 def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
@@ -1838,7 +1851,9 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
                 [dummy_evaluator],
                 project_name="new-different-project",
             )
-            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp._experiment._tags = {
+                "ddtrace.version": "1.2.3"
+            }  # FIXME: this is a hack to set the tags for the experiment
             exp_results = exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 0
@@ -1848,13 +1863,13 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
-    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
+    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._experiment._id}"
 
     project = llmobs._instance._dne_client.project_create_or_get(name="new-different-project")
     assert project.get("_id") == "c4b49fb5-7b16-46e1-86f0-de5800e8a56c"
     assert project.get("name") == "new-different-project"
-    assert exp._project_id == project.get("_id")
-    assert exp._project_name == project.get("name")
+    assert exp._experiment._project_id == project.get("_id")
+    assert exp._experiment._project_name == project.get("name")
 
 
 def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
@@ -1883,7 +1898,9 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
                 [dummy_evaluator],
                 summary_evaluators=[dummy_summary_evaluator],
             )
-            exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
+            exp._experiment._tags = {
+                "ddtrace.version": "1.2.3"
+            }  # FIXME: this is a hack to set the tags for the experiment
             exp_results = exp.run()
 
     assert len(exp_results["summary_evaluations"]) == 1
@@ -1896,7 +1913,7 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
-    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
+    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._experiment._id}"
 
 
 def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
@@ -1907,8 +1924,8 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
         test_dataset_one_record_w_metadata,
         [dummy_evaluator],
     )
-    exp._id = "1234567890"
-    exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    exp._experiment._id = "1234567890"
+    asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(llmobs_events) == 1
     event = llmobs_events[0]
     assert event["name"] == "dummy_task"
@@ -1938,9 +1955,9 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         test_dataset_one_record_w_metadata,
         [dummy_evaluator],
     )
-    exp._id = "1234567890"
+    exp._experiment._id = "1234567890"
     for i in range(2):
-        exp._run_task(1, run=run_info_with_stable_id(i), raise_errors=False)
+        asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(i), raise_errors=False))
         assert len(llmobs_events) == i + 1
         event = llmobs_events[i]
         assert event["name"] == "dummy_task"
@@ -1990,10 +2007,10 @@ def test_evaluators_run_with_jobs_parameter(llmobs, test_dataset_one_record):
         test_dataset_one_record,
         [eval_1, eval_2, eval_3],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
 
     # Run with jobs=3 - should complete successfully
-    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=3)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False, jobs=3))
 
     assert len(eval_results) == 1
     assert eval_results[0]["evaluations"]["eval_1"]["value"] == 1
@@ -2019,10 +2036,10 @@ def test_evaluators_with_errors_concurrent(llmobs, test_dataset_one_record):
         test_dataset_one_record,
         [failing_evaluator, successful_evaluator],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
 
     # Run with jobs=2 - failing evaluator shouldn't block the successful one
-    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=2)
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False, jobs=2))
 
     assert len(eval_results) == 1
     evals_dict = eval_results[0]["evaluations"]
@@ -2059,11 +2076,13 @@ def test_summary_evaluators_run_concurrently(llmobs, test_dataset_one_record):
         [simple_evaluator],
         summary_evaluators=[summary_eval_1, summary_eval_2, summary_eval_3],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
-    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=1)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False, jobs=1))
 
     # Run with jobs=3 - should complete successfully
-    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False, jobs=3)
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False, jobs=3)
+    )
 
     # Verify all summary evaluators completed
     assert len(summary_eval_results) == 3
@@ -2098,11 +2117,13 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
         [simple_evaluator],
         summary_evaluators=[failing_summary_evaluator, successful_summary_evaluator],
     )
-    task_results = exp._run_task(1, run=run_info_with_stable_id(0), raise_errors=False)
-    eval_results = exp._run_evaluators(task_results, raise_errors=False, jobs=1)
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False, jobs=1))
 
     # Run with jobs=2 - failing evaluator shouldn't block the successful one
-    summary_eval_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False, jobs=2)
+    summary_eval_results = asyncio.run(
+        exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False, jobs=2)
+    )
 
     assert len(summary_eval_results) == 2
     summary_evals_dict = {}
@@ -2149,8 +2170,8 @@ def test_experiment_with_remote_evaluator(llmobs, test_dataset_one_record):
         )
 
         run_info = run_info_with_stable_id(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
         assert len(eval_results) == 1
         assert "my-eval" in eval_results[0]["evaluations"]
@@ -2190,8 +2211,8 @@ def test_experiment_remote_evaluator_error_handling(llmobs, test_dataset_one_rec
         )
 
         run_info = run_info_with_stable_id(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
         assert len(eval_results) == 1
         result = eval_results[0]["evaluations"]["missing-eval"]
@@ -2228,8 +2249,8 @@ def test_experiment_remote_evaluator_warn_status(llmobs, test_dataset_one_record
         )
 
         run_info = run_info_with_stable_id(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
         assert len(eval_results) == 1
         result = eval_results[0]["evaluations"]["rate-limited-eval"]
@@ -2258,8 +2279,8 @@ def test_experiment_mixed_local_and_remote_evaluators(llmobs, test_dataset_one_r
         )
 
         run_info = run_info_with_stable_id(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
         assert len(eval_results) == 1
         evaluations = eval_results[0]["evaluations"]
@@ -2284,11 +2305,11 @@ def test_experiment_remote_evaluator_eval_source_type(llmobs, test_dataset_one_r
         )
 
         run_info = run_info_with_stable_id(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
-        experiment_run = exp._merge_results(run_info, task_results, eval_results, [])
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        experiment_run = exp._experiment._merge_results(run_info, task_results, eval_results, [])
 
-        metrics = exp._generate_metrics_from_exp_results(experiment_run)
+        metrics = exp._experiment._generate_metrics_from_exp_results(experiment_run)
         remote_metric = next(m for m in metrics if m["label"] == "remote-eval")
         local_metric = next(m for m in metrics if m["label"] == "dummy_evaluator")
 

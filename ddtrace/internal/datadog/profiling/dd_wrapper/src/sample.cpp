@@ -320,7 +320,6 @@ Datadog::Sample::clear_buffers()
     locations.clear();
     dropped_frames = 0;
     has_dropped_frames_indicator = false;
-    reverse_locations = false;
     string_storage.reset();
 }
 
@@ -344,11 +343,6 @@ Datadog::Sample::export_sample()
           "<" + std::to_string(dropped_frames) + " frame" + (1 == dropped_frames ? "" : "s") + " omitted>";
         Sample::push_frame_impl(name, "", 0, 0);
         has_dropped_frames_indicator = true;
-    }
-
-    if (reverse_locations) {
-        std::reverse(locations.begin(), locations.end());
-        reverse_locations = false; // Reset after reversing
     }
 
     const ddog_prof_Sample2 sample = {
