@@ -3,20 +3,17 @@ from dataclasses import dataclass
 
 import pytest
 
+from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.trace import tracer
-
-
-called = []
 
 
 @pytest.fixture(autouse=True)
@@ -24,7 +21,6 @@ def reset_event_hub():
     """Reset event hub after each test to prevent listener leakage between tests."""
     yield
     event_hub.reset()
-    called.clear()
 
 
 @dataclass
@@ -34,41 +30,54 @@ class TestEvent(Event):
 
 def test_base_subscriber():
     """Test that a direct BaseSubscriber receives dispatched events."""
+    event_name = ""
 
     class DirectSubscriber(Subscriber):
         event_names = (TestEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
-            called.append(event_instance.event_name)
+            nonlocal event_name
+            event_name = event_instance.event_name
 
     core.dispatch_event(TestEvent())
 
-    assert called == [TestEvent.event_name]
+    assert event_name == TestEvent.event_name
 
 
 def test_base_subscriber_inheritance():
     """Test that parent and child BaseSubscriber handlers run in order."""
+    parent_call_order = 0
+    child_call_order = 0
+    call_order = 0
 
     class ParentSubscriber(Subscriber):
         @classmethod
         def on_event(cls, event_instance):
-            called.append("parent")
+            nonlocal parent_call_order, call_order
+            call_order += 1
+            parent_call_order = call_order
 
     class ChildSubscriber(ParentSubscriber):
         event_names = (TestEvent.event_name,)
 
         @classmethod
         def on_event(cls, event_instance):
-            called.append("child")
+            nonlocal child_call_order, call_order
+            call_order += 1
+            child_call_order = call_order
 
     core.dispatch_event(TestEvent())
 
-    assert called == ["parent", "child"]
+    assert parent_call_order == 1
+    assert child_call_order == 2
 
 
 def test_base_subscriber_multiple_event_names():
     """Test that a Subscriber can register for and handle multiple events."""
+    first_event_name = ""
+    second_event_name = ""
+    call_order = 0
 
     @dataclass
     class TestEventOne(Event):
@@ -83,16 +92,25 @@ def test_base_subscriber_multiple_event_names():
 
         @classmethod
         def on_event(cls, event_instance):
-            called.append(event_instance.event_name)
+            nonlocal first_event_name, second_event_name, call_order
+            call_order += 1
+            if call_order == 1:
+                first_event_name = event_instance.event_name
+            elif call_order == 2:
+                second_event_name = event_instance.event_name
 
     core.dispatch_event(TestEventOne())
     core.dispatch_event(TestEventTwo())
 
-    assert called == [TestEventOne.event_name, TestEventTwo.event_name]
+    assert first_event_name == TestEventOne.event_name
+    assert second_event_name == TestEventTwo.event_name
 
 
 def test_base_context_subscriber():
     """Test that context start/end callbacks run for a direct BaseContextSubscriber."""
+    started = False
+    ended = False
+    in_context = ""
 
     @dataclass
     class TestContextEventWithAttributes(Event):
@@ -106,24 +124,33 @@ def test_base_context_subscriber():
 
         @classmethod
         def on_started(cls, ctx):
-            called.append("started")
+            nonlocal started, in_context
+            started = True
 
             event: TestContextEventWithAttributes = ctx.event
-            called.append(event.in_context)
+            in_context = event.in_context
             assert getattr(event, "not_in_context", None) is None
 
         @classmethod
         def on_ended(cls, ctx, exc_info):
-            called.append("ended")
+            nonlocal ended
+            ended = True
 
     with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
         pass
 
-    assert called == ["started", "foo", "ended"]
+    assert started is True
+    assert in_context == "foo"
+    assert ended is True
 
 
 def test_base_context_subscriber_inheritance():
     """Test that inherited BaseContextSubscriber callbacks run parent then child."""
+    parent_started_order = 0
+    child_started_order = 0
+    parent_ended_order = 0
+    child_ended_order = 0
+    call_order = 0
 
     @dataclass
     class TestContextEvent(Event):
@@ -132,27 +159,38 @@ def test_base_context_subscriber_inheritance():
     class ParentSubscriber(ContextSubscriber):
         @classmethod
         def on_started(cls, ctx):
-            called.append("parent_started")
+            nonlocal parent_started_order, call_order
+            call_order += 1
+            parent_started_order = call_order
 
         @classmethod
         def on_ended(cls, ctx, exc_info):
-            called.append("parent_ended")
+            nonlocal parent_ended_order, call_order
+            call_order += 1
+            parent_ended_order = call_order
 
     class ChildSubscriber(ParentSubscriber):
         event_names = (TestContextEvent.event_name,)
 
         @classmethod
         def on_started(cls, ctx):
-            called.append("child_started")
+            nonlocal child_started_order, call_order
+            call_order += 1
+            child_started_order = call_order
 
         @classmethod
         def on_ended(cls, ctx, exc_info):
-            called.append("child_ended")
+            nonlocal child_ended_order, call_order
+            call_order += 1
+            child_ended_order = call_order
 
     with core.context_with_event(TestContextEvent()):
         pass
 
-    assert called == ["parent_started", "child_started", "parent_ended", "child_ended"]
+    assert parent_started_order == 1
+    assert child_started_order == 2
+    assert parent_ended_order == 3
+    assert child_ended_order == 4
 
 
 def test_base_tracing_subscriber(test_spans):
