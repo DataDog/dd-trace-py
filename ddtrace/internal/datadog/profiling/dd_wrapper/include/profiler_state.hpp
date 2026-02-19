@@ -80,6 +80,9 @@ class ProfilerState
     // Upload state
     // ========================================================================
     std::mutex upload_lock{};
+    // ddog_CancellationToken is documented as an opaque type, but we access .inner directly to
+    // zero-initialize it: the C API provides no constructor, and the default value of .inner
+    // is undefined. We check .inner != nullptr as a sentinel for "a token is in flight".
     std::atomic<ddog_CancellationToken> upload_cancel{ { .inner = nullptr } };
     std::atomic<uint64_t> upload_seq{ 0 };
 

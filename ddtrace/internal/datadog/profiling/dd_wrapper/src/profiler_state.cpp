@@ -25,6 +25,14 @@ ProfilerState::get()
 bool
 ProfilerState::init_profiles_dictionary()
 {
+    // Guard against double-initialization: dict_handle_ must be null before we create a new one.
+    // This is guaranteed by call_once in start() for the initial call, and by release_profiles_dictionary()
+    // being called before this in postfork_child().
+    if (dict_handle_.load(std::memory_order_acquire) != nullptr) {
+        std::cerr << "profiles dictionary already initialized" << std::endl;
+        return false;
+    }
+
     ddog_prof_ProfilesDictionaryHandle temp = nullptr;
     auto result = ddog_prof_ProfilesDictionary_new(&temp);
     if (result.flags) {
@@ -49,9 +57,12 @@ ProfilerState::get_profiles_dictionary()
 void
 ProfilerState::release_profiles_dictionary()
 {
-    ddog_prof_ProfilesDictionaryHandle temp = dict_handle_.load(std::memory_order_relaxed);
-    ddog_prof_ProfilesDictionary_drop(&temp);
-    dict_handle_.store(nullptr, std::memory_order_release);
+    // Atomically swap out the handle before dropping, so concurrent callers of
+    // get_profiles_dictionary() see nullptr rather than a pointer to freed memory.
+    ddog_prof_ProfilesDictionaryHandle temp = dict_handle_.exchange(nullptr, std::memory_order_acq_rel);
+    if (temp != nullptr) {
+        ddog_prof_ProfilesDictionary_drop(&temp);
+    }
 }
 
 bool
@@ -91,6 +102,10 @@ ProfilerState::reset_key_caches()
 void
 ProfilerState::start()
 {
+    // init_flag_ is a std::once_flag. We intentionally do NOT reinitialise it after fork:
+    // in the child process, postfork_child() re-creates the Profiles Dictionary directly,
+    // bypassing call_once. The once_flag therefore stays "already called" in the child,
+    // which is correct — we don't want a second call to start() to re-run initialization.
     std::call_once(init_flag_, [this]() {
         // Initialize the profiles dictionary at process start
         if (!init_profiles_dictionary()) {
