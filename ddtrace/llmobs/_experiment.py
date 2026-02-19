@@ -28,6 +28,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._constants import EXPERIMENT_DATASET_RECORD_CANONICAL_ID
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
@@ -407,7 +408,11 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
-class DatasetRecord(DatasetRecordRaw):
+class _DatasetRecordOptionalFields(TypedDict, total=False):
+    canonical_id: str
+
+
+class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptionalFields):
     record_id: str
 
 
@@ -1158,6 +1163,8 @@ class Experiment(BaseExperiment):
             span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
             if "metadata" in record:
                 span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+            if "canonical_id" in record:
+                span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
 
             return self._build_task_result(idx, span, span_id, trace_id, output_data)
 
@@ -1425,6 +1432,8 @@ class AsyncExperiment(BaseExperiment):
                 span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+                if "canonical_id" in record:
+                    span._set_ctx_item(EXPERIMENT_DATASET_RECORD_CANONICAL_ID, record["canonical_id"])
 
                 return self._build_task_result(idx, span, span_id, trace_id, output_data)
 
