@@ -304,6 +304,12 @@ suites:
       - '@django'
     cpus_per_run: 2
     type: 'microbenchmark'
+  code_provenance:
+    paths:
+      - '@core'
+      - ddtrace/internal/datadog/profiling/code_provenance.py
+    cpus_per_run: 1
+    type: 'microbenchmark'
   rand:
     paths:
       - 'src/native/rand.rs'
