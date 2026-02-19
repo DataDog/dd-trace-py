@@ -1,6 +1,5 @@
 import json
 from typing import Any
-from typing import List
 from typing import Sequence
 import uuid
 
@@ -108,7 +107,7 @@ def _convert_messages(messages: list[Any]) -> list[Message]:
     from langchain_core.messages.function import FunctionMessage
     from langchain_core.messages.tool import ToolMessage
 
-    result: List[Message] = []
+    result: list[Message] = []
     for message in messages:
         try:
             if isinstance(message, HumanMessage):

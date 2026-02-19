@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/29975f3e-786a-4df2-8a9c-ba098d3de219/records
+  response:
+    body:
+      string: '{"data":[{"id":"cbcdcab5-a5cc-48f5-89a6-5653ff17dc29","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-18T06:04:40.102371Z","dataset_id":"29975f3e-786a-4df2-8a9c-ba098d3de219","expected_output":{"out0":"r1v4","out1":"r1v5"},"input":{"in0":"r1v1","in1":"r1v2","in2":"r1v3"},"metadata":{},"updated_at":"2026-02-18T06:04:40.102371Z"}},{"id":"e942b492-9170-41c9-acff-c84f0011b30d","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-18T06:04:40.102371Z","dataset_id":"29975f3e-786a-4df2-8a9c-ba098d3de219","expected_output":{"out0":"r0v4","out1":"r0v5"},"input":{"in0":"r0v1","in1":"r0v2","in2":"r0v3"},"metadata":{},"updated_at":"2026-02-18T06:04:40.102371Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '904'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 18 Feb 2026 06:04:42 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
