@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import threading
 import time
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -12,6 +13,9 @@ from ddtrace.profiling.collector import exception
 from ddtrace.trace import Tracer
 from tests.profiling.collector import pprof_utils
 
+
+if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2
 
 # Exception profiling requires Python 3.12
 pytestmark = pytest.mark.skipif(sys.version_info < (3, 12), reason="Exception profiling requires Python 3.12+")
@@ -131,7 +135,7 @@ def test_exception_config_defaults() -> None:
     """Test that exception profiling config has expected default values."""
     from ddtrace.internal.settings.profiling import config as profiling_config
 
-    assert profiling_config.exception.enabled is True
+    assert profiling_config.exception.enabled is False
     assert profiling_config.exception.sampling_interval == 100
     assert profiling_config.exception.collect_message is True
 
@@ -162,8 +166,8 @@ def test_simple_exception_profiling(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -194,8 +198,8 @@ def test_exception_stack_trace(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -225,8 +229,8 @@ def test_multiple_exception_types(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     # Verify all three exception types are present
@@ -249,8 +253,8 @@ def test_nested_exception_handling(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     # Both the inner ValueError and outer RuntimeError should be captured
@@ -280,8 +284,8 @@ def test_custom_exception_class(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -318,8 +322,8 @@ def test_multithreaded_exception_profiling(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     # Both exception types should be present
@@ -361,8 +365,8 @@ def test_exception_with_tracer(tmp_path: Path, tracer: Tracer) -> None:
 
     ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -388,8 +392,8 @@ def test_exception_message_collection(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -448,8 +452,8 @@ def test_exception_in_instance_method(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -475,8 +479,8 @@ def test_exception_in_static_method(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -502,8 +506,8 @@ def test_exception_in_class_method(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(
@@ -530,8 +534,8 @@ def test_exception_in_callable_instance(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile = pprof_utils.parse_newest_profile(output_filename)
-    samples = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
+    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
+    samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "exception-samples")
     assert len(samples) > 0
 
     pprof_utils.assert_profile_has_sample(

@@ -366,7 +366,7 @@ class ProfilingConfigException(DDConfig):
     enabled = DDConfig.v(
         bool,
         "enabled",
-        default=True,
+        default=False,
         help_type="Boolean",
         help="Whether to enable the exception profiler",
     )

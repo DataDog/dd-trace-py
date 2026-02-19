@@ -255,11 +255,9 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
      * The chain goes from outermost (root) to innermost (leaf) via tb_next.
      * We collect frames first, then push in reverse (leaf-to-root) order to
      * match the convention used by push_pyframes and the rest of the profiler.
-     *
-     * tb_lineno is used instead of PyFrame_GetLineNumber() because it records
-     * the exact line where the exception was raised/re-raised at each level,
-     * giving more accurate exception-site attribution than the frame's current
-     * execution line.
+     * This is because the in the traceback chain tb_next is the next level in
+     * the stack trace (towards the frame where the exception occurred)
+     * https://docs.python.org/3/reference/datamodel.html#traceback.tb_next
      *
      * Ownership: tb_frame is a borrowed reference owned by the traceback.
      * PyFrame_GetCode() returns a new reference that we DECREF internally. */
@@ -284,7 +282,7 @@ Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
     for (int i = static_cast<int>(frames.size()) - 1; i >= 0; --i) {
         // Early exit: once we've hit the frame limit, count all remaining
         // frames as dropped and release their code refs without further
-        // expensive string extraction.
+        // string extraction.
         if (locations.size() > max_nframes) {
             for (int j = i; j >= 0; --j) {
                 ++dropped_frames;
