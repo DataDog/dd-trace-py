@@ -39,20 +39,20 @@ is_call_opcode([[maybe_unused]] uint8_t opcode)
     // (which push their own frame onto the stack).
     return opcode == CALL || opcode == CALL_FUNCTION_EX || opcode == CALL_KW ||
            // Specialized C/builtin call opcodes
-           opcode == CALL_BUILTIN_CLASS || opcode == CALL_BUILTIN_FAST ||
-           opcode == CALL_BUILTIN_FAST_WITH_KEYWORDS || opcode == CALL_BUILTIN_O ||
-           opcode == CALL_NON_PY_GENERAL ||
+           opcode == CALL_BUILTIN_CLASS || opcode == CALL_BUILTIN_FAST || opcode == CALL_BUILTIN_FAST_WITH_KEYWORDS ||
+           opcode == CALL_BUILTIN_O || opcode == CALL_NON_PY_GENERAL ||
            // C method descriptor opcodes
            opcode == CALL_METHOD_DESCRIPTOR_O || opcode == CALL_METHOD_DESCRIPTOR_FAST ||
            opcode == CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS || opcode == CALL_METHOD_DESCRIPTOR_NOARGS ||
            // Built-in function specializations
-           opcode == CALL_ISINSTANCE || opcode == CALL_LEN || opcode == CALL_LIST_APPEND ||
-           opcode == CALL_STR_1 || opcode == CALL_TUPLE_1 || opcode == CALL_TYPE_1
+           opcode == CALL_ISINSTANCE || opcode == CALL_LEN || opcode == CALL_LIST_APPEND || opcode == CALL_STR_1 ||
+           opcode == CALL_TUPLE_1 ||
+           opcode == CALL_TYPE_1
 #if PY_VERSION_HEX >= 0x030e0000
            // Python 3.14 added CALL_KW specializations
            || opcode == CALL_KW_NON_PY
 #endif
-           ;
+      ;
 #elif PY_VERSION_HEX >= 0x030c0000
     // Python 3.12: CALL is specialized but no PRECALL
     return opcode == CALL || opcode == CALL_FUNCTION_EX || opcode == CALL_BUILTIN_CLASS ||
@@ -156,11 +156,11 @@ is_binary_op_opcode(uint8_t opcode)
 {
     return opcode == BINARY_OP || opcode == BINARY_OP_INPLACE_ADD_UNICODE || opcode == BINARY_OP_ADD_FLOAT ||
            opcode == BINARY_OP_ADD_INT || opcode == BINARY_OP_ADD_UNICODE || opcode == BINARY_OP_EXTEND ||
-           opcode == BINARY_OP_MULTIPLY_FLOAT || opcode == BINARY_OP_MULTIPLY_INT ||
-           opcode == BINARY_OP_SUBSCR_DICT || opcode == BINARY_OP_SUBSCR_GETITEM ||
-           opcode == BINARY_OP_SUBSCR_LIST_INT || opcode == BINARY_OP_SUBSCR_LIST_SLICE ||
-           opcode == BINARY_OP_SUBSCR_STR_INT || opcode == BINARY_OP_SUBSCR_TUPLE_INT ||
-           opcode == BINARY_OP_SUBTRACT_FLOAT || opcode == BINARY_OP_SUBTRACT_INT;
+           opcode == BINARY_OP_MULTIPLY_FLOAT || opcode == BINARY_OP_MULTIPLY_INT || opcode == BINARY_OP_SUBSCR_DICT ||
+           opcode == BINARY_OP_SUBSCR_GETITEM || opcode == BINARY_OP_SUBSCR_LIST_INT ||
+           opcode == BINARY_OP_SUBSCR_LIST_SLICE || opcode == BINARY_OP_SUBSCR_STR_INT ||
+           opcode == BINARY_OP_SUBSCR_TUPLE_INT || opcode == BINARY_OP_SUBTRACT_FLOAT ||
+           opcode == BINARY_OP_SUBTRACT_INT;
 }
 
 // Number of inline CACHE entries following each opcode in Python 3.14.
