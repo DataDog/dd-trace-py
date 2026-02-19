@@ -409,8 +409,10 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     call_func_with_str(ddup_config_url, endpoint)
 
     if enable_code_provenance and not _code_provenance_set:
-        call_code_provenance_set_json_str(json_str_to_export())
-        _code_provenance_set = True
+        code_provenance_json = json_str_to_export()
+        if code_provenance_json:
+            call_code_provenance_set_json_str(code_provenance_json)
+            _code_provenance_set = True
 
     with nogil:
         ddup_upload()

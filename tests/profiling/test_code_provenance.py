@@ -1,6 +1,8 @@
 import json
+from pathlib import Path
 import sys
 import sysconfig
+from types import SimpleNamespace
 
 import jsonschema
 from jsonschema.exceptions import ValidationError
@@ -61,6 +63,12 @@ def is_valid_json(s: str) -> bool:
 
 
 class TestCodeProvenance:
+    @pytest.fixture(autouse=True)
+    def _reset_in_memory_cache(self, monkeypatch):
+        from ddtrace.internal.datadog.profiling import code_provenance
+
+        monkeypatch.setattr(code_provenance, "_in_memory_code_provenance_json", None)
+
     def test_outputs_valid_json(self):
         # End to end test to ensure that the output is valid JSON
         json_str = json_str_to_export()
@@ -127,3 +135,94 @@ class TestCodeProvenance:
         # the main package. But for the sake of this test, just call ddtrace the
         # "main" package.
         assert any(info["name"] == "ddtrace" and info["kind"] == "" for info in json_obj["v1"])
+
+    def test_json_from_file_cache_then_in_memory(self, tmp_path, monkeypatch):
+        from ddtrace.internal.datadog.profiling import code_provenance
+
+        expected_json = json.dumps({"v1": []})
+        cache_file = tmp_path / "code-provenance.json"
+        cache_file.write_text(expected_json, encoding="utf-8")
+
+        lock_file = SimpleNamespace(filename=str(tmp_path / "code-provenance.lock"))
+        monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
+        monkeypatch.setattr(
+            code_provenance, "_read_or_compute_with_nonblocking_lock", lambda *_: pytest.fail("must use cache")
+        )
+        monkeypatch.setattr(code_provenance, "_compute_json_str", lambda: pytest.fail("must use cache"))
+
+        assert code_provenance.json_str_to_export() == expected_json
+        cache_file.unlink()
+        assert code_provenance.json_str_to_export() == expected_json
+
+    def test_json_cached_in_file_once_then_in_memory(self, tmp_path, monkeypatch):
+        from ddtrace.internal.datadog.profiling import code_provenance
+
+        cache_file = tmp_path / "code-provenance.json"
+        lock_path = tmp_path / "code-provenance.lock"
+        Path(lock_path).touch()
+        lock_file = SimpleNamespace(filename=str(lock_path))
+        monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
+
+        calls = 0
+        expected_json = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1.2.3", "paths": ["/x"]}]})
+
+        def _compute_json():
+            nonlocal calls
+            calls += 1
+            return expected_json
+
+        monkeypatch.setattr(code_provenance, "_compute_json_str", _compute_json)
+
+        assert code_provenance.json_str_to_export() == expected_json
+        assert calls == 1
+        assert cache_file.read_text(encoding="utf-8") == expected_json
+
+        cache_file.unlink()
+        assert code_provenance.json_str_to_export() == expected_json
+        assert calls == 1
+
+    def test_returns_empty_string_when_lock_is_contended(self, tmp_path, monkeypatch):
+        from ddtrace.internal.datadog.profiling import code_provenance
+
+        cache_file = tmp_path / "code-provenance.json"
+        lock_file = SimpleNamespace(filename=str(tmp_path / "code-provenance.lock"))
+        monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
+        monkeypatch.setattr(code_provenance, "_read_or_compute_with_nonblocking_lock", lambda *_: "")
+        monkeypatch.setattr(
+            code_provenance, "_compute_json_str", lambda: pytest.fail("must not compute when lock is contended")
+        )
+
+        assert code_provenance.json_str_to_export() == ""
+        assert code_provenance._in_memory_code_provenance_json is None
+
+    def test_retries_after_lock_contention_until_non_empty(self, tmp_path, monkeypatch):
+        from ddtrace.internal.datadog.profiling import code_provenance
+
+        cache_file = tmp_path / "code-provenance.json"
+        lock_file = SimpleNamespace(filename=str(tmp_path / "code-provenance.lock"))
+        monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
+
+        expected_json = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1.2.3", "paths": ["/x"]}]})
+        calls = 0
+
+        def _read_or_compute(*_):
+            nonlocal calls
+            calls += 1
+            return "" if calls == 1 else expected_json
+
+        monkeypatch.setattr(code_provenance, "_read_or_compute_with_nonblocking_lock", _read_or_compute)
+
+        assert code_provenance.json_str_to_export() == ""
+        assert code_provenance._in_memory_code_provenance_json is None
+        assert code_provenance.json_str_to_export() == expected_json
+        assert code_provenance.json_str_to_export() == expected_json
+
+    def test_cache_key_changes_with_main_package(self, monkeypatch):
+        from ddtrace.internal.datadog.profiling import code_provenance
+
+        monkeypatch.delenv("DD_MAIN_PACKAGE", raising=False)
+        key_without_main_package = code_provenance._cache_basename()
+        monkeypatch.setenv("DD_MAIN_PACKAGE", "ddtrace")
+        key_with_main_package = code_provenance._cache_basename()
+
+        assert key_without_main_package != key_with_main_package

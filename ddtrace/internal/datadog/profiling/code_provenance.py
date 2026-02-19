@@ -1,9 +1,14 @@
+from contextlib import contextmanager
+import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import platform
 import sys
 import sysconfig
+import tempfile
+from threading import Lock
 import typing as t
 
 from ddtrace.internal import gitmetadata
@@ -103,6 +108,186 @@ class CodeProvenance:
         return {"v1": [lib.to_dict() for lib in self.libraries]}
 
 
-def json_str_to_export() -> str:
+_CODE_PROVENANCE_CACHE_PREFIX = "ddtrace-code-provenance"
+_CODE_PROVENANCE_CACHE_VERSION = "v1"
+_in_memory_code_provenance_json: t.Optional[str] = None
+_in_memory_code_provenance_lock = Lock()
+
+
+def _safe_mtime_ns(path: t.Optional[str]) -> str:
+    if not path:
+        return ""
+    try:
+        return str(Path(path).stat().st_mtime_ns)
+    except OSError:
+        return ""
+
+
+def _cache_basename() -> str:
+    purelib = sysconfig.get_path("purelib")
+    stdlib = sysconfig.get_path("stdlib")
+    main_package = os.getenv("DD_MAIN_PACKAGE", "")
+    data = "\x00".join(
+        (
+            _CODE_PROVENANCE_CACHE_VERSION,
+            platform.python_version(),
+            sys.executable,
+            sys.prefix,
+            main_package,
+            purelib or "",
+            stdlib or "",
+            _safe_mtime_ns(purelib),
+            _safe_mtime_ns(stdlib),
+        )
+    )
+    digest = hashlib.sha256(data.encode("utf-8")).hexdigest()
+    return f"{_CODE_PROVENANCE_CACHE_PREFIX}-{digest}"
+
+
+def _cache_file_path() -> t.Optional[Path]:
+    try:
+        return Path(tempfile.gettempdir()) / f"{_cache_basename()}.json"
+    except (FileNotFoundError, OSError):
+        return None
+
+
+def _cache_lock_file():
+    # Delayed import to avoid extra dependencies at module import time.
+    from ddtrace.internal.ipc import SharedStringFile
+
+    try:
+        lock_file = SharedStringFile(f"{_cache_basename()}.lock")
+    except Exception:  # nosec
+        return None
+    return lock_file if lock_file.filename is not None else None
+
+
+def _cache_file_and_lock():
+    return _cache_file_path(), _cache_lock_file()
+
+
+@contextmanager
+def _try_exclusive_lock_nonblocking(lock_filename: str):
+    try:
+        with open(lock_filename, "a+b") as f:
+            acquired = False
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    f.seek(0)
+                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+            except OSError:
+                pass
+
+            if not acquired:
+                yield False
+                return
+
+            try:
+                yield True
+            finally:
+                try:
+                    if os.name == "nt":
+                        import msvcrt
+
+                        f.seek(0)
+                        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                    else:
+                        import fcntl
+
+                        fcntl.lockf(f, fcntl.LOCK_UN)
+                except OSError:
+                    pass
+    except OSError:
+        yield False
+
+
+def _read_cached_json(cache_file: Path) -> str:
+    try:
+        data = cache_file.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+    if not data:
+        return ""
+
+    try:
+        json.loads(data)
+    except (TypeError, ValueError):
+        return ""
+
+    return data
+
+
+def _write_cached_json(cache_file: Path, data: str) -> None:
+    tmp_path = cache_file.with_suffix(f"{cache_file.suffix}.{os.getpid()}.tmp")
+    try:
+        with tmp_path.open("w", encoding="utf-8") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, cache_file)
+    finally:
+        try:
+            tmp_path.unlink()
+        except OSError:
+            pass
+
+
+def _compute_json_str() -> str:
     cp = CodeProvenance()
     return json.dumps(cp.to_dict())
+
+
+def _read_or_compute_with_nonblocking_lock(cache_file: Path, lock_filename: str) -> str:
+    with _try_exclusive_lock_nonblocking(lock_filename) as locked:
+        if not locked:
+            return ""
+
+        cached = _read_cached_json(cache_file)
+        if cached:
+            return cached
+
+        computed = _compute_json_str()
+        if computed:
+            try:
+                _write_cached_json(cache_file, computed)
+            except OSError:
+                pass
+
+        return computed
+
+
+def json_str_to_export() -> str:
+    global _in_memory_code_provenance_json
+
+    if _in_memory_code_provenance_json:
+        return _in_memory_code_provenance_json
+
+    with _in_memory_code_provenance_lock:
+        if _in_memory_code_provenance_json:
+            return _in_memory_code_provenance_json
+
+        cache_file, lock_file = _cache_file_and_lock()
+        if cache_file is not None:
+            cached = _read_cached_json(cache_file)
+            if cached:
+                _in_memory_code_provenance_json = cached
+                return cached
+
+            if lock_file is not None and lock_file.filename is not None:
+                computed_or_cached = _read_or_compute_with_nonblocking_lock(cache_file, lock_file.filename)
+                if computed_or_cached:
+                    _in_memory_code_provenance_json = computed_or_cached
+                return computed_or_cached
+
+        computed = _compute_json_str()
+        if computed:
+            _in_memory_code_provenance_json = computed
+        return computed
