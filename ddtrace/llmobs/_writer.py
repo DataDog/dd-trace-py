@@ -456,7 +456,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         delete_record_ids: list[str],
         deduplicate: bool = True,
         create_new_version: bool = True,
-    ) -> tuple[int, list[str]]:
+    ) -> tuple[int, list[str], list[str]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
@@ -482,7 +482,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
-        new_canonical_ids: list[str] = [r["attributes"]["canonical_id"] for r in data] if data else []
+        new_canonical_ids: list[str] = [r["attributes"].get("canonical_id") for r in data] if data else []
         return new_version, new_record_ids, new_canonical_ids
 
     def dataset_get_with_records(
