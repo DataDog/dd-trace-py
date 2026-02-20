@@ -454,7 +454,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         insert_records: list[DatasetRecordRaw],
         update_records: list[UpdatableDatasetRecord],
         delete_record_ids: list[str],
-    ) -> tuple[int, list[str]]:
+        deduplicate: bool = True,
+        create_new_version: bool = True,
+    ) -> tuple[int, list[str], list[Optional[str]]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
@@ -466,19 +468,22 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "insert_records": irs,
                     "update_records": urs,
                     "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
+                    "deduplicate": deduplicate,
+                    "create_new_version": create_new_version,
                 },
             }
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
+            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
         response_data = resp.get_json()
         data = response_data["data"]
 
         # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
-        return new_version, new_record_ids
+        new_canonical_ids: list[Optional[str]] = [r["attributes"].get("canonical_id") for r in data] if data else []
+        return new_version, new_record_ids, new_canonical_ids
 
     def dataset_get_with_records(
         self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
@@ -527,14 +532,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
             for record in records_data.get("data", []):
                 attrs = record.get("attributes", {})
-                class_records.append(
-                    {
-                        "record_id": record["id"],
-                        "input_data": attrs["input"],
-                        "expected_output": attrs.get("expected_output"),
-                        "metadata": attrs.get("metadata", {}),
-                    }
-                )
+                dataset_record: DatasetRecord = {
+                    "record_id": record["id"],
+                    "canonical_id": attrs.get("canonical_id"),
+                    "input_data": attrs["input"],
+                    "expected_output": attrs.get("expected_output"),
+                    "metadata": attrs.get("metadata", {}),
+                }
+                class_records.append(dataset_record)
             next_cursor = records_data.get("meta", {}).get("after")
 
             url_options = {}
@@ -554,7 +559,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             _dne_client=self,
         )
 
-    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord]):
+    def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True):
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -582,7 +587,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             with open(tmp.name, mode="rb") as f:
                 file_content = f.read()
 
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload"
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload?deduplicate={deduplicate}"
         BOUNDARY = b"----------boundary------"
         CRLF = b"\r\n"
 

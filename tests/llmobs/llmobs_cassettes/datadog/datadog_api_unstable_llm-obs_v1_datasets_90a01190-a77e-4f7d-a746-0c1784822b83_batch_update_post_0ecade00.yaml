@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "90a01190-a77e-4f7d-a746-0c1784822b83",
+      "attributes": {"insert_records": [], "update_records": [{"input": null, "expected_output":
+      "", "metadata": null, "id": "7696ecff-5240-4d19-9854-73a0fd12350d"}], "delete_records":
+      [], "deduplicate": true, "create_new_version": true}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '309'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/90a01190-a77e-4f7d-a746-0c1784822b83/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"2b614014-a95b-4077-b418-c7fbf9412a32","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"canonical_id":"eb4ab19f-9cb5-417c-8910-0ada16aa0451","created_at":"2026-02-18T06:24:00.346757981Z","dataset_id":"90a01190-a77e-4f7d-a746-0c1784822b83","expected_output":"","input":{"prompt":"What
+        is the capital of France?"},"tags":[],"updated_at":"2026-02-18T06:24:00.34675808Z","version":2}}]}'
+    headers:
+      content-length:
+      - '436'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 18 Feb 2026 06:24:00 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

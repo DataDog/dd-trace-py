@@ -9,10 +9,12 @@ from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import _create_azure_openai_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from tests.llmobs._utils import get_azure_openai_vcr
 from tests.llmobs._utils import get_bedrock_vcr
 from tests.llmobs._utils import get_vertexai_vcr
 
@@ -238,6 +240,13 @@ class TestLLMJudge:
         assert result.reasoning is None
 
 
+AZURE_OPENAI_CLIENT_OPTIONS = {
+    "api_key": "testing",
+    "azure_endpoint": "https://test.openai.azure.com",
+    "api_version": "2024-10-21",
+    "azure_deployment": "gpt-4o",
+}
+
 VERTEXAI_CLIENT_OPTIONS = {
     "project": "test-project",
     "location": "us-central1",
@@ -246,8 +255,111 @@ VERTEXAI_CLIENT_OPTIONS = {
 
 
 @pytest.fixture(scope="session")
+def azure_openai_vcr():
+    yield get_azure_openai_vcr()
+
+
+@pytest.fixture(scope="session")
 def vertexai_vcr():
     yield get_vertexai_vcr()
+
+
+class TestAzureOpenAIClient:
+    def test_missing_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        with pytest.raises(ValueError, match="Azure OpenAI API key not provided"):
+            _create_azure_openai_client()
+
+    def test_missing_endpoint_raises(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+        with pytest.raises(ValueError, match="Azure OpenAI endpoint not provided"):
+            _create_azure_openai_client()
+
+    def test_missing_openai_package_raises(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        with mock.patch.dict("sys.modules", {"openai": None}):
+            with pytest.raises(ImportError, match="openai package required"):
+                _create_azure_openai_client()
+
+    def test_client_call(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_boolean.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {"boolean_eval": {"type": "boolean"}},
+                    "required": ["boolean_eval"],
+                    "additionalProperties": False,
+                },
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        assert result == '{"boolean_eval": true}'
+
+    def test_client_call_with_score_schema(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_score.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "score_eval": {"type": "number", "minimum": 1, "maximum": 10, "description": "Score"},
+                    },
+                    "required": ["score_eval"],
+                    "additionalProperties": False,
+                },
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
+
+    def test_client_call_with_categorical_schema(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_categorical.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "categorical_eval": {
+                            "type": "string",
+                            "anyOf": [
+                                {"const": "positive", "description": "Positive sentiment"},
+                                {"const": "negative", "description": "Negative sentiment"},
+                            ],
+                        },
+                    },
+                    "required": ["categorical_eval"],
+                    "additionalProperties": False,
+                },
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"
+
+    def test_llmjudge_with_azure_openai_provider(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_boolean.yaml"):
+            judge = LLMJudge(
+                provider="azure_openai",
+                model="gpt-4o",
+                user_prompt="Evaluate: {{output_data}}",
+                structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+                client_options=AZURE_OPENAI_CLIENT_OPTIONS,
+            )
+            result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
+        assert isinstance(result, EvaluatorResult)
+        assert result.value is True
+        assert result.assessment == "pass"
 
 
 class TestVertexAIClient:

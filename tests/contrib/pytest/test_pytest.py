@@ -129,7 +129,9 @@ class PytestTestCaseBase(TracerTestCase):
         if project_dir is None:
             project_dir = str(self.testdir.tmpdir)
 
-        _test_env = _get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz"), mock_ci_env=mock_ci_env)
+        _test_env = _get_default_ci_env_vars(
+            dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false"), mock_ci_env=mock_ci_env
+        )
         if mock_ci_env:
             _test_env["CI_PROJECT_DIR"] = project_dir
 
@@ -144,7 +146,7 @@ class PytestTestCaseBase(TracerTestCase):
 
     def subprocess_run(self, *args, env: t.Optional[dict[str, str]] = None):
         """Execute test script with test tracer."""
-        _base_env = dict(DD_API_KEY="foobar.baz")
+        _base_env = dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false")
         if env is not None:
             _base_env.update(env)
         with _ci_override_env(_base_env):

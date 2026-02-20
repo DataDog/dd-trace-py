@@ -60,30 +60,20 @@ from dataclasses import MISSING
 from dataclasses import dataclass
 from dataclasses import field
 import sys
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
-from typing import Optional
 from typing import TypeVar
-
-
-if TYPE_CHECKING:
-    from ddtrace._trace.provider import ActiveTrace
 
 
 EventType = TypeVar("EventType", bound="Event")
 
-_PY3_9 = sys.version_info <= (3, 10)
+_PY3_9 = sys.version_info < (3, 10)
 
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:
     """Creates a dataclass field with special handling to ensure retro compatibility
-       as python 3.9 does not support kw_only which is required by SpanContextEvent to
-       allow a child class to have attributes without value.
-
-    Args:
-        default: Default value for the field
-        default_factory: Factory function to generate default values
+    as python 3.9 does not support kw_only which is required by SpanContextEvent to
+    allow a child class to have attributes without value.
     """
     kwargs: dict[str, Any] = {}
     if default is not MISSING:
@@ -109,34 +99,7 @@ class Event:
 
     It can be used with core.dispatch_event(Event()).
 
-    Every children classes should be a @dataclass
+    Every child class should be a @dataclass
     """
 
     event_name: ClassVar[str]
-
-
-@dataclass
-class TracingEvent(Event):
-    """TracingEvent is a specialization of Event. It enforces minimal tracing attributes
-    on any TracingEvent. Its purpose is to be used with core.context_with_event
-    """
-
-    # This attributes are most of the time not instance specific and should be set at Event definition
-    span_type: ClassVar[str]
-    span_kind: ClassVar[str]
-
-    # This attributes are required but can be known only at runtime.
-    span_name: str = field(init=False)
-    component: str = field()
-
-    tags: dict[str, str] = field(default_factory=dict, init=False)
-    # if False, handlers should not finish a span when the Context finishes.
-    _end_span: bool = field(default=True, init=False)
-
-    # Optional tracing related attibutes
-    activate: bool = False  # if True, activate the span as active span context
-    use_active_context: bool = True  # if True, use the active span ctx as parent
-    service: Optional[str] = None
-    distributed_context: Optional["ActiveTrace"] = None  # if set, use the context as parent
-    resource: Optional[str] = None
-    measured: bool = False

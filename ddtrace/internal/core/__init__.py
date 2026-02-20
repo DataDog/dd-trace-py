@@ -133,13 +133,19 @@ log = logging.getLogger(__name__)
 ROOT_CONTEXT_ID = "__root"
 
 
-class ExecutionContext(Generic[EventType], object):
+class ExecutionContext(Generic[EventType]):
     __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
-    def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        identifier: str,
+        parent: Optional["ExecutionContext"] = None,
+        event: Optional["EventType"] = None,
+        **kwargs,
+    ) -> None:
         self.identifier: str = identifier
         self._data: dict[str, Any] = {}
-        self._event: Optional["EventType"] = None
+        self._event: Optional["EventType"] = event
         self._suppress_exceptions: list[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
@@ -298,9 +304,7 @@ def context_with_data(identifier, parent=None, **kwargs):
 
 
 def context_with_event(event: "EventType", parent=None) -> ExecutionContext[EventType]:
-    ctx: _CONTEXT_CLASS = _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()))
-    ctx._event = event
-    return ctx
+    return _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
 
 
 def add_suppress_exception(exc_type: type) -> None:

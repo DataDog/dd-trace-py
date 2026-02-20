@@ -39,7 +39,9 @@ def test_basic_context_event():
     with core.context_with_event(TestContextEvent()):
         pass
 
-    assert called == [f"{TestContextEvent.event_name}.started", f"{TestContextEvent.event_name}.ended"]
+    assert called == [f"{TestContextEvent.event_name}.started", f"{TestContextEvent.event_name}.ended"], (
+        "event should trigger started then ended handlers in order; got %r" % (called,)
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
@@ -72,7 +74,7 @@ def test_context_event_enforce_kwargs_error():
         with core.context_with_event(TestContextEvent(foo="toto")):
             pass
 
-    assert called == []
+    assert called == [], "event should not be dispatched when required event args are missing; got %r" % (called,)
 
 
 def test_context_event_event_field():
@@ -94,11 +96,15 @@ def test_context_event_event_field():
         called.append(event.foo)
         called.append(event.with_default)
 
-        assert getattr(event, "not_in_context", None) is None
+        assert getattr(event, "not_in_context", None) is None, (
+            "InitVar field marked out of context should not be present on context event"
+        )
 
     core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
 
     with core.context_with_event(TestContextEvent(foo="toto", not_in_context=0)):
         pass
 
-    assert called == [0, "toto", "test"]
+    assert called == [0, "toto", "test"], (
+        "event field values should include InitVar payload and context attrs; got %r" % (called,)
+    )

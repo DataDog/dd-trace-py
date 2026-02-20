@@ -1,0 +1,61 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"metric_source": "custom", "span_id": "123", "trace_id": "456",
+      "timestamp_ms": 1234, "metric_type": "score", "label": "dummy_evaluator", "score_value":
+      0, "error": null, "tags": [], "experiment_id": "712d6d7d-cae2-43aa-b334-1ddc20d0015c"},
+      {"metric_source": "custom", "span_id": "123", "trace_id": "456", "timestamp_ms":
+      1234, "metric_type": "score", "label": "async_dummy_evaluator", "score_value":
+      0, "error": null, "tags": [], "experiment_id": "712d6d7d-cae2-43aa-b334-1ddc20d0015c"},
+      {"metric_source": "summary", "span_id": "", "trace_id": "", "timestamp_ms":
+      1234, "metric_type": "score", "label": "dummy_summary_evaluator", "score_value":
+      4, "error": null, "tags": [], "experiment_id": "712d6d7d-cae2-43aa-b334-1ddc20d0015c"},
+      {"metric_source": "summary", "span_id": "", "trace_id": "", "timestamp_ms":
+      1234, "metric_type": "score", "label": "async_dummy_summary_evaluator", "score_value":
+      4, "error": null, "tags": [], "experiment_id": "712d6d7d-cae2-43aa-b334-1ddc20d0015c"}],
+      "tags": ["ddtrace.version:1.2.3", "project_id:f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9",
+      "experiment_id:712d6d7d-cae2-43aa-b334-1ddc20d0015c", "run_id:12345678-abcd-abcd-abcd-123456789012",
+      "run_iteration:1"]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '1278'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/712d6d7d-cae2-43aa-b334-1ddc20d0015c/events
+  response:
+    body:
+      string: '{"errors":[{"title":"Generic Error","detail":"Key: ''ExperimentEvalMetricEvent.EvalMetricBase.TimestampMs''
+        Error:Field validation for ''TimestampMs'' failed on the ''timestamp_within_24hr''
+        tag"}]}'
+    headers:
+      content-length:
+      - '192'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 12 Feb 2026 17:47:45 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 400
+      message: Bad Request
+version: 1

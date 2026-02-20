@@ -24,6 +24,12 @@
 #include <pthread_np.h>
 #endif
 
+#if PY_VERSION_HEX >= 0x30d0000
+#define py_is_finalizing Py_IsFinalizing
+#else
+#define py_is_finalizing _Py_IsFinalizing
+#endif
+
 // ----------------------------------------------------------------------------
 /**
  * Truncate thread names with format "module.path:ClassName".
@@ -139,17 +145,12 @@ class GILGuard
   public:
     inline GILGuard()
     {
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             _state = PyGILState_Ensure();
-        }
     }
     inline ~GILGuard()
     {
-        if (PyGILState_Check())
+        if (!py_is_finalizing() && PyGILState_Check())
             PyGILState_Release(_state);
     }
 
@@ -166,23 +167,13 @@ class AllowThreads
   public:
     inline AllowThreads()
     {
-#if PY_VERSION_HEX >= 0x30d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             _state = PyEval_SaveThread();
-        }
     }
     inline ~AllowThreads()
     {
-#if PY_VERSION_HEX >= 0x30d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             PyEval_RestoreThread(_state);
-        }
     }
 
   private:
@@ -204,62 +195,91 @@ class PyRef
         // may be NULL, causing crashes in Python 3.14+ where _Py_Dealloc
         // dereferences tstate immediately. This check uses relaxed atomics
         // so it's not perfectly synchronized, but provides a safety net.
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+        if (!py_is_finalizing())
             Py_DECREF(_obj);
-        }
     }
 
   private:
     PyObject* _obj;
 };
 
+// Reasons associated with the _request wake channel.
+static constexpr unsigned char REQUEST_REASON_NONE = 0;
+static constexpr unsigned char REQUEST_REASON_AWAKE = 1 << 0;
+static constexpr unsigned char REQUEST_REASON_STOP = 1 << 1;
+static constexpr unsigned char REQUEST_REASON_FORK_STOP = 1 << 2;
+
 // ----------------------------------------------------------------------------
 class Event
 {
   public:
-    void set()
+    void set(unsigned char reasons = REQUEST_REASON_AWAKE)
     {
         std::lock_guard<std::mutex> lock(_mutex);
 
-        if (_set)
+        unsigned char old_reasons = _reasons;
+        _reasons |= reasons;
+
+        if (old_reasons == _reasons)
             return;
 
-        _set = true;
         _cond.notify_all();
     }
 
     void wait()
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        _cond.wait(lock, [this]() { return _set; });
+        _cond.wait(lock, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     bool wait(std::chrono::milliseconds timeout)
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        return _cond.wait_for(lock, timeout, [this]() { return _set; });
+        return _cond.wait_for(lock, timeout, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     bool wait(std::chrono::time_point<std::chrono::steady_clock> until)
     {
         std::unique_lock<std::mutex> lock(_mutex);
-        return _cond.wait_until(lock, until, [this]() { return _set; });
+        return _cond.wait_until(lock, until, [this]() { return _reasons != REQUEST_REASON_NONE; });
     }
 
     void clear()
     {
         std::lock_guard<std::mutex> lock(_mutex);
-        _set = false;
+        _reasons = REQUEST_REASON_NONE;
+    }
+
+    void clear(unsigned char reasons)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _reasons &= static_cast<unsigned char>(~reasons);
+    }
+
+    unsigned char consume(unsigned char reasons)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        unsigned char matched = _reasons & reasons;
+        _reasons &= static_cast<unsigned char>(~reasons);
+
+        return matched;
+    }
+
+    unsigned char consume_all()
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        unsigned char reasons = _reasons;
+        _reasons = REQUEST_REASON_NONE;
+
+        return reasons;
     }
 
   private:
     std::condition_variable _cond;
     std::mutex _mutex;
-    bool _set = false;
+    unsigned char _reasons = REQUEST_REASON_NONE;
 };
 
 // ----------------------------------------------------------------------------
@@ -427,28 +447,34 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 
         bool error = false;
         if (self->_no_wait_at_start)
-            self->_request->set();
+            self->_request->set(REQUEST_REASON_AWAKE);
 
         while (!self->_stopping) {
             {
                 AllowThreads _;
 
                 if (self->_request->wait(self->_next_call_time)) {
-                    if (self->_stopping)
+                    if (self->_stopping) {
+                        // _stopping can be set by:
+                        // 1. pre-fork stop: preserve non-fork reasons (e.g. awake)
+                        //    so they survive restart;
+                        // 2. regular stop(): consume all pending reasons.
+                        const unsigned char stop_reasons =
+                          self->_request->consume(REQUEST_REASON_FORK_STOP | REQUEST_REASON_STOP);
+                        const bool has_fork_stop = (stop_reasons & REQUEST_REASON_FORK_STOP) != 0;
+                        if (!has_fork_stop)
+                            self->_request->consume_all();
                         break;
+                    }
 
-                    // Awake signal
-                    self->_request->clear();
+                    // Request wakeup while running (awake/no_wait_at_start).
+                    // Timer wakeups are the wait(...) == false branch.
+                    self->_request->consume_all();
                 }
             }
 
-#if PY_VERSION_HEX >= 0x30d0000
-            if (Py_IsFinalizing()) {
-#else
-            if (_Py_IsFinalizing()) {
-#endif
+            if (py_is_finalizing())
                 break;
-            }
 
             if (PeriodicThread__periodic(self)) {
                 // Error
@@ -467,24 +493,13 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
         // stopping.
         self->_served->set();
 
-        // Run the shutdown callback if there was no error and we are not
-        // at Python shutdown.
-        if (!self->_atexit && !error && self->_on_shutdown != Py_None && !self->_skip_shutdown) {
-#if PY_VERSION_HEX >= 0x30d0000
-            if (!Py_IsFinalizing()) {
-#else
-            if (!_Py_IsFinalizing()) {
-#endif
+        if (!self->_atexit && !py_is_finalizing()) {
+            // Run the shutdown callback if there was no error and we are not
+            // at Python shutdown.
+            if (!error && self->_on_shutdown != Py_None && !self->_skip_shutdown)
                 PeriodicThread__on_shutdown(self);
-            }
-        }
 
-        // Don't attempt dictionary operations during interpreter finalization
-#if PY_VERSION_HEX >= 0x030d0000
-        if (!Py_IsFinalizing()) {
-#else
-        if (!_Py_IsFinalizing()) {
-#endif
+            // Remove the thread from the mapping of active threads
             PyDict_DelItem(_periodic_threads, self->ident);
         }
 
@@ -519,7 +534,8 @@ PeriodicThread_awake(PeriodicThread* self, PyObject* Py_UNUSED(args))
         std::lock_guard<std::mutex> lock(*self->_awake_mutex);
 
         self->_served->clear();
-        self->_request->set();
+        self->_request->set(REQUEST_REASON_AWAKE);
+
         self->_served->wait();
     }
 
@@ -536,7 +552,7 @@ PeriodicThread_stop(PeriodicThread* self, PyObject* Py_UNUSED(args))
     }
 
     self->_stopping = true;
-    self->_request->set();
+    self->_request->set(REQUEST_REASON_STOP);
 
     Py_RETURN_NONE;
 }
@@ -614,8 +630,10 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_atexit = false;
     self->_skip_shutdown = false;
 
-    // We don't clear the request event because we might have pending awake
-    // requests.
+    // During prefork, stop() sets _request to wake the thread promptly so it
+    // can exit before fork. That wakeup should not trigger a synthetic
+    // periodic() run right after restart.
+    self->_request->clear(REQUEST_REASON_FORK_STOP);
     self->_started->clear();
     self->_stopped->clear();
     self->_served->clear();
@@ -631,7 +649,18 @@ PeriodicThread__before_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_skip_shutdown = true;
 
-    PeriodicThread_stop(self, NULL);
+    // Synchronize with awake() so there is no window where _stopping is visible
+    // before the fork-stop wake reason is published.
+    {
+        AllowThreads _;
+        std::lock_guard<std::mutex> lock(*self->_awake_mutex);
+
+        // Equivalent to PeriodicThread_stop(), with an explicit fork-stop
+        // reason. Keep this order so the worker cannot consume fork-stop as a
+        // normal wakeup.
+        self->_stopping = true;
+        self->_request->set(REQUEST_REASON_FORK_STOP);
+    }
 
     Py_RETURN_NONE;
 }
@@ -643,11 +672,7 @@ PeriodicThread_dealloc(PeriodicThread* self)
     // Since the native thread holds a strong reference to this object, we
     // can only get here if the thread has actually stopped.
 
-#if PY_VERSION_HEX >= 0x30d0000
-    if (Py_IsFinalizing()) {
-#else
-    if (_Py_IsFinalizing()) {
-#endif
+    if (py_is_finalizing()) {
         // Do nothing. We are about to terminate and release resources anyway.
         return;
     }

@@ -66,7 +66,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
+StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 {
     static bool failed = false;
     if (failed) {
@@ -108,12 +108,6 @@ StackRenderer::render_task_begin(std::string task_name, bool on_cpu)
 
     sample->push_task_name(task_name);
     pushed_task_name = true;
-}
-
-void
-StackRenderer::render_stack_begin()
-{
-    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
 }
 
 void
@@ -236,7 +230,6 @@ StackRenderer::render_stack_end()
         return;
     }
 
-    sample->set_reverse_locations(true);
     sample->flush_sample();
     SampleManager::drop_sample(sample);
     sample = nullptr;

@@ -5,6 +5,7 @@ from typing import Optional
 from typing import TypeVar
 
 from ddtrace import config
+from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.span import Span
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -12,7 +13,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.trace import tracer
 

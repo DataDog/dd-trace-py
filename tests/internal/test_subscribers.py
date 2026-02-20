@@ -3,13 +3,13 @@ from dataclasses import dataclass
 
 import pytest
 
+from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
@@ -44,7 +44,7 @@ def test_base_subscriber():
 
     core.dispatch_event(TestEvent())
 
-    assert called == [TestEvent.event_name]
+    assert called == [TestEvent.event_name], "subscriber should be called once with the event name; got %r" % (called,)
 
 
 def test_base_subscriber_inheritance():
@@ -64,7 +64,7 @@ def test_base_subscriber_inheritance():
 
     core.dispatch_event(TestEvent())
 
-    assert called == ["parent", "child"]
+    assert called == ["parent", "child"], "parent and child subscribers should run in order; got %r" % (called,)
 
 
 def test_base_subscriber_multiple_event_names():
@@ -88,7 +88,9 @@ def test_base_subscriber_multiple_event_names():
     core.dispatch_event(TestEventOne())
     core.dispatch_event(TestEventTwo())
 
-    assert called == [TestEventOne.event_name, TestEventTwo.event_name]
+    assert called == [TestEventOne.event_name, TestEventTwo.event_name], (
+        "subscriber should listen to both events in dispatch order; got %r" % (called,)
+    )
 
 
 def test_base_context_subscriber():
@@ -110,7 +112,9 @@ def test_base_context_subscriber():
 
             event: TestContextEventWithAttributes = ctx.event
             called.append(event.in_context)
-            assert getattr(event, "not_in_context", None) is None
+            assert getattr(event, "not_in_context", None) is None, (
+                "InitVar field marked out of context should not be present on context event"
+            )
 
         @classmethod
         def on_ended(cls, ctx, exc_info):
@@ -152,7 +156,9 @@ def test_base_context_subscriber_inheritance():
     with core.context_with_event(TestContextEvent()):
         pass
 
-    assert called == ["parent_started", "child_started", "parent_ended", "child_ended"]
+    assert called == ["parent_started", "child_started", "parent_ended", "child_ended"], (
+        "callbacks are not called in the right order, should be from parent to children; got %r" % (called,)
+    )
 
 
 def test_base_tracing_subscriber(test_spans):
