@@ -126,6 +126,7 @@ def _cache_basename() -> str:
     data = "\x00".join(
         (
             _CODE_PROVENANCE_CACHE_VERSION,
+            platform.python_version(),
             sys.prefix,
             main_package,
             _safe_mtime_ns(purelib),

@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import sys
 import sysconfig
 
@@ -60,28 +61,26 @@ def is_valid_json(s: str) -> bool:
         return False
 
 
-def _read_json(file_path):
-    """Read and parse JSON from the file at file_path."""
-    assert file_path is not None
+def _read_json(file_path: str) -> dict:
     with open(file_path, encoding="utf-8") as f:
         return json.load(f)
 
 
 class TestCodeProvenance:
     @pytest.fixture(autouse=True)
-    def _reset_cache(self, monkeypatch):
+    def _reset_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         monkeypatch.setattr(code_provenance, "_code_provenance_file_path", None)
 
-    def test_outputs_valid_json(self):
+    def test_outputs_valid_json(self) -> None:
         # End to end test to ensure that the output is valid JSON
         file_path = get_code_provenance_file()
         assert file_path is not None
         with open(file_path, encoding="utf-8") as f:
             assert is_valid_json(f.read())
 
-    def test_valid_json_but_invalid_schema(self):
+    def test_valid_json_but_invalid_schema(self) -> None:
         # Just a sanity check to ensure that jsonschema is working as expected
         json_obj = {
             "v1": [
@@ -96,7 +95,7 @@ class TestCodeProvenance:
         assert not is_valid_json(json.dumps(json_obj))
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix only")
-    def test_lib_paths_are_absolute(self):
+    def test_lib_paths_are_absolute(self) -> None:
         file_path = get_code_provenance_file()
         json_obj = _read_json(file_path)
 
@@ -109,7 +108,7 @@ class TestCodeProvenance:
                 assert path.startswith("/") and path.startswith(site_packages_path)
 
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="Python 3.10+ only")
-    def test_stdlib_paths(self):
+    def test_stdlib_paths(self) -> None:
         file_path = get_code_provenance_file()
         json_obj = _read_json(file_path)
 
@@ -129,7 +128,7 @@ class TestCodeProvenance:
     @pytest.mark.subprocess(
         env=dict(DD_MAIN_PACKAGE="ddtrace"),
     )
-    def test_main_package_my_code(self):
+    def test_main_package_my_code(self) -> None:
         import json
 
         from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
@@ -145,7 +144,7 @@ class TestCodeProvenance:
         # "main" package.
         assert any(info["name"] == "ddtrace" and info["kind"] == "" for info in json_obj["v1"])
 
-    def test_file_path_cached_after_first_call(self, tmp_path, monkeypatch):
+    def test_file_path_cached_after_first_call(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         expected_json = json.dumps({"v1": []})
@@ -163,7 +162,7 @@ class TestCodeProvenance:
         cache_file.unlink()
         assert code_provenance.get_code_provenance_file() == str(cache_file)
 
-    def test_file_written_once_then_path_cached(self, tmp_path, monkeypatch):
+    def test_file_written_once_then_path_cached(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         cache_file = tmp_path / "code-provenance.json"
@@ -190,7 +189,7 @@ class TestCodeProvenance:
         assert code_provenance.get_code_provenance_file() == str(cache_file)
         assert calls == 1
 
-    def test_returns_none_when_lock_is_contended(self, tmp_path, monkeypatch):
+    def test_returns_none_when_lock_is_contended(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         cache_file = tmp_path / "code-provenance.json"
@@ -204,7 +203,9 @@ class TestCodeProvenance:
         assert code_provenance.get_code_provenance_file() is None
         assert code_provenance._code_provenance_file_path is None
 
-    def test_retries_after_lock_contention_until_file_exists(self, tmp_path, monkeypatch):
+    def test_retries_after_lock_contention_until_file_exists(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         cache_file = tmp_path / "code-provenance.json"
@@ -233,7 +234,7 @@ class TestCodeProvenance:
         # Third call: uses cached path
         assert code_provenance.get_code_provenance_file() == str(cache_file)
 
-    def test_cache_key_changes_with_main_package(self, monkeypatch):
+    def test_cache_key_changes_with_main_package(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         monkeypatch.delenv("DD_MAIN_PACKAGE", raising=False)
