@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.5.0rc1"
+version = "4.5.0rc4"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -194,6 +194,7 @@ lint.select = [
     "G",
     "I",
     "PLW0244",  # redefined-slots-in-subclass
+    "UP006",  # non-pep585-annotation (use builtin generics like list instead of typing.List)
     "W",
 ]
 lint.unfixable =[

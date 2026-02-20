@@ -1,7 +1,4 @@
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 import mock
 import pytest
@@ -114,28 +111,28 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
 }
 
 
-def _expected_agent_metadata(agent_name: str) -> Dict:
+def _expected_agent_metadata(agent_name: str) -> dict:
     return {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}
 
 
 def _assert_expected_agent_run(
-    expected_span_names: List[str],
+    expected_span_names: list[str],
     spans,
     llmobs_events,
-    llm_calls: Optional[List[Tuple[List[Dict], List[Dict]]]] = None,
-    tool_calls: Optional[List[dict]] = None,
-    previous_tool_events: Optional[List[dict]] = None,
+    llm_calls: Optional[list[tuple[list[dict], list[dict]]]] = None,
+    tool_calls: Optional[list[dict]] = None,
+    previous_tool_events: Optional[list[dict]] = None,
     is_chat=False,
-) -> List[dict]:
+) -> list[dict]:
     """Assert expected LLMObs events matches actual events for an agent run
     Return previous tool events for span linking assertions across agent runs
     Args:
-        spans: List of spans from the mock tracer
-        llmobs_events: List of LLMObs events
+        spans: list of spans from the mock tracer
+        llmobs_events: list of LLMObs events
         agent_name: Name of the agent
-        llm_calls: List of (input_messages, output_messages) for each LLM call
-        tool_calls: List of information about tool calls
-        previous_tool_events: List of previous tool events for span linking assertions across agent runs
+        llm_calls: list of (input_messages, output_messages) for each LLM call
+        tool_calls: list of information about tool calls
+        previous_tool_events: list of previous tool events for span linking assertions across agent runs
     """
     for i, event in enumerate(llmobs_events):
         assert event["name"] == expected_span_names[i]

@@ -1,5 +1,7 @@
 """Tests for LLMObs evaluator classes."""
 
+import asyncio
+
 import pytest
 
 from ddtrace.llmobs._experiment import BaseEvaluator
@@ -179,8 +181,8 @@ class TestEvaluatorIntegration:
         exp = llmobs.experiment("test_experiment", dummy_task, dataset, [evaluator])
 
         run_info = _ExperimentRunInfo(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
         assert len(eval_results) == 1
         assert "SimpleEvaluator" in eval_results[0]["evaluations"]
@@ -224,8 +226,8 @@ class TestEvaluatorIntegration:
         )
 
         run_info = _ExperimentRunInfo(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
         assert len(eval_results) == 1
         evaluations = eval_results[0]["evaluations"]
@@ -278,9 +280,11 @@ class TestSummaryEvaluatorIntegration:
         )
 
         run_info = _ExperimentRunInfo(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
-        summary_results = exp._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        summary_results = asyncio.run(
+            exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=False)
+        )
 
         assert "SimpleSummaryEvaluator" in summary_results[0]["evaluations"]
         assert summary_results[0]["evaluations"]["SimpleSummaryEvaluator"]["value"] == 2

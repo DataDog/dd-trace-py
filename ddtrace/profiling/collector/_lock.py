@@ -11,19 +11,13 @@ from types import ModuleType
 from types import TracebackType
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Tuple
-from typing import Type
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
-from ddtrace.profiling.collector import _traceback
-from ddtrace.profiling.event import DDFrame
 from ddtrace.trace import Tracer
 
 
@@ -35,7 +29,7 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
 CALLER_FRAME_INDEX: int = 3
 
 
-def _current_thread() -> Tuple[int, str]:
+def _current_thread() -> tuple[int, str]:
     thread_id: int = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
@@ -76,7 +70,6 @@ class _ProfiledLock:
     __slots__ = (
         "__wrapped__",
         "tracer",
-        "max_nframes",
         "capture_sampler",
         "init_location",
         "acquired_time",
@@ -88,13 +81,11 @@ class _ProfiledLock:
         self,
         wrapped: Any,
         tracer: Optional[Tracer],
-        max_nframes: int,
         capture_sampler: collector.CaptureSampler,
         is_internal: bool = False,
     ) -> None:
         self.__wrapped__: Any = wrapped
         self.tracer: Optional[Tracer] = tracer
-        self.max_nframes: int = max_nframes
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         try:
@@ -130,7 +121,7 @@ class _ProfiledLock:
     def __repr__(self) -> str:
         return f"<_ProfiledLock({self.__wrapped__!r}) at {self.init_location}>"
 
-    def __reduce__(self) -> Tuple[Callable[[str, str], Any], Tuple[str, str]]:
+    def __reduce__(self) -> tuple[Callable[[str, str], Any], tuple[str, str]]:
         """Support pickling by returning the wrapped lock.
 
         In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
@@ -170,7 +161,7 @@ class _ProfiledLock:
 
         start: int = time.monotonic_ns()
         result: Any = None
-        error_info: Optional[Tuple[BaseException, Optional[TracebackType]]] = None
+        error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
         try:
             result = inner_func(*args, **kwargs)
         except BaseException as exc:
@@ -210,7 +201,7 @@ class _ProfiledLock:
         self.acquired_time = None
 
         result: Any = None
-        error_info: Optional[Tuple[BaseException, Optional[TracebackType]]] = None
+        error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
         try:
             result = inner_func(*args, **kwargs)
         except BaseException as exc:
@@ -275,9 +266,7 @@ class _ProfiledLock:
             # If we can't get the task frame, we use the caller frame.
             # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
             frame: FrameType = task_frame or sys._getframe(CALLER_FRAME_INDEX)
-            frames: List[DDFrame] = _traceback.pyframe_to_frames(frame, self.max_nframes)
-            for ddframe in frames:
-                handle.push_frame(ddframe.function_name, ddframe.file_name, 0, ddframe.lineno)
+            handle.push_pyframes(frame)
 
             handle.flush_sample()
         except AssertionError:
@@ -287,7 +276,7 @@ class _ProfiledLock:
             # Instrumentation must never crash user code
             pass  # nosec
 
-    def _find_name(self, var_dict: Dict[str, Any]) -> Optional[str]:
+    def _find_name(self, var_dict: dict[str, Any]) -> Optional[str]:
         for name, value in var_dict.items():
             if name.startswith("__") or isinstance(value, ModuleType):
                 continue
@@ -375,7 +364,7 @@ class _LockAllocatorWrapper:
 
         # Case 1: Normal wrapper initialization
         self._func: Callable[..., _ProfiledLock]
-        self._original_class: Optional[Type[Any]]
+        self._original_class: Optional[type[Any]]
         if args:
             self._func = args[0]
             self._original_class = kwargs.get("original_class") or (args[1] if len(args) > 1 else None)
@@ -386,7 +375,7 @@ class _LockAllocatorWrapper:
     def __call__(self, *args: Any, **kwargs: Any) -> _ProfiledLock:
         return self._func(*args, **kwargs)
 
-    def __get__(self, instance: Any, owner: Optional[Type[Any]] = None) -> _LockAllocatorWrapper:
+    def __get__(self, instance: Any, owner: Optional[type[Any]] = None) -> _LockAllocatorWrapper:
         # Prevent automatic method binding (e.g., Foo.lock_class = threading.Lock)
         return self
 
@@ -394,12 +383,12 @@ class _LockAllocatorWrapper:
         # Delegate attribute access to the original class.
         # This is needed for Semaphore/BoundedSemaphore inheritance where code accesses
         # Semaphore.__init__ c-tor through our wrapper.
-        original_class: Optional[Type[Any]] = object.__getattribute__(self, "_original_class")
+        original_class: Optional[type[Any]] = object.__getattribute__(self, "_original_class")
         if original_class is not None:
             return getattr(original_class, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
-    def __mro_entries__(self, bases: Tuple[Any, ...]) -> Tuple[Type[Any], ...]:
+    def __mro_entries__(self, bases: tuple[Any, ...]) -> tuple[type[Any], ...]:
         """Support subclassing the wrapped lock type (PEP 560).
 
         When custom lock types inherit from a wrapped lock
@@ -410,7 +399,7 @@ class _LockAllocatorWrapper:
         """
         return (self._original_class,)  # type: ignore[return-value]
 
-    def __reduce__(self) -> Tuple[Callable[[str, str], Callable[..., Any]], Tuple[str, str]]:
+    def __reduce__(self) -> tuple[Callable[[str, str], Callable[..., Any]], tuple[str, str]]:
         """Support pickling by returning the original class.
 
         In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
@@ -428,7 +417,7 @@ class _LockAllocatorWrapper:
 class LockCollector(collector.CaptureSamplerCollector):
     """Record lock usage."""
 
-    PROFILED_LOCK_CLASS: Type[Any]
+    PROFILED_LOCK_CLASS: type[Any]
     MODULE: ModuleType  # e.g., threading module
     PATCHED_LOCK_NAME: str  # e.g., "Lock", "RLock", "Semaphore"
     # Module file to check for internal lock detection (e.g., threading.__file__ or asyncio.locks.__file__)
@@ -437,13 +426,11 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def __init__(
         self,
-        nframes: int = config.max_frames,
         tracer: Optional[Tracer] = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.nframes: int = nframes
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Any = None
 
@@ -455,6 +442,7 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def _start_service(self) -> None:
         """Start collecting lock usage."""
+        _task.initialize_gevent_support()
         self.patch()
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
@@ -500,7 +488,6 @@ class LockCollector(collector.CaptureSamplerCollector):
             return self.PROFILED_LOCK_CLASS(
                 wrapped=original_lock(*args, **kwargs),
                 tracer=self.tracer,
-                max_nframes=self.nframes,
                 capture_sampler=self._capture_sampler,
                 is_internal=is_internal,
             )

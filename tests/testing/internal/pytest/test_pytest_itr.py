@@ -16,7 +16,15 @@ from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
 
+COVERAGE_UPLOAD_ENABLED_ENV = "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"
+
+
 class TestITR:
+    @pytest.fixture(autouse=True)
+    def isolate_coverage_upload_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Unset coverage upload env var so tests are not affected by external environment."""
+        monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
+
     def test_itr_one_skipped_test(self, pytester: Pytester) -> None:
         """Test that IntelligentTestRunner skips tests marked as skippable."""
         # Create a test file with multiple tests
@@ -32,7 +40,7 @@ class TestITR:
         """
         )
 
-        skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = {
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
             # Mark one test as skippable.
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_skipped"),
         }
@@ -88,7 +96,7 @@ class TestITR:
         """
         )
 
-        skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = {
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
             # Mark one test as skippable.
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_skipped"),
         }
@@ -151,7 +159,7 @@ class TestITR:
         """
         )
 
-        skippable_items: t.Set[t.Union[TestRef, SuiteRef]] = {
+        skippable_items: set[t.Union[TestRef, SuiteRef]] = {
             # Mark one test as skippable.
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_should_be_skipped"),
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_unskippable"),
