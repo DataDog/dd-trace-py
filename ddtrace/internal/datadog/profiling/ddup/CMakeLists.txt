@@ -19,11 +19,11 @@ include(AnalysisFunc)
 
 # Link against the pre-built libdd_wrapper shared library The library is built by setup.py and its location is passed
 # via NATIVE_EXTENSION_LOCATION. For standalone builds, check LIB_INSTALL_DIR first.
-# if(LIB_INSTALL_DIR AND EXISTS "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
-    # set(DD_WRAPPER_LIB "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
-# else()
-    # set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
-# endif()
+if(LIB_INSTALL_DIR AND EXISTS "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+    set(DD_WRAPPER_LIB "${LIB_INSTALL_DIR}/libdd_wrapper${EXTENSION_SUFFIX}")
+else()
+    set(DD_WRAPPER_LIB "${NATIVE_EXTENSION_LOCATION}/../datadog/profiling/libdd_wrapper${EXTENSION_SUFFIX}")
+endif()
 
 # Import the pre-built library as an imported target
 add_library(dd_wrapper SHARED IMPORTED)
