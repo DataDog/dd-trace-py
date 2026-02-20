@@ -112,6 +112,7 @@ from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
+from ddtrace.llmobs._experiment import ExperimentRowResult
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
@@ -1401,6 +1402,47 @@ class LLMObs(Service):
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 results = pool.submit(asyncio.run, coro).result()
         return experiment, results
+
+    @classmethod
+    def pull_experiment_results(cls, experiment_id: str) -> ExperimentResult:
+        """Fetch experiment results from the backend.
+
+        :param experiment_id: The experiment ID to fetch results for
+        :return: ExperimentResult containing rows with inputs, outputs, evaluations, and errors
+        """
+        if not cls._instance or not cls._instance.enabled:
+            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
+
+        client = cls._instance._dne_client
+        if not client:
+            raise RuntimeError("Experiments client is not initialized.")
+
+        events = client.experiment_get_events(experiment_id)
+        rows: list[ExperimentRowResult] = []
+        for idx, span in enumerate(events.get("spans", [])):
+            meta = span.get("meta", {})
+            evaluations: dict[str, dict[str, JSONType]] = {}
+            for metric in span.get("eval_metrics", []):
+                evaluations[metric.get("label", "")] = {
+                    "value": metric.get("score_value"),
+                    "error": None,
+                }
+            rows.append(
+                {
+                    "idx": idx,
+                    "record_id": span.get("record_id"),
+                    "span_id": span.get("span_id", ""),
+                    "trace_id": span.get("trace_id", ""),
+                    "timestamp": span.get("start_ns", 0),
+                    "input": meta.get("input", {}),
+                    "output": meta.get("output"),
+                    "expected_output": meta.get("expected_output"),
+                    "evaluations": evaluations,
+                    "metadata": meta.get("metadata", {}),
+                    "error": meta.get("error", {}),
+                }
+            )
+        return {"summary_evaluations": {}, "rows": rows, "runs": []}
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:

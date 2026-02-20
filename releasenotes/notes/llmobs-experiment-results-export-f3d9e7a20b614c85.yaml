@@ -1,0 +1,6 @@
+features:
+  - |
+    LLM Observability: adds ``experiment_result_as_dataframe()`` and
+    ``experiment_result_to_csv()`` for exporting experiment results. Adds
+    ``Experiment.result`` property to retrieve the last run's result. Adds
+    ``LLMObs.pull_experiment_results()`` to fetch results from the backend.
