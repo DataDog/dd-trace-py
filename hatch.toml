@@ -140,34 +140,6 @@ test = [
 [[envs.iast_aggregated_leak_testing.matrix]]
 python = ["3.10", "3.11", "3.12"]
 
-## pytorch profiling test
-
-[envs.profiling_pytorch]
-dependencies = [
-    "protobuf",
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "torch>=1.8.1",
-    "torchvision",
-    "zstandard",
-]
-
-[envs.profiling_pytorch.env-vars]
-DD_PROFILING_ENABLED = "true"
-DD_PROFILING_PYTORCH_ENABLED = "true"
-
-[envs.profiling_pytorch.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
-]
-
-[[envs.profiling_pytorch.matrix]]
-python = ["3.12"]
-
 ## Multiple OS tests
 
 [envs.multiple_os_tests]

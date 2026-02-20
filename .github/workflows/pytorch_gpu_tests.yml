@@ -29,9 +29,30 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          version: "0.9.25"
+
       - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
       - name: Install latest stable toolchain and rustfmt
         run: rustup update stable && rustup default stable && rustup component add rustfmt clippy
 
+      - name: Show system info
+        run: uname -a
+
       - name: Run tests
-        run: hatch run profiling_pytorch:test
+        env:
+          DD_PROFILING_ENABLED: "true"
+          DD_PROFILING_PYTORCH_ENABLED: "true"
+        run: |
+          uv run \
+            --with protobuf \
+            --with pytest \
+            --with pytest-cov \
+            --with requests \
+            --with hypothesis \
+            --with "torch>=1.8.1" \
+            --with torchvision \
+            --with zstandard \
+            pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys
