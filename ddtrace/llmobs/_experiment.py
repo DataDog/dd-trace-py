@@ -27,6 +27,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
@@ -1112,6 +1113,8 @@ class Experiment:
                 span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+                if self._config:
+                    span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
 
                 return {
                     "idx": idx,
