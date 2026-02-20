@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Iterator  # noqa:F401
 from typing import Mapping  # noqa:F401
@@ -379,7 +380,7 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     return default
 
 
-def maybe_set_service_source_tag(span: Span, int_config: "IntegrationConfig") -> None:
+def maybe_set_service_source_tag(span: Span, int_config: Union["IntegrationConfig", Dict]) -> None:
     if span.service == int_config.get("_default_service"):
         span.set_tag("_dd.svc.src", "true")
 

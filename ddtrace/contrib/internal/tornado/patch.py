@@ -21,7 +21,7 @@ from . import template
 config._add(
     "tornado",
     dict(
-        _default_service=schematize_service_name("tornado"),
+        _default_service=schematize_service_name(config._get_service("tornado-web")),
         distributed_tracing=asbool(os.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
