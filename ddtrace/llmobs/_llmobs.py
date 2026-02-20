@@ -97,7 +97,6 @@ from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
-from ddtrace.llmobs._experiment import AsyncExperiment
 from ddtrace.llmobs._experiment import AsyncSummaryEvaluatorType
 from ddtrace.llmobs._experiment import AsyncTaskType
 from ddtrace.llmobs._experiment import BaseAsyncEvaluator
@@ -113,6 +112,7 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
+from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -1008,6 +1008,7 @@ class LLMObs(Service):
                             expected_output={col: row[col] for col in expected_output_columns},
                             metadata={col: row[col] for col in metadata_columns},
                             record_id="",
+                            canonical_id=None,
                         )
                     )
 
@@ -1206,7 +1207,7 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = 1,
-    ) -> Experiment:
+    ) -> SyncExperiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
         :param name: The name of the experiment.
@@ -1239,7 +1240,7 @@ class LLMObs(Service):
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=False)
-        return Experiment(
+        return SyncExperiment(
             name,
             task,
             dataset,
@@ -1266,8 +1267,8 @@ class LLMObs(Service):
         config: Optional[ConfigType] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = 1,
-    ) -> AsyncExperiment:
-        """Initializes an AsyncExperiment to run an async task on a Dataset with evaluators.
+    ) -> Experiment:
+        """Initializes an Experiment to run an async task on a Dataset with evaluators.
 
         This is the async version of experiment() that supports async tasks, evaluators, and summary evaluators.
         Sync evaluators are also supported and will be run via asyncio.to_thread().
@@ -1306,7 +1307,7 @@ class LLMObs(Service):
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
-        return AsyncExperiment(
+        return Experiment(
             name,
             task,
             dataset,
