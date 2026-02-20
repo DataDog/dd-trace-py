@@ -313,6 +313,18 @@ def traced_commit(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
+    # Fetch cluster_id for offset tracking -- try cache first, then extract topic from args
+    cluster_id = getattr(instance, "_dd_cluster_id", None)
+    if not cluster_id:
+        message = get_argument_value(args, kwargs, 0, "message", optional=True)
+        if message is not None and hasattr(message, "topic"):
+            cluster_id = _get_cluster_id(instance, message.topic())
+        else:
+            offsets = get_argument_value(args, kwargs, 1, "offsets", optional=True)
+            if offsets:
+                cluster_id = _get_cluster_id(instance, offsets[0].topic)
+    core.set_item("kafka_cluster_id", cluster_id)
+
     core.dispatch("kafka.commit.start", (instance, args, kwargs))
     return func(*args, **kwargs)
 

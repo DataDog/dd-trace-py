@@ -134,9 +134,53 @@ def test_kafka_offset_monitoring():
     processor.track_kafka_produce("topic1", 2, 10, now)
     now_ns = int(now * 1e9)
     bucket_time_ns = int(now_ns - (now_ns % 1e10))
-    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1)] == 34
-    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2)] == 10
-    assert processor._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1)] == 14
+    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1, "")] == 34
+    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2, "")] == 10
+    assert (
+        processor._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1, "")] == 14
+    )
+
+
+def test_kafka_offset_monitoring_with_cluster_id():
+    now = time.time()
+    cluster = "test-cluster-abc"
+    processor.track_kafka_commit("group1", "topic1", 1, 10, now, cluster_id=cluster)
+    processor.track_kafka_commit("group1", "topic1", 1, 14, now, cluster_id=cluster)
+    processor.track_kafka_produce("topic1", 1, 34, now, cluster_id=cluster)
+    processor.track_kafka_produce("topic1", 2, 10, now, cluster_id=cluster)
+    now_ns = int(now * 1e9)
+    bucket_time_ns = int(now_ns - (now_ns % 1e10))
+    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1, cluster)] == 34
+    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2, cluster)] == 10
+    assert (
+        processor._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1, cluster)]
+        == 14
+    )
+
+    # Verify serialized buckets include kafka_cluster_id tag
+    serialized = processor._serialize_buckets()
+    assert len(serialized) >= 1
+    backlogs = serialized[0].get("Backlogs", [])
+    commit_backlogs = [b for b in backlogs if "type:kafka_commit" in b["Tags"]]
+    produce_backlogs = [b for b in backlogs if "type:kafka_produce" in b["Tags"]]
+    assert len(commit_backlogs) >= 1
+    assert "kafka_cluster_id:" + cluster in commit_backlogs[0]["Tags"]
+    assert len(produce_backlogs) >= 1
+    for pb in produce_backlogs:
+        assert "kafka_cluster_id:" + cluster in pb["Tags"]
+
+
+def test_kafka_offset_monitoring_without_cluster_id_omits_tag():
+    """When cluster_id is empty, the kafka_cluster_id tag should not appear in serialized backlogs."""
+    now = time.time()
+    processor.track_kafka_commit("group1", "topic2", 0, 5, now)
+    processor.track_kafka_produce("topic2", 0, 20, now)
+    serialized = processor._serialize_buckets()
+    assert len(serialized) >= 1
+    backlogs = serialized[0].get("Backlogs", [])
+    for backlog in backlogs:
+        for tag in backlog["Tags"]:
+            assert not tag.startswith("kafka_cluster_id:")
 
 
 def test_processor_atexit(ddtrace_run_python_code_in_subprocess):
