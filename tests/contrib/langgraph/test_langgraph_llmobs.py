@@ -374,7 +374,7 @@ class TestLangGraphLLMObs:
             "instructions": "You are a helpful assistant who talks with a Boston accent but is also very nice. You speak in full sentences with at least 15 words.",  # noqa: E501
         }
 
-        assert react_agent_span["meta"]["metadata"]["agent_manifest"] == expected_agent_manifest
+        assert react_agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_populates_tools_from_tool_node(self, llmobs_events, custom_agent_with_tool_node):
@@ -405,7 +405,7 @@ class TestLangGraphLLMObs:
             ],
         }
 
-        assert agent_span["meta"]["metadata"]["agent_manifest"] == expected_agent_manifest
+        assert agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_manifest
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_manifest_different_recursion_limit(
@@ -417,7 +417,7 @@ class TestLangGraphLLMObs:
 
         agent_span = _find_span_by_name(llmobs_events, "agent")
 
-        assert agent_span["meta"]["metadata"]["agent_manifest"]["max_iterations"] == 100
+        assert agent_span["meta"]["metadata"]["_dd"]["agent_manifest"]["max_iterations"] == 100
 
     @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
     def test_agent_with_tool_calls_integrations_enabled(

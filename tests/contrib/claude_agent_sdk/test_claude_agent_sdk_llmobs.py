@@ -95,7 +95,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json([{"content": ""}]),
-            metadata={"agent_manifest": {"framework": "Claude Agent SDK"}},
+            metadata={"_dd": {"agent_manifest": {"framework": "Claude Agent SDK"}}},
             token_metrics={},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
             error="builtins.ValueError",
