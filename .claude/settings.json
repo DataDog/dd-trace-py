@@ -42,5 +42,16 @@
       "Skill(releasenote)"
     ],
     "deny": []
+  },
+  "spinnerVerbs": {
+    "mode": "replace",
+    "verbs": [
+      "Burning fossil fuels",
+      "Polluting the planet",
+      "Bleaching the coral reefs",
+      "Planning world domination",
+      "Contributing to global warming",
+      "Mass-producing T-800s"
+    ]
   }
 }
