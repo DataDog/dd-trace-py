@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 from typing import MutableMapping
 from typing import Optional
 
+from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -41,8 +41,6 @@ class HttpClientRequestEvent(TracingEvent):
     response_headers: MutableMapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
     config: "IntegrationConfig" = event_field()
-
-    measured: bool = True
 
     def __post_init__(self):
         self.span_name = schematize_url_operation(
