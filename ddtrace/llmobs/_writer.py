@@ -40,6 +40,7 @@ from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
@@ -486,7 +487,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
+            error_msg = f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}"
+            raise ValueError(error_msg)  # nosec
         response_data = resp.get_json()
         data = response_data["data"]
 
@@ -735,8 +737,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             type/message/recommended_resolution)
         :raises RuntimeError: If HTTP request fails and no structured error info is available
         """
-        from ddtrace.llmobs._experiment import RemoteEvaluatorError
-
         path = f"/api/unstable/llm-obs/v1/evaluators/{eval_name}/infer"
         body: JSONType = {"data": {"type": "evaluator_inference", "attributes": {"context": context}}}
 
