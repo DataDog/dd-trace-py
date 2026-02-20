@@ -1467,7 +1467,7 @@ class LLMObs(Service):
         return AnnotationContext(register_annotation, deregister_annotation)
 
     _prompt_manager: Optional[PromptManager] = None
-    _prompt_manager_lock = forksafe.Lock()
+    _prompt_manager_lock = RLock()
 
     @classmethod
     def _ensure_prompt_manager(cls) -> PromptManager:
