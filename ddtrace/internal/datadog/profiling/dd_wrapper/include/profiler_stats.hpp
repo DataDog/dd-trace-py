@@ -31,6 +31,12 @@ class ProfilerStats
     // Number of ephemeral entries in the echion StringTable
     std::optional<size_t> string_table_ephemeral_count;
 
+    // Whether fast_copy_memory (ECHION_USE_FAST_COPY_MEMORY) is enabled; unset until the sampler starts
+    std::optional<bool> fast_copy_memory_enabled;
+
+    // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
+    size_t copy_memory_error_count = 0;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -49,6 +55,12 @@ class ProfilerStats
 
     void set_string_table_ephemeral_count(size_t count);
     std::optional<size_t> get_string_table_ephemeral_count();
+
+    void set_fast_copy_memory_enabled(bool enabled);
+    std::optional<bool> get_fast_copy_memory_enabled();
+
+    void add_copy_memory_error_count(size_t count);
+    size_t get_copy_memory_error_count();
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.

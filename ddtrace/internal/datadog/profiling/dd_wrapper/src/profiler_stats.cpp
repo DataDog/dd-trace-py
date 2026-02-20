@@ -46,6 +46,32 @@ Datadog::ProfilerStats::reset_state()
     sampling_interval_us = std::nullopt;
     string_table_count = std::nullopt;
     string_table_ephemeral_count = std::nullopt;
+    copy_memory_error_count = 0;
+    // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
+}
+
+void
+Datadog::ProfilerStats::set_fast_copy_memory_enabled(bool enabled)
+{
+    fast_copy_memory_enabled = enabled;
+}
+
+std::optional<bool>
+Datadog::ProfilerStats::get_fast_copy_memory_enabled()
+{
+    return fast_copy_memory_enabled;
+}
+
+void
+Datadog::ProfilerStats::add_copy_memory_error_count(size_t count)
+{
+    copy_memory_error_count += count;
+}
+
+size_t
+Datadog::ProfilerStats::get_copy_memory_error_count()
+{
+    return copy_memory_error_count;
 }
 
 void
@@ -119,6 +145,17 @@ Datadog::ProfilerStats::get_internal_metadata_json()
 
     internal_metadata_json += R"("sampling_event_count": )";
     append_to_string(internal_metadata_json, sampling_event_count);
+    internal_metadata_json += ",";
+
+    internal_metadata_json += R"("copy_memory_error_count": )";
+    append_to_string(internal_metadata_json, copy_memory_error_count);
+
+    auto maybe_fast_copy_enabled = get_fast_copy_memory_enabled();
+    if (maybe_fast_copy_enabled) {
+        internal_metadata_json += ",";
+        internal_metadata_json += R"("fast_copy_memory_enabled": )";
+        internal_metadata_json += *maybe_fast_copy_enabled ? "true" : "false";
+    }
 
     internal_metadata_json += "}";
 
