@@ -27,7 +27,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"google.cloud.pubsub_v1": ">=2.25.0"}
+    return {"google.cloud.pubsub_v1": ">=2.18.0"}
 
 
 def _parse_topic_path(topic):
