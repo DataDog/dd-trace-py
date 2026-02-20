@@ -508,6 +508,7 @@ def _build_render_template_wrapper(name):
                 flask_config=config.flask,
                 tags={COMPONENT: config.flask.integration_name},
                 span_type=SpanTypes.TEMPLATE,
+                integration_config=config.flask,
             ) as ctx,
             ctx.span,
         ):

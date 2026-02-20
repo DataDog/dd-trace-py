@@ -123,6 +123,7 @@ def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance):
         pin=pin,
         measured=True,
         tags=_build_tags(cmd_string, pin, instance, config_integration.integration_name),
+        integration_config=config_integration,
     ) as ctx:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, None, instance, cmd_string])
         yield ctx.span
@@ -140,6 +141,7 @@ def _instrument_redis_cmd(pin, config_integration, instance, args):
         resource=query.split(" ")[0] if config_integration.resource_only_command else query,
         measured=True,
         tags=_build_tags(query, pin, instance, config_integration.integration_name),
+        integration_config=config_integration,
     ) as ctx:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, args, instance, query])
         yield ctx

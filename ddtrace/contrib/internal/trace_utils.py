@@ -379,6 +379,11 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
     return default
 
 
+def maybe_set_service_source_tag(span: Span, int_config: "IntegrationConfig") -> None:
+    if span.service == int_config.get("_default_service"):
+        span.set_tag("_dd.svc.src", "true")
+
+
 def set_http_meta(
     span: Span,
     integration_config: "IntegrationConfig",

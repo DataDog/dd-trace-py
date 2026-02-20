@@ -157,6 +157,7 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
                 operation=operation,
                 call_trace=False,
                 pin=pin,
+                integration_config=config.botocore,
             ) as ctx,
             ctx.span,
         ):
