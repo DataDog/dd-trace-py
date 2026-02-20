@@ -446,6 +446,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         if is_update:
             rj["id"] = record["record_id"]  # type: ignore
+        else:
+            tags = record.get("tags")
+            if tags:
+                rj["tags"] = cast(JSONType, tags)
 
         return rj
 
