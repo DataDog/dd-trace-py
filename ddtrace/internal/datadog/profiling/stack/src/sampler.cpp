@@ -320,7 +320,7 @@ _stack_atfork_child()
 }
 
 __attribute__((constructor)) void
-_stack_init()
+stack_init()
 {
     // At just do start-of-process cleanup (e.g., set PID)
     _stack_postfork_cleanup();
