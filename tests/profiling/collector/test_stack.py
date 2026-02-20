@@ -1062,7 +1062,7 @@ def test_top_c_frame_detection_hashlib_kwarg() -> None:
     def sha256_loop() -> None:
         end = time.monotonic() + 2
         while time.monotonic() < end:
-            hashlib.sha256(data=b"Hello, world!")
+            hashlib.sha256(b"Hello, world!")
 
     with stack.StackCollector():
         sha256_loop()
