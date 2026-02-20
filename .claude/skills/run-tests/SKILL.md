@@ -84,7 +84,7 @@ When you modify files like:
 #### For Test-Only Changes
 When you modify `tests/` files (but not test infrastructure):
 - Run only the specific test files/functions modified
-- Use pytest args: `-- -k test_name` or direct test file paths
+- Use pytest args with two separators: `-- -- -k test_name` (first `--` ends `scripts/run-tests` parsing and starts riot args; second `--` tells riot to forward remaining args to pytest), or direct pytest test paths (e.g., `-- -- tests/contrib/flask/test_views.py`)
 
 #### For Test Infrastructure Changes
 When you modify:
@@ -138,7 +138,7 @@ This will:
 
 For re-running specific tests (use `-s` since the venv is already built):
 ```bash
-scripts/run-tests --venv <hash> -- -s -vv -k test_name
+scripts/run-tests --venv <hash> -- -s -- -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -264,10 +264,10 @@ scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
 # First run: no -s
-scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
+scripts/run-tests --venv flask_py311 -- -- -vv tests/contrib/flask/test_views.py
 
 # Subsequent runs: use -s to skip rebuild
-scripts/run-tests --venv flask_py311 -- -s -vv tests/contrib/flask/test_views.py
+scripts/run-tests --venv flask_py311 -- -s -- -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
@@ -275,7 +275,7 @@ scripts/run-tests --venv flask_py311 -- -s -vv tests/contrib/flask/test_views.py
 After the first run shows a test failing, use `-s` to iterate quickly:
 
 ```bash
-scripts/run-tests --venv flask_py311 -- -s -vv -k test_view_called_twice
+scripts/run-tests --venv flask_py311 -- -s -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -357,7 +357,7 @@ The `scripts/run-tests` system:
 - Uses `riot` to manage multiple Python/package combinations as venvs
 - Each venv is a self-contained environment
 - Docker services are managed per suite lifecycle
-- Tests can pass optional arguments after `--` (riot flags like `-s` are consumed by riot; unknown flags like `-k`, `-vv` are forwarded to pytest)
+- Use `-- <riot args> -- <pytest args>` for mixed passthrough. The first `--` is consumed by `scripts/run-tests`, and the second `--` is consumed by `riot` before forwarding remaining args to pytest. If you only need pytest args, use `-- -- <pytest args>`.
 
 ### Supported Suite Types
 
