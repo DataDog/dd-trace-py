@@ -70,22 +70,22 @@ def _check_for_stack_available():
     return (stack.failure_msg, stack.is_available)
 
 
-def _parse_profiling_enabled(raw: str) -> bool:
-    # Try to derive whether we're enabled via DD_INJECTION_ENABLED
-    # - Are we injected (DD_INJECTION_ENABLED set)
-    # - Is profiling enabled ("profiler" in the list)
-    if os.environ.get("DD_INJECTION_ENABLED") is not None:
-        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
-            if tok.strip().lower() == "profiler":
-                return True
+def _injection_enabled_has_profiler() -> bool:
+    """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
+    injection_enabled = os.environ.get("DD_INJECTION_ENABLED")
+    if injection_enabled is None:
+        return False
 
-    # This is the normal check
-    raw_lc = raw.lower()
-    if raw_lc in ("1", "true", "yes", "on", "auto"):
+    return any(tok.strip().lower() == "profiler" for tok in injection_enabled.split(","))
+
+
+def _parse_profiling_enabled(raw: str) -> bool:
+    # DD_INJECTION_ENABLED=...,profiler,... takes precedence over the env var value.
+    if _injection_enabled_has_profiler():
         return True
 
-    # If it wasn't enabled, then disable it
-    return False
+    raw_lc = raw.lower()
+    return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
 def _update_git_metadata_tags(tags):
@@ -129,6 +129,15 @@ class ProfilingConfig(DDConfig):
         help_type="Boolean",
         help="Enable Datadog profiling when using ``ddtrace-run``",
     )
+
+    def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        # envier only parses a configuration entry when the environment variable is present in the
+        # When it is absent the default (False) is returned directly, so for DD_PROFILING_ENABLED,
+        # we must apply the DD_INJECTION_ENABLED check here as a post-init step.
+        if not self.enabled and _injection_enabled_has_profiler():
+            self.enabled = True
 
     agentless = DDConfig.v(
         bool,
