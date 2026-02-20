@@ -1,22 +1,14 @@
+import azure.durable_functions as durable_functions
 from wrapt import wrap_function_wrapper as _w
 
-
-try:
-    import azure.durable_functions as durable_functions
-except Exception:
-    durable_functions = None
-
-from ddtrace.contrib.internal.azure_functions.utils import patched_get_functions
+from ddtrace.contrib.internal.azure_functions.shared import patched_get_functions
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 
 
 def get_version() -> str:
-    try:
-        from importlib.metadata import version
+    from importlib.metadata import version
 
-        return version("azure-functions-durable")
-    except Exception:
-        return getattr(durable_functions, "__version__", "")
+    return version("azure-functions-durable")
 
 
 def _supported_versions() -> dict[str, str]:
@@ -27,8 +19,6 @@ def patch():
     """
     Patch `azure.durable_functions` module for tracing.
     """
-    if durable_functions is None:
-        return
     if getattr(durable_functions, "_datadog_patch", False):
         return
     durable_functions._datadog_patch = True
@@ -48,8 +38,6 @@ def _patch_dfapp():
 
 
 def unpatch():
-    if durable_functions is None:
-        return
     if not getattr(durable_functions, "_datadog_patch", False):
         return
     durable_functions._datadog_patch = False

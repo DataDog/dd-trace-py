@@ -7,7 +7,7 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.utils.formats import asbool
 
-from .utils import patched_get_functions
+from .shared import patched_get_functions
 
 
 config._add(

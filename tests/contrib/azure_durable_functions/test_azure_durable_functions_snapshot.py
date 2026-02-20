@@ -8,7 +8,7 @@ import pytest
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
-from ddtrace.contrib.internal.azure_functions.utils import wrap_durable_trigger
+from ddtrace.contrib.internal.azure_functions.shared import wrap_durable_trigger
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
