@@ -70,8 +70,6 @@ def dsm_aiokafka_send_completed(
 
     if record_metadata is not None:
         reported_offset = record_metadata.offset if isinstance(record_metadata.offset, int) else -1
-        # TODO: aiokafka does not expose cluster_id on its ClusterMetadata class.
-        # cluster_id support requires an upstream PR or monkey-patch. See audit doc item #4.
         dsm_processor.track_kafka_produce(
             record_metadata.topic, record_metadata.partition, reported_offset, time.time()
         )
