@@ -25,11 +25,11 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
-from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes

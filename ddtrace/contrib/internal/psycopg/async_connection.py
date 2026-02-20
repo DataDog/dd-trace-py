@@ -61,7 +61,7 @@ def patched_connect_async_factory(psycopg_module):
                 },
                 measured=True,
                 integration_config=config.psycopg,
-            ) as ctx:
+            ):
                 conn = await connect_func(*args, **kwargs)
 
         return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
