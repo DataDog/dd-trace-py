@@ -42,6 +42,7 @@ PATCH_MODULES = {
     "algoliasearch": True,
     "futures": True,
     "google_adk": True,
+    "google_cloud_pubsub": True,
     "google_genai": True,
     "gevent": True,
     "graphql": True,
@@ -158,6 +159,7 @@ _MODULES_FOR_CONTRIB = {
     "httplib": ("http.client",),
     "kafka": ("confluent_kafka",),
     "google_adk": ("google.adk",),
+    "google_cloud_pubsub": ("google.cloud.pubsub_v1",),
     "google_genai": ("google.genai",),
     "langchain": ("langchain_core",),
     "langgraph": (

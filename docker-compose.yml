@@ -235,6 +235,12 @@ services:
         ports:
             - "127.0.0.1:6379:6379"
 
+    pubsub:
+        image: google/cloud-sdk:557.0.0-emulators
+        command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
+        ports:
+            - "127.0.0.1:8085:8085"
+
     valkeycluster:
         platform: linux/amd64
         image: grokzen/redis-cluster:6.2.0

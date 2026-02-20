@@ -1,0 +1,105 @@
+[[
+  {
+    "name": "parent.span",
+    "service": "tests.contrib.google_cloud_pubsub",
+    "resource": "parent.span",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69971cae00000000",
+      "language": "python",
+      "runtime-id": "eb58798d2931444a94cae071dad9ac7e"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 1486.0
+    },
+    "duration": 536629626,
+    "start": 1771510958778671542
+  },
+     {
+       "name": "gcp.pubsub.send",
+       "service": "google_cloud_pubsub",
+       "resource": "test-topic",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.google_cloud_pubsub",
+         "component": "google_cloud_pubsub",
+         "gcloud.project_id": "test-project",
+         "messaging.destination.name": "test-topic",
+         "messaging.operation": "send",
+         "messaging.system": "pubsub",
+         "operation": "gcp.pubsub.send",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 1011000,
+       "start": 1771510958778984959
+     },
+     {
+       "name": "gcp.pubsub.send",
+       "service": "google_cloud_pubsub",
+       "resource": "test-topic",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.google_cloud_pubsub",
+         "_dd.p.tid": "69971cae00000000",
+         "component": "google_cloud_pubsub",
+         "gcloud.project_id": "test-project",
+         "messaging.destination.name": "test-topic",
+         "messaging.operation": "send",
+         "messaging.system": "pubsub",
+         "operation": "gcp.pubsub.send",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 353458,
+       "start": 1771510958780106126
+     },
+     {
+       "name": "gcp.pubsub.send",
+       "service": "google_cloud_pubsub",
+       "resource": "test-topic",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "tests.contrib.google_cloud_pubsub",
+         "_dd.p.tid": "69971cae00000000",
+         "component": "google_cloud_pubsub",
+         "gcloud.project_id": "test-project",
+         "messaging.destination.name": "test-topic",
+         "messaging.operation": "send",
+         "messaging.system": "pubsub",
+         "operation": "gcp.pubsub.send",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 261666,
+       "start": 1771510958780533251
+     }]]
