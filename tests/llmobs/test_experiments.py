@@ -226,7 +226,6 @@ def test_dataset_one_record_with_tags(llmobs):
     llmobs._delete_dataset(dataset_id=ds._id)
 
 
-
 @pytest.fixture
 def test_dataset_one_record_with_single_tag(llmobs):
     """Fixture that creates a dataset with a record containing a single tag."""
@@ -266,6 +265,7 @@ def test_dataset_one_record_separate_project_with_tags(llmobs):
     yield ds
 
     llmobs._delete_dataset(dataset_id=ds._id)
+
 
 # this fixture is needed because the tmp file call in _writer.py's dataset_bulk_upload
 # will result in random names, causing a new POST request every time to the upload endpoint
@@ -643,6 +643,7 @@ def test_dataset_pull_exists_with_record(llmobs):
 
     llmobs._delete_dataset(dataset_id=ds._id)
 
+
 def test_dataset_pull_with_tags(llmobs, test_dataset_one_record_with_tags):
     """Test that pull_dataset properly passes tags parameter and filters records by tags."""
     tags = ["env:prod", "version:1.0"]
@@ -709,11 +710,8 @@ def test_dataset_pull_with_partial_tag_match(llmobs):
             tags=["env:prod", "version:1.0"],
         )
     ]
-    ds = llmobs.create_dataset(
-        dataset_name=ds_name, description="A test dataset with tags", records=records
-    )
+    ds = llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
     wait_for_backend(4)
-
 
     # The dataset has tags ["env:prod", "version:1.0"], filter with just one of them
     tags = ["env:prod"]
@@ -746,9 +744,7 @@ def test_dataset_pull_with_one_matching_one_nonexistent_tag(llmobs):
             tags=["env:prod", "version:1.0"],
         )
     ]
-    ds = llmobs.create_dataset(
-        dataset_name=ds_name, description="A test dataset with tags", records=records
-    )
+    llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
     wait_for_backend(4)
 
     # The dataset has tags ["env:prod", "version:1.0"], filter with one matching and one not
@@ -773,11 +769,8 @@ def test_dataset_pull_without_tags_returns_all_records(llmobs):
             tags=["env:prod", "version:1.0"],
         )
     ]
-    ds = llmobs.create_dataset(
-        dataset_name=ds_name, description="A test dataset with tags", records=records
-    )
+    llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
     wait_for_backend(4)
-
 
     # Pull without specifying tags
     dataset = llmobs.pull_dataset(dataset_name=ds_name)
@@ -843,6 +836,7 @@ def test_dataset_pull_with_tags_and_project(llmobs, test_dataset_one_record_sepa
     assert len(dataset.filter_tags) == 2
     assert "team:ml" in dataset.filter_tags
     assert "priority:high" in dataset.filter_tags
+
 
 @pytest.mark.parametrize(
     "test_dataset_records",

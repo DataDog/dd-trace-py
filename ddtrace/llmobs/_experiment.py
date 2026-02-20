@@ -768,7 +768,7 @@ class Experiment:
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
         self._config: dict[str, JSONType] = config or {}
-                # Write dataset tags to experiment config
+        # Write dataset tags to experiment config
         if dataset.filter_tags:
             self._config["filtered_record_tags"] = dataset.filter_tags
         self._runs: int = runs or 1
