@@ -40,8 +40,7 @@ class PromptManager:
         self._timeout = timeout
         self._headers: dict[str, str] = {
             "DD-API-KEY": api_key,
-            "X-Datadog-Source": "sdk",
-            "X-Datadog-Language": "python",
+            "X-Datadog-SDK-Language": "python",
         }
         self._cache_enabled = cache_ttl > 0
 
