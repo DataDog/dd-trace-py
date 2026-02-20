@@ -332,7 +332,9 @@ class TestLangGraphLLMObs:
         }
 
         assert agent_a_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_a_manifest
-        assert conditional_agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_conditional_agent_manifest
+        assert (
+            conditional_agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_conditional_agent_manifest
+        )
         assert agent_d_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_d_manifest
 
     @pytest.mark.skipif(
