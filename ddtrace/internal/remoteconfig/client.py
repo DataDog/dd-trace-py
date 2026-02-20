@@ -7,15 +7,10 @@ import os
 import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
-from typing import Callable
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Mapping
-from typing import MutableMapping
 from typing import Optional
-from typing import Set
-from typing import Tuple
+from typing import Sequence
 import uuid
 
 import ddtrace
@@ -27,19 +22,28 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
 from ddtrace.internal.remoteconfig import ConfigMetadata
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
-from ddtrace.internal.remoteconfig._pubsub import PubSub
+from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
 
 log = get_logger(__name__)
 
 TARGET_FORMAT = re.compile(r"^(datadog/\d+|employee)/([^/]+)/([^/]+)/([^/]+)$")
+
+# Threshold for callback execution time warning (in seconds)
+CALLBACK_EXECUTION_WARNING_THRESHOLD = 0.5
 
 
 REQUIRE_SKIP_SHUTDOWN = frozenset({"django-q"})
@@ -81,14 +85,14 @@ class Signature:
 @dataclasses.dataclass
 class Key:
     keytype: str
-    keyid_hash_algorithms: List[str]
+    keyid_hash_algorithms: list[str]
     keyval: Mapping
     scheme: str
 
 
 @dataclasses.dataclass
 class Role:
-    keyids: List[str]
+    keyids: list[str]
     threshold: int
 
 
@@ -115,7 +119,7 @@ class Root:
 
 @dataclasses.dataclass
 class SignedRoot:
-    signatures: List[Signature]
+    signatures: list[Signature]
     signed: Root
 
     def __post_init__(self):
@@ -154,7 +158,7 @@ class Targets:
 
 @dataclasses.dataclass
 class SignedTargets:
-    signatures: List[Signature]
+    signatures: list[Signature]
     signed: Targets
     version: int = 0
 
@@ -174,10 +178,10 @@ class TargetFile:
 
 @dataclasses.dataclass
 class AgentPayload:
-    roots: Optional[List[SignedRoot]] = None
+    roots: Optional[list[SignedRoot]] = None
     targets: Optional[SignedTargets] = None
-    target_files: List[TargetFile] = dataclasses.field(default_factory=list)
-    client_configs: Set[str] = dataclasses.field(default_factory=set)
+    target_files: list[TargetFile] = dataclasses.field(default_factory=list)
+    client_configs: set[str] = dataclasses.field(default_factory=set)
 
     def __post_init__(self):
         if self.roots is not None:
@@ -191,8 +195,8 @@ class AgentPayload:
                 self.target_files[i] = TargetFile(**self.target_files[i])
 
 
-AppliedConfigType = Dict[str, ConfigMetadata]
-TargetsType = Dict[str, ConfigMetadata]
+AppliedConfigType = dict[str, ConfigMetadata]
+TargetsType = dict[str, ConfigMetadata]
 
 
 class RemoteConfigClient:
@@ -238,10 +242,18 @@ class RemoteConfigClient:
         if p_tags_list := process_tags.process_tags_list:
             self._client_tracer["process_tags"] = p_tags_list
 
-        self.cached_target_files: List[AppliedConfigType] = []
+        self.cached_target_files: list[AppliedConfigType] = []
 
-        self._products: MutableMapping[str, PubSub] = dict()
-        self._applied_configs: AppliedConfigType = dict()
+        # Product callbacks for single subscriber architecture
+        self._product_callbacks: dict[str, RCCallback] = {}
+
+        # Single global connector and subscriber for all products
+        self._global_connector = PublisherSubscriberConnector()
+        self._global_subscriber = RemoteConfigSubscriber(
+            self._global_connector, self._dispatch_to_products, "GlobalSubscriber"
+        )
+
+        self._applied_configs: AppliedConfigType = {}
         self._last_targets_version = 0
         self._last_error: Optional[str] = None
         self._backend_state: Optional[str] = None
@@ -250,52 +262,159 @@ class RemoteConfigClient:
     def _encode_capabilities(self, capabilities: int) -> str:
         return base64.b64encode(capabilities.to_bytes((capabilities.bit_length() + 7) // 8, "big")).decode()
 
+    def _dispatch_to_products(self, payloads: Sequence[Payload]) -> None:
+        """Dispatch payloads from the global subscriber to registered product callbacks.
+
+        This method runs in child processes and performs the following:
+        1. Calls periodic() on all registered callbacks (happens every poll cycle)
+        2. Groups payloads by product and dispatches them to their callbacks
+
+        Args:
+            payloads: Sequence of configuration payloads to dispatch
+        """
+        # Make a copy of the product callbacks at the time of dispatch to avoid
+        # issues if callbacks are registered/unregistered while dispatching
+        product_callbacks = self._product_callbacks.copy()
+
+        # Call periodic method for all registered callbacks
+        for product_name, callback in product_callbacks.items():
+            try:
+                log.debug(
+                    "[%s][P: %s] Calling periodic method for product %s",
+                    os.getpid(),
+                    os.getppid(),
+                    product_name,
+                )
+                with StopWatch() as sw:
+                    callback.periodic()
+
+                if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
+                    telemetry_writer.add_log(
+                        TELEMETRY_LOG_LEVEL.WARNING,
+                        "Periodic RC operation exceeded threshold",
+                        tags={
+                            "product": product_name,
+                            "callback_type": "periodic",
+                            "elapsed_time": "%.3f" % elapsed_time,
+                        },
+                    )
+            except Exception:
+                log.error(
+                    "[%s][P: %s] Error calling periodic method for product %s",
+                    os.getpid(),
+                    os.getppid(),
+                    product_name,
+                    exc_info=True,
+                )
+
+        if not payloads:
+            return
+
+        # Group payloads by product name
+        product_payloads: dict[str, list[Payload]] = {}
+        for payload in payloads:
+            if payload.metadata and payload.metadata.product_name:
+                product_name = payload.metadata.product_name
+                if product_name not in product_payloads:
+                    product_payloads[product_name] = []
+                product_payloads[product_name].append(payload)
+
+        # Dispatch to each product's callback
+        for product_name, product_payload_list in product_payloads.items():
+            product_callback = product_callbacks.get(product_name)
+            if product_callback is not None:
+                try:
+                    log.debug(
+                        "[%s][P: %s] Dispatching %d payloads to product %s",
+                        os.getpid(),
+                        os.getppid(),
+                        len(product_payload_list),
+                        product_name,
+                    )
+                    with StopWatch() as sw:
+                        product_callback(product_payload_list)
+
+                    if (elapsed_time := sw.elapsed()) > CALLBACK_EXECUTION_WARNING_THRESHOLD:
+                        telemetry_writer.add_log(
+                            TELEMETRY_LOG_LEVEL.WARNING,
+                            "RC callback operation exceeded threshold",
+                            tags={
+                                "product": product_name,
+                                "callback_type": "payload",
+                                "elapsed_time": "%.3f" % elapsed_time,
+                            },
+                        )
+                except Exception:
+                    log.error(
+                        "[%s][P: %s] Error dispatching to product %s",
+                        os.getpid(),
+                        os.getppid(),
+                        product_name,
+                        exc_info=True,
+                    )
+
     def renew_id(self):
         # called after the process is forked to declare a new id
         self.id = str(uuid.uuid4())
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
         self._applied_configs.clear()
 
-    def register_product(self, product_name: str, pubsub_instance: Optional[PubSub] = None) -> None:
-        if pubsub_instance is not None:
-            self._products[product_name] = pubsub_instance
-        else:
-            self._products.pop(product_name, None)
+    def register_product(
+        self,
+        product_name: str,
+        callback: RCCallback,
+    ) -> None:
+        """
+        Register a product callback for the single-subscriber architecture.
+
+        Args:
+            product_name: Name of the product (e.g., "ASM_FEATURES", "LIVE_DEBUGGING")
+            callback: Callback function to invoke when payloads are received in child processes
+        """
+        self._product_callbacks[product_name] = callback
+        log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
 
     def add_capabilities(self, capabilities: Iterable[enum.IntFlag]) -> None:
         for capability in capabilities:
             self._capabilities |= capability
 
-    def update_product_callback(self, product_name: str, callback: Callable) -> bool:
-        pubsub_instance = self._products.get(product_name)
-        if pubsub_instance:
-            pubsub_instance._subscriber._callback = callback
-            if not self.is_subscriber_running(pubsub_instance):
-                pubsub_instance.start_subscriber()
+    def update_product_callback(self, product_name: str, callback: RCCallback) -> bool:
+        """Update the callback for a registered product."""
+        if product_name in self._product_callbacks:
+            self._product_callbacks[product_name] = callback
+            log.debug("[%s][P: %s] Updated callback for product %s", os.getpid(), os.getppid(), product_name)
             return True
         return False
 
-    def start_products(self, products: Set[str]) -> None:
-        for product_name in products:
-            pubsub_instance = self._products.get(product_name)
-            if pubsub_instance:
-                pubsub_instance.restart_subscriber()
-
     def unregister_product(self, product_name: str) -> None:
-        self._products.pop(product_name, None)
+        """Unregister a product."""
+        self._product_callbacks.pop(product_name, None)
+        log.debug("[%s][P: %s] Unregistered product %s", os.getpid(), os.getppid(), product_name)
 
-    def get_pubsubs(self):
-        for pubsub in set(self._products.values()):
-            yield pubsub
+    def is_subscriber_running(self) -> bool:
+        """Check if the global subscriber is running."""
+        return self._global_subscriber.status == ServiceStatus.RUNNING
 
-    def is_subscriber_running(self, pubsub_to_check: PubSub) -> bool:
-        for pubsub in self.get_pubsubs():
-            if pubsub_to_check._subscriber is pubsub._subscriber and pubsub._subscriber.status == ServiceStatus.RUNNING:
-                return True
-        return False
+    def start_subscriber(self) -> None:
+        """Start the global subscriber thread."""
+        if not self.is_subscriber_running():
+            self._global_subscriber.start()
+            log.debug("[%s][P: %s] Started global subscriber", os.getpid(), os.getppid())
 
-    def reset_products(self):
-        self._products = dict()
+    def stop_subscriber(self, join: bool = False) -> None:
+        """Stop the global subscriber thread."""
+        if self.is_subscriber_running():
+            self._global_subscriber.stop(join=join)
+            log.debug("[%s][P: %s] Stopped global subscriber", os.getpid(), os.getppid())
+
+    def restart_subscriber(self, join: bool = False) -> None:
+        """Restart the global subscriber thread."""
+        self._global_subscriber.force_restart(join=join)
+        log.debug("[%s][P: %s] Restarted global subscriber", os.getpid(), os.getppid())
+
+    def reset_products(self) -> None:
+        """Clear all registered products."""
+        self._product_callbacks = dict()
 
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
         conn = None
@@ -332,7 +451,7 @@ class RemoteConfigClient:
         return json.loads(data)
 
     @staticmethod
-    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[Dict[str, Any]]:
+    def _extract_target_file(payload: AgentPayload, target: str, config: ConfigMetadata) -> Optional[dict[str, Any]]:
         candidates = [item.raw for item in payload.target_files if item.path == target]
         if len(candidates) != 1 or candidates[0] is None:
             log.debug(
@@ -361,7 +480,7 @@ class RemoteConfigClient:
         return dict(
             client=dict(
                 id=self.id,
-                products=list(self._products.keys()),
+                products=list(self._product_callbacks.keys()),
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
@@ -403,20 +522,18 @@ class RemoteConfigClient:
         return state
 
     @staticmethod
-    def _apply_callback(
-        list_callbacks: List[PubSub],
-        callback: PubSub,
+    def _accumulate_payload(
+        payload_list: list[Payload],
         config_content: PayloadType,
         target: str,
         config_metadata: ConfigMetadata,
     ) -> None:
-        callback.append(config_content, target, config_metadata)
-        if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
-            list_callbacks.append(callback)
+        """Accumulate a payload to be published to the global connector."""
+        payload_list.append(Payload(config_metadata, target, config_content))
 
     def _remove_previously_applied_configurations(
         self,
-        list_callbacks: List[PubSub],
+        payload_list: list[Payload],
         applied_configs: AppliedConfigType,
         client_configs: TargetsType,
         targets: TargetsType,
@@ -432,25 +549,25 @@ class RemoteConfigClient:
             else:
                 continue
 
-            callback = self._products.get(config.product_name)
-            if callback:
+            # Check if product is registered
+            if config.product_name in self._product_callbacks:
                 try:
                     log.debug("[%s][P: %s] Disabling configuration: %s", os.getpid(), os.getppid(), target)
-                    self._apply_callback(list_callbacks, callback, callback_action, target, config)
+                    self._accumulate_payload(payload_list, callback_action, target, config)
                 except Exception:
                     log.debug("error while removing product %s config %r", config.product_name, config)
                     continue
 
     def _load_new_configurations(
         self,
-        list_callbacks: List[PubSub],
+        payload_list: list[Payload],
         applied_configs: AppliedConfigType,
         client_configs: TargetsType,
         payload: AgentPayload,
     ) -> None:
         for target, config in client_configs.items():
-            callback = self._products.get(config.product_name)
-            if callback:
+            # Check if product is registered
+            if config.product_name in self._product_callbacks:
                 applied_config = self._applied_configs.get(target)
                 if applied_config == config:
                     continue
@@ -460,7 +577,7 @@ class RemoteConfigClient:
 
                 try:
                     log.debug("[%s][P: %s] Load new configuration: %s. content", os.getpid(), os.getppid(), target)
-                    self._apply_callback(list_callbacks, callback, config_content, target, config)
+                    self._accumulate_payload(payload_list, config_content, target, config)
                 except Exception:
                     error_message = "Failed to apply configuration %s for product %r" % (config, config.product_name)
                     log.debug(error_message, exc_info=True)
@@ -488,7 +605,7 @@ class RemoteConfigClient:
             self.cached_target_files = []
 
     def _validate_config_exists_in_target_paths(
-        self, payload_client_configs: Set[str], payload_target_files: List[TargetFile]
+        self, payload_client_configs: set[str], payload_target_files: list[TargetFile]
     ) -> None:
         paths = {_.path for _ in payload_target_files}
         paths = paths.union({_["path"] for _ in self.cached_target_files})
@@ -499,7 +616,7 @@ class RemoteConfigClient:
 
     @staticmethod
     def _validate_signed_target_files(
-        payload_target_files: List[TargetFile], payload_targets_signed: Targets, client_configs: TargetsType
+        payload_target_files: list[TargetFile], payload_targets_signed: Targets, client_configs: TargetsType
     ) -> None:
         for target in payload_target_files:
             if (payload_targets_signed.targets and not payload_targets_signed.targets.get(target.path)) and (
@@ -509,11 +626,20 @@ class RemoteConfigClient:
                     "target file %s not exists in client_config and signed targets" % (target.path,)
                 )
 
-    def _publish_configuration(self, list_callbacks: List[PubSub]) -> None:
-        for callback_to_dispach in list_callbacks:
-            callback_to_dispach.publish()
+    def _publish_configuration(self, payload_list: list[Payload]) -> None:
+        """Publish all accumulated payloads to the global connector."""
+        if not payload_list:
+            return
 
-    def _process_targets(self, payload: AgentPayload) -> Tuple[Optional[int], Optional[str], Optional[TargetsType]]:
+        log.debug(
+            "[%s][P: %s] Publishing %d payloads to global connector",
+            os.getpid(),
+            os.getppid(),
+            len(payload_list),
+        )
+        self._global_connector.write(payload_list)
+
+    def _process_targets(self, payload: AgentPayload) -> tuple[Optional[int], Optional[str], Optional[TargetsType]]:
         if payload.targets is None:
             # no targets received
             return None, None, None
@@ -564,13 +690,14 @@ class RemoteConfigClient:
 
         # 2. Remove previously applied configurations
         applied_configs: AppliedConfigType = dict()
-        list_callbacks: List[PubSub] = []
-        self._remove_previously_applied_configurations(list_callbacks, applied_configs, client_configs, targets)
+        payload_list: list[Payload] = []
+        self._remove_previously_applied_configurations(payload_list, applied_configs, client_configs, targets)
 
         # 3. Load new configurations
-        self._load_new_configurations(list_callbacks, applied_configs, client_configs, payload)
+        self._load_new_configurations(payload_list, applied_configs, client_configs, payload)
 
-        self._publish_configuration(list_callbacks)
+        # 4. Publish all payloads to the global connector
+        self._publish_configuration(payload_list)
 
         self._last_targets_version = last_targets_version
         self._applied_configs = applied_configs

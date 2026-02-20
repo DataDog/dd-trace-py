@@ -3,7 +3,6 @@ import sys
 import sysconfig
 import time
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import httpretty
@@ -164,7 +163,7 @@ import opentelemetry
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
-        {"name": "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
+        {"name": "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", "origin": "default", "value": 0.5},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
@@ -308,6 +307,7 @@ import opentelemetry
         {"name": "DD_PROFILING_PYTORCH_EVENTS_LIMIT", "origin": "default", "value": 1000000},
         {"name": "DD_PROFILING_SAMPLE_POOL_CAPACITY", "origin": "default", "value": 4},
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_PROFILING_STACK_UVLOOP", "origin": "default", "value": True},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
         {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
@@ -738,8 +738,7 @@ def test_send_failing_request(mock_status, telemetry_writer):
                 )
 
 
-def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
+def test_app_heartbeat_event_periodic(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that we queue/send app-heartbeat when periodc() is called"""
     # Ensure telemetry writer is initialized to send periodic events
     telemetry_writer._is_periodic = True
@@ -759,8 +758,7 @@ def test_app_heartbeat_event_periodic(mock_time, telemetry_writer, test_agent_se
     assert len(heartbeat_events) == 1
 
 
-def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
+def test_app_heartbeat_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that we queue/send app-heartbeat event every 60 seconds when app_heartbeat_event() is called"""
     # Assert a maximum of one heartbeat is queued per flush
     telemetry_writer.periodic(force_flush=True)
@@ -768,8 +766,7 @@ def test_app_heartbeat_event(mock_time, telemetry_writer, test_agent_session):
     assert len(events) > 0
 
 
-def test_app_product_change_event(mock_time, telemetry_writer, test_agent_session):
-    # type: (mock.Mock, Any, Any) -> None
+def test_app_product_change_event(mock_time: mock.Mock, telemetry_writer: Any, test_agent_session: Any) -> None:
     """asserts that enabling or disabling an APM Product triggers a valid telemetry request"""
 
     # Assert that the default product status is disabled
@@ -807,8 +804,7 @@ def test_app_product_change_event(mock_time, telemetry_writer, test_agent_sessio
     }
 
 
-def validate_request_body(received_body, payload, payload_type, seq_id=None):
-    # type: (Dict, Dict, str, Optional[int]) -> Dict
+def validate_request_body(received_body: dict, payload: dict, payload_type: str, seq_id: Optional[int] = None) -> dict:
     """used to test the body of requests received by the testagent"""
     assert len(received_body) == 9
     assert received_body["tracer_time"] == time.time()

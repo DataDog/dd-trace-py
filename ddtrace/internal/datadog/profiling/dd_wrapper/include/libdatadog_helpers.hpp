@@ -1,17 +1,21 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
-#include <variant>
 
 extern "C"
 {
-#include "datadog/profiling.h"
+#include "datadog/common.h"
 }
 
 namespace Datadog {
+
+std::optional<ddog_prof_StringId2>
+intern_string(std::string_view s);
 
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then
@@ -52,12 +56,12 @@ namespace Datadog {
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,
 
-enum class ExportTagKey
+enum class ExportTagKey : std::uint8_t
 {
     EXPORTER_TAGS(X_ENUM) Length_
 };
 
-enum class ExportLabelKey
+enum class ExportLabelKey : std::uint8_t
 {
     EXPORTER_LABELS(X_ENUM) Length_
 };
@@ -139,6 +143,18 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
 
     return add_tag(tags, key_sv, val, errmsg);
 }
+
+namespace internal {
+
+// Fork-safe cached interning for tag and label keys
+// Caches are stored in the ProfilerState singleton and reset on fork
+std::optional<ddog_prof_StringId2>
+to_interned_string(ExportTagKey key);
+
+std::optional<ddog_prof_StringId2>
+to_interned_string(ExportLabelKey key);
+
+} // namespace internal
 
 // Keep macros from propagating
 #undef X_STR

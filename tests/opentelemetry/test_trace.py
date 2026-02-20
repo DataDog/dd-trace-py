@@ -2,15 +2,11 @@ import mock
 import opentelemetry
 from opentelemetry.trace import set_span_in_context
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-import opentelemetry.version
 import pytest
 
-from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
-
-
-OTEL_VERSION = parse_version(opentelemetry.version.__version__)
 
 
 def test_otel_compatible_tracer_is_returned_by_tracer_provider():
@@ -231,3 +227,33 @@ def test_distributed_trace_with_flask_app(flask_client, oteltracer):  # noqa:F81
 
     assert resp.text == "otel"
     assert resp.status_code == 200
+
+
+@pytest.mark.snapshot(wait_for_num_traces=1)
+def test_otel_start_as_current_span_decorator(oteltracer):
+    """Test that the tracer.start_as_current_span decorator works as expected"""
+
+    @oteltracer.start_as_current_span("required-resource-name")
+    def tracer_wrap_with_resource_name():
+        pass
+
+    @oteltracer.start_as_current_span("with-operation-name", attributes={"operation.name": "my-operation"})
+    def tracer_wrap_with_operation_name():
+        pass
+
+    @oteltracer.start_as_current_span("with-service-name", attributes={"service.name": "my-service"})
+    def tracer_wrap_with_service():
+        pass
+
+    @oteltracer.start_as_current_span("with-manual-keep", attributes={"manual.keep": None})
+    def tracer_wrap_dd_keep_sampling():
+        pass
+
+    @oteltracer.start_as_current_span("with-child-spans")
+    def tracer_wrap_outer_no_args():
+        tracer_wrap_with_resource_name()
+        tracer_wrap_with_operation_name()
+        tracer_wrap_with_service()
+        tracer_wrap_dd_keep_sampling()
+
+    tracer_wrap_outer_no_args()
