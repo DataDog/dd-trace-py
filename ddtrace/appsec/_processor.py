@@ -304,6 +304,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return None
 
         try:
+            log.debug("[HERE HERE HERE], %s %s", ephemeral_data, data)
             waf_results = self._ddwaf.run(
                 ctx, data, ephemeral_data=ephemeral_data or None, timeout_ms=asm_config._waf_timeout
             )
