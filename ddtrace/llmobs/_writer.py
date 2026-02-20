@@ -334,6 +334,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     BULK_UPLOAD_TIMEOUT = 60.0
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
+    API_RETRY_ATTEMPTS = 3
 
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
@@ -372,9 +373,31 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         finally:
             conn.close()
 
+    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+        @fibonacci_backoff_with_jitter(
+            attempts=self.API_RETRY_ATTEMPTS,
+            initial_wait=0.5,
+            until=lambda result: isinstance(result, Response) and result.status < 500,
+        )
+        def _do_request():
+            return self.request(method, path, body, timeout)
+
+        return _do_request()
+
+    def _multipart_request_with_retry(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
+        @fibonacci_backoff_with_jitter(
+            attempts=self.API_RETRY_ATTEMPTS,
+            initial_wait=0.5,
+            until=lambda result: isinstance(result, Response) and result.status < 500,
+        )
+        def _do_request():
+            return self.multipart_request(method, path, content_type, body)
+
+        return _do_request()
+
     def dataset_delete(self, dataset_id: str) -> None:
         path = "/api/unstable/llm-obs/v1/datasets/delete"
-        resp = self.request(
+        resp = self._request_with_retry(
             "POST",
             path,
             body={
@@ -408,7 +431,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 "attributes": {"name": dataset_name, "description": description},
             }
         }
-        resp = self.request("POST", path, body)
+        resp = self._request_with_retry("POST", path, body)
         if resp.status != 200:
             raise ValueError(f"Failed to create dataset {dataset_name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
@@ -482,7 +505,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 },
             }
         }
-        resp = self.request("POST", path, body)
+        resp = self._request_with_retry("POST", path, body)
         if resp.status != 200:
             raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
         response_data = resp.get_json()
@@ -508,7 +531,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         )
 
         path = f"/api/v2/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
-        resp = self.request("GET", path)
+        resp = self._request_with_retry("GET", path)
         if resp.status != 200:
             raise ValueError(
                 f"Failed to pull dataset {dataset_name} from project {project_name} (id={project_id}): {resp.status}"
@@ -538,7 +561,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 for tag in tags:
                     list_path += f"&filter[tags]={tag}"
             logger.debug("list records page %d, request path=%s", page_num, list_path)
-            resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
+            resp = self._request_with_retry("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
                 raise ValueError(
                     f"Failed to pull dataset records for {dataset_name}, page={page_num}: "
@@ -621,7 +644,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             ]
         )
 
-        resp = self.multipart_request(
+        resp = self._multipart_request_with_retry(
             "POST", path, content_type="multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), body=body
         )
         if resp.status != 200:
@@ -640,7 +663,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             project_name = name
 
         path = "/api/unstable/llm-obs/v1/projects"
-        resp = self.request(
+        resp = self._request_with_retry(
             "POST",
             path,
             body={"data": {"type": "projects", "attributes": {"name": project_name, "description": ""}}},
@@ -739,7 +762,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         ensure_unique: bool = True,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
-        resp = self.request(
+        resp = self._request_with_retry(
             "POST",
             path,
             body={
@@ -770,7 +793,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
-        resp = self.request(
+        resp = self._request_with_retry(
             "POST",
             path,
             body={

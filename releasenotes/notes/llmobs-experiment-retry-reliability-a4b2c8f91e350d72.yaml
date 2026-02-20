@@ -1,0 +1,5 @@
+features:
+  - |
+    LLM Observability: adds automatic retry with fibonacci backoff for all
+    experiment API calls on 5xx/network errors. Adds ``max_retries`` parameter
+    to ``experiment.run()`` for retrying failed tasks and evaluators.
