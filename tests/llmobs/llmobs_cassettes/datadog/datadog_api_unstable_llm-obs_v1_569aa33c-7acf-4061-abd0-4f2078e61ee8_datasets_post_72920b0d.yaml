@@ -16,13 +16,13 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.32.3
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets
   response:
     body:
-      string: '{"data":{"id":"a672d64f-b809-4904-b518-4ccaac15391a","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"created_at":"2026-02-18T06:05:37.166291099Z","current_version":0,"description":"A
-        test dataset","name":"test-dataset-test_dataset_append[test_dataset_records0]","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","updated_at":"2026-02-18T06:05:37.166291099Z"}}}'
+      string: '{"data":{"id":"a14fa7c0-e16c-4781-800d-e37d61d8837d","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2026-02-20T04:45:15.195774505Z","current_version":0,"description":"A
+        test dataset","name":"test-dataset-test_dataset_append[test_dataset_records0]","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","updated_at":"2026-02-20T04:45:15.195774505Z"}}}'
     headers:
       content-length:
       - '402'
@@ -31,7 +31,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 18 Feb 2026 06:05:37 GMT
+      - Fri, 20 Feb 2026 04:45:15 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

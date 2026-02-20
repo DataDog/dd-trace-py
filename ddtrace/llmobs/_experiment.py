@@ -470,7 +470,7 @@ class ExperimentResult(TypedDict):
 class Dataset:
     name: str
     description: str
-    filter_tags: Optional[List[str]]
+    filter_tags: Optional[list[str]]
     _id: str
     _records: list[DatasetRecord]
     _version: int
@@ -492,7 +492,7 @@ class Dataset:
         latest_version: int,
         version: int,
         _dne_client: "LLMObsExperimentsClient",
-        filter_tags: Optional[List[str]] = None,
+        filter_tags: Optional[list[str]] = None,
     ) -> None:
         self.name = name
         self.project = project

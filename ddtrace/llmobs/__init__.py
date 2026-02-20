@@ -6,12 +6,12 @@ To start the service manually, invoke the ``enable`` method::
     LLMObs.enable()
 """
 
-from ddtrace.llmobs._evaluators import BaseAsyncEvaluator
-from ddtrace.llmobs._evaluators import BaseAsyncSummaryEvaluator
-from ddtrace.llmobs._evaluators import BaseEvaluator
-from ddtrace.llmobs._evaluators import BaseSummaryEvaluator
-from ddtrace.llmobs._evaluators import EvaluatorContext
-from ddtrace.llmobs._evaluators import SummaryEvaluatorContext
+from ddtrace.llmobs._experiment import BaseAsyncEvaluator
+from ddtrace.llmobs._experiment import BaseAsyncSummaryEvaluator
+from ddtrace.llmobs._experiment import BaseEvaluator
+from ddtrace.llmobs._experiment import BaseSummaryEvaluator
+from ddtrace.llmobs._experiment import EvaluatorContext
+from ddtrace.llmobs._experiment import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import EvaluatorResult
