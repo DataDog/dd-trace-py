@@ -230,7 +230,6 @@ StackRenderer::render_stack_end()
         return;
     }
 
-    sample->set_reverse_locations(true);
     sample->flush_sample();
     SampleManager::drop_sample(sample);
     sample = nullptr;
