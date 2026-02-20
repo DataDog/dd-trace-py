@@ -9,7 +9,6 @@ from typing import Union
 import azure.functions as azure_functions
 
 from ddtrace import config
-from ddtrace import tracer
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -17,7 +16,6 @@ from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_cloud_faas_operation
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -258,9 +256,6 @@ def wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_detai
 
 
 def patched_get_functions(wrapped, instance, args, kwargs):
-    if not (tracer.enabled or asm_config._apm_opt_out):
-        return wrapped(*args, **kwargs)
-
     try:
         import azure.durable_functions as durable_functions
 
