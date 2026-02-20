@@ -1196,9 +1196,7 @@ class LLMObs(Service):
         _validate_task_signature(task, is_async=False)
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
-        if not evaluators or not all(
-            callable(evaluator) or isinstance(evaluator, BaseEvaluator) or _is_deep_eval_evaluator(evaluator)
-            for evaluator in evaluators):
+        if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         for idx, evaluator in enumerate(evaluators):
             _validate_evaluator_signature(evaluator, is_async=False)
