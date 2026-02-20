@@ -88,6 +88,8 @@ components:
     - ddtrace/contrib/internal/futures/*
   gevent:
     - ddtrace/contrib/internal/gevent/*
+  google_cloud_pubsub:
+    - ddtrace/contrib/internal/google_cloud_pubsub/*
   graphql:
     - ddtrace/contrib/internal/graphql/*
   grpc:
@@ -727,6 +729,23 @@ suites:
     runner: riot
     snapshot: false
     venvs_per_job: 2
+  google_cloud_pubsub:
+    env:
+      TEST_PUBSUB_HOST: pubsub
+      TEST_PUBSUB_PORT: '8085'
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@google_cloud_pubsub'
+      - tests/contrib/google_cloud_pubsub/*
+      - tests/snapshots/tests.contrib.google_cloud_pubsub.*
+    runner: riot
+    services:
+      - pubsub
+    snapshot: true
+    venvs_per_job: 3
   graphql:graphene:
     parallelism: 1
     paths:

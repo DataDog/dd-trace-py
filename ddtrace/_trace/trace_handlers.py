@@ -1332,6 +1332,39 @@ def _on_aiokafka_getmany_message(
                     span.link_span(context)
 
 
+def _on_pubsub_send_start(
+    ctx: core.ExecutionContext,
+    project_id: str,
+    topic_id: str,
+    kwargs: dict,
+) -> None:
+    span = ctx.span
+
+    span._set_tag_str(COMPONENT, config.google_cloud_pubsub.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    span._set_tag_str("gcloud.project_id", project_id)
+    span._set_tag_str(MESSAGING_SYSTEM, "pubsub")
+    span._set_tag_str(MESSAGING_DESTINATION_NAME, topic_id)
+    span._set_tag_str(MESSAGING_OPERATION, "send")
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    if config.google_cloud_pubsub.distributed_tracing_enabled:
+        headers: dict[str, str] = {}
+        HTTPPropagator.inject(span.context, headers)
+        # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
+        kwargs.update({k: str(v) for k, v in headers.items()})
+
+
+def _on_pubsub_send_complete(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    message_id: Optional[str],
+) -> None:
+    if message_id is not None:
+        ctx.span._set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+    _finish_span(ctx, exc_info)
+
+
 def listen():
     # Import subscriber packages — triggers auto-registration via __init_subclass__
     import ddtrace._trace.subscribers.http_client  # noqa: F401
@@ -1401,6 +1434,8 @@ def listen():
     core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
+    core.on("google_cloud_pubsub.send.start", _on_pubsub_send_start)
+    core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1481,6 +1516,7 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "google_cloud_pubsub.send",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
