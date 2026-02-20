@@ -144,31 +144,6 @@ def _cache_file_and_lock() -> tuple[t.Optional[Path], t.Optional[Path]]:
         return None, None
 
 
-def _try_lock_nonblocking(lock_filename: str) -> bool:
-    """Try to acquire an exclusive non-blocking file lock.
-
-    Returns True if the lock was acquired, False otherwise.
-    The lock is released when the file is closed (on process exit or via GC).
-    """
-    try:
-        f = open(lock_filename, "a+b")  # noqa: SIM115
-    except OSError:
-        return False
-
-    if os.name == "nt":
-        f.close()
-        return False
-
-    try:
-        import fcntl
-
-        fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return True
-    except OSError:
-        f.close()
-        return False
-
-
 def _read_cached_json(cache_file: Path) -> str:
     try:
         data = cache_file.read_text(encoding="utf-8")
@@ -207,21 +182,29 @@ def _compute_json_str() -> str:
 
 
 def _read_or_compute_with_nonblocking_lock(cache_file: Path, lock_filename: str) -> str:
-    if not _try_lock_nonblocking(lock_filename):
+    try:
+        with open(lock_filename, "a+b") as f:
+            import fcntl
+
+            try:
+                fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                return ""
+
+            cached = _read_cached_json(cache_file)
+            if cached:
+                return cached
+
+            computed = _compute_json_str()
+            if computed:
+                try:
+                    _write_cached_json(cache_file, computed)
+                except OSError:
+                    pass
+
+            return computed
+    except OSError:
         return ""
-
-    cached = _read_cached_json(cache_file)
-    if cached:
-        return cached
-
-    computed = _compute_json_str()
-    if computed:
-        try:
-            _write_cached_json(cache_file, computed)
-        except OSError:
-            pass
-
-    return computed
 
 
 def json_str_to_export() -> str:
