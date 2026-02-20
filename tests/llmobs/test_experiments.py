@@ -83,7 +83,7 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
 # To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1771430149829292000
+MOCK_TIMESTAMP_NS = 1771602113367279000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -107,7 +107,7 @@ def mock_async_process_record():
                     "idx": 0,
                     "span_id": "123",
                     "trace_id": "456",
-                    "timestamp": int(time.time()) * 1000000000,
+                    "timestamp": MOCK_TIMESTAMP_NS,
                     "output": {"prompt": "What is the capital of France?"},
                     "metadata": {
                         "dataset_record_index": 0,
@@ -2047,7 +2047,7 @@ def test_experiment_run(llmobs, test_dataset_one_record):
             "idx": 0,
             "span_id": "123",
             "trace_id": "456",
-            "timestamp": int(time.time()) * 1000000000,
+            "timestamp": MOCK_TIMESTAMP_NS,
             "output": {"prompt": "What is the capital of France?"},
             "metadata": {
                 "dataset_record_index": 0,
@@ -2096,7 +2096,7 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
             "idx": 0,
             "span_id": "123",
             "trace_id": "456",
-            "timestamp": int(time.time()) * 1000000000,
+            "timestamp": MOCK_TIMESTAMP_NS,
             "output": {"prompt": "What is the capital of France?"},
             "metadata": {
                 "dataset_record_index": 0,
@@ -2143,7 +2143,7 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
             "idx": 0,
             "span_id": "123",
             "trace_id": "456",
-            "timestamp": int(time.time()) * 1000000000,
+            "timestamp": MOCK_TIMESTAMP_NS,
             "output": {"prompt": "What is the capital of France?"},
             "metadata": {
                 "dataset_record_index": 0,
