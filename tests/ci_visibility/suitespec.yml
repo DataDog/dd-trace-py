@@ -6,8 +6,6 @@ components:
     - ddtrace/ext/test.py
   dd_coverage:
     - ddtrace/internal/coverage/*
-  coverage_utils:
-    - ddtrace/contrib/internal/coverage/*
   pytest:
     - ddtrace/contrib/internal/pytest/*
     - ddtrace/contrib/internal/pytest_bdd/*
@@ -55,7 +53,6 @@ suites:
       - '@pytest'
       - '@ci_visibility'
       - '@coverage'
-      - '@coverage_utils'
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
@@ -76,7 +73,6 @@ suites:
       - '@pytest'
       - '@ci_visibility'
       - '@coverage'
-      - '@coverage_utils'
       - '@codeowners'
       - '@testing'
       - tests/testing/*
