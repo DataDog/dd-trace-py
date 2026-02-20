@@ -555,7 +555,9 @@ class Config(object):
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+        _native_config.set_128_bit_trace_id_enabled(
+            _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+        )
 
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
