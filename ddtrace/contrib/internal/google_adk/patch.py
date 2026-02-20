@@ -5,7 +5,6 @@ from typing import Union
 import google.adk as adk
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import check_module_path
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
@@ -198,7 +197,6 @@ def patch():
         return
 
     setattr(adk, "_datadog_patch", True)
-    Pin().onto(adk)
     integration: GoogleAdkIntegration = GoogleAdkIntegration(integration_config=config.google_adk)
     setattr(adk, "_datadog_integration", integration)
 

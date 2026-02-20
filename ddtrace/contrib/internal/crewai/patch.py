@@ -3,7 +3,6 @@ import sys
 import crewai
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
@@ -173,7 +172,6 @@ def patch():
 
     crewai._datadog_patch = True
 
-    Pin().onto(crewai)
     integration: CrewAIIntegration = CrewAIIntegration(integration_config=config.crewai)
     crewai._datadog_integration = integration
 
