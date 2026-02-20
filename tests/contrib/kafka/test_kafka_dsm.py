@@ -258,19 +258,20 @@ def test_data_streams_kafka_offset_backlog_has_cluster_id(
             consumer.commit(asynchronous=False, message=message)
 
     cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
-    # Only assert cluster_id tag if the test broker provides one
-    if cluster_id:
-        serialized = dsm_processor._serialize_buckets()
-        assert len(serialized) >= 1
-        backlogs = serialized[0].get("Backlogs", [])
-        commit_backlogs = [b for b in backlogs if "type:kafka_commit" in b["Tags"]]
-        produce_backlogs = [b for b in backlogs if "type:kafka_produce" in b["Tags"]]
-        assert len(commit_backlogs) >= 1, "Expected at least one kafka_commit backlog entry"
-        assert len(produce_backlogs) >= 1, "Expected at least one kafka_produce backlog entry"
-        for cb in commit_backlogs:
-            assert "kafka_cluster_id:" + cluster_id in cb["Tags"]
-        for pb in produce_backlogs:
-            assert "kafka_cluster_id:" + cluster_id in pb["Tags"]
+    if not cluster_id:
+        pytest.skip("Test broker does not provide cluster_id")
+
+    serialized = dsm_processor._serialize_buckets()
+    assert len(serialized) >= 1
+    backlogs = serialized[0].get("Backlogs", [])
+    commit_backlogs = [b for b in backlogs if "type:kafka_commit" in b["Tags"]]
+    produce_backlogs = [b for b in backlogs if "type:kafka_produce" in b["Tags"]]
+    assert len(commit_backlogs) >= 1, "Expected at least one kafka_commit backlog entry"
+    assert len(produce_backlogs) >= 1, "Expected at least one kafka_produce backlog entry"
+    for cb in commit_backlogs:
+        assert "kafka_cluster_id:" + cluster_id in cb["Tags"]
+    for pb in produce_backlogs:
+        assert "kafka_cluster_id:" + cluster_id in pb["Tags"]
 
 
 def test_data_streams_default_context_propagation(consumer, producer, kafka_topic):

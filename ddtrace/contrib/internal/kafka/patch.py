@@ -313,7 +313,8 @@ def traced_commit(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    # Fetch cluster_id for offset tracking -- try cache first, then extract topic from args
+    # Fetch cluster_id for offset tracking -- try cache first, then extract topic from args.
+    # Any topic suffices for _get_cluster_id because cluster_id is per-cluster, not per-topic.
     cluster_id = getattr(instance, "_dd_cluster_id", None)
     if not cluster_id:
         message = get_argument_value(args, kwargs, 0, "message", optional=True)
@@ -323,7 +324,7 @@ def traced_commit(func, instance, args, kwargs):
             offsets = get_argument_value(args, kwargs, 1, "offsets", optional=True)
             if offsets:
                 cluster_id = _get_cluster_id(instance, offsets[0].topic)
-    core.set_item("kafka_cluster_id", cluster_id)
+    core.set_item("kafka_cluster_id", cluster_id or "")
 
     core.dispatch("kafka.commit.start", (instance, args, kwargs))
     return func(*args, **kwargs)
