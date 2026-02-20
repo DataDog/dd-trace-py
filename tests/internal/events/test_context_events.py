@@ -21,20 +21,17 @@ def reset_event_hub():
 def test_basic_context_event():
     """Test that context start and end listeners are called for a context event."""
 
-    started = False
-    ended = False
+    called = []
 
     @dataclass
     class TestContextEvent(Event):
         event_name = "test.event"
 
     def on_context_started(ctx: core.ExecutionContext):
-        nonlocal started
-        started = True
+        called.append(f"{TestContextEvent.event_name}.started")
 
     def on_context_ended(ctx: core.ExecutionContext, err_info: Any):
-        nonlocal ended
-        ended = True
+        called.append(f"{TestContextEvent.event_name}.ended")
 
     core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
     core.on(f"context.ended.{TestContextEvent.event_name}", on_context_ended)
@@ -42,8 +39,9 @@ def test_basic_context_event():
     with core.context_with_event(TestContextEvent()):
         pass
 
-    assert started is True
-    assert ended is True
+    assert called == [f"{TestContextEvent.event_name}.started", f"{TestContextEvent.event_name}.ended"], (
+        "event should trigger started then ended handlers in order; got %r" % (called,)
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
@@ -52,8 +50,7 @@ def test_context_event_enforce_kwargs_error():
     On Python 3.9, we create a default value to every attributes because kw_only
     is not available in dataclass field. Therefore we skip the test
     """
-    started = False
-    ended = False
+    called = []
 
     @dataclass
     class TestContextEvent(Event):
@@ -62,15 +59,13 @@ def test_context_event_enforce_kwargs_error():
         bar: int = event_field()
 
     def on_context_started(cls, ctx: core.ExecutionContext) -> None:
-        nonlocal started
-        started = True
+        called.append("started")
 
     def on_context_ended(
         ctx: core.ExecutionContext,
         exc_info: Any,
     ) -> None:
-        nonlocal ended
-        ended = True
+        called.append("ended")
 
     core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
     core.on(f"context.ended.{TestContextEvent.event_name}", on_context_ended)
@@ -79,15 +74,12 @@ def test_context_event_enforce_kwargs_error():
         with core.context_with_event(TestContextEvent(foo="toto")):
             pass
 
-    assert started is False
-    assert ended is False
+    assert called == [], "event should not be dispatched when required event args are missing; got %r" % (called,)
 
 
 def test_context_event_event_field():
     """Test that event_field with in_context=True stores data in context."""
-    not_in_context_value = -1
-    foo = ""
-    with_default = ""
+    called = []
 
     @dataclass
     class TestContextEvent(Event):
@@ -97,22 +89,22 @@ def test_context_event_event_field():
         not_in_context: InitVar[int] = event_field()
 
         def __post_init__(self, not_in_context):
-            nonlocal not_in_context_value
-            not_in_context_value = not_in_context
+            called.append(not_in_context)
 
     def on_context_started(ctx: core.ExecutionContext) -> None:
-        nonlocal foo, with_default
         event: TestContextEvent = ctx.event
-        foo = event.foo
-        with_default = event.with_default
+        called.append(event.foo)
+        called.append(event.with_default)
 
-        assert getattr(event, "not_in_context", None) is None
+        assert getattr(event, "not_in_context", None) is None, (
+            "InitVar field marked out of context should not be present on context event"
+        )
 
     core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
 
     with core.context_with_event(TestContextEvent(foo="toto", not_in_context=0)):
         pass
 
-    assert not_in_context_value == 0
-    assert foo == "toto"
-    assert with_default == "test"
+    assert called == [0, "toto", "test"], (
+        "event field values should include InitVar payload and context attrs; got %r" % (called,)
+    )

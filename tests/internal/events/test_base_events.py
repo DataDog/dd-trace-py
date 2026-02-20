@@ -29,47 +29,45 @@ class TestEventWithAttributes(Event):
 def test_dispatch_event():
     """Test that dispatch_event triggers listeners for a basic event."""
 
-    event_name = ""
+    called = []
 
     def on_event(event_instance: TestEvent):
-        nonlocal event_name
-        event_name = event_instance.event_name
+        called.append(event_instance.event_name)
 
     core.on(TestEvent.event_name, on_event)
     core.dispatch_event(TestEvent())
 
-    assert event_name == TestEvent.event_name
+    assert called == [TestEvent.event_name], (
+        "dispatching an event should call the handler once with the event name; got %r" % (called,)
+    )
 
 
 def test_dispatch_event_using_attributes():
     """Test that event attributes are passed to listeners when dispatched."""
 
-    foo = ""
-    bar = -1
+    called = []
 
     def on_event(event_instance: TestEventWithAttributes):
-        nonlocal foo, bar
-        foo = event_instance.foo
-        bar = event_instance.bar
+        called.append(event_instance.foo)
+        called.append(event_instance.bar)
 
     core.on(TestEventWithAttributes.event_name, on_event)
     core.dispatch_event(TestEventWithAttributes(foo="test", bar=0))
 
-    assert foo == "test"
-    assert bar == 0
+    assert called == ["test", 0], "event attributes are wrongy populated; got %r" % (called,)
 
 
 def test_dispatch_event_missing_attribute():
     """Test that creating an event with a missing required field raises TypeError."""
 
-    called = False
+    called = []
 
     def on_event(event_instance: TestEventWithAttributes):
-        nonlocal called
-        called = True
+        called.append(event_instance.foo)
+        called.append(event_instance.bar)
 
     core.on(TestEventWithAttributes.event_name, on_event)
     with pytest.raises(TypeError):
         core.dispatch_event(TestEventWithAttributes(foo="test"))
 
-    assert called is False
+    assert called == [], "event should not be dispatched when required event args are missing; got %r" % (called,)

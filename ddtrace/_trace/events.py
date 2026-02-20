@@ -24,7 +24,7 @@ class TracingEvent(Event):
     span_name: str = field(init=False)
     component: str = field()
 
-    tags: dict[str, str] = field(default_factory=dict, init=False)
+    tags: dict[str, str] = field(default_factory=dict)
     # if False, handlers should not finish a span when the Context finishes.
     _end_span: bool = field(default=True, init=False)
 
@@ -34,4 +34,5 @@ class TracingEvent(Event):
     service: Optional[str] = None
     distributed_context: Optional["ActiveTrace"] = None  # if set, use the context as parent
     resource: Optional[str] = None
-    measured: bool = False
+    measured: bool = True
+    activate_distributed_headers: bool = False
