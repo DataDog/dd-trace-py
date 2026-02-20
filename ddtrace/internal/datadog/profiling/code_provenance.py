@@ -123,19 +123,13 @@ def _safe_mtime_ns(path: t.Optional[str]) -> str:
 
 def _cache_basename() -> str:
     purelib = sysconfig.get_path("purelib")
-    stdlib = sysconfig.get_path("stdlib")
     main_package = os.getenv("DD_MAIN_PACKAGE", "")
     data = "\x00".join(
         (
             _CODE_PROVENANCE_CACHE_VERSION,
-            platform.python_version(),
-            sys.executable,
             sys.prefix,
             main_package,
-            purelib or "",
-            stdlib or "",
             _safe_mtime_ns(purelib),
-            _safe_mtime_ns(stdlib),
         )
     )
     digest = hashlib.sha256(data.encode("utf-8")).hexdigest()
