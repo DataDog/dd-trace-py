@@ -408,6 +408,7 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
 
 class DatasetRecord(DatasetRecordRaw):
     record_id: str
+    canonical_id: Optional[str]
 
 
 class TaskResult(TypedDict):
@@ -555,7 +556,7 @@ class Dataset:
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
-            new_version, new_record_ids = self._dne_client.dataset_batch_update(
+            new_version, new_record_ids, new_canonical_ids = self._dne_client.dataset_batch_update(
                 dataset_id=self._id,
                 project_id=self.project.get("_id"),
                 insert_records=list(self._new_records_by_record_id.values()),
@@ -573,8 +574,10 @@ class Dataset:
             # delete() call treats them as local-only rather than sending the non-deterministic
             # placeholder id to the server as a delete_record_id.
             pending_keys = list(self._new_records_by_record_id.keys())
-            for key, record_id in zip(pending_keys, new_record_ids):
+            for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
                 self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
+                if canonical_id:  # avoid overriding if not present in response
+                    self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
                 del self._new_records_by_record_id[key]
 
             data_changed = len(new_record_ids) > 0
@@ -613,7 +616,7 @@ class Dataset:
         record_id: str = uuid.uuid4().hex
         # this record ID will be discarded after push, BE will generate a new one, this is just
         # for tracking new records locally before the push
-        r: DatasetRecord = {**record, "record_id": record_id}
+        r: DatasetRecord = {**record, "record_id": record_id, "canonical_id": None}
         # keep the same reference in both lists to enable us to update the record_id after push
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
@@ -1073,12 +1076,15 @@ class Experiment:
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
+                canonical_id = record.get("canonical_id")
                 tags = {
                     **self._tags,
                     "dataset_id": str(self._dataset._id),
                     "dataset_record_id": str(record_id),
                     "experiment_id": str(self._id),
                 }
+                if canonical_id:
+                    tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 try:
                     if asyncio.iscoroutinefunction(self._task):

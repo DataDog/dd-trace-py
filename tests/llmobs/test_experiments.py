@@ -654,6 +654,8 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     assert dataset.description == test_dataset_one_record.description
     assert dataset.latest_version == test_dataset_one_record.latest_version == 1
     assert dataset.version == test_dataset_one_record.version == 1
+    assert dataset[0]["record_id"] != ""
+    assert dataset[0]["canonical_id"]
 
 def test_dataset_pull_with_tags(llmobs, test_dataset_one_record_with_tags):
     """Test that pull_dataset properly passes tags parameter and filters records by tags."""
@@ -1062,7 +1064,7 @@ def test_dataset_estimate_size(llmobs, test_dataset):
             "expected_output": {"answer": "Paris"},
         }
     )
-    assert 170 <= test_dataset._estimate_delta_size() <= 200
+    assert 200 <= test_dataset._estimate_delta_size() <= 220
 
 
 @pytest.mark.parametrize(
@@ -2147,6 +2149,7 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
 
 
 def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
+    test_dataset_one_record_w_metadata._records[0]["canonical_id"] = "some-id"
     """Assert that the experiment span includes expected output field and includes the experiment scope."""
     exp = llmobs.experiment(
         "test_experiment",
@@ -2171,6 +2174,10 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert "experiment_name:test_experiment" in event["tags"]
     assert "dataset_id:{}".format(test_dataset_one_record_w_metadata._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record_w_metadata._records[0]["record_id"]) in event["tags"]
+    assert (
+        "dataset_record_canonical_id:{}".format(test_dataset_one_record_w_metadata._records[0]["canonical_id"])
+        in event["tags"]
+    )
     assert "experiment_id:1234567890" in event["tags"]
     assert f"run_id:{DUMMY_EXPERIMENT_FIRST_RUN_ID}" in event["tags"]
     assert "run_iteration:1" in event["tags"]

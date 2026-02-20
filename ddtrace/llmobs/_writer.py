@@ -458,7 +458,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         delete_record_ids: list[str],
         deduplicate: bool = True,
         create_new_version: bool = True,
-    ) -> tuple[int, list[str]]:
+    ) -> tuple[int, list[str], list[Optional[str]]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
         path = f"/api/v2/llm-obs/v1/{project_id}/datasets/{dataset_id}/batch_update"
@@ -484,7 +484,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
-        return new_version, new_record_ids
+        new_canonical_ids: list[Optional[str]] = [r["attributes"].get("canonical_id") for r in data] if data else []
+        return new_version, new_record_ids, new_canonical_ids
 
     def dataset_get_with_records(
         self,
@@ -540,15 +541,15 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
             for record in records_data.get("data", []):
                 attrs = record.get("attributes", {})
-                class_records.append(
-                    {
-                        "record_id": record["id"],
-                        "input_data": attrs["input"],
-                        "expected_output": attrs.get("expected_output"),
-                        "metadata": attrs.get("metadata", {}),
-                        "tags": attrs.get("tags", []),
-                    }
-                )
+                dataset_record: DatasetRecord = {
+                    "record_id": record["id"],
+                    "canonical_id": attrs.get("canonical_id"),
+                    "input_data": attrs["input"],
+                    "expected_output": attrs.get("expected_output"),
+                    "metadata": attrs.get("metadata", {}),
+                    "tags": attrs.get("tags", []),
+                }
+                class_records.append(dataset_record)
             next_cursor = records_data.get("meta", {}).get("after")
 
             url_options = {}
