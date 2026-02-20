@@ -1201,7 +1201,6 @@ def test_top_c_frame_detection_numpy_nested() -> None:
 
     all_files_for_pid = sorted([x for x in os.listdir(tmp_path) if ".pprof" in x])
     parent_files = [str(tmp_path / f) for f in all_files_for_pid if f".{str(os.getpid())}." in f]
-    print(f"Parent files: {parent_files}")
     profiles = [pprof_utils.parse_profile(f) for f in parent_files]
     profile = pprof_utils.merge_profiles(profiles)
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
