@@ -969,7 +969,6 @@ def test_top_c_frame_detection(tmp_path: Path) -> None:
     )
 
 
-FILE_NAME = os.path.basename(__file__)
 
 
 def loc(function_name: str, filename: str = FILE_NAME, line_no: int = -1) -> pprof_utils.StackLocation:
@@ -990,7 +989,7 @@ def test_top_c_frame_detection_hashlib() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1051,7 +1050,7 @@ def test_top_c_frame_detection_hashlib_kwarg() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1115,7 +1114,7 @@ def test_top_c_frame_detection_numpy_flat() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1182,7 +1181,7 @@ def test_top_c_frame_detection_numpy_nested() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1244,7 +1243,7 @@ def test_top_c_frame_detection_zlib() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1299,7 +1298,7 @@ def test_top_c_frame_detection_sorted_builtin() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1354,7 +1353,7 @@ def test_top_c_frame_detection_list_sort_method() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1411,7 +1410,7 @@ def test_top_c_frame_detection_regex_method() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1472,7 +1471,7 @@ def test_top_c_frame_detection_expression_arg() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1534,7 +1533,7 @@ def test_top_c_frame_detection_nested_c_calls() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1597,7 +1596,7 @@ def test_top_c_frame_detection_call_kw() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1656,7 +1655,7 @@ def test_top_c_frame_detection_many_args() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1714,7 +1713,7 @@ def test_top_c_frame_detection_method_two_args() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1774,7 +1773,7 @@ def test_top_c_frame_detection_method_on_literal() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
@@ -1835,7 +1834,7 @@ def test_top_c_frame_detection_sequential_calls() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
 
-    FILE_NAME = os.path.basename(__file__)
+    FILE_NAME = "test_stack.py"
 
     def loc(function_name, filename=FILE_NAME, line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
