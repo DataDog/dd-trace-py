@@ -3228,6 +3228,24 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_cloud_pubsub",
+            command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
+            venvs=[
+                Venv(
+                    pys=select_pys(max_version="3.12"),
+                    pkgs={
+                        "google-cloud-pubsub": ["==2.25.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.13"),
+                    pkgs={
+                        "google-cloud-pubsub": [latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="azure_eventhubs",
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),
