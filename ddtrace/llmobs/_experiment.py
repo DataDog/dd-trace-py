@@ -24,11 +24,9 @@ import uuid
 
 try:
     from deepeval.metrics import BaseMetric, BaseConversationalMetric
-    from deepeval.test_case import LLMTestCase
 except ImportError:
     BaseMetric = None  # type: ignore[misc, assignment]
     BaseConversationalMetric = None  # type: ignore[misc, assignment]
-    LLMTestCase = None  # type: ignore[misc, assignment]
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
@@ -428,6 +426,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
         :param evaluator: The deep eval evaluator to run
         :return: A callable function that can be used as an evaluator
         """
+        from deepeval.test_case import LLMTestCase
         def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
             """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
             

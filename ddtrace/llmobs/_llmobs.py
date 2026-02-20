@@ -15,13 +15,6 @@ from typing import Sequence
 from typing import Union
 from typing import cast
 
-try:
-    import deepeval
-    from deepeval.metrics import BaseMetric, BaseConversationalMetric
-except ImportError:
-    BaseMetric = None  # type: ignore[misc, assignment]
-    BaseConversationalMetric = None  # type: ignore[misc, assignment]
-
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
@@ -121,6 +114,7 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
+from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
@@ -205,10 +199,11 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
     if is_async:
         # async experiment allows both sync and async evaluators
         valid_base_classes = (BaseEvaluator, BaseAsyncEvaluator)
-    if BaseMetric is not None and BaseConversationalMetric is not None:
-        valid_base_classes = valid_base_classes + (BaseMetric, BaseConversationalMetric)
-
+    
     if isinstance(evaluator, valid_base_classes):
+        return
+
+    if _is_deep_eval_evaluator(evaluator):
         return
 
     if not callable(evaluator):
@@ -1202,12 +1197,12 @@ class LLMObs(Service):
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(
-            callable(evaluator) or isinstance(evaluator, BaseEvaluator) or (BaseMetric is not None and isinstance(evaluator, BaseMetric)) or (BaseConversationalMetric is not None and isinstance(evaluator, BaseConversationalMetric)) for evaluator in evaluators
-        ):
+            callable(evaluator) or isinstance(evaluator, BaseEvaluator) or _is_deep_eval_evaluator(evaluator)
+            for evaluator in evaluators):
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
         for idx, evaluator in enumerate(evaluators):
             _validate_evaluator_signature(evaluator, is_async=False)
-            if BaseMetric is not None and BaseConversationalMetric is not None and (isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)):
+            if _is_deep_eval_evaluator(evaluator):
                 evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator, is_async=False)
                 continue
         if summary_evaluators and not all(
@@ -1284,7 +1279,7 @@ class LLMObs(Service):
             )
         for idx, evaluator in enumerate(evaluators):
             _validate_evaluator_signature(evaluator, is_async=True)
-            if BaseMetric is not None and BaseConversationalMetric is not None and (isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)):
+            if _is_deep_eval_evaluator(evaluator):
                 evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator, is_async=True)
                 continue
         if summary_evaluators:
