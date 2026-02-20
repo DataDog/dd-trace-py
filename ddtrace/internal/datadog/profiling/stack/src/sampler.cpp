@@ -299,10 +299,13 @@ Sampler::restart_after_fork()
 static void
 _stack_postfork_cleanup()
 {
+    // Update PID in Echion
     _set_pid(getpid());
+
+    // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
     ThreadSpanLinks::postfork_child();
 
-    // Clear renderer caches to avoid using stale interned IDs
+    // Clear Sampler state (reset locks, clear mappings, etc.)
     Sampler::get().postfork_child();
 }
 
@@ -317,7 +320,7 @@ _stack_atfork_child()
 }
 
 __attribute__((constructor)) void
-_stack_init()
+stack_init()
 {
     // At just do start-of-process cleanup (e.g., set PID)
     _stack_postfork_cleanup();
