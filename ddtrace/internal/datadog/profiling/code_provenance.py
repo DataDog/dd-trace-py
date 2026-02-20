@@ -108,7 +108,7 @@ class CodeProvenance:
 
 _CODE_PROVENANCE_CACHE_PREFIX = "ddtrace-code-provenance"
 _CODE_PROVENANCE_CACHE_VERSION = "v1"
-_in_memory_code_provenance_json: t.Optional[str] = None
+_code_provenance_file_path: t.Optional[str] = None
 
 
 def _safe_mtime_ns(path: t.Optional[str]) -> str:
@@ -144,21 +144,21 @@ def _cache_file_and_lock() -> tuple[t.Optional[Path], t.Optional[Path]]:
         return None, None
 
 
-def _read_cached_json(cache_file: Path) -> str:
+def _is_valid_cache_file(cache_file: Path) -> bool:
     try:
         data = cache_file.read_text(encoding="utf-8")
     except OSError:
-        return ""
+        return False
 
     if not data:
-        return ""
+        return False
 
     try:
         json.loads(data)
     except (TypeError, ValueError):
-        return ""
+        return False
 
-    return data
+    return True
 
 
 def _write_cached_json(cache_file: Path, data: str) -> None:
@@ -181,7 +181,18 @@ def _compute_json_str() -> str:
     return json.dumps(cp.to_dict())
 
 
-def _read_or_compute_with_nonblocking_lock(cache_file: Path, lock_filename: str) -> str:
+def _compute_and_write(cache_file: Path) -> bool:
+    computed = _compute_json_str()
+    if not computed:
+        return False
+    try:
+        _write_cached_json(cache_file, computed)
+        return True
+    except OSError:
+        return False
+
+
+def _ensure_cache_file(cache_file: Path, lock_filename: str) -> bool:
     try:
         with open(lock_filename, "a+b") as f:
             import fcntl
@@ -189,44 +200,28 @@ def _read_or_compute_with_nonblocking_lock(cache_file: Path, lock_filename: str)
             try:
                 fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except OSError:
-                return ""
+                return False
 
-            cached = _read_cached_json(cache_file)
-            if cached:
-                return cached
+            if _is_valid_cache_file(cache_file):
+                return True
 
-            computed = _compute_json_str()
-            if computed:
-                try:
-                    _write_cached_json(cache_file, computed)
-                except OSError:
-                    pass
-
-            return computed
+            return _compute_and_write(cache_file)
     except OSError:
-        return ""
+        return False
 
 
-def json_str_to_export() -> str:
-    global _in_memory_code_provenance_json
+def get_code_provenance_file() -> t.Optional[str]:
+    global _code_provenance_file_path
 
-    if _in_memory_code_provenance_json:
-        return _in_memory_code_provenance_json
+    if _code_provenance_file_path:
+        return _code_provenance_file_path
 
     cache_file, lock_file = _cache_file_and_lock()
-    if cache_file is not None:
-        cached = _read_cached_json(cache_file)
-        if cached:
-            _in_memory_code_provenance_json = cached
-            return cached
+    if cache_file is None or lock_file is None:
+        return None
 
-        if lock_file is not None:
-            computed_or_cached = _read_or_compute_with_nonblocking_lock(cache_file, str(lock_file))
-            if computed_or_cached:
-                _in_memory_code_provenance_json = computed_or_cached
-            return computed_or_cached
+    if _is_valid_cache_file(cache_file) or _ensure_cache_file(cache_file, str(lock_file)):
+        _code_provenance_file_path = str(cache_file)
+        return _code_provenance_file_path
 
-    computed = _compute_json_str()
-    if computed:
-        _in_memory_code_provenance_json = computed
-    return computed
+    return None

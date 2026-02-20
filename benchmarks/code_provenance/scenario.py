@@ -1,7 +1,7 @@
 """
 Benchmark code provenance generation across forked child processes.
 
-Each child process calls json_str_to_export() and exits.
+Each child process calls get_code_provenance_file() and exits.
 The master process forks and waits for each child sequentially.
 """
 
@@ -25,9 +25,9 @@ class CodeProvenanceFork(bm.Scenario):
                 if pid == 0:
                     # child
                     try:
-                        from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
+                        from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
 
-                        json_str_to_export()
+                        get_code_provenance_file()
                     finally:
                         os._exit(0)
                 else:
