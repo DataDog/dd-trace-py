@@ -406,7 +406,9 @@ class LLMObs(Service):
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         metadata = span._get_ctx_item(METADATA) or {}
         if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
-            metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
+            metadata_dd = metadata.get("_dd") or {}
+            metadata_dd["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
+            metadata["_dd"] = metadata_dd
         meta["metadata"] = metadata
 
         input_type: Literal["value", "messages", ""] = ""

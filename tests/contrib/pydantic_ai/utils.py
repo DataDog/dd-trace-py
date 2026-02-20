@@ -23,14 +23,16 @@ def expected_foo_tool():
 
 def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> dict:
     metadata = {
-        "agent_manifest": {
-            "framework": "PydanticAI",
-            "name": "test_agent",
-            "model": "gpt-4o",
-            "model_settings": model_settings,
-            "instructions": instructions,
-            "system_prompts": (system_prompt,) if system_prompt else (),
-            "tools": tools if tools is not None else [],
+        "_dd": {
+            "agent_manifest": {
+                "framework": "PydanticAI",
+                "name": "test_agent",
+                "model": "gpt-4o",
+                "model_settings": model_settings,
+                "instructions": instructions,
+                "system_prompts": (system_prompt,) if system_prompt else (),
+                "tools": tools if tools is not None else [],
+            }
         }
     }
     return metadata

@@ -331,9 +331,9 @@ class TestLangGraphLLMObs:
             "tools": [],
         }
 
-        assert agent_a_span["meta"]["metadata"]["agent_manifest"] == expected_agent_a_manifest
-        assert conditional_agent_span["meta"]["metadata"]["agent_manifest"] == expected_conditional_agent_manifest
-        assert agent_d_span["meta"]["metadata"]["agent_manifest"] == expected_agent_d_manifest
+        assert agent_a_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_a_manifest
+        assert conditional_agent_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_conditional_agent_manifest
+        assert agent_d_span["meta"]["metadata"]["_dd"]["agent_manifest"] == expected_agent_d_manifest
 
     @pytest.mark.skipif(
         LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
