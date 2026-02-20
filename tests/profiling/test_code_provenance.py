@@ -1,8 +1,6 @@
 import json
-from pathlib import Path
 import sys
 import sysconfig
-from types import SimpleNamespace
 
 import jsonschema
 from jsonschema.exceptions import ValidationError
@@ -143,7 +141,7 @@ class TestCodeProvenance:
         cache_file = tmp_path / "code-provenance.json"
         cache_file.write_text(expected_json, encoding="utf-8")
 
-        lock_file = SimpleNamespace(filename=str(tmp_path / "code-provenance.lock"))
+        lock_file = tmp_path / "code-provenance.lock"
         monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
         monkeypatch.setattr(
             code_provenance, "_read_or_compute_with_nonblocking_lock", lambda *_: pytest.fail("must use cache")
@@ -158,9 +156,7 @@ class TestCodeProvenance:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         cache_file = tmp_path / "code-provenance.json"
-        lock_path = tmp_path / "code-provenance.lock"
-        Path(lock_path).touch()
-        lock_file = SimpleNamespace(filename=str(lock_path))
+        lock_file = tmp_path / "code-provenance.lock"
         monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
 
         calls = 0
@@ -185,7 +181,7 @@ class TestCodeProvenance:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         cache_file = tmp_path / "code-provenance.json"
-        lock_file = SimpleNamespace(filename=str(tmp_path / "code-provenance.lock"))
+        lock_file = tmp_path / "code-provenance.lock"
         monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
         monkeypatch.setattr(code_provenance, "_read_or_compute_with_nonblocking_lock", lambda *_: "")
         monkeypatch.setattr(
@@ -199,7 +195,7 @@ class TestCodeProvenance:
         from ddtrace.internal.datadog.profiling import code_provenance
 
         cache_file = tmp_path / "code-provenance.json"
-        lock_file = SimpleNamespace(filename=str(tmp_path / "code-provenance.lock"))
+        lock_file = tmp_path / "code-provenance.lock"
         monkeypatch.setattr(code_provenance, "_cache_file_and_lock", lambda: (cache_file, lock_file))
 
         expected_json = json.dumps({"v1": [{"kind": "library", "name": "foo", "version": "1.2.3", "paths": ["/x"]}]})

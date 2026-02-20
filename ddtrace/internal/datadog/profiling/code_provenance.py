@@ -8,7 +8,6 @@ import platform
 import sys
 import sysconfig
 import tempfile
-from threading import Lock
 import typing as t
 
 from ddtrace.internal import gitmetadata
@@ -111,7 +110,6 @@ class CodeProvenance:
 _CODE_PROVENANCE_CACHE_PREFIX = "ddtrace-code-provenance"
 _CODE_PROVENANCE_CACHE_VERSION = "v1"
 _in_memory_code_provenance_json: t.Optional[str] = None
-_in_memory_code_provenance_lock = Lock()
 
 
 def _safe_mtime_ns(path: t.Optional[str]) -> str:
@@ -144,26 +142,13 @@ def _cache_basename() -> str:
     return f"{_CODE_PROVENANCE_CACHE_PREFIX}-{digest}"
 
 
-def _cache_file_path() -> t.Optional[Path]:
+def _cache_file_and_lock() -> tuple[t.Optional[Path], t.Optional[Path]]:
     try:
-        return Path(tempfile.gettempdir()) / f"{_cache_basename()}.json"
+        base = _cache_basename()
+        tmpdir = Path(tempfile.gettempdir())
+        return tmpdir / f"{base}.json", tmpdir / f"{base}.lock"
     except (FileNotFoundError, OSError):
-        return None
-
-
-def _cache_lock_file():
-    # Delayed import to avoid extra dependencies at module import time.
-    from ddtrace.internal.ipc import SharedStringFile
-
-    try:
-        lock_file = SharedStringFile(f"{_cache_basename()}.lock")
-    except Exception:  # nosec
-        return None
-    return lock_file if lock_file.filename is not None else None
-
-
-def _cache_file_and_lock():
-    return _cache_file_path(), _cache_lock_file()
+        return None, None
 
 
 @contextmanager
@@ -262,24 +247,20 @@ def json_str_to_export() -> str:
     if _in_memory_code_provenance_json:
         return _in_memory_code_provenance_json
 
-    with _in_memory_code_provenance_lock:
-        if _in_memory_code_provenance_json:
-            return _in_memory_code_provenance_json
+    cache_file, lock_file = _cache_file_and_lock()
+    if cache_file is not None:
+        cached = _read_cached_json(cache_file)
+        if cached:
+            _in_memory_code_provenance_json = cached
+            return cached
 
-        cache_file, lock_file = _cache_file_and_lock()
-        if cache_file is not None:
-            cached = _read_cached_json(cache_file)
-            if cached:
-                _in_memory_code_provenance_json = cached
-                return cached
+        if lock_file is not None:
+            computed_or_cached = _read_or_compute_with_nonblocking_lock(cache_file, str(lock_file))
+            if computed_or_cached:
+                _in_memory_code_provenance_json = computed_or_cached
+            return computed_or_cached
 
-            if lock_file is not None and lock_file.filename is not None:
-                computed_or_cached = _read_or_compute_with_nonblocking_lock(cache_file, lock_file.filename)
-                if computed_or_cached:
-                    _in_memory_code_provenance_json = computed_or_cached
-                return computed_or_cached
-
-        computed = _compute_json_str()
-        if computed:
-            _in_memory_code_provenance_json = computed
-        return computed
+    computed = _compute_json_str()
+    if computed:
+        _in_memory_code_provenance_json = computed
+    return computed
