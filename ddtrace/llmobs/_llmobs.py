@@ -1334,7 +1334,7 @@ class LLMObs(Service):
     def _distributed_experiment(
         cls,
         name: str,
-        dataset: Optional[Dataset] = None,
+        dataset: Dataset,
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
@@ -1344,7 +1344,7 @@ class LLMObs(Service):
         experiment = Experiment(
             name,
             Experiment._NO_OP_TASK,
-            dataset,  # type: ignore[arg-type]
+            dataset,
             [],
             project_name=project_name or cls._project_name,
             tags=tags,
@@ -1374,7 +1374,7 @@ class LLMObs(Service):
         ],
         jobs: int = 1,
         raise_errors: bool = False,
-        run_iteration: Optional[int] = 1,
+        run_iteration: Optional[int] = 0,
         tags: Optional[dict[str, str]] = None,
     ) -> tuple[Experiment, ExperimentResult]:
         if not cls._instance or not cls._instance.enabled:

@@ -1353,9 +1353,9 @@ class Experiment:
         self,
         jobs: int = 1,
         raise_errors: bool = False,
-        run_iteration: Optional[int] = 1,
+        run_iteration: Optional[int] = 0,
     ) -> ExperimentResult:
-        run = _ExperimentRunInfo(run_iteration or 1)
+        run = _ExperimentRunInfo(run_iteration or 0)
         self._tags["run_id"] = str(run._id)
         self._tags["run_iteration"] = str(run._run_iteration)
         task_results = await self._run_task(jobs, run, raise_errors, None)
@@ -1415,7 +1415,7 @@ class Experiment:
         if span is None and not is_summary_eval:
             span = self.experiment_span
 
-        timestamp_ns = int(time.time() * 1e9)
+        timestamp_ns = int(timestamp_ms * 1e6) if timestamp_ms is not None else int(time.time() * 1e9)
 
         eval_metric = self._generate_metric_from_evaluation(
             eval_name,
