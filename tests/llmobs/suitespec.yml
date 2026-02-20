@@ -134,7 +134,6 @@ suites:
     snapshot: true
     venvs_per_job: 1
   mcp:
-    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -146,6 +145,7 @@ suites:
       - tests/snapshots/tests.contrib.mcp.*
     runner: riot
     snapshot: true
+    venvs_per_job: 5
   openai:
     venvs_per_job: 1
     paths:
