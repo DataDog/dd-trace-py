@@ -679,7 +679,7 @@ class PromptOptimization:
         if not isinstance(config, dict) or "prompt" not in config:
             raise ValueError("config must contain a 'prompt' key")
 
-        self._initial_prompt = config["prompt"]
+        self._initial_prompt: str = str(config["prompt"])
         self._model_name = config.get("model_name")
         self._config = config
 
