@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import replace
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Literal
 from typing import Optional
 from typing import Union
@@ -21,8 +19,8 @@ class ManagedPrompt:
     An immutable prompt template retrieved from the Datadog Prompt Registry.
 
     STABLE API:
-        - format(**vars) -> str | List[Dict]
-        - to_annotation_dict(**vars) -> Dict[str, Any]
+        - format(**vars) -> str | list[dict]
+        - to_annotation_dict(**vars) -> dict[str, Any]
 
     INTERNAL (may change):
         - All fields (id, version, label, source, template)
@@ -32,11 +30,11 @@ class ManagedPrompt:
     version: str
     label: Optional[str]
     source: Literal["registry", "cache", "fallback"]
-    template: Union[str, List[Message]]
+    template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
 
-    def format(self, **variables: str) -> Union[str, List[Message]]:
+    def format(self, **variables: str) -> Union[str, list[Message]]:
         """
         Render the template with variables.
 
@@ -49,7 +47,7 @@ class ManagedPrompt:
             **variables: Template variables to substitute
 
         Returns:
-            str (for text templates) or List[Message] (for chat templates)
+            str (for text templates) or list[Message] (for chat templates)
         """
         if isinstance(self.template, str):
             return safe_substitute(self.template, variables)
@@ -89,7 +87,7 @@ class ManagedPrompt:
     def __repr__(self) -> str:
         return f"ManagedPrompt(id={self.id!r}, version={self.version!r}, label={self.label!r}, source={self.source!r})"
 
-    def _serialize(self) -> Dict[str, Any]:
+    def _serialize(self) -> dict[str, Any]:
         """Serialize to a JSON-compatible dict for cache storage."""
         return {
             "id": self.id,
@@ -102,7 +100,7 @@ class ManagedPrompt:
         }
 
     @classmethod
-    def _deserialize(cls, data: Dict[str, Any]) -> "ManagedPrompt":
+    def _deserialize(cls, data: dict[str, Any]) -> "ManagedPrompt":
         """Deserialize from a cache storage dict."""
         return cls(
             id=data["id"],
@@ -135,7 +133,7 @@ class ManagedPrompt:
         Returns:
             A ManagedPrompt with source="fallback" and label=None.
         """
-        template: Union[str, List[Message]] = ""
+        template: Union[str, list[Message]] = ""
         version = "fallback"
 
         if fallback is not None:

@@ -5,9 +5,7 @@ import tempfile
 from threading import RLock
 from time import time
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -28,11 +26,11 @@ class CacheEntry:
     def is_stale(self, ttl: float) -> bool:
         return (time() - self.timestamp) > ttl
 
-    def _serialize(self) -> Dict[str, Any]:
+    def _serialize(self) -> dict[str, Any]:
         return {"prompt": self.prompt._serialize(), "timestamp": self.timestamp}
 
     @classmethod
-    def _deserialize(cls, data: Dict[str, Any]) -> "CacheEntry":
+    def _deserialize(cls, data: dict[str, Any]) -> "CacheEntry":
         return cls(prompt=ManagedPrompt._deserialize(data["prompt"]), timestamp=data["timestamp"])
 
 
@@ -47,11 +45,11 @@ class HotCache:
         self,
         ttl_seconds: float = DEFAULT_PROMPTS_CACHE_TTL,
     ) -> None:
-        self._cache: Dict[str, CacheEntry] = {}
+        self._cache: dict[str, CacheEntry] = {}
         self._ttl = ttl_seconds
         self._lock = RLock()
 
-    def get(self, key: str) -> Optional[Tuple[ManagedPrompt, bool]]:
+    def get(self, key: str) -> Optional[tuple[ManagedPrompt, bool]]:
         """
         Get a prompt from cache.
 
@@ -133,7 +131,7 @@ class WarmCache:
         safe_key = key.replace(":", "_").replace("/", "_").replace("\\", "_")
         return self._cache_dir / f"{safe_key}.json"
 
-    def get(self, key: str) -> Optional[Tuple[ManagedPrompt, bool]]:
+    def get(self, key: str) -> Optional[tuple[ManagedPrompt, bool]]:
         """Load a prompt from file cache.
 
         Returns:

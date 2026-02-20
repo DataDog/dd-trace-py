@@ -1,9 +1,7 @@
 import atexit
 import json
 import threading
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Union
 from urllib.parse import quote
 from urllib.parse import urlencode
@@ -40,7 +38,7 @@ class PromptManager:
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
         self._timeout = timeout
-        self._headers: Dict[str, str] = {
+        self._headers: dict[str, str] = {
             "DD-API-KEY": api_key,
             "X-Datadog-Source": "sdk",
             "X-Datadog-Language": "python",
@@ -50,7 +48,7 @@ class PromptManager:
         self._hot_cache = HotCache(ttl_seconds=cache_ttl)
         self._warm_cache = WarmCache(enabled=file_cache_enabled, cache_dir=cache_dir, ttl_seconds=cache_ttl)
 
-        self._refresh_threads: Dict[str, threading.Thread] = {}
+        self._refresh_threads: dict[str, threading.Thread] = {}
         self._refresh_lock = threading.Lock()
         if file_cache_enabled:
             atexit.register(self._wait_for_refreshes)
@@ -192,7 +190,7 @@ class PromptManager:
 
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float
-    ) -> Tuple[Optional[ManagedPrompt], bool]:
+    ) -> tuple[Optional[ManagedPrompt], bool]:
         """Fetch from registry. Returns (prompt, not_found)."""
         conn = None
         try:
