@@ -36,8 +36,10 @@ class TestTracingEvent(TracingEvent):
         self.span_name = my_span_name
 
 
-def test_span_context_event_can_create_and_finish_span(test_spans):
-    """Test that a tracing context event starts and finishes a span with expected values."""
+def test_tracing_event_can_create_and_finish_span(test_spans):
+    """Test that spans with expected values can be started and finished from handlers of
+    context_with_event events.
+    """
 
     def on_context_started(ctx: core.ExecutionContext):
         event: TracingEvent = ctx.event

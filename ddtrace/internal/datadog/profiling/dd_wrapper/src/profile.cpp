@@ -2,6 +2,7 @@
 
 #include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
+#include "profiler_state.hpp"
 #include "profiler_stats.hpp"
 
 #include <datadog/profiling.h>
@@ -23,7 +24,7 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
     // Private helper function for creating a ddog_prof_Profile from arguments
 
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto maybe_dict = Datadog::internal::get_profiles_dictionary();
+    auto maybe_dict = Datadog::ProfilerState::get().get_profiles_dictionary();
     if (!maybe_dict) {
         return false;
     }

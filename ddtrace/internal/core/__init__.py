@@ -133,7 +133,7 @@ log = logging.getLogger(__name__)
 ROOT_CONTEXT_ID = "__root"
 
 
-class ExecutionContext(Generic[EventType], object):
+class ExecutionContext(Generic[EventType]):
     __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
     def __init__(
