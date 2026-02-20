@@ -84,7 +84,7 @@ When you modify files like:
 #### For Test-Only Changes
 When you modify `tests/` files (but not test infrastructure):
 - Run only the specific test files/functions modified
-- Use pytest args: `-- -- -k test_name` or direct test file paths
+- Use pytest args: `-- -k test_name` or direct test file paths
 
 #### For Test Infrastructure Changes
 When you modify:
@@ -96,11 +96,28 @@ When you modify:
 
 ### Step 4: Execute Selected Venvs
 
-I'll run the selected venvs using:
+I'll run the selected venvs. On the **first invocation in a session**, always run without `-s` to ensure the venv has dd-trace-py properly installed:
 
 ```bash
-scripts/run-tests --venv <hash1> --venv <hash2> ...
+scripts/run-tests --venv <hash1> --venv <hash2>
 ```
+
+On **subsequent runs**, use `-s` (riot's `--skip-base-install` flag, not to be confused with pytest's `-s`) to skip rebuilding dd-trace-py and save significant time:
+
+```bash
+scripts/run-tests --venv <hash1> --venv <hash2> -- -s
+```
+
+**When to use `-s` (skip base install) on subsequent runs:**
+- Only Python files were modified (no native code changes)
+- Iterating on test fixes within the same session
+- Re-running tests after small code tweaks
+
+**When to omit `-s` even on subsequent runs (force rebuild):**
+- After merging or rebasing from main (dependencies or native code may have changed)
+- C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
+- `setup.py`, `pyproject.toml`, `setup.cfg`, or `hatch.toml` were modified
+- `riotfile.py` or `.riot/requirements/` files were modified
 
 This will:
 - Start required Docker services (redis, postgres, etc.)
@@ -119,9 +136,9 @@ This will:
 - Offer to run specific failing tests with more verbosity
 - Help iterate on fixes and re-run
 
-For re-running specific tests:
+For re-running specific tests (use `-s` since the venv is already built):
 ```bash
-scripts/run-tests --venv <hash> -- -- -vv -k test_name
+scripts/run-tests --venv <hash> -- -s -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -212,9 +229,11 @@ scripts/run-tests --list ddtrace/contrib/internal/flask/patch.py
 # Suite: contrib::flask
 # Venv: hash=e06abee, Python 3.13, flask
 
-# Run with --venv directly (searches all venvs automatically)
+# First run: no -s to ensure venv is properly set up
 scripts/run-tests --venv e06abee
-# Runs just Flask integration tests
+
+# Subsequent runs: use -s since only Python files changed
+scripts/run-tests --venv e06abee -- -s
 ```
 
 ### Example 2: Fixing a Core Tracing Issue
@@ -229,9 +248,11 @@ scripts/run-tests --list ddtrace/_trace/tracer.py
 # - tracer: latest Python (e.g., abc123)
 # - internal: latest Python (e.g., def456)
 
-# Run with --venv directly (searches all venvs automatically)
+# First run: no -s
 scripts/run-tests --venv abc123 --venv def456
-# Validates core tracer and internal components
+
+# Subsequent runs: use -s since only Python files changed
+scripts/run-tests --venv abc123 --venv def456 -- -s
 ```
 
 ### Example 3: Fixing a Test-Specific Bug
@@ -242,16 +263,19 @@ scripts/run-tests --venv abc123 --venv def456
 scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
-# Run just the specific test:
-scripts/run-tests --venv flask_py311 -- -- -vv tests/contrib/flask/test_views.py
+# First run: no -s
+scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
+
+# Subsequent runs: use -s to skip rebuild
+scripts/run-tests --venv flask_py311 -- -s -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
 
-First run shows one test failing:
+After the first run shows a test failing, use `-s` to iterate quickly:
 
 ```bash
-scripts/run-tests --venv flask_py311 -- -- -vv -k test_view_called_twice
+scripts/run-tests --venv flask_py311 -- -s -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -259,6 +283,7 @@ scripts/run-tests --venv flask_py311 -- -- -vv -k test_view_called_twice
 
 ### DO ✅
 
+- **Use `-s` on subsequent runs**: After the first run builds the venv, pass `-- -s` to skip rebuild when only Python files changed
 - **Start small**: Run 1 venv first, expand only if needed
 - **Be specific**: Use pytest `-k` filter when re-running failures
 - **Check git**: Verify you're testing the right files with `git status`
@@ -267,6 +292,8 @@ scripts/run-tests --venv flask_py311 -- -- -vv -k test_view_called_twice
 
 ### DON'T ❌
 
+- **Use `-s` after merging from main**: Native code or dependencies may have changed, requiring a rebuild
+- **Use `-s` when C/Cython/CMake files changed**: Native extensions must be recompiled
 - **Run all venvs initially**: That's what CI is for
 - **Skip the minimal set guidance**: It's designed to save you time
 - **Ignore service requirements**: Some suites need Docker services up
@@ -330,7 +357,7 @@ The `scripts/run-tests` system:
 - Uses `riot` to manage multiple Python/package combinations as venvs
 - Each venv is a self-contained environment
 - Docker services are managed per suite lifecycle
-- Tests can pass optional pytest arguments with `-- --`
+- Tests can pass optional arguments after `--` (riot flags like `-s` are consumed by riot; unknown flags like `-k`, `-vv` are forwarded to pytest)
 
 ### Supported Suite Types
 
@@ -366,7 +393,7 @@ DD_TEST_CPUS=0.25 DD_TEST_MEMORY=1g scripts/run-tests tests/path/to/test.py
 
 # Multiple runs to catch intermittent failures
 for i in {1..10}; do
-  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> -- -- --randomly-seed=$RANDOM
+  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> -- --randomly-seed=$RANDOM
 done
 ```
 
@@ -418,5 +445,5 @@ docker stats
 # Run a known flaky test 20 times with resource constraints
 DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests \
   tests/appsec/integrations/flask_tests/test_iast_flask_testagent.py::test_iast_unvalidated_redirect \
-  -- -- --count=20
+  -- --count=20
 ```
