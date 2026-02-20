@@ -193,7 +193,7 @@ suites:
       - ddtrace/contrib/integration_registry/*
     runner: riot
   internal:
-    venvs_per_job: 3
+    venvs_per_job: 2
     paths:
       - '@core'
       - '@remoteconfig'
