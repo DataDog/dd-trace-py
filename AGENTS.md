@@ -164,15 +164,15 @@ This project has custom skills that provide specialized workflows. **Always chec
 
 ## Domain Reference Guides
 
-For detailed domain-specific guidance, see these documents:
+**Before modifying code in a specific domain, read the corresponding guide first:**
 
-| Domain | File | Description |
-|--------|------|-------------|
-| Application Security (AppSec) | `.cursor/rules/appsec.mdc` | AAP, RASP, API Security features |
-| IAST | `.cursor/rules/iast.mdc` | Interactive Application Security Testing |
-| Repository Structure | `.cursor/rules/repo-structure.mdc` | Directory layout and module organization |
-| Linting | `.cursor/rules/linting.mdc` | Code quality tooling details |
-| Testing | `.cursor/rules/testing.mdc` | Test infrastructure details |
+| Domain | Guide | Relevant paths |
+|--------|-------|----------------|
+| Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
+| IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/`, `tests/appsec/integrations/` |
+| Repository Structure | `.cursor/rules/repo-structure.mdc` | (any, for orientation) |
+| Linting | `.cursor/rules/linting.mdc` | (any, before committing) |
+| Testing | `.cursor/rules/testing.mdc` | (any, before running tests) |
 
 ## Domain Glossary
 
