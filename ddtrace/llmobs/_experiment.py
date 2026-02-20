@@ -400,6 +400,7 @@ class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
+    tags: list[str]
 
 
 class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
@@ -558,7 +559,7 @@ class Dataset:
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             new_version, new_record_ids, new_canonical_ids = self._dne_client.dataset_batch_update(
                 dataset_id=self._id,
-                project_id=self.project.get("_id"),
+                project_id=self.project["_id"],
                 insert_records=list(self._new_records_by_record_id.values()),
                 update_records=updated_records,
                 delete_record_ids=self._deleted_record_ids,
@@ -770,7 +771,7 @@ class Experiment:
         self._config: dict[str, JSONType] = config or {}
         # Write dataset tags to experiment config
         if dataset.filter_tags:
-            self._config["filtered_record_tags"] = dataset.filter_tags
+            self._config["filtered_record_tags"] = cast(JSONType, dataset.filter_tags)
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
 

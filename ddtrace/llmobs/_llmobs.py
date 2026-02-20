@@ -1013,6 +1013,7 @@ class LLMObs(Service):
                             input_data={col: row[col] for col in input_data_columns},
                             expected_output={col: row[col] for col in expected_output_columns},
                             metadata={col: row[col] for col in metadata_columns},
+                            tags=[],
                             record_id="",
                             canonical_id=None,
                         )
