@@ -28,7 +28,6 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
-from tests.llmobs.conftest import register_dataset_for_cleanup
 from tests.utils import override_global_config
 
 
@@ -208,26 +207,8 @@ def test_dataset_one_record_separate_project(llmobs):
     llmobs._delete_dataset(dataset_id=ds._id)
 
 
-# Module-level cache for the tags dataset to enable sharing across tests
-# This avoids recreating the dataset for each test while still allowing cleanup
-_tags_dataset_cache = {"dataset": None, "cleanup_registered": False}
-
-
 @pytest.fixture
-def test_dataset_one_record_with_tags(llmobs, request):
-    """Fixture that creates a dataset with a record containing tags for filtering tests.
-
-    The dataset is created once and cached at module level. All tests share the same
-    dataset instance, which is important for VCR cassette matching since all tests
-    need to use the same dataset ID.
-
-    Cleanup is deferred to the end of the test session via register_dataset_for_cleanup.
-    """
-    # If we already have a cached dataset, return it
-    if _tags_dataset_cache["dataset"] is not None:
-        yield _tags_dataset_cache["dataset"]
-        return
-
+def test_dataset_one_record_with_tags(llmobs):
     records = [
         DatasetRecord(
             input_data={"prompt": "What is the capital of France?"},
@@ -240,15 +221,10 @@ def test_dataset_one_record_with_tags(llmobs, request):
     )
     wait_for_backend()
 
-    # Cache the dataset for reuse by other tests
-    _tags_dataset_cache["dataset"] = ds
-
-    # Register for cleanup at end of session (only once)
-    if not _tags_dataset_cache["cleanup_registered"]:
-        register_dataset_for_cleanup(llmobs, ds._id)
-        _tags_dataset_cache["cleanup_registered"] = True
-
     yield ds
+
+    llmobs._delete_dataset(dataset_id=ds._id)
+
 
 
 @pytest.fixture
@@ -659,7 +635,6 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
 
 def test_dataset_pull_with_tags(llmobs, test_dataset_one_record_with_tags):
     """Test that pull_dataset properly passes tags parameter and filters records by tags."""
-    wait_for_backend()
     tags = ["env:prod", "version:1.0"]
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
 
@@ -685,7 +660,6 @@ def test_dataset_pull_with_tags(llmobs, test_dataset_one_record_with_tags):
 
 def test_dataset_pull_with_nonexistent_tags(llmobs, test_dataset_one_record_with_tags):
     """Test pull_dataset with tags that don't exist on any records returns empty dataset."""
-    wait_for_backend()
     # The dataset has tags ["env:prod", "version:1.0"], but we're filtering for non-existent tags
     tags = ["env:nonexistent", "version:99.0"]
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
@@ -702,7 +676,6 @@ def test_dataset_pull_with_nonexistent_tags(llmobs, test_dataset_one_record_with
 
 def test_dataset_pull_with_partial_tag_match(llmobs, test_dataset_one_record_with_tags):
     """Test pull_dataset with a subset of tags returns records that have those tags."""
-    wait_for_backend()
     # The dataset has tags ["env:prod", "version:1.0"], filter with just one of them
     tags = ["env:prod"]
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
@@ -724,7 +697,6 @@ def test_dataset_pull_with_partial_tag_match(llmobs, test_dataset_one_record_wit
 
 def test_dataset_pull_with_one_matching_one_nonexistent_tag(llmobs, test_dataset_one_record_with_tags):
     """Test pull_dataset with one matching tag and one non-existent tag."""
-    wait_for_backend()
     # The dataset has tags ["env:prod", "version:1.0"], filter with one matching and one not
     tags = ["env:prod", "nonexistent:tag"]
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
@@ -739,7 +711,6 @@ def test_dataset_pull_with_one_matching_one_nonexistent_tag(llmobs, test_dataset
 
 def test_dataset_pull_without_tags_returns_all_records(llmobs, test_dataset_one_record_with_tags):
     """Test pull_dataset without tags parameter returns all records regardless of their tags."""
-    wait_for_backend()
     # Pull without specifying tags
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name)
 
@@ -758,7 +729,6 @@ def test_dataset_pull_without_tags_returns_all_records(llmobs, test_dataset_one_
 
 def test_dataset_pull_with_single_tag(llmobs, test_dataset_one_record_with_single_tag):
     """Test pull_dataset with a single tag."""
-    wait_for_backend()
     tags = ["env:staging"]
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_single_tag.name, tags=tags)
 

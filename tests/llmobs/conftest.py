@@ -323,31 +323,3 @@ def no_agent_info():
 def no_agent():
     with mock.patch("ddtrace.internal.agent.info", side_effect=Exception):
         yield
-
-
-# Registry for datasets that need cleanup after the test session
-# This enables fixtures to register datasets for cleanup without worrying about scope
-_datasets_to_cleanup = []
-
-
-def register_dataset_for_cleanup(llmobs_instance, dataset_id):
-    """Register a dataset for cleanup at the end of the test session.
-
-    This is useful for fixtures that create datasets that should be cleaned up
-    after all tests complete, rather than after each individual test.
-    """
-    _datasets_to_cleanup.append((llmobs_instance, dataset_id))
-
-
-@pytest.fixture(scope="session", autouse=True)
-def cleanup_registered_datasets(request):
-    """Session-scoped fixture that cleans up all registered datasets after the test session."""
-    yield
-    # Cleanup all registered datasets after all tests complete
-    for llmobs_instance, dataset_id in _datasets_to_cleanup:
-        try:
-            llmobs_instance._delete_dataset(dataset_id=dataset_id)
-        except Exception:
-            # Ignore cleanup errors - dataset may already be deleted or llmobs disabled
-            pass
-    _datasets_to_cleanup.clear()
