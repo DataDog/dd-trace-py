@@ -173,7 +173,13 @@ class Scope:
     def _get_from(cls, _: t.Any, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         return None
 
-    @_get_from.register
+    # DEV: We pass the type explicitly to all @_get_from.register() calls below
+    # rather than relying on annotation inference. When the type is omitted,
+    # singledispatch calls get_type_hints() to determine the dispatch type, which
+    # evaluates forward references (e.g. Optional["Scope"]) at class-definition
+    # time — before Scope is fully defined — causing a NameError on Python 3.13+.
+    # See https://github.com/python/cpython/issues/86153
+    @_get_from.register(ModuleType)
     @classmethod
     def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if module in data.seen:
@@ -227,7 +233,7 @@ class Scope:
             language_specifics={"file_hash": source_git_hash.hexdigest()},
         )
 
-    @_get_from.register
+    @_get_from.register(type)
     @classmethod
     def _(cls, obj: type, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if obj in data.seen:
@@ -317,7 +323,7 @@ class Scope:
             language_specifics={"super_classes": super_classes},
         )
 
-    @_get_from.register
+    @_get_from.register(CodeType)
     @classmethod
     def _(cls, code: CodeType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         # DEV: A code object with a mutable probe is currently not hashable, so
@@ -350,7 +356,7 @@ class Scope:
             ],
         )
 
-    @_get_from.register
+    @_get_from.register(FunctionType)
     @classmethod
     def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if f in data.seen:
@@ -398,7 +404,7 @@ class Scope:
 
         return code_scope
 
-    @_get_from.register
+    @_get_from.register(classmethod)
     @classmethod
     def _(cls, method: classmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
@@ -408,7 +414,7 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(staticmethod)
     @classmethod
     def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
@@ -418,7 +424,7 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(property)
     @classmethod
     def _(cls, pr: property, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if pr.fget in data.seen:
