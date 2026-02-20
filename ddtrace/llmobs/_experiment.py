@@ -471,6 +471,52 @@ class ExperimentResult(TypedDict):
     runs: list[ExperimentRun]
 
 
+def _collect_errors_from_rows(
+    rows: list[ExperimentRowResult], run_idx: Optional[int] = None
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    task_errors: list[dict[str, Any]] = []
+    evaluator_errors: list[dict[str, Any]] = []
+    for row in rows:
+        entry: dict[str, Any] = {"row_idx": row["idx"]}
+        if run_idx is not None:
+            entry["run"] = run_idx
+        err = row.get("error") or {}
+        if isinstance(err, dict) and err.get("message"):
+            task_errors.append({**entry, "error": err})
+        for eval_name, eval_data in (row.get("evaluations") or {}).items():
+            if isinstance(eval_data, dict) and eval_data.get("error"):
+                evaluator_errors.append({**entry, "evaluator": eval_name, "error": eval_data["error"]})
+    return task_errors, evaluator_errors
+
+
+def get_experiment_errors(result: ExperimentResult) -> dict[str, Any]:
+    """Extract a structured summary of all errors from an ExperimentResult (across all runs)."""
+    task_errors: list[dict[str, Any]] = []
+    evaluator_errors: list[dict[str, Any]] = []
+    total_rows = 0
+    runs = result.get("runs", [])
+    if runs:
+        for run_idx, run in enumerate(runs):
+            te, ee = _collect_errors_from_rows(run.rows, run_idx=run_idx)
+            task_errors.extend(te)
+            evaluator_errors.extend(ee)
+            total_rows += len(run.rows)
+    else:
+        te, ee = _collect_errors_from_rows(result["rows"])
+        task_errors.extend(te)
+        evaluator_errors.extend(ee)
+        total_rows = len(result["rows"])
+    return {
+        "task_errors": task_errors,
+        "evaluator_errors": evaluator_errors,
+        "summary": {
+            "total_rows": total_rows,
+            "failed_tasks": len(task_errors),
+            "failed_evaluators": len(evaluator_errors),
+        },
+    }
+
+
 class Dataset:
     name: str
     description: str
@@ -1040,25 +1086,84 @@ class Experiment:
         )
 
         run_results = []
-        for run_iteration in range(self._runs):
-            run = _ExperimentRunInfo(run_iteration)
-            self._tags["run_id"] = str(run._id)
-            self._tags["run_iteration"] = str(run._run_iteration)
-            task_results = await self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = await self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
-            summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
-            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
-            experiment_evals = self._generate_metrics_from_exp_results(run_result)
-            self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
-                cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
-            )
-            run_results.append(run_result)
+        interrupted = False
+        try:
+            for run_iteration in range(self._runs):
+                run = _ExperimentRunInfo(run_iteration)
+                self._tags["run_id"] = str(run._id)
+                self._tags["run_iteration"] = str(run._run_iteration)
+                task_results = await self._run_task(jobs, run, raise_errors, sample_size)
+                evaluations = await self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+                summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
+                run_result = self._merge_results(run, task_results, evaluations, summary_evals)
+                experiment_evals = self._generate_metrics_from_exp_results(run_result)
+                self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+                    cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
+                )
+                run_results.append(run_result)
+        except BaseException:
+            interrupted = True
+            raise
+        finally:
+            result: ExperimentResult = {
+                "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
+                "rows": run_results[0].rows if run_results else [],
+                "runs": run_results,
+            }
+            self._log_experiment_summary(result, interrupted=interrupted)
+        return result
 
-        return {
-            "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
-            "rows": run_results[0].rows if run_results else [],
-            "runs": run_results,
-        }
+    def _log_experiment_summary(self, result: ExperimentResult, interrupted: bool = False) -> None:
+        errors = get_experiment_errors(result)
+        summary = errors["summary"]
+        failed_tasks = summary["failed_tasks"]
+        eval_errors = summary["failed_evaluators"]
+        total_rows = summary["total_rows"]
+        completed_runs = len(result.get("runs", []))
+
+        if interrupted:
+            logger.warning(
+                "Experiment '%s' was interrupted after %d/%d runs. %d rows completed before interruption.",
+                self.name,
+                completed_runs,
+                self._runs,
+                total_rows,
+            )
+
+        eval_stats: dict[str, dict[str, int]] = {}
+        all_rows: list[ExperimentRowResult] = []
+        runs = result.get("runs", [])
+        if runs:
+            for run in runs:
+                all_rows.extend(run.rows)
+        else:
+            all_rows = result["rows"]
+
+        for row in all_rows:
+            for eval_name, eval_data in (row.get("evaluations") or {}).items():
+                if eval_name not in eval_stats:
+                    eval_stats[eval_name] = {"total": 0, "errors": 0}
+                eval_stats[eval_name]["total"] += 1
+                if isinstance(eval_data, dict) and eval_data.get("error"):
+                    eval_stats[eval_name]["errors"] += 1
+
+        parts = [
+            "Experiment '{}': {} rows, {} run(s), {} evaluator(s).".format(
+                self.name, total_rows, completed_runs or self._runs, len(eval_stats)
+            )
+        ]
+        if failed_tasks:
+            parts.append("  Task errors: {}/{}".format(failed_tasks, total_rows))
+        for eval_name, stats in eval_stats.items():
+            evaluated = stats["total"]
+            errors = stats["errors"]
+            if errors:
+                parts.append("  {}: {}/{} evaluated, {} error(s)".format(eval_name, evaluated, total_rows, errors))
+            else:
+                parts.append("  {}: {}/{} evaluated".format(eval_name, evaluated, total_rows))
+
+        log_fn = logger.warning if (failed_tasks or eval_errors or interrupted) else logger.info
+        log_fn("\n".join(parts))
 
     async def _process_record(
         self,
