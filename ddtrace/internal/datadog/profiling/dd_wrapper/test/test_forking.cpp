@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <pthread.h>
+#include <thread>
 
 // Initiate an upload in a separate thread, otherwise we won't be mid-upload during fork
 void*
@@ -29,7 +30,12 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
     done.store(true);
     join_samplers(new_threads, done);
     ddup_upload();
-    ddup_cleanup();
+
+    // Give the background thread time to process the upload request
+    // and complete the HTTP handshake before shutting down
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ddup_shutdown();
+
     std::exit(0);
 }
 
@@ -121,8 +127,21 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     waitpid(pid, &status, 0);
     ddup_upload();
     join_pthread_samplers(thread_handles, done);
+<<<<<<< HEAD
     ddup_cleanup();
     std::exit(is_exit_normal(status) ? 0 : 1);
+=======
+
+    // Give the background thread time to process the upload request
+    // and complete the HTTP handshake before shutting down
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    ddup_shutdown();
+
+    if (!is_exit_normal(status)) {
+        std::exit(1);
+    }
+    std::exit(0);
+>>>>>>> 109a6f3639 (tmp)
 }
 
 TEST(ForkDeathTest, SampleInThreadsAndForkNormal)
