@@ -439,14 +439,18 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if "metadata" in record:
             metadata = {} if record["metadata"] is None else record["metadata"]
 
-        rj: JSONType = {
+        rj: dict[str, JSONType] = {
             "input": cast(dict[str, JSONType], record.get("input_data")),
             "expected_output": expected_output,
             "metadata": metadata,
         }
 
         if is_update:
-            rj["id"] = record["record_id"]  # type: ignore
+            rj["id"] = cast(UpdatableDatasetRecord, record)["record_id"]
+        else:
+            tags = record.get("tags")
+            if tags:
+                rj["tags"] = cast(JSONType, tags)
 
         return rj
 

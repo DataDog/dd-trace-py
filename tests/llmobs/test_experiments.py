@@ -28,7 +28,6 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
-from tests.llmobs.conftest import register_dataset_for_cleanup
 from tests.utils import override_global_config
 
 
@@ -84,7 +83,7 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
 # To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1771430149829292000
+MOCK_TIMESTAMP_NS = 1771602113367279000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -208,26 +207,8 @@ def test_dataset_one_record_separate_project(llmobs):
     llmobs._delete_dataset(dataset_id=ds._id)
 
 
-# Module-level cache for the tags dataset to enable sharing across tests
-# This avoids recreating the dataset for each test while still allowing cleanup
-_tags_dataset_cache = {"dataset": None, "cleanup_registered": False}
-
-
 @pytest.fixture
-def test_dataset_one_record_with_tags(llmobs, request):
-    """Fixture that creates a dataset with a record containing tags for filtering tests.
-
-    The dataset is created once and cached at module level. All tests share the same
-    dataset instance, which is important for VCR cassette matching since all tests
-    need to use the same dataset ID.
-
-    Cleanup is deferred to the end of the test session via register_dataset_for_cleanup.
-    """
-    # If we already have a cached dataset, return it
-    if _tags_dataset_cache["dataset"] is not None:
-        yield _tags_dataset_cache["dataset"]
-        return
-
+def test_dataset_one_record_with_tags(llmobs):
     records = [
         DatasetRecord(
             input_data={"prompt": "What is the capital of France?"},
@@ -240,15 +221,9 @@ def test_dataset_one_record_with_tags(llmobs, request):
     )
     wait_for_backend()
 
-    # Cache the dataset for reuse by other tests
-    _tags_dataset_cache["dataset"] = ds
-
-    # Register for cleanup at end of session (only once)
-    if not _tags_dataset_cache["cleanup_registered"]:
-        register_dataset_for_cleanup(llmobs, ds._id)
-        _tags_dataset_cache["cleanup_registered"] = True
-
     yield ds
+
+    llmobs._delete_dataset(dataset_id=ds._id)
 
 
 @pytest.fixture
@@ -290,6 +265,7 @@ def test_dataset_one_record_separate_project_with_tags(llmobs):
     yield ds
 
     llmobs._delete_dataset(dataset_id=ds._id)
+
 
 # this fixture is needed because the tmp file call in _writer.py's dataset_bulk_upload
 # will result in random names, causing a new POST request every time to the upload endpoint
@@ -642,29 +618,39 @@ def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_r
     assert len(dataset) == 0
 
 
-def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
-    wait_for_backend(4)
-    dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record.name)
+def test_dataset_pull_exists_with_record(llmobs):
+    name = "test-dataset-one-rec"
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+        )
+    ]
+    ds = llmobs.create_dataset(dataset_name=name, description="A test dataset", records=records)
+    wait_for_backend(10)
+
+    dataset = llmobs.pull_dataset(dataset_name=name)
     assert dataset.project.get("name") == TEST_PROJECT_NAME
     assert dataset.project.get("_id")
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
     assert dataset[0]["expected_output"] == {"answer": "Paris"}
-    assert dataset.name == test_dataset_one_record.name
-    assert dataset.description == test_dataset_one_record.description
-    assert dataset.latest_version == test_dataset_one_record.latest_version == 1
-    assert dataset.version == test_dataset_one_record.version == 1
+    assert dataset.name == name
+    assert dataset.latest_version == 1
+    assert dataset.version == 1
     assert dataset[0]["record_id"] != ""
     assert dataset[0]["canonical_id"]
 
+    llmobs._delete_dataset(dataset_id=ds._id)
+
+
 def test_dataset_pull_with_tags(llmobs, test_dataset_one_record_with_tags):
     """Test that pull_dataset properly passes tags parameter and filters records by tags."""
-    wait_for_backend()
     tags = ["env:prod", "version:1.0"]
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
 
     # Verify basic dataset properties
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == "test-project-clean"
     assert dataset.project.get("_id")
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
@@ -683,32 +669,56 @@ def test_dataset_pull_with_tags(llmobs, test_dataset_one_record_with_tags):
     assert "version:1.0" in dataset.filter_tags
 
 
-def test_dataset_pull_with_nonexistent_tags(llmobs, test_dataset_one_record_with_tags):
+def test_dataset_pull_with_nonexistent_tags(llmobs):
     """Test pull_dataset with tags that don't exist on any records returns empty dataset."""
-    wait_for_backend()
+
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+            tags=["env:prod", "version:1.0"],
+        )
+    ]
+    ds = llmobs.create_dataset(
+        dataset_name="test-dataset-pull-non-exist-tags", description="A test dataset with tags", records=records
+    )
+    wait_for_backend(4)
+
     # The dataset has tags ["env:prod", "version:1.0"], but we're filtering for non-existent tags
     tags = ["env:nonexistent", "version:99.0"]
-    dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
+    dataset = llmobs.pull_dataset(dataset_name="test-dataset-pull-non-exist-tags", tags=tags)
 
     # Verify dataset properties
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == "test-project-clean"
     assert dataset.project.get("_id")
-    assert dataset.name == test_dataset_one_record_with_tags.name
+    assert dataset.name == "test-dataset-pull-non-exist-tags"
     # Should return 0 records since no records match the non-existent tags
     assert len(dataset) == 0
     # Verify filter_tags are stored even when no records match (order-independent)
     assert set(dataset.filter_tags) == set(tags)
 
+    llmobs._delete_dataset(dataset_id=ds._id)
 
-def test_dataset_pull_with_partial_tag_match(llmobs, test_dataset_one_record_with_tags):
+
+def test_dataset_pull_with_partial_tag_match(llmobs):
     """Test pull_dataset with a subset of tags returns records that have those tags."""
-    wait_for_backend()
+    ds_name = "test-dataset-pull-tag-partial-match"
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+            tags=["env:prod", "version:1.0"],
+        )
+    ]
+    ds = llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
+    wait_for_backend(4)
+
     # The dataset has tags ["env:prod", "version:1.0"], filter with just one of them
     tags = ["env:prod"]
-    dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
+    dataset = llmobs.pull_dataset(dataset_name=ds_name, tags=tags)
 
     # Verify basic dataset properties
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == "test-project-clean"
     assert dataset.project.get("_id")
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
@@ -721,30 +731,52 @@ def test_dataset_pull_with_partial_tag_match(llmobs, test_dataset_one_record_wit
     assert dataset.filter_tags == tags
     assert len(dataset.filter_tags) == 1
 
+    llmobs._delete_dataset(dataset_id=ds._id)
 
-def test_dataset_pull_with_one_matching_one_nonexistent_tag(llmobs, test_dataset_one_record_with_tags):
+
+def test_dataset_pull_with_one_matching_one_nonexistent_tag(llmobs):
     """Test pull_dataset with one matching tag and one non-existent tag."""
-    wait_for_backend()
+    ds_name = "test-dataset-pull-tag-1-match-1-non"
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+            tags=["env:prod", "version:1.0"],
+        )
+    ]
+    llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
+    wait_for_backend(4)
+
     # The dataset has tags ["env:prod", "version:1.0"], filter with one matching and one not
     tags = ["env:prod", "nonexistent:tag"]
-    dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name, tags=tags)
+    dataset = llmobs.pull_dataset(dataset_name=ds_name, tags=tags)
 
     # Behavior depends on backend: AND vs OR logic for tags
     # If AND logic: should return 0 records (record doesn't have "nonexistent:tag")
     # If OR logic: should return 1 record (record has "env:prod")
     # Verify filter_tags are stored (order-independent)
     assert set(dataset.filter_tags) == set(tags)
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == "test-project-clean"
 
 
-def test_dataset_pull_without_tags_returns_all_records(llmobs, test_dataset_one_record_with_tags):
+def test_dataset_pull_without_tags_returns_all_records(llmobs):
     """Test pull_dataset without tags parameter returns all records regardless of their tags."""
-    wait_for_backend()
+    ds_name = "test-dataset-pull-with-notags"
+    records = [
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of France?"},
+            expected_output={"answer": "Paris"},
+            tags=["env:prod", "version:1.0"],
+        )
+    ]
+    llmobs.create_dataset(dataset_name=ds_name, description="A test dataset with tags", records=records)
+    wait_for_backend(4)
+
     # Pull without specifying tags
-    dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_tags.name)
+    dataset = llmobs.pull_dataset(dataset_name=ds_name)
 
     # Verify all records are returned
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == "test-project-clean"
     assert dataset.project.get("_id")
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
@@ -758,12 +790,11 @@ def test_dataset_pull_without_tags_returns_all_records(llmobs, test_dataset_one_
 
 def test_dataset_pull_with_single_tag(llmobs, test_dataset_one_record_with_single_tag):
     """Test pull_dataset with a single tag."""
-    wait_for_backend()
     tags = ["env:staging"]
     dataset = llmobs.pull_dataset(dataset_name=test_dataset_one_record_with_single_tag.name, tags=tags)
 
     # Verify basic dataset properties
-    assert dataset.project.get("name") == "test-project"
+    assert dataset.project.get("name") == "test-project-clean"
     assert dataset.project.get("_id")
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
@@ -805,6 +836,7 @@ def test_dataset_pull_with_tags_and_project(llmobs, test_dataset_one_record_sepa
     assert len(dataset.filter_tags) == 2
     assert "team:ml" in dataset.filter_tags
     assert "priority:high" in dataset.filter_tags
+
 
 @pytest.mark.parametrize(
     "test_dataset_records",
@@ -2015,7 +2047,7 @@ def test_experiment_run(llmobs, test_dataset_one_record):
             "idx": 0,
             "span_id": "123",
             "trace_id": "456",
-            "timestamp": 1234567890,
+            "timestamp": MOCK_TIMESTAMP_NS,
             "output": {"prompt": "What is the capital of France?"},
             "metadata": {
                 "dataset_record_index": 0,
@@ -2064,7 +2096,7 @@ def test_experiment_run_w_different_project(llmobs, test_dataset_one_record):
             "idx": 0,
             "span_id": "123",
             "trace_id": "456",
-            "timestamp": 1234567890,
+            "timestamp": MOCK_TIMESTAMP_NS,
             "output": {"prompt": "What is the capital of France?"},
             "metadata": {
                 "dataset_record_index": 0,
@@ -2111,7 +2143,7 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
             "idx": 0,
             "span_id": "123",
             "trace_id": "456",
-            "timestamp": 1234567890,
+            "timestamp": MOCK_TIMESTAMP_NS,
             "output": {"prompt": "What is the capital of France?"},
             "metadata": {
                 "dataset_record_index": 0,
