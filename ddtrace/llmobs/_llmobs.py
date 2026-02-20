@@ -1010,6 +1010,7 @@ class LLMObs(Service):
                             expected_output={col: row[col] for col in expected_output_columns},
                             metadata={col: row[col] for col in metadata_columns},
                             record_id="",
+                            canonical_id=None,
                         )
                     )
 

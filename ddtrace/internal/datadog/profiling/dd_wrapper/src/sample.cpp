@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <datadog/common.h>
 #include <datadog/profiling.h>
 #include <string_view>
 
