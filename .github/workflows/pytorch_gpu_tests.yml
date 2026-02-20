@@ -32,7 +32,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
         with:
-          version: "0.9.25"
+          version: "0.10.4"
 
       - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
       - name: Install latest stable toolchain and rustfmt
