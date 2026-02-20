@@ -969,12 +969,6 @@ def test_top_c_frame_detection(tmp_path: Path) -> None:
     )
 
 
-
-
-def loc(function_name: str, filename: str = FILE_NAME, line_no: int = -1) -> pprof_utils.StackLocation:
-    return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
-
-
 @pytest.mark.subprocess()
 def test_top_c_frame_detection_hashlib() -> None:
     """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
@@ -991,7 +985,7 @@ def test_top_c_frame_detection_hashlib() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1052,7 +1046,7 @@ def test_top_c_frame_detection_hashlib_kwarg() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1116,7 +1110,7 @@ def test_top_c_frame_detection_numpy_flat() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1183,7 +1177,7 @@ def test_top_c_frame_detection_numpy_nested() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1245,7 +1239,7 @@ def test_top_c_frame_detection_zlib() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1279,7 +1273,7 @@ def test_top_c_frame_detection_zlib() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("compress"), loc("zlib_loop")],
+            locations=[loc("compress"), loc("zlib_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1300,7 +1294,7 @@ def test_top_c_frame_detection_sorted_builtin() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1334,7 +1328,7 @@ def test_top_c_frame_detection_sorted_builtin() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("sorted"), loc("sorted_loop")],
+            locations=[loc("sorted"), loc("sorted_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1355,7 +1349,7 @@ def test_top_c_frame_detection_list_sort_method() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1390,7 +1384,7 @@ def test_top_c_frame_detection_list_sort_method() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("sort"), loc("sort_loop")],
+            locations=[loc("sort"), loc("sort_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1412,7 +1406,7 @@ def test_top_c_frame_detection_regex_method() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1447,7 +1441,7 @@ def test_top_c_frame_detection_regex_method() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("findall"), loc("regex_loop")],
+            locations=[loc("findall"), loc("regex_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1473,7 +1467,7 @@ def test_top_c_frame_detection_expression_arg() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1508,7 +1502,7 @@ def test_top_c_frame_detection_expression_arg() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("compress"), loc("compress_concat_loop")],
+            locations=[loc("compress"), loc("compress_concat_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1535,7 +1529,7 @@ def test_top_c_frame_detection_nested_c_calls() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1564,8 +1558,8 @@ def test_top_c_frame_detection_nested_c_calls() -> None:
     assert len(samples) > 0
 
     expected_stacks = [
-        [loc("sha256"), loc("nested_loop")],
-        [loc("compress"), loc("nested_loop")],
+        [loc("sha256"), loc("nested_loop", FILE_NAME)],
+        [loc("compress"), loc("nested_loop", FILE_NAME)],
     ]
 
     for exp_stack in expected_stacks:
@@ -1598,7 +1592,7 @@ def test_top_c_frame_detection_call_kw() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1632,7 +1626,7 @@ def test_top_c_frame_detection_call_kw() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("sorted"), loc("sorted_kw_loop")],
+            locations=[loc("sorted"), loc("sorted_kw_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1657,7 +1651,7 @@ def test_top_c_frame_detection_many_args() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1690,7 +1684,7 @@ def test_top_c_frame_detection_many_args() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("pbkdf2_hmac"), loc("pbkdf2_loop")],
+            locations=[loc("pbkdf2_hmac"), loc("pbkdf2_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1715,7 +1709,7 @@ def test_top_c_frame_detection_method_two_args() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1750,7 +1744,7 @@ def test_top_c_frame_detection_method_two_args() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("sub"), loc("regex_sub_loop")],
+            locations=[loc("sub"), loc("regex_sub_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1775,7 +1769,7 @@ def test_top_c_frame_detection_method_on_literal() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1809,7 +1803,7 @@ def test_top_c_frame_detection_method_on_literal() -> None:
         expected_sample=pprof_utils.StackEvent(
             thread_id=_thread.get_ident(),
             thread_name="MainThread",
-            locations=[loc("join"), loc("join_loop")],
+            locations=[loc("join"), loc("join_loop", FILE_NAME)],
         ),
         print_samples_on_failure=True,
     )
@@ -1836,7 +1830,7 @@ def test_top_c_frame_detection_sequential_calls() -> None:
 
     FILE_NAME = "test_stack.py"
 
-    def loc(function_name, filename=FILE_NAME, line_no=-1):
+    def loc(function_name, filename="", line_no=-1):
         return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
 
     tmp_path = pathlib.Path(tempfile.mkdtemp())
@@ -1866,8 +1860,8 @@ def test_top_c_frame_detection_sequential_calls() -> None:
     assert len(samples) > 0
 
     expected_stacks = [
-        [loc("compress"), loc("sequential_loop")],
-        [loc("sha256"), loc("sequential_loop")],
+        [loc("compress"), loc("sequential_loop", FILE_NAME)],
+        [loc("sha256"), loc("sequential_loop", FILE_NAME)],
     ]
 
     for exp_stack in expected_stacks:
