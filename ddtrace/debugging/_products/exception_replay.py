@@ -12,30 +12,24 @@ def post_preload() -> None:
     pass
 
 
-def _start() -> None:
+def start() -> None:
     from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
     SpanExceptionHandler.enable()
 
 
-def start() -> None:
-    if config.enabled:
-        _start()
+def enabled() -> bool:
+    return config.enabled
 
 
 def restart(join: bool = False) -> None:
     pass
 
 
-def _stop() -> None:
+def stop(join: bool = False) -> None:
     from ddtrace.debugging._exception.replay import SpanExceptionHandler
 
     SpanExceptionHandler.disable()
-
-
-def stop(join: bool = False) -> None:
-    if config.enabled:
-        _stop()
 
 
 def at_exit(join: bool = False) -> None:
@@ -49,4 +43,4 @@ class APMCapabilities(enum.IntFlag):
 def apm_tracing_rc(lib_config: Any, _config: Any) -> None:
     if (enabled := lib_config.get("exception_replay_enabled")) is not None:
         should_start = (config.spec.enabled.full_name not in config.source or config.enabled) and enabled
-        _start() if should_start else _stop()
+        start() if should_start else stop()

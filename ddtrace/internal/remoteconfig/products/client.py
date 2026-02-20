@@ -35,12 +35,15 @@ def post_preload():
     pass
 
 
-def start():
-    if config._remote_config_enabled:
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+def enabled():
+    return config._remote_config_enabled
 
-        remoteconfig_poller.enable()
-        _register_rc_products()
+
+def start():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+    remoteconfig_poller.enable()
+    _register_rc_products()
 
 
 def restart(join=False):
@@ -51,12 +54,11 @@ def restart(join=False):
 
 
 def stop(join=False):
-    if config._remote_config_enabled:
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.disable(join=join)
+    remoteconfig_poller.disable(join=join)
 
 
 def at_exit(join=False):
-    if config._remote_config_enabled and not rc_config.skip_shutdown:
+    if not rc_config.skip_shutdown:
         stop(join=join)

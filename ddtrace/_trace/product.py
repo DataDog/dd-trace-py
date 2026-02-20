@@ -36,14 +36,17 @@ def post_preload():
         _patch_all(**modules_to_bool)
 
 
+def enabled():
+    return _config.enabled
+
+
 def start():
-    if _config.enabled:
-        from ddtrace.internal.settings._config import config
+    from ddtrace.internal.settings._config import config
 
-        if config._trace_methods:
-            from ddtrace.internal.tracemethods import _install_trace_methods
+    if config._trace_methods:
+        from ddtrace.internal.tracemethods import _install_trace_methods
 
-            _install_trace_methods(config._trace_methods)
+        _install_trace_methods(config._trace_methods)
 
 
 def restart(join=False):

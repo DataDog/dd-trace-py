@@ -9,6 +9,12 @@ def post_preload():
     pass
 
 
+def enabled():
+    return (
+        config._asm_enabled or config._asm_can_be_enabled or config._asm_rc_enabled or ai_guard_config._ai_guard_enabled
+    )
+
+
 def start():
     if config._asm_enabled or config._asm_can_be_enabled:
         from ddtrace.appsec._listeners import load_common_appsec_modules
