@@ -1098,6 +1098,12 @@ class Experiment:
                     "dataset_record_id": str(record_id),
                     "experiment_id": str(self._id),
                 }
+                # Propagate dataset record tags to the experiment span
+                record_tags = record.get("tags", [])
+                for tag in record_tags:
+                    if ":" in tag:
+                        key, value = tag.split(":", 1)
+                        tags[key] = value
                 if canonical_id:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
