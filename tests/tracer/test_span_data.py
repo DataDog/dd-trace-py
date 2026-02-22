@@ -953,47 +953,44 @@ def test_trace_id_64bits_property():
     assert span._trace_id_64bits == 0x1234567890ABCDEF
 
 
-def test_trace_id_native_generation_format():
-    """Test native 128-bit trace ID generation follows the correct format.
+@pytest.fixture()
+def native_128bit_config():
+    """Save and restore the native 128-bit trace ID config around a test."""
+    from ddtrace.internal.native._native import config as native_config
 
-    Format: <32-bit unix seconds><32 bits of zero><64 random bits>
+    original = native_config.get_128_bit_trace_id_enabled()
+    yield native_config
+    native_config.set_128_bit_trace_id_enabled(original)
 
-    This test verifies the same format as tests/tracer/test_rand.py::test_rand128bit()
-    but for the native Rust generation function.
-    """
-    import time
 
-    # Generate trace IDs with timestamps bracketed
-    t1 = int(time.time()) - 1
-    span1 = SpanData(name="test")
-    span2 = SpanData(name="test")
-    t2 = int(time.time()) + 1
+def test_trace_id_auto_generation_128bit_enabled(native_128bit_config):
+    """With 128-bit mode enabled, auto-generated trace IDs exceed u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
+    span = SpanData(name="test")
+    assert span.trace_id > (2**64) - 1
 
-    val1 = span1.trace_id
-    val2 = span2.trace_id
 
-    # Convert to binary and extract components
-    val1_as_binary = format(val1, "b")
-    rand_64bit1 = int(val1_as_binary[-64:], 2)
-    zeros1 = int(val1_as_binary[-96:-64], 2)
-    unix_time1 = int(val1_as_binary[:-96], 2)
+def test_trace_id_auto_generation_64bit_disabled(native_128bit_config):
+    """With 128-bit mode disabled, auto-generated trace IDs fit within u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    span = SpanData(name="test")
+    assert span.trace_id <= (2**64) - 1
 
-    val2_as_binary = format(val2, "b")
-    rand_64bit2 = int(val2_as_binary[-64:], 2)
-    zeros2 = int(val2_as_binary[-96:-64], 2)
-    unix_time2 = int(val2_as_binary[:-96], 2)
 
-    # Assert that 64 lowest order bits of the 128 bit integers are random
-    assert 0 <= rand_64bit1 <= 2**64 - 1
-    assert 0 <= rand_64bit2 <= 2**64 - 1
-    assert rand_64bit1 != rand_64bit2
+def test_trace_id_explicit_64bit_preserved_in_128bit_mode(native_128bit_config):
+    """Explicit 64-bit trace IDs are stored as-is even when 128-bit mode is enabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
+    trace_id_64 = 0x1234567890ABCDEF
+    span = SpanData(name="test", trace_id=trace_id_64)
+    assert span.trace_id == trace_id_64
 
-    # Assert that bits 64 to 96 are zeros (from least significant to most)
-    assert zeros1 == zeros2 == 0
 
-    # Assert that the 32 most significant bits is unix time in seconds
-    assert t1 <= unix_time1 <= t2
-    assert t1 <= unix_time2 <= t2
+def test_trace_id_explicit_128bit_preserved_in_64bit_mode(native_128bit_config):
+    """Explicit 128-bit trace IDs are stored as-is even when 128-bit mode is disabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+    span = SpanData(name="test", trace_id=trace_id_128)
+    assert span.trace_id == trace_id_128
 
 
 # =============================================================================
