@@ -74,6 +74,21 @@ class GitTag:
     # Git Commit HEAD committer name
     COMMIT_HEAD_COMMITTER_NAME = "git.commit.head.committer.name"
 
+    # Git Pull Request Number
+    PULL_REQUEST_NUMBER = "git.pull_request.number"
+
+    # Git Pull Request Base Branch
+    PULL_REQUEST_BASE_BRANCH = "git.pull_request.base_branch"
+
+    # Git Pull Request Base Branch Commit SHA (merge base)
+    PULL_REQUEST_BASE_BRANCH_SHA = "git.pull_request.base_branch_sha"
+
+    # Git Pull Request Base Branch Head SHA
+    PULL_REQUEST_BASE_BRANCH_HEAD_SHA = "git.pull_request.base_branch_head_sha"
+
+    # Git Pull Request Head SHA
+    PULL_REQUEST_HEAD_SHA = "git.pull_request.head_sha"
+
 
 @dataclass
 class _GitSubprocessDetails:
@@ -188,6 +203,9 @@ class Git:
 
     def get_workspace_path(self) -> str:
         return self._git_output(["rev-parse", "--show-toplevel"])
+
+    def get_merge_base(self, base_sha: str, head_sha: str) -> str:
+        return self._git_output(["merge-base", base_sha, head_sha])
 
     def get_remote_name(self) -> str:
         return self._git_output(["config", "--default", "origin", "--get", "clone.defaultRemoteName"])

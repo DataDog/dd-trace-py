@@ -81,6 +81,21 @@ COMMIT_COMMITTER_DATE = "git.commit.committer.date"
 # Git Commit Message
 COMMIT_MESSAGE = "git.commit.message"
 
+# Git Pull Request Number
+PULL_REQUEST_NUMBER = "git.pull_request.number"
+
+# Git Pull Request Base Branch
+PULL_REQUEST_BASE_BRANCH = "git.pull_request.base_branch"
+
+# Git Pull Request Base Branch Commit SHA (merge base)
+PULL_REQUEST_BASE_BRANCH_SHA = "git.pull_request.base_branch_sha"
+
+# Git Pull Request Base Branch Head SHA
+PULL_REQUEST_BASE_BRANCH_HEAD_SHA = "git.pull_request.base_branch_head_sha"
+
+# Git Pull Request Head SHA
+PULL_REQUEST_HEAD_SHA = "git.pull_request.head_sha"
+
 # Python main package
 MAIN_PACKAGE = "python_main_package"
 

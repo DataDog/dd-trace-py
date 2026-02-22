@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix GitHub Actions pull request metadata to report the base branch head SHA separately and
+    compute the merge-base SHA for pull request diffs.
