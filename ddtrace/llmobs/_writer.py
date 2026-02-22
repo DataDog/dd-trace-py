@@ -38,6 +38,7 @@ from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
+from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
@@ -422,6 +423,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             latest_version=curr_version,
             version=curr_version,
             _dne_client=self,
+            filter_tags=None,
         )
 
     @staticmethod
@@ -437,29 +439,34 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if "metadata" in record:
             metadata = {} if record["metadata"] is None else record["metadata"]
 
-        rj: JSONType = {
+        rj: dict[str, JSONType] = {
             "input": cast(dict[str, JSONType], record.get("input_data")),
             "expected_output": expected_output,
             "metadata": metadata,
         }
 
         if is_update:
-            rj["id"] = record["record_id"]  # type: ignore
+            rj["id"] = cast(UpdatableDatasetRecord, record)["record_id"]
+        else:
+            tags = record.get("tags")
+            if tags:
+                rj["tags"] = cast(JSONType, tags)
 
         return rj
 
     def dataset_batch_update(
         self,
         dataset_id: str,
+        project_id: str,
         insert_records: list[DatasetRecordRaw],
         update_records: list[UpdatableDatasetRecord],
         delete_record_ids: list[str],
         deduplicate: bool = True,
         create_new_version: bool = True,
-    ) -> tuple[int, list[str]]:
+    ) -> tuple[int, list[str], list[Optional[str]]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
+        path = f"/api/v2/llm-obs/v1/{project_id}/datasets/{dataset_id}/batch_update"
         body: JSONType = {
             "data": {
                 "type": "datasets",
@@ -482,10 +489,15 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
-        return new_version, new_record_ids
+        new_canonical_ids: list[Optional[str]] = [r["attributes"].get("canonical_id") for r in data] if data else []
+        return new_version, new_record_ids, new_canonical_ids
 
     def dataset_get_with_records(
-        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+        self,
+        dataset_name: str,
+        project_name: Optional[str] = None,
+        version: Optional[int] = None,
+        tags: Optional[list[str]] = None,
     ) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
@@ -493,7 +505,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "getting records with project ID %s for %s, version: %s", project_id, project_name, str(version) or "latest"
         )
 
-        path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
+        path = f"/api/v2/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
             raise ValueError(
@@ -509,7 +521,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_description = data[0]["attributes"].get("description", "")
         dataset_id = data[0]["id"]
 
-        list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        list_base_path = f"/api/v2/llm-obs/v1/{project_id}/datasets/{dataset_id}/records"
 
         has_next_page = True
         class_records: list[DatasetRecord] = []
@@ -520,6 +532,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 url_options["filter[version]"] = version
 
             list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
+            if tags:
+                for tag in tags:
+                    list_path += f"&filter[tags]={tag}"
             logger.debug("list records page %d, request path=%s", page_num, list_path)
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
@@ -531,14 +546,15 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
             for record in records_data.get("data", []):
                 attrs = record.get("attributes", {})
-                class_records.append(
-                    {
-                        "record_id": record["id"],
-                        "input_data": attrs["input"],
-                        "expected_output": attrs.get("expected_output"),
-                        "metadata": attrs.get("metadata", {}),
-                    }
-                )
+                dataset_record: DatasetRecord = {
+                    "record_id": record["id"],
+                    "canonical_id": attrs.get("canonical_id"),
+                    "input_data": attrs["input"],
+                    "expected_output": attrs.get("expected_output"),
+                    "metadata": attrs.get("metadata", {}),
+                    "tags": attrs.get("tags", []),
+                }
+                class_records.append(dataset_record)
             next_cursor = records_data.get("meta", {}).get("after")
 
             url_options = {}
@@ -556,6 +572,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             latest_version=curr_version,
             version=version or curr_version,
             _dne_client=self,
+            filter_tags=tags,
         )
 
     def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True):
@@ -646,6 +663,67 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         return project
 
+    def experiment_get(self, id: str, tag_overrides: Optional[dict[str, str]] = None) -> "Experiment":  # noqa: A002
+        path = f"/api/v2/llm-obs/v1/experiments?filter[id]={id}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get experiment with ID {id}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        experiments = response_data.get("data", [])
+        if len(experiments) < 1:
+            raise ValueError(f"No experiments found for ID {id}")
+        experiment = experiments[0]["attributes"]
+        project_id = experiment["project_id"]
+        dataset_id = experiment["dataset_id"]
+
+        tags: list[str] = experiment["metadata"].get("tags", [])
+        tags_dict: dict[str, str] = {}
+        for tag in tags:
+            kv = tag.split(":", 1)
+            if len(kv) == 2:
+                tags_dict[kv[0]] = kv[1]
+
+        if tag_overrides:
+            tags_dict.update(tag_overrides)
+
+        # TODO[gh] attempt to find the project & dataset name through tags if possible,
+        # temporary hack to avoid extra API calls
+        project_name = tags_dict.get("project_name", project_id)
+        dataset_name = tags_dict.get("dataset_name", dataset_id)
+
+        project = Project(name=project_name, _id=project_id)
+
+        dataset = Dataset(
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=[],
+            # TODO[gh] need to fully pull dataset for this to be accurate, not critical for now
+            description="",
+            # TODO[gh] this may be incorrect
+            latest_version=experiment["dataset_version"],
+            version=experiment["dataset_version"],
+            _dne_client=self,
+        )
+
+        experiment_obj = Experiment(
+            name=experiment["experiment"],
+            task=Experiment._NO_OP_TASK,
+            dataset=dataset,
+            evaluators=[],
+            project_name=project_name,
+            tags=tags_dict,
+            description=experiment["description"],
+            config=experiment.get("config", {}),
+            _llmobs_instance=None,
+            runs=experiment["run_count"],
+            is_distributed=True,
+        )
+        experiment_obj._run_name = experiment["name"]
+        experiment_obj._id = id
+        experiment_obj._project_id = project_id
+        return experiment_obj
+
     def experiment_create(
         self,
         name: str,
@@ -656,6 +734,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         tags: Optional[list[str]] = None,
         description: Optional[str] = None,
         runs: Optional[int] = 1,
+        ensure_unique: bool = True,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -672,7 +751,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "dataset_version": dataset_version,
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
-                        "ensure_unique": True,
+                        "ensure_unique": ensure_unique,
                         "run_count": runs,
                     },
                 }

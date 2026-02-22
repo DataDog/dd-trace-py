@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: GET
+    uri: https://api.datadoghq.com/api/v2/llm-obs/v1/experiments?filter%5Bid%5D=1a7b4baf-d4c5-4053-9afd-d2e656c80757
+  response:
+    body:
+      string: '{"data":[{"id":"1a7b4baf-d4c5-4053-9afd-d2e656c80757","type":"experiments","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"config":{},"created_at":"2026-02-20T17:05:29.86277Z","dataset_id":"126b1329-c830-4904-94d6-c278ac3d75c6","dataset_version":1,"description":"","experiment":"test_run_for_experiment","metadata":{"tags":["ddtrace.version:4.5.0rc4","project_name:test-project-clean","dataset_name:test-dataset-123","experiment_name:test_run_for_experiment","project_id:569aa33c-7acf-4061-abd0-4f2078e61ee8"]},"name":"test_run_for_experiment","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","run_count":1,"updated_at":"2026-02-20T17:05:29.86277Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '697'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 17:06:47 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
