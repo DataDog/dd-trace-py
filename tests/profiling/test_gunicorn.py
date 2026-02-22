@@ -283,6 +283,8 @@ def test_gunicorn_gevent_sigterm_graceful_shutdown(monkeypatch: pytest.MonkeyPat
     ]
 
     _run_sigterm_graceful_shutdown_test(cmd, bind_addr, label="ddtrace")
+
+
 def test_gunicorn_profile_export_count_two_workers(
     gunicorn: RunGunicornFunc,
     tmp_path: pathlib.Path,

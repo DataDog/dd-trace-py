@@ -9,13 +9,11 @@ from __future__ import annotations
 
 import time
 from typing import Callable
-from typing import List
-from typing import Tuple
 
 
 def app(
     environ: dict[str, str],
-    start_response: Callable[[str, List[Tuple[str, str]]], None],
+    start_response: Callable[[str, list[tuple[str, str]]], None],
 ) -> list[bytes]:
     path = environ.get("PATH_INFO", "/")
 
