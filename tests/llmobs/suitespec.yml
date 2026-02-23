@@ -162,7 +162,6 @@ suites:
     runner: riot
     snapshot: true
   langgraph:
-    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -174,6 +173,7 @@ suites:
       - tests/contrib/langgraph/*
     runner: riot
     snapshot: true
+    venvs_per_job: 4
   crewai:
     parallelism: 3
     paths:
