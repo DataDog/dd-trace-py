@@ -27,7 +27,11 @@ RUN apt-get update \
     curl \
     unzip \
   && rm -rf /var/lib/apt/lists/* \
-  && python3 -m pip install requests --break-system-packages
+  && python3 -m pip install setuptools_rust cython requests --break-system-packages
+
+# Install Rust toolchain (needed to build _native / libdatadog)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN VAULT_VERSION=1.21.1 && curl -fsSL "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" -o vault.zip && unzip vault.zip && mv vault /usr/local/bin/vault && rm vault.zip && chmod +x /usr/local/bin/vault
 

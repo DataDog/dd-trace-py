@@ -17,11 +17,16 @@ add_executable(
     ../src/echion/strings.cc
     ../src/echion/tasks.cc
     ../src/echion/threads.cc
+    ../src/stack_renderer.cpp
+    ../src/sampler.cpp
+    ../src/thread_span_links.cpp
     fuzz_echion_remote_read.cpp)
 
-target_include_directories(fuzz_echion_remote_read PRIVATE ../include)
-target_include_directories(fuzz_echion_remote_read SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored
-                                                                  ../include/util)
+# Include paths: ../.. is the profiling root (for "dd_wrapper/include/..." paths), ../include is for stack headers.
+target_include_directories(fuzz_echion_remote_read PRIVATE ../.. ../include)
+target_include_directories(
+    fuzz_echion_remote_read SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
+    ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
 
 # Ensure echion headers take the fuzz hook in vm.h
 target_compile_definitions(fuzz_echion_remote_read PRIVATE ECHION_FUZZING)
@@ -43,6 +48,15 @@ endif()
 # Use the same ddup config helper for sanitizer/rpath defaults.
 add_ddup_config(fuzz_echion_remote_read)
 
+# Link against dd_wrapper (imported target defined by the parent stack/CMakeLists.txt)
+target_link_libraries(fuzz_echion_remote_read PRIVATE dd_wrapper)
+
 if(Python3_LIBRARIES)
     target_link_libraries(fuzz_echion_remote_read PRIVATE ${Python3_LIBRARIES})
+endif()
+
+# Set RPATH so the fuzz binary can find dd_wrapper and _native at runtime.
+if(LIB_INSTALL_DIR)
+    set_target_properties(fuzz_echion_remote_read PROPERTIES BUILD_RPATH "${LIB_INSTALL_DIR}" INSTALL_RPATH
+                                                                                              "${LIB_INSTALL_DIR}")
 endif()
