@@ -147,7 +147,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #endif
 
         // CORE of the fuzz harness
-        static EchionSampler echion_sampler;
+        EchionSampler echion_sampler;
         (void)Frame::create(echion_sampler, &code, lasti);
         // TODO: Call more internal functions to trigger more code paths
         // Possible ideas:
