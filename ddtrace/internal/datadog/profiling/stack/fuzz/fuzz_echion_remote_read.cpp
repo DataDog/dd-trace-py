@@ -101,6 +101,21 @@ echion_fuzz_copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void
     return -1;
 }
 
+// Stubs for symbols from vm.cc that sampler.cpp references.
+// We cannot compile vm.cc with ECHION_FUZZING because it defines copy_memory(),
+// which conflicts with the inline fuzz version from vm.h.
+bool
+use_alternative_copy_memory()
+{
+    return false;
+}
+
+void
+_set_pid(pid_t _pid)
+{
+    pid = _pid;
+}
+
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
@@ -113,12 +128,15 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
     // Pick fuzz generated values.
     // pointers: "remote address" inside the input data
+    // p0-p1 are used for StackChunk, p2-p4 for PyCodeObject fields.
     uintptr_t p0 = addr_from_u64(load_u64_le(data, size, 0));
     uintptr_t p1 = addr_from_u64(load_u64_le(data, size, 8));
     uintptr_t p2 = addr_from_u64(load_u64_le(data, size, 16));
+    uintptr_t p3 = addr_from_u64(load_u64_le(data, size, 24));
+    uintptr_t p4 = addr_from_u64(load_u64_le(data, size, 32));
 
     // lasti: last instruction index, used by Frame::create()
-    int lasti = load_int_le(data, size, 24);
+    int lasti = load_int_le(data, size, 40);
 
 #if PY_VERSION_HEX >= 0x030b0000
     {
@@ -133,17 +151,17 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         // Frame::create() will attempt to read those remote objects via copy_type/copy_generic.
         PyCodeObject code{};
         code.co_firstlineno = 1;
-        code.co_filename = reinterpret_cast<PyObject*>(p0);
+        code.co_filename = reinterpret_cast<PyObject*>(p2);
 
 #if PY_VERSION_HEX >= 0x030b0000
-        code.co_qualname = reinterpret_cast<PyObject*>(p1);
-        code.co_linetable = reinterpret_cast<PyObject*>(p2);
+        code.co_qualname = reinterpret_cast<PyObject*>(p3);
+        code.co_linetable = reinterpret_cast<PyObject*>(p4);
 #elif PY_VERSION_HEX >= 0x030a0000
-        code.co_name = reinterpret_cast<PyObject*>(p1);
-        code.co_linetable = reinterpret_cast<PyObject*>(p2);
+        code.co_name = reinterpret_cast<PyObject*>(p3);
+        code.co_linetable = reinterpret_cast<PyObject*>(p4);
 #else
-        code.co_name = reinterpret_cast<PyObject*>(p1);
-        code.co_lnotab = reinterpret_cast<PyObject*>(p2);
+        code.co_name = reinterpret_cast<PyObject*>(p3);
+        code.co_lnotab = reinterpret_cast<PyObject*>(p4);
 #endif
 
         // CORE of the fuzz harness
