@@ -385,10 +385,10 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
 
 @pytest.mark.parametrize("collect_dependencies", [True, False])
 def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_in_subprocess, test_agent_session):
-    """Assert at least one extended heartbeat is sent after sleeping 1.5 seconds."""
+    """Assert at least one extended heartbeat is sent when the extended heartbeat interval has elapsed."""
 
     env = os.environ.copy()
-    env["DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
+    env["_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
     env["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
     env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"

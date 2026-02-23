@@ -24,7 +24,7 @@ class TelemetryConfig(DDConfig):
     FORCE_START = DDConfig.v(bool, "instrumentation_telemetry.tests.force_app_started", default=False, private=True)
     LOG_COLLECTION_ENABLED = DDConfig.v(bool, "telemetry.log_collection.enabled", default=True)
     # Interval should be fixed to 24 hours. The value is should not be overridden in tests.
-    EXTENDED_HEARTBEAT_INTERVAL = DDConfig.v(float, "telemetry.extended_heartbeat_interval", default=3600 * 24.0)
+    EXTENDED_HEARTBEAT_INTERVAL = DDConfig.v(float, "telemetry.extended_heartbeat_interval", default=3600 * 24.0, private=True)
 
 
 config = TelemetryConfig()
