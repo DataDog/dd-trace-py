@@ -55,6 +55,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
@@ -107,8 +108,10 @@ from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentResult
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
@@ -564,6 +567,10 @@ class LLMObs(Service):
         if isinstance(span_links, list) and span_links:
             llmobs_span_event["span_links"] = span_links
 
+        experiment_config = span._get_ctx_item(EXPERIMENT_CONFIG)
+        if experiment_config:
+            llmobs_span_event["config"] = experiment_config
+
         return llmobs_span_event
 
     @staticmethod
@@ -892,9 +899,15 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         version: Optional[int] = None,
+        tags: Optional[list[str]] = None,
     ) -> Dataset:
+        if tags is not None and not isinstance(tags, list):
+            raise ValueError(
+                "tags must be a list of strings in the format of tag key value pairs. "
+                'Example: tags=["key1:value1", "key2:value2"]'
+            )
         ds = cls._instance._dne_client.dataset_get_with_records(
-            dataset_name, (project_name or cls._project_name), version
+            dataset_name, (project_name or cls._project_name), version, tags
         )
         return ds
 
@@ -1007,6 +1020,7 @@ class LLMObs(Service):
                             input_data={col: row[col] for col in input_data_columns},
                             expected_output={col: row[col] for col in expected_output_columns},
                             metadata={col: row[col] for col in metadata_columns},
+                            tags=[],
                             record_id="",
                             canonical_id=None,
                         )
@@ -1320,6 +1334,73 @@ class LLMObs(Service):
             summary_evaluators=summary_evaluators,
             runs=runs,
         )
+
+    @classmethod
+    def _distributed_experiment(
+        cls,
+        name: str,
+        dataset: Dataset,
+        description: str = "",
+        project_name: Optional[str] = None,
+        tags: Optional[dict[str, str]] = None,
+        config: Optional[ConfigType] = None,
+        runs: Optional[int] = 1,
+    ) -> Experiment:
+        experiment = Experiment(
+            name,
+            Experiment._NO_OP_TASK,
+            dataset,
+            [],
+            project_name=project_name or cls._project_name,
+            tags=tags,
+            description=description,
+            config=config,
+            _llmobs_instance=cls._instance,
+            runs=runs,
+            is_distributed=True,
+        )
+        experiment._setup_experiment(
+            "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`",
+            ensure_unique=False,
+        )
+        return experiment
+
+    @classmethod
+    def _run_for_experiment(
+        cls,
+        experiment_id: str,
+        task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
+        dataset_records: list[DatasetRecord],
+        evaluators: list[
+            Union[
+                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
+                Callable[[], Union[JSONType, EvaluatorResult]],
+            ]
+        ],
+        jobs: int = 1,
+        raise_errors: bool = False,
+        run_iteration: Optional[int] = 0,
+        tags: Optional[dict[str, str]] = None,
+    ) -> tuple[Experiment, ExperimentResult]:
+        if not cls._instance or not cls._instance.enabled:
+            raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
+        experiment = cls._instance._dne_client.experiment_get(experiment_id)
+        experiment._llmobs_instance = cls._instance
+        experiment._dataset._records = dataset_records
+        experiment._task = task
+        experiment._evaluators = evaluators  # type: ignore[assignment]
+
+        coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            results = asyncio.run(coro)
+        else:
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                results = pool.submit(asyncio.run, coro).result()
+        return experiment, results
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:
