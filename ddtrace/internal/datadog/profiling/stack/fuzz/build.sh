@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-TARGET=fuzz_echion_remote_read
+FUZZ_TARGETS="fuzz_echion_remote_read fuzz_echion_strings fuzz_echion_mirrors fuzz_echion_stacks"
 BUILD_DIR=/tmp/fuzz/build
 MANIFEST_FILE="${BUILD_DIR}/fuzz_binaries.txt"
 
@@ -11,7 +11,7 @@ SOURCE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PROFILING_DIR="$(cd "${SOURCE_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${PROFILING_DIR}/../../../.." && pwd)"
 
-echo "Building fuzz target: $TARGET"
+echo "Building fuzz targets: $FUZZ_TARGETS"
 echo "Source directory: $SOURCE_DIR"
 echo "Profiling directory: $PROFILING_DIR"
 
@@ -69,14 +69,16 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
       -DCMAKE_C_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
       -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined" \
       -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
-  && cmake --build "${BUILD_DIR}" -j --target $TARGET
+  && cmake --build "${BUILD_DIR}" -j
 
-# Register the built binary in the manifest file for the CI infrastructure to discover
-BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
-if [ -x "${BINARY_PATH}" ]; then
-    echo "${BINARY_PATH}" >> "${MANIFEST_FILE}"
-    echo "Registered binary in manifest: ${BINARY_PATH}"
-else
-    echo "Binary not found or not executable: ${BINARY_PATH}"
-    exit 1
-fi
+# Register the built binaries in the manifest file for the CI infrastructure to discover
+for TARGET in $FUZZ_TARGETS; do
+    BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
+    if [ -x "${BINARY_PATH}" ]; then
+        echo "${BINARY_PATH}" >> "${MANIFEST_FILE}"
+        echo "Registered binary in manifest: ${BINARY_PATH}"
+    else
+        echo "Binary not found or not executable: ${BINARY_PATH}"
+        exit 1
+    fi
+done
