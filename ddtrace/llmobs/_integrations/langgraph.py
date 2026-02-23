@@ -5,7 +5,6 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
@@ -56,13 +55,12 @@ class LangGraphIntegration(BaseLLMIntegration):
 
     def trace(
         self,
-        pin: Pin,
         operation_id: str,
         submit_to_llmobs: bool = False,
         instance=None,
         **kwargs,
     ) -> Span:
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 
         if instance:
             self._graph_spans_to_graph_instances[span] = instance
