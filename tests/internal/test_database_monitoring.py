@@ -171,6 +171,7 @@ def test_dbm_propagating_base_hash_when_activated():
     from ddtrace.propagation import _database_monitoring
     from ddtrace.trace import tracer
 
+    process_tags._set_globals()
     process_tags.compute_base_hash("abc123")
 
     with tracer.trace("dbspan", service="orders-db") as dbspan:
