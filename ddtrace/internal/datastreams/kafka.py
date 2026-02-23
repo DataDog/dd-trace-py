@@ -61,7 +61,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
             processor().track_kafka_produce(
-                msg.topic(), msg.partition(), reported_offset, time.time(), cluster_id=cluster_id or ""
+                msg.topic(), msg.partition(), reported_offset, time.time(), cluster_id=cluster_id
             )
         elif err.code() == -1 and not disable_header_injection:
             disable_header_injection = True
@@ -119,7 +119,7 @@ def dsm_kafka_message_consume(instance, message, span):
             message.partition(),
             reported_offset,
             time.time(),
-            cluster_id=cluster_id or "",
+            cluster_id=cluster_id,
         )
 
 
