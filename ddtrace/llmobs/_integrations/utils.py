@@ -14,25 +14,19 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
-from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TYPE_FILE
 from ddtrace.llmobs._constants import INPUT_TYPE_IMAGE
 from ddtrace.llmobs._constants import INPUT_TYPE_TEXT
-from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_AUTO
-from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
-from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
@@ -312,12 +306,12 @@ def openai_set_meta_tags_from_completion(
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
         output_messages = [Message(content=str(_get_attr(choice, "text", ""))) for choice in choices]
-    span._set_ctx_items(
-        {
-            INPUT_MESSAGES: [Message(content=p) for p in prompt],
-            METADATA: parameters,
-            OUTPUT_MESSAGES: output_messages,
-        }
+    input_messages = [Message(content=p) for p in prompt]
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=input_messages,
+        metadata=parameters,
+        output_messages=output_messages,
     )
 
 
@@ -347,16 +341,19 @@ def openai_set_meta_tags_from_chat(
             processed_message["content"] = ""  # reset content to empty string if tool results present
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
-    span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
-
+    tools = None
     if kwargs.get("tools") or kwargs.get("functions"):
         tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
         tools.extend(_openai_get_tool_definitions(kwargs.get("functions") or []))
-        if tools:
-            span._set_ctx_item(TOOL_DEFINITIONS, tools)
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=input_messages,
+        metadata=parameters,
+        tool_definitions=tools if tools else None,
+    )
 
     if span.error or not messages:
-        span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
     if isinstance(messages, list):  # streamed response
         role = ""
@@ -375,7 +372,7 @@ def openai_set_meta_tags_from_chat(
             if extracted_tool_calls:
                 message["tool_calls"] = extracted_tool_calls
             output_messages.append(message)
-        span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+        _annotate_llmobs_span_data(span, output_messages=output_messages)
         return
     choices = _get_attr(messages, "choices", [])
     output_messages = []
@@ -396,7 +393,7 @@ def openai_set_meta_tags_from_chat(
             message["tool_results"] = extracted_tool_results
             message["content"] = ""  # set content empty to avoid duplication
         output_messages.append(message)
-    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+    _annotate_llmobs_span_data(span, output_messages=output_messages)
 
 
 def _openai_extract_tool_calls_and_results_chat(
@@ -903,11 +900,7 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
     if is_multimodal:
         new_tags[PROMPT_MULTIMODAL] = "true"
 
-    existing_tags = span._get_ctx_item(TAGS)
-    if existing_tags:
-        existing_tags.update(new_tags)
-    else:
-        span._set_ctx_item(TAGS, new_tags)
+    _annotate_llmobs_span_data(span, tags=new_tags)
 
 
 def openai_set_meta_tags_from_response(
@@ -927,11 +920,10 @@ def openai_set_meta_tags_from_response(
     if "instructions" in kwargs:
         input_messages.insert(0, Message(content=str(kwargs["instructions"]), role="system"))
 
-    span._set_ctx_items(
-        {
-            INPUT_MESSAGES: input_messages,
-            METADATA: openai_get_metadata_from_response(response, kwargs),
-        }
+    _annotate_llmobs_span_data(
+        span,
+        input_messages=input_messages,
+        metadata=openai_get_metadata_from_response(response, kwargs),
     )
 
     prompt_data = kwargs.get("prompt")
@@ -952,25 +944,29 @@ def openai_set_meta_tags_from_response(
                         prompt_data["variables"] = normalized_variables
 
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
-            span._set_ctx_item(INPUT_PROMPT, validated_prompt)
+            _annotate_llmobs_span_data(span, prompt=validated_prompt)
 
             set_prompt_tracking_tags(span, is_multimodal=has_multimodal)
         except (TypeError, ValueError, AttributeError) as e:
             logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     if span.error or not response:
-        span._set_ctx_item(OUTPUT_MESSAGES, [Message(content="")])
+        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
         return
 
     # The response potentially contains enriched metadata (ex. tool calls) not in the original request
-    metadata = span._get_ctx_item(METADATA) or {}
-    metadata.update(openai_get_metadata_from_response(response))
-    span._set_ctx_item(METADATA, metadata)
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    existing_metadata = llmobs_data.get("meta", {}).get("metadata", {})
+    existing_metadata.update(openai_get_metadata_from_response(response))
     output_messages, mcp_tool_definitions = openai_get_output_messages_from_response(response, integration)
-    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
-    if mcp_tool_definitions or tools:
-        span._set_ctx_item(TOOL_DEFINITIONS, tools + mcp_tool_definitions)
+    all_tools = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
+    _annotate_llmobs_span_data(
+        span,
+        metadata=existing_metadata,
+        output_messages=output_messages,
+        tool_definitions=all_tools,
+    )
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
@@ -1099,12 +1095,16 @@ def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
     """Helper to update the input and output value for workflow spans."""
     if span_kind != "workflow":
         return
-    input_messages = span._get_ctx_item(INPUT_MESSAGES)
-    output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    llmobs_meta = llmobs_data.get("meta", {})
+    llmobs_input = llmobs_meta.get("input", {})
+    llmobs_output = llmobs_meta.get("output", {})
+    input_messages = llmobs_input.get("messages") if isinstance(llmobs_input, dict) else None
+    output_messages = llmobs_output.get("messages") if isinstance(llmobs_output, dict) else None
     if input_messages:
-        span._set_ctx_item(INPUT_VALUE, input_messages)
+        _annotate_llmobs_span_data(span, input_value=safe_json(input_messages))
     if output_messages:
-        span._set_ctx_item(OUTPUT_VALUE, output_messages)
+        _annotate_llmobs_span_data(span, output_value=safe_json(output_messages))
 
 
 class OaiSpanAdapter:

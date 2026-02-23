@@ -6,8 +6,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EVALUATION_KIND_METADATA
 from ddtrace.llmobs._constants import EVALUATION_SPAN_METADATA
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._evaluators.ragas.base import BaseRagasEvaluator
 from ddtrace.llmobs._evaluators.ragas.base import _get_ml_app_for_ragas_trace
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 
 
 logger = get_logger(__name__)
@@ -82,7 +84,9 @@ class RagasContextPrecisionEvaluator(BaseRagasEvaluator):
         with self.llmobs_service.workflow(
             "dd-ragas.context_precision", ml_app=_get_ml_app_for_ragas_trace(span_event)
         ) as ragas_cp_workflow:
-            ragas_cp_workflow._set_ctx_item(IS_EVALUATION_SPAN, True)
+            llmobs_data = _get_llmobs_data_metastruct(ragas_cp_workflow)
+            llmobs_data[IS_EVALUATION_SPAN] = True
+            ragas_cp_workflow._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
             try:
                 evaluation_metadata[EVALUATION_SPAN_METADATA] = self.llmobs_service.export_span(span=ragas_cp_workflow)
 

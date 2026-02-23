@@ -1,5 +1,4 @@
 from collections import defaultdict
-import json
 from typing import Any
 from typing import Optional
 from typing import Union
@@ -14,22 +13,10 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
-from ddtrace.llmobs._constants import INPUT_DOCUMENTS
-from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
@@ -37,7 +24,9 @@ from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_st
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import safe_json
@@ -297,7 +286,8 @@ class LangChainIntegration(BaseLLMIntegration):
         This is done by removing span links of previous steps in the chain from the parent span (if it is a chain).
         We add output->output span links at every step.
         """
-        parent_links: list[_SpanLink] = parent_span._get_ctx_item(SPAN_LINKS) or []
+        parent_llmobs_data = _get_llmobs_data_metastruct(parent_span)
+        parent_links: list[_SpanLink] = parent_llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
         pop_indices = self._get_popped_span_link_indices(parent_span, parent_links, invoker_spans, from_output)
 
         self._set_span_links(
@@ -339,7 +329,8 @@ class LangChainIntegration(BaseLLMIntegration):
         popped_span_link_indices: Optional[list[int]] = None,
     ) -> None:
         """Sets the span links on the given span along with the existing links."""
-        existing_links: list[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        existing_links: list[_SpanLink] = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
 
         if popped_span_link_indices:
             existing_links = [link for i, link in enumerate(existing_links) if i not in popped_span_link_indices]
@@ -355,7 +346,8 @@ class LangChainIntegration(BaseLLMIntegration):
         ]
 
         if links:
-            span._set_ctx_item(SPAN_LINKS, existing_links + links)
+            llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = existing_links + links
+            span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
 
     def _clear_instance_recordings(self, instance: Any) -> None:
         """
@@ -406,7 +398,7 @@ class LangChainIntegration(BaseLLMIntegration):
             metadata = self._llmobs_extract_parameters(val)
 
         if metadata:
-            span._set_ctx_item(METADATA, metadata)
+            _annotate_llmobs_span_data(span, metadata=metadata)
 
     def _llmobs_extract_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         metadata: dict[str, Any] = {}
@@ -428,8 +420,6 @@ class LangChainIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: list[Any], kwargs: dict[str, Any], completions: Any, is_workflow: bool = False
     ) -> None:
-        input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
-        output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
 
         prompts = get_argument_value(args, kwargs, 0, "input" if stream else "prompts")
@@ -441,20 +431,33 @@ class LangChainIntegration(BaseLLMIntegration):
         else:
             input_messages = [Message(content=str(prompt)) for prompt in prompts]
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "workflow" if is_workflow else "llm",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
-                input_tag_key: input_messages,
-            }
-        )
+        if is_workflow:
+            _annotate_llmobs_span_data(
+                span,
+                kind="workflow",
+                model_name=span.get_tag(MODEL) or "",
+                model_provider=span.get_tag(PROVIDER) or "",
+                input_value=safe_json(input_messages),
+            )
+        else:
+            _annotate_llmobs_span_data(
+                span,
+                kind="llm",
+                model_name=span.get_tag(MODEL) or "",
+                model_provider=span.get_tag(PROVIDER) or "",
+                input_messages=input_messages,
+            )
 
         self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
-            span._set_ctx_item(output_tag_key, [Message(content="")])
+            if is_workflow:
+                _annotate_llmobs_span_data(span, output_value="")
+            else:
+                _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
             return
+
+        metrics: Optional[dict[str, Any]] = None
         if stream:
             message_content = [Message(content=completions)]  # single completion for streams
         else:
@@ -467,8 +470,11 @@ class LangChainIntegration(BaseLLMIntegration):
                         OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                         TOTAL_TOKENS_METRIC_KEY: total_tokens,
                     }
-                    span._set_ctx_item(METRICS, metrics)
-        span._set_ctx_item(output_tag_key, message_content)
+
+        if is_workflow:
+            _annotate_llmobs_span_data(span, output_value=safe_json(message_content), metrics=metrics)
+        else:
+            _annotate_llmobs_span_data(span, output_messages=message_content, metrics=metrics)
 
     def _llmobs_set_tags_from_chat_model(
         self,
@@ -478,18 +484,15 @@ class LangChainIntegration(BaseLLMIntegration):
         chat_completions: Any,
         is_workflow: bool = False,
     ) -> None:
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "workflow" if is_workflow else "llm",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="workflow" if is_workflow else "llm",
+            model_name=span.get_tag(MODEL) or "",
+            model_provider=span.get_tag(PROVIDER) or "",
         )
 
         self._llmobs_set_metadata(span, kwargs)
 
-        input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
-        output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
 
         input_messages: list[Message] = []
@@ -516,17 +519,31 @@ class LangChainIntegration(BaseLLMIntegration):
                                 span,
                             ),
                         )
-        span._set_ctx_item(input_tag_key, input_messages)
+
+        if is_workflow:
+            _annotate_llmobs_span_data(span, input_value=safe_json(input_messages))
+        else:
+            _annotate_llmobs_span_data(span, input_messages=input_messages)
 
         if span.error:
-            span._set_ctx_item(output_tag_key, [Message(content="")])
+            if is_workflow:
+                _annotate_llmobs_span_data(span, output_value="")
+            else:
+                _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
             return
 
         output_messages: list[Message] = []
         if stream:
             content = chat_completions.content
             role = chat_completions.__class__.__name__.replace("MessageChunk", "").lower()  # AIMessageChunk --> ai
-            span._set_ctx_item(output_tag_key, [Message(content=content, role=ROLE_MAPPING.get(role, ""))])
+            if is_workflow:
+                _annotate_llmobs_span_data(
+                    span, output_value=safe_json([Message(content=content, role=ROLE_MAPPING.get(role, ""))])
+                )
+            else:
+                _annotate_llmobs_span_data(
+                    span, output_messages=[Message(content=content, role=ROLE_MAPPING.get(role, ""))]
+                )
             return
 
         input_tokens, output_tokens, total_tokens = 0, 0, 0
@@ -578,15 +595,18 @@ class LangChainIntegration(BaseLLMIntegration):
             output_tokens = sum(v["output_tokens"] for v in tokens_per_choice_run_id.values())
             total_tokens = sum(v["total_tokens"] for v in tokens_per_choice_run_id.values())
 
-        span._set_ctx_item(output_tag_key, output_messages)
-
+        metrics: Optional[dict[str, Any]] = None
         if not is_workflow and total_tokens > 0:
             metrics = {
                 INPUT_TOKENS_METRIC_KEY: input_tokens,
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                 TOTAL_TOKENS_METRIC_KEY: total_tokens,
             }
-            span._set_ctx_item(METRICS, metrics)
+
+        if is_workflow:
+            _annotate_llmobs_span_data(span, output_value=safe_json(output_messages), metrics=metrics)
+        else:
+            _annotate_llmobs_span_data(span, output_messages=output_messages, metrics=metrics)
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> list[ToolCall]:
         """Extracts tool calls from a langchain chat completion."""
@@ -640,7 +660,7 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_outputs = ""
         if not span.error and outputs is not None:
             formatted_outputs = format_langchain_io(outputs)
-        span._set_ctx_items({SPAN_KIND: "workflow", INPUT_VALUE: formatted_inputs, OUTPUT_VALUE: formatted_outputs})
+        _annotate_llmobs_span_data(span, kind="workflow", input_value=formatted_inputs, output_value=formatted_outputs)
 
     def _llmobs_set_meta_tags_from_embedding(
         self,
@@ -650,15 +670,12 @@ class LangChainIntegration(BaseLLMIntegration):
         output_embedding: Union[list[float], list[list[float]], None],
         is_workflow: bool = False,
     ) -> None:
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "workflow" if is_workflow else "embedding",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="workflow" if is_workflow else "embedding",
+            model_name=span.get_tag(MODEL) or "",
+            model_provider=span.get_tag(PROVIDER) or "",
         )
-        input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
-        output_tag_key = OUTPUT_VALUE
         output_values: Any
 
         try:
@@ -671,16 +688,16 @@ class LangChainIntegration(BaseLLMIntegration):
             ):
                 if is_workflow:
                     formatted_inputs = format_langchain_io(input_texts)
-                    span._set_ctx_item(input_tag_key, formatted_inputs)
+                    _annotate_llmobs_span_data(span, input_value=formatted_inputs)
                 else:
                     if isinstance(input_texts, str):
                         input_texts = [input_texts]
                     input_documents: list[Document] = [Document(text=str(doc)) for doc in input_texts]
-                    span._set_ctx_item(input_tag_key, input_documents)
+                    _annotate_llmobs_span_data(span, input_documents=input_documents)
         except TypeError:
             log.warning("Failed to serialize embedding input data to JSON")
         if span.error or output_embedding is None:
-            span._set_ctx_item(output_tag_key, "")
+            _annotate_llmobs_span_data(span, output_value="")
             return
         try:
             if isinstance(output_embedding[0], float):
@@ -692,9 +709,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 output_values = output_embedding
                 embeddings_count = len(output_embedding)
             embedding_dim = len(output_values[0])
-            span._set_ctx_item(
-                output_tag_key,
-                "[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
+            _annotate_llmobs_span_data(
+                span,
+                output_value="[{} embedding(s) returned with size {}]".format(embeddings_count, embedding_dim),
             )
         except (TypeError, IndexError):
             log.warning("Failed to write output vectors", output_embedding)
@@ -707,22 +724,21 @@ class LangChainIntegration(BaseLLMIntegration):
         output_documents: Union[list[Any], None],
         is_workflow: bool = False,
     ) -> None:
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "workflow" if is_workflow else "retrieval",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="workflow" if is_workflow else "retrieval",
+            model_name=span.get_tag(MODEL) or "",
+            model_provider=span.get_tag(PROVIDER) or "",
         )
         input_query = get_argument_value(args, kwargs, 0, "query")
         if input_query is not None:
             formatted_inputs = format_langchain_io(input_query)
-            span._set_ctx_item(INPUT_VALUE, formatted_inputs)
+            _annotate_llmobs_span_data(span, input_value=formatted_inputs)
         if span.error or not output_documents or not isinstance(output_documents, list):
-            span._set_ctx_item(OUTPUT_VALUE, "")
+            _annotate_llmobs_span_data(span, output_value="")
             return
         if is_workflow:
-            span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(output_documents)))
+            _annotate_llmobs_span_data(span, output_value="[{} document(s) retrieved]".format(len(output_documents)))
             return
         documents: list[Document] = []
         for d in output_documents:
@@ -731,12 +747,16 @@ class LangChainIntegration(BaseLLMIntegration):
             metadata = getattr(d, "metadata", {})
             doc["name"] = metadata.get("name", doc["id"])
             documents.append(doc)
-        span._set_ctx_item(OUTPUT_DOCUMENTS, format_langchain_io(documents))
+        _annotate_llmobs_span_data(span, output_documents=format_langchain_io(documents))
         # we set the value as well to ensure that the UI would display it in case the span was the root
-        span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
+        _annotate_llmobs_span_data(span, output_value="[{} document(s) retrieved]".format(len(documents)))
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:
-        metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
+        # Check for existing metadata from meta_struct first, then fall back to checking span tag
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
+        metadata = meta.get(LLMOBS_STRUCT.METADATA) or {}
+
         formatted_input = ""
         if tool_inputs is not None:
             tool_name, tool_id, tool_args = self._extract_tool_call_args_from_inputs(tool_inputs)
@@ -752,13 +772,12 @@ class LangChainIntegration(BaseLLMIntegration):
         formatted_outputs = ""
         if not span.error and tool_output is not None:
             formatted_outputs = format_langchain_io(tool_output)
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "tool",
-                METADATA: metadata,
-                INPUT_VALUE: formatted_input,
-                OUTPUT_VALUE: formatted_outputs,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="tool",
+            metadata=metadata,
+            input_value=formatted_input,
+            output_value=formatted_outputs,
         )
 
     def _llmobs_set_meta_tags_from_runnable_lambda(
@@ -766,12 +785,11 @@ class LangChainIntegration(BaseLLMIntegration):
     ) -> None:
         inputs = get_argument_value(args, kwargs, 0, "inputs")
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "task",
-                INPUT_VALUE: safe_json(inputs),
-                OUTPUT_VALUE: safe_json(response),
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="task",
+            input_value=safe_json(inputs),
+            output_value=safe_json(response),
         )
 
     def _set_base_span_tags(
@@ -952,7 +970,7 @@ class LangChainIntegration(BaseLLMIntegration):
             prompt = prompt_value_meta
             try:
                 prompt = _validate_prompt(prompt, strict_validation=True)
-                span._set_ctx_item(INPUT_PROMPT, prompt)
+                _annotate_llmobs_span_data(span, prompt=prompt)
                 set_prompt_tracking_tags(span)
             except Exception as e:
                 log.debug("Failed to validate langchain prompt", e)

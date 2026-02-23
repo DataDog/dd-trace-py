@@ -7,10 +7,10 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
-from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
@@ -99,12 +99,14 @@ def record_span_started():
 
 def record_span_created(span: Span):
     is_root_span = span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID
-    has_session_id = span._get_ctx_item(SESSION_ID) is not None
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
+    has_session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID) is not None
     integration = span._get_ctx_item(INTEGRATION)
     autoinstrumented = integration is not None
     decorator = span._get_ctx_item(DECORATOR) is True
-    span_kind = span._get_ctx_item(SPAN_KIND)
-    model_provider = span._get_ctx_item("model_provider")
+    span_kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+    model_provider = llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER)
     ml_app = _get_ml_app(span)
 
     tags = [
@@ -176,7 +178,9 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     span_kind = "N/A"
     is_root_span = "0"
     if span and isinstance(span, Span):
-        span_kind = span._get_ctx_item(SPAN_KIND) or "N/A"
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
+        span_kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND) or "N/A"
         is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
@@ -209,7 +213,9 @@ def record_span_exported(span: Optional[Span], error: Optional[str]):
     span_kind = "N/A"
     is_root_span = "0"
     if span and isinstance(span, Span):
-        span_kind = span._get_ctx_item(SPAN_KIND) or "N/A"
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
+        span_kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND) or "N/A"
         is_root_span = str(int(span._get_ctx_item(PARENT_ID_KEY) == ROOT_PARENT_ID))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(

@@ -9,17 +9,13 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
@@ -100,7 +96,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span._set_ctx_item(SPAN_KIND, OP_NAMES_TO_SPAN_KIND.get(operation, "task"))
+        _annotate_llmobs_span_data(span, kind=OP_NAMES_TO_SPAN_KIND.get(operation, "task"))
         if operation == "crew":
             crew_id = _get_crew_id(span, "crew")
             self._llmobs_set_tags_crew(span, args, kwargs, response)
@@ -123,6 +119,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         crew_instance = kwargs.pop("_dd.instance", None)
         crew_id = _get_crew_id(span, "crew")
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        curr_span_links = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
         if task_span_ids:
             last_task_span_id = task_span_ids[-1]
             span_link = _SpanLink(
@@ -130,8 +128,8 @@ class CrewAIIntegration(BaseLLMIntegration):
                 trace_id=format_trace_id(span.trace_id),
                 attributes={"from": "output", "to": "output"},
             )
-            curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
-            span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
+            llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = curr_span_links + [span_link]
+            span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
         metadata = {
             "process": getattr(crew_instance, "process", ""),
             "planning": getattr(crew_instance, "planning", ""),
@@ -140,10 +138,10 @@ class CrewAIIntegration(BaseLLMIntegration):
             "memory": getattr(crew_instance, "memory", ""),
         }
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or ""
-        span._set_ctx_items({INPUT_VALUE: inputs, NAME: "CrewAI Crew", METADATA: metadata})
+        _annotate_llmobs_span_data(span, input_value=inputs, name="CrewAI Crew", metadata=metadata)
         if span.error:
             return
-        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
+        _annotate_llmobs_span_data(span, output_value=getattr(response, "raw", ""))
 
     def _llmobs_set_tags_task(self, span, args, kwargs, response):
         crew_id = _get_crew_id(span, "task")
@@ -168,14 +166,19 @@ class CrewAIIntegration(BaseLLMIntegration):
                     attributes={"from": "input", "to": "input"},
                 )
                 span_links.append(span_link)
-            curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
-            span._set_ctx_item(SPAN_LINKS, curr_span_links + span_links)
-        span._set_ctx_items(
-            {NAME: task_name if task_name else "CrewAI Task", METADATA: metadata, INPUT_VALUE: task_description}
+            llmobs_data = _get_llmobs_data_metastruct(span)
+            curr_span_links = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
+            llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = curr_span_links + span_links
+            span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
+        _annotate_llmobs_span_data(
+            span,
+            name=task_name if task_name else "CrewAI Task",
+            metadata=metadata,
+            input_value=task_description,
         )
         if span.error:
             return
-        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "raw", ""))
+        _annotate_llmobs_span_data(span, output_value=getattr(response, "raw", ""))
 
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         """Set span links and metadata for agent spans.
@@ -193,40 +196,44 @@ class CrewAIIntegration(BaseLLMIntegration):
             trace_id=format_trace_id(span.trace_id),
             attributes={"from": "output", "to": "output"},
         )
-        curr_span_links = parent_span._get_ctx_item(SPAN_LINKS) or []
-        parent_span._set_ctx_item(SPAN_LINKS, curr_span_links + [parent_span_link])
+        parent_llmobs_data = _get_llmobs_data_metastruct(parent_span)
+        parent_curr_span_links = parent_llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
+        parent_llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = parent_curr_span_links + [parent_span_link]
+        parent_span._set_struct_tag(LLMOBS_STRUCT.KEY, parent_llmobs_data)
+
         span_link = _SpanLink(
             span_id=str(parent_span.span_id),
             trace_id=format_trace_id(span.trace_id),
             attributes={"from": "input", "to": "input"},
         )
-        curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
-        span._set_ctx_items(
-            {
-                NAME: agent_role if agent_role else "CrewAI Agent",
-                INPUT_VALUE: {"context": context, "input": task_description},
-                SPAN_LINKS: curr_span_links + [span_link],
-            }
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        curr_span_links = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
+        llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = curr_span_links + [span_link]
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
+
+        _annotate_llmobs_span_data(
+            span,
+            name=agent_role if agent_role else "CrewAI Agent",
+            input_value={"context": context, "input": task_description},
         )
         if span.error:
             return
-        span._set_ctx_item(OUTPUT_VALUE, response)
+        _annotate_llmobs_span_data(span, output_value=response)
 
     def _llmobs_set_tags_tool(self, span, args, kwargs, response):
         tool_instance = kwargs.pop("_dd.instance", None)
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
         tool_input = kwargs.get("input", "")
-        span._set_ctx_items(
-            {
-                NAME: tool_name if tool_name else "CrewAI Tool",
-                METADATA: {"description": description},
-                INPUT_VALUE: tool_input,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            name=tool_name if tool_name else "CrewAI Tool",
+            metadata={"description": description},
+            input_value=tool_input,
         )
         if span.error:
             return
-        span._set_ctx_item(OUTPUT_VALUE, response)
+        _annotate_llmobs_span_data(span, output_value=response)
 
         try:
             if isinstance(tool_input, str):
@@ -275,7 +282,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         if hasattr(agent, "tools"):
             manifest["tools"] = self._get_agent_tools(agent.tools)
 
-        span._set_ctx_item(AGENT_MANIFEST, manifest)
+        _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     def _get_agent_tools(self, tools):
         if not tools or not isinstance(tools, list):
@@ -292,7 +299,12 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_flow(self, span, args, kwargs, response):
         inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or {}
-        span._set_ctx_items({NAME: span.name or "CrewAI Flow", INPUT_VALUE: inputs, OUTPUT_VALUE: str(response)})
+        _annotate_llmobs_span_data(
+            span,
+            name=span.name or "CrewAI Flow",
+            input_value=inputs,
+            output_value=str(response),
+        )
         return
 
     def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
@@ -321,13 +333,15 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(str(response), {})
             span_dict.update({"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)})
 
-        span._set_ctx_items(
-            {
-                NAME: span.name or "Flow Method",
-                INPUT_VALUE: input_dict,
-                OUTPUT_VALUE: str(response),
-                SPAN_LINKS: span_links,
-            }
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
+
+        _annotate_llmobs_span_data(
+            span,
+            name=span.name or "Flow Method",
+            input_value=input_dict,
+            output_value=str(response),
         )
         return
 
@@ -392,15 +406,18 @@ class CrewAIIntegration(BaseLLMIntegration):
                         attributes={"from": "output", "to": "input"},
                     )
                 )
-                flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
+                flow_llmobs_data = _get_llmobs_data_metastruct(flow_span)
+                flow_span_span_links = flow_llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
                 # Remove temporary output->output link since the AND has been triggered
                 span_links_minus_tmp_output_links = [
                     link for link in flow_span_span_links if link["span_id"] != str(method_span_dict["span_id"])
                 ]
-                flow_span._set_ctx_item(SPAN_LINKS, span_links_minus_tmp_output_links)
+                flow_llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links_minus_tmp_output_links
+                flow_span._set_struct_tag(LLMOBS_STRUCT.KEY, flow_llmobs_data)
 
         if triggered is False:
-            flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
+            flow_llmobs_data = _get_llmobs_data_metastruct(flow_span)
+            flow_span_span_links = flow_llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
             flow_span_span_links.append(
                 _SpanLink(
                     span_id=str(trigger_span_dict["span_id"]),
@@ -408,7 +425,8 @@ class CrewAIIntegration(BaseLLMIntegration):
                     attributes={"from": "output", "to": "output"},
                 )
             )
-            flow_span._set_ctx_item(SPAN_LINKS, flow_span_span_links)
+            flow_llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = flow_span_span_links
+            flow_span._set_struct_tag(LLMOBS_STRUCT.KEY, flow_llmobs_data)
         return
 
     def _llmobs_set_span_link_on_task(self, span: Optional[Span], args: Any, kwargs: Any) -> None:
