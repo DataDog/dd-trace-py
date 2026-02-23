@@ -2,8 +2,22 @@
 #
 # Build:
 #   $ docker build -f docker/Dockerfile.fuzz -t ddtrace-py-stackv2-fuzz .
-# Run:
-#   $ docker run --rm -it -v "$PWD/.fuzz:/fuzz" ddtrace-py-stackv2-fuzz
+#
+# Run (default — fuzz_echion_remote_read):
+#   $ docker run --rm -it ddtrace-py-stackv2-fuzz
+#
+# Run a specific target:
+#   $ docker run --rm -it ddtrace-py-stackv2-fuzz /tmp/fuzz/build/fuzz/fuzz_echion_strings /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/
+#   $ docker run --rm -it ddtrace-py-stackv2-fuzz /tmp/fuzz/build/fuzz/fuzz_echion_mirrors /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/
+#   $ docker run --rm -it ddtrace-py-stackv2-fuzz /tmp/fuzz/build/fuzz/fuzz_echion_stacks  /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/
+#
+# Persist corpus/artifacts with a volume mount:
+#   $ docker run --rm -it -v "$PWD/.fuzz:/tmp/fuzz/" ddtrace-py-stackv2-fuzz
+#
+# Quick sanity check (10 s per target):
+#   $ for t in fuzz_echion_remote_read fuzz_echion_strings fuzz_echion_mirrors fuzz_echion_stacks; do \
+#       docker run --rm ddtrace-py-stackv2-fuzz /tmp/fuzz/build/fuzz/$t /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/ -max_total_time=10; \
+#     done
 
 # TODO(taegyunkim): Add this image to Datadog/images, and update
 # .gitlab/fuzz.yml to use the same images.
