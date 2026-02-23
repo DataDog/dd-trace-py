@@ -64,13 +64,10 @@ from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
-from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -79,7 +76,6 @@ from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
-from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import AsyncEvaluatorType
@@ -2078,13 +2074,13 @@ class LLMObs(Service):
                     error = "invalid_metadata"
                     raise LLMObsAnnotateSpanError("metadata must be a dictionary")
                 else:
-                    cls._set_dict_attribute(span, METADATA, metadata)
+                    _annotate_llmobs_span_data(span, metadata=metadata)
             if metrics is not None:
                 if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
                     raise LLMObsAnnotateSpanError("metrics must be a dictionary of string key - numeric value pairs.")
                 else:
-                    cls._set_dict_attribute(span, METRICS, metrics)
+                    _annotate_llmobs_span_data(span, metrics=metrics)
             if tags is not None:
                 if not isinstance(tags, dict):
                     error = "invalid_tags"
@@ -2095,7 +2091,7 @@ class LLMObs(Service):
                     session_id = tags.get("session_id")
                     if session_id:
                         _annotate_llmobs_span_data(span, session_id=str(session_id))
-                    cls._set_dict_attribute(span, TAGS, tags)
+                    _annotate_llmobs_span_data(span, tags=tags)
             if tool_definitions is not None:
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
@@ -2108,9 +2104,10 @@ class LLMObs(Service):
             if prompt is not None:
                 try:
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
-                    cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-                    cls._set_dict_attribute(
-                        span, TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                    _annotate_llmobs_span_data(
+                        span,
+                        prompt=validated_prompt,
+                        tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED},
                     )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
@@ -2236,21 +2233,6 @@ class LLMObs(Service):
         arbitrary structured or non structured IO values in its spans
         """
         _annotate_llmobs_span_data(span, experiment_input=input_value, experiment_output=output_value)
-
-    @staticmethod
-    def _set_dict_attribute(span: Span, key, value: dict[str, Any]) -> None:
-        """Sets a given LLM Obs span attribute with a dictionary key/values.
-        If the attribute is already set on the span, the new dict will be merged with the existing
-        dict via _annotate_llmobs_span_data.
-        """
-        if key == METADATA:
-            _annotate_llmobs_span_data(span, metadata=value)
-        elif key == METRICS:
-            _annotate_llmobs_span_data(span, metrics=value)
-        elif key == TAGS:
-            _annotate_llmobs_span_data(span, tags=value)
-        elif key == INPUT_PROMPT:
-            _annotate_llmobs_span_data(span, prompt=value)
 
     @classmethod
     def submit_evaluation(
