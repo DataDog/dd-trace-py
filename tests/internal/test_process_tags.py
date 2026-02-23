@@ -86,6 +86,7 @@ def test_compute_process_tag_excluded_values(excluded_value):
 class TestProcessTags(TracerTestCase):
     def setUp(self):
         super(TestProcessTags, self).setUp()
+        process_tags._set_globals()
         self._original_process_tags_enabled = config.enabled
         self._original_process_tags = process_tags.process_tags
         self._original_process_tags_list = process_tags.process_tags_list
