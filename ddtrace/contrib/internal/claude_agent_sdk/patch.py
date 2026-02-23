@@ -3,12 +3,10 @@ import sys
 import claude_agent_sdk
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import handle_streamed_response
 from ddtrace.contrib.internal.claude_agent_sdk._streaming import wrap_prompt_if_async_iterable
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
 from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations import ClaudeAgentSdkIntegration
@@ -28,15 +26,13 @@ def _supported_versions() -> dict[str, str]:
     return {"claude_agent_sdk": ">=0.0.23"}
 
 
-@with_traced_module
-def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, kwargs):
+def traced_query_async_generator(func, _instance, args, kwargs):
     """Trace the standalone query() async generator function."""
     integration = claude_agent_sdk._datadog_integration
 
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
 
     span = integration.trace(
-        pin,
         "claude_agent_sdk.query",
         submit_to_llmobs=True,
     )
@@ -46,7 +42,7 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
 
     try:
         resp = func(*wrapped_args, **wrapped_kwargs)
-        return handle_streamed_response(integration, resp, args, kwargs, span, operation="query", pin=pin)
+        return handle_streamed_response(integration, resp, args, kwargs, span, operation="query")
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="query")
@@ -54,8 +50,7 @@ def traced_query_async_generator(claude_agent_sdk, pin, func, _instance, args, k
         raise
 
 
-@with_traced_module
-async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwargs):
+async def traced_client_query(func, instance, args, kwargs):
     """Trace ClaudeSDKClient.query() - starts span, finished by receive_messages()."""
     # skip tracing for internal /context queries to avoid trace loop
     if getattr(instance, "_dd_internal_context_query", False):
@@ -66,7 +61,6 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
     wrapped_args, wrapped_kwargs, prompt_wrapper = wrap_prompt_if_async_iterable(args, kwargs)
 
     span = integration.trace(
-        pin,
         "claude_agent_sdk.ClaudeSDKClient.query",
         submit_to_llmobs=True,
         instance=instance,
@@ -94,8 +88,7 @@ async def traced_client_query(claude_agent_sdk, pin, func, instance, args, kwarg
         raise
 
 
-@with_traced_module
-def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs):
+def traced_receive_messages(func, instance, args, kwargs):
     """Trace ClaudeSDKClient.receive_messages() - finishes span started by query()."""
     # skip tracing for internal /context queries to avoid trace loop
     if getattr(instance, "_dd_internal_context_query", False):
@@ -118,7 +111,7 @@ def traced_receive_messages(claude_agent_sdk, pin, func, instance, args, kwargs)
     try:
         resp = func(*args, **kwargs)
         return handle_streamed_response(
-            integration, resp, query_args, query_kwargs, span, operation="request", pin=pin, instance=instance
+            integration, resp, query_args, query_kwargs, span, operation="request", instance=instance
         )
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -133,13 +126,12 @@ def patch():
 
     claude_agent_sdk._datadog_patch = True
 
-    Pin().onto(claude_agent_sdk)
     integration = ClaudeAgentSdkIntegration(integration_config=config.claude_agent_sdk)
     claude_agent_sdk._datadog_integration = integration
 
-    wrap("claude_agent_sdk", "query", traced_query_async_generator(claude_agent_sdk))
-    wrap("claude_agent_sdk", "ClaudeSDKClient.query", traced_client_query(claude_agent_sdk))
-    wrap("claude_agent_sdk", "ClaudeSDKClient.receive_messages", traced_receive_messages(claude_agent_sdk))
+    wrap("claude_agent_sdk", "query", traced_query_async_generator)
+    wrap("claude_agent_sdk", "ClaudeSDKClient.query", traced_client_query)
+    wrap("claude_agent_sdk", "ClaudeSDKClient.receive_messages", traced_receive_messages)
 
 
 def unpatch():
