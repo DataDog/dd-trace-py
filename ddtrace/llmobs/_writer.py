@@ -35,9 +35,11 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
+from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
@@ -57,6 +59,7 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     status_message: str
     collection_errors: list[str]
     span_links: list[_SpanLink]
+    config: ConfigType
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
@@ -662,6 +665,67 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         return project
 
+    def experiment_get(self, id: str, tag_overrides: Optional[dict[str, str]] = None) -> "Experiment":  # noqa: A002
+        path = f"/api/v2/llm-obs/v1/experiments?filter[id]={id}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get experiment with ID {id}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        experiments = response_data.get("data", [])
+        if len(experiments) < 1:
+            raise ValueError(f"No experiments found for ID {id}")
+        experiment = experiments[0]["attributes"]
+        project_id = experiment["project_id"]
+        dataset_id = experiment["dataset_id"]
+
+        tags: list[str] = experiment["metadata"].get("tags", [])
+        tags_dict: dict[str, str] = {}
+        for tag in tags:
+            kv = tag.split(":", 1)
+            if len(kv) == 2:
+                tags_dict[kv[0]] = kv[1]
+
+        if tag_overrides:
+            tags_dict.update(tag_overrides)
+
+        # TODO[gh] attempt to find the project & dataset name through tags if possible,
+        # temporary hack to avoid extra API calls
+        project_name = tags_dict.get("project_name", project_id)
+        dataset_name = tags_dict.get("dataset_name", dataset_id)
+
+        project = Project(name=project_name, _id=project_id)
+
+        dataset = Dataset(
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=[],
+            # TODO[gh] need to fully pull dataset for this to be accurate, not critical for now
+            description="",
+            # TODO[gh] this may be incorrect
+            latest_version=experiment["dataset_version"],
+            version=experiment["dataset_version"],
+            _dne_client=self,
+        )
+
+        experiment_obj = Experiment(
+            name=experiment["experiment"],
+            task=Experiment._NO_OP_TASK,
+            dataset=dataset,
+            evaluators=[],
+            project_name=project_name,
+            tags=tags_dict,
+            description=experiment["description"],
+            config=experiment.get("config", {}),
+            _llmobs_instance=None,
+            runs=experiment["run_count"],
+            is_distributed=True,
+        )
+        experiment_obj._run_name = experiment["name"]
+        experiment_obj._id = id
+        experiment_obj._project_id = project_id
+        return experiment_obj
+
     def experiment_create(
         self,
         name: str,
@@ -672,6 +736,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         tags: Optional[list[str]] = None,
         description: Optional[str] = None,
         runs: Optional[int] = 1,
+        ensure_unique: bool = True,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -688,7 +753,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "dataset_version": dataset_version,
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
-                        "ensure_unique": True,
+                        "ensure_unique": ensure_unique,
                         "run_count": runs,
                     },
                 }
