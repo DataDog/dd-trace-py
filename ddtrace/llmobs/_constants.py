@@ -132,6 +132,7 @@ EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
 # experiment context keys
+EXPERIMENT_CONFIG = "_ml_obs.config"
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"

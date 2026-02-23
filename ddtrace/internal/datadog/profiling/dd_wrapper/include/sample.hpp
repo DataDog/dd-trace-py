@@ -95,8 +95,7 @@ class Sample
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t endtime_ns = 0;         // end of the event
-    bool reverse_locations = false; // whether to reverse locations when exporting/flushing
+    int64_t endtime_ns = 0; // end of the event
 
     // Backing memory for string copies
     internal::StringArena string_storage{};
@@ -156,9 +155,6 @@ class Sample
     // call returns. Frames obtained internally via PyFrame_GetBack() are
     // released by this function.
     void push_pyframes(PyFrameObject* frame);
-
-    // Set whether to reverse locations when exporting/flushing
-    void set_reverse_locations(bool reverse) { reverse_locations = reverse; }
 
     // Flushes the current buffer, clearing it
     bool flush_sample();
