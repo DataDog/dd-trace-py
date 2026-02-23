@@ -6,7 +6,17 @@
 
 #include "python_headers.hpp"
 
+#ifdef ECHION_FUZZING
+// In fuzz builds, dd_wrapper (and its libdatadog dependency) is not available.
+// Provide minimal stubs so the header compiles without it.
+namespace Datadog {
+class Sample;
+using string_id = uint64_t;
+using function_id = uint64_t;
+} // namespace Datadog
+#else
 #include "dd_wrapper/include/sample.hpp"
+#endif
 
 #include "echion/frame.h"
 #include "echion/timing.h"
@@ -62,6 +72,7 @@ struct ThreadState
 
 class StackRenderer
 {
+#ifndef ECHION_FUZZING
     Sample* sample = nullptr;
     ThreadState thread_state = {};
 
@@ -75,8 +86,19 @@ class StackRenderer
     // Whether task name has been pushed for the current sample. Whenever
     // the sample is created, this has to be reset.
     bool pushed_task_name = false;
+#endif
 
   public:
+#ifdef ECHION_FUZZING
+    // No-op implementations for fuzz builds (stack renderer is not exercised)
+    StackRenderer() = default;
+    void render_thread_begin(PyThreadState*, std::string_view, microsecond_t, uintptr_t, unsigned long) {}
+    void render_task_begin(const std::string&, bool) {}
+    void render_frame(Frame&) {}
+    void render_cpu_time(uint64_t) {}
+    void render_stack_end() {}
+    void postfork_child() {}
+#else
     StackRenderer();
     void render_thread_begin(PyThreadState* tstate,
                              std::string_view name,
@@ -90,6 +112,7 @@ class StackRenderer
 
     // Clear caches after fork to avoid using stale interned string/function IDs
     void postfork_child();
+#endif
 };
 
 } // namespace Datadog
