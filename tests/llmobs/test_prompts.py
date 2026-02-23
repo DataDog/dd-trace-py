@@ -105,8 +105,8 @@ def assert_prompt_matches_response(prompt, response, expected_source):
     assert prompt._version_uuid == response.get("prompt_version_uuid")
 
 
-class TestGetPrompt:
-    """Core get_prompt functionality - customer use cases."""
+class TestPrompts:
+    """Tests for the Managed Prompt Registry SDK."""
 
     def test_fetch_and_render_text_prompt(self):
         """Fetch a text prompt from registry and render with variables."""
@@ -143,7 +143,6 @@ class TestGetPrompt:
         assert call_count == 1
         assert_prompt_matches_response(prompt1, TEXT_PROMPT_RESPONSE, "registry")
 
-        # Second call - no API request
         prompt2 = LLMObs.get_prompt("greeting")
         assert call_count == 1
         assert_prompt_matches_response(prompt2, TEXT_PROMPT_RESPONSE, "cache")
@@ -168,25 +167,18 @@ class TestGetPrompt:
 
     def test_label_parameter(self):
         """Different labels fetch different prompt versions."""
-        # Fetch production version
         with mock_api(200, TEXT_PROMPT_RESPONSE):
             prod_prompt = LLMObs.get_prompt("greeting", label="production")
         assert prod_prompt.version == "v1"
         assert prod_prompt.label == "production"
 
-        # Clear cache to force new fetch
         LLMObs.clear_prompt_cache(hot=True, warm=True)
 
-        # Fetch development version
         with mock_api(200, DEV_PROMPT_RESPONSE):
             dev_prompt = LLMObs.get_prompt("greeting", label="development")
         assert dev_prompt.version == "dev-v1"
         assert dev_prompt.label == "development"
         assert "DEBUG" in dev_prompt.format(name="Test")
-
-
-class TestFallback:
-    """Fallback behavior when API unavailable."""
 
     def test_string_fallback_on_error(self):
         """String fallback used when API returns 500."""
@@ -241,25 +233,28 @@ class TestFallback:
     def test_raises_when_no_fallback_provided(self):
         """Raises ValueError when API fails and no fallback is provided."""
         with mock_api(500, "Internal Server Error"):
-            with pytest.raises(ValueError, match="could not be fetched and no fallback was provided"):
+            with pytest.raises(ValueError) as exc_info:
                 LLMObs.get_prompt("greeting")
+        assert "could not be fetched and no fallback was provided" in str(exc_info.value)
+        assert "Internal Server Error" in str(exc_info.value)
 
-
-class TestCacheControl:
-    """Explicit cache management APIs."""
+    def test_raises_with_404_detail_when_no_fallback_provided(self):
+        detail = "prompt 'support-assistant' exists but label 'production' was not found"
+        with mock_api(404, {"detail": detail}):
+            with pytest.raises(ValueError) as exc_info:
+                LLMObs.get_prompt("support-assistant", label="production")
+        assert "could not be fetched and no fallback was provided" in str(exc_info.value)
+        assert detail in str(exc_info.value)
 
     def test_clear_prompt_cache(self):
         """clear_prompt_cache() removes cached prompts."""
-        # Populate cache
         with mock_api(200, TEXT_PROMPT_RESPONSE):
             prompt1 = LLMObs.get_prompt("greeting")
         assert prompt1.source == "registry"
 
-        # Verify cached
         prompt2 = LLMObs.get_prompt("greeting")
         assert prompt2.source == "cache"
 
-        # Clear and verify re-fetch required
         LLMObs.clear_prompt_cache(hot=True, warm=True)
 
         with mock_api(200, TEXT_PROMPT_RESPONSE):
@@ -268,50 +263,38 @@ class TestCacheControl:
 
     def test_refresh_prompt(self):
         """refresh_prompt() forces re-fetch from API."""
-        # Initial fetch
         with mock_api(200, TEXT_PROMPT_RESPONSE):
             prompt1 = LLMObs.get_prompt("greeting")
         assert prompt1.version == "v1"
 
-        # Update response for refresh
         updated_response = {**TEXT_PROMPT_RESPONSE, "version": "v2"}
 
-        # Refresh forces new fetch
         with mock_api(200, updated_response):
             refreshed = LLMObs.refresh_prompt("greeting")
 
         assert refreshed is not None
         assert refreshed.version == "v2"
 
-        # Subsequent get returns refreshed version
         prompt2 = LLMObs.get_prompt("greeting")
         assert prompt2.version == "v2"
 
     def test_refresh_prompt_evicts_on_404(self):
         """refresh_prompt() evicts cache when prompt is deleted (404)."""
-        # Initial fetch and cache
         with mock_api(200, TEXT_PROMPT_RESPONSE):
             prompt1 = LLMObs.get_prompt("greeting")
         assert prompt1.source == "registry"
 
-        # Verify cached
         prompt2 = LLMObs.get_prompt("greeting")
         assert prompt2.source == "cache"
 
-        # Prompt is deleted from registry (404)
         with mock_api(404, "Not Found"):
             result = LLMObs.refresh_prompt("greeting")
         assert result is None
 
-        # Cache should be evicted, next call uses fallback
         with mock_api(404, "Not Found"):
             prompt3 = LLMObs.get_prompt("greeting", fallback="Fallback: {name}")
         assert prompt3.source == "fallback"
         assert prompt3.format(name="Bob") == "Fallback: Bob"
-
-
-class TestAnnotationContext:
-    """Integration with LLMObs observability."""
 
     def test_annotation_context_captures_variables(self, tracer):
         """Variables passed to to_annotation_dict appear on span."""
@@ -348,8 +331,6 @@ class TestAnnotationContext:
                 assert "label" not in prompt_data
                 assert "tags" not in prompt_data
 
-
-class TestPromptManagerInternals:
     def test_trigger_background_refresh_does_not_leave_stale_thread_entry(self):
         manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
 

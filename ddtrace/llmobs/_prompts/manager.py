@@ -73,14 +73,14 @@ class PromptManager:
                 return prompt
 
         # Try sync fetch from registry
-        fetched_prompt = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
+        fetched_prompt, reason = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=False)
         if fetched_prompt is not None:
             telemetry.record_prompt_source("registry")
             return fetched_prompt
 
         # Fall back to user-provided or empty prompt
         telemetry.record_prompt_source("fallback")
-        return self._create_fallback_prompt(prompt_id, fallback)
+        return self._create_fallback_prompt(prompt_id, fallback, reason=reason)
 
     def _try_cache(
         self,
@@ -113,7 +113,8 @@ class PromptManager:
     def refresh_prompt(self, prompt_id: str, label: Optional[str] = None) -> Optional[ManagedPrompt]:
         """Force refresh a prompt from the registry, or None if not found."""
         key = cache_key(prompt_id, label)
-        return self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
+        prompt, _ = self._fetch_and_cache(prompt_id, label, key, evict_on_not_found=True)
+        return prompt
 
     def _update_caches(self, key: str, prompt: ManagedPrompt) -> None:
         """Store a prompt in both hot and warm caches with source='cache'."""
@@ -136,13 +137,13 @@ class PromptManager:
         label: Optional[str],
         key: str,
         evict_on_not_found: bool = False,
-    ) -> Optional[ManagedPrompt]:
+    ) -> tuple[Optional[ManagedPrompt], str]:
         """Fetch a prompt and update caches."""
-        prompt, not_found = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
+        prompt, not_found, reason = self._fetch_from_registry(prompt_id, label, timeout=self._timeout)
 
         if prompt is not None:
             self._update_caches(key, prompt)
-            return prompt
+            return prompt, ""
 
         if not_found:
             telemetry.record_prompt_fetch_error("NotFound")
@@ -151,7 +152,7 @@ class PromptManager:
         else:
             telemetry.record_prompt_fetch_error("FetchError")
 
-        return None
+        return None, reason
 
     def _trigger_background_refresh(self, key: str, prompt_id: str, label: Optional[str]) -> None:
         """Trigger a background refresh if not already in progress."""
@@ -189,8 +190,8 @@ class PromptManager:
 
     def _fetch_from_registry(
         self, prompt_id: str, label: Optional[str], timeout: float
-    ) -> tuple[Optional[ManagedPrompt], bool]:
-        """Fetch from registry. Returns (prompt, not_found)."""
+    ) -> tuple[Optional[ManagedPrompt], bool, str]:
+        """Fetch from registry. Returns (prompt, not_found, reason)."""
         conn = None
         try:
             conn = get_connection(self._base_url, timeout=timeout)
@@ -201,7 +202,7 @@ class PromptManager:
             body = response.read().decode("utf-8")
 
             if status == 200:
-                return self._parse_response(body, prompt_id, label), False
+                return self._parse_response(body, prompt_id, label), False, ""
 
             not_found = status == 404
             detail = extract_error_detail(body)
@@ -211,10 +212,10 @@ class PromptManager:
                 log.warning(
                     'Prompt fetch failed: prompt_id=%s label=%s status=%d detail="%s"', prompt_id, label, status, detail
                 )
-            return None, not_found
+            return None, not_found, detail
         except Exception as e:
             log.warning("Prompt fetch exception: prompt_id=%s label=%s: %s", prompt_id, label, e)
-            return None, False
+            return None, False, str(e)
         finally:
             if conn is not None:
                 conn.close()
@@ -250,9 +251,13 @@ class PromptManager:
         self,
         prompt_id: str,
         fallback: PromptFallback = None,
+        reason: str = "",
     ) -> ManagedPrompt:
         """Create a fallback prompt when fetch fails."""
         if fallback is None:
-            raise ValueError("Prompt '{}' could not be fetched and no fallback was provided".format(prompt_id))
+            message = "Prompt '{}' could not be fetched and no fallback was provided".format(prompt_id)
+            if reason:
+                message = "{}: {}".format(message, reason)
+            raise ValueError(message)
         log.debug("Using user-provided fallback for prompt %s", prompt_id)
         return ManagedPrompt.from_fallback(prompt_id, fallback)
