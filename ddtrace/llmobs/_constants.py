@@ -147,3 +147,10 @@ FILE_FALLBACK_MARKER = "[file]"
 INPUT_TYPE_IMAGE = "input_image"
 INPUT_TYPE_FILE = "input_file"
 INPUT_TYPE_TEXT = "input_text"
+
+# Managed Prompts Cache and Timeout defaults
+DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
+DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
+
+# Managed Prompts API
+PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
