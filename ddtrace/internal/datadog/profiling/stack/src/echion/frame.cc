@@ -17,7 +17,7 @@
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030b0000
 static inline int
-_read_varint(unsigned char* table, ssize_t size, ssize_t* i)
+read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 {
     ssize_t guard = size - 1;
     if (*i >= guard)
@@ -34,9 +34,9 @@ _read_varint(unsigned char* table, ssize_t size, ssize_t* i)
 
 // ----------------------------------------------------------------------------
 static inline int
-_read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
+read_signed_varint(unsigned char* table, ssize_t size, ssize_t* i)
 {
-    int val = _read_varint(table, size, i);
+    int val = read_varint(table, size, i);
     return (val & 1) ? -(val >> 1) : (val >> 1);
 }
 #endif
@@ -93,17 +93,17 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
                 break;
 
             case 14: // Long form
-                lineno += _read_signed_varint(table_data, len, &i);
+                lineno += read_signed_varint(table_data, len, &i);
 
                 this->location.line = lineno;
-                this->location.line_end = lineno + _read_varint(table_data, len, &i);
-                this->location.column = _read_varint(table_data, len, &i);
-                this->location.column_end = _read_varint(table_data, len, &i);
+                this->location.line_end = lineno + read_varint(table_data, len, &i);
+                this->location.column = read_varint(table_data, len, &i);
+                this->location.column_end = read_varint(table_data, len, &i);
 
                 break;
 
             case 13: // No column data
-                lineno += _read_signed_varint(table_data, len, &i);
+                lineno += read_signed_varint(table_data, len, &i);
 
                 this->location.line = lineno;
                 this->location.line_end = lineno;
