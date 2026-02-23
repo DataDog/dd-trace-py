@@ -956,7 +956,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
     A :class:`tests.utils.span.TestSpan` which is used as part of a span tree.
 
     Each :class:`tests.utils.span.TestSpanNode` represents the current :class:`ddtrace.trace.Span`
-    along with any children who have that span as it's parent.
+    along with any children who have that span as its parent.
 
     This class can be used to assert on the parent/child relationships between spans.
 
@@ -987,10 +987,10 @@ class TestSpanNode(TestSpan, TestSpanContainer):
 
     def assert_structure(self, root, children=NO_CHILDREN):
         """
-        Assertion to assert on the structure of this node and it's children.
+        Assertion to assert on the structure of this node and its children.
 
         This assertion takes a dictionary of properties to assert for this node
-        along with a list of assertions to make for it's children.
+        along with a list of assertions to make for its children.
 
         Example::
 
@@ -1007,7 +1007,7 @@ class TestSpanNode(TestSpan, TestSpanContainer):
                     dict(name='root_span'),
 
                     (
-                        # Child span with one child of it's own
+                        # Child span with one child of its own
                         (
                             dict(name='child_span'),
 

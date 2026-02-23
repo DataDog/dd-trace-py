@@ -87,7 +87,7 @@ class Signal(abc.ABC):
     timestamp: float = field(default_factory=time.time)
     uuid: str = field(default_factory=lambda: str(uuid4()), init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         probe = self.probe
         if isinstance(probe, TimingMixin):
             eval_at = probe.evaluate_at
@@ -155,12 +155,12 @@ class Signal(abc.ABC):
         return False
 
     @property
-    def session(self):
+    def session(self) -> Optional[Session]:
         session_id = self.probe.tags.get("session_id")
         return Session.lookup(session_id) if session_id is not None else None
 
     @property
-    def args(self):
+    def args(self) -> dict[str, Any]:
         return dict(get_args(self.frame))
 
     @abc.abstractmethod
@@ -205,8 +205,7 @@ class Signal(abc.ABC):
         frame = self.frame
         extra: dict[str, Any] = {"@duration": duration / 1e6}  # milliseconds
 
-        exc = exc_info[1]
-        if exc is not None:
+        if (exc := exc_info[1]) is not None:
             extra["@exception"] = exc
         else:
             extra["@return"] = retval

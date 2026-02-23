@@ -20,17 +20,17 @@ DI_PRODUCT_KEY = "dynamic-instrumentation"
 # requires = ["tracer"]
 
 
-def post_preload():
+def post_preload() -> None:
     pass
 
 
-def _start():
+def _start() -> None:
     from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
     SpanCodeOriginProcessorEntry.enable()
 
 
-def start():
+def start() -> None:
     # We need to instrument the entrypoints on boot because this is the only
     # time the tracer will notify us of entrypoints being registered.
     @partial(core.on, "service_entrypoint.patch")
@@ -48,23 +48,23 @@ def start():
         _start()
 
 
-def restart(join=False):
+def restart(join: bool = False) -> None:
     pass
 
 
-def _stop():
+def _stop() -> None:
     from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
     SpanCodeOriginProcessorEntry.disable()
 
 
-def stop(join=False):
+def stop(join: bool = False) -> None:
     di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
     if config.span.enabled or di_enabled:
         _stop()
 
 
-def at_exit(join=False):
+def at_exit(join: bool = False) -> None:
     stop(join=join)
 
 
@@ -72,7 +72,7 @@ class APMCapabilities(enum.IntFlag):
     APM_TRACING_ENABLE_CODE_ORIGIN = 1 << 40
 
 
-def apm_tracing_rc(lib_config, _config):
+def apm_tracing_rc(lib_config: t.Any, _config: t.Any) -> None:
     if (enabled := lib_config.get("code_origin_enabled")) is not None:
         should_start = (config.span.spec.enabled.full_name not in config.source or config.span.enabled) and enabled
         _start() if should_start else _stop()
