@@ -32,12 +32,13 @@ SPAN_START_WHILE_DISABLED_WARNING = (
     " See https://docs.datadoghq.com/llm_observability/setup/sdk/python/#setup."
 )
 
+CLAUDE_AGENT_SDK_APM_SPAN_NAME = "claude_agent_sdk.request"
+CREWAI_APM_SPAN_NAME = "crewai.request"
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
 LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
-CREWAI_APM_SPAN_NAME = "crewai.request"
 
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
@@ -131,6 +132,7 @@ EXPERIMENT_DATASET_NAME_KEY = "_ml_obs.experiment_dataset_name"
 EXPERIMENT_NAME_KEY = "_ml_obs.experiment_name"
 
 # experiment context keys
+EXPERIMENT_CONFIG = "_ml_obs.config"
 EXPERIMENT_RECORD_METADATA = "_ml_obs.meta.metadata"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENTS_INPUT = "_ml_obs.meta.input"
