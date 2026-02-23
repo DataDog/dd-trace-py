@@ -3,6 +3,7 @@
 from copy import deepcopy
 from dataclasses import dataclass
 import inspect
+import os
 import random
 from typing import TYPE_CHECKING
 from typing import Any
@@ -160,7 +161,6 @@ def load_optimization_system_prompt(config: ConfigType) -> str:
         - ``model_name``: Model name to add as context for the optimizer.
     :return: System prompt string with output format injected.
     """
-    import os
 
     # Get the directory of this file
     current_dir = os.path.dirname(os.path.abspath(__file__))
