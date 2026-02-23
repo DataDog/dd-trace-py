@@ -12,6 +12,7 @@
 #include <cstring>
 #include <vector>
 
+#include <echion/echion_sampler.h>
 #include <echion/frame.h>
 #include <echion/mirrors.h>
 #include <echion/strings.h>
@@ -146,7 +147,8 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 #endif
 
         // CORE of the fuzz harness
-        (void)Frame::create(&code, lasti);
+        static EchionSampler echion_sampler;
+        (void)Frame::create(echion_sampler, &code, lasti);
         // TODO: Call more internal functions to trigger more code paths
         // Possible ideas:
         // - MirrorSet::*
