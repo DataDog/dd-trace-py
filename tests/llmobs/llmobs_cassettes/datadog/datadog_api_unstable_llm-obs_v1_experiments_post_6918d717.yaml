@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test_experiment",
+      "description": "", "dataset_id": "126b1329-c830-4904-94d6-c278ac3d75c6", "project_id":
+      "569aa33c-7acf-4061-abd0-4f2078e61ee8", "dataset_version": 1, "config": {"models":
+      ["gpt-4.1"]}, "metadata": {"tags": []}, "ensure_unique": true, "run_count":
+      1}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '325'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"2dde323a-9e43-46bb-af34-6f254044c3d7","type":"experiments","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"config":{"models":["gpt-4.1"]},"created_at":"2026-02-20T04:46:25.216771382Z","dataset_id":"126b1329-c830-4904-94d6-c278ac3d75c6","dataset_version":1,"description":"","experiment":"test_experiment","metadata":{"tags":[]},"name":"test_experiment-1771562785216","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","run_count":1,"updated_at":"2026-02-20T04:46:25.21677148Z"}}}'
+    headers:
+      content-length:
+      - '516'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 04:46:25 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

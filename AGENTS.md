@@ -29,12 +29,14 @@
 
 When starting a new chat session, ALWAYS read and apply the rules from:
 
-1. `.cursor/rules/*.mdc` - All rule files in this directory (version controlled):
+1. `AGENTS.md` - This file (canonical project guidelines)
+2. `.cursor/rules/*.mdc` - All rule files in this directory (version controlled):
    - `dd-trace-py.mdc` - Core project guidelines
    - `linting.mdc` - Code quality and formatting
    - `testing.mdc` - Test execution guidelines
    - `repo-structure.mdc` - Repository structure
    - `appsec.mdc` - Application Security (AppSec) features including IAST, AAP, RASP, API Security
+   - `iast.mdc` - IAST (Interactive Application Security Testing) development guide
 
 ## Skills
 
@@ -103,7 +105,9 @@ This project has custom skills that provide specialized workflows. **Always chec
 
 **Purpose:** Creates or updates release notes using Reno, following dd-trace-py's conventions:
 - Generates Reno release note files for the current branch changes
+- Generates properly formatted release note files
 - Follows the guidelines in `docs/releasenotes.rst`
+- Places notes in the `releasenotes/` directory
 
 **Usage:** Use the Skill tool with command "releasenote"
 
