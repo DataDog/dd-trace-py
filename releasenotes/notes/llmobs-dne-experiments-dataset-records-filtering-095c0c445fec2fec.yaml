@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    LLM Observability: Subset of dataset records can now be pulled with tags by using the ``tags`` argument 
+    LLM Observability: Subset of dataset records can now be pulled with tags by using the ``tags``
     argument to ``LLMObs.pull_dataset``, provided in a list of strings of key value pairs: 
     ``LLMObs.pull_dataset(dataset_name="my-dataset", tags=["env:prod", "version:1.0"])``
