@@ -420,7 +420,7 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator) and not _is_deep_eval_evaluator(evaluator)
 
 if BaseMetric is not None and BaseConversationalMetric is not None:
-    def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric, is_async: bool = False) -> Callable[[dict[str, Any], Any, Optional[JSONType]], EvaluatorResult]:
+    def _deep_eval_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric) -> Callable[[dict[str, Any], Any, Optional[JSONType]], EvaluatorResult]:
         """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
         
         :param evaluator: The deep eval evaluator to run
@@ -440,10 +440,31 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
                 actual_output=str(output_data),
                 expected_output=str(expected_output),
             )
-            if is_async:
-                evaluator.a_measure(deepEvalTestCase)
-            else:
-                evaluator.measure(deepEvalTestCase)
+            evaluator.measure(deepEvalTestCase)
+            score = evaluator.score
+            reasoning = evaluator.reason
+            assessment = "pass" if evaluator.success else "fail"
+            metadata = evaluator.score_breakdown
+            eval_result = EvaluatorResult(
+                value=score,
+                reasoning=reasoning,
+                assessment=assessment,
+                metadata=metadata,
+            )
+            return eval_result
+        wrapped_evaluator.__name__ = getattr(evaluator, "name", "deep_eval_evaluator")
+        return wrapped_evaluator
+    def _deep_eval_async_evaluator_wrapper(evaluator: BaseMetric | BaseConversationalMetric) -> Callable[..., Awaitable[EvaluatorResult]]:
+        """Sync factory that returns an async callable for use with await in async experiments."""
+        from deepeval.test_case import LLMTestCase
+
+        async def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
+            deepEvalTestCase = LLMTestCase(
+                input=str(input_data),
+                actual_output=str(output_data),
+                expected_output=str(expected_output),
+            )
+            await evaluator.a_measure(deepEvalTestCase)
             score = evaluator.score
             reasoning = evaluator.reason
             assessment = "pass" if evaluator.success else "fail"
@@ -464,6 +485,9 @@ else:
         :param evaluator: The deep eval evaluator to run
         :return: A callable function that can be used as an evaluator
         """
+        return evaluator
+    def _deep_eval_async_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
 

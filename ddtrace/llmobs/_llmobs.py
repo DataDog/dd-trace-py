@@ -113,6 +113,7 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
 from ddtrace.llmobs._experiment import TaskType
+from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
@@ -1201,7 +1202,7 @@ class LLMObs(Service):
         for idx, evaluator in enumerate(evaluators):
             _validate_evaluator_signature(evaluator, is_async=False)
             if _is_deep_eval_evaluator(evaluator):
-                evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator, is_async=False)
+                evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator)
                 continue
         if summary_evaluators and not all(
             callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
@@ -1278,7 +1279,7 @@ class LLMObs(Service):
         for idx, evaluator in enumerate(evaluators):
             _validate_evaluator_signature(evaluator, is_async=True)
             if _is_deep_eval_evaluator(evaluator):
-                evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator, is_async=True)
+                evaluators[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
                 continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:

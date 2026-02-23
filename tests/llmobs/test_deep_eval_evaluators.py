@@ -25,9 +25,15 @@ class SimpleDeepEvalMetric(BaseMetric):
         passed = test_case.actual_output == test_case.expected_output
         self.score = 1.0 if passed else 0.0
         self.reason = "Match" if passed else "Mismatch"
-        self.success = "pass" if passed else "fail"
+        self.success = bool(self.score)
         return self.score
 
+    async def a_measure(self, test_case: LLMTestCase) -> float:
+        passed = test_case.actual_output == test_case.expected_output
+        self.score = 1.0 if passed else 0.0
+        self.reason = "Match" if passed else "Mismatch"
+        self.success = bool(self.score)
+        return self.score
 
 class TestDeepEvalEvaluatorDetection:
     """Test that _is_deep_eval_evaluator correctly identifies DeepEval metrics."""
@@ -52,7 +58,7 @@ class TestDeepEvalEvaluatorMeasure:
         metric.measure(tc)
         assert metric.score == 1.0
         assert metric.reason == "Match"
-        assert metric.success == "pass"
+        assert metric.success == True
 
     def test_measure_sets_score_fail(self):
         metric = SimpleDeepEvalMetric()
@@ -60,7 +66,7 @@ class TestDeepEvalEvaluatorMeasure:
         metric.measure(tc)
         assert metric.score == 0.0
         assert metric.reason == "Mismatch"
-        assert metric.success == "fail"
+        assert metric.success == False
 
 
 class TestDeepEvalEvaluatorInExperiment:
@@ -115,6 +121,7 @@ class TestDeepEvalEvaluatorInExperiment:
 
         def task(input_data, config):
             return {"answer": "London"}
+
         dataset = Dataset(
             name="test_dataset",
             project={"name": "test_project", "_id": "proj_123"},
