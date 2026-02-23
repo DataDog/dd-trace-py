@@ -362,10 +362,6 @@ else:
         Callable[[DatasetRecordInputType, JSONType, JSONType], Awaitable[Union[JSONType, "EvaluatorResult"]]],
         BaseAsyncEvaluator,
     ]
-AsyncEvaluatorType = Union[
-    Callable[[DatasetRecordInputType, JSONType, JSONType], Awaitable[Union[JSONType, "EvaluatorResult"]]],
-    BaseAsyncEvaluator,
-]
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[

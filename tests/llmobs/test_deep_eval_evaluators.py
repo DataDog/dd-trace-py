@@ -1,5 +1,6 @@
 """Tests for DeepEval evaluator integration with LLMObs experiments."""
 
+import asyncio
 import mock
 import pytest
 
@@ -13,9 +14,10 @@ from ddtrace.llmobs._experiment import _ExperimentRunInfo
 class SimpleDeepEvalMetric(BaseMetric):
     """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
 
-    def __init__(self, name="SimpleDeepEvalMetric", **kwargs):
+    def __init__(self, name="SimpleDeepEvalMetric", async_mode=False, **kwargs):
         super().__init__(**kwargs)
         self._name = name
+        self.async_mode = async_mode
 
     @property
     def name(self):
@@ -105,8 +107,9 @@ class TestDeepEvalEvaluatorInExperiment:
         )
         
         run_info = _ExperimentRunInfo(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
 
         assert len(eval_results) == 1
         assert "simple_deep_eval" in eval_results[0]["evaluations"]
@@ -149,8 +152,8 @@ class TestDeepEvalEvaluatorInExperiment:
         )
         
         run_info = _ExperimentRunInfo(0)
-        task_results = exp._run_task(1, run=run_info, raise_errors=False)
-        eval_results = exp._run_evaluators(task_results, raise_errors=False)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
         assert len(eval_results) == 1
         assert "simple_deep_eval" in eval_results[0]["evaluations"]
