@@ -55,6 +55,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
@@ -565,6 +566,10 @@ class LLMObs(Service):
         span_links = span._get_ctx_item(SPAN_LINKS)
         if isinstance(span_links, list) and span_links:
             llmobs_span_event["span_links"] = span_links
+
+        experiment_config = span._get_ctx_item(EXPERIMENT_CONFIG)
+        if experiment_config:
+            llmobs_span_event["config"] = experiment_config
 
         return llmobs_span_event
 
