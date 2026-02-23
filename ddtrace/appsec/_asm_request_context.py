@@ -5,12 +5,8 @@ from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Literal
 from typing import Optional
-from typing import Set
-from typing import Tuple
 from typing import Union
 from urllib import parse
 
@@ -66,7 +62,7 @@ _WAF_CALL: Literal["waf_run"] = "waf_run"
 _BLOCK_CALL: Literal["block"] = "block"
 
 
-GLOBAL_CALLBACKS: Dict[str, List[Callable]] = {_CONTEXT_CALL: []}
+GLOBAL_CALLBACKS: dict[str, list[Callable]] = {_CONTEXT_CALL: []}
 
 
 def report_error_on_entry_span(error: str, message: str) -> None:
@@ -101,11 +97,11 @@ class ASM_Environment:
             self.framework = self.span.name
         self.framework = self.framework.lower().replace(" ", "_")
         self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
-        self.waf_addresses: Dict[str, Any] = {}
-        self.callbacks: Dict[str, Any] = {_CONTEXT_CALL: []}
+        self.waf_addresses: dict[str, Any] = {}
+        self.callbacks: dict[str, Any] = {_CONTEXT_CALL: []}
         self.telemetry: Telemetry_result = Telemetry_result()
-        self.addresses_sent: Set[str] = set()
-        self.waf_triggers: List[Dict[str, Any]] = []
+        self.addresses_sent: set[str] = set()
+        self.waf_triggers: list[dict[str, Any]] = []
         self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
@@ -214,7 +210,7 @@ def set_blocked(blocked: Block_config) -> None:
     env.blocked = blocked
 
 
-def set_blocked_dict(block: Union[Dict[str, Any], Block_config, None]) -> None:
+def set_blocked_dict(block: Union[dict[str, Any], Block_config, None]) -> None:
     if isinstance(block, dict):
         blocked = Block_config(**block)
     elif block is None:
@@ -403,7 +399,7 @@ def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
     env.waf_info = info
 
 
-def call_waf_callback(custom_data: Optional[Dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
+def call_waf_callback(custom_data: Optional[dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
     if not asm_config._asm_enabled:
         return None
     callback = get_value(_CALLBACKS, _WAF_CALL)
@@ -477,7 +473,7 @@ def block_request() -> None:
         logger.warning(WARNING_TAGS.BLOCK_REQUEST_NOT_CALLABLE, extra=log_extra, stack_info=True)
 
 
-def get_data_sent() -> Set[str]:
+def get_data_sent() -> set[str]:
     env = _get_asm_context()
     if env is None:
         logger.warning(WARNING_TAGS.GET_DATA_SENT_NO_ASM_CONTEXT, extra=log_extra, stack_info=True)
@@ -583,7 +579,7 @@ def end_context(span: Span):
         finalize_asm_env(env)
 
 
-def _on_context_ended(ctx, _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]):
+def _on_context_ended(ctx, _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]):
     env = ctx.get_item(_ASM_CONTEXT)
     if env is not None:
         finalize_asm_env(env)
@@ -654,7 +650,7 @@ def tornado_block(_integration, handler, block):
     return handler.finish(_get_blocked_template(content_type, block.block_id))
 
 
-def tornado_call_waf_first(integration, handler):
+def tornado_call_waf_first(integration: str, handler: Any) -> None:
     if not asm_config._asm_enabled:
         return
     info = f"{integration}::srb_on_request"
@@ -668,7 +664,7 @@ def tornado_call_waf_first(integration, handler):
     request_headers = get_headers() or {}
     parsed_body = handler.request.body_arguments
     if parsed_body:
-        parsed_body = {k: v[0] if len(v) == 1 else list[v] for k, v in parsed_body.items()}
+        parsed_body = {k: v[0] if len(v) == 1 else list(v) for k, v in parsed_body.items()}
     else:
         _body: bytes = handler.request.body
         try:

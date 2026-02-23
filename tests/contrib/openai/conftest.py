@@ -1,7 +1,5 @@
 import os
-import sys
 from typing import TYPE_CHECKING  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 import mock
@@ -60,11 +58,6 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
     os.environ["OPENAI_API_KEY"] = "<not-a-real-key>"
     openai.organization = openai_organization
     yield openai
-    # Since unpatching doesn't work (see the unpatch() function),
-    # wipe out all the OpenAI modules so that state is reset for each test case.
-    mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
-    for m in mods:
-        del sys.modules[m]
 
 
 @pytest.fixture
@@ -81,8 +74,7 @@ def azure_openai_config(openai):
 class FilterOrg(TraceFilter):
     """Replace the organization tag on spans with fake data."""
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: list["Span"]) -> Optional[list["Span"]]:
         for span in trace:
             if span.get_tag("organization"):
                 span._set_tag_str("organization", "not-a-real-org")
@@ -118,7 +110,9 @@ def default_global_config():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
+def patch_openai(
+    ddtrace_global_config, ddtrace_config_openai, openai, openai_api_key, openai_organization, api_key_in_env
+):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):

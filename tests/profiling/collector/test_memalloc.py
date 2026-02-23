@@ -1,18 +1,18 @@
 from __future__ import annotations
 
+import gc
 import inspect
 import os
 from pathlib import Path
 import sys
 import threading
 from tracemalloc import Statistic
+from types import CodeType
 from typing import TYPE_CHECKING
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Sequence
-from typing import Set
 from typing import Union
+from typing import cast
 
 import pytest
 
@@ -35,7 +35,7 @@ PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
 
-def _allocate_1k() -> List[object]:
+def _allocate_1k() -> list[object]:
     return [object() for _ in range(1000)]
 
 
@@ -217,6 +217,30 @@ def _create_allocation(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
+def _allocate_with_lone_surrogate_filename(nallocs: int = 2_000) -> None:
+    """Allocate from a function whose co_filename cannot be UTF-8 encoded.
+
+    The filename contains a lone surrogate, which makes PyUnicode_AsUTF8AndSize()
+    fail when the memory collector serializes frame filenames.
+
+    This is used by memalloc tests to exercise the internal
+    PyUnicode_AsUTF8AndSize failure path in memalloc stack serialization.
+    """
+    namespace: dict[str, object] = {}
+    compiled_code: CodeType = compile(
+        "def _alloc_from_bad_filename(nallocs):\n    for _ in range(nallocs):\n        object()\n",
+        "\udcff_memalloc_bad_filename.py",
+        "exec",
+    )
+    with pytest.raises(UnicodeEncodeError):
+        compiled_code.co_filename.encode("utf-8", "strict")
+    # NOTE: exec defines the function in the namespace, so that we can call it
+    # later.
+    exec(compiled_code, namespace)
+    alloc = cast(Callable[[int], None], namespace["_alloc_from_bad_filename"])
+    alloc(nallocs)
+
+
 class HeapInfo:
     def __init__(self, count: int, size: int) -> None:
         self.count = count
@@ -253,16 +277,16 @@ def has_function_in_profile_sample(
 
 def get_tracemalloc_stats_per_func(
     stats: Sequence[Statistic], funcs: Sequence[Callable]
-) -> tuple[Dict[str, int], Dict[str, int]]:
-    source_to_func: Dict[str, str] = {}
+) -> tuple[dict[str, int], dict[str, int]]:
+    source_to_func: dict[str, str] = {}
 
     for f in funcs:
         file = inspect.getsourcefile(f)
         line = inspect.getsourcelines(f)[1] + 1
         source_to_func[str(file) + str(line)] = f.__name__
 
-    actual_sizes: Dict[str, int] = {}
-    actual_counts: Dict[str, int] = {}
+    actual_sizes: dict[str, int] = {}
+    actual_counts: dict[str, int] = {}
     for stat in stats:
         f = stat.traceback[0]
         key = f.filename + str(f.lineno)
@@ -326,7 +350,7 @@ def test_memalloc_data_race_regression() -> None:
     p = Profiler()
     p.start()
 
-    threads: List[threading.Thread] = []
+    threads: list[threading.Thread] = []
     ev = threading.Event()
     for i in range(4):
         t = threading.Thread(target=lotsa_allocs, args=(ev,))
@@ -370,7 +394,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
                 junk.append(three(3 * size))
                 junk.append(four(4 * size))
 
-            stats: List[Statistic] = tracemalloc.take_snapshot().statistics("traceback")
+            stats: list[Statistic] = tracemalloc.take_snapshot().statistics("traceback")
             tracemalloc.stop()
 
             del junk
@@ -423,7 +447,7 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval: 
 
     def get_allocation_info_from_profile(
         profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], funcs: Sequence[Union[Callable, str]]
-    ) -> Dict[str, HeapInfo]:
+    ) -> dict[str, HeapInfo]:
         got = {}
         for sample in samples:
             if sample.value[heap_space_idx] > 0:
@@ -560,18 +584,32 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
     mc = memalloc.MemoryCollector(heap_sample_size=32)
 
     with mc:
-        first_batch: List[Union[tuple[None, ...], bytearray]] = []
+        first_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(20):
             first_batch.append(one(256))
 
         # We're taking a snapshot here to ensure that in the next snapshot, we don't see any "one" allocations
         mc.snapshot_and_parse_pprof(output_filename)
 
-        second_batch: List[Union[tuple[None, ...], bytearray]] = []
+        second_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(15):
             second_batch.append(two(512))
 
         del first_batch
+
+        # Force a full GC collection to clear CPython's internal free lists
+        # (tuple, float, list, dict, etc.).  On Python < 3.13, calling
+        # bytearray(256) inside one() goes through _PyObject_MakeTpCall,
+        # which creates a temporary 1-element args tuple (256,).  When that
+        # tuple's refcount drops to zero, tupledealloc caches it in the
+        # tuple free list WITHOUT calling PyObject_Free, so the profiler's
+        # memalloc_free hook is never triggered and the allocation stays
+        # tracked as "live" in allocs_m even though the Python object is
+        # logically dead.  gc.collect(generation=2) calls clear_freelists()
+        # -> _PyTuple_ClearFreeList() -> PyObject_GC_Del() -> PyObject_Free(),
+        # which properly fires memalloc_free -> untrack and removes these
+        # ghost entries.
+        gc.collect()
 
         final_profile = mc.snapshot_and_parse_pprof(output_filename)
 
@@ -636,13 +674,13 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         # Take initial snapshot to reset allocation tracking (may have no samples)
         mc.snapshot_and_parse_pprof(output_filename, assert_samples=False)
 
-        first_batch: List[Union[tuple[None, ...], bytearray]] = []
+        first_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(20):
             first_batch.append(one(256))
 
         after_first_batch_profile = mc.snapshot_and_parse_pprof(output_filename)
 
-        second_batch: List[Union[tuple[None, ...], bytearray]] = []
+        second_batch: list[Union[tuple[None, ...], bytearray]] = []
         for _ in range(15):
             second_batch.append(two(512))
 
@@ -739,6 +777,21 @@ def test_memory_collector_exception_handling(tmp_path: Path) -> None:
         assert profile is not None
 
 
+@pytest.mark.subprocess(env=dict(DD_PROFILING_HEAP_SAMPLE_SIZE="1"))
+def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
+    from ddtrace.profiling.collector import _memalloc
+    from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
+
+    _memalloc.start(64, 1)
+    try:
+        # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
+        # memalloc frame serialization. The test passes if the subprocess
+        # exits cleanly (no leaked internal profiler exception).
+        _allocate_with_lone_surrogate_filename()
+    finally:
+        _memalloc.stop()
+
+
 def test_memory_collector_allocation_during_shutdown() -> None:
     """Test that verifies that when _memalloc.stop() is called while allocations are still
     happening in another thread, the shutdown process completes without deadlocks or crashes.
@@ -785,11 +838,11 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
     deep_alloc_func = None
 
     num_threads = 10
-    thread_ids: Set[int] = set()
+    thread_ids: set[int] = set()
     thread_ids_lock = threading.Lock()
 
     with mc:
-        threads: List[threading.Thread] = []
+        threads: list[threading.Thread] = []
         barrier = threading.Barrier(num_threads)
 
         def allocate_with_traceback() -> None:
@@ -827,7 +880,7 @@ def test_memory_collector_buffer_pool_exhaustion(tmp_path: Path) -> None:
 
         deep_alloc_total_count = 0
         max_stack_depth = 0
-        sampled_thread_ids: Set[int] = set()
+        sampled_thread_ids: set[int] = set()
 
         for sample in profile.sample:
             # Buffer pool test: All samples should have stack frames
@@ -873,7 +926,7 @@ def test_memory_collector_thread_lifecycle(tmp_path: Path) -> None:
     worker_func = None
 
     with mc:
-        threads: List[threading.Thread] = []
+        threads: list[threading.Thread] = []
 
         def worker():
             for i in range(10):
@@ -961,7 +1014,7 @@ def test_heap_stress() -> None:
     # This should run for a few seconds, and is enough to spot potential segfaults.
     _memalloc.start(64, 1024)
     try:
-        x: List[object] = []
+        x: list[object] = []
 
         for _ in range(20):
             for _ in range(1000):
@@ -1005,7 +1058,7 @@ def test_memalloc_speed(benchmark, heap_sample_size) -> None:
     ),
 )
 def test_memalloc_sample_size(
-    enabled: bool, predicates: List[Callable[[int], bool]], monkeypatch: pytest.MonkeyPatch
+    enabled: bool, predicates: list[Callable[[int], bool]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("DD_PROFILING_HEAP_ENABLED", str(enabled).lower())
     config = ProfilingConfig()
@@ -1152,3 +1205,57 @@ def test_memory_collector_stack_order(tmp_path: Path) -> None:
         ),
         print_samples_on_failure=True,
     )
+
+
+@pytest.mark.subprocess()
+def test_memalloc_allocator_hook_does_not_release_gil() -> None:
+    """Regression test for IR-49169: memory profiler crash from GIL release during allocator hook.
+
+    The allocator hook calls PyObject_CallObject(threading.current_thread()) which
+    re-enters the eval loop. _Py_HandlePending can then release the GIL (when other
+    threads are waiting) or trigger GC, corrupting partially-constructed objects.
+    If the bug is present, this test segfaults.
+    """
+    import threading
+    import time
+
+    from ddtrace.profiling.collector import _memalloc
+
+    # sample_size=1: sample nearly every allocation so the hook fires
+    # during dictresize's internal malloc while the dict is inconsistent.
+    _memalloc.start(64, 1)
+
+    stop = threading.Event()
+    shared: dict = {}
+
+    def mutate(tid: int) -> None:
+        i = 0
+        while not stop.is_set():
+            for j in range(100):
+                shared[f"{tid}_{i}_{j}"] = [0] * 10
+            i += 1
+            if i % 5 == 0:
+                shared.clear()
+
+    def read() -> None:
+        while not stop.is_set():
+            try:
+                list(shared.items())
+            except RuntimeError:
+                pass
+
+    threads = []
+    for i in range(4):
+        threads.append(threading.Thread(target=mutate, args=(i,)))
+    for _ in range(4):
+        threads.append(threading.Thread(target=read))
+    for t in threads:
+        t.start()
+
+    time.sleep(5)
+    stop.set()
+
+    for t in threads:
+        t.join(timeout=10)
+
+    _memalloc.stop()

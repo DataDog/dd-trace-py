@@ -90,11 +90,11 @@ class BackendConnectorSetup:
         Detect which backend connection mode to use and return a configured instance of the corresponding subclass.
         """
         if asbool(os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
-            log.info("Connecting to backend in agentless mode")
+            log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup()
 
         else:
-            log.info("Connecting to backend through agent in EVP proxy mode")
+            log.debug("Connecting to backend through agent in EVP proxy mode")
             return cls._detect_evp_proxy_setup()
 
     @classmethod
@@ -207,7 +207,7 @@ class BackendConnector(threading.local):
     def __init__(
         self,
         url: str,
-        default_headers: t.Optional[t.Dict[str, str]] = None,
+        default_headers: t.Optional[dict[str, str]] = None,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         base_path: t.Optional[str] = None,
         use_gzip: bool = False,
@@ -259,7 +259,7 @@ class BackendConnector(threading.local):
         method: str,
         path: str,
         data: t.Optional[bytes] = None,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         is_json_response: bool = False,
     ) -> BackendResult:
@@ -299,7 +299,7 @@ class BackendConnector(threading.local):
         except Exception as e:
             result.error_type = ErrorType.UNKNOWN
             result.error_description = str(e)
-            log.exception("Error requesting %s %s", method, path)
+            log.warning("Error requesting %s %s", method, path)
         finally:
             result.elapsed_seconds = time.perf_counter() - start_time
 
@@ -310,7 +310,7 @@ class BackendConnector(threading.local):
                 result.error_type = ErrorType.BAD_JSON
                 result.error_description = str(e)
             except Exception as e:
-                log.exception("Error parsing response for %s %s", method, path)
+                log.warning("Error parsing response for %s %s", method, path)
                 result.error_type = ErrorType.UNKNOWN
                 result.error_description = str(e)
 
@@ -324,7 +324,7 @@ class BackendConnector(threading.local):
         method: str,
         path: str,
         data: t.Optional[bytes] = None,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
@@ -365,7 +365,7 @@ class BackendConnector(threading.local):
     def get_json(
         self,
         path: str,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
@@ -385,7 +385,7 @@ class BackendConnector(threading.local):
         self,
         path: str,
         data: t.Any,
-        headers: t.Optional[t.Dict[str, str]] = None,
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
@@ -406,8 +406,8 @@ class BackendConnector(threading.local):
     def post_files(
         self,
         path: str,
-        files: t.List[FileAttachment],
-        headers: t.Optional[t.Dict[str, str]] = None,
+        files: list[FileAttachment],
+        headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,

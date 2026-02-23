@@ -13,8 +13,8 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.inspection import link_function_to_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
@@ -300,7 +300,7 @@ class BaseWrappingContext(ABC):
         self._storage_stack.get().append({})
         return self
 
-    def _pop_storage(self) -> t.Dict[str, t.Any]:
+    def _pop_storage(self) -> dict[str, t.Any]:
         return self._storage_stack.get().pop()
 
     def __return__(self, value: T) -> T:
@@ -309,7 +309,7 @@ class BaseWrappingContext(ABC):
 
     def __exit__(
         self,
-        exc_type: t.Optional[t.Type[BaseException]],
+        exc_type: t.Optional[type[BaseException]],
         exc_val: t.Optional[BaseException],
         exc_tb: t.Optional[TracebackType],
     ) -> None:
@@ -389,9 +389,9 @@ class WrappingContext(BaseWrappingContext):
 class LazyWrappedFunction(Protocol):
     """A lazy-wrapped function."""
 
-    __dd_lazy_contexts__: t.List[WrappingContext]
+    __dd_lazy_contexts__: list[WrappingContext]
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
 
 
@@ -421,11 +421,11 @@ class LazyWrappingContext(WrappingContext):
                 super().wrap()
                 return
 
-            def trampoline(_, args, kwargs):
+            def trampoline(_: t.Any, args: tuple, kwargs: dict) -> t.Any:
                 with tl:
                     f = t.cast(WrappedFunction, self.__wrapped__)
                     if is_wrapped_with(self.__wrapped__, trampoline):
-                        f = unwrap(f, trampoline)
+                        f = t.cast(WrappedFunction, unwrap(f, trampoline))
 
                         self._trampoline = None
 
@@ -469,7 +469,7 @@ class ContextWrappedFunction(Protocol):
 
     __dd_context_wrapped__ = None  # type: t.Optional[_UniversalWrappingContext]
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
 
 
@@ -479,7 +479,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def __init__(self, f: FunctionType) -> None:
         super().__init__(f)
 
-        self._contexts: t.List[WrappingContext] = []
+        self._contexts: list[WrappingContext] = []
 
     def register(self, context: WrappingContext) -> None:
         _type = type(context)
@@ -501,7 +501,7 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def is_registered(self, context: WrappingContext) -> bool:
         return type(context) in self._contexts
 
-    def registered(self, context_type: t.Type[WrappingContext]) -> WrappingContext:
+    def registered(self, context_type: type[WrappingContext]) -> WrappingContext:
         for context in self._contexts:
             if isinstance(context, context_type):
                 return context
@@ -521,14 +521,19 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def _exit(self) -> None:
         self.__exit__(*sys.exc_info())
 
-    def __exit__(self, *exc) -> None:
-        if exc == (None, None, None):
+    def __exit__(
+        self,
+        exc_type: t.Optional[type[BaseException]],
+        exc_value: t.Optional[BaseException],
+        traceback: t.Optional[TracebackType],
+    ) -> None:
+        if exc_value is None:
             return
 
         for context in self._contexts[::-1]:
-            context.__exit__(*exc)
+            context.__exit__(exc_type, exc_value, traceback)
 
-        super().__exit__(*exc)
+        super().__exit__(exc_type, exc_value, traceback)
 
     def __return__(self, value: T) -> T:
         for context in self._contexts[::-1]:

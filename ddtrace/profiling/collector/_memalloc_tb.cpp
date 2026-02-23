@@ -8,29 +8,7 @@
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
 #include "_memalloc_tb.h"
-
-/* Helper function to convert PyUnicode object to string_view
- * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
- * The pointer remains valid as long as the PyObject is alive */
-static std::string_view
-unicode_to_string_view(PyObject* unicode_obj, std::string_view fallback = "<unknown>")
-{
-    if (unicode_obj == NULL) {
-        return fallback;
-    }
-
-    Py_ssize_t len;
-    const char* ptr = PyUnicode_AsUTF8AndSize(unicode_obj, &len);
-    if (ptr) {
-        return std::string_view(ptr, len);
-    }
-    // PyUnicode_AsUTF8AndSize always sets an error on failure (TypeError if not a
-    // unicode object, MemoryError if UTF-8 cache allocation fails). Clear it since
-    // we're inside the allocator hook and must not leave stale errors for the caller.
-    PyErr_Clear();
-    return fallback;
-}
-
+#include "python_helpers.hpp"
 /* Helper function to get thread info using C-level APIs and push to sample.
  *
  * Uses only PyThread_get_thread_ident() and PyThread_get_thread_native_id(),
@@ -59,38 +37,8 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     sample.push_threadinfo(thread_id, thread_native_id, "");
 }
 
-/* Helper function to extract frame info from PyFrameObject and push to sample */
-static void
-push_pyframe_to_sample(Datadog::Sample& sample, PyFrameObject* frame)
-{
-    int lineno_val = PyFrame_GetLineNumber(frame);
-    if (lineno_val < 0)
-        lineno_val = 0;
-
-    PyCodeObject* code = PyFrame_GetCode(frame);
-
-    std::string_view name_sv = "<unknown>";
-    std::string_view filename_sv = "<unknown>";
-
-    if (code != NULL) {
-        // Extract function name (use co_qualname for Python 3.11+ for better context)
-#if defined(_PY311_AND_LATER)
-        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
-#else
-        PyObject* name_obj = code->co_name;
-#endif
-        name_sv = unicode_to_string_view(name_obj);
-        filename_sv = unicode_to_string_view(code->co_filename);
-    }
-
-    // Push frame to Sample (leaf to root order)
-    // push_frame copies the strings immediately into its StringArena
-    sample.push_frame(name_sv, filename_sv, 0, lineno_val);
-
-    Py_XDECREF(code);
-}
-
-/* Helper function to collect frames from PyFrameObject chain and push to sample */
+/* Helper function to collect frames from PyFrameObject chain and push to sample
+ * Uses Sample::push_pyframes for the actual frame unwinding */
 static void
 push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 {
@@ -101,6 +49,7 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
+    // Python 3.9+: PyThreadState_GetFrame() returns a new reference
     PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
 
     if (pyframe == NULL) {
@@ -117,20 +66,19 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
         return;
     }
 
-    for (PyFrameObject* frame = pyframe; frame != NULL;) {
-        push_pyframe_to_sample(sample, frame);
-
-        PyFrameObject* back = PyFrame_GetBack(frame);
-        Py_DECREF(frame); // Release reference - pyframe from PyThreadState_GetFrame is a new reference, and back frames
-                          // from GetBack are also new references
-        frame = back;
-        memalloc_debug_gil_release();
-    }
+    // Use the unified frame unwinding API
+    // Note: push_pyframes does not take ownership of the initial frame, so we must DECREF it here
+    sample.push_pyframes(pyframe);
+    Py_DECREF(pyframe);
 }
 
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
+    // Preserve any raised C-level exception already in flight before touching
+    // CPython C-API from inside the allocator hook.
+    PythonErrorRestorer error_restorer;
+
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0

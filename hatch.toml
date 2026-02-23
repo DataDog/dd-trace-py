@@ -86,6 +86,9 @@ sg = [
 sg-test = [
     "ast-grep test {args}",
 ]
+ci-deps-check = [
+    "bash scripts/check-ci-dependencies",
+]
 
 [envs.scripts]
 detached = true
@@ -136,65 +139,6 @@ test = [
 
 [[envs.iast_aggregated_leak_testing.matrix]]
 python = ["3.10", "3.11", "3.12"]
-
-## pytorch profiling test
-
-[envs.profiling_pytorch]
-dependencies = [
-    "protobuf",
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "torch>=1.8.1",
-    "torchvision",
-    "zstandard",
-]
-
-[envs.profiling_pytorch.env-vars]
-DD_PROFILING_ENABLED = "true"
-DD_PROFILING_PYTORCH_ENABLED = "true"
-
-[envs.profiling_pytorch.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/profiling/test_pytorch.py -vvv --capture=tee-sys",
-]
-
-[[envs.profiling_pytorch.matrix]]
-python = ["3.12"]
-
-## Multiple OS tests
-
-[envs.multiple_os_tests]
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "flask",
-    "asgiref",
-    "botocore",
-    "dnspython",
-]
-
-[envs.multiple_os_tests.env-vars]
-DD_IAST_ENABLED = "false"
-DD_REMOTE_CONFIGURATION_ENABLED = "false"
-CMAKE_BUILD_PARALLEL_LEVEL="6"
-CARGO_BUILD_JOBS = "6"
-
-[envs.multiple_os_tests.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest tests/internal/service_name/test_extra_services_names.py -v -s",
-    "python -m pytest tests/appsec/architectures/test_appsec_loading_modules.py -v -s",
-]
-
-[[envs.multiple_os_tests.matrix]]
-python = ["3.14", "3.12", "3.10"]
 
 [envs.snapshot_viewer]
 dev-mode = false

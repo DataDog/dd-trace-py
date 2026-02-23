@@ -5,8 +5,6 @@ Any `sampled = False` trace won't be written, and can be ignored by the instrume
 
 import json
 from json.decoder import JSONDecodeError
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -88,7 +86,7 @@ class DatadogSampler:
 
     def __init__(
         self,
-        rules: Optional[List[SamplingRule]] = None,
+        rules: Optional[list[SamplingRule]] = None,
         rate_limit: Optional[int] = None,
         rate_limit_window: float = 1e9,
         rate_limit_always_on: bool = False,
@@ -96,7 +94,7 @@ class DatadogSampler:
         """
         Constructor for DatadogSampler sampler
 
-        :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
+        :param rules: list of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
         :param rate_limit_window: The time window in nanoseconds for the rate limit, default is 1 second
@@ -108,9 +106,9 @@ class DatadogSampler:
         if rules is None and global_sampling_rules:
             self.set_sampling_rules(global_sampling_rules)
         else:
-            self.rules: List[SamplingRule] = rules or []
+            self.rules: list[SamplingRule] = rules or []
         # Set Agent based samplers
-        self._agent_based_samplers: Dict = {}
+        self._agent_based_samplers: dict = {}
         # Set rate limiter
         self._rate_limit_always_on: bool = rate_limit_always_on
         if rate_limit is None:
@@ -124,8 +122,8 @@ class DatadogSampler:
         """Compute a key with the same format used by the Datadog agent API."""
         return f"service:{service or ''},env:{env or ''}"
 
-    def update_rate_by_service_sample_rates(self, rate_by_service: Dict[str, float]) -> None:
-        samplers: Dict[str, RateSampler] = {}
+    def update_rate_by_service_sample_rates(self, rate_by_service: dict[str, float]) -> None:
+        samplers: dict[str, RateSampler] = {}
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)
         log.debug("Updated DatadogSampler with %d service based sampling rates (provided by the agent)", len(samplers))
