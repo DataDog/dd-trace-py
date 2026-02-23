@@ -381,3 +381,31 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
 
     assert sorted_configs[3]["value"] is True
     assert sorted_configs[3]["origin"] == "code"
+
+
+@pytest.mark.parametrize("collect_dependencies", [True, False])
+def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_in_subprocess, test_agent_session):
+    """Assert at least one extended heartbeat is sent after sleeping 1.5 seconds."""
+
+    env = os.environ.copy()
+    env["DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
+    env["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import time; time.sleep(1.5)", env=env)
+    assert status == 0, stderr
+    assert stderr == b""
+
+    extended_events = test_agent_session.get_events("app-extended-heartbeat")
+    assert len(extended_events) >= 1
+
+    assert extended_events[0]["payload"]["configurations"] is not None
+    configurations = test_agent_session.get_configurations()
+    assert configurations == extended_events[0]["payload"]["configurations"]
+
+    if collect_dependencies:
+        assert "dependencies" in extended_events[0]["payload"]
+        assert len(extended_events[0]["payload"]["dependencies"]) > 0, extended_events[0]["payload"]
+    else:
+        assert "dependencies" not in extended_events[0]["payload"]

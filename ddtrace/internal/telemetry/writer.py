@@ -161,14 +161,14 @@ class TelemetryWriter(PeriodicService):
         self._logs: Set[Dict[str, Any]] = set()
         self._forked: bool = False
         self._events_queue: List[Dict[str, Any]] = []
-        self._configuration_queue: List[Dict] = []
+        self._queued_configs: List[Dict] = []
+        self._sent_configs: List[Dict] = []
         self._imported_dependencies: Dict[str, str] = dict()
         self._modules_already_imported: Set[str] = set()
         self._product_enablement: Dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
         self._previous_product_enablement: Dict[str, bool] = {}
         self._extended_time = time.monotonic()
-        # The extended heartbeat interval is set to 24 hours
-        self._extended_heartbeat_interval = 3600 * 24
+        self._extended_heartbeat_interval = config.EXTENDED_HEARTBEAT_INTERVAL
 
         self.started = False
 
@@ -301,15 +301,22 @@ class TelemetryWriter(PeriodicService):
             }
         return payload
 
-    def _report_heartbeat(self) -> Optional[Dict[str, Any]]:
-        if config.DEPENDENCY_COLLECTION and time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
-            self._extended_time += self._extended_heartbeat_interval
-            return {
-                "dependencies": [
+    def _report_heartbeat(self) -> Dict[str, Any]:
+        """Report a heartbeat to keep RC connections alive.
+
+        Extended heartbeats (non-empty payload) include configurations and dependencies;
+        regular heartbeats return an empty payload. Callers should queue this after
+        configuration and dependencies events so values are accurately reported.
+        """
+        payload = {}
+        if time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
+            payload["configurations"] = self._sent_configs
+            if config.DEPENDENCY_COLLECTION:
+                payload["dependencies"] = [
                     {"name": name, "version": version} for name, version in self._imported_dependencies.items()
                 ]
-            }
-        return None
+            self._extended_time += self._extended_heartbeat_interval
+        return payload
 
     def _report_integrations(self) -> List[Dict]:
         """Flushes and returns a list of all queued integrations"""
@@ -321,8 +328,9 @@ class TelemetryWriter(PeriodicService):
     def _report_configurations(self) -> List[Dict]:
         """Flushes and returns a list of all queued configurations"""
         with self._service_lock:
-            configurations = self._configuration_queue
-            self._configuration_queue = []
+            configurations = self._queued_configs
+            self._sent_configs.extend(configurations)
+            self._queued_configs = []
         return configurations
 
     def _report_dependencies(self) -> Optional[List[Dict[str, Any]]]:
@@ -391,13 +399,13 @@ class TelemetryWriter(PeriodicService):
 
         with self._service_lock:
             config["seq_id"] = next(self._sequence_configurations)
-            self._configuration_queue.append(config)
+            self._queued_configs.append(config)
 
     def add_configurations(self, configuration_list: List[Tuple[str, str, str]]) -> None:
         """Creates and queues a list of configurations"""
         with self._service_lock:
             for name, value, origin in configuration_list:
-                self._configuration_queue.append(
+                self._queued_configs.append(
                     {
                         "name": name,
                         "origin": origin,
@@ -636,14 +644,10 @@ class TelemetryWriter(PeriodicService):
         if shutting_down and not self._forked:
             events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.SHUTDOWN))
 
-        # Always include a heartbeat to keep RC connections alive
-        # Extended heartbeat should be queued after app-dependencies-loaded event. This
-        # ensures that that imported dependencies are accurately reported.
         if heartbeat_payload := self._report_heartbeat():
-            # Extended heartbeat report dependencies while regular heartbeats report empty payloads
             events.append(self._get_event(heartbeat_payload, TELEMETRY_EVENT_TYPE.EXTENDED_HEARTBEAT))
         else:
-            events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.HEARTBEAT))
+            events.append(self._get_event(heartbeat_payload, TELEMETRY_EVENT_TYPE.HEARTBEAT))
 
         # Get any queued events (ie metrics and logs from previous periodic calls) and combine with current batch
         if queued_events := self._report_events():
@@ -677,7 +681,8 @@ class TelemetryWriter(PeriodicService):
         self._namespace.flush()
         self._logs = set()
         self._imported_dependencies = {}
-        self._configuration_queue = []
+        self._queued_configs = []
+        self._sent_configs = []
 
     def _report_events(self) -> List[Dict]:
         """Flushes and returns a list of all telemtery event"""
