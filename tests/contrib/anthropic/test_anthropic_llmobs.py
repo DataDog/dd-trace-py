@@ -68,6 +68,38 @@ class TestLLMObsAnthropic:
         message = {"content": []}
         assert _on_content_block_stop_chunk(chunk=None, message=message) == message
 
+    @patch("ddtrace.contrib.internal.anthropic._streaming._get_attr")
+    def test_content_block_stop_with_empty_string_input_falls_back_to_empty_json(
+        self, mock_get_attr, ddtrace_global_config
+    ):
+        from ddtrace.contrib.internal.anthropic._streaming import _on_content_block_stop_chunk
+
+        # Given: a tool_use content block whose "input" accumulated as empty string
+        message = {"content": [{"type": "tool_use", "name": "get_weather", "input": ""}]}
+        mock_get_attr.side_effect = lambda obj, attr, default="": obj.get(attr, default)
+
+        # When: content_block_stop fires
+        result = _on_content_block_stop_chunk(chunk=None, message=message)
+
+        # Then: input is parsed as empty dict instead of raising JSONDecodeError
+        assert result["content"][-1]["input"] == {}
+
+    @patch("ddtrace.contrib.internal.anthropic._streaming._get_attr")
+    def test_content_block_stop_with_none_input_falls_back_to_empty_json(
+        self, mock_get_attr, ddtrace_global_config
+    ):
+        from ddtrace.contrib.internal.anthropic._streaming import _on_content_block_stop_chunk
+
+        # Given: a tool_use content block whose "input" is None
+        message = {"content": [{"type": "tool_use", "name": "get_weather", "input": None}]}
+        mock_get_attr.side_effect = lambda obj, attr, default="": obj.get(attr, default)
+
+        # When: content_block_stop fires
+        result = _on_content_block_stop_chunk(chunk=None, message=message)
+
+        # Then: input is parsed as empty dict instead of raising TypeError
+        assert result["content"][-1]["input"] == {}
+
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_proxy(
         self,
