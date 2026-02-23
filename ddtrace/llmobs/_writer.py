@@ -77,13 +77,13 @@ class LLMObsSpanData(TypedDict, total=False):
     span_id: str
     trace_id: str
     parent_id: str
-    tags: Dict[str, str]
+    tags: dict[str, str]
     name: str
     meta: _Meta
-    metrics: Dict[str, Any]
+    metrics: dict[str, Any]
     session_id: str
-    span_links: List[_SpanLink]
-    _dd: Dict[str, str]
+    span_links: list[_SpanLink]
+    _dd: dict[str, str]
 
 
 class LLMObsEvaluationMetricEvent(TypedDict, total=False):

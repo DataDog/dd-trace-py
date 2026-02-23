@@ -615,9 +615,6 @@ class LLMObs(Service):
             "ddtrace.version": __version__,
             "language": "python",
         }
-        err_type = span.get_tag(ERROR_TYPE)
-        if err_type:
-            tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
         if _is_evaluation_span(span):
@@ -1583,7 +1580,7 @@ class LLMObs(Service):
             llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = parent_llmobs_trace_id or format_trace_id(llmobs_parent.trace_id)
         else:
             llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = ROOT_PARENT_ID
-            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = format_trace_id(rand128bits())
+            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = format_trace_id(generate_128bit_trace_id())
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
