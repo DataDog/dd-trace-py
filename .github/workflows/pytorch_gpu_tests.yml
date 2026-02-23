@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
 
           REPO_ROOT="$(pwd)"
-          WHEEL_PATH=$(find ./wheels -maxdepth 1 -type f -name "ddtrace-*-cp312-cp312-*x86_64*.whl" | sort | head -n 1)
+          WHEEL_PATH=$(find "$REPO_ROOT/wheels" -maxdepth 1 -type f -name "ddtrace-*-cp312-cp312-*x86_64*.whl" | sort | head -n 1)
           if [ -z "$WHEEL_PATH" ]; then
             echo "Could not find a cp312 x86_64 wheel in ./wheels" >&2
             ls -la ./wheels >&2
