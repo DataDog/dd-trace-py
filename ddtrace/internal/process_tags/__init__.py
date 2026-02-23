@@ -99,4 +99,11 @@ def compute_base_hash(container_tags_hash):
 
 
 base_hash, base_hash_bytes = None, b""
-process_tags, process_tags_list = generate_process_tags()
+process_tags = None
+
+
+def _set_globals():
+    global process_tags
+    global process_tags_list
+    if not process_tags:
+        process_tags, process_tags_list = generate_process_tags()
