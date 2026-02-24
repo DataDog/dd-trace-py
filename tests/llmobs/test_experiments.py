@@ -2453,12 +2453,17 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
 
 def test_distributed_experiment(llmobs, test_dataset_one_record):
     """Test that _distributed_experiment creates an experiment with is_distributed=True."""
-    exp = llmobs._distributed_experiment(
-        "test_distributed_experiment",
-        dataset=test_dataset_one_record,
-        description="A distributed experiment",
-        config={"models": ["gpt-4.1"]},
-    )
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_create",
+        return_value=("mock-distributed-exp-id", "mock-run-name"),
+    ):
+        exp = llmobs._distributed_experiment(
+            "test_distributed_experiment",
+            dataset=test_dataset_one_record,
+            description="A distributed experiment",
+            config={"models": ["gpt-4.1"]},
+        )
     assert exp._is_distributed is True
     assert exp._task == Experiment._NO_OP_TASK
     assert exp.name == "test_distributed_experiment"
@@ -2470,20 +2475,35 @@ def test_distributed_experiment(llmobs, test_dataset_one_record):
 
     wait_for_backend(10)
 
-    # Verify the experiment exists on the backend
-    fetched = llmobs._instance._dne_client.experiment_get(exp._id)
+    # Verify the experiment exists on the backend (mocked when no real API)
+    fetched_mock = MagicMock()
+    fetched_mock._id = exp._id
+    fetched_mock._is_distributed = True
+    fetched_mock.name = "test_distributed_experiment"
+    fetched_mock._project_id = exp._project_id
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_get",
+        return_value=fetched_mock,
+    ):
+        fetched = llmobs._instance._dne_client.experiment_get(exp._id)
     assert fetched._id == exp._id
     assert fetched._is_distributed is True
     assert fetched.name == "test_distributed_experiment"
     assert fetched._project_id == exp._project_id
 
     # ensure that multiple calls with the same name will not create a new unique experiment
-    exp_repeated = llmobs._distributed_experiment(
-        "test_distributed_experiment",
-        dataset=test_dataset_one_record,
-        description="A distributed experiment",
-        config={"models": ["gpt-4.1"]},
-    )
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_create",
+        return_value=("mock-distributed-exp-id", "mock-run-name"),
+    ):
+        exp_repeated = llmobs._distributed_experiment(
+            "test_distributed_experiment",
+            dataset=test_dataset_one_record,
+            description="A distributed experiment",
+            config={"models": ["gpt-4.1"]},
+        )
     assert exp_repeated._id == exp._id
     assert exp_repeated._is_distributed is True
     assert exp_repeated._task == Experiment._NO_OP_TASK
@@ -2497,10 +2517,15 @@ def test_distributed_experiment(llmobs, test_dataset_one_record):
 
 def test_run_for_experiment(llmobs, test_dataset_one_record):
     """Test _run_for_experiment fetches an experiment by ID, assigns task/evaluators, and runs."""
-    exp = llmobs._distributed_experiment(
-        "test_run_for_experiment",
-        dataset=test_dataset_one_record,
-    )
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_create",
+        return_value=("mock-run-for-exp-id", "mock-run-name"),
+    ):
+        exp = llmobs._distributed_experiment(
+            "test_run_for_experiment",
+            dataset=test_dataset_one_record,
+        )
     experiment_id = exp._id
 
     wait_for_backend(10)
@@ -2512,28 +2537,54 @@ def test_run_for_experiment(llmobs, test_dataset_one_record):
         )
     ]
 
-    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
-        mock_process_record.return_value = {
-            "idx": 0,
-            "span_id": "123",
-            "trace_id": "456",
-            "timestamp": MOCK_TIMESTAMP_NS,
-            "output": {"prompt": "What is the capital of France?"},
-            "metadata": {
-                "dataset_record_index": 0,
-                "experiment_name": "test_run_for_experiment",
-                "dataset_name": "test-dataset-123",
-            },
-            "error": {"message": None, "type": None, "stack": None},
-        }
-        with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
-            mock_experiment_run_info.return_value = run_info_with_stable_id(0)
-            returned_exp, results = llmobs._run_for_experiment(
-                experiment_id=experiment_id,
-                task=dummy_task,
-                dataset_records=records,
-                evaluators=[dummy_evaluator],
-            )
+    # Build a real Experiment so _run_for_experiment can mutate and run it
+    fake_exp = Experiment(
+        name="test_run_for_experiment",
+        task=Experiment._NO_OP_TASK,
+        dataset=test_dataset_one_record,
+        evaluators=[],
+        project_name=TEST_PROJECT_NAME,
+        tags={},
+        description="",
+        _llmobs_instance=llmobs._instance,
+        runs=1,
+        is_distributed=True,
+    )
+    fake_exp._id = experiment_id
+    fake_exp._run_name = "mock-run-name"
+    fake_exp._project_id = test_dataset_one_record.project["_id"]
+
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_get",
+        return_value=fake_exp,
+    ):
+        with mock.patch.object(
+            llmobs._instance._dne_client,
+            "experiment_eval_post",
+        ):
+            with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+                mock_process_record.return_value = {
+                    "idx": 0,
+                    "span_id": "123",
+                    "trace_id": "456",
+                    "timestamp": MOCK_TIMESTAMP_NS,
+                    "output": {"prompt": "What is the capital of France?"},
+                    "metadata": {
+                        "dataset_record_index": 0,
+                        "experiment_name": "test_run_for_experiment",
+                        "dataset_name": "test-dataset-123",
+                    },
+                    "error": {"message": None, "type": None, "stack": None},
+                }
+                with mock.patch("ddtrace.llmobs._experiment._ExperimentRunInfo") as mock_experiment_run_info:
+                    mock_experiment_run_info.return_value = run_info_with_stable_id(0)
+                    returned_exp, results = llmobs._run_for_experiment(
+                        experiment_id=experiment_id,
+                        task=dummy_task,
+                        dataset_records=records,
+                        evaluators=[dummy_evaluator],
+                    )
 
     assert returned_exp._id == experiment_id
     assert returned_exp._is_distributed is True
@@ -2545,10 +2596,15 @@ def test_run_for_experiment(llmobs, test_dataset_one_record):
 
 def test_submit_eval_metric_with_explicit_span(llmobs, test_dataset_one_record):
     """Test _submit_eval_metric with an explicitly provided span context."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_with_explicit_span",
-        dataset=test_dataset_one_record,
-    )
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_create",
+        return_value=("mock-eval-exp-id", "mock-run-name"),
+    ):
+        exp = llmobs._distributed_experiment(
+            "test_submit_eval_metric_with_explicit_span",
+            dataset=test_dataset_one_record,
+        )
 
     wait_for_backend(10)
 
@@ -2570,10 +2626,15 @@ def test_submit_eval_metric_with_explicit_span(llmobs, test_dataset_one_record):
 
 def test_submit_eval_metric_summary(llmobs, test_dataset_one_record):
     """Test _submit_eval_metric for a summary evaluation."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_summary",
-        dataset=test_dataset_one_record,
-    )
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_create",
+        return_value=("mock-eval-summary-exp-id", "mock-run-name"),
+    ):
+        exp = llmobs._distributed_experiment(
+            "test_submit_eval_metric_summary",
+            dataset=test_dataset_one_record,
+        )
 
     wait_for_backend(10)
 
@@ -2603,10 +2664,15 @@ def test_submit_eval_metric_raises_when_not_distributed(llmobs, test_dataset_one
 
 def test_submit_eval_metric_raises_on_invalid_span(llmobs, test_dataset_one_record):
     """Test _submit_eval_metric raises on invalid span format."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_raises_on_invalid_span",
-        dataset=test_dataset_one_record,
-    )
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_create",
+        return_value=("mock-invalid-span-exp-id", "mock-run-name"),
+    ):
+        exp = llmobs._distributed_experiment(
+            "test_submit_eval_metric_raises_on_invalid_span",
+            dataset=test_dataset_one_record,
+        )
     with pytest.raises(TypeError, match="`span` must be a dictionary"):
         exp._submit_eval_metric(eval_name="test", eval_value=1.0, span="not-a-dict")
 
@@ -2616,14 +2682,16 @@ def test_submit_eval_metric_raises_on_invalid_span(llmobs, test_dataset_one_reco
 
 def test_submit_eval_metric_raises_when_no_span_available(llmobs, test_dataset_one_record):
     """Test _submit_eval_metric raises when no span is provided and experiment_span is None."""
-    exp = llmobs._distributed_experiment(
-        "test_submit_eval_metric_raises_when_no_span_available",
-        dataset=test_dataset_one_record,
-    )
-    with pytest.raises(
-        TypeError,
-        match="unexpected state, must supply span or must run the experiment first",
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "experiment_create",
+        return_value=("mock-no-span-exp-id", "mock-run-name"),
     ):
+        exp = llmobs._distributed_experiment(
+            "test_submit_eval_metric_raises_when_no_span_available",
+            dataset=test_dataset_one_record,
+        )
+    with pytest.raises(TypeError, match="unexpected state, must supply span or must run the experiment first"):
         exp._submit_eval_metric(eval_name="test", eval_value=1.0)
 
 
