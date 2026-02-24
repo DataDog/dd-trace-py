@@ -842,8 +842,6 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
         self.experiment_span: Optional["ExportedLLMObsSpan"] = None
-        self._run_results: list = []
-        self._interrupted = False
 
     @property
     def url(self) -> str:
@@ -1087,8 +1085,8 @@ class Experiment:
             "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
         )
 
-        self._run_results = []
-        self._interrupted = False
+        run_results: list = []
+        interrupted = False
         try:
             for run_iteration in range(self._runs):
                 run = _ExperimentRunInfo(run_iteration)
@@ -1102,27 +1100,29 @@ class Experiment:
                 self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
                     cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
                 )
-                self._run_results.append(run_result)
-        except BaseException:
-            self._interrupted = True
+                run_results.append(run_result)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            interrupted = True
             raise
-        result: ExperimentResult = self._build_result()
-        self._log_experiment_summary(result)
+        finally:
+            result = self._build_result(run_results)
+            self._log_experiment_summary(result, interrupted=interrupted)
         return result
 
-    def _build_result(self) -> ExperimentResult:
+    @staticmethod
+    def _build_result(run_results: list) -> ExperimentResult:
         return {
-            "summary_evaluations": self._run_results[0].summary_evaluations if self._run_results else {},
-            "rows": self._run_results[0].rows if self._run_results else [],
-            "runs": self._run_results,
+            "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
+            "rows": run_results[0].rows if run_results else [],
+            "runs": run_results,
         }
 
-    def _log_experiment_summary(self, result: ExperimentResult) -> None:
+    def _log_experiment_summary(self, result: ExperimentResult, interrupted: bool = False) -> None:
         runs = result.get("runs", [])
         parts: list[str] = []
         has_errors = False
 
-        if self._interrupted:
+        if interrupted:
             parts.append("Experiment '{}' was interrupted after {}/{} runs.".format(self.name, len(runs), self._runs))
 
         if not runs:
@@ -1133,34 +1133,31 @@ class Experiment:
         for run_idx, run in enumerate(runs):
             rows = run.rows
             run_label = "Run {}/{}".format(run_idx + 1, len(runs)) if len(runs) > 1 else ""
-            task_errors = sum(1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message"))
-            eval_stats: dict[str, dict[str, int]] = {}
+            task_errors, evaluator_errors = _collect_errors_from_rows(rows, run_idx=run_idx)
+            eval_names: set[str] = set()
             for row in rows:
-                for eval_name, eval_data in (row.get("evaluations") or {}).items():
-                    if eval_name not in eval_stats:
-                        eval_stats[eval_name] = {"total": 0, "errors": 0}
-                    eval_stats[eval_name]["total"] += 1
-                    if isinstance(eval_data, dict) and eval_data.get("error"):
-                        eval_stats[eval_name]["errors"] += 1
+                eval_names.update((row.get("evaluations") or {}).keys())
+            eval_error_counts: dict[str, int] = {}
+            for e in evaluator_errors:
+                eval_error_counts[e["evaluator"]] = eval_error_counts.get(e["evaluator"], 0) + 1
 
             header = "Experiment '{}'".format(self.name)
             if run_label:
                 header += " - {}".format(run_label)
-            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats)))
+            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_names)))
             if task_errors:
                 has_errors = True
-                parts.append("  Task errors: {}/{}".format(task_errors, len(rows)))
-            for eval_name, stats in eval_stats.items():
-                err_count = stats["errors"]
+                parts.append("  Task errors: {}/{}".format(len(task_errors), len(rows)))
+            for eval_name in eval_names:
+                total = sum(1 for row in rows if eval_name in (row.get("evaluations") or {}))
+                err_count = eval_error_counts.get(eval_name, 0)
                 if err_count:
                     has_errors = True
-                    parts.append(
-                        "  {}: {}/{} evaluated, {} error(s)".format(eval_name, stats["total"], len(rows), err_count)
-                    )
+                    parts.append("  {}: {}/{} evaluated, {} error(s)".format(eval_name, total, len(rows), err_count))
                 else:
-                    parts.append("  {}: {}/{} evaluated".format(eval_name, stats["total"], len(rows)))
+                    parts.append("  {}: {}/{} evaluated".format(eval_name, total, len(rows)))
 
-        log_fn = logger.warning if (has_errors or self._interrupted) else logger.info
+        log_fn = logger.warning if (has_errors or interrupted) else logger.info
         log_fn("\n".join(parts))
 
     async def _process_record(
@@ -1598,21 +1595,15 @@ class SyncExperiment:
         """
         coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
         try:
-            try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                return asyncio.run(coro)
-            else:
-                import concurrent.futures
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+        else:
+            import concurrent.futures
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(asyncio.run, coro)
-                    return future.result()
-        except BaseException:
-            self._experiment._interrupted = True
-            result = self._experiment._build_result()
-            self._experiment._log_experiment_summary(result)
-            raise
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
 
     @property
     def url(self) -> str:
