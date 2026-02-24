@@ -431,53 +431,52 @@ class LLMObs(Service):
                     meta["expected_output"] = expected_output
 
                 # For experiments, input/output can be any type
-                if llmobs_input and not isinstance(llmobs_input, dict):
+                if llmobs_input:
                     meta["input"] = llmobs_input
-                elif isinstance(llmobs_input, dict) and llmobs_input:
-                    meta["input"] = llmobs_input
-
-                if llmobs_output and not isinstance(llmobs_output, dict):
-                    meta["output"] = llmobs_output
-                elif isinstance(llmobs_output, dict) and llmobs_output:
+                if llmobs_output:
                     meta["output"] = llmobs_output
 
-        input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES) if isinstance(llmobs_input, dict) else None
-        if span_kind == "llm" and input_messages is not None:
-            input_type = "messages"
-            llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
+        if isinstance(llmobs_input, dict):
+            input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES) if isinstance(llmobs_input, dict) else None
+            if span_kind == "llm" and input_messages is not None:
+                input_type = "messages"
+                llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
 
-        output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE) if isinstance(llmobs_output, dict) else None
-        if output_value is not None:
-            output_type = "value"
-            llmobs_span.output = [
-                Message(
-                    content=safe_json(output_value, ensure_ascii=False) or "",
-                    role="",
-                )
-            ]
+            input_documents = llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS) if isinstance(llmobs_input, dict) else None
+            if span_kind == "embedding" and input_documents is not None:
+                meta["input"]["documents"] = input_documents or []
 
-        output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES) if isinstance(llmobs_output, dict) else None
-        if span_kind == "llm" and output_messages is not None:
-            output_type = "messages"
-            llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
+            input_prompt = llmobs_input.get(LLMOBS_STRUCT.PROMPT) if isinstance(llmobs_input, dict) else None
+            if input_prompt is not None:
+                if span_kind != "llm":
+                    log.warning(
+                        "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
+                    )
+                else:
+                    prompt_dict = cast(Prompt, input_prompt)
+                    meta["input"]["prompt"] = prompt_dict
 
-        input_documents = llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS) if isinstance(llmobs_input, dict) else None
-        if span_kind == "embedding" and input_documents is not None:
-            meta["input"]["documents"] = input_documents or []
+        if isinstance(llmobs_output, dict):
+            output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE)
+            if output_value is not None:
+                output_type = "value"
+                llmobs_span.output = [
+                    Message(
+                        content=safe_json(output_value, ensure_ascii=False) or "",
+                        role="",
+                    )
+                ]
 
-        output_documents = llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS) if isinstance(llmobs_output, dict) else None
-        if span_kind == "retrieval" and output_documents is not None:
-            meta["output"]["documents"] = output_documents or []
+            output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES)
+            if span_kind == "llm" and output_messages is not None:
+                output_type = "messages"
+                llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
 
-        input_prompt = llmobs_input.get(LLMOBS_STRUCT.PROMPT) if isinstance(llmobs_input, dict) else None
-        if input_prompt is not None:
-            if span_kind != "llm":
-                log.warning(
-                    "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
-                )
-            else:
-                prompt_dict = cast(Prompt, input_prompt)
-                meta["input"]["prompt"] = prompt_dict
+            output_documents = llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS)
+            if span_kind == "retrieval" and output_documents is not None:
+                meta["output"]["documents"] = output_documents or []
+
+
         elif span_kind == "llm":
             parent_span = _get_nearest_llmobs_ancestor(span)
             if parent_span is not None:
