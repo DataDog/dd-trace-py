@@ -690,6 +690,22 @@ class Config(object):
         self._long_running_initial_flush_interval = _get_config(
             "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
+        # When True, traces are sent via the JSON span intake (agentless EvP), e.g. browser-intake-*.
+        self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
+        if self._trace_agentless_enabled:
+            log.debug(
+                "APM Agentless Enabled. Sampling and Trace Rate Limits will be ignored. Health Metrics"
+                "will be disabled. rate_limit=%s, compute_stats=%s, sampling_rules=%s, health_metrics=%s",
+                self._trace_rate_limit,
+                self._trace_compute_stats,
+                self._trace_sampling_rules,
+                self._health_metrics_enabled,
+            )
+            self._trace_rate_limit = -1
+            self._trace_compute_stats = False
+            self._trace_sampling_rules = ""
+            self._report_hostname = True
+            self._health_metrics_enabled = False
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

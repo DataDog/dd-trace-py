@@ -4,7 +4,11 @@ from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
+from ddtrace.internal.threads import RLock
 
+from ._encoding import BufferedEncoder
+from ._encoding import BufferFull
+from ._encoding import BufferItemTooLarge
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
@@ -12,7 +16,13 @@ from .compat import ensure_text
 from .logger import get_logger
 
 
-__all__ = ["MsgpackEncoderV04", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
+__all__ = [
+    "AgentlessTraceJSONEncoder",
+    "MsgpackEncoderV04",
+    "MsgpackEncoderV05",
+    "ListStringTable",
+    "MSGPACK_ENCODERS",
+]
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -147,6 +157,73 @@ class JSONEncoderV2(JSONEncoder):
     def encode(self, obj):
         res, _ = super().encode(obj)
         return res, len(obj.get("traces", []))
+
+
+class AgentlessTraceJSONEncoder(BufferedEncoder):
+    """
+    Buffered encoder for the agentless JSON span intake. Buffers traces and
+    produces payloads in the {"spans": [...]} format for HTTPWriter.
+    """
+
+    content_type = "application/json"
+
+    def __init__(self, max_size: int, max_item_size: int) -> None:
+        self.max_size = max_size
+        self.max_item_size = max_item_size
+        self._buffer: list[list["Span"]] = []
+        self._size = 0
+        self._lock = RLock()
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._buffer)
+
+    @property
+    def size(self) -> int:
+        with self._lock:
+            return self._size
+
+    def put(self, item) -> None:
+        with self._lock:
+            if len(item) > self.max_item_size:
+                raise BufferItemTooLarge(len(item))
+            if len(item) + self._size > self.max_size:
+                raise BufferFull(len(item) + self._size)
+            self._buffer.append(item)
+            self._size += len(item)
+
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
+        with self._lock:
+            if not self._buffer:
+                return []
+
+            spans_dict = self._spans_to_dict(self._buffer)
+            json_str = json.dumps(spans_dict)
+            payload_bytes = json_str.encode("utf-8")
+            n_traces = len(self._buffer)
+            self._buffer = []
+            self._size = 0
+            return [(payload_bytes, n_traces)]
+
+    def _span_to_dict(self, span: "Span") -> dict[str, Any]:
+        return {
+            "trace_id": str(span._trace_id_64bits),
+            "parent_id": str(span.parent_id),
+            "span_id": str(span.span_id),
+            "service": span.service,
+            "resource": span.resource,
+            "name": span.name,
+            "error": span.error,
+            "start": span.start_ns,
+            "duration": span.duration_ns,
+            "meta": span._meta,
+            "metrics": span._metrics,
+            "type": span.span_type,
+            "span_links": [link.to_dict() for link in span._links],
+        }
+
+    def _spans_to_dict(self, traces: list[list["Span"]]) -> dict[str, Any]:
+        return {"spans": [self._span_to_dict(span) for trace in traces for span in trace]}
 
 
 MSGPACK_ENCODERS = {

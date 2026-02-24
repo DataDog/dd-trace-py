@@ -22,6 +22,7 @@ from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
+from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
@@ -742,6 +743,28 @@ class LogWriterTests(BaseTestCase):
     def test_log_writer(self):
         self.create_writer()
         self.assertEqual(len(self.output.entries), self.N_TRACES)
+
+
+def test_agentless_trace_writer_uses_post():
+    """AgentlessTraceWriter uses POST and has expected intake URL and encoder."""
+    writer = AgentlessTraceWriter(
+        intake_url="https://trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    assert writer.HTTP_METHOD == "POST"
+    assert writer.intake_url == "https://trace-http-intake.logs.datadoghq.com"
+    assert writer._headers.get("dd-api-key") == "test-api-key"
+    assert writer._clients[0].ENDPOINT == "v1/input"
+    assert writer._encoder.content_type == "application/json"
+
+
+def test_agentless_trace_writer_encode_traces():
+    writer = AgentlessTraceWriter(
+        intake_url="https://trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    writer.write([Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r")])
+    writer.flush_queue(raise_exc=True)
 
 
 def test_humansize():

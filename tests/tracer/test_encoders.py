@@ -26,6 +26,7 @@ from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.encoding import AgentlessTraceJSONEncoder
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
@@ -225,6 +226,36 @@ class TestEncoders(TestCase):
                 assert "client.testing" == items[i][j]["name"]
                 assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
+
+    def test_encode_traces_json_agentless(self):
+        # Agentless JSON intake format: top-level {"spans": [...]} with flat span list.
+        trace = [
+            Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r"),
+            Span(name="span2", trace_id=123456789, span_id=2, parent_id=1, service="svc", resource="/r2"),
+        ]
+        encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
+        encoder.put(trace)
+        encoded_traces = encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(payload_bytes, n_traces)] = encoded_traces
+        data = json.loads(payload_bytes.decode("utf-8"))
+        assert "spans" in data
+        spans = data["spans"]
+        assert len(spans) == 2
+        assert spans[0]["name"] == "span1"
+        assert spans[0]["trace_id"] == "123456789"
+        assert spans[0]["span_id"] == "1"
+        assert spans[0]["service"] == "svc"
+        assert spans[0]["resource"] == "/r"
+        assert spans[0]["meta"] == {}
+        assert spans[0]["metrics"] == {}
+        assert "span_links" in spans[0]
+        assert spans[1]["name"] == "span2"
+        assert spans[1]["trace_id"] == "123456789"
+        assert spans[1]["span_id"] == "2"
+        assert spans[1]["parent_id"] == "1"
+        assert spans[1]["service"] == "svc"
+        assert spans[1]["resource"] == "/r2"
 
 
 def test_encode_meta_struct():
@@ -1139,3 +1170,19 @@ def test_json_encoder_traces_bytes():
     assert "" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
+
+
+def test_json_encoder_agentless():
+    """AgentlessTraceJSONEncoder produces top-level "spans" list."""
+    trace = [
+        Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r"),
+        Span(name="span2", trace_id=123456789, span_id=2, parent_id=1, service="svc", resource="/r2"),
+        Span(name="span3", trace_id=123456789, span_id=3, parent_id=2, service="svc", resource="/r3"),
+    ]
+    encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
+    encoder.put(trace)
+    [(payload_bytes, _)] = encoder.encode()
+    data = json.loads(payload_bytes.decode("utf-8"))
+    assert data["spans"][0]["name"] == "span1"
+    assert data["spans"][1]["name"] == "span2"
+    assert data["spans"][2]["name"] == "span3"
