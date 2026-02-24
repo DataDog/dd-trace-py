@@ -228,34 +228,46 @@ class TestEncoders(TestCase):
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
 
     def test_encode_traces_json_agentless(self):
-        # Agentless JSON intake format: top-level {"spans": [...]} with flat span list.
-        trace = [
-            Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r"),
-            Span(name="span2", trace_id=123456789, span_id=2, parent_id=1, service="svc", resource="/r2"),
-        ]
+        span = Span(
+            name="span1", trace_id=0x12341234567890ABCDEF, span_id=0x1234567890ABCDEF, service="svc", resource="/r"
+        )
+        span.set_tag("tag1", "value1")
+        span.set_tag("manual.keep")
+        span.set_metric("munir.metric", 1.0)
+        span.set_link(trace_id=3, span_id=4)
+        span.error = 1
+        span.start_ns = 1771941568700091000
+        span.duration_ns = 1000000000
+
+        span.span_type = SpanTypes.WEB
+        span._set_struct_tag("payload", {"key": "value"})
         encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
-        encoder.put(trace)
+        encoder.put([span])
         encoded_traces = encoder.encode()
         assert encoded_traces, "Expected encoded traces but got empty list"
         [(payload_bytes, n_traces)] = encoded_traces
         data = json.loads(payload_bytes.decode("utf-8"))
-        assert "spans" in data
-        spans = data["spans"]
-        assert len(spans) == 2
-        assert spans[0]["name"] == "span1"
-        assert spans[0]["trace_id"] == "123456789"
-        assert spans[0]["span_id"] == "1"
-        assert spans[0]["service"] == "svc"
-        assert spans[0]["resource"] == "/r"
-        assert spans[0]["meta"] == {}
-        assert spans[0]["metrics"] == {}
-        assert "span_links" in spans[0]
-        assert spans[1]["name"] == "span2"
-        assert spans[1]["trace_id"] == "123456789"
-        assert spans[1]["span_id"] == "2"
-        assert spans[1]["parent_id"] == "1"
-        assert spans[1]["service"] == "svc"
-        assert spans[1]["resource"] == "/r2"
+
+        assert data == {
+            "spans": [
+                {
+                    "trace_id": "1234567890abcdef",
+                    "parent_id": "0000000000000000",
+                    "span_id": "1234567890abcdef",
+                    "service": "svc",
+                    "resource": "/r",
+                    "name": "span1",
+                    "error": 1,
+                    "start": 1771941568700091000,
+                    "duration": 1000000000,
+                    "meta": {"tag1": "value1"},
+                    "metrics": {"munir.metric": 1.0},
+                    "type": "web",
+                    "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
+                    "meta_struct": {"payload": {"key": "value"}},
+                }
+            ]
+        }
 
 
 def test_encode_meta_struct():

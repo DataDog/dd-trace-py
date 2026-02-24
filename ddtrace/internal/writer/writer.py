@@ -337,6 +337,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     log_func = log.warning
                 else:
                     log_func = log.debug
+
                 _safelog(
                     log_func,
                     "Got response: %d %s sent %s in %.5fs to %s",
@@ -756,13 +757,13 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
 
 
 # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
-AGENTLESS_TRACE_INTAKE_HOST = "trace-http-intake.logs"
+AGENTLESS_TRACE_INTAKE_HOST = "public-trace-http-intake.logs"
 
 
 class AgentlessTraceWriter(HTTPWriter):
     """
     HTTP writer for the agentless JSON span intake (EvP). Uses POST and the
-    AgentlessWriterClient (JSON encoder). Used when DD_APM_TRACING_AGENTLESS_ENABLED is true.
+    AgentlessWriterClient (JSON encoder). Used when _DD_APM_TRACING_AGENTLESS_ENABLED is true.
     """
 
     HTTP_METHOD = "POST"

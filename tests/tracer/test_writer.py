@@ -748,11 +748,11 @@ class LogWriterTests(BaseTestCase):
 def test_agentless_trace_writer_uses_post():
     """AgentlessTraceWriter uses POST and has expected intake URL and encoder."""
     writer = AgentlessTraceWriter(
-        intake_url="https://trace-http-intake.logs.datadoghq.com",
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
         api_key="test-api-key",
     )
     assert writer.HTTP_METHOD == "POST"
-    assert writer.intake_url == "https://trace-http-intake.logs.datadoghq.com"
+    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com"
     assert writer._headers.get("dd-api-key") == "test-api-key"
     assert writer._clients[0].ENDPOINT == "v1/input"
     assert writer._encoder.content_type == "application/json"
@@ -760,7 +760,7 @@ def test_agentless_trace_writer_uses_post():
 
 def test_agentless_trace_writer_encode_traces():
     writer = AgentlessTraceWriter(
-        intake_url="https://trace-http-intake.logs.datadoghq.com",
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
         api_key="test-api-key",
     )
     writer.write([Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r")])

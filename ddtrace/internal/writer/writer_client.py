@@ -40,7 +40,7 @@ class AgentWriterClientV4(WriterClientBase):
 
 
 class AgentlessWriterClient(WriterClientBase):
-    """Client for the agentless JSON span intake (EvP / trace-http-intake)."""
+    """Client for the agentless JSON span intake (EvP / public-trace-http-intake)."""
 
     ENDPOINT = "v1/input"
 

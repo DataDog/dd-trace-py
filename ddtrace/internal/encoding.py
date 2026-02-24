@@ -208,6 +208,10 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     def _span_to_dict(self, span: "Span") -> dict[str, Any]:
         span_dict = JSONEncoderV2._convert_span(span)
         span_dict["meta_struct"] = span._meta_struct
+        # Intake Requires ids to be in lowercase
+        span_dict["trace_id"] = span_dict["trace_id"].lower()
+        span_dict["parent_id"] = span_dict["parent_id"].lower()
+        span_dict["span_id"] = span_dict["span_id"].lower()
         return span_dict
 
     def _spans_to_dict(self, traces: list[list["Span"]]) -> dict[str, Any]:

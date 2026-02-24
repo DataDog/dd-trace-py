@@ -694,7 +694,7 @@ class Config(object):
         self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless Enabled. Sampling and Trace Rate Limits will be ignored. Health Metrics"
+                "APM Agentless Enabled. Sampling and Trace Rate Limits will be ignored. Health Metrics "
                 "will be disabled. rate_limit=%s, compute_stats=%s, sampling_rules=%s, health_metrics=%s",
                 self._trace_rate_limit,
                 self._trace_compute_stats,
