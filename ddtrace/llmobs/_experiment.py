@@ -1085,7 +1085,7 @@ class Experiment:
             "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
         )
 
-        run_results = []
+        self._run_results: list = []
         interrupted = False
         try:
             for run_iteration in range(self._runs):
@@ -1100,15 +1100,15 @@ class Experiment:
                 self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
                     cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
                 )
-                run_results.append(run_result)
+                self._run_results.append(run_result)
         except BaseException:
             interrupted = True
             raise
         finally:
             result: ExperimentResult = {
-                "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
-                "rows": run_results[0].rows if run_results else [],
-                "runs": run_results,
+                "summary_evaluations": self._run_results[0].summary_evaluations if self._run_results else {},
+                "rows": self._run_results[0].rows if self._run_results else [],
+                "runs": self._run_results,
             }
             self._log_experiment_summary(result, interrupted=interrupted)
         return result
@@ -1600,18 +1600,26 @@ class SyncExperiment:
         """
         coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
         try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop, so go ahead and run in a new event loop.
-            return asyncio.run(coro)
-        else:
-            # A loop is already running (e.g. Jupyter notebook).
-            # Run the coroutine in a background thread with its own event loop.
-            import concurrent.futures
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(coro)
+            else:
+                import concurrent.futures
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(asyncio.run, coro)
+                    return future.result()
+        except KeyboardInterrupt:
+            result: ExperimentResult = {
+                "summary_evaluations": (
+                    self._experiment._run_results[0].summary_evaluations if self._experiment._run_results else {}
+                ),
+                "rows": self._experiment._run_results[0].rows if self._experiment._run_results else [],
+                "runs": self._experiment._run_results,
+            }
+            self._experiment._log_experiment_summary(result, interrupted=True)
+            raise
 
     @property
     def url(self) -> str:
