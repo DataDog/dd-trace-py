@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env scripts/uv-run-script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["ruamel.yaml==0.18.6"]
+# ///
 
 import fnmatch
 from pathlib import Path

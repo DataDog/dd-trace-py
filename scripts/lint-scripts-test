@@ -1,0 +1,11 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project \
+  --with="lxml==5.3.0" \
+  --with="packaging==23.1" \
+  --with="ruamel.yaml==0.18.6" \
+  --with="vcrpy==6.0.2" \
+  python -m doctest \
+    scripts/get-target-milestone.py \
+    scripts/needs_testrun.py \
+    tests/suitespec.py \
+    "$@"

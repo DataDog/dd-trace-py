@@ -6,7 +6,7 @@ UPDATE_MODE=false
 ENUM_ALL=false
 CMD_OPT="--check"
 BASE_DIR=$(dirname "$(realpath "$0")")
-CMAKE_FORMAT="cmake-format"
+CMAKE_FORMAT="$(dirname "$0")/cmake-format"
 
 # NB: consumes the arguments
 while (( "$#" )); do

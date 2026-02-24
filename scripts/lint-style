@@ -1,0 +1,8 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+DIR="$(cd "$(dirname "$0")" && pwd)"
+set -e
+"$DIR/ruff" format --check --no-cache "${@:-.}"
+"$DIR/ruff" check --no-cache "${@:-.}"
+"$DIR/cython-lint" "${@:-.}"
+bash "$DIR/cformat.sh"
+bash "$DIR/cmake-format.sh"

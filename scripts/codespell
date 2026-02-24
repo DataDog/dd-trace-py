@@ -1,0 +1,2 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project --with="codespell==2.4.1" codespell "$@"

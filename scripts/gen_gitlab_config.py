@@ -431,42 +431,42 @@ def gen_pre_checks() -> None:
 
     check(
         name="Style",
-        command="hatch run lint:style",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "pyproject.toml", "*.cpp", "*.h"},
+        command="scripts/lint-style",
+        paths={"docker*", "*.py", "*.pyi", "pyproject.toml", "*.cpp", "*.h"},
     )
     check(
         name="Typing",
-        command="hatch run lint:typing",
-        paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
+        command="scripts/lint-typing",
+        paths={"docker*", "*.py", "*.pyi", "mypy.ini"},
     )
     check(
         name="Security",
-        command="hatch run lint:security",
-        paths={"docker*", "ddtrace/*", "hatch.toml"},
+        command="scripts/lint-security",
+        paths={"docker*", "ddtrace/*"},
     )
     check(
         name="Run riotfile.py tests",
-        command="hatch run lint:riot",
-        paths={"docker*", "riotfile.py", "hatch.toml"},
+        command="scripts/lint-riot",
+        paths={"docker*", "riotfile.py"},
     )
     check(
         name="Style: Test snapshots",
-        command="hatch run lint:fmt-snapshots && git diff --exit-code tests/snapshots hatch.toml",
-        paths={"docker*", "tests/snapshots/*", "hatch.toml"},
+        command="scripts/lint-fmt-snapshots && git diff --exit-code tests/snapshots",
+        paths={"docker*", "tests/snapshots/*"},
     )
     check(
         name="Run scripts/*.py tests",
-        command="hatch run scripts:test",
+        command="scripts/lint-scripts-test",
         paths={"docker*", "scripts/*.py", "scripts/run-test-suite", "**suitespec.yml"},
     )
     check(
         name="Check suitespec coverage",
-        command="hatch run lint:suitespec-check",
+        command="scripts/check_suitespec_coverage.py",
         paths={"*"},
     )
     check(
         name="Check ddtrace error logs",
-        command="hatch run lint:error-log-check",
+        command="scripts/check_constant_log_message.py",
         paths={"ddtrace/*", "scripts/check_constant_log_message.py"},
     )
     check(

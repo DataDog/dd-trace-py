@@ -1,0 +1,5 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$DIR/codespell" -I docs/spelling_wordlist.txt \
+    --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' \
+    "${@:-ddtrace/ tests/ releasenotes/ docs/}"

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+COMMAND="${1:-checks}"
+[[ $# -gt 0 ]] && shift
+
+case "$COMMAND" in
+  help|--help|-h)
+    echo "Usage: scripts/lint [command] [args...]"
+    echo ""
+    echo "Available commands:"
+    for script in "$DIR"/lint-*; do
+      [[ -x "$script" ]] || continue
+      echo "  ${script##*lint-}"
+    done | sort
+    echo ""
+    echo "Default: checks"
+    exit 0
+    ;;
+esac
+
+SCRIPT="$DIR/lint-$COMMAND"
+if [[ ! -x "$SCRIPT" ]]; then
+  echo "lint: unknown command '$COMMAND'" >&2
+  echo "Run 'scripts/lint help' for available commands." >&2
+  exit 1
+fi
+
+exec "$SCRIPT" "$@"

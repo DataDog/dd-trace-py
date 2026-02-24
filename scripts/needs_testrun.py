@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env scripts/uv-run-script
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "lxml==5.3.0",
+#     "ruamel.yaml==0.18.6",
+# ]
+# ///
 
 from argparse import ArgumentParser
 import fnmatch

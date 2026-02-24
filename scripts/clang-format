@@ -1,0 +1,2 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project --with="clang-format==18.1.5" clang-format "$@"

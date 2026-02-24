@@ -1,0 +1,2 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project --with="ast-grep-cli==0.39.4" ast-grep "$@"

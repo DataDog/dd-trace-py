@@ -1,0 +1,9 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project \
+  --with="mypy==1.15.0" \
+  --with="envier==0.6.1" \
+  --with="types-docutils==0.19.1.1" \
+  --with="types-protobuf==3.20.4.5" \
+  --with="types-PyYAML==6.0.12.2" \
+  --with="types-setuptools==65.6.0.0" \
+  mypy "$@"

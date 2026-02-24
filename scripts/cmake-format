@@ -1,0 +1,2 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project --with="cmake-format==0.6.13" cmake-format "$@"

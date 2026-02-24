@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ensure_uv() {
+  if command -v uv >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Common install locations
+  local CANDIDATE_PATHS=(
+    "$HOME/.local/bin"
+    "$HOME/.cargo/bin"
+  )
+
+  for path in "${CANDIDATE_PATHS[@]}"; do
+    if [[ -x "$path/uv" ]]; then
+      export PATH="$path:$PATH"
+      return 0
+    fi
+  done
+
+  # Try to install if still missing
+  echo "[ensure-uv-installed] uv not found, installing..."
+  if [[ "$OSTYPE" == "darwin"* ]] || command -v brew >/dev/null 2>&1; then
+    echo "[ensure-uv-installed] Installing via Homebrew..."
+    brew install uv
+  else
+    echo "[ensure-uv-installed] Installing via installer script..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+  fi
+
+  # Recheck after install — maybe it landed in .local/bin
+  for path in "${CANDIDATE_PATHS[@]}"; do
+    if [[ -x "$path/uv" ]]; then
+      export PATH="$path:$PATH"
+      return 0
+    fi
+  done
+
+  echo "[ensure-uv-installed] ERROR: uv installation failed or not found in PATH."
+  return 1
+}
+
+if ! ensure_uv; then
+  exit 1
+fi
+
+# When used as a shebang target, exec the provided script as bash
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]] && [[ $# -gt 0 ]]; then
+  TARGET_SCRIPT="$1"
+  shift
+  exec bash "$TARGET_SCRIPT" "$@"
+fi

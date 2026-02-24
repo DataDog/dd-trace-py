@@ -1,3 +1,8 @@
+#!/usr/bin/env scripts/uv-run-script
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 """
 Check that log.error() and add_error_log calls use constant string literals as first argument.
 This script scans all Python files in ddtrace/ and reports violations.

@@ -1,0 +1,2 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project --with="bandit==1.8.2" bandit "$@"

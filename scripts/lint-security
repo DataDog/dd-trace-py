@@ -1,0 +1,3 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+DIR="$(cd "$(dirname "$0")" && pwd)"
+exec "$DIR/bandit" -c pyproject.toml "${@:--r ddtrace/}"

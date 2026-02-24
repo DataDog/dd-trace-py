@@ -21,9 +21,9 @@ Use the Skill tool with command "lint"
 ## Quick Reference
 
 **Most common commands:**
-- `hatch run lint:fmt -- <file>` - Format after editing
-- `hatch run lint:typing -- <file>` - Type check
-- `hatch run lint:checks` - Run all checks before committing
+- `scripts/lint fmt <file>` - Format after editing
+- `scripts/lint typing <file>` - Type check
+- `scripts/lint` - Run all checks before committing
 
 ## Full Documentation
 
@@ -38,4 +38,4 @@ See: `.claude/skills/lint/SKILL.md`
 
 ## Related
 
-- Lint configuration: `hatch.toml`, `pyproject.toml`
+- Lint configuration: `pyproject.toml`

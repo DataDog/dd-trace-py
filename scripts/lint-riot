@@ -1,0 +1,2 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+exec uv run --no-project --with="riot==0.21.0" python -m doctest "${@:-riotfile.py}"

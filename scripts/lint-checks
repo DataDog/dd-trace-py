@@ -1,0 +1,13 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+DIR="$(cd "$(dirname "$0")" && pwd)"
+set -e
+"$DIR/lint-style"
+"$DIR/lint-typing"
+"$DIR/lint-spelling"
+"$DIR/lint-riot"
+"$DIR/lint-security"
+"$DIR/lint-scripts-test"
+"$DIR/check_suitespec_coverage.py"
+"$DIR/check_constant_log_message.py"
+"$DIR/lint-sg"
+"$DIR/lint-sg-test"

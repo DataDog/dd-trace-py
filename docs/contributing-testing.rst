@@ -64,12 +64,13 @@ You can access it by running
 
 Some of our test suites are managed with Riot, others with Hatch.
 
-You can run riot and hatch commands in the test runner container with commands like these:
+You can run riot commands in the test runner container with commands like these:
 
 .. code-block:: bash
 
     $ scripts/ddtest riot run -p 3.10
-    $ scripts/ddtest hatch run lint:style
+
+For linting, see the `linting guidelines <contributing-linting.rst>`_.
 
 
 How do I run only the tests I care about?

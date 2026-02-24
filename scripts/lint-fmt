@@ -1,0 +1,6 @@
+#!/usr/bin/env scripts/ensure-uv-installed
+DIR="$(cd "$(dirname "$0")" && pwd)"
+set -e
+"$DIR/ruff" format --no-cache "${@:-.}"
+"$DIR/ruff" check --fix --no-cache "${@:-.}"
+"$DIR/lint-style" "$@"

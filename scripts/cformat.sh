@@ -59,7 +59,7 @@ enumerate_files() {
 UPDATE_MODE=false
 ENUM_ALL=false
 BASE_DIR=$(dirname "$(dirname "$(realpath "$0")")")
-CLANG_FORMAT=clang-format
+CLANG_FORMAT="$(dirname "$0")/clang-format"
 
 # NB: consumes the arguments
 while (( "$#" )); do

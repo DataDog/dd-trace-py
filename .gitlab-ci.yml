@@ -129,11 +129,11 @@ serverless lambda tests:
   script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
-      hatch run lint:sg-test
+      scripts/lint-sg-test
       echo -e "\e[0Ksection_end:`date +%s`:sg_test\r\e[0K"
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_scan[collapsed=true]\r\e[0Kast-grep scan"
-      hatch run lint:sg
+      scripts/lint-sg
       echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
 
 microbenchmarks:
