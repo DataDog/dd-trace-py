@@ -1156,9 +1156,9 @@ class Experiment:
             parts.append("  Task errors: {}/{}".format(failed_tasks, total_rows))
         for eval_name, stats in eval_stats.items():
             evaluated = stats["total"]
-            errors = stats["errors"]
-            if errors:
-                parts.append("  {}: {}/{} evaluated, {} error(s)".format(eval_name, evaluated, total_rows, errors))
+            err_count = stats["errors"]
+            if err_count:
+                parts.append("  {}: {}/{} evaluated, {} error(s)".format(eval_name, evaluated, total_rows, err_count))
             else:
                 parts.append("  {}: {}/{} evaluated".format(eval_name, evaluated, total_rows))
 
