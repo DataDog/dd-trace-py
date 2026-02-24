@@ -296,6 +296,18 @@ class BaseWrappingContext(ABC):
         self.__wrapped__ = f
         self._storage_stack: ContextVar[list[dict]] = ContextVar(f"{type(self).__name__}__storage_stack", default=[])
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state.pop("_storage_stack", None)  # remove unpicklable field
+        return state
+
+    def __setstate__(self, state: dict[str, t.Any]) -> None:
+        self.__dict__.update(state)
+        self._storage_stack = ContextVar(
+            f"{type(self).__name__}__storage_stack",
+            default=[],
+        )
+
     def __enter__(self) -> "BaseWrappingContext":
         self._storage_stack.get().append({})
         return self
