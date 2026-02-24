@@ -7,106 +7,28 @@
     "span_id": 1,
     "parent_id": 0,
     "type": "worker",
-    "error": 0,
+    "error": 1,
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699da45700000000",
       "component": "rq",
+      "error.message": "Error 111 connecting to localhost:6379. Connection refused.",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/connection.py\", line 264, in connect\n    sock = self.retry.call_with_retry(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/retry.py\", line 46, in call_with_retry\n    return do()\n           ^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/connection.py\", line 265, in <lambda>\n    lambda: self._connect(), lambda error: self.disconnect(error)\n            ^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/connection.py\", line 627, in _connect\n    raise err\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/connection.py\", line 615, in _connect\n    sock.connect(socket_address)\nConnectionRefusedError: [Errno 111] Connection refused\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 86, in traced_queue_enqueue_job\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/queue.py\", line 1095, in enqueue_job\n    return self._enqueue_job(job, pipeline=pipeline, at_front=at_front)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/queue.py\", line 1115, in _enqueue_job\n    job.redis_server_version = self.get_redis_server_version()\n                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/queue.py\", line 219, in get_redis_server_version\n    self.redis_server_version = get_version(self.connection)\n                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/utils.py\", line 293, in get_version\n    tuple(int(i) for i in connection.info(\"server\")[\"redis_version\"].split('.')[:3]),\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/commands/core.py\", line 1004, in info\n    return self.execute_command(\"INFO\", section, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/client.py\", line 533, in execute_command\n    conn = self.connection or pool.get_connection(command_name, **options)\n                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/connection.py\", line 1086, in get_connection\n    connection.connect()\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/redis/connection.py\", line 270, in connect\n    raise ConnectionError(self._error_message(e))\nredis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connection refused.\n",
+      "error.type": "redis.exceptions.ConnectionError",
       "job.func_name": "__call__",
-      "job.id": "cf740fea-3fc5-4165-a1cf-e1be0fee4d88",
+      "job.id": "b5fd503c-abb8-4f80-ae30-b3a3173b3126",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "2b97494586c34e01812f3305d79a278e",
+      "runtime-id": "500679f76050414b94a7c943d2de4030",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2690
+      "_sampling_priority_v1": 1.0,
+      "process_id": 93987.0
     },
-    "duration": 2546333,
-    "start": 1692649925165184845
-  },
-     {
-       "name": "rq.worker.perform_job",
-       "service": "rq-worker",
-       "resource": "__call__",
-       "trace_id": 0,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "worker",
-       "error": 1,
-       "meta": {
-         "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.dm": "-0",
-         "_dd.p.tid": "654a694400000000",
-         "component": "rq",
-         "job.id": "cf740fea-3fc5-4165-a1cf-e1be0fee4d88",
-         "job.origin": "q",
-         "job.status": "failed",
-         "language": "python",
-         "runtime-id": "2b97494586c34e01812f3305d79a278e",
-         "span.kind": "consumer",
-         "traceparent": "00-0000000000000000189a1d988c1c55a5-40843f2caf73b45c-01",
-         "tracestate": "dd=s:1;t.dm:-0"
-       },
-       "metrics": {
-         "_dd.top_level": 1,
-         "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "process_id": 2690
-       },
-       "duration": 5131417,
-       "start": 1692649925215645053
-     },
-        {
-          "name": "rq.job.perform",
-          "service": "rq-worker",
-          "resource": "__call__",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "",
-          "error": 1,
-          "meta": {
-            "_dd.base_service": "ddtrace_subprocess_dir",
-            "_dd.p.tid": "654a694400000000",
-            "component": "rq",
-            "error.message": "__call__() got an unexpected keyword argument 'key'",
-            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~1100_click712/lib/python3.9/site-packages/rq/job.py\", line 821, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~1100_click712/lib/python3.9/site-packages/rq/job.py\", line 844, in _execute\n    result = self.func(*self.args, **self.kwargs)\nTypeError: __call__() got an unexpected keyword argument 'key'\n",
-            "error.type": "builtins.TypeError",
-            "job.id": "cf740fea-3fc5-4165-a1cf-e1be0fee4d88"
-          },
-          "duration": 1903375,
-          "start": 1692649925216092345
-        }],
-[
-  {
-    "name": "rq.queue.fetch_job",
-    "service": "rq",
-    "resource": "rq.queue.fetch_job",
-    "trace_id": 1,
-    "span_id": 1,
-    "parent_id": 0,
-    "type": "",
-    "error": 0,
-    "meta": {
-      "_dd.base_service": "ddtrace_subprocess_dir",
-      "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
-      "component": "rq",
-      "job.id": "abc",
-      "language": "python",
-      "runtime-id": "2b97494586c34e01812f3305d79a278e"
-    },
-    "metrics": {
-      "_dd.top_level": 1,
-      "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2690
-    },
-    "duration": 615000,
-    "start": 1692649925210258262
+    "duration": 8629916,
+    "start": 1771938903401235752
   }]]
