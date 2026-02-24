@@ -5,6 +5,7 @@ from .writer import AgentWriterInterface
 from .writer import HTTPWriter
 from .writer import LogWriter
 from .writer import NativeWriter
+from .writer import OTLPWriter
 from .writer import Response
 from .writer import TraceWriter
 from .writer import _human_size
@@ -20,6 +21,7 @@ __all__ = [
     "HTTPWriter",
     "LogWriter",
     "NativeWriter",
+    "OTLPWriter",
     "Response",
     "TraceWriter",
     "WriterClientBase",

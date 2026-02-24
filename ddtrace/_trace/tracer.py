@@ -143,8 +143,17 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
+        # When OTLP trace export is enabled, disable partial flush (export only full traces)
+        _partial_flush_enabled = config._partial_flush_enabled
+        try:
+            from ddtrace.internal.settings._otel_exporter import config as _otel_exporter_config
+
+            if _otel_exporter_config.otlp_traces_enabled:
+                _partial_flush_enabled = False
+        except ImportError:
+            pass
         self._span_aggregator = SpanAggregator(
-            partial_flush_enabled=config._partial_flush_enabled,
+            partial_flush_enabled=_partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
             dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
