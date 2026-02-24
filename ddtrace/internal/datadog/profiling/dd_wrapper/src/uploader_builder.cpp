@@ -182,7 +182,7 @@ Datadog::UploaderBuilder::build()
                              to_slice(state.profiler_version),
                              to_slice(family),
                              &tags,
-                             ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms));
+                             ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms, false));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
