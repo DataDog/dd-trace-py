@@ -2189,6 +2189,7 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
         dummy_task,
         test_dataset_one_record_w_metadata,
         [dummy_evaluator],
+        config={"temperature": 0.7},
     )
     exp._experiment._id = "1234567890"
     asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
@@ -2216,6 +2217,7 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     assert "run_iteration:1" in event["tags"]
     assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
     assert event["_dd"]["scope"] == "experiments"
+    assert event["config"] == {"temperature": 0.7}
 
 
 def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
@@ -2224,6 +2226,7 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         dummy_task,
         test_dataset_one_record_w_metadata,
         [dummy_evaluator],
+        config={"temperature": 0.7},
     )
     exp._experiment._id = "1234567890"
     for i in range(2):
@@ -2257,6 +2260,22 @@ def test_experiment_span_multi_run_tags(llmobs, llmobs_events, test_dataset_one_
         assert f"run_iteration:{i + 1}" in event["tags"]
         assert f"ddtrace.version:{ddtrace.__version__}" in event["tags"]
         assert event["_dd"]["scope"] == "experiments"
+        assert event["config"] == {"temperature": 0.7}
+
+
+def test_experiment_span_no_config_omits_field(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
+    """Assert that the config field is omitted from the span event when no config is provided."""
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record_w_metadata,
+        [dummy_evaluator],
+    )
+    exp._experiment._id = "1234567890"
+    asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert "config" not in event
 
 
 def test_evaluators_run_with_jobs_parameter(llmobs, test_dataset_one_record):
