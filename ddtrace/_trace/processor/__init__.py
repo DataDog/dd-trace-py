@@ -204,7 +204,7 @@ class TopLevelSpanProcessor(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
         if span._is_top_level:
-            span._metrics["_dd.top_level"] = 1  # PERF: avoid setting via Span.set_metric
+            span._set_numeric_attribute("_dd.top_level", 1)  # PERF: avoid setting via Span.set_metric
 
 
 class ServiceNameProcessor(TraceProcessor):
@@ -256,9 +256,9 @@ class TraceTagsProcessor(TraceProcessor):
                 trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
                 span._set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
-            if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
+            if span._parent is not None:
                 # we should only set the last parent id on local root spans
-                del span._meta[LAST_DD_PARENT_ID_KEY]
+                span._remove_attribute(LAST_DD_PARENT_ID_KEY)
 
         return trace
 

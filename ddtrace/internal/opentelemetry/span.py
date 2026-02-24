@@ -280,15 +280,18 @@ class Span(OtelSpan):
             attrs.update(attributes)
 
         # Set the error type, error message and error stacktrace tags on the span
-        self._ddspan._meta[ERROR_MSG] = attrs["exception.message"]
-        self._ddspan._meta[ERROR_TYPE] = attrs["exception.type"]
+        self._ddspan._set_str_attribute(ERROR_MSG, attrs["exception.message"])
+        self._ddspan._set_str_attribute(ERROR_TYPE, attrs["exception.type"])
         if "exception.stacktrace" in attrs:
-            self._ddspan._meta[ERROR_STACK] = attrs["exception.stacktrace"]
+            self._ddspan._set_str_attribute(ERROR_STACK, attrs["exception.stacktrace"])
         else:
-            self._ddspan._meta[ERROR_STACK] = "".join(
-                traceback.format_exception(
-                    type(exception), exception, exception.__traceback__, limit=config._span_traceback_max_size
-                )
+            self._ddspan._set_str_attribute(
+                ERROR_STACK,
+                "".join(
+                    traceback.format_exception(
+                        type(exception), exception, exception.__traceback__, limit=config._span_traceback_max_size
+                    )
+                ),
             )
         self.add_event(name="exception", attributes=attrs, timestamp=timestamp)
 

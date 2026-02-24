@@ -208,7 +208,7 @@ class APIManager(Service):
                 ).decode()
                 if len(b64_gzip_content) >= MAX_SPAN_META_VALUE_LEN:
                     raise TooLargeSchemaException
-                root._meta[meta] = b64_gzip_content
+                root._set_str_attribute(meta, b64_gzip_content)
                 nb_schemas += 1
             except Exception:
                 extra = {"product": "appsec", "exec_limit": 6, "more_info": f":schema_failure:{meta}"}

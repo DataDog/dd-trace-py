@@ -169,8 +169,8 @@ class RaySpanManager:
         )
         new_span._set_tag_str("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
-        new_span._meta = job_span._meta.copy()
-        new_span._metrics = job_span._metrics.copy()
+        new_span.set_tags(job_span._meta)
+        new_span.set_tags(job_span._metrics)
 
         return new_span
 
@@ -190,7 +190,7 @@ class RaySpanManager:
     def _finish_span(self, span: Span, job_info: Optional[JobInfo] = None) -> None:
         # only if span was long running
         if span.get_metric(DD_PARTIAL_VERSION) is not None:
-            del span._metrics[DD_PARTIAL_VERSION]
+            span._remove_attribute(DD_PARTIAL_VERSION)
 
             span.set_metric(DD_WAS_LONG_RUNNING, 1)
             span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
