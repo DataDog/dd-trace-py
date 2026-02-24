@@ -142,6 +142,8 @@ class LLMOBS_STRUCT:
     MODEL_PROVIDER = "model_provider"
     INTENT = "intent"
     CONFIG = "config"
+
+
 # Managed Prompts Cache and Timeout defaults
 DEFAULT_PROMPTS_CACHE_TTL = 60  # seconds before stale
 DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations

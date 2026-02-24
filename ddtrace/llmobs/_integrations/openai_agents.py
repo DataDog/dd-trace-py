@@ -161,10 +161,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             return
 
         current_top_level_agent_span_id = trace_info.current_top_level_agent_span_id
-        if (
-            current_top_level_agent_span_id
-            and _get_llmobs_parent_id(llmobs_span) == current_top_level_agent_span_id
-        ):
+        if current_top_level_agent_span_id and _get_llmobs_parent_id(llmobs_span) == current_top_level_agent_span_id:
             trace_info.output_oai_span = oai_span
 
     def _llmobs_set_trace_attributes(self, span: Span, oai_trace: OaiTraceAdapter) -> None:

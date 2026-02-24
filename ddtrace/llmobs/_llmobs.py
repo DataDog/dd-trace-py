@@ -473,7 +473,6 @@ class LLMObs(Service):
             if span_kind == "retrieval" and output_documents is not None:
                 meta["output"]["documents"] = output_documents or []
 
-
         elif span_kind == "llm":
             parent_span = _get_nearest_llmobs_ancestor(span)
             if parent_span is not None:
