@@ -15,11 +15,16 @@ from typing import Callable
 from typing import Iterator
 from typing import Optional
 from typing import Sequence
-from typing import TypeAlias
 from typing import TypedDict
 from typing import Union
 from typing import cast
 from typing import overload
+
+try:
+    from typing import TypeAlias
+except ImportError:
+    from typing_extensions import TypeAlias  # Python < 3.10
+
 import uuid
 
 
