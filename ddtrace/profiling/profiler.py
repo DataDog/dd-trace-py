@@ -135,6 +135,7 @@ class _ProfilerInstance(service.Service):
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
+        process_tags._set_globals()
         self.process_tags: Optional[str] = process_tags.process_tags or None
 
         self.__post_init__()

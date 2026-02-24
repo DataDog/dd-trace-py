@@ -234,6 +234,7 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         spans_to_tag = [trace[0]]
+        process_tags._set_globals()
 
         # When using the native writer and CSS, TraceTagsProcessor runs before dropping spans.
         # Thus trace tags are applied to a root span which may be dropped by sampling, even though
