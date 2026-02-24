@@ -142,9 +142,11 @@ def test_kafka_offset_monitoring():
 
 
 def test_kafka_offset_monitoring_with_cluster_id():
-    # Use a fresh processor to avoid shared state with other tests, since
-    # _serialize_buckets() clears buckets as a side effect.
+    # Use a fresh processor with periodic flushing disabled to avoid shared state
+    # with other tests and prevent the background thread from draining buckets
+    # via _serialize_buckets() between our track calls and assertions.
     test_processor = DataStreamsProcessor("http://localhost:8126")
+    test_processor.stop()
     now = time.time()
     cluster = "test-cluster-abc"
     test_processor.track_kafka_commit("group1", "topic1", 1, 10, now, cluster_id=cluster)
@@ -178,6 +180,7 @@ def test_kafka_offset_monitoring_with_cluster_id():
 def test_kafka_offset_monitoring_without_cluster_id_omits_tag():
     """When cluster_id is empty, the kafka_cluster_id tag should not appear in serialized backlogs."""
     test_processor = DataStreamsProcessor("http://localhost:8126")
+    test_processor.stop()
     now = time.time()
     test_processor.track_kafka_commit("group1", "topic2", 0, 5, now)
     test_processor.track_kafka_produce("topic2", 0, 20, now)
