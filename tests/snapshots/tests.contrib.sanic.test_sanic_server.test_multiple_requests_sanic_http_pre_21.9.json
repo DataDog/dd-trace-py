@@ -1,0 +1,98 @@
+[[
+  {
+    "name": "sanic.request",
+    "service": "sanic",
+    "resource": "GET /hello",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "sanic",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/hello",
+      "http.useragent": "python-requests/2.28.2",
+      "language": "python",
+      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 83553
+    },
+    "duration": 39547333,
+    "start": 1692712724983737220
+  },
+     {
+       "name": "random_sleep",
+       "service": "sanic",
+       "resource": "random_sleep",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.p.tid": "654a694400000000"
+       },
+       "duration": 39386375,
+       "start": 1692712724983815803
+     }],
+[
+  {
+    "name": "sanic.request",
+    "service": "sanic",
+    "resource": "GET /hello",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "web",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "component": "sanic",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:8000/hello",
+      "http.useragent": "python-requests/2.28.2",
+      "language": "python",
+      "runtime-id": "95d5761a51704f358d8e92dc815192d2",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 83553
+    },
+    "duration": 39160708,
+    "start": 1692712725078800220
+  },
+     {
+       "name": "random_sleep",
+       "service": "sanic",
+       "resource": "random_sleep",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "_dd.p.tid": "654a694400000000"
+       },
+       "duration": 38914250,
+       "start": 1692712725078909886
+     }]]
