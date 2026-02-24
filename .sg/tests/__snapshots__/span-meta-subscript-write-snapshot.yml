@@ -1,0 +1,34 @@
+id: span-meta-subscript-write
+snapshots:
+  ctx.span._meta["http.url"] = url:
+    labels:
+    - source: ctx.span._meta["http.url"] = url
+      style: primary
+      start: 0
+      end: 32
+  root._meta[meta_key] = b64_content:
+    labels:
+    - source: root._meta[meta_key] = b64_content
+      style: primary
+      start: 0
+      end: 34
+  self._ddspan._meta["error.type"] = exc_type:
+    labels:
+    - source: self._ddspan._meta["error.type"] = exc_type
+      style: primary
+      start: 0
+      end: 43
+  ? |
+    span._meta["error.msg"] = str(exc)
+    span._meta["error.type"] = type(exc).__name__
+  : labels:
+    - source: span._meta["error.msg"] = str(exc)
+      style: primary
+      start: 0
+      end: 34
+  span._meta["error.type"] = "ValueError":
+    labels:
+    - source: span._meta["error.type"] = "ValueError"
+      style: primary
+      start: 0
+      end: 39

@@ -1,0 +1,28 @@
+id: span-metrics-subscript-write
+snapshots:
+  ctx.span._metrics[_SPAN_MEASURED_KEY] = 1:
+    labels:
+    - source: ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
+      style: primary
+      start: 0
+      end: 41
+  span._metrics["_dd.top_level"] = 1:
+    labels:
+    - source: span._metrics["_dd.top_level"] = 1
+      style: primary
+      start: 0
+      end: 34
+  span._metrics["system.pid"] = os.getpid():
+    labels:
+    - source: span._metrics["system.pid"] = os.getpid()
+      style: primary
+      start: 0
+      end: 41
+  ? |
+    span._metrics[redisx.ARGS_LEN] = len(args)
+    span._metrics[redisx.PIPELINE_LEN] = pipeline_len
+  : labels:
+    - source: span._metrics[redisx.ARGS_LEN] = len(args)
+      style: primary
+      start: 0
+      end: 42

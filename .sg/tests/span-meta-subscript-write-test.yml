@@ -1,0 +1,31 @@
+id: span-meta-subscript-write
+valid:
+  # Reads (not writes) are fine
+  - val = span._meta["error.type"]
+  - |
+    if "error.type" in span._meta:
+        handle(span._meta["error.type"])
+  # Objects whose name ends with 'context' are excluded by constraint
+  - context._meta["key"] = "value"
+  - span_context._meta["http.url"] = url
+  - self.trace_context._meta["key"] = value
+  - primary_context._meta["sampling.priority"] = "1"
+  # Correct API usage
+  - span._set_str_attribute("error.type", "ValueError")
+  - self._ddspan._set_str_attribute(key, str(value))
+  # Different attribute name (not ._meta)
+  - span._metadata["key"] = "value"
+
+invalid:
+  # Direct span variable
+  - span._meta["error.type"] = "ValueError"
+  # Member attribute
+  - self._ddspan._meta["error.type"] = exc_type
+  # Variable named root
+  - root._meta[meta_key] = b64_content
+  # Chained attribute
+  - ctx.span._meta["http.url"] = url
+  # Multi-line block
+  - |
+    span._meta["error.msg"] = str(exc)
+    span._meta["error.type"] = type(exc).__name__

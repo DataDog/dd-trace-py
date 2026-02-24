@@ -1,5 +1,6 @@
+
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
+    types::{PyAnyMethods as _, PyDict, PyDictMethods as _, PyFloat, PyInt, PyModule, PyModuleMethods as _, PyTuple},
     Bound, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
@@ -408,6 +409,176 @@ impl SpanData {
     #[inline(always)]
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
+    }
+
+    // --- Attribute write methods ---
+
+    /// Set a string attribute. Silently drops if key or value are not strings.
+    /// Enforces mutual exclusion with metrics (removes same key from metrics).
+    #[pyo3(name = "_set_str_attribute")]
+    fn set_str_attribute(&mut self, key: Bound<'_, PyAny>, value: Bound<'_, PyAny>) {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return;
+        };
+        let Ok(value_bs) = value.extract::<PyBackedString>() else {
+            return;
+        };
+        self.data.metrics.remove(&*key_bs); // mutual exclusion
+        self.data.meta.insert(key_bs, value_bs);
+    }
+
+    /// Set a numeric attribute. Silently drops if key is not a string or value is not numeric.
+    /// Enforces mutual exclusion with meta (removes same key from meta).
+    #[pyo3(name = "_set_numeric_attribute")]
+    fn set_numeric_attribute(&mut self, key: Bound<'_, PyAny>, value: Bound<'_, PyAny>) {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return;
+        };
+        let Ok(val_f64) = value.extract::<f64>() else {
+            return;
+        };
+        self.data.meta.remove(&*key_bs); // mutual exclusion
+        self.data.metrics.insert(key_bs, val_f64);
+    }
+
+    /// Remove an attribute from both meta and metrics.
+    #[pyo3(name = "_remove_attribute")]
+    fn remove_attribute(&mut self, key: Bound<'_, PyAny>) {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return;
+        };
+        self.data.meta.remove(&*key_bs);
+        self.data.metrics.remove(&*key_bs);
+    }
+
+    /// Set an attribute dispatching on type: str → meta, int/float → metrics.
+    /// Unrecognized types are stringified via __str__ and stored in meta.
+    #[pyo3(name = "_set_attribute")]
+    fn set_attribute(&mut self, key: Bound<'_, PyAny>, value: Bound<'_, PyAny>) {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return;
+        };
+        // Try string first (most common case)
+        if let Ok(s) = value.extract::<PyBackedString>() {
+            self.data.metrics.remove(&*key_bs);
+            self.data.meta.insert(key_bs, s);
+            return;
+        }
+        // Try numeric (int or float → f64)
+        if let Ok(val) = value.extract::<f64>() {
+            self.data.meta.remove(&*key_bs);
+            self.data.metrics.insert(key_bs, val);
+            return;
+        }
+        // Unrecognized type: stringify and store in meta
+        if let Ok(s) = value.str().and_then(|s| s.extract::<PyBackedString>()) {
+            self.data.metrics.remove(&*key_bs);
+            self.data.meta.insert(key_bs, s);
+        }
+    }
+
+    /// Set multiple attributes from a dict.
+    #[pyo3(name = "_set_attributes")]
+    fn set_attributes(&mut self, attrs: Bound<'_, PyAny>) {
+        let Ok(dict) = attrs.cast::<PyDict>() else {
+            return;
+        };
+        for (key, value) in dict.iter() {
+            let Ok(key_bs) = key.extract::<PyBackedString>() else {
+                continue;
+            };
+            if let Ok(s) = value.extract::<PyBackedString>() {
+                self.data.metrics.remove(&*key_bs);
+                self.data.meta.insert(key_bs, s);
+            } else if let Ok(val) = value.extract::<f64>() {
+                self.data.meta.remove(&*key_bs);
+                self.data.metrics.insert(key_bs, val);
+            } else if let Ok(s) = value.str().and_then(|s| s.extract::<PyBackedString>()) {
+                self.data.metrics.remove(&*key_bs);
+                self.data.meta.insert(key_bs, s);
+            }
+        }
+    }
+
+    // --- Attribute read methods ---
+
+    /// Get an attribute by key, checking meta first then metrics.
+    /// Returns str if found in meta, float if found in metrics, None if not found.
+    #[pyo3(name = "_get_attribute")]
+    fn get_attribute<'py>(&self, py: Python<'py>, key: Bound<'_, PyAny>) -> Option<Bound<'py, PyAny>> {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return None;
+        };
+        if let Some(v) = self.data.meta.get(&*key_bs) {
+            return Some(v.as_py(py));
+        }
+        if let Some(&v) = self.data.metrics.get(&*key_bs) {
+            return Some(PyFloat::new(py, v).into_any());
+        }
+        None
+    }
+
+    /// Get a string attribute by key. Returns None if not found.
+    #[pyo3(name = "_get_str_attribute")]
+    fn get_str_attribute<'py>(&self, py: Python<'py>, key: Bound<'_, PyAny>) -> Option<Bound<'py, PyAny>> {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return None;
+        };
+        self.data.meta.get(&*key_bs).map(|v| v.as_py(py))
+    }
+
+    /// Get a numeric attribute by key. Always returns float. Returns None if not found.
+    #[pyo3(name = "_get_numeric_attribute")]
+    fn get_numeric_attribute<'py>(&self, py: Python<'py>, key: Bound<'_, PyAny>) -> Option<Bound<'py, PyFloat>> {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return None;
+        };
+        self.data.metrics.get(&*key_bs).map(|&v| PyFloat::new(py, v))
+    }
+
+    /// Check if an attribute exists in either meta or metrics.
+    #[pyo3(name = "_has_attribute")]
+    fn has_attribute(&self, key: Bound<'_, PyAny>) -> bool {
+        let Ok(key_bs) = key.extract::<PyBackedString>() else {
+            return false;
+        };
+        self.data.meta.contains_key(&*key_bs) || self.data.metrics.contains_key(&*key_bs)
+    }
+
+    // --- Bulk read methods ---
+
+    /// Return all string attributes as a Python dict.
+    #[pyo3(name = "_get_str_attributes")]
+    fn get_str_attributes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        for (k, v) in self.data.meta.iter() {
+            dict.set_item(k.as_py(py), v.as_py(py))?;
+        }
+        Ok(dict)
+    }
+
+    /// Return all numeric attributes as a Python dict (values are float).
+    #[pyo3(name = "_get_numeric_attributes")]
+    fn get_numeric_attributes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(py);
+        for (k, v) in self.data.metrics.iter() {
+            dict.set_item(k.as_py(py), *v)?;
+        }
+        Ok(dict)
+    }
+
+    // --- Read-only _meta / _metrics properties (aliases) ---
+
+    /// Read-only property returning all string attributes as a Python dict.
+    #[getter(_meta)]
+    fn get_meta<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        self.get_str_attributes(py)
+    }
+
+    /// Read-only property returning all numeric attributes as a Python dict.
+    #[getter(_metrics)]
+    fn get_metrics_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        self.get_numeric_attributes(py)
     }
 }
 

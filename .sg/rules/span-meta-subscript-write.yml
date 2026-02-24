@@ -1,0 +1,16 @@
+id: span-meta-subscript-write
+language: Python
+severity: error
+message: >
+  Direct write to span._meta is forbidden. Use span._set_str_attribute(key, value) instead.
+note: >
+  span._meta is now a read-only property that materializes the underlying HashMap.
+  Writes to it are silently discarded. Migrate to span._set_str_attribute(key, value).
+rule:
+  pattern: $X._meta[$Y] = $Z
+constraints:
+  X:
+    not:
+      regex: "context$"
+ignores:
+  - ddtrace/_trace/context.py
