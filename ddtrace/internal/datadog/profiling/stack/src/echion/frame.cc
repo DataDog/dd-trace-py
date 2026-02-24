@@ -215,7 +215,9 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 #if PY_VERSION_HEX >= 0x030b0000
     _PyInterpreterFrame iframe;
     auto resolved_addr =
-      stack_chunk ? reinterpret_cast<_PyInterpreterFrame*>(stack_chunk->resolve(frame_addr)) : frame_addr;
+      stack_chunk
+        ? reinterpret_cast<_PyInterpreterFrame*>(stack_chunk->resolve(frame_addr, sizeof(_PyInterpreterFrame)))
+        : frame_addr;
     if (resolved_addr != frame_addr) {
         frame_addr = resolved_addr;
     } else {

@@ -31,7 +31,7 @@ class StackChunk
     StackChunk() {}
 
     [[nodiscard]] Result<void> update(_PyStackChunk* chunk_addr);
-    void* resolve(void* frame_addr);
+    void* resolve(void* frame_addr, size_t object_size);
     bool is_valid() const;
 
   private:
