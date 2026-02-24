@@ -107,8 +107,12 @@ class TestDeepEvalEvaluatorInExperiment:
         )
 
         run_info = _ExperimentRunInfo(0)
-        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
-        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        task_results = asyncio.run(
+            exp._experiment._run_task(1, run=run_info, raise_errors=False)
+        )
+        eval_results = asyncio.run(
+            exp._experiment._run_evaluators(task_results, raise_errors=False)
+        )
 
         assert len(eval_results) == 1
         assert "simple_deep_eval" in eval_results[0]["evaluations"]
@@ -151,8 +155,12 @@ class TestDeepEvalEvaluatorInExperiment:
         )
 
         run_info = _ExperimentRunInfo(0)
-        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
-        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        task_results = asyncio.run(
+            exp._experiment._run_task(1, run=run_info, raise_errors=False)
+        )
+        eval_results = asyncio.run(
+            exp._experiment._run_evaluators(task_results, raise_errors=False)
+        )
 
         assert len(eval_results) == 1
         assert "simple_deep_eval" in eval_results[0]["evaluations"]
