@@ -23,6 +23,12 @@ add-tags:
 add-metrics:
   <<: *base
   nmetrics: 100
+add-attributes:
+  <<: *base
+  ntags: 50
+  ltags: 100
+  nmetrics: 50
+  set_attributes: true
 add-event:
   <<: *base
   add_event: true
