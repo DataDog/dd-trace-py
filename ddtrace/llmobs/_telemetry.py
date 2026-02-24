@@ -4,9 +4,7 @@ from typing import Optional
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
-from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -104,10 +102,11 @@ def record_span_created(span: Span):
     is_root_span = _get_llmobs_parent_id(span) == ROOT_PARENT_ID
     llmobs_data = _get_llmobs_data_metastruct(span)
     llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
+    llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS, {})
     has_session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID) is not None
-    integration = span._get_ctx_item(INTEGRATION)
+    integration = llmobs_tags.get("integration")
     autoinstrumented = integration is not None
-    decorator = span._get_ctx_item(DECORATOR) is True
+    decorator = llmobs_tags.get("decorator")
     span_kind = _get_span_kind(span)
     model_provider = llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER)
     ml_app = _get_ml_app(span)
@@ -122,7 +121,7 @@ def record_span_created(span: Span):
         ("error", str(span.error)),
     ]
     if not autoinstrumented:
-        tags.append(("decorator", str(int(decorator))))
+        tags.append(("decorator", decorator))
     if model_provider:
         tags.append(("model_provider", model_provider))
     telemetry_writer.add_count_metric(
