@@ -14,12 +14,12 @@ from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import load_data_value
@@ -137,12 +137,12 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         trace_info = self._llmobs_get_trace_info(oai_span)
         if not trace_info:
             return
-        if oai_span.span_type == "agent" and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.span_id:
+        if oai_span.span_type == "agent" and _get_llmobs_parent_id(llmobs_span) == trace_info.span_id:
             trace_info.current_top_level_agent_span_id = str(llmobs_span.span_id)
         if (
             oai_span.span_type == "response"
             and not trace_info.input_oai_span
-            and llmobs_span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id
+            and _get_llmobs_parent_id(llmobs_span) == trace_info.current_top_level_agent_span_id
         ):
             trace_info.input_oai_span = oai_span
 
@@ -163,7 +163,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         current_top_level_agent_span_id = trace_info.current_top_level_agent_span_id
         if (
             current_top_level_agent_span_id
-            and llmobs_span._get_ctx_item(PARENT_ID_KEY) == current_top_level_agent_span_id
+            and _get_llmobs_parent_id(llmobs_span) == current_top_level_agent_span_id
         ):
             trace_info.output_oai_span = oai_span
 
@@ -196,7 +196,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         parent = _get_nearest_llmobs_ancestor(span)
         trace_info = self._llmobs_get_trace_info(oai_span)
         span_name = None
-        if parent and trace_info and span._get_ctx_item(PARENT_ID_KEY) == trace_info.current_top_level_agent_span_id:
+        if parent and trace_info and _get_llmobs_parent_id(span) == trace_info.current_top_level_agent_span_id:
             span_name = _get_span_name(parent) + " (LLM)"
 
         model_name = oai_span.llmobs_model_name if oai_span.llmobs_model_name else None

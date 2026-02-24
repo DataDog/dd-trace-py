@@ -68,9 +68,6 @@ from ddtrace.llmobs._constants import EXPERIMENT_RUN_ITERATION_KEY
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
-from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
@@ -114,6 +111,8 @@ from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import _get_llmobs_trace_id
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -547,15 +546,14 @@ class LLMObs(Service):
                 "Ensure this configuration is set before running your application."
             )
 
-        span._set_ctx_item(ML_APP, ml_app)
-        parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
+        parent_id = _get_llmobs_parent_id(span) or ROOT_PARENT_ID
 
-        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+        llmobs_trace_id = _get_llmobs_trace_id(span)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         llmobs_span_event: LLMObsSpanEvent = {
-            "trace_id": format_trace_id(llmobs_trace_id),
+            "trace_id": format_trace_id(int(llmobs_trace_id)),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -1738,9 +1736,11 @@ class LLMObs(Service):
             if span.span_type != SpanTypes.LLM:
                 error = "invalid_span"
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
+            llmobs_trace_id = _get_llmobs_trace_id(span)
+            trace_id = int(llmobs_trace_id) if llmobs_trace_id else span.trace_id
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
+                trace_id=format_trace_id(trace_id),
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
@@ -1763,9 +1763,7 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(active._get_ctx_item(LLMOBS_TRACE_ID)) or str(
-                active.trace_id
-            )
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(_get_llmobs_trace_id(active) or active.trace_id)
             return context
         return None
 
@@ -1773,19 +1771,17 @@ class LLMObs(Service):
         """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
-            span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
             parent_llmobs_trace_id = (
-                llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)
+                _get_llmobs_trace_id(llmobs_parent)
                 if isinstance(llmobs_parent, Span)
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
-            llmobs_trace_id = (
+            llmobs_trace_id: int = (
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )
-            span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
+            _annotate_llmobs_span_data(span, parent_id=str(llmobs_parent.span_id), trace_id=str(llmobs_trace_id))
         else:
-            span._set_ctx_item(PARENT_ID_KEY, ROOT_PARENT_ID)
-            span._set_ctx_item(LLMOBS_TRACE_ID, generate_128bit_trace_id())
+            _annotate_llmobs_span_data(span, parent_id=ROOT_PARENT_ID, trace_id=str(generate_128bit_trace_id()))
         self._llmobs_context_provider.activate(span)
 
     def _start_span(
@@ -2547,8 +2543,8 @@ class LLMObs(Service):
 
         ml_app = None
         if isinstance(active_span, Span):
-            ml_app = active_span._get_ctx_item(ML_APP)
-            llmobs_trace_id = active_span._get_ctx_item(LLMOBS_TRACE_ID)
+            ml_app = _get_ml_app(active_span)
+            llmobs_trace_id = _get_llmobs_trace_id(active_span)
         elif active_context is not None:
             ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
             llmobs_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or generate_128bit_trace_id()

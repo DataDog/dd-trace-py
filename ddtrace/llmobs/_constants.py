@@ -1,14 +1,7 @@
-# ctx_item keys still in use (to be migrated)
-SPAN_KIND = "_ml_obs.meta.span.kind"
-ML_APP = "_ml_obs.meta.ml_app"
-MCP_TOOL_CALL_INTENT = "_ml_obs.meta.intent"
-
-# Propagation and internal tracking keys
+# Propagation keys stored on Context for distributed requests
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
-PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
 PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
-LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"
 
 SPAN_START_WHILE_DISABLED_WARNING = (
     "Span started with LLMObs disabled."

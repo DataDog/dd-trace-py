@@ -10,11 +10,11 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import _SpanLink
@@ -528,6 +528,6 @@ def _get_crew_id(span, operation):
     if operation == "crew":
         return f"crew_{span.trace_id}_{span.span_id}"
     if operation == "task":
-        parent_id = span._get_ctx_item(PARENT_ID_KEY) or span.parent_id
+        parent_id = _get_llmobs_parent_id(span) or span.parent_id
         return f"crew_{span.trace_id}_{parent_id}"
     return f"{span.trace_id}"

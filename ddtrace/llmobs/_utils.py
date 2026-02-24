@@ -361,6 +361,18 @@ def _get_span_kind(span: Span) -> Optional[str]:
     return llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
 
 
+def _get_llmobs_parent_id(span: Span) -> Optional[str]:
+    """Get the LLMObs parent ID from span._meta_struct."""
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    return llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
+
+
+def _get_llmobs_trace_id(span: Span) -> Optional[str]:
+    """Get the LLMObs trace ID from span._meta_struct."""
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    return llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+
+
 def _annotate_llmobs_span_data(
     span: Span,
     name: Optional[str] = None,
@@ -387,6 +399,8 @@ def _annotate_llmobs_span_data(
     experiment_input: Optional[str] = None,
     experiment_output: Optional[str] = None,
     intent: Optional[str] = None,
+    parent_id: Optional[str] = None,
+    trace_id: Optional[str] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
@@ -406,6 +420,10 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.NAME] = name
         if ml_app is not None:
             llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
+        if parent_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.PARENT_ID] = parent_id
+        if trace_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.TRACE_ID] = trace_id
         if kind is not None:
             meta[LLMOBS_STRUCT.SPAN][LLMOBS_STRUCT.KIND] = kind
         if model_name is not None:
@@ -422,6 +440,12 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.METRICS] = existing_metrics
         if tags is not None:
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update(tags)
+        if session_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
+        if span_links is not None:
+            llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
+        if config is not None:
+            llmobs_span_data[LLMOBS_STRUCT.CONFIG] = config
         if input_messages is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
         if input_value is not None:
@@ -438,12 +462,6 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
         if tool_definitions is not None:
             meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
-        if session_id is not None:
-            llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
-        if span_links is not None:
-            llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
-        if config is not None:
-            llmobs_span_data[LLMOBS_STRUCT.CONFIG] = config
         if agent_manifest is not None:
             meta[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
         if expected_output is not None:

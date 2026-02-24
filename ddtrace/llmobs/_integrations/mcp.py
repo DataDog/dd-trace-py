@@ -14,7 +14,6 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -251,7 +250,7 @@ class MCPIntegration(BaseLLMIntegration):
         if isinstance(arguments, dict) and telemetry:
             intent = _get_attr(telemetry, INTENT_KEY, None)
             if intent:
-                span._set_ctx_item(MCP_TOOL_CALL_INTENT, intent)
+                _annotate_llmobs_span_data(span, intent=intent)
 
             # The argument is removed before recording the input and calling the tool
             del arguments[TELEMETRY_KEY]

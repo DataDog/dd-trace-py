@@ -10,7 +10,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
@@ -18,6 +17,7 @@ from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import get_span_links
 from ddtrace.llmobs.types import _SpanLink
@@ -546,7 +546,7 @@ def _default_span_link(span: Span) -> _SpanLink:
     the span is linked to its parent's input.
     """
     return _SpanLink(
-        span_id=span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID,
+        span_id=_get_llmobs_parent_id(span) or ROOT_PARENT_ID,
         trace_id=format_trace_id(span.trace_id),
         attributes={"from": "input", "to": "input"},
     )
