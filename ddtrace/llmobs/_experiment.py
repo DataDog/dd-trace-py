@@ -20,6 +20,7 @@ from typing import Union
 from typing import cast
 from typing import overload
 
+
 try:
     from typing import TypeAlias
 except ImportError:
