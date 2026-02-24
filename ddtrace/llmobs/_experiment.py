@@ -13,7 +13,6 @@ from typing import Any
 from typing import Awaitable
 from typing import Callable
 from typing import Iterator
-from typing_extensions import Never
 from typing import Optional
 from typing import Sequence
 from typing import TypeAlias
@@ -349,7 +348,9 @@ class BaseAsyncSummaryEvaluator(ABC):
 
 # Evaluator types (defined after base classes)
 if BaseMetric is not None and BaseConversationalMetric is not None:
-    _DeepEvalListType: TypeAlias = Union[list[BaseMetric], list[BaseConversationalMetric]]
+    _DeepEvalListType: TypeAlias = Union[
+        list[BaseMetric], list[BaseConversationalMetric]
+    ]
     EvaluatorType: TypeAlias = Union[
         Callable[
             [DatasetRecordInputType, JSONType, JSONType],
