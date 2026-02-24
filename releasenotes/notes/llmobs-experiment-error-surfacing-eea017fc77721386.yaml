@@ -1,6 +1,4 @@
 features:
   - |
     LLM Observability: adds experiment summary logging after ``run()`` with
-    row count, run count, and per-evaluator stats. Adds
-    ``get_experiment_errors()`` helper to extract structured details from an
-    ``ExperimentResult`` across all runs.
+    row count, run count, per-evaluator stats, and error counts.

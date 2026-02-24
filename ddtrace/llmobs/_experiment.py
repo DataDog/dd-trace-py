@@ -471,52 +471,6 @@ class ExperimentResult(TypedDict):
     runs: list[ExperimentRun]
 
 
-def _collect_errors_from_rows(
-    rows: list[ExperimentRowResult], run_idx: Optional[int] = None
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    task_errors: list[dict[str, Any]] = []
-    evaluator_errors: list[dict[str, Any]] = []
-    for row in rows:
-        entry: dict[str, Any] = {"row_idx": row["idx"]}
-        if run_idx is not None:
-            entry["run"] = run_idx
-        err = row.get("error") or {}
-        if isinstance(err, dict) and err.get("message"):
-            task_errors.append({**entry, "error": err})
-        for eval_name, eval_data in (row.get("evaluations") or {}).items():
-            if isinstance(eval_data, dict) and eval_data.get("error"):
-                evaluator_errors.append({**entry, "evaluator": eval_name, "error": eval_data["error"]})
-    return task_errors, evaluator_errors
-
-
-def get_experiment_errors(result: ExperimentResult) -> dict[str, Any]:
-    """Extract a structured summary of all errors from an ExperimentResult (across all runs)."""
-    task_errors: list[dict[str, Any]] = []
-    evaluator_errors: list[dict[str, Any]] = []
-    total_rows = 0
-    runs = result.get("runs", [])
-    if runs:
-        for run_idx, run in enumerate(runs):
-            te, ee = _collect_errors_from_rows(run.rows, run_idx=run_idx)
-            task_errors.extend(te)
-            evaluator_errors.extend(ee)
-            total_rows += len(run.rows)
-    else:
-        te, ee = _collect_errors_from_rows(result["rows"])
-        task_errors.extend(te)
-        evaluator_errors.extend(ee)
-        total_rows = len(result["rows"])
-    return {
-        "task_errors": task_errors,
-        "evaluator_errors": evaluator_errors,
-        "summary": {
-            "total_rows": total_rows,
-            "failed_tasks": len(task_errors),
-            "failed_evaluators": len(evaluator_errors),
-        },
-    }
-
-
 class Dataset:
     name: str
     description: str
@@ -1133,29 +1087,34 @@ class Experiment:
         for run_idx, run in enumerate(runs):
             rows = run.rows
             run_label = "Run {}/{}".format(run_idx + 1, len(runs)) if len(runs) > 1 else ""
-            task_errors, evaluator_errors = _collect_errors_from_rows(rows, run_idx=run_idx)
-            eval_names: set[str] = set()
+            task_error_count = sum(
+                1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message")
+            )
+            eval_stats: dict[str, dict[str, int]] = {}
             for row in rows:
-                eval_names.update((row.get("evaluations") or {}).keys())
-            eval_error_counts: dict[str, int] = {}
-            for e in evaluator_errors:
-                eval_error_counts[e["evaluator"]] = eval_error_counts.get(e["evaluator"], 0) + 1
+                for name, data in (row.get("evaluations") or {}).items():
+                    stats = eval_stats.setdefault(name, {"total": 0, "errors": 0})
+                    stats["total"] += 1
+                    if isinstance(data, dict) and data.get("error"):
+                        stats["errors"] += 1
 
             header = "Experiment '{}'".format(self.name)
             if run_label:
                 header += " - {}".format(run_label)
-            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_names)))
-            if task_errors:
+            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats)))
+            if task_error_count:
                 has_errors = True
-                parts.append("  Task errors: {}/{}".format(len(task_errors), len(rows)))
-            for eval_name in eval_names:
-                total = sum(1 for row in rows if eval_name in (row.get("evaluations") or {}))
-                err_count = eval_error_counts.get(eval_name, 0)
-                if err_count:
+                parts.append("  Task errors: {}/{}".format(task_error_count, len(rows)))
+            for eval_name, stats in eval_stats.items():
+                if stats["errors"]:
                     has_errors = True
-                    parts.append("  {}: {}/{} evaluated, {} error(s)".format(eval_name, total, len(rows), err_count))
+                    parts.append(
+                        "  {}: {}/{} evaluated, {} error(s)".format(
+                            eval_name, stats["total"], len(rows), stats["errors"]
+                        )
+                    )
                 else:
-                    parts.append("  {}: {}/{} evaluated".format(eval_name, total, len(rows)))
+                    parts.append("  {}: {}/{} evaluated".format(eval_name, stats["total"], len(rows)))
 
         log_fn = logger.warning if (has_errors or interrupted) else logger.info
         log_fn("\n".join(parts))
