@@ -11,24 +11,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699da0a900000000",
+      "_dd.svc.src": "true",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
-      "runtime-id": "aaefa1ff28fd487ab9d2f07b4fabfd75",
+      "runtime-id": "48ac9d5395034ed6884af6d64255b2eb",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 40591
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92810.0
     },
-    "duration": 312659,
-    "start": 1691165160222513998
+    "duration": 1501917,
+    "start": 1771937961598278803
   },
      {
        "name": "wsgi.application",
@@ -41,11 +42,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "654a694400000000",
          "component": "wsgi"
        },
-       "duration": 118179,
-       "start": 1691165160222629270
+       "duration": 446084,
+       "start": 1771937961599089303
      },
         {
           "name": "wsgi.start_response",
@@ -58,12 +58,12 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "ddtrace_subprocess_dir",
-            "_dd.p.tid": "654a694400000000",
+            "_dd.svc.src": "true",
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 37432,
-          "start": 1691165160222682601
+          "duration": 81750,
+          "start": 1771937961599219178
         },
      {
        "name": "wsgi.response",
@@ -76,10 +76,9 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "result_class": "list"
        },
-       "duration": 55860,
-       "start": 1691165160222763108
+       "duration": 205542,
+       "start": 1771937961599564178
      }]]
