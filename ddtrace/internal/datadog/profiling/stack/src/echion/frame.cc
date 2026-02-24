@@ -206,7 +206,10 @@ Frame::key(PyCodeObject* code, int lasti, int firstlineno)
     // The original (code_addr << 16) | lasti formula also loses the top 16 bits of code_addr
     // and collides when lasti > 0xFFFF; this hash avoids both issues.
     uintptr_t h = reinterpret_cast<uintptr_t>(code);
+    // 2654435761 is the Knuth multiplicative hash constant: floor(2^32 / phi), where phi is the
+    // golden ratio. It spreads sequential integers across the full 32-bit range.
     h ^= static_cast<uintptr_t>(static_cast<uint32_t>(lasti)) * 2654435761ULL;
+    // 40503 is floor(2^16 / phi), the 16-bit analogue of the Knuth constant above.
     h ^= static_cast<uintptr_t>(static_cast<uint32_t>(firstlineno)) * 40503ULL;
     return h;
 }
