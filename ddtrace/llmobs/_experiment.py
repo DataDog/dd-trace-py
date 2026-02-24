@@ -1039,8 +1039,8 @@ class Experiment:
             "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
         )
 
-        run_results: list = []
-        interrupted = False
+        self._run_results = []
+        self._interrupted = False
         try:
             for run_iteration in range(self._runs):
                 run = _ExperimentRunInfo(run_iteration)
@@ -1054,13 +1054,12 @@ class Experiment:
                 self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
                     cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
                 )
-                run_results.append(run_result)
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            interrupted = True
+                self._run_results.append(run_result)
+        except BaseException:
+            self._interrupted = True
             raise
-        finally:
-            result = self._build_result(run_results)
-            self._log_experiment_summary(result, interrupted=interrupted)
+        result = self._build_result(self._run_results)
+        self._log_experiment_summary(result)
         return result
 
     @staticmethod
@@ -1071,22 +1070,16 @@ class Experiment:
             "runs": run_results,
         }
 
-    def _log_experiment_summary(self, result: ExperimentResult, interrupted: bool = False) -> None:
+    def _format_experiment_summary(self, result: ExperimentResult) -> str:
         runs = result.get("runs", [])
         parts: list[str] = []
-        has_errors = False
 
-        if interrupted:
+        if self._interrupted:
             parts.append("Experiment '{}' was interrupted after {}/{} runs.".format(self.name, len(runs), self._runs))
-
-        if not runs:
-            if parts:
-                logger.warning("\n".join(parts))
-            return
 
         for run_idx, run in enumerate(runs):
             rows = run.rows
-            run_label = "Run {}/{}".format(run_idx + 1, len(runs)) if len(runs) > 1 else ""
+            run_label = "Run {}/{}".format(run_idx + 1, self._runs) if self._runs > 1 else ""
             task_error_count = sum(
                 1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message")
             )
@@ -1103,11 +1096,9 @@ class Experiment:
                 header += " - {}".format(run_label)
             parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats)))
             if task_error_count:
-                has_errors = True
                 parts.append("  Task errors: {}/{}".format(task_error_count, len(rows)))
             for eval_name, stats in eval_stats.items():
                 if stats["errors"]:
-                    has_errors = True
                     parts.append(
                         "  {}: {}/{} evaluated, {} error(s)".format(
                             eval_name, stats["total"], len(rows), stats["errors"]
@@ -1116,8 +1107,14 @@ class Experiment:
                 else:
                     parts.append("  {}: {}/{} evaluated".format(eval_name, stats["total"], len(rows)))
 
-        log_fn = logger.warning if (has_errors or interrupted) else logger.info
-        log_fn("\n".join(parts))
+        return "\n".join(parts)
+
+    def _log_experiment_summary(self, result: ExperimentResult) -> None:
+        msg = self._format_experiment_summary(result)
+        if not msg:
+            return
+        log_fn = logger.warning if self._interrupted else logger.info
+        log_fn(msg, extra={"product": "llmobs"})
 
     async def _process_record(
         self,
@@ -1554,15 +1551,21 @@ class SyncExperiment:
         """
         coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
         try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(coro)
-        else:
-            import concurrent.futures
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(coro)
+            else:
+                import concurrent.futures
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, coro)
-                return future.result()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(asyncio.run, coro)
+                    return future.result()
+        except BaseException:
+            self._experiment._interrupted = True
+            result = self._experiment._build_result(self._experiment._run_results)
+            print(self._experiment._format_experiment_summary(result), flush=True)
+            raise
 
     @property
     def url(self) -> str:
