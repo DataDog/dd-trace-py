@@ -11,6 +11,7 @@ from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 
+
 class SimpleDeepEvalMetric(BaseMetric):
     """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
 
@@ -36,6 +37,7 @@ class SimpleDeepEvalMetric(BaseMetric):
         self.reason = "Match" if passed else "Mismatch"
         self.success = bool(self.score)
         return self.score
+
 
 class TestDeepEvalEvaluatorDetection:
     """Test that _is_deep_eval_evaluator correctly identifies DeepEval metrics."""
@@ -76,7 +78,7 @@ class TestDeepEvalEvaluatorInExperiment:
 
     def test_experiment_run_with_deep_eval_evaluator(self, llmobs):
         """Run an experiment with a DeepEval evaluator and assert it completes with correct results."""
-        
+
         def dummytask(input_data, config):
             return input_data.get("value", "")
 
@@ -105,11 +107,14 @@ class TestDeepEvalEvaluatorInExperiment:
             dataset,
             [deep_eval_metric],
         )
-        
-        run_info = _ExperimentRunInfo(0)
-        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
-        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
 
+        run_info = _ExperimentRunInfo(0)
+        task_results = asyncio.run(
+            exp._experiment._run_task(1, run=run_info, raise_errors=False)
+        )
+        eval_results = asyncio.run(
+            exp._experiment._run_evaluators(task_results, raise_errors=False)
+        )
 
         assert len(eval_results) == 1
         assert "simple_deep_eval" in eval_results[0]["evaluations"]
@@ -150,10 +155,14 @@ class TestDeepEvalEvaluatorInExperiment:
             dataset,
             [deep_eval_metric],
         )
-        
+
         run_info = _ExperimentRunInfo(0)
-        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
-        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        task_results = asyncio.run(
+            exp._experiment._run_task(1, run=run_info, raise_errors=False)
+        )
+        eval_results = asyncio.run(
+            exp._experiment._run_evaluators(task_results, raise_errors=False)
+        )
 
         assert len(eval_results) == 1
         assert "simple_deep_eval" in eval_results[0]["evaluations"]
