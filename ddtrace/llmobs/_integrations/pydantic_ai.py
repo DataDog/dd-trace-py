@@ -2,7 +2,6 @@ from typing import Any
 from typing import Optional
 from typing import Sequence
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
@@ -27,8 +26,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
         kind = kwargs.get("kind", None)
         if kind:
             self._register_span(span, kind)

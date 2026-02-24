@@ -1,7 +1,6 @@
 from typing import Any
 from typing import Optional
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
@@ -42,7 +41,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         self._openai = openai
         self._client = None
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
         traced_operations = (
             "createCompletion",
             "createChatCompletion",
@@ -54,7 +53,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         if operation_id in traced_operations:
             submit_to_llmobs = True
         log.debug("Creating LLM span for openai operation: %s", operation_id)
-        return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        return super().trace(operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span._set_tag_str(COMPONENT, self.integration_config.integration_name)

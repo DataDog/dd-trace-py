@@ -37,6 +37,7 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
@@ -48,6 +49,8 @@ from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
+from ddtrace.llmobs._constants import DEFAULT_PROMPTS_TIMEOUT
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -103,6 +106,9 @@ from ddtrace.llmobs._prompt_optimization import validate_evaluators
 from ddtrace.llmobs._prompt_optimization import validate_optimization_task
 from ddtrace.llmobs._prompt_optimization import validate_task
 from ddtrace.llmobs._prompt_optimization import validate_test_dataset
+from ddtrace.llmobs._prompts import ManagedPrompt
+from ddtrace.llmobs._prompts.cache import WarmCache
+from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -127,6 +133,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
+from ddtrace.llmobs.types import PromptFallback
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta
 from ddtrace.llmobs.types import _MetaIO
@@ -654,6 +661,7 @@ class LLMObs(Service):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
+        LLMObs._prompt_manager = None
         if self.enabled:
             self._start_service()
 
@@ -1437,6 +1445,7 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
@@ -1480,6 +1489,7 @@ class LLMObs(Service):
                             "tags": {"key1": "value1", "key2": "value2"},
                         }`
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
+                        For managed prompts, use `prompt.to_annotation_dict(**variables)`.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain optional keys relevant to Templates and RAG applications:
                             `rag_context_variables` - a list of variable key names that contain ground
@@ -1543,6 +1553,122 @@ class LLMObs(Service):
                     cls._instance.tracer.context_provider.activate(None)
 
         return AnnotationContext(register_annotation, deregister_annotation)
+
+    _prompt_manager: Optional[PromptManager] = None
+    _prompt_manager_lock = RLock()
+
+    @classmethod
+    def _ensure_prompt_manager(cls) -> PromptManager:
+        """Thread-safe get-or-initialize for the prompt manager."""
+        with cls._prompt_manager_lock:
+            manager = cls._prompt_manager
+            if manager is None:
+                manager = cls._initialize_prompt_manager()
+                cls._prompt_manager = manager
+            return manager
+
+    @classmethod
+    def get_prompt(
+        cls,
+        prompt_id: str,
+        label: Optional[Literal["development", "production"]] = None,
+        fallback: PromptFallback = None,
+    ) -> ManagedPrompt:
+        """
+        Retrieve a prompt template from the Datadog Prompt Registry.
+
+        :param prompt_id: The unique identifier of the prompt in the registry
+        :param label: Deployment label (e.g., "production", "development"). If not provided, returns the latest version.
+        :param fallback: Fallback to use if prompt cannot be fetched (cold start + API failure).
+                         Can be a template string, message list, Prompt dict, or a callable that
+                         returns any of those.
+
+        :returns: A ManagedPrompt object with template and rendering methods
+        :raises ValueError: If the prompt cannot be fetched and no fallback is provided
+
+        Example::
+
+            # Simple usage - returns the latest version
+            prompt = LLMObs.get_prompt("greeting")
+            messages = prompt.format(user="Alice")
+
+            # With explicit label and fallback
+            prompt = LLMObs.get_prompt(
+                "greeting",
+                label="production",
+                fallback="Hello {{user}}, how can I help?"
+            )
+
+            # Use with annotation_context for observability
+            # Pass the same variables to both format() and to_annotation_dict()
+            prompt = LLMObs.get_prompt("greeting")
+            variables = {"user": "Alice"}
+            with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(**variables)):
+                openai.chat.completions.create(
+                    messages=prompt.format(**variables)
+                )
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.get_prompt(prompt_id, label, fallback)
+
+    @classmethod
+    def clear_prompt_cache(cls, hot: bool = True, warm: bool = True) -> None:
+        """Clear the prompt cache.
+
+        Args:
+            hot: If True, clear the hot (in-memory) cache. Defaults to True.
+            warm: If True, clear the warm (file-based) cache. Defaults to True.
+        """
+        if cls._prompt_manager is not None:
+            cls._prompt_manager.clear_cache(hot=hot, warm=warm)
+        elif warm:
+            # Clear file cache even if manager is not initialized
+            cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
+            warm_cache = WarmCache(cache_dir=cache_dir)
+            warm_cache.clear()
+
+    @classmethod
+    def refresh_prompt(
+        cls,
+        prompt_id: str,
+        label: Optional[Literal["development", "production"]] = None,
+    ) -> Optional[ManagedPrompt]:
+        """Force refresh a specific prompt from the registry.
+
+        Fetches the prompt synchronously and updates both caches.
+
+        Args:
+            prompt_id: The prompt identifier.
+            label: The prompt label. If not provided, returns the latest version.
+
+        Returns:
+            The refreshed prompt, or None if fetch failed.
+        """
+        prompt_manager = cls._ensure_prompt_manager()
+        return prompt_manager.refresh_prompt(prompt_id, label)
+
+    @classmethod
+    def _initialize_prompt_manager(cls) -> PromptManager:
+        """Initialize the prompt manager with configuration."""
+        api_key = config._dd_api_key
+
+        if not api_key:
+            raise ValueError("DD_API_KEY is required for the Prompt Registry")
+
+        cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
+        file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
+        cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
+        timeout = _get_config("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT, float)
+        base_url = _get_config("DD_LLMOBS_OVERRIDE_ORIGIN") or f"https://api.{config._dd_site}"
+
+        return PromptManager(
+            api_key=api_key,
+            base_url=base_url,
+            cache_ttl=cache_ttl,
+            file_cache_enabled=file_cache_enabled,
+            cache_dir=cache_dir,
+            timeout=timeout,
+        )
 
     @classmethod
     def flush(cls) -> None:

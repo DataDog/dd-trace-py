@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from mcp.types import InitializeRequest
     from mcp.types import ListToolsResult
 
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
@@ -78,8 +77,8 @@ def _set_or_update_tags(span: Span, tags: dict[str, str]) -> None:
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 
         mcp_span_type = kwargs.get("type", None)
         if mcp_span_type:

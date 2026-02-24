@@ -33,6 +33,8 @@ class LLMObsTelemetryMetrics:
     INJECT_HEADERS = "inject_distributed_headers"
     ACTIVATE_HEADERS = "activate_distributed_headers"
     USER_PROCESSOR_CALLED = "user_processor_called"
+    PROMPT_SOURCE = "prompt.source"
+    PROMPT_FETCH_ERROR = "prompt.fetch.error"
 
 
 def _find_tag_value_from_tags(tags, tag_key):
@@ -238,4 +240,26 @@ def record_activate_distributed_headers(error: Optional[str]):
     tags = _base_tags(error)
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ACTIVATE_HEADERS, value=1, tags=tuple(tags)
+    )
+
+
+def record_prompt_source(source: str):
+    """Record the source of a prompt fetch (hot_cache, warm_cache, registry, fallback)."""
+    tags = [("from", source)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_SOURCE,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_fetch_error(error_type: str):
+    """Record a prompt fetch error."""
+    tags = [("error_type", error_type)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
     )
