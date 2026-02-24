@@ -11,28 +11,29 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d6cbf00000000",
+      "_dd.svc.src": "true",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "FLUSHALL",
-      "runtime-id": "392b844b532747b7a2327f4996a26d26",
+      "runtime-id": "b0d05a626d7340a6a8c197989ac23a89",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 5140,
-      "redis.args_length": 1
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 38993.0,
+      "redis.args_length": 1.0
     },
-    "duration": 17837625,
-    "start": 1692650066908323174
+    "duration": 8457792,
+    "start": 1771924671121440672
   }],
 [
   {
@@ -47,27 +48,28 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d6cbf00000000",
+      "_dd.svc.src": "true",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "392b844b532747b7a2327f4996a26d26",
+      "runtime-id": "b0d05a626d7340a6a8c197989ac23a89",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 0,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 5140,
-      "redis.args_length": 2
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 38993.0,
+      "redis.args_length": 2.0
     },
-    "duration": 308291,
-    "start": 1692650066953965133
+    "duration": 254875,
+    "start": 1771924671133452214
   }]]
