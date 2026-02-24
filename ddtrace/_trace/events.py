@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
+from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import ClassVar
 from typing import Optional
@@ -9,6 +10,7 @@ from ddtrace.internal.core.events import Event
 
 if TYPE_CHECKING:
     from ddtrace._trace.provider import ActiveTrace
+    from ddtrace._trace.span import Span
 
 
 @dataclass
@@ -36,3 +38,11 @@ class TracingEvent(Event):
     resource: Optional[str] = None
     measured: bool = True
     activate_distributed_headers: bool = False
+
+
+@dataclass
+class FinishSpanEvent(Event):
+    event_name = "finish.span"
+
+    span: "Span"
+    exc_info: Optional[tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]] = None

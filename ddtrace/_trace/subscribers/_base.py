@@ -5,15 +5,16 @@ from typing import Optional
 from typing import TypeVar
 
 from ddtrace import config
+from ddtrace._trace.events import FinishSpanEvent
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.span import Span
-from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.subscriber import ContextSubscriber
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.trace import tracer
 
 
@@ -30,13 +31,14 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     """
     event = ctx.event
 
-    activate_distributed_headers = ctx.get_item("activate_distributed_headers")
-    integration_config = ctx.get_item("integration_config")
+    activate_distributed_headers = event.activate_distributed_headers
+    integration_config = ctx.get_item("integration_config", getattr(event, "config", None))
     if integration_config and activate_distributed_headers:
+        distributed_headers = ctx.get_item("distributed_headers", getattr(event, "request_headers", None))
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx.get_item("distributed_headers"),
+            request_headers=distributed_headers,
             override=ctx.get_item("distributed_headers_config_override"),
         )
 
@@ -73,6 +75,17 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         core.dispatch("inferred_proxy.finish", (ctx,))
 
     return span
+
+
+def _finish_span(
+    span: "Span",
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+):
+    if exc_info:
+        exc_type, exc_value, exc_traceback = exc_info
+        if exc_type and exc_value and exc_traceback:
+            span.set_exc_info(exc_type, exc_value, exc_traceback)
+    span.finish()
 
 
 class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEventType]):
@@ -118,3 +131,11 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
         finally:
             if cls._end_span:
                 _finish_span(ctx, exc_info)
+
+
+class FinishSpanSubscriber(Subscriber):
+    event_names = (FinishSpanEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, event_instance: FinishSpanEvent):
+        _finish_span(event_instance.span, event_instance.exc_info)

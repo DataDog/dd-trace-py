@@ -1,30 +1,23 @@
-import molten
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
+from ddtrace.contrib._events.molten import MoltenRouterMatchEvent
+from ddtrace.contrib._events.molten import MoltenTraceEvent
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.importlib import func_name
 
 
 def trace_wrapped(resource, wrapped, *args, **kwargs):
-    pin = Pin.get_from(molten)
-    if not pin or not pin.enabled():
-        return wrapped(*args, **kwargs)
-
-    with core.context_with_data(
-        "molten.trace_func",
-        span_name=func_name(wrapped),
-        service=trace_utils.int_service(pin, config.molten, pin),
-        resource=resource,
-        allow_default_resource=True,
-        pin=pin,
-        tags={COMPONENT: config.molten.integration_name, SPAN_KIND: SpanKind.SERVER},
-    ):
+    with core.context_with_event(
+        MoltenTraceEvent(
+            function_name=func_name(wrapped),
+            component=config.molten.integration_name,
+            service=trace_utils.int_service(None, config.molten),
+            resource=resource,
+        )
+    ) as ctx:
+        ctx.set_item("allow_default_resource", True)
         return wrapped(*args, **kwargs)
 
 
@@ -64,13 +57,9 @@ class WrapperRouter(wrapt.ObjectProxy):
         func = self.__wrapped__.match
         route_and_params = func(*args, **kwargs)
 
-        pin = Pin.get_from(molten)
-        if not pin or not pin.enabled():
-            return route_and_params
-
         if route_and_params is not None:
             route, params = route_and_params
             route.handler = trace_func(func_name(route.handler))(route.handler)
-            core.dispatch("molten.router.match", [route])
+            core.dispatch_event(MoltenRouterMatchEvent(route))
             return route, params
         return route_and_params

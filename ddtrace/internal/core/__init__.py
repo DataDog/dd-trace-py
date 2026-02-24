@@ -278,6 +278,9 @@ class ExecutionContext(Generic[EventType]):
             raise ValueError("No event provided in context")
         return self._event
 
+    def get_event(self) -> Optional[EventType]:
+        return self._event
+
 
 def __getattr__(name):
     if name == "root":
@@ -319,6 +322,11 @@ def find_item(data_key: str, default: Optional[Any] = None) -> Any:
 def get_item(data_key: str, default: Optional[Any] = None) -> Any:
     """Get an item from the local context only, without traversing up the context tree."""
     return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
+
+
+def get_event() -> Optional[EventType]:
+    """Get the current context event from local context only, without traversing up the context tree."""
+    return _CURRENT_CONTEXT.get().get_event()
 
 
 def find_items(data_keys: list[str]) -> list[Optional[Any]]:

@@ -2,11 +2,10 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import SystemRoute
 
 from ddtrace import config
-from ddtrace.ext import SpanTypes
+from ddtrace._trace.events import FinishSpanEvent
+from ddtrace.contrib._events.web_framework import WebRequestEvent
 from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -32,36 +31,34 @@ async def trace_middleware(app, handler):
         service = app[CONFIG_KEY]["service"]
         # Create a new context based on the propagated information.
 
-        with core.context_with_data(
-            "aiohttp.request",
-            span_name=schematize_url_operation("aiohttp.request", protocol="http", direction=SpanDirection.INBOUND),
-            span_type=SpanTypes.WEB,
-            service=service,
-            tags={},
-            distributed_headers=request.headers,
-            integration_config=config.aiohttp,
-            activate_distributed_headers=True,
-            distributed_headers_config_override=app[CONFIG_KEY]["distributed_tracing_enabled"],
-            headers_case_sensitive=True,
+        with core.context_with_event(
+            WebRequestEvent(
+                url_operation="aiohttp.request",
+                component=config.aiohttp.integration_name,
+                service=service,
+                request_headers=request.headers,
+                integration_config=config.aiohttp,
+                activate_distributed_headers=True,
+            )
         ) as ctx:
-            req_span = ctx.span
+            ctx.set_item("headers_case_sensitive", True)
+            ctx.set_item("distributed_headers_config_override", app[CONFIG_KEY]["distributed_tracing_enabled"])
 
-            ctx.set_item("req_span", req_span)
-            core.dispatch("web.request.start", (ctx, config.aiohttp))
+            span = ctx.span
 
             # attach the context and the root span to the request; the Context
             # may be freely used by the application code
-            request[REQUEST_CONTEXT_KEY] = req_span.context
-            request[REQUEST_SPAN_KEY] = req_span
+            request[REQUEST_CONTEXT_KEY] = span.context
+            request[REQUEST_SPAN_KEY] = span
             request[REQUEST_CONFIG_KEY] = app[CONFIG_KEY]
             try:
                 response = await handler(request)
                 if not config.aiohttp["disable_stream_timing_for_mem_leak"]:
                     if isinstance(response, web.StreamResponse):
-                        request.task.add_done_callback(lambda _: finish_request_span(request, response))
+                        request.task.add_done_callback(lambda _: core.dispatch_event(FinishSpanEvent(span=span)))
                 return response
             except Exception:
-                req_span.set_traceback()
+                span.set_traceback()
                 raise
 
     return attach_context

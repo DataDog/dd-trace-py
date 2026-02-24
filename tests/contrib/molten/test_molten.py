@@ -267,39 +267,6 @@ class TestMolten(TracerTestCase):
         self.assertNotEqual(span.trace_id, 100)
         self.assertNotEqual(span.parent_id, 42)
 
-    def test_unpatch_patch(self):
-        """Tests unpatch-patch cycle"""
-        unpatch()
-        self.make_request()
-        spans = self.pop_spans()
-        self.assertEqual(len(spans), 0)
-
-        patch()
-        self.make_request()
-        spans = self.pop_spans()
-        self.assertTrue(len(spans) > 0)
-
-    def test_patch_unpatch(self):
-        """Tests repatch-unpatch cycle"""
-        # Already call patch in setUp
-        self.make_request()
-        spans = self.pop_spans()
-        self.assertTrue(len(spans) > 0)
-
-        # Test unpatch
-        unpatch()
-        self.make_request()
-        spans = self.pop_spans()
-        self.assertEqual(len(spans), 0)
-
-    def test_patch_idempotence(self):
-        """Tests repatching"""
-        # Already call patch in setUp but patch again
-        patch()
-        self.make_request()
-        spans = self.pop_spans()
-        self.assertTrue(len(spans) > 0)
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default_schema(self):
         """

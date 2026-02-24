@@ -40,6 +40,7 @@ class HttpClientRequestEvent(TracingEvent):
     request_headers: MutableMapping[str, str] = event_field()
     response_headers: MutableMapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
+    response_status_msg: Optional[str] = event_field(default=None)
     config: "IntegrationConfig" = event_field()
 
     def __post_init__(self):

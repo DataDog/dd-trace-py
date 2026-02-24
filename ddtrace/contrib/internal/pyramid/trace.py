@@ -4,14 +4,13 @@ from pyramid.settings import asbool
 import wrapt
 
 from ddtrace import config
+from ddtrace.contrib._events.web_framework import WebRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 # project
 from ddtrace.trace import tracer
@@ -63,25 +62,23 @@ def trace_tween_factory(handler, registry):
     if enabled:
         # make a request tracing function
         def trace_tween(request):
-            with (
-                core.context_with_data(
-                    "pyramid.request",
-                    span_name=schematize_url_operation(
-                        "pyramid.request", protocol="http", direction=SpanDirection.INBOUND
-                    ),
-                    span_type=SpanTypes.WEB,
+            with core.context_with_event(
+                WebRequestEvent(
+                    url_operation="pyramid.request",
+                    component=config.pyramid.integration_name,
                     service=service,
                     resource="404",
-                    tags={},
-                    distributed_headers=request.headers,
                     integration_config=config.pyramid,
                     activate_distributed_headers=True,
-                    headers_case_sensitive=True,
-                ) as ctx,
-                ctx.span as req_span,
-            ):
-                ctx.set_item("req_span", req_span)
-                core.dispatch("web.request.start", (ctx, config.pyramid))
+                    request_headers=request.headers,
+                    request_method=request.method,
+                    request_url=request.path_url,
+                    request_query=request.query_string,
+                    request_route=request.matched_route.pattern if request.matched_route else None,
+                )
+            ) as ctx:
+                ctx.set_item("headers_case_sensitive", True)
+                req_span = ctx.span
 
                 response = None
                 status = None
@@ -99,33 +96,17 @@ def trace_tween_factory(handler, registry):
                     status = 500
                     raise
                 finally:
+                    event: WebRequestEvent = ctx.event
+
                     # set request tags
                     if request.matched_route:
                         req_span.resource = "{} {}".format(request.method, request.matched_route.name)
                         req_span._set_tag_str("pyramid.route.name", request.matched_route.name)
-                    # set response tags
+                        event.request_pattern = request.matched_route.pattern
                     if response:
                         status = response.status_code
-                        response_headers = response.headers
-                    else:
-                        response_headers = None
-
-                    core.dispatch(
-                        "web.request.finish",
-                        (
-                            req_span,
-                            config.pyramid,
-                            request.method,
-                            request.path_url,
-                            status,
-                            request.query_string,
-                            request.headers,
-                            response_headers,
-                            request.matched_route.pattern if request.matched_route else None,
-                            False,
-                        ),
-                    )
-
+                        event.response_headers = response.headers
+                    event.response_status_code = status
                 return response
 
         return trace_tween

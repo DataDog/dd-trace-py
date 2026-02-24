@@ -4,10 +4,8 @@ from bottle import request
 from bottle import response
 
 from ddtrace import config
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.web_framework import WebRequestEvent
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
@@ -43,27 +41,22 @@ class TracePlugin(object):
             if not tracer or not tracer.enabled:
                 return callback(*args, **kwargs)
 
-            resource = "{} {}".format(request.method, route.rule)
-
-            with (
-                core.context_with_data(
-                    "bottle.request",
-                    span_name=schematize_url_operation(
-                        "bottle.request", protocol="http", direction=SpanDirection.INBOUND
-                    ),
-                    span_type=SpanTypes.WEB,
+            with core.context_with_event(
+                WebRequestEvent(
+                    url_operation="bottle.request",
+                    component=config.bottle.integration_name,
                     service=self.service,
-                    resource=resource,
-                    tags={},
-                    distributed_headers=request.headers,
-                    integration_config=config.bottle,
-                    headers_case_sensitive=True,
+                    resource="{} {}".format(request.method, route.rule),
                     activate_distributed_headers=True,
-                ) as ctx,
-                ctx.span as req_span,
-            ):
-                ctx.set_item("req_span", req_span)
-                core.dispatch("web.request.start", (ctx, config.bottle))
+                    integration_config=config.bottle,
+                    request_headers=request.headers,
+                    request_method=request.method,
+                    request_query=request.query_string,
+                    request_url=request.urlparts._replace(query="").geturl(),
+                    request_route="/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")]),
+                )
+            ) as ctx:
+                ctx.set_item("headers_case_sensitive", True)
 
                 code = None
                 result = None
@@ -92,24 +85,8 @@ class TracePlugin(object):
                         # will be default
                         response_code = response.status_code
 
-                    method = request.method
-                    url = request.urlparts._replace(query="").geturl()
-                    full_route = "/".join([request.script_name.rstrip("/"), route.rule.lstrip("/")])
-
-                    core.dispatch(
-                        "web.request.finish",
-                        (
-                            req_span,
-                            config.bottle,
-                            method,
-                            url,
-                            response_code,
-                            request.query_string,
-                            request.headers,
-                            response.headers,
-                            full_route,
-                            False,
-                        ),
-                    )
+                    event: WebRequestEvent = ctx.event
+                    event.response_headers = response.headers
+                    event.response_status_code = response_code
 
         return wrapped

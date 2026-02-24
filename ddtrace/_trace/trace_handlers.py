@@ -219,6 +219,7 @@ def _on_web_framework_finish_request(
         except ValueError:
             pass
         span.resource = f"{method} {status_code}"
+
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -954,19 +955,6 @@ def _on_azure_message_modifier(
     _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualified_namespace, message_id, batch_count)
 
 
-def _on_router_match(route):
-    req_span = core.get_item("req_span")
-    core.set_item("set_resource", False)
-    req_span.resource = f"{route.method} {route.template}"
-
-    MOLTEN_ROUTE = "molten.route"
-
-    if not req_span.get_tag(MOLTEN_ROUTE):
-        req_span._set_tag_str(MOLTEN_ROUTE, route.name)
-    if not req_span.get_tag(http.ROUTE):
-        req_span._set_tag_str(http.ROUTE, route.template)
-
-
 def _set_websocket_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
     if "text" in message:
         websocket_span._set_tag_str(websocket.MESSAGE_TYPE, "text")
@@ -1416,7 +1404,6 @@ def listen():
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
-    core.on("molten.router.match", _on_router_match)
 
     for context_name in (
         # web frameworks
@@ -1424,8 +1411,6 @@ def listen():
         "bottle.request",
         "cherrypy.request",
         "falcon.request",
-        "molten.request",
-        "molten.trace_func",
         "pyramid.request",
         "sanic.request",
         "tornado.request",
@@ -1496,7 +1481,6 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "django.traced_get_response",
-        "molten.trace_func",
         "redis.execute_pipeline",
         "redis.command",
         "azure.functions.patched_event_hubs",
