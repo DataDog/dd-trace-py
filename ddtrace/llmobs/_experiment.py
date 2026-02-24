@@ -842,6 +842,8 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
         self.experiment_span: Optional["ExportedLLMObsSpan"] = None
+        self._run_results: list = []
+        self._interrupted = False
 
     @property
     def url(self) -> str:
@@ -1085,8 +1087,8 @@ class Experiment:
             "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
         )
 
-        self._run_results: list = []
-        interrupted = False
+        self._run_results = []
+        self._interrupted = False
         try:
             for run_iteration in range(self._runs):
                 run = _ExperimentRunInfo(run_iteration)
@@ -1102,21 +1104,23 @@ class Experiment:
                 )
                 self._run_results.append(run_result)
         except BaseException:
-            interrupted = True
+            self._interrupted = True
             raise
-        finally:
-            result: ExperimentResult = {
-                "summary_evaluations": self._run_results[0].summary_evaluations if self._run_results else {},
-                "rows": self._run_results[0].rows if self._run_results else [],
-                "runs": self._run_results,
-            }
-            self._log_experiment_summary(result, interrupted=interrupted)
+        result: ExperimentResult = self._build_result()
+        self._log_experiment_summary(result)
         return result
 
-    def _log_experiment_summary(self, result: ExperimentResult, interrupted: bool = False) -> None:
+    def _build_result(self) -> ExperimentResult:
+        return {
+            "summary_evaluations": self._run_results[0].summary_evaluations if self._run_results else {},
+            "rows": self._run_results[0].rows if self._run_results else [],
+            "runs": self._run_results,
+        }
+
+    def _log_experiment_summary(self, result: ExperimentResult) -> None:
         completed_runs = len(result.get("runs", []))
 
-        if interrupted:
+        if self._interrupted:
             logger.warning(
                 "Experiment '%s' was interrupted after %d/%d runs.",
                 self.name,
@@ -1125,11 +1129,13 @@ class Experiment:
             )
 
         runs = result.get("runs", [])
-        run_rows_list = [run.rows for run in runs] if runs else [result["rows"]]
+        if not runs:
+            return
 
         has_errors = False
-        for run_idx, rows in enumerate(run_rows_list):
-            run_label = "Run {}/{}".format(run_idx + 1, len(run_rows_list)) if len(run_rows_list) > 1 else ""
+        for run_idx, run in enumerate(runs):
+            rows = run.rows
+            run_label = "Run {}/{}".format(run_idx + 1, len(runs)) if len(runs) > 1 else ""
             task_errors = sum(1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message"))
             eval_stats: dict[str, dict[str, int]] = {}
             for row in rows:
@@ -1157,7 +1163,7 @@ class Experiment:
                 else:
                     parts.append("  {}: {}/{} evaluated".format(eval_name, stats["total"], len(rows)))
 
-            log_fn = logger.warning if (task_errors or has_errors or interrupted) else logger.info
+            log_fn = logger.warning if (task_errors or has_errors or self._interrupted) else logger.info
             log_fn("\n".join(parts))
 
     async def _process_record(
@@ -1605,15 +1611,10 @@ class SyncExperiment:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     future = pool.submit(asyncio.run, coro)
                     return future.result()
-        except KeyboardInterrupt:
-            result: ExperimentResult = {
-                "summary_evaluations": (
-                    self._experiment._run_results[0].summary_evaluations if self._experiment._run_results else {}
-                ),
-                "rows": self._experiment._run_results[0].rows if self._experiment._run_results else [],
-                "runs": self._experiment._run_results,
-            }
-            self._experiment._log_experiment_summary(result, interrupted=True)
+        except BaseException:
+            self._experiment._interrupted = True
+            result = self._experiment._build_result()
+            self._experiment._log_experiment_summary(result)
             raise
 
     @property
