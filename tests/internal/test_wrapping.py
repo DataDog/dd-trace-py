@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+import copy
 import inspect
 import sys
 from types import CoroutineType
@@ -10,6 +11,7 @@ from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.internal.wrapping.context import BaseWrappingContext
 from ddtrace.internal.wrapping.context import LazyWrappingContext
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.context import _UniversalWrappingContext
@@ -628,6 +630,43 @@ def test_wrapping_context_unwrapping():
     assert wc.return_value is NOTSET
     assert not wc.exited
     assert wc.exc_info is None
+
+
+def test_wrapping_context_pickle_simulates_airflow_cadwyn_deepcopy():
+    """Simulate Cadwyn (Airflow 3) deepcopy(route): route holds a wrapping context.
+
+    When Cadwyn builds versioned routers it deepcopies routes. If the route's
+    endpoint was wrapped by our code (e.g. code origin), the context is in the
+    object graph and must be picklable via __getstate__/__setstate__.
+    """
+
+    def endpoint():
+        return 1
+
+    wc = DummyWrappingContext(endpoint)
+    wc.wrap()
+
+    class Route:
+        """Minimal route-like container (e.g. Starlette APIRoute)."""
+
+        def __init__(self, endpoint, ctx):
+            self.endpoint = endpoint
+            self.ctx = ctx
+
+    route = Route(endpoint, wc)
+    route_copy = copy.deepcopy(route)
+
+    assert route_copy.ctx is not wc
+    assert hasattr(route_copy.ctx, "_storage_stack")
+    # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
+    # to run inside a wrapped call). This verifies the copied context's
+    # _storage_stack is a new, working ContextVar.
+    BaseWrappingContext.__enter__(route_copy.ctx)
+    try:
+        route_copy.ctx.set("k", 99)
+        assert route_copy.ctx.get("k") == 99
+    finally:
+        BaseWrappingContext.__exit__(route_copy.ctx, None, None, None)
 
 
 def test_wrapping_context_exc():
