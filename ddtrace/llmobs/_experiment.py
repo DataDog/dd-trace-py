@@ -1114,56 +1114,51 @@ class Experiment:
         return result
 
     def _log_experiment_summary(self, result: ExperimentResult, interrupted: bool = False) -> None:
-        errors = get_experiment_errors(result)
-        summary = errors["summary"]
-        failed_tasks = summary["failed_tasks"]
-        eval_errors = summary["failed_evaluators"]
-        total_rows = summary["total_rows"]
         completed_runs = len(result.get("runs", []))
 
         if interrupted:
             logger.warning(
-                "Experiment '%s' was interrupted after %d/%d runs. %d rows completed before interruption.",
+                "Experiment '%s' was interrupted after %d/%d runs.",
                 self.name,
                 completed_runs,
                 self._runs,
-                total_rows,
             )
 
-        eval_stats: dict[str, dict[str, int]] = {}
-        all_rows: list[ExperimentRowResult] = []
         runs = result.get("runs", [])
-        if runs:
-            for run in runs:
-                all_rows.extend(run.rows)
-        else:
-            all_rows = result["rows"]
+        run_rows_list = [run.rows for run in runs] if runs else [result["rows"]]
 
-        for row in all_rows:
-            for eval_name, eval_data in (row.get("evaluations") or {}).items():
-                if eval_name not in eval_stats:
-                    eval_stats[eval_name] = {"total": 0, "errors": 0}
-                eval_stats[eval_name]["total"] += 1
-                if isinstance(eval_data, dict) and eval_data.get("error"):
-                    eval_stats[eval_name]["errors"] += 1
+        has_errors = False
+        for run_idx, rows in enumerate(run_rows_list):
+            run_label = "Run {}/{}".format(run_idx + 1, len(run_rows_list)) if len(run_rows_list) > 1 else ""
+            task_errors = sum(1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message"))
+            eval_stats: dict[str, dict[str, int]] = {}
+            for row in rows:
+                for eval_name, eval_data in (row.get("evaluations") or {}).items():
+                    if eval_name not in eval_stats:
+                        eval_stats[eval_name] = {"total": 0, "errors": 0}
+                    eval_stats[eval_name]["total"] += 1
+                    if isinstance(eval_data, dict) and eval_data.get("error"):
+                        eval_stats[eval_name]["errors"] += 1
 
-        parts = [
-            "Experiment '{}': {} rows, {} run(s), {} evaluator(s).".format(
-                self.name, total_rows, completed_runs or self._runs, len(eval_stats)
-            )
-        ]
-        if failed_tasks:
-            parts.append("  Task errors: {}/{}".format(failed_tasks, total_rows))
-        for eval_name, stats in eval_stats.items():
-            evaluated = stats["total"]
-            err_count = stats["errors"]
-            if err_count:
-                parts.append("  {}: {}/{} evaluated, {} error(s)".format(eval_name, evaluated, total_rows, err_count))
-            else:
-                parts.append("  {}: {}/{} evaluated".format(eval_name, evaluated, total_rows))
+            header = "Experiment '{}'".format(self.name)
+            if run_label:
+                header += " - {}".format(run_label)
+            parts = ["{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats))]
+            if task_errors:
+                has_errors = True
+                parts.append("  Task errors: {}/{}".format(task_errors, len(rows)))
+            for eval_name, stats in eval_stats.items():
+                err_count = stats["errors"]
+                if err_count:
+                    has_errors = True
+                    parts.append(
+                        "  {}: {}/{} evaluated, {} error(s)".format(eval_name, stats["total"], len(rows), err_count)
+                    )
+                else:
+                    parts.append("  {}: {}/{} evaluated".format(eval_name, stats["total"], len(rows)))
 
-        log_fn = logger.warning if (failed_tasks or eval_errors or interrupted) else logger.info
-        log_fn("\n".join(parts))
+            log_fn = logger.warning if (task_errors or has_errors or interrupted) else logger.info
+            log_fn("\n".join(parts))
 
     async def _process_record(
         self,
