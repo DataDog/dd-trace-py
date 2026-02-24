@@ -3065,3 +3065,338 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
     # Both sync and async summary evaluators should have run
     assert "dummy_summary_evaluator" in exp_results["summary_evaluations"]
     assert "async_dummy_summary_evaluator" in exp_results["summary_evaluations"]
+
+
+# --- Tag operations unit tests ---
+
+
+def _make_dataset_with_records(records):
+    """Helper to create a Dataset with mock client for unit testing tag operations."""
+    mock_client = MagicMock()
+    project = {"name": "test-project", "_id": "proj-123"}
+    dataset_records = []
+    for i, r in enumerate(records):
+        dr = {
+            "input_data": r.get("input_data", {}),
+            "expected_output": r.get("expected_output"),
+            "metadata": r.get("metadata", {}),
+            "tags": r.get("tags", []),
+            "record_id": r.get("record_id", f"rec-{i}"),
+            "canonical_id": None,
+        }
+        dataset_records.append(dr)
+    return Dataset(
+        name="test-ds",
+        project=project,
+        dataset_id="ds-123",
+        records=dataset_records,
+        description="test",
+        latest_version=1,
+        version=1,
+        _dne_client=mock_client,
+    )
+
+
+def test_dataset_add_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.add_tags(0, ["priority:high", "team:ml"])
+    assert ds[0]["tags"] == ["env:prod", "priority:high", "team:ml"]
+
+
+def test_dataset_remove_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod", "priority:high", "team:ml"]},
+        ]
+    )
+    ds.remove_tags(0, ["priority:high"])
+    assert ds[0]["tags"] == ["env:prod", "team:ml"]
+
+
+def test_dataset_replace_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod", "priority:high"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging", "version:2"])
+    assert ds[0]["tags"] == ["env:staging", "version:2"]
+
+
+def test_dataset_replace_tags_with_empty_list():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, [])
+    assert ds[0]["tags"] == []
+
+
+def test_dataset_add_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["env:prod"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(add=["env:prod"])
+    assert "rec-0" in ds._updated_record_ids_to_new_fields
+
+
+def test_dataset_remove_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.remove_tags(0, ["env:prod"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(remove=["env:prod"])
+
+
+def test_dataset_replace_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_accumulate_add_then_remove_cancels():
+    """Adding and then removing the same tag should cancel out."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["env:prod"])
+    ds.remove_tags(0, ["env:prod"])
+    # Should have no operations left
+    ops = ds._pending_tag_operations["rec-0"]
+    assert "add" not in ops
+    assert "remove" not in ops
+
+
+def test_dataset_accumulate_remove_then_add_cancels():
+    """Removing and then adding the same tag should cancel out."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.remove_tags(0, ["env:prod"])
+    ds.add_tags(0, ["env:prod"])
+    ops = ds._pending_tag_operations["rec-0"]
+    assert "add" not in ops
+    assert "remove" not in ops
+
+
+def test_dataset_accumulate_replace_overrides_add_remove():
+    """Replace should override any prior add/remove operations."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.add_tags(0, ["priority:high"])
+    ds.remove_tags(0, ["env:prod"])
+    ds.replace_tags(0, ["env:staging"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_accumulate_add_after_replace_folds_into_replace():
+    """After a replace, adds should fold into the replace list."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging"])
+    ds.add_tags(0, ["priority:high"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging", "priority:high"])
+
+
+def test_dataset_accumulate_remove_after_replace_folds_into_replace():
+    """After a replace, removes should fold into the replace list."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging", "priority:high"])
+    ds.remove_tags(0, ["priority:high"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_tag_operations_on_new_record_modifies_directly():
+    """For appended-but-not-pushed records, tags should be modified directly, not via tag operations."""
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}, "expected_output": None, "metadata": {}, "tags": ["env:prod"]})
+    ds.add_tags(0, ["priority:high"])
+    assert ds[0]["tags"] == ["env:prod", "priority:high"]
+    # Should NOT create pending tag operations for new records
+    assert len(ds._pending_tag_operations) == 0
+
+    ds.remove_tags(0, ["env:prod"])
+    assert ds[0]["tags"] == ["priority:high"]
+    assert len(ds._pending_tag_operations) == 0
+
+    ds.replace_tags(0, ["env:staging"])
+    assert ds[0]["tags"] == ["env:staging"]
+    assert len(ds._pending_tag_operations) == 0
+
+
+def test_dataset_update_with_tags_delegates_to_replace_tags():
+    """Passing tags in update() should trigger replace_tags."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"tags": ["env:staging", "version:2"]})
+    assert ds[0]["tags"] == ["env:staging", "version:2"]
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging", "version:2"])
+
+
+def test_dataset_update_with_tags_and_other_fields():
+    """update() with both tags and other fields should handle both."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"input_data": {"prompt": "world"}, "tags": ["env:staging"]})
+    assert ds[0]["tags"] == ["env:staging"]
+    assert ds[0]["input_data"] == {"prompt": "world"}
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_update_with_only_tags():
+    """update() with only tags should not raise."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"tags": ["env:staging"]})
+    assert ds[0]["tags"] == ["env:staging"]
+
+
+def test_dataset_delete_cleans_up_tag_operations():
+    """Deleting a record should remove its pending tag operations."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+            {"input_data": {"prompt": "world"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["priority:high"])
+    assert "rec-0" in ds._pending_tag_operations
+    ds.delete(0)
+    assert "rec-0" not in ds._pending_tag_operations
+
+
+def test_dataset_push_injects_tag_operations():
+    """Push should inject tag operations into update records and clear state."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds._dne_client.dataset_batch_update.return_value = (2, [], [])
+
+    ds.add_tags(0, ["priority:high"])
+    ds._push()
+
+    # Verify that dataset_batch_update was called with tag_operations in the update records
+    call_args = ds._dne_client.dataset_batch_update.call_args
+    update_records = call_args.kwargs["update_records"]
+    assert len(update_records) == 1
+    assert "tag_operations" in update_records[0]
+    assert update_records[0]["tag_operations"]["add"] == ["priority:high"]
+
+    # State should be cleared after push
+    assert ds._pending_tag_operations == {}
+    assert ds._updated_record_ids_to_new_fields == {}
+
+
+def test_dataset_push_clears_tag_operations_on_success():
+    """After a successful push, _pending_tag_operations should be empty."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds._dne_client.dataset_batch_update.return_value = (2, [], [])
+
+    ds.replace_tags(0, ["env:staging"])
+    assert len(ds._pending_tag_operations) == 1
+    ds._push()
+    assert len(ds._pending_tag_operations) == 0
+
+
+def test_get_record_json_serializes_tag_operations():
+    """_get_record_json should serialize tag_operations with replace→set mapping."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+        "tag_operations": {"add": ["env:prod"], "replace": ["version:2"]},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["id"] == "rec-1"
+    assert "tag_operations" in result
+    assert result["tag_operations"]["add"] == ["env:prod"]
+    assert result["tag_operations"]["set"] == ["version:2"]
+    assert "replace" not in result["tag_operations"]
+
+
+def test_get_record_json_no_tag_operations_for_insert():
+    """_get_record_json should NOT include tag_operations for insert records."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "input_data": {"prompt": "hello"},
+        "expected_output": None,
+        "metadata": {},
+        "tags": ["env:prod"],
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
+    assert "tag_operations" not in result
+    assert result["tags"] == ["env:prod"]
+
+
+def test_get_record_json_update_without_tag_operations():
+    """_get_record_json should not include tag_operations when absent."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["id"] == "rec-1"
+    assert "tag_operations" not in result
