@@ -1,0 +1,65 @@
+[[
+  {
+    "name": "sqlite.query",
+    "service": "sqlite",
+    "resource": "CREATE TABLE test (id INTEGER, name TEXT)",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "699d1c1f00000000",
+      "component": "sqlite",
+      "db.system": "sqlite",
+      "language": "python",
+      "runtime-id": "beaa68dc45d24a3ca872a22447be64d4",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": -1.0,
+      "process_id": 49800.0
+    },
+    "duration": 145000,
+    "start": 1771904031986991000
+  }],
+[
+  {
+    "name": "sqlite.query",
+    "service": "sqlite",
+    "resource": "INSERT INTO test VALUES (?, ?)",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "699d1c1f00000000",
+      "component": "sqlite",
+      "db.system": "sqlite",
+      "error.message": "execute expected at most 2 arguments, got 3",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/venus.parfait/DDrepos/dd-trace-py/ddtrace/contrib/dbapi.py\", line 117, in _trace_method\n    return method(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: execute expected at most 2 arguments, got 3\n",
+      "error.type": "builtins.TypeError",
+      "language": "python",
+      "runtime-id": "beaa68dc45d24a3ca872a22447be64d4",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": -1.0,
+      "process_id": 49800.0
+    },
+    "duration": 709000,
+    "start": 1771904031987611000
+  }]]
