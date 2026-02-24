@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: adds ``max_retries`` and ``retry_delay`` parameters to
+    ``experiment.run()`` for retrying failed tasks and evaluators with
+    customizable backoff. Sets a ``retries`` tag on task spans that required
+    retries. Retry details are included in the experiment summary.
