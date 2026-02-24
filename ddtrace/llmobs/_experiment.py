@@ -21,8 +21,10 @@ from typing import cast
 from typing import overload
 import uuid
 
+
 try:
-    from deepeval.metrics import BaseMetric, BaseConversationalMetric
+    from deepeval.metrics import BaseConversationalMetric
+    from deepeval.metrics import BaseMetric
 except ImportError:
     BaseMetric = None  # type: ignore[misc, assignment]
     BaseConversationalMetric = None  # type: ignore[misc, assignment]

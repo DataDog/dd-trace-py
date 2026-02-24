@@ -165,6 +165,7 @@ from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.version import __version__
 
+
 log = get_logger(__name__)
 
 

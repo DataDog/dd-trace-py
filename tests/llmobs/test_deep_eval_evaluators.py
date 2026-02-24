@@ -1,15 +1,13 @@
 """Tests for DeepEval evaluator integration with LLMObs experiments."""
 
 import asyncio
-import mock
-import pytest
 
 from deepeval.metrics import BaseMetric
 from deepeval.test_case import LLMTestCase
 
-from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
+from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 
 
 class SimpleDeepEvalMetric(BaseMetric):
@@ -62,7 +60,7 @@ class TestDeepEvalEvaluatorMeasure:
         metric.measure(tc)
         assert metric.score == 1.0
         assert metric.reason == "Match"
-        assert metric.success == True
+        assert metric.success is True
 
     def test_measure_sets_score_fail(self):
         metric = SimpleDeepEvalMetric()
@@ -70,7 +68,7 @@ class TestDeepEvalEvaluatorMeasure:
         metric.measure(tc)
         assert metric.score == 0.0
         assert metric.reason == "Mismatch"
-        assert metric.success == False
+        assert metric.success is False
 
 
 class TestDeepEvalEvaluatorInExperiment:

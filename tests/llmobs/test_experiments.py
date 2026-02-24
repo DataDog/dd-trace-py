@@ -20,6 +20,8 @@ from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
 
+from deepeval.metrics import BaseMetric
+from deepeval.test_case import LLMTestCase
 import mock
 import pytest
 
@@ -30,8 +32,6 @@ from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
-from deepeval.metrics import BaseMetric
-from deepeval.test_case import LLMTestCase
 
 
 TMP_CSV_FILE = "tmp.csv"
