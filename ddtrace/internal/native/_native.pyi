@@ -162,11 +162,10 @@ class TraceExporter:
         Initialize a TraceExporter.
         """
         ...
-    def send(self, data: bytes, trace_count: int) -> str:
+    def send(self, data: bytes) -> str:
         """
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
-        :param trace_count: The number of traces in the data payload.
         """
         ...
     def shutdown(self, timeout_ns: int) -> None:
