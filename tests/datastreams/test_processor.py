@@ -185,21 +185,23 @@ def test_kafka_offset_monitoring_without_cluster_id_omits_tag():
 
 def test_kafka_offset_serialization_cluster_id_tag():
     """Verify _serialize_buckets emits kafka_cluster_id tag when present and omits it when empty."""
+    # Use a standalone processor so _serialize_buckets() doesn't drain the shared one.
+    # A freshly constructed DataStreamsProcessor is in STOPPED state with no background thread.
+    p = DataStreamsProcessor("http://localhost:8126")
     now = time.time()
     cluster = "serialize-test-cluster"
-    processor.track_kafka_commit("grp", "ser_topic_with", 0, 10, now, cluster_id=cluster)
-    processor.track_kafka_produce("ser_topic_with", 0, 20, now, cluster_id=cluster)
-    processor.track_kafka_commit("grp", "ser_topic_without", 0, 5, now)
-    processor.track_kafka_produce("ser_topic_without", 0, 15, now)
+    p.track_kafka_commit("grp", "topic_has_cluster", 0, 10, now, cluster_id=cluster)
+    p.track_kafka_produce("topic_has_cluster", 0, 20, now, cluster_id=cluster)
+    p.track_kafka_commit("grp", "topic_no_cluster", 0, 5, now)
+    p.track_kafka_produce("topic_no_cluster", 0, 15, now)
 
-    serialized = processor._serialize_buckets()
-    # Collect all backlogs across all serialized buckets
+    serialized = p._serialize_buckets()
     all_backlogs = []
     for s in serialized:
         all_backlogs.extend(s.get("Backlogs", []))
 
-    with_cluster = [b for b in all_backlogs if any("ser_topic_with" in t for t in b["Tags"])]
-    without_cluster = [b for b in all_backlogs if any("ser_topic_without" in t for t in b["Tags"])]
+    with_cluster = [b for b in all_backlogs if any(t == "topic:topic_has_cluster" for t in b["Tags"])]
+    without_cluster = [b for b in all_backlogs if any(t == "topic:topic_no_cluster" for t in b["Tags"])]
 
     assert len(with_cluster) >= 1
     for b in with_cluster:
