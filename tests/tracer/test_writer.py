@@ -1436,12 +1436,12 @@ def test_agentless_writer_enabled():
     assert isinstance(writer, AgentlessTraceWriter)
 
     with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
-        with tracer.trace("root1"):
-            with tracer.trace("child1"):
+        with tracer.trace("root1") as root1:
+            with tracer.trace("child1") as child1:
                 pass
-            with tracer.trace("child2"):
+            with tracer.trace("child2") as child2:
                 pass
-        with tracer.trace("root2"):
+        with tracer.trace("root2") as root2:
             pass
 
         writer.flush_queue()
@@ -1451,12 +1451,54 @@ def test_agentless_writer_enabled():
     assert "spans" in payload1_json
     spans = payload1_json["spans"]
     assert len(spans) == 4
+    # root1
     assert spans[0]["name"] == "root1"
+    assert spans[0]["trace_id"] == "{:016x}".format(root1._trace_id_64bits).upper()
+    assert spans[0]["span_id"] == "{:016x}".format(root1.span_id).upper()
+    assert spans[0]["parent_id"] == "0000000000000000"
+    # child1
     assert spans[1]["name"] == "child1"
+    assert spans[1]["trace_id"] == "{:016x}".format(root1._trace_id_64bits).upper()
+    assert spans[1]["span_id"] == "{:016x}".format(child1.span_id).upper()
+    assert spans[1]["parent_id"] == "{:016x}".format(root1.span_id).upper()
+    # child2
     assert spans[2]["name"] == "child2"
+    assert spans[2]["trace_id"] == "{:016x}".format(root1._trace_id_64bits).upper()
+    assert spans[2]["span_id"] == "{:016x}".format(child2.span_id).upper()
+    assert spans[2]["parent_id"] == "{:016x}".format(root1.span_id).upper()
+    # root2
     assert spans[3]["name"] == "root2"
+    assert spans[3]["trace_id"] == "{:016x}".format(root2._trace_id_64bits).upper()
+    assert spans[3]["span_id"] == "{:016x}".format(root2.span_id).upper()
+    assert spans[3]["parent_id"] == "0000000000000000"
 
     headers = mock_put.call_args_list[0][0][1]
     assert headers["Content-Type"] == "application/json"
     assert headers["dd-api-key"] == "test-api-key"
     assert headers["Datadog-Meta-Lang"] == "python"
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "_DD_API_KEY": "test-api-key"})
+def test_agentless_writer_serialize_span_fields():
+    import json
+    from unittest.mock import patch
+
+    from ddtrace.internal.utils.http import Response
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+
+    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
+        with tracer.trace("root1"):
+            pass
+        writer.flush_queue()
+
+    assert mock_put.call_count == 1
+    payload1_json = json.loads(mock_put.call_args_list[0][0][0])
+    assert "spans" in payload1_json
+    spans = payload1_json["spans"]
+    assert len(spans) == 1
+    assert spans[0]["name"] == "root1"
+    assert spans[0]["parent_id"] == "123456789"

@@ -206,21 +206,9 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return [(payload_bytes, n_traces)]
 
     def _span_to_dict(self, span: "Span") -> dict[str, Any]:
-        return {
-            "trace_id": str(span._trace_id_64bits),
-            "parent_id": str(span.parent_id),
-            "span_id": str(span.span_id),
-            "service": span.service or "unamed-python-service",
-            "resource": span.resource or "",
-            "name": span.name or "",
-            "error": span.error,
-            "start": span.start_ns,
-            "duration": span.duration_ns or 0,
-            "meta": span._meta,
-            "metrics": span._metrics,
-            "type": span.span_type or "",
-            "span_links": [link.to_dict() for link in span._links],
-        }
+        span_dict = JSONEncoderV2._convert_span(span)
+        span_dict["meta_struct"] = span._meta_struct
+        return span_dict
 
     def _spans_to_dict(self, traces: list[list["Span"]]) -> dict[str, Any]:
         return {"spans": [self._span_to_dict(span) for trace in traces for span in trace]}
