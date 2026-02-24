@@ -269,7 +269,6 @@ class TestLLMJudgePublish:
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider=provider,
-            model="test-model",
             user_prompt="Evaluate: {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
             model_params={"temperature": 0.2},
@@ -290,13 +289,6 @@ class TestLLMJudgePublish:
         assert app_payload["application_name"] == "test-app"
         assert app_payload["enabled"] is False
         assert app_payload["integration_provider"] == expected_provider
-        assert app_payload["model_provider"] == expected_provider
-        assert app_payload["model_name"] == "test-model"
-        assert app_payload["sampling_percentage"] == 100.0
-        assert app_payload["span_names"] == []
-        assert app_payload["tags"] == []
-        assert app_payload["tag_any_of"] is True
-        assert app_payload["root_spans_only"] is False
 
         byop_config = app_payload["byop_config"]
         assert byop_config["inference_params"] == {"temperature": 0.2}
@@ -321,7 +313,6 @@ class TestLLMJudgePublish:
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
-            model="test-model",
             system_prompt="System sees {{input_data}}",
             user_prompt=(
                 "Input {{input_data}} Output {{output_data}} Expected {{expected_output}} "
@@ -360,7 +351,6 @@ class TestLLMJudgePublish:
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="vertexai",
-            model="gemini-test",
             user_prompt="Grade {{output_data}}",
             structured_output=custom_schema,
             name="json_eval",
@@ -376,7 +366,6 @@ class TestLLMJudgePublish:
         payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
         app_payload = payload["applications"][0]
         assert app_payload["integration_provider"] == "vertex_ai"
-        assert app_payload["model_provider"] == "vertex_ai"
         assert app_payload["byop_config"]["parsing_type"] == "json"
         assert app_payload["byop_config"]["output_schema"] == custom_schema
         assert "assessment_criteria" not in app_payload["byop_config"]
@@ -385,7 +374,6 @@ class TestLLMJudgePublish:
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
-            model="test-model",
             user_prompt="Evaluate {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness"),
         )
@@ -396,7 +384,6 @@ class TestLLMJudgePublish:
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
-            model="test-model",
             user_prompt="Evaluate {{output_data}}",
             structured_output=None,
         )
@@ -408,7 +395,6 @@ class TestLLMJudgePublish:
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
-            model="test-model",
             user_prompt="Evaluate {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness"),
             name="valid_name",
@@ -421,7 +407,6 @@ class TestLLMJudgePublish:
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
-            model="test-model",
             user_prompt="Evaluate {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness"),
             name="fallback",
@@ -430,25 +415,10 @@ class TestLLMJudgePublish:
         payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
         assert payload["eval_name"] == "hyphen-name"
 
-    def test_publish_strips_model_name(self, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
-        judge = LLMJudge(
-            client=lambda *args, **kwargs: "",
-            provider="openai",
-            model="  gpt-4o  ",
-            user_prompt="Evaluate {{output_data}}",
-            structured_output=BooleanStructuredOutput("Correctness"),
-            name="strip_test",
-        )
-        judge.publish(ml_app="my-app")
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
-        assert payload["applications"][0]["model_name"] == "gpt-4o"
-
     def test_publish_validates_variable_mapping(self):
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
-            model="test-model",
             user_prompt="Evaluate {{output_data}}",
             structured_output=BooleanStructuredOutput("Correctness"),
         )

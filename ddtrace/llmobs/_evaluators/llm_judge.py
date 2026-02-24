@@ -707,9 +707,6 @@ class LLMJudge(BaseEvaluator):
         resolved_eval_name = resolved_eval_name.strip()
         _validate_evaluator_name(resolved_eval_name)
 
-        if self._model is None or not self._model.strip():
-            raise ValueError("model must be specified")
-        model = self._model.strip()
         if self._provider is None:
             raise ValueError("provider must be specified to publish LLMJudge")
 
