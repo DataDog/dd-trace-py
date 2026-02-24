@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6650be1d00000000",
-      "events": "[{\"name\": \"Web page unresponsive\", \"time_unix_nano\": 1714536311886000, \"attributes\": {\"error.code\": \"403\", \"unknown values\": [1, [\"h\", \"a\", [false]]]}}]",
+      "events": "[{\"name\": \"Web page unresponsive\",\"time_unix_nano\": 1714536311886000,\"attributes\": {\"error.code\": \"403\",\"unknown values\": [1,[\"h\",\"a\",[false]]]}}]",
       "language": "python",
       "runtime-id": "236113d2484c485fb40ba896b12c1992"
     },
@@ -37,7 +37,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6650be1d00000000",
-      "events": "[{\"name\": \"Web page loaded\", \"time_unix_nano\": 1714537311986000}, {\"name\": \"Button changed color\", \"time_unix_nano\": 1714537311986000, \"attributes\": {\"colors\": [112, 215, 70], \"response.time\": 134.3, \"success\": true}}]",
+      "events": "[{\"name\": \"Web page loaded\",\"time_unix_nano\": 1714537311986000},{\"name\": \"Button changed color\",\"time_unix_nano\": 1714537311986000,\"attributes\": {\"colors\": [112,215,70],\"response.time\": 134.3,\"success\": true}}]",
       "language": "python",
       "runtime-id": "236113d2484c485fb40ba896b12c1992"
     },
