@@ -66,7 +66,7 @@ StackChunk::update_with_depth(_PyStackChunk* chunk_addr, size_t depth)
 
 // ----------------------------------------------------------------------------
 void*
-StackChunk::resolve(void* address)
+StackChunk::resolve(void* address, size_t object_size)
 {
     // If data is not properly initialized, simply return the address
     if (!is_valid()) {
@@ -76,12 +76,19 @@ StackChunk::resolve(void* address)
     // Use copied_size for bounds checking, NOT chunk->size from the copied data.
     // A race condition during copying can cause the header's size field to be larger
     // than what was actually copied, leading to out-of-bounds access and SEGV.
-    if (address >= origin && address < reinterpret_cast<char*>(origin) + copied_size) {
-        return data.data() + (reinterpret_cast<char*>(address) - reinterpret_cast<char*>(origin));
+    //
+    // We check that the ENTIRE object (address + object_size) fits within the
+    // copied buffer, not just the start address. Without this, a frame near the
+    // end of the chunk would pass the bounds check but subsequent field accesses
+    // (e.g. ->owner, ->instr_ptr) would read past the buffer (heap-buffer-overflow).
+    auto origin_char = reinterpret_cast<char*>(origin);
+    auto address_char = reinterpret_cast<char*>(address);
+    if (address_char >= origin_char && address_char + object_size <= origin_char + copied_size) {
+        return data.data() + (address_char - origin_char);
     }
 
     if (previous)
-        return previous->resolve(address);
+        return previous->resolve(address, object_size);
 
     return address;
 }
