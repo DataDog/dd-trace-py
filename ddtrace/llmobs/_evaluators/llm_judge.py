@@ -791,11 +791,15 @@ class LLMJudge(BaseEvaluator):
 
     @staticmethod
     def _apply_variable_mapping(template: str, variable_mapping: dict[str, str]) -> str:
-        mapped_template = template
-        for key, value in variable_mapping.items():
-            pattern = r"\{\{\s*" + re.escape(key) + r"\s*\}\}"
-            mapped_template = re.sub(pattern, "{{" + value + "}}", mapped_template)
-        return mapped_template
+        if not variable_mapping:
+            return template
+
+        pattern = re.compile(r"\{\{\s*(" + "|".join(re.escape(key) for key in variable_mapping) + r")\s*\}\}")
+
+        def replace(match: re.Match[str]) -> str:
+            return "{{" + variable_mapping[match.group(1)] + "}}"
+
+        return pattern.sub(replace, template)
 
     def _build_publish_schema_and_criteria(
         self, integration_provider: str

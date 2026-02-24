@@ -335,6 +335,27 @@ class TestLLMJudgePublish:
             "Input {{span_input}} Output {{span_output}} Expected {{expected_output}} Metadata {{metadata.customer_id}}"
         )
 
+    def test_publish_variable_mapping_does_not_chain_replacements(self, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Input {{input_data}} Output {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="mapping_eval",
+        )
+
+        judge.publish(
+            ml_app="test-app",
+            variable_mapping={"input_data": "output_data", "output_data": "span_output"},
+        )
+
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
+
+        assert prompt_template[1]["content"] == "Input {{output_data}} Output {{span_output}}"
+
     def test_publish_custom_schema_uses_json_parsing_and_encoded_url(self, monkeypatch):
         mock_dne_client = self._mock_publish_backend(monkeypatch)
 
