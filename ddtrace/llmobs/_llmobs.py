@@ -237,18 +237,12 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
                 f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator/BaseAsyncEvaluator."
             )
         else:
-            raise TypeError(
-                f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator."
-            )
+            raise TypeError(f"Evaluator {evaluator} must be callable or an instance of BaseEvaluator.")
 
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _EVALUATOR_REQUIRED_PARAMS):
-        raise TypeError(
-            "Evaluator function must have parameters {}.".format(
-                tuple(_EVALUATOR_REQUIRED_PARAMS)
-            )
-        )
+        raise TypeError("Evaluator function must have parameters {}.".format(tuple(_EVALUATOR_REQUIRED_PARAMS)))
 
 
 def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> None:
@@ -267,17 +261,13 @@ def _validate_summary_evaluator_signature(evaluator: Any, is_async: bool) -> Non
                 "or an instance of BaseSummaryEvaluator/BaseAsyncSummaryEvaluator."
             )
         else:
-            raise TypeError(
-                f"Summary evaluator {evaluator} must be callable or an instance of BaseSummaryEvaluator."
-            )
+            raise TypeError(f"Summary evaluator {evaluator} must be callable or an instance of BaseSummaryEvaluator.")
 
     sig = inspect.signature(evaluator)
     params = sig.parameters
     if not all(param in params for param in _SUMMARY_EVALUATOR_REQUIRED_PARAMS):
         raise TypeError(
-            "Summary evaluator function must have parameters {}.".format(
-                tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS)
-            )
+            "Summary evaluator function must have parameters {}.".format(tuple(_SUMMARY_EVALUATOR_REQUIRED_PARAMS))
         )
 
 
@@ -356,11 +346,7 @@ class LLMObs(Service):
         self.tracer = tracer or ddtrace.tracer
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
-        agentless_enabled = (
-            config._llmobs_agentless_enabled
-            if config._llmobs_agentless_enabled is not None
-            else True
-        )
+        agentless_enabled = config._llmobs_agentless_enabled if config._llmobs_agentless_enabled is not None else True
         self._llmobs_span_writer = LLMObsSpanWriter(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
@@ -415,11 +401,7 @@ class LLMObs(Service):
                 exc_info=True,
             )
         finally:
-            if (
-                span_event
-                and span._get_ctx_item(SPAN_KIND) == "llm"
-                and not _is_evaluation_span(span)
-            ):
+            if span_event and span._get_ctx_item(SPAN_KIND) == "llm" and not _is_evaluation_span(span):
                 if self._evaluator_runner:
                     self._evaluator_runner.enqueue(span_event, span)
 
@@ -440,14 +422,9 @@ class LLMObs(Service):
         }
 
         meta = _Meta(span=_SpanField(kind=span_kind), input=_MetaIO(), output=_MetaIO())
-        if (
-            span_kind in ("llm", "embedding")
-            and span._get_ctx_item(MODEL_NAME) is not None
-        ):
+        if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
-            meta["model_provider"] = (
-                span._get_ctx_item(MODEL_PROVIDER) or "custom"
-            ).lower()
+            meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
         metadata = span._get_ctx_item(METADATA) or {}
         if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
             metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
@@ -459,10 +436,7 @@ class LLMObs(Service):
             input_type = "value"
             llmobs_span.input = [
                 Message(
-                    content=safe_json(
-                        span._get_ctx_item(INPUT_VALUE), ensure_ascii=False
-                    )
-                    or "",
+                    content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "",
                     role="",
                 )
             ]
@@ -485,18 +459,13 @@ class LLMObs(Service):
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
             input_type = "messages"
-            llmobs_span.input = cast(
-                list[Message], enforce_message_role(input_messages)
-            )
+            llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
 
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
             output_type = "value"
             llmobs_span.output = [
                 Message(
-                    content=safe_json(
-                        span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False
-                    )
-                    or "",
+                    content=safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False) or "",
                     role="",
                 )
             ]
@@ -504,16 +473,11 @@ class LLMObs(Service):
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "llm" and output_messages is not None:
             output_type = "messages"
-            llmobs_span.output = cast(
-                list[Message], enforce_message_role(output_messages)
-            )
+            llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
 
         if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS) or []
-        if (
-            span_kind == "retrieval"
-            and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None
-        ):
+        if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS) or []
 
         if span._get_ctx_item(INPUT_PROMPT) is not None:
@@ -553,8 +517,7 @@ class LLMObs(Service):
                     return None
                 if not isinstance(user_llmobs_span, LLMObsSpan):
                     raise TypeError(
-                        "User span processor must return an LLMObsSpan or None, got %r"
-                        % type(user_llmobs_span)
+                        "User span processor must return an LLMObsSpan or None, got %r" % type(user_llmobs_span)
                     )
                 llmobs_span = user_llmobs_span
             except Exception as e:
@@ -629,9 +592,7 @@ class LLMObs(Service):
         return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(
-        span: Span, ml_app: str, session_id: Optional[str] = None
-    ) -> list[str]:
+    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> list[str]:
         dd_tags = config.tags
         tags = {
             **dd_tags,
@@ -691,9 +652,7 @@ class LLMObs(Service):
     def _do_annotations(self, span: Span) -> None:
         # get the current span context
         # only do the annotations if it matches the context
-        if (
-            span.span_type != SpanTypes.LLM
-        ):  # do this check to avoid the warning log in `annotate`
+        if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
         current_context = self._instance.tracer.current_trace_context()
         if current_context is None:
@@ -702,9 +661,7 @@ class LLMObs(Service):
         with self._annotation_context_lock:
             for _, context_id, annotation_kwargs in self._instance._annotations:
                 if current_context_id == context_id:
-                    self.annotate(
-                        span, **annotation_kwargs, _suppress_span_kind_error=True
-                    )
+                    self.annotate(span, **annotation_kwargs, _suppress_span_kind_error=True)
 
     def _child_after_fork(self) -> None:
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
@@ -750,27 +707,19 @@ class LLMObs(Service):
             self._activate_llmobs_distributed_context_soft_fail,
         )
         core.reset_listeners("threading.submit", self._current_trace_context)
-        core.reset_listeners(
-            "threading.execution", self._llmobs_context_provider.activate
-        )
+        core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
         core.reset_listeners("asyncio.create_task", self._on_asyncio_create_task)
         core.reset_listeners("asyncio.execute_task", self._on_asyncio_execute_task)
 
-        core.reset_listeners(
-            DISPATCH_ON_LLM_TOOL_CHOICE, self._link_tracker.on_llm_tool_choice
-        )
+        core.reset_listeners(DISPATCH_ON_LLM_TOOL_CHOICE, self._link_tracker.on_llm_tool_choice)
         core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._link_tracker.on_tool_call)
         core.reset_listeners(
             DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
             self._link_tracker.on_tool_call_output_used,
         )
 
-        core.reset_listeners(
-            DISPATCH_ON_GUARDRAIL_SPAN_START, self._link_tracker.on_guardrail_span_start
-        )
-        core.reset_listeners(
-            DISPATCH_ON_LLM_SPAN_FINISH, self._link_tracker.on_llm_span_finish
-        )
+        core.reset_listeners(DISPATCH_ON_GUARDRAIL_SPAN_START, self._link_tracker.on_guardrail_span_start)
+        core.reset_listeners(DISPATCH_ON_LLM_SPAN_FINISH, self._link_tracker.on_llm_span_finish)
         core.reset_listeners(
             DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH,
             self._link_tracker.on_openai_agent_span_finish,
@@ -817,12 +766,8 @@ class LLMObs(Service):
 
         cls._warn_if_litellm_was_imported()
 
-        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(
-            os.getenv("DD_LLMOBS_ENABLED")
-        ):
-            log.debug(
-                "LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service"
-            )
+        if os.getenv("DD_LLMOBS_ENABLED") and not asbool(os.getenv("DD_LLMOBS_ENABLED")):
+            log.debug("LLMObs.enable() called when DD_LLMOBS_ENABLED is set to false or 0, not starting LLMObs service")
             return
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
@@ -832,18 +777,14 @@ class LLMObs(Service):
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
-        config._llmobs_instrumented_proxy_urls = (
-            instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
-        )
+        config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
 
         error = None
         start_ns = time.time_ns()
         try:
             config._llmobs_agentless_enabled = should_use_agentless(
                 user_defined_agentless_enabled=(
-                    agentless_enabled
-                    if agentless_enabled is not None
-                    else config._llmobs_agentless_enabled
+                    agentless_enabled if agentless_enabled is not None else config._llmobs_agentless_enabled
                 )
             )
 
@@ -863,9 +804,7 @@ class LLMObs(Service):
                     )
                 if not os.getenv("DD_REMOTE_CONFIGURATION_ENABLED"):
                     config._remote_config_enabled = False
-                    log.debug(
-                        "Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true."
-                    )
+                    log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
                     remoteconfig_poller.disable()
 
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
@@ -893,12 +832,8 @@ class LLMObs(Service):
                 "http.activate_distributed_headers",
                 cls._activate_llmobs_distributed_context_soft_fail,
             )
-            core.on(
-                "threading.submit", cls._instance._current_trace_context, "llmobs_ctx"
-            )
-            core.on(
-                "threading.execution", cls._instance._llmobs_context_provider.activate
-            )
+            core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
+            core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
             core.on("asyncio.create_task", cls._instance._on_asyncio_create_task)
             core.on("asyncio.execute_task", cls._instance._on_asyncio_execute_task)
 
@@ -1025,9 +960,7 @@ class LLMObs(Service):
         """
         if records is None:
             records = []
-        ds = cls._instance._dne_client.dataset_create(
-            dataset_name, project_name, description
-        )
+        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
 
         if len(records) > 0:
             if bulk_upload:
@@ -1035,9 +968,7 @@ class LLMObs(Service):
                     ds.append(record)
                 ds.push(deduplicate=deduplicate, bulk_upload=True)
             else:
-                num_batches = math.ceil(
-                    len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD
-                )
+                num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 batch_size = math.ceil(len(records) / num_batches)
                 log.debug(
                     "batched upload num_batches :%d, batch_size: %d",
@@ -1087,50 +1018,32 @@ class LLMObs(Service):
             with open(csv_path, mode="r") as csvfile:
                 content = csvfile.readline().strip()
                 if not content:
-                    raise ValueError(
-                        "CSV file appears to be empty or header is missing."
-                    )
+                    raise ValueError("CSV file appears to be empty or header is missing.")
 
                 csvfile.seek(0)
 
                 rows = csv.DictReader(csvfile, delimiter=csv_delimiter)
 
                 if rows.fieldnames is None:
-                    raise ValueError(
-                        "CSV file appears to be empty or header is missing."
-                    )
+                    raise ValueError("CSV file appears to be empty or header is missing.")
 
                 header_columns = rows.fieldnames
-                missing_input_columns = [
-                    col for col in input_data_columns if col not in header_columns
-                ]
-                missing_output_columns = [
-                    col for col in expected_output_columns if col not in header_columns
-                ]
-                missing_metadata_columns = [
-                    col for col in metadata_columns if col not in metadata_columns
-                ]
+                missing_input_columns = [col for col in input_data_columns if col not in header_columns]
+                missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
+                missing_metadata_columns = [col for col in metadata_columns if col not in metadata_columns]
 
                 if any(col not in header_columns for col in input_data_columns):
-                    raise ValueError(
-                        f"Input columns not found in CSV header: {missing_input_columns}"
-                    )
+                    raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
                 if any(col not in header_columns for col in expected_output_columns):
-                    raise ValueError(
-                        f"Expected output columns not found in CSV header: {missing_output_columns}"
-                    )
+                    raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
                 if any(col not in header_columns for col in metadata_columns):
-                    raise ValueError(
-                        f"Metadata columns not found in CSV header: {missing_metadata_columns}"
-                    )
+                    raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
 
                 for row in rows:
                     records.append(
                         DatasetRecord(
                             input_data={col: row[col] for col in input_data_columns},
-                            expected_output={
-                                col: row[col] for col in expected_output_columns
-                            },
+                            expected_output={col: row[col] for col in expected_output_columns},
                             metadata={col: row[col] for col in metadata_columns},
                             tags=[],
                             record_id="",
@@ -1142,15 +1055,11 @@ class LLMObs(Service):
             # Always restore the original field size limit
             csv.field_size_limit(original_field_size_limit)
 
-        ds = cls._instance._dne_client.dataset_create(
-            dataset_name, project_name, description
-        )
+        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
         for r in records:
             ds.append(r)
         if len(ds) > 0:
-            cls._instance._dne_client.dataset_bulk_upload(
-                ds._id, ds._records, deduplicate=deduplicate
-            )
+            cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records, deduplicate=deduplicate)
         return ds
 
     @classmethod
@@ -1172,9 +1081,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         max_iterations: int = 5,
-        stopping_condition: Optional[
-            Callable[[dict[str, dict[str, Any]]], bool]
-        ] = None,
+        stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
         dataset_split: Union[bool, tuple[float, ...]] = False,
         test_dataset: Optional[str] = None,
     ) -> PromptOptimization:
@@ -1305,9 +1212,7 @@ class LLMObs(Service):
 
         pulled_test_dataset = None
         if test_dataset is not None:
-            pulled_test_dataset = cls.pull_dataset(
-                dataset_name=test_dataset, project_name=project_name
-            )
+            pulled_test_dataset = cls.pull_dataset(dataset_name=test_dataset, project_name=project_name)
 
         return PromptOptimization(
             name=name,
@@ -1368,18 +1273,14 @@ class LLMObs(Service):
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators:
-            raise TypeError(
-                "Evaluators must be a list of callable functions or BaseEvaluator instances."
-            )
-        evaluators_list = list(evaluators)
-        for idx, evaluator in enumerate(evaluators_list):
+            raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
+        for idx, evaluator in enumerate(evaluators):
             _validate_evaluator_signature(evaluator, is_async=False)
             if _is_deep_eval_evaluator(evaluator):
-                evaluators_list[idx] = _deep_eval_evaluator_wrapper(evaluator)
+                evaluators[idx] = _deep_eval_evaluator_wrapper(evaluator)
                 continue
         if summary_evaluators and not all(
-            callable(summary_evaluator)
-            or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
             for summary_evaluator in summary_evaluators
         ):
             raise TypeError(
@@ -1392,7 +1293,7 @@ class LLMObs(Service):
             name,
             task,
             dataset,
-            evaluators_list,
+            evaluators,
             project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
@@ -1413,9 +1314,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        summary_evaluators: Optional[
-            Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
-        ] = None,
+        summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = 1,
     ) -> Experiment:
         """Initializes an Experiment to run an async task on a Dataset with evaluators.
@@ -1452,11 +1351,10 @@ class LLMObs(Service):
             raise TypeError(
                 "Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator instances."
             )
-        evaluators_list = list(evaluators)
-        for idx, evaluator in enumerate(evaluators_list):
+        for idx, evaluator in enumerate(evaluators):
             _validate_evaluator_signature(evaluator, is_async=True)
             if _is_deep_eval_evaluator(evaluator):
-                evaluators_list[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
+                evaluators[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
                 continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
@@ -1465,7 +1363,7 @@ class LLMObs(Service):
             name,
             task,
             dataset,
-            evaluators_list,
+            evaluators,
             project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
@@ -1511,21 +1409,27 @@ class LLMObs(Service):
         experiment_id: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset_records: list[DatasetRecord],
-        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
+        evaluators: list[
+            Union[
+                Callable[
+                    [DatasetRecordInputType, JSONType, JSONType],
+                    Union[JSONType, EvaluatorResult],
+                ],
+                Callable[[], Union[JSONType, EvaluatorResult]],
+            ]
+        ],
         jobs: int = 1,
         raise_errors: bool = False,
         run_iteration: Optional[int] = 0,
         tags: Optional[dict[str, str]] = None,
     ) -> tuple[Experiment, ExperimentResult]:
         if not cls._instance or not cls._instance.enabled:
-            raise ValueError(
-                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`"
-            )
+            raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
         experiment = cls._instance._dne_client.experiment_get(experiment_id)
         experiment._llmobs_instance = cls._instance
         experiment._dataset._records = dataset_records
         experiment._task = task
-        experiment._evaluators = evaluators
+        experiment._evaluators = evaluators  # type: ignore[assignment]
 
         coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
         try:
@@ -1540,9 +1444,7 @@ class LLMObs(Service):
         return experiment, results
 
     @classmethod
-    def register_processor(
-        cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None
-    ) -> None:
+    def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:
         """Register a processor to be called on each LLMObs span.
 
         This can be used to modify the span before it is sent to LLMObs. For example, you can modify the input/output.
@@ -1559,10 +1461,7 @@ class LLMObs(Service):
     def _integration_is_enabled(cls, integration: str) -> bool:
         if integration not in SUPPORTED_LLMOBS_INTEGRATIONS:
             return False
-        return (
-            SUPPORTED_LLMOBS_INTEGRATIONS[integration]
-            in ddtrace._monkey._get_patched_modules()
-        )
+        return SUPPORTED_LLMOBS_INTEGRATIONS[integration] in ddtrace._monkey._get_patched_modules()
 
     @classmethod
     def disable(cls) -> None:
@@ -1787,19 +1686,11 @@ class LLMObs(Service):
         if not api_key:
             raise ValueError("DD_API_KEY is required for the Prompt Registry")
 
-        cache_ttl = _get_config(
-            "DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float
-        )
-        file_cache_enabled = _get_config(
-            "DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool
-        )
+        cache_ttl = _get_config("DD_LLMOBS_PROMPTS_CACHE_TTL", DEFAULT_PROMPTS_CACHE_TTL, float)
+        file_cache_enabled = _get_config("DD_LLMOBS_PROMPTS_FILE_CACHE_ENABLED", False, asbool)
         cache_dir = _get_config("DD_LLMOBS_PROMPTS_CACHE_DIR")
-        timeout = _get_config(
-            "DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT, float
-        )
-        base_url = (
-            _get_config("DD_LLMOBS_OVERRIDE_ORIGIN") or f"https://api.{config._dd_site}"
-        )
+        timeout = _get_config("DD_LLMOBS_PROMPTS_TIMEOUT", DEFAULT_PROMPTS_TIMEOUT, float)
+        base_url = _get_config("DD_LLMOBS_OVERRIDE_ORIGIN") or f"https://api.{config._dd_site}"
 
         return PromptManager(
             api_key=api_key,
@@ -1816,9 +1707,7 @@ class LLMObs(Service):
         Flushes any remaining spans and evaluation metrics to the LLMObs backend.
         """
         if cls.enabled is False:
-            log.warning(
-                "flushing when LLMObs is disabled. No spans or evaluation metrics will be sent."
-            )
+            log.warning("flushing when LLMObs is disabled. No spans or evaluation metrics will be sent.")
             return
 
         error = None
@@ -1833,9 +1722,7 @@ class LLMObs(Service):
             cls._instance._llmobs_eval_metric_writer.periodic()
         except Exception:
             error = "writer_flush_error"
-            log.warning(
-                "Failed to flush LLMObs spans and evaluation metrics.", exc_info=True
-            )
+            log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
 
         telemetry.record_user_flush(error)
 
@@ -1845,9 +1732,7 @@ class LLMObs(Service):
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
         integrations_to_patch: dict[str, Union[list[str], bool]] = {
-            integration: ["bedrock-runtime", "bedrock-agent-runtime"]
-            if integration == "botocore"
-            else True
+            integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
             for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
         }
         for module, _ in integrations_to_patch.items():
@@ -1857,11 +1742,7 @@ class LLMObs(Service):
         dd_patch_modules = os.getenv("DD_PATCH_MODULES")
         dd_patch_modules_to_str = parse_tags_str(dd_patch_modules)
         integrations_to_patch.update(
-            {
-                k: asbool(v)
-                for k, v in dd_patch_modules_to_str.items()
-                if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()
-            }
+            {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
         patch(raise_errors=True, **integrations_to_patch)
         llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
@@ -1873,9 +1754,7 @@ class LLMObs(Service):
         If no span is provided, the current active LLMObs-type span will be used.
         """
         if not cls.enabled:
-            log.warning(
-                "LLMObs.export_span() called when LLMObs is disabled. No span will be exported."
-            )
+            log.warning("LLMObs.export_span() called when LLMObs is disabled. No span will be exported.")
             return None
         if span is None:
             span = cls._instance._current_span()
@@ -1893,15 +1772,11 @@ class LLMObs(Service):
                 raise LLMObsExportSpanError("Span must be an LLMObs-generated span.")
             return ExportedLLMObsSpan(
                 span_id=str(span.span_id),
-                trace_id=format_trace_id(
-                    span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id
-                ),
+                trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
             )
         except (TypeError, AttributeError):
             error = "invalid_span"
-            raise LLMObsExportSpanError(
-                "Failed to export span. Span must be a valid Span object."
-            ) from None
+            raise LLMObsExportSpanError("Failed to export span. Span must be a valid Span object.") from None
         finally:
             telemetry.record_span_exported(span, error)
 
@@ -1920,9 +1795,9 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(
-                active._get_ctx_item(LLMOBS_TRACE_ID)
-            ) or str(active.trace_id)
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(active._get_ctx_item(LLMOBS_TRACE_ID)) or str(
+                active.trace_id
+            )
             return context
         return None
 
@@ -1937,9 +1812,7 @@ class LLMObs(Service):
                 else llmobs_parent._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
             )
             llmobs_trace_id = (
-                int(parent_llmobs_trace_id)
-                if parent_llmobs_trace_id is not None
-                else llmobs_parent.trace_id
+                int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )
             span._set_ctx_item(LLMOBS_TRACE_ID, llmobs_trace_id)
         else:
@@ -1980,9 +1853,7 @@ class LLMObs(Service):
                 "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
                 "before running your application."
             )
-        span._set_ctx_items(
-            {DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app}
-        )
+        span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
@@ -2235,9 +2106,7 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        span = cls._instance._start_span(
-            "experiment", name=name, session_id=session_id, ml_app=ml_app
-        )
+        span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
 
         # set experiment_id in baggage if provided
         if experiment_id:
@@ -2354,13 +2223,9 @@ class LLMObs(Service):
                 else:
                     cls._set_dict_attribute(span, METADATA, metadata)
             if metrics is not None:
-                if not isinstance(metrics, dict) or not all(
-                    isinstance(v, (int, float)) for v in metrics.values()
-                ):
+                if not isinstance(metrics, dict) or not all(isinstance(v, (int, float)) for v in metrics.values()):
                     error = "invalid_metrics"
-                    raise LLMObsAnnotateSpanError(
-                        "metrics must be a dictionary of string key - numeric value pairs."
-                    )
+                    raise LLMObsAnnotateSpanError("metrics must be a dictionary of string key - numeric value pairs.")
                 else:
                     cls._set_dict_attribute(span, METRICS, metrics)
             if tags is not None:
@@ -2388,21 +2253,15 @@ class LLMObs(Service):
                     cls._set_dict_attribute(
                         span,
                         TAGS,
-                        {
-                            PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED
-                        },
+                        {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED},
                     )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
-                    raise LLMObsAnnotateSpanError(
-                        "Failed to validate prompt with error:", str(e)
-                    )
+                    raise LLMObsAnnotateSpanError("Failed to validate prompt with error:", str(e))
             if (
                 not span_kind and not _suppress_span_kind_error
             ):  # TODO(sabrenner): we should figure out how to remove this check for annotation contexts
-                raise LLMObsAnnotateSpanError(
-                    "Span kind not specified, skipping annotation for input/output data"
-                )
+                raise LLMObsAnnotateSpanError("Span kind not specified, skipping annotation for input/output data")
 
             annotation_error_message = None
             if input_data is not None or output_data is not None:
@@ -2419,13 +2278,9 @@ class LLMObs(Service):
                         span, input_text=input_data, output_documents=output_data
                     )
                 elif span_kind == "experiment":
-                    cls._tag_freeform_io(
-                        span, input_value=input_data, output_value=output_data
-                    )
+                    cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
-                    cls._tag_text_io(
-                        span, input_value=input_data, output_value=output_data
-                    )
+                    cls._tag_text_io(span, input_value=input_data, output_value=output_data)
             if _linked_spans and isinstance(_linked_spans, list):
                 for linked_span in _linked_spans:
                     # for now, assume all span links are output to input as we do not currently use this for anything
@@ -2442,9 +2297,7 @@ class LLMObs(Service):
             telemetry.record_llmobs_annotate(span, error)
 
     @classmethod
-    def _tag_llm_io(
-        cls, span, input_messages=None, output_messages=None
-    ) -> tuple[Optional[str], Optional[str]]:
+    def _tag_llm_io(cls, span, input_messages=None, output_messages=None) -> tuple[Optional[str], Optional[str]]:
         """Tags input/output messages for LLM-kind spans.
         Will be mapped to span's `meta.{input,output}.messages` fields.
         """
@@ -2469,9 +2322,7 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_embedding_io(
-        cls, span, input_documents=None, output_text=None
-    ) -> tuple[Optional[str], Optional[str]]:
+    def _tag_embedding_io(cls, span, input_documents=None, output_text=None) -> tuple[Optional[str], Optional[str]]:
         """Tags input documents and output text for embedding-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -2489,9 +2340,7 @@ class LLMObs(Service):
         return None, None
 
     @classmethod
-    def _tag_retrieval_io(
-        cls, span, input_text=None, output_documents=None
-    ) -> tuple[Optional[str], Optional[str]]:
+    def _tag_retrieval_io(cls, span, input_text=None, output_documents=None) -> tuple[Optional[str], Optional[str]]:
         """Tags input text and output documents for retrieval-kind spans.
         Will be mapped to span's `meta.{input,output}.text` fields.
         """
@@ -2586,9 +2435,7 @@ class LLMObs(Service):
         error = None
         join_on = {}
         try:
-            has_exactly_one_joining_key = (span is not None) ^ (
-                span_with_tag_value is not None
-            )
+            has_exactly_one_joining_key = (span is not None) ^ (span_with_tag_value is not None)
 
             if not has_exactly_one_joining_key:
                 error = "provided_both_span_and_tag_joining_key"
@@ -2628,15 +2475,11 @@ class LLMObs(Service):
 
             if not isinstance(timestamp_ms, int) or timestamp_ms < 0:
                 error = "invalid_timestamp"
-                raise ValueError(
-                    "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
-                )
+                raise ValueError("timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent")
 
             if not label:
                 error = "invalid_metric_label"
-                raise ValueError(
-                    "label must be the specified name of the evaluation metric."
-                )
+                raise ValueError("label must be the specified name of the evaluation metric.")
 
             if "." in label:
                 error = "invalid_label_value"
@@ -2645,9 +2488,7 @@ class LLMObs(Service):
             metric_type = metric_type.lower()
             if metric_type not in ("categorical", "score", "boolean", "json"):
                 error = "invalid_metric_type"
-                raise ValueError(
-                    "metric_type must be one of 'categorical', 'score', 'boolean', or 'json'."
-                )
+                raise ValueError("metric_type must be one of 'categorical', 'score', 'boolean', or 'json'.")
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
@@ -2663,9 +2504,7 @@ class LLMObs(Service):
                 raise TypeError("value must be a dict for a json metric.")
 
             if tags is not None and not isinstance(tags, dict):
-                raise LLMObsSubmitEvaluationError(
-                    "tags must be a dictionary of string key-value pairs."
-                )
+                raise LLMObsSubmitEvaluationError("tags must be a dictionary of string key-value pairs.")
 
             ml_app = ml_app if ml_app else config._llmobs_ml_app
             if not ml_app:
@@ -2719,18 +2558,14 @@ class LLMObs(Service):
             if reasoning:
                 if not isinstance(reasoning, str):
                     error = "invalid_reasoning"
-                    raise LLMObsSubmitEvaluationError(
-                        "Failed to parse reasoning. reasoning must be a string."
-                    )
+                    raise LLMObsSubmitEvaluationError("Failed to parse reasoning. reasoning must be a string.")
                 else:
                     evaluation_metric["reasoning"] = reasoning
 
             if metadata:
                 if not isinstance(metadata, dict):
                     error = "invalid_metadata"
-                    raise LLMObsSubmitEvaluationError(
-                        "metadata must be json serializable dictionary."
-                    )
+                    raise LLMObsSubmitEvaluationError("metadata must be json serializable dictionary.")
                 else:
                     metadata = safe_json(metadata)
                     if metadata and isinstance(metadata, str):
@@ -2741,35 +2576,22 @@ class LLMObs(Service):
             telemetry.record_llmobs_submit_evaluation(join_on, metric_type, error)
 
     @classmethod
-    def _inject_llmobs_context(
-        cls, span_context: Context, request_headers: dict[str, str]
-    ) -> None:
+    def _inject_llmobs_context(cls, span_context: Context, request_headers: dict[str, str]) -> None:
         if cls.enabled is False:
             return
 
         active_span = cls._instance._llmobs_context_provider.active()
-        active_context = (
-            active_span.context if isinstance(active_span, Span) else active_span
-        )
+        active_context = active_span.context if isinstance(active_span, Span) else active_span
 
-        parent_id = (
-            str(active_context.span_id)
-            if active_context is not None
-            else ROOT_PARENT_ID
-        )
+        parent_id = str(active_context.span_id) if active_context is not None else ROOT_PARENT_ID
 
         ml_app = None
         if isinstance(active_span, Span):
             ml_app = active_span._get_ctx_item(ML_APP)
             llmobs_trace_id = active_span._get_ctx_item(LLMOBS_TRACE_ID)
         elif active_context is not None:
-            ml_app = (
-                active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
-            )
-            llmobs_trace_id = (
-                active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY)
-                or generate_128bit_trace_id()
-            )
+            ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
+            llmobs_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or generate_128bit_trace_id()
         else:
             ml_app = config._llmobs_ml_app
             llmobs_trace_id = generate_128bit_trace_id()
@@ -2781,9 +2603,7 @@ class LLMObs(Service):
             span_context._meta[PROPAGATED_ML_APP_KEY] = ml_app
 
     @classmethod
-    def inject_distributed_headers(
-        cls, request_headers: dict[str, str], span: Optional[Span] = None
-    ) -> dict[str, str]:
+    def inject_distributed_headers(cls, request_headers: dict[str, str], span: Optional[Span] = None) -> dict[str, str]:
         """Injects the span's distributed context into the given request headers."""
         if cls.enabled is False:
             log.warning(
@@ -2802,9 +2622,7 @@ class LLMObs(Service):
                 span = cls._instance.tracer.current_span()
             if span is None:
                 error = "no_active_span"
-                raise LLMObsInjectDistributedHeadersError(
-                    "No span provided and no currently active span found."
-                )
+                raise LLMObsInjectDistributedHeadersError("No span provided and no currently active span found.")
             if not isinstance(span, Span):
                 raise LLMObsInjectDistributedHeadersError(
                     "span must be a valid Span object. Distributed context will not be injected."
@@ -2815,12 +2633,8 @@ class LLMObs(Service):
             telemetry.record_inject_distributed_headers(error)
 
     @classmethod
-    def _activate_llmobs_distributed_context_soft_fail(
-        cls, request_headers: dict[str, str], context: Context
-    ) -> None:
-        cls._activate_llmobs_distributed_context(
-            request_headers, context, _soft_fail=True
-        )
+    def _activate_llmobs_distributed_context_soft_fail(cls, request_headers: dict[str, str], context: Context) -> None:
+        cls._activate_llmobs_distributed_context(request_headers, context, _soft_fail=True)
 
     @classmethod
     def _activate_llmobs_distributed_context(
@@ -2835,9 +2649,7 @@ class LLMObs(Service):
                 if _soft_fail:
                     log.warning("Failed to extract trace/span ID from request headers.")
                     return
-                raise LLMObsActivateDistributedHeadersError(
-                    "Failed to extract trace/span ID from request headers."
-                )
+                raise LLMObsActivateDistributedHeadersError("Failed to extract trace/span ID from request headers.")
             _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
             if _parent_id is None:
                 error = "missing_parent_id"
@@ -2856,16 +2668,12 @@ class LLMObs(Service):
                     "Defaulting to the corresponding APM trace ID."
                 )
                 llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(
-                    context.trace_id
-                )
+                llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(context.trace_id)
                 cls._instance._llmobs_context_provider.activate(llmobs_context)
                 error = "missing_parent_llmobs_trace_id"
                 return
             llmobs_context = Context(trace_id=context.trace_id, span_id=parent_id)
-            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(
-                parent_llmobs_trace_id
-            )
+            llmobs_context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(parent_llmobs_trace_id)
             cls._instance._llmobs_context_provider.activate(llmobs_context)
         finally:
             telemetry.record_activate_distributed_headers(error)
@@ -2885,9 +2693,7 @@ class LLMObs(Service):
             return
         context = HTTPPropagator.extract(request_headers)
         cls._instance.tracer.context_provider.activate(context)
-        cls._instance._activate_llmobs_distributed_context(
-            request_headers, context, _soft_fail=False
-        )
+        cls._instance._activate_llmobs_distributed_context(request_headers, context, _soft_fail=False)
 
 
 # initialize the default llmobs instance
