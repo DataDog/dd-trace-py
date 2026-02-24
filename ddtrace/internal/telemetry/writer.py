@@ -297,7 +297,7 @@ class TelemetryWriter(PeriodicService):
             }
         return payload
 
-    def _report_heartbeat(self) -> Optional[dict[str, Any]]:
+    def _report_heartbeat(self) -> dict[str, Any]:
         """Report a heartbeat to keep RC connections alive.
 
         Extended heartbeats (non-empty payload) include configurations and dependencies;
