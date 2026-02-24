@@ -20,6 +20,7 @@ from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_span_links
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
 
@@ -91,17 +92,13 @@ class LangGraphIntegration(BaseLLMIntegration):
         invoked_node_span_links: list[_SpanLink] = invoked_node.get("span_links") or []
         if invoked_node_span_links:
             span_links = invoked_node_span_links
-        llmobs_data = _get_llmobs_data_metastruct(span)
-        current_span_links: list[_SpanLink] = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
+        current_span_links = get_span_links(span)
+        _annotate_llmobs_span_data(span, span_links=current_span_links + span_links)
 
         def maybe_format_langchain_io(messages):
             if messages is None:
                 return None
             return format_langchain_io(messages)
-
-        # Set span links directly to meta_struct
-        llmobs_data[LLMOBS_STRUCT.SPAN_LINKS] = current_span_links + span_links
-        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
 
         # Get output value, checking for astream output if response is None
         astream_output = span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)

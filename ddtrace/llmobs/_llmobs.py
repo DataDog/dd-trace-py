@@ -54,10 +54,8 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
-from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_DATASET_NAME_KEY
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_NAME_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_PROJECT_ID_KEY
@@ -113,6 +111,7 @@ from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs._utils import _get_span_kind
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
@@ -366,21 +365,17 @@ class LLMObs(Service):
                 exc_info=True,
             )
         finally:
-            llmobs_data = _get_llmobs_data_metastruct(span)
-            llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
-            span_kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+            span_kind = _get_span_kind(span)
             if span_event and span_kind == "llm" and not _is_evaluation_span(span):
                 if self._evaluator_runner:
                     self._evaluator_runner.enqueue(span_event, span)
 
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Span event object structure."""
-        # Get data from meta_struct
         llmobs_data = _get_llmobs_data_metastruct(span)
         llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
-        llmobs_span_meta = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {})
 
-        span_kind = llmobs_span_meta.get(LLMOBS_STRUCT.KIND)
+        span_kind = _get_span_kind(span)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
@@ -424,11 +419,11 @@ class LLMObs(Service):
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
             if span_kind == "experiment":
-                expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+                expected_output = llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT)
                 if expected_output:
                     meta["expected_output"] = expected_output
 
-                # For experiments, input/output can be direct values from meta_struct
+                # For experiments, input/output can be any type
                 if llmobs_input and not isinstance(llmobs_input, dict):
                     meta["input"] = llmobs_input
                 elif isinstance(llmobs_input, dict) and llmobs_input:
@@ -576,7 +571,7 @@ class LLMObs(Service):
         if isinstance(span_links, list) and span_links:
             llmobs_span_event["span_links"] = span_links
 
-        experiment_config = span._get_ctx_item(EXPERIMENT_CONFIG)
+        experiment_config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if experiment_config:
             llmobs_span_event["config"] = experiment_config
 
@@ -1694,7 +1689,6 @@ class LLMObs(Service):
                 "before running your application."
             )
 
-        # Write to meta_struct
         _annotate_llmobs_span_data(
             span,
             kind=operation_kind,
@@ -1704,7 +1698,6 @@ class LLMObs(Service):
             session_id=session_id,
         )
 
-        # Internal markers (not LLMObs data - used for internal state tracking)
         span._set_ctx_item(DECORATOR, _decorator)
 
         log.debug(
@@ -2096,9 +2089,7 @@ class LLMObs(Service):
                 validated_tool_definitions = extract_tool_definitions(tool_definitions)
                 if validated_tool_definitions:
                     _annotate_llmobs_span_data(span, tool_definitions=validated_tool_definitions)
-            llmobs_data = _get_llmobs_data_metastruct(span)
-            llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
-            span_kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+            span_kind = _get_span_kind(span)
             if _name is not None:
                 span.name = _name
             if prompt is not None:
