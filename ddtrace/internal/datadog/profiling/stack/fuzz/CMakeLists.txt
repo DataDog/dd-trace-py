@@ -4,8 +4,8 @@ cmake_minimum_required(VERSION 3.19)
 # compiler/linker flags for libFuzzer (e.g. -fsanitize=fuzzer,address,undefined).
 option(STACK_USE_LIBFUZZER "Link fuzz targets with libFuzzer (-fsanitize=fuzzer)" OFF)
 
-# Echion + profiling sources shared by all fuzz targets (everything except vm.cc,
-# which conflicts with the fuzz copy_memory hook in vm.h).
+# Echion + profiling sources shared by all fuzz targets (everything except vm.cc, which conflicts with the fuzz
+# copy_memory hook in vm.h).
 set(FUZZ_ECHION_SOURCES
     ../src/echion/danger.cc
     ../src/echion/frame.cc
@@ -29,8 +29,9 @@ function(add_fuzz_target TARGET_NAME)
     # Include paths: ../.. is the profiling root (for "dd_wrapper/include/..." paths), ../include is for stack headers.
     target_include_directories(${TARGET_NAME} PRIVATE ../.. ../include)
     target_include_directories(
-        ${TARGET_NAME} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
-        ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
+        ${TARGET_NAME} SYSTEM
+        PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
 
     # Ensure echion headers take the fuzz hook in vm.h
     target_compile_definitions(${TARGET_NAME} PRIVATE ECHION_FUZZING)
@@ -62,7 +63,7 @@ function(add_fuzz_target TARGET_NAME)
     # Set RPATH so the fuzz binary can find dd_wrapper and _native at runtime.
     if(LIB_INSTALL_DIR)
         set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "${LIB_INSTALL_DIR}" INSTALL_RPATH
-                                                                                          "${LIB_INSTALL_DIR}")
+                                                                                         "${LIB_INSTALL_DIR}")
     endif()
 endfunction()
 
