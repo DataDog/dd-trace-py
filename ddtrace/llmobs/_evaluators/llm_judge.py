@@ -11,10 +11,13 @@ from typing import Literal
 from typing import Optional
 from typing import Protocol
 from typing import Union
+import urllib
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import _get_base_url
+from ddtrace.llmobs._experiment import _validate_evaluator_name
 from ddtrace.llmobs.types import JSONType
 
 
@@ -136,6 +139,15 @@ class CategoricalStructuredOutput(BaseStructuredOutput):
 StructuredOutput = Union[
     BooleanStructuredOutput, ScoreStructuredOutput, CategoricalStructuredOutput, dict[str, JSONType]
 ]
+
+
+_PUBLISH_PROVIDER_MAPPING = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "azure_openai": "azure_openai",
+    "vertexai": "vertex_ai",
+    "bedrock": "amazon_bedrock",
+}
 
 
 def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
@@ -678,6 +690,168 @@ class LLMJudge(BaseEvaluator):
         if self._structured_output:
             return self._parse_response(response)
         return response
+
+    def publish(
+        self,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, str]:
+        if not isinstance(ml_app, str) or not ml_app.strip():
+            raise ValueError("ml_app must be a non-empty string")
+        ml_app = ml_app.strip()
+
+        resolved_eval_name = eval_name if eval_name is not None else self.name
+        if not isinstance(resolved_eval_name, str) or not resolved_eval_name.strip():
+            raise ValueError("eval_name must be provided either as argument or evaluator name")
+        resolved_eval_name = resolved_eval_name.strip()
+        _validate_evaluator_name(resolved_eval_name)
+
+        if self._model is None or not self._model.strip():
+            raise ValueError("model must be specified")
+        model = self._model.strip()
+        if self._provider is None:
+            raise ValueError("provider must be specified to publish LLMJudge")
+
+        integration_provider = _PUBLISH_PROVIDER_MAPPING.get(self._provider)
+        if integration_provider is None:
+            raise ValueError(
+                "Unsupported provider '{}' for publish(). Expected one of: {}".format(
+                    self._provider, ", ".join(sorted(_PUBLISH_PROVIDER_MAPPING))
+                )
+            )
+
+        normalized_variable_mapping = self._validate_variable_mapping(variable_mapping)
+        output_schema, parsing_type, assessment_criteria = self._build_publish_schema_and_criteria(integration_provider)
+
+        prompt_template = [
+            {
+                "role": "system",
+                "content": self._system_prompt or "",
+            },
+            {
+                "role": "user",
+                "content": self._apply_variable_mapping(self._user_prompt, normalized_variable_mapping),
+            },
+        ]
+
+        byop_config: dict[str, Any] = {
+            "inference_params": self._model_params or {},
+            "prompt_template": prompt_template,
+            "output_schema": output_schema,
+            "parsing_type": parsing_type,
+        }
+        if assessment_criteria is not None:
+            byop_config["assessment_criteria"] = assessment_criteria
+
+        evaluation_payload: dict[str, Any] = {
+            "eval_name": resolved_eval_name,
+            "applications": [
+                {
+                    "application_name": ml_app,
+                    "enabled": False,
+                    "integration_provider": integration_provider,
+                    "model_provider": integration_provider,
+                    "model_name": model,
+                    "sampling_percentage": 100.0,
+                    "span_names": [],
+                    "tags": [],
+                    "tag_any_of": True,
+                    "root_spans_only": False,
+                    "byop_config": byop_config,
+                }
+            ],
+        }
+
+        from ddtrace.llmobs import LLMObs
+
+        dne_client = getattr(getattr(LLMObs, "_instance", None), "_dne_client", None)
+        if dne_client is None:
+            raise ValueError(
+                "LLMObs experiments client is not initialized. Ensure Datadog API and application keys are configured."
+            )
+
+        response = dne_client.publish_custom_evaluator(evaluation_payload)
+        if response.status != 200:
+            raise ValueError(
+                "Failed to publish evaluator {}: {} {}".format(
+                    resolved_eval_name, response.status, response.get_json() or response.body
+                )
+            )
+
+        query = urllib.parse.urlencode({"evalName": resolved_eval_name, "applicationName": ml_app})
+        return {"ui_url": "{}{}?{}".format(_get_base_url(), "/llm/evaluations/custom", query)}
+
+    @staticmethod
+    def _validate_variable_mapping(variable_mapping: Optional[dict[str, str]]) -> dict[str, str]:
+        if variable_mapping is None:
+            return {}
+        if not isinstance(variable_mapping, dict):
+            raise ValueError("variable_mapping must be a dictionary")
+
+        normalized_mapping: dict[str, str] = {}
+        for key, value in variable_mapping.items():
+            if not isinstance(key, str) or not key.strip():
+                raise ValueError("variable_mapping keys must be non-empty strings")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("variable_mapping values must be non-empty strings")
+            normalized_mapping[key.strip()] = value.strip()
+
+        return normalized_mapping
+
+    @staticmethod
+    def _apply_variable_mapping(template: str, variable_mapping: dict[str, str]) -> str:
+        mapped_template = template
+        for key, value in variable_mapping.items():
+            pattern = r"\{\{\s*" + re.escape(key) + r"\s*\}\}"
+            mapped_template = re.sub(pattern, "{{" + value + "}}", mapped_template)
+        return mapped_template
+
+    def _build_publish_schema_and_criteria(
+        self, integration_provider: str
+    ) -> tuple[dict[str, Any], str, Optional[dict[str, JSONType]]]:
+        structured_output = self._structured_output
+        if structured_output is None:
+            raise ValueError("structured_output must be provided to publish an evaluator")
+
+        if isinstance(structured_output, dict):
+            return (
+                self._format_schema_for_provider(structured_output, integration_provider, "evaluation"),
+                "json",
+                None,
+            )
+
+        schema_name = structured_output.label
+        schema = structured_output.to_json_schema()
+        return (
+            self._format_schema_for_provider(schema, integration_provider, schema_name),
+            "structured_output",
+            self._build_assessment_criteria(structured_output),
+        )
+
+    @staticmethod
+    def _format_schema_for_provider(
+        schema: dict[str, Any], integration_provider: str, schema_name: str
+    ) -> dict[str, Any]:
+        if integration_provider in {"openai", "azure_openai"}:
+            return {"name": schema_name, "strict": True, "schema": schema}
+        return schema
+
+    @staticmethod
+    def _build_assessment_criteria(structured_output: BaseStructuredOutput) -> Optional[dict[str, JSONType]]:
+        criteria: dict[str, Any] = {}
+
+        if isinstance(structured_output, BooleanStructuredOutput) and structured_output.pass_when is not None:
+            criteria["pass_when"] = structured_output.pass_when
+        elif isinstance(structured_output, ScoreStructuredOutput):
+            if structured_output.min_threshold is not None:
+                criteria["min_threshold"] = structured_output.min_threshold
+            if structured_output.max_threshold is not None:
+                criteria["max_threshold"] = structured_output.max_threshold
+        elif isinstance(structured_output, CategoricalStructuredOutput) and structured_output.pass_values is not None:
+            criteria["pass_values"] = structured_output.pass_values
+
+        return criteria or None
 
     def _render(self, template: str, context: EvaluatorContext) -> str:
         """Render a prompt template by substituting {{field.path}} placeholders with context values.
