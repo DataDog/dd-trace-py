@@ -297,7 +297,7 @@ Sampler::restart_after_fork()
 }
 
 static void
-_stack_postfork_cleanup()
+stack_postfork_cleanup()
 {
     // Update PID in Echion
     _set_pid(getpid());
@@ -310,10 +310,10 @@ _stack_postfork_cleanup()
 }
 
 void
-_stack_atfork_child()
+stack_atfork_child()
 {
     // Clean up Sampler state, do not start the Sampler yet.
-    _stack_postfork_cleanup();
+    stack_postfork_cleanup();
 
     // Restart the sampler if it was running before fork.
     Sampler::get().restart_after_fork();
@@ -323,7 +323,7 @@ __attribute__((constructor)) void
 stack_init()
 {
     // At just do start-of-process cleanup (e.g., set PID)
-    _stack_postfork_cleanup();
+    stack_postfork_cleanup();
 }
 
 void
@@ -331,8 +331,8 @@ Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
-    _stack_postfork_cleanup();
-    pthread_atfork(nullptr, nullptr, _stack_atfork_child);
+    stack_postfork_cleanup();
+    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void
