@@ -11,7 +11,7 @@ from typing import Literal
 from typing import Optional
 from typing import Protocol
 from typing import Union
-import urllib
+import urllib.parse
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
