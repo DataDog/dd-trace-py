@@ -1,7 +1,6 @@
 import mock
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 
@@ -49,7 +48,7 @@ def test_integration_trace(mock_integration_config, test_spans):
     mock_set_base_span_tags = mock.Mock()
     integration._set_base_span_tags = mock_set_base_span_tags
 
-    with integration.trace(Pin(), "dummy_operation_id"):
+    with integration.trace("dummy_operation_id"):
         pass
     span = test_spans.pop()
     assert span is not None

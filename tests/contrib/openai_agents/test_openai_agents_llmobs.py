@@ -765,7 +765,6 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
 @pytest.mark.asyncio
 async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
     """Regression test: tag_agent_manifest should not raise AttributeError when current_span is None."""
-    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.openai_agents.patch import _patched_run_single_turn
 
     # Create an async mock for the original function that _patched_run_single_turn wraps
@@ -776,8 +775,6 @@ async def test_no_error_when_current_span_is_none(agents, tracer, simple_agent):
     with mock.patch.object(tracer, "current_span", return_value=None):
         # Should not raise AttributeError: 'NoneType' object has no attribute '_set_ctx_item'
         await _patched_run_single_turn(
-            agents,
-            Pin(),
             mock_func,
             instance=None,
             args=(simple_agent,),
