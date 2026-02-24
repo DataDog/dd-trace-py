@@ -20,8 +20,17 @@ from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
 
-from deepeval.metrics import BaseMetric
-from deepeval.test_case import LLMTestCase
+
+try:
+    from deepeval.metrics import BaseMetric
+    from deepeval.test_case import LLMTestCase
+
+    DEEPEVAL_AVAILABLE = True
+except ImportError:
+    BaseMetric = None  # type: ignore[misc, assignment]
+    LLMTestCase = None  # type: ignore[misc, assignment]
+    DEEPEVAL_AVAILABLE = False
+
 import mock
 import pytest
 
@@ -2691,7 +2700,10 @@ def test_submit_eval_metric_raises_when_no_span_available(llmobs, test_dataset_o
             "test_submit_eval_metric_raises_when_no_span_available",
             dataset=test_dataset_one_record,
         )
-    with pytest.raises(TypeError, match="unexpected state, must supply span or must run the experiment first"):
+    with pytest.raises(
+        TypeError,
+        match="unexpected state, must supply span or must run the experiment first",
+    ):
         exp._submit_eval_metric(eval_name="test", eval_value=1.0)
 
 
@@ -2738,31 +2750,33 @@ async def deep_eval_async_task_fail(input_data, config):
     return {"answer": "London"}
 
 
-class SimpleDeepEvalMetricForTest(BaseMetric):
-    """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
+if DEEPEVAL_AVAILABLE:
 
-    def __init__(self, name="SimpleDeepEvalMetricForTest", async_mode=False, **kwargs):
-        super().__init__(**kwargs)
-        self._name = name
-        self.async_mode = async_mode
+    class SimpleDeepEvalMetricForTest(BaseMetric):
+        """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
 
-    @property
-    def name(self):
-        return self._name
+        def __init__(self, name="SimpleDeepEvalMetricForTest", async_mode=False, **kwargs):
+            super().__init__(**kwargs)
+            self._name = name
+            self.async_mode = async_mode
 
-    def measure(self, test_case: LLMTestCase) -> float:
-        passed = test_case.actual_output == test_case.expected_output
-        self.score = 1.0 if passed else 0.0
-        self.reason = "Match" if passed else "Mismatch"
-        self.success = passed
-        return self.score
+        @property
+        def name(self):
+            return self._name
 
-    async def a_measure(self, test_case: LLMTestCase) -> float:
-        passed = test_case.actual_output == test_case.expected_output
-        self.score = 1.0 if passed else 0.0
-        self.reason = "Match" if passed else "Mismatch"
-        self.success = passed
-        return self.score
+        def measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = passed
+            return self.score
+
+        async def a_measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = passed
+            return self.score
 
 
 # --- Factory method validation tests ---
@@ -2997,6 +3011,7 @@ async def test_async_experiment_run_evaluators_sync(llmobs, test_dataset_one_rec
     }
 
 
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
 @pytest.mark.asyncio
 async def test_async_experiment_run_evaluators_deep_eval(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with a DeepEval (BaseMetric) evaluator."""
@@ -3245,32 +3260,35 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
     assert "async_dummy_summary_evaluator" in exp_results["summary_evaluations"]
 
 
-class SimpleDeepEvalMetric(BaseMetric):
-    """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
+if DEEPEVAL_AVAILABLE:
 
-    def __init__(self, name="SimpleDeepEvalMetric", **kwargs):
-        super().__init__(**kwargs)
-        self._name = name
+    class SimpleDeepEvalMetric(BaseMetric):
+        """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
 
-    @property
-    def name(self):
-        return self._name
+        def __init__(self, name="SimpleDeepEvalMetric", **kwargs):
+            super().__init__(**kwargs)
+            self._name = name
 
-    def measure(self, test_case: LLMTestCase) -> float:
-        passed = test_case.actual_output == test_case.expected_output
-        self.score = 1.0 if passed else 0.0
-        self.reason = "Match" if passed else "Mismatch"
-        self.success = bool(self.score)
-        return self.score
+        @property
+        def name(self):
+            return self._name
 
-    async def a_measure(self, test_case: LLMTestCase) -> float:
-        passed = test_case.actual_output == test_case.expected_output
-        self.score = 1.0 if passed else 0.0
-        self.reason = "Match" if passed else "Mismatch"
-        self.success = bool(self.score)
-        return self.score
+        def measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = bool(self.score)
+            return self.score
+
+        async def a_measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = bool(self.score)
+            return self.score
 
 
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
 @pytest.mark.asyncio
 async def test_experiment_run_with_deep_eval_evaluator(llmobs):
     """Run an async experiment with a DeepEval evaluator and assert it completes with correct results."""
@@ -3314,6 +3332,7 @@ async def test_experiment_run_with_deep_eval_evaluator(llmobs):
         assert result["assessment"] == "pass"
 
 
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
 @pytest.mark.asyncio
 async def test_experiment_run_with_deep_eval_evaluator_fail(llmobs):
     """DeepEval evaluator scores 0 when actual_output != expected_output in async experiment."""
