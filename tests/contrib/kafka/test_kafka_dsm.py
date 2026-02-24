@@ -185,8 +185,9 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
                 return message
 
     PAYLOAD = bytes("data streams", encoding="utf-8")
+    # Only produce one message to avoid race: with two messages, auto-commit can batch both
+    # before the test checks, causing offset 2 instead of expected 1.
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
-    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
 
     buckets = dsm_processor._buckets
