@@ -1421,3 +1421,42 @@ class TestSafelog:
             _safelog(mock_log.error, "Error with extra", extra={"key": "value"}, exc_info=True)
 
             mock_log.error.assert_called_once_with("Error with extra", extra={"key": "value"}, exc_info=True)
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "_DD_API_KEY": "test-api-key"})
+def test_agentless_writer_enabled():
+    import json
+    from unittest.mock import patch
+
+    from ddtrace.internal.utils.http import Response
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert isinstance(writer, AgentlessTraceWriter)
+
+    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
+        with tracer.trace("root1"):
+            with tracer.trace("child1"):
+                pass
+            with tracer.trace("child2"):
+                pass
+        with tracer.trace("root2"):
+            pass
+
+        writer.flush_queue()
+
+    assert mock_put.call_count == 1
+    payload1_json = json.loads(mock_put.call_args_list[0][0][0])
+    assert "spans" in payload1_json
+    spans = payload1_json["spans"]
+    assert len(spans) == 4
+    assert spans[0]["name"] == "root1"
+    assert spans[1]["name"] == "child1"
+    assert spans[2]["name"] == "child2"
+    assert spans[3]["name"] == "root2"
+
+    headers = mock_put.call_args_list[0][0][1]
+    assert headers["Content-Type"] == "application/json"
+    assert headers["dd-api-key"] == "test-api-key"
+    assert headers["Datadog-Meta-Lang"] == "python"

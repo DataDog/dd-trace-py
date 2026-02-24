@@ -1170,19 +1170,3 @@ def test_json_encoder_traces_bytes():
     assert "" == span_a["name"]
     assert "\x80span.b" == span_b["name"]
     assert "\x80span.b" == span_c["name"]
-
-
-def test_json_encoder_agentless():
-    """AgentlessTraceJSONEncoder produces top-level "spans" list."""
-    trace = [
-        Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r"),
-        Span(name="span2", trace_id=123456789, span_id=2, parent_id=1, service="svc", resource="/r2"),
-        Span(name="span3", trace_id=123456789, span_id=3, parent_id=2, service="svc", resource="/r3"),
-    ]
-    encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
-    encoder.put(trace)
-    [(payload_bytes, _)] = encoder.encode()
-    data = json.loads(payload_bytes.decode("utf-8"))
-    assert data["spans"][0]["name"] == "span1"
-    assert data["spans"][1]["name"] == "span2"
-    assert data["spans"][2]["name"] == "span3"
