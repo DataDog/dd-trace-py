@@ -751,13 +751,6 @@ class LLMJudge(BaseEvaluator):
                     "application_name": ml_app,
                     "enabled": False,
                     "integration_provider": integration_provider,
-                    "model_provider": integration_provider,
-                    "model_name": model,
-                    "sampling_percentage": 100.0,
-                    "span_names": [],
-                    "tags": [],
-                    "tag_any_of": True,
-                    "root_spans_only": False,
                     "byop_config": byop_config,
                 }
             ],
