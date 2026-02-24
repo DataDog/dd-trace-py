@@ -11,27 +11,28 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d742600000000",
+      "_dd.svc.src": "true",
       "component": "elasticsearch",
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "",
       "elasticsearch.url": "/ddtrace_index",
-      "http.status_code": "200",
+      "http.status_code": "400",
       "language": "python",
-      "out.host": "localhost",
-      "runtime-id": "e43424dbcde64120b12dec53bdb6926c",
-      "server.address": "localhost",
+      "out.host": "127.0.0.1",
+      "runtime-id": "026d2472f3a240b8bd0acebf1a95467c",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 50036.0
     },
-    "duration": 190913,
-    "start": 1696414412051628501
+    "duration": 7526208,
+    "start": 1771926566494162883
   }],
 [
   {
@@ -46,25 +47,26 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d742600000000",
+      "_dd.svc.src": "true",
       "component": "elasticsearch",
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "",
       "elasticsearch.url": "/ddtrace_index",
       "http.status_code": "200",
       "language": "python",
-      "out.host": "localhost",
-      "runtime-id": "e43424dbcde64120b12dec53bdb6926c",
-      "server.address": "localhost",
+      "out.host": "127.0.0.1",
+      "runtime-id": "026d2472f3a240b8bd0acebf1a95467c",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 612
+      "_sampling_priority_v1": 1.0,
+      "process_id": 50036.0
     },
-    "duration": 156535,
-    "start": 1696414412231180559
+    "duration": 14722708,
+    "start": 1771926566505430633
   }]]
