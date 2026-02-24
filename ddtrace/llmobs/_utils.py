@@ -3,13 +3,16 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 from typing import Any
+from typing import Iterator
 from typing import Optional
+from typing import Sequence
 from typing import Union
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
@@ -36,11 +39,12 @@ log = get_logger(__name__)
 ValidatedPromptDict = dict[str, Union[str, dict[str, Any], list[str], list[dict[str, str]], list[Message]]]
 
 STANDARD_INTEGRATION_SPAN_NAMES = (
+    CLAUDE_AGENT_SDK_APM_SPAN_NAME,
     CREWAI_APM_SPAN_NAME,
     GEMINI_APM_SPAN_NAME,
     LANGCHAIN_APM_SPAN_NAME,
-    VERTEXAI_APM_SPAN_NAME,
     LITELLM_APM_SPAN_NAME,
+    VERTEXAI_APM_SPAN_NAME,
 )
 
 
@@ -51,12 +55,15 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
     ml_app = config._llmobs_ml_app
     prompt_id = prompt.get("id")
     version = prompt.get("version")
+    label = prompt.get("label")
     tags = prompt.get("tags")
     variables = prompt.get("variables")
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
     ctx_variable_keys = prompt.get("rag_context_variables")
     query_variable_keys = prompt.get("rag_query_variables")
+    prompt_uuid = prompt.get("prompt_uuid")
+    version_uuid = prompt.get("prompt_version_uuid")
 
     if strict_validation:
         if prompt_id is None:
@@ -84,6 +91,8 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
 
     if version and not isinstance(version, str):
         raise TypeError(f"version: {version} must be a string, received {type(version).__name__}")
+    if label and not isinstance(label, str):
+        raise TypeError(f"label: {label} must be a string, received {type(label).__name__}")
 
     if tags:
         if not isinstance(tags, dict):
@@ -120,6 +129,11 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
         for msg in chat_template:
             final_chat_template.append(Message(role=msg["role"], content=msg["content"]))
 
+    if prompt_uuid and not isinstance(prompt_uuid, str):
+        raise TypeError(f"prompt_uuid: {prompt_uuid} must be a string, received {type(prompt_uuid).__name__}")
+    if version_uuid and not isinstance(version_uuid, str):
+        raise TypeError(f"version_uuid: {version_uuid} must be a string, received {type(version_uuid).__name__}")
+
     validated_prompt: ValidatedPromptDict = {}
     if final_prompt_id:
         validated_prompt["id"] = final_prompt_id
@@ -127,6 +141,8 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
         validated_prompt["ml_app"] = ml_app
     if version:
         validated_prompt["version"] = version
+    if label:
+        validated_prompt["label"] = label
     if variables:
         validated_prompt["variables"] = variables
     if template:
@@ -139,6 +155,10 @@ def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: b
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
     if final_query_variable_keys:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
+    if prompt_uuid:
+        validated_prompt["prompt_uuid"] = prompt_uuid
+    if version_uuid:
+        validated_prompt["prompt_version_uuid"] = version_uuid
 
     return validated_prompt
 
@@ -323,10 +343,15 @@ def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     return [f"{key}:{value}" for key, value in tags.items()]
 
 
+def _batched(iterable: Sequence, n: int) -> Iterator[Sequence]:
+    for i in range(0, len(iterable), n):
+        yield iterable[i : i + n]
+
+
 @dataclass
 class TrackedToolCall:
     """
-    Holds information about a tool call and it's associated LLM/Tool spans
+    Holds information about a tool call and its associated LLM/Tool spans
     for span linking purposes.
     """
 
@@ -347,7 +372,7 @@ class LinkTracker:
     - Linking LLM spans to their associated guardrail spans and vice versa
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._tool_calls: dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
         self._lookup_tool_id: dict[tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
         self._active_guardrail_spans: set[Span] = set()
@@ -381,8 +406,8 @@ class LinkTracker:
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
-        of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
-        so that we can link to the input of an LLM span if it's output is used in an LLM call.
+        of the LLM span responsible for generating its input. We also save the span/trace id of the tool call
+        so that we can link to the input of an LLM span if its output is used in an LLM call.
 
         If possible, we use the tool_id provided to lookup the tool call; otherwise, we perform a best effort
         lookup based on the tool_name and tool_arg.

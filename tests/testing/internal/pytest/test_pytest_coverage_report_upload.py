@@ -15,6 +15,15 @@ from tests.testing.mocks import mock_api_client_settings
 from tests.testing.mocks import setup_standard_mocks
 
 
+COVERAGE_UPLOAD_ENABLED_ENV = "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"
+
+
+@pytest.fixture(autouse=True)
+def isolate_coverage_upload_env(monkeypatch: MonkeyPatch) -> None:
+    """Unset coverage upload env var so tests are not affected by external environment."""
+    monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
+
+
 def get_mock_git_env_tags():
     """Get mock git environment tags for CI testing."""
     return {
@@ -117,7 +126,7 @@ class TestPytestCoverageReportUpload:
                     stack.enter_context(mock)
                 m = stack.enter_context(monkeypatch.context())
 
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+                m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "1")
 
                 result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
 
@@ -174,7 +183,7 @@ class TestPytestCoverageReportUpload:
                 monkeypatch.context() as m,
             ):
                 # Explicitly disable coverage report upload
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "0")
+                m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "0")
 
                 result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
 
@@ -226,7 +235,7 @@ class TestPytestCoverageReportUpload:
 
                 m = stack.enter_context(monkeypatch.context())
 
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+                m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "1")
 
                 # Run WITHOUT --cov flag (will start coverage.py via start_coverage())
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
@@ -273,7 +282,7 @@ class TestPytestCoverageReportUpload:
                 patch("tests.testing.mocks.get_env_tags", return_value=mock_env_tags),
                 monkeypatch.context() as m,
             ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+                m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "1")
 
                 pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
 
@@ -321,7 +330,7 @@ class TestPytestCoverageReportUpload:
             setup_standard_mocks(),
             monkeypatch.context() as m,
         ):
-            m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+            m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "1")
 
             result = pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
 
@@ -360,7 +369,7 @@ class TestCoverageReportGeneration:
                 setup_standard_mocks(),
                 monkeypatch.context() as m,
             ):
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+                m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "1")
 
                 pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
 
@@ -401,7 +410,7 @@ class TestCoverageReportGeneration:
                     stack.enter_context(mock)
                 m = stack.enter_context(monkeypatch.context())
 
-                m.setenv("DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED", "1")
+                m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "1")
 
                 pytester.inline_run("--ddtrace", "--cov", "-v", "-s")
 
@@ -451,7 +460,7 @@ class TestCoverageReportUploadSettings:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "0",
                 ["--ddtrace", "--cov", "-v", "-s"],
             )
@@ -481,7 +490,7 @@ class TestCoverageReportUploadSettings:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
                 ["--ddtrace", "--cov", "-v", "-s"],
             )
@@ -510,7 +519,7 @@ class TestCoverageReportUploadSettings:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
                 ["--ddtrace", "--cov", "-v", "-s"],
             )
@@ -539,7 +548,7 @@ class TestCoverageReportUploadSettings:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "0",
                 ["--ddtrace", "--cov", "-v", "-s"],
             )
@@ -576,7 +585,7 @@ class TestCoverageReportUploadSettings:
                     pytester,
                     monkeypatch,
                     mock_client,
-                    "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                    COVERAGE_UPLOAD_ENABLED_ENV,
                     env_value,
                     ["--ddtrace", "--cov", "-v", "-s"],
                 )
@@ -613,7 +622,7 @@ class TestCoverageConfigurationEdgeCases:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
                 ["--ddtrace", "--cov", "-v", "-s"],
             )
@@ -671,7 +680,7 @@ class TestCoverageConfigurationEdgeCases:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
                 ["--ddtrace", "--cov", "--cov-config=.coveragerc", "-v", "-s"],
             )
@@ -721,7 +730,7 @@ class TestCoverageConfigurationEdgeCases:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
                 ["--ddtrace", "--cov=src", "--cov=lib", "-v", "-s"],
             )
@@ -756,7 +765,7 @@ class TestCoverageConfigurationEdgeCases:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
                 ["--ddtrace", "--cov", "-v", "-s"],
             )
@@ -794,7 +803,7 @@ class TestCoverageConfigurationEdgeCases:
                 pytester,
                 monkeypatch,
                 mock_client,
-                "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
+                COVERAGE_UPLOAD_ENABLED_ENV,
                 "1",
                 ["--ddtrace", "--cov", "-v", "-s"],
             )

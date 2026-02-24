@@ -1071,6 +1071,16 @@ experiments:
               - execution_time < 0.37 ms
               - max_rss_usage < 38.75 MB
 
+          # forktime
+          - name: forktime-baseline
+            thresholds:
+              - execution_time < 3.00 ms
+              - max_rss_usage < 33 MB
+          - name: forktime-configured
+            thresholds:
+              - execution_time < 13 ms
+              - max_rss_usage < 60 MB
+
           # rand
           - name: rand-rand64bits
             thresholds:

@@ -71,6 +71,7 @@ include:
   script:
     - |
       hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD}"
       if [[ ${#hashes[@]} -eq 0 ]]; then
         echo "No riot hashes found for ${SUITE_NAME}"
         exit 1
