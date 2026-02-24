@@ -1118,21 +1118,18 @@ class Experiment:
         }
 
     def _log_experiment_summary(self, result: ExperimentResult) -> None:
-        completed_runs = len(result.get("runs", []))
+        runs = result.get("runs", [])
+        parts: list[str] = []
+        has_errors = False
 
         if self._interrupted:
-            logger.warning(
-                "Experiment '%s' was interrupted after %d/%d runs.",
-                self.name,
-                completed_runs,
-                self._runs,
-            )
+            parts.append("Experiment '{}' was interrupted after {}/{} runs.".format(self.name, len(runs), self._runs))
 
-        runs = result.get("runs", [])
         if not runs:
+            if parts:
+                logger.warning("\n".join(parts))
             return
 
-        has_errors = False
         for run_idx, run in enumerate(runs):
             rows = run.rows
             run_label = "Run {}/{}".format(run_idx + 1, len(runs)) if len(runs) > 1 else ""
@@ -1149,7 +1146,7 @@ class Experiment:
             header = "Experiment '{}'".format(self.name)
             if run_label:
                 header += " - {}".format(run_label)
-            parts = ["{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats))]
+            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats)))
             if task_errors:
                 has_errors = True
                 parts.append("  Task errors: {}/{}".format(task_errors, len(rows)))
@@ -1163,8 +1160,8 @@ class Experiment:
                 else:
                     parts.append("  {}: {}/{} evaluated".format(eval_name, stats["total"], len(rows)))
 
-            log_fn = logger.warning if (task_errors or has_errors or self._interrupted) else logger.info
-            log_fn("\n".join(parts))
+        log_fn = logger.warning if (has_errors or self._interrupted) else logger.info
+        log_fn("\n".join(parts))
 
     async def _process_record(
         self,
