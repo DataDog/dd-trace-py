@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: ``LLMJudge`` now supports a ``publish()`` method that pushes a locally-defined
+    evaluator configuration to the Datadog UI as a custom LLM-as-Judge evaluation draft.
