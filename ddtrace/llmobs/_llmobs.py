@@ -414,6 +414,10 @@ class LLMObs(Service):
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
+        elif span_kind == "workflow" and span._get_ctx_item(MODEL_PROVIDER):
+            # emit model info on router/proxy workflow spans when available
+            meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
+            meta["model_provider"] = span._get_ctx_item(MODEL_PROVIDER).lower()
         metadata = span._get_ctx_item(METADATA) or {}
         if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
             metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)

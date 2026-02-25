@@ -209,6 +209,35 @@ tools = [
     }
 ]
 
+# model_list with aliases that differ from the underlying litellm model.
+# Reproduces the bug where Router aliases cause _model_map lookup misses.
+aliased_model_list = [
+    {
+        "model_name": "my-gpt",
+        "litellm_params": {
+            "model": "gpt-3.5-turbo",
+            "api_key": "<not-a-real-key>",
+        },
+    },
+]
+
+expected_aliased_router_settings = {
+    "router_general_settings": RouterGeneralSettings(async_only_mode=False, pass_through_all_models=False),
+    "routing_strategy": "simple-shuffle",
+    "routing_strategy_args": {},
+    "provider_budget_config": None,
+    "retry_policy": None,
+    "enable_tag_filtering": False,
+    "model_list": [
+        {
+            "model_name": "my-gpt",
+            "litellm_params": {
+                "model": "gpt-3.5-turbo",
+            },
+        },
+    ],
+}
+
 expected_router_settings = {
     "router_general_settings": RouterGeneralSettings(async_only_mode=False, pass_through_all_models=False),
     "routing_strategy": "simple-shuffle",
