@@ -5,7 +5,11 @@ Tests that the provider properly implements ProviderStatus:
 - NOT_READY by default
 - READY when first Remote Config payload is received
 - Event emission on status change
+- Blocking initialization until config arrives or timeout
 """
+
+import threading
+import time
 
 from openfeature import api
 from openfeature.provider import ProviderStatus
@@ -43,7 +47,7 @@ class TestProviderStatus:
             provider = DataDogProvider()
 
             assert provider._status == ProviderStatus.NOT_READY
-            assert provider._config_received is False
+            assert not provider._config_received.is_set()
 
     def test_provider_becomes_ready_after_first_config(self):
         """Test that provider becomes READY after receiving first configuration."""
@@ -61,7 +65,7 @@ class TestProviderStatus:
 
                 # Verify becomes READY
                 assert provider._status == ProviderStatus.READY
-                assert provider._config_received is True
+                assert provider._config_received.is_set()
             finally:
                 api.clear_providers()
 
@@ -73,14 +77,14 @@ class TestProviderStatus:
 
             try:
                 # Provider should not have received config yet
-                assert not provider._config_received
+                assert not provider._config_received.is_set()
 
                 # Process a configuration
                 config = create_config(create_boolean_flag("test-flag", enabled=True))
                 process_ffe_configuration(config)
 
                 # Provider should now have received config and be READY
-                assert provider._config_received
+                assert provider._config_received.is_set()
                 assert provider._status == ProviderStatus.READY
             finally:
                 api.clear_providers()
@@ -140,7 +144,7 @@ class TestProviderStatus:
 
                 # Verify back to NOT_READY
                 assert provider._status == ProviderStatus.NOT_READY
-                assert provider._config_received is False
+                assert not provider._config_received.is_set()
             finally:
                 api.clear_providers()
 
@@ -193,4 +197,101 @@ class TestProviderStatus:
                 assert len(ready_events) >= 1
             finally:
                 api.remove_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
+                api.clear_providers()
+
+
+class TestProviderInitializationBlocking:
+    """Test that initialize() blocks until config arrives or timeout expires."""
+
+    def test_initialize_blocks_until_config_arrives(self):
+        """initialize() should block and return once config is delivered mid-wait."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider(initialization_timeout=5.0)
+
+            # Deliver config from a background thread after 0.5s
+            def deliver_config():
+                time.sleep(0.5)
+                config = create_config(create_boolean_flag("test-flag", enabled=True))
+                process_ffe_configuration(config)
+
+            timer = threading.Thread(target=deliver_config, daemon=True)
+            timer.start()
+
+            try:
+                start = time.monotonic()
+                api.set_provider(provider)
+                elapsed = time.monotonic() - start
+
+                # Should have blocked for ~0.5s (not instant, not full timeout)
+                assert elapsed >= 0.3, f"initialize() returned too fast ({elapsed:.2f}s)"
+                assert elapsed < 4.0, f"initialize() took too long ({elapsed:.2f}s), should have unblocked at ~0.5s"
+                assert provider._status == ProviderStatus.READY
+                assert provider._config_received.is_set()
+            finally:
+                api.clear_providers()
+
+    def test_initialize_fast_path_when_config_exists(self):
+        """initialize() should return immediately if config already exists."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            # Deliver config BEFORE creating provider
+            config = create_config(create_boolean_flag("test-flag", enabled=True))
+            process_ffe_configuration(config)
+
+            provider = DataDogProvider(initialization_timeout=5.0)
+
+            try:
+                start = time.monotonic()
+                api.set_provider(provider)
+                elapsed = time.monotonic() - start
+
+                # Should be near-instant (config already available)
+                assert elapsed < 1.0, f"initialize() took {elapsed:.2f}s, should be instant with pre-loaded config"
+                assert provider._status == ProviderStatus.READY
+            finally:
+                api.clear_providers()
+
+    def test_initialize_timeout_raises(self):
+        """initialize() should raise ProviderNotReadyError after timeout expires."""
+        from openfeature.exception import ProviderNotReadyError
+
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider(initialization_timeout=0.5)
+
+            try:
+                start = time.monotonic()
+                # set_provider catches the exception and dispatches PROVIDER_ERROR
+                api.set_provider(provider)
+                elapsed = time.monotonic() - start
+
+                # Should have blocked for ~0.5s (the timeout)
+                assert elapsed >= 0.3, f"initialize() returned too fast ({elapsed:.2f}s)"
+                assert elapsed < 2.0, f"initialize() took too long ({elapsed:.2f}s)"
+
+                # Provider should be in ERROR state (SDK caught ProviderNotReadyError)
+                client = api.get_client()
+                assert client.get_provider_status() == ProviderStatus.ERROR
+            finally:
+                api.clear_providers()
+
+    def test_late_recovery_after_timeout(self):
+        """Config arriving after timeout should transition provider to READY."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider(initialization_timeout=0.5)
+
+            try:
+                # Let it timeout
+                api.set_provider(provider)
+
+                # Provider should be in ERROR state
+                client = api.get_client()
+                assert client.get_provider_status() == ProviderStatus.ERROR
+
+                # Now deliver config (late recovery)
+                config = create_config(create_boolean_flag("test-flag", enabled=True))
+                process_ffe_configuration(config)
+
+                # Provider should recover to READY
+                assert provider._status == ProviderStatus.READY
+                assert provider._config_received.is_set()
+            finally:
                 api.clear_providers()
