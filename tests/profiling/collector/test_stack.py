@@ -974,6 +974,96 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
     )
 
 
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gevent_greenlet_switch_not_blocked_by_profiler",
+    ),
+    out=None,
+    err=None,
+)
+def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
+    """Verify that profiler sampling does not block greenlet switches as the
+    number of tracked greenlets grows.
+
+    Before the fix, unwind_greenlets() held greenlet_info_map_lock for the
+    entire stack unwinding of ALL tracked greenlets.  Every greenlet switch
+    calls update_greenlet_frame() under the same lock, so more tracked
+    greenlets meant longer lock hold and more switch blocking.
+
+    This test measures greenlet-switch wall time with zero vs many idle
+    tracked greenlets (each with deep stacks) while the profiler samples
+    aggressively.  The ratio (many / zero) isolates lock-contention scaling
+    from general profiler overhead.
+
+    With the fix the lock is only held for a fast snapshot, so the ratio
+    stays close to 1.  Without the fix it grows with N.
+    """
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import time
+
+    import gevent
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    N_ACTIVE = 20
+    SWITCHES = 200
+    N_IDLE_HIGH = 2000
+    STACK_DEPTH = 50
+    MAX_SCALING_RATIO = 3.0
+
+    def active_worker() -> None:
+        for _ in range(SWITCHES):
+            gevent.sleep(0)
+
+    def _idle_deep(depth: int) -> None:
+        if depth > 0:
+            _idle_deep(depth - 1)
+        else:
+            gevent.sleep(1000)
+
+    def idle_greenlet() -> None:
+        _idle_deep(STACK_DEPTH)
+
+    def measure(n_idle: int) -> float:
+        idles = [gevent.spawn(idle_greenlet) for _ in range(n_idle)]
+        gevent.sleep(0.1)  # let them start and get tracked
+
+        actives = [gevent.spawn(active_worker) for _ in range(N_ACTIVE)]
+        t0 = time.monotonic()
+        gevent.joinall(actives)
+        elapsed = time.monotonic() - t0
+
+        gevent.killall(idles)
+        return elapsed
+
+    p = profiler.Profiler()
+    p.start()
+    stack.set_interval(0.005)  # 5ms (minimum allowed) for aggressive sampling
+    stack.set_adaptive_sampling(False)
+    try:
+        measure(0)  # warm up
+        t_low = min(measure(0) for _ in range(3))
+        t_high = min(measure(N_IDLE_HIGH) for _ in range(3))
+    finally:
+        p.stop()
+
+    ratio = t_high / t_low if t_low > 0 else 1.0
+
+    assert ratio < MAX_SCALING_RATIO, (
+        f"Greenlet switch time scaled {ratio:.1f}x when adding {N_IDLE_HIGH} "
+        f"tracked greenlets (low={t_low:.4f}s, high={t_high:.4f}s). "
+        f"This indicates greenlet_info_map_lock contention during sampling."
+    )
+
+
 def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:
     tracer, _ = tracer_and_collector
 
