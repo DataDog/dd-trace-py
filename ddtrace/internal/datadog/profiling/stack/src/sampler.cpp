@@ -189,6 +189,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
+        Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second

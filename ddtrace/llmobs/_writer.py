@@ -35,6 +35,7 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
@@ -58,6 +59,7 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     status_message: str
     collection_errors: list[str]
     span_links: list[_SpanLink]
+    config: ConfigType
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
