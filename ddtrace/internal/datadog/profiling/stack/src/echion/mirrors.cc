@@ -10,11 +10,15 @@ MirrorSet::create(PyObject* set_addr)
     }
 
     auto size = set.mask + 1;
-    ssize_t table_size = size * sizeof(setentry);
-    if (table_size < 0 || table_size > MAX_MIRROR_SIZE) {
+    // Validate size before multiplication to prevent integer overflow.
+    // Without this check, a large mask value could cause size * sizeof(setentry)
+    // to wrap around to a small value, passing the MAX_MIRROR_SIZE check while
+    // the actual size used in iteration remains huge.
+    if (size <= 0 || size > MAX_MIRROR_ITEMS) {
         return ErrorKind::MirrorError;
     }
 
+    ssize_t table_size = size * sizeof(setentry);
     auto data = std::make_unique<char[]>(table_size);
     if (copy_generic(set.table, data.get(), table_size)) {
         return ErrorKind::MirrorError;
