@@ -55,6 +55,7 @@ logger = get_logger(__name__)
 
 class LLMObsSpanData(TypedDict, total=False):
     """Structure of LLMObs span data attached to APM spans."""
+
     name: str
     parent_id: str
     trace_id: str
