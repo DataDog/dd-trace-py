@@ -184,7 +184,14 @@ def _map_span(span: Span) -> dict[str, Any]:
     }
 
 
-def _resource_attributes(service_name: str, env: str | None, version: str | None) -> list[dict[str, Any]]:
+def _resource_attributes(
+    service_name: str,
+    env: str | None,
+    version: str | None,
+    runtime_id: str | None = None,
+    git_commit_sha: str | None = None,
+    git_repository_url: str | None = None,
+) -> list[dict[str, Any]]:
     """Build OTLP resource attributes (service.name, deployment.environment, etc.)."""
     attrs = [
         {"key": "service.name", "value": _attribute_value(service_name or "unknown")},
@@ -196,6 +203,12 @@ def _resource_attributes(service_name: str, env: str | None, version: str | None
         attrs.append({"key": "deployment.environment", "value": _attribute_value(env)})
     if version:
         attrs.append({"key": "service.version", "value": _attribute_value(version)})
+    if runtime_id:
+        attrs.append({"key": "runtime-id", "value": _attribute_value(runtime_id)})
+    if git_commit_sha:
+        attrs.append({"key": "git.commit.sha", "value": _attribute_value(git_commit_sha)})
+    if git_repository_url:
+        attrs.append({"key": "git.repository_url", "value": _attribute_value(git_repository_url)})
     return attrs
 
 
@@ -224,8 +237,32 @@ def dd_trace_to_otlp_request(
     service = service_name or getattr(first, "service", None) or "unknown"
     otlp_spans = [_map_span(s) for s in spans]
 
+    # Optional resource attributes (when available)
+    runtime_id = None
+    git_commit_sha = None
+    git_repository_url = None
+    try:
+        from ddtrace.internal.runtime import get_runtime_id
+
+        runtime_id = get_runtime_id()
+    except Exception:
+        pass
+    try:
+        from ddtrace.internal import gitmetadata
+
+        git_repository_url, git_commit_sha, _ = gitmetadata.get_git_tags()
+    except Exception:
+        pass
+
     resource = {
-        "attributes": _resource_attributes(service, env, version),
+        "attributes": _resource_attributes(
+            service,
+            env,
+            version,
+            runtime_id=runtime_id,
+            git_commit_sha=git_commit_sha or None,
+            git_repository_url=git_repository_url or None,
+        ),
         "dropped_attributes_count": 0,
     }
     scope_spans = [
