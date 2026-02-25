@@ -189,6 +189,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
+        Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -287,29 +288,51 @@ Sampler::postfork_child()
 }
 
 void
-_stack_atfork_child()
+Sampler::restart_after_fork()
 {
-    // The only thing we need to do at fork is to propagate the PID to echion
-    // so we don't even reveal this function to the user
+    // Restart the sampler if it was running before fork.
+    // Odd thread_seq_num means the sampler was started and not stopped.
+    if (thread_seq_num.load() & 1) {
+        start();
+    }
+}
+
+static void
+_stack_postfork_cleanup()
+{
+    // Update PID in Echion
     _set_pid(getpid());
+
+    // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
     ThreadSpanLinks::postfork_child();
 
-    // Clear renderer caches to avoid using stale interned IDs
+    // Clear Sampler state (reset locks, clear mappings, etc.)
     Sampler::get().postfork_child();
 }
 
-__attribute__((constructor)) void
-_stack_init()
+void
+_stack_atfork_child()
 {
-    _stack_atfork_child();
+    // Clean up Sampler state, do not start the Sampler yet.
+    _stack_postfork_cleanup();
+
+    // Restart the sampler if it was running before fork.
+    Sampler::get().restart_after_fork();
+}
+
+__attribute__((constructor)) void
+stack_init()
+{
+    // At just do start-of-process cleanup (e.g., set PID)
+    _stack_postfork_cleanup();
 }
 
 void
 Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
-    // Run the atfork handler to ensure that we're tracking the correct process
-    _stack_atfork_child();
+    // Run the cleanup to ensure that we're tracking the correct process.
+    _stack_postfork_cleanup();
     pthread_atfork(nullptr, nullptr, _stack_atfork_child);
 }
 

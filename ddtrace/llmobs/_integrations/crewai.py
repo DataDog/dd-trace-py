@@ -1,12 +1,9 @@
 from collections.abc import Iterable
 import json
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
 from weakref import WeakKeyDictionary
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -46,19 +43,19 @@ class CrewAIIntegration(BaseLLMIntegration):
     _integration_name = "crewai"
     # the CrewAI integration's task span linking relies on keeping track of an internal Datadog crew ID,
     # which follows the format "crew_{trace_id}_{root_span_id}".
-    _crews_to_task_span_ids: Dict[str, List[str]] = {}  # maps crew ID to list of task span_ids
-    _crews_to_tasks: Dict[str, Dict[str, Any]] = {}  # maps crew ID to dictionary of task_id to span_id and span_links
-    _planning_crew_ids: List[str] = []  # list of crew IDs that correspond to planning crew instances
-    _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, Dict[str, Dict[str, Any]]] = WeakKeyDictionary()
+    _crews_to_task_span_ids: dict[str, list[str]] = {}  # maps crew ID to list of task span_ids
+    _crews_to_tasks: dict[str, dict[str, Any]] = {}  # maps crew ID to dictionary of task_id to span_id and span_links
+    _planning_crew_ids: list[str] = []  # list of crew IDs that correspond to planning crew instances
+    _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, dict[str, dict[str, Any]]] = WeakKeyDictionary()
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs: dict[str, Any]) -> Span:
         if kwargs.get("_ddtrace_ctx"):
             tracer_ctx, llmobs_ctx = kwargs["_ddtrace_ctx"]
             tracer.context_provider.activate(tracer_ctx)  # type: ignore[arg-type]
             if self.llmobs_enabled and llmobs_ctx:
                 core.dispatch("threading.execution", (llmobs_ctx,))
 
-        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+        span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 
         if kwargs.get("operation") == "crew":
             crew_id = _get_crew_id(span, "crew")
@@ -84,7 +81,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_dict.update({"span_id": str(span.span_id)})
         return span
 
-    def _get_current_ctx(self, pin):
+    def _get_current_ctx(self):
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
         curr_trace_ctx = tracer.current_trace_context()
         if self.llmobs_enabled:
@@ -97,8 +94,8 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -413,7 +410,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             flow_span._set_ctx_item(SPAN_LINKS, flow_span_span_links)
         return
 
-    def _llmobs_set_span_link_on_task(self, span, args, kwargs):
+    def _llmobs_set_span_link_on_task(self, span: Optional[Span], args: Any, kwargs: Any) -> None:
         """Set span links for the next queued task in a CrewAI workflow.
         This happens between task executions, (the current span is the crew span and the task span hasn't started yet)
         so we create span links to be set on the task span once it starts later.
@@ -438,7 +435,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         crew_id = _get_crew_id(span, "crew")
         is_planning_crew_instance = crew_id in self._planning_crew_ids
         queued_task_node = self._crews_to_tasks.get(crew_id, {}).setdefault(str(queued_task_id), {})
-        span_links: List[_SpanLink] = []
+        span_links: list[_SpanLink] = []
 
         if isinstance(getattr(queued_task, "context", None), Iterable):
             for finished_task in queued_task.context:

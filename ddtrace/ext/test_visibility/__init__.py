@@ -10,7 +10,7 @@ from ddtrace.ext.test_visibility._constants import ITR_SKIPPING_LEVEL
 from ddtrace.internal.utils.formats import asbool
 
 
-def _get_default_test_visibility_contrib_config() -> t.Dict[str, t.Any]:
+def _get_default_test_visibility_contrib_config() -> dict[str, t.Any]:
     return dict(
         _default_service="default_test_visibility_service",
         itr_skipping_level=(

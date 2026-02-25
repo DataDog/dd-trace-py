@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Introduces the LLMObs.async_experiment() method for running experiments with async task functions and mixed sync/async evaluators.

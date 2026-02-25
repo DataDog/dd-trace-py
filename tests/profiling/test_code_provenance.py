@@ -122,7 +122,7 @@ class TestCodeProvenance:
         json_str = json_str_to_export()
         json_obj = json.loads(json_str)
         # Really what we're checking is that whatever package the user calls the
-        # "main" pacakge isn't called a library. Normally this would matter if
+        # "main" package isn't called a library. Normally this would matter if
         # the user installs their package as a dependency and then runs it as
         # the main package. But for the sake of this test, just call ddtrace the
         # "main" package.

@@ -62,7 +62,7 @@ class InternalTestBase(ext_api.TestBase):
         name: t.Optional[str] = None,
         suite_name: t.Optional[str] = None,
         parameters: t.Optional[str] = None,
-        codeowners: t.Optional[t.List[str]] = None,
+        codeowners: t.Optional[list[str]] = None,
     ) -> None:
         log.debug("Overwriting attributes for: %s", item_id)
 
@@ -128,7 +128,7 @@ class InternalTestSession(ext_api.TestSession, EFDSessionMixin, ATRSessionMixin,
 
     @staticmethod
     @_catch_and_log_exceptions
-    def get_path_codeowners(path: Path) -> t.Optional[t.List[str]]:
+    def get_path_codeowners(path: Path) -> t.Optional[list[str]]:
         log.debug("Getting codeowners for path %s", path)
 
         codeowners = require_ci_visibility_service().get_codeowners()
@@ -228,7 +228,7 @@ class InternalTest(
         name: t.Optional[str] = None,
         suite_name: t.Optional[str] = None,
         parameters: t.Optional[str] = None,
-        codeowners: t.Optional[t.List[str]] = None,
+        codeowners: t.Optional[list[str]] = None,
     ):
         log.debug("Overwriting attributes for test %s", item_id)
 

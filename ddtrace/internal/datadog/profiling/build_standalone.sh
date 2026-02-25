@@ -183,6 +183,9 @@ run_cmake() {
   # Make sure we have the build directory
   mkdir -p ${build} && pushd ${build} || { echo "Failed to create build directory for $dir"; exit 1; }
 
+  # Remove stale cmake cache to avoid configuration conflicts
+  rm -f CMakeCache.txt
+
   # Run cmake
   cmake "${cmake_args[@]}" -S=$MY_DIR/$dir || { echo "cmake failed"; exit 1; }
   cmake --build . || { echo "build failed"; exit 1; }
