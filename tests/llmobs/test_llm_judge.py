@@ -330,6 +330,7 @@ class TestLLMJudgePublish:
         judge.publish(ml_app="my-app")
         app_payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]["applications"][0]
 
+        assert app_payload["model_provider"] == app_payload["integration_provider"]
         if expected_model_name is None:
             assert "model_name" not in app_payload
         else:

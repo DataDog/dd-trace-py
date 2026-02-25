@@ -745,6 +745,7 @@ class LLMJudge(BaseEvaluator):
             "application_name": ml_app,
             "enabled": False,
             "integration_provider": integration_provider,
+            "model_provider": integration_provider,
             "byop_config": byop_config,
         }
         model_name = self._model.strip() if isinstance(self._model, str) else ""
