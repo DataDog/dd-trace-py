@@ -31,12 +31,13 @@ def _send_otlp_post(
     body: bytes,
     headers: dict[str, str],
     timeout: float,
+    content_type: str = "application/json",
 ) -> Response:
     """Single attempt: POST body to url with given headers and timeout."""
     conn = get_connection(url, timeout=timeout)
     try:
         req_headers = {
-            "Content-Type": "application/json",
+            "Content-Type": content_type,
             **headers,
         }
         # Connection is created with base_path from url (e.g. /v1/traces); request path "" uses it
@@ -49,9 +50,10 @@ def _send_otlp_post(
 
 class OTLPHttpTraceExporter:
     """
-    Export OTLP trace payloads (JSON) via HTTP POST with retries.
+    Export OTLP trace payloads via HTTP POST with retries.
 
-    Uses exponential backoff for 429, 502, 503, 504. Does not retry on other 4xx.
+    Supports application/json and application/x-protobuf. Uses exponential
+    backoff for 429, 502, 503, 504. Does not retry on other 4xx.
     """
 
     def __init__(
@@ -59,19 +61,21 @@ class OTLPHttpTraceExporter:
         endpoint_url: str,
         headers: Optional[dict[str, str]] = None,
         timeout_seconds: float = 10.0,
+        content_type: str = "application/json",
     ) -> None:
         self._endpoint_url = endpoint_url.rstrip("/")
         if not self._endpoint_url.endswith("/v1/traces"):
             self._endpoint_url = self._endpoint_url + "/v1/traces"
         self._headers = headers or {}
         self._timeout = timeout_seconds
+        self._content_type = content_type
         self._lock = threading.Lock()
 
     def export(self, body: bytes) -> Optional[Response]:
         """
         POST body to OTLP traces endpoint with retries.
 
-        :param body: UTF-8 JSON bytes (ExportTraceServiceRequest).
+        :param body: Request body (JSON or protobuf bytes per content_type).
         :returns: Response on success (status < 400), or None after final failure.
         """
         last_response = None
@@ -82,6 +86,7 @@ class OTLPHttpTraceExporter:
                     body,
                     self._headers,
                     self._timeout,
+                    content_type=self._content_type,
                 )
                 last_response = resp
                 if resp.status < 400:

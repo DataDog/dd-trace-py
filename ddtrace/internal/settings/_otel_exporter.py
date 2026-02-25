@@ -14,7 +14,25 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from ddtrace.internal.utils.formats import parse_tags_str
+
+def _parse_otel_headers(headers_str: Optional[str]) -> dict[str, str]:
+    """Parse OTEL header string (key1=value1,key2=value2) into a dict."""
+    out: dict[str, str] = {}
+    if not headers_str or not headers_str.strip():
+        return out
+    for part in headers_str.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "=" in part:
+            key, _, val = part.partition("=")
+            key, val = key.strip(), val.strip()
+            if key:
+                out[key] = val
+        else:
+            if part:
+                out[part] = ""
+    return out
 
 
 # Default OTLP endpoints per protocol (HTTP/JSON and HTTP/protobuf use same port)
@@ -65,7 +83,7 @@ def _get_otel_traces_headers() -> dict[str, str]:
     )
     if not val:
         return {}
-    return parse_tags_str(val)
+    return _parse_otel_headers(val)
 
 
 def _get_otel_traces_timeout_seconds() -> float:
@@ -103,12 +121,18 @@ def _resolve_otlp_traces_url() -> str:
 
 
 def _is_otlp_traces_endpoint_set() -> bool:
-    """True when user has set at least one of the OTLP endpoint env vars (Option A)."""
+    """True when user has set at least one of the OTLP endpoint env vars."""
     for key in ("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"):
         val = os.environ.get(key)
         if val is not None and str(val).strip() != "":
             return True
     return False
+
+
+def _is_otlp_traces_exporter_otlp() -> bool:
+    """True when OTEL_TRACES_EXPORTER is set to otlp (use OTLP trace export)."""
+    val = os.environ.get("OTEL_TRACES_EXPORTER", "").strip().lower()
+    return val == "otlp"
 
 
 class OTLPTraceExporterConfig:
@@ -121,8 +145,8 @@ class OTLPTraceExporterConfig:
 
     @property
     def otlp_traces_enabled(self) -> bool:
-        """True when user has set an OTLP traces endpoint (Option A enablement)."""
-        return _is_otlp_traces_endpoint_set()
+        """True when OTLP trace export should be used: endpoint set or OTEL_TRACES_EXPORTER=otlp."""
+        return _is_otlp_traces_endpoint_set() or _is_otlp_traces_exporter_otlp()
 
     @property
     def otlp_traces_endpoint(self) -> str:
@@ -141,7 +165,7 @@ class OTLPTraceExporterConfig:
 
     @property
     def otlp_traces_protocol(self) -> str:
-        """Protocol: http/json, http/protobuf, or grpc. First version supports http/json only."""
+        """Protocol: http/json, http/protobuf, or grpc. Supported: http/json and http/protobuf (grpc out of scope)."""
         return _get_otel_traces_protocol()
 
 
