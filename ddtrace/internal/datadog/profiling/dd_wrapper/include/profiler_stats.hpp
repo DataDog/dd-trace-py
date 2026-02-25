@@ -28,6 +28,9 @@ class ProfilerStats
     // Number of entries in the echion StringTable
     std::optional<size_t> string_table_count;
 
+    // Number of ephemeral entries in the echion StringTable
+    std::optional<size_t> string_table_ephemeral_count;
+
   public:
     ProfilerStats() = default;
     ~ProfilerStats() = default;
@@ -43,6 +46,9 @@ class ProfilerStats
 
     void set_string_table_count(size_t count);
     std::optional<size_t> get_string_table_count();
+
+    void set_string_table_ephemeral_count(size_t count);
+    std::optional<size_t> get_string_table_ephemeral_count();
 
     // Returns a JSON string containing relevant Profiler Stats to be included
     // in the libdatadog payload.
