@@ -102,12 +102,13 @@ def trace_before_publish(*args, **kwargs):
     # safe-guard to avoid crashes in case the signals API
     # changes in Celery
     if task is None or task_id is None:
+        active = tracer.current_trace_context()
+        if active:
+            # If a trace is active, inject the distributed headers into the kwargs
+            # This is useful for cases where the task is not attached to a span, but
+            # there is a trace active (e.g. a web request span).
+            _inject_distributed_headers(active, kwargs)
         log.debug("unable to extract the Task and the task_id. This version of Celery may not be supported.")
-        return
-
-    # propagate the `Span` in the current task Context
-    pin = Pin.get_from(task) or Pin.get_from(task.app)
-    if pin is None:
         return
 
     # If Task A calls Task B, and Task A excepts, then Task B may have no parent when apply is called.
@@ -143,10 +144,13 @@ def trace_before_publish(*args, **kwargs):
     # API call to the backend for the properties so we should rely
     # only on the given `Context`
     attach_span(task, task_id, span, is_publish=True)
+    _inject_distributed_headers(span.context, kwargs)
 
+
+def _inject_distributed_headers(context, kwargs):
     if config.celery["distributed_tracing"]:
         trace_headers = {}
-        propagator.inject(span.context, trace_headers)
+        propagator.inject(context, trace_headers)
 
         kwargs.setdefault("headers", {})
 
