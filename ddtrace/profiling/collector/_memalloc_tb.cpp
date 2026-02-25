@@ -106,9 +106,9 @@ push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
 
         /* Get code object — borrowed reference, no INCREF needed. */
 #if PY_VERSION_HEX >= 0x030e0000
-        /* Python 3.14+: f_executable uses tagged pointers (LSB set).
-         * Clear the tag bit to recover the PyObject* pointer. */
-        PyCodeObject* code = (PyCodeObject*)((uintptr_t)iframe->f_executable & ~(uintptr_t)1);
+        /* Python 3.14+: f_executable is a _PyStackRef (tagged pointer).
+         * Use PyStackRef_AsPyObjectBorrow to extract the PyObject*. */
+        PyCodeObject* code = (PyCodeObject*)PyStackRef_AsPyObjectBorrow(iframe->f_executable);
 #elif PY_VERSION_HEX >= 0x030d0000
         /* Python 3.13: f_executable is an untagged PyObject*. */
         PyCodeObject* code = (PyCodeObject*)iframe->f_executable;
