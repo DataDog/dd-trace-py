@@ -167,7 +167,11 @@ def wait_for_replication(image_with_digest: str) -> None:
                 return
             print(f"Replication status for {REPLICATION_TARGET}: {target_status}")
         else:
-            print(f"Status check failed (rc={result.returncode}), retrying...")
+            print(
+                f"Status check failed (rc={result.returncode}):"
+                f" stdout={result.stdout!r} stderr={result.stderr!r},"
+                " retrying..."
+            )
         time.sleep(REPLICATION_POLL_INTERVAL)
     print(f"WARNING: replication to {REPLICATION_TARGET} not confirmed after {REPLICATION_TIMEOUT}s, continuing anyway")
 
