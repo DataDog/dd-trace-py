@@ -35,7 +35,7 @@ def _parse_otel_headers(headers_str: Optional[str]) -> dict[str, str]:
     return out
 
 
-# Default OTLP endpoints per protocol (HTTP/JSON and HTTP/protobuf use same port)
+# Default OTLP endpoints (HTTP trace export uses port 4318)
 OTLP_HTTP_DEFAULT_ENDPOINT = "http://localhost:4318"
 OTLP_HTTP_TRACES_PATH = "/v1/traces"
 OTLP_GRPC_DEFAULT_ENDPOINT = "http://localhost:4317"
@@ -112,10 +112,10 @@ def _resolve_otlp_traces_url() -> str:
     protocol = _get_otel_traces_protocol()
     if endpoint:
         endpoint = endpoint.rstrip("/")
-        if protocol in ("http/json", "http/protobuf") and not endpoint.endswith(OTLP_HTTP_TRACES_PATH):
+        if protocol.startswith("http/") and not endpoint.endswith(OTLP_HTTP_TRACES_PATH):
             return endpoint + OTLP_HTTP_TRACES_PATH
         return endpoint
-    if protocol in ("http/json", "http/protobuf"):
+    if protocol.startswith("http/"):
         return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
     return OTLP_GRPC_DEFAULT_ENDPOINT
 
@@ -165,7 +165,7 @@ class OTLPTraceExporterConfig:
 
     @property
     def otlp_traces_protocol(self) -> str:
-        """Protocol: http/json, http/protobuf, or grpc. Supported: http/json and http/protobuf (grpc out of scope)."""
+        """Protocol from env (e.g. http/json). This version supports http/json only."""
         return _get_otel_traces_protocol()
 
 

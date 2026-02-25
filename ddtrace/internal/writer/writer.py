@@ -1173,7 +1173,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
 class OTLPWriter(periodic.PeriodicService, TraceWriter):
     """
-    Export traces via OTLP HTTP (JSON or protobuf). Buffers full traces and flushes periodically.
+    Export traces via OTLP HTTP/JSON. Buffers full traces and flushes periodically.
 
     No partial flush: only complete traces are exported (aggregator sends full traces
     when OTLP is enabled). Single export: when OTLP is used, Datadog agent is not used.
@@ -1186,7 +1186,6 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
         timeout_seconds: float = 10.0,
         processing_interval: Optional[float] = None,
         sync_mode: bool = False,
-        protocol: str = "http/json",
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -1201,40 +1200,13 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
         from ddtrace.internal.writer.otlp import dd_trace_to_otlp_request
         from ddtrace.internal.writer.otlp import otlp_request_to_json_bytes
 
-        use_protobuf = protocol == "http/protobuf"
-        if use_protobuf:
-            try:
-                from ddtrace.internal.writer.otlp.protobuf import otlp_protobuf_available
-                from ddtrace.internal.writer.otlp.protobuf import otlp_request_to_protobuf_bytes
-
-                if otlp_protobuf_available():
-                    self._serializer = otlp_request_to_protobuf_bytes
-                    self._content_type = "application/x-protobuf"
-                else:
-                    self._serializer = otlp_request_to_json_bytes
-                    self._content_type = "application/json"
-                    _safelog(
-                        log.warning,
-                        "OTLP http/protobuf requested but opentelemetry-proto not available; using JSON",
-                    )
-            except ImportError:
-                self._serializer = otlp_request_to_json_bytes
-                self._content_type = "application/json"
-                _safelog(
-                    log.warning,
-                    "OTLP http/protobuf requested but protobuf encoder not available; using JSON",
-                )
-        else:
-            self._serializer = otlp_request_to_json_bytes
-            self._content_type = "application/json"
-
         self._exporter = OTLPHttpTraceExporter(
             endpoint_url=endpoint_url,
             headers=self._headers,
             timeout_seconds=timeout_seconds,
-            content_type=self._content_type,
         )
         self._mapper = dd_trace_to_otlp_request
+        self._serializer = otlp_request_to_json_bytes
 
     def write(self, spans: Optional[list["Span"]] = None) -> None:
         if not spans:
@@ -1304,7 +1276,6 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
             timeout_seconds=otel_config.otlp_traces_timeout_seconds,
             processing_interval=self._interval,
             sync_mode=self._sync_mode,
-            protocol=otel_config.otlp_traces_protocol,
         )
 
 
@@ -1363,13 +1334,18 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
         from ddtrace.internal.settings._otel_exporter import config as otel_exporter_config
 
         if otel_exporter_config.otlp_traces_enabled:
+            if otel_exporter_config.otlp_traces_protocol != "http/json":
+                log.warning(
+                    "OTLP trace export only supports http/json for this version; "
+                    "protocol %s requested, using http/json",
+                    otel_exporter_config.otlp_traces_protocol,
+                )
             verify_url(otel_exporter_config.otlp_traces_endpoint)
             return OTLPWriter(
                 endpoint_url=otel_exporter_config.otlp_traces_endpoint,
                 headers=otel_exporter_config.otlp_traces_headers,
                 timeout_seconds=otel_exporter_config.otlp_traces_timeout_seconds,
                 sync_mode=_use_sync_mode(),
-                protocol=otel_exporter_config.otlp_traces_protocol,
             )
     except ImportError:
         pass

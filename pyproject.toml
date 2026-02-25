@@ -49,7 +49,6 @@ opentracing = [
 ]
 opentelemetry = [
     "opentelemetry-exporter-otlp>=1,<2",
-    "opentelemetry-proto>=1.15.0,<2",
 ]
 
 [project.scripts]
