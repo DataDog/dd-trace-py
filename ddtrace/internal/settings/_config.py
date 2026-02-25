@@ -694,10 +694,8 @@ class Config(object):
         self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless Enabled. Sampling and Trace Rate Limits will be ignored. Health Metrics and "
-                "Client-side Stats Computation will be disabled. Hostnames will be computed by ddtrace "
-                "and this value may differ from the value reported by the Datadog Agent. "
-                "Spans will be sent via the JSON to Datadog intake.",
+                "APM Agentless enabled: sampling, rate limits, health metrics, and client-side stats are disabled. "
+                "Hostnames will be resolved by ddtrace; spans will be sent via JSON to Datadog intake.",
             )
             self._trace_rate_limit = -1
             self._trace_compute_stats = False
