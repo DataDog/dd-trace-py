@@ -1,9 +1,27 @@
+/* Py_BUILD_CORE must be defined before Python.h to access internal CPython
+ * frame structures (_PyInterpreterFrame). This is required for the zero-refcount
+ * frame walking path on Python 3.12+, which avoids Py_DECREF inside the
+ * allocator hook to prevent re-entering the allocator's free path. */
+#define Py_BUILD_CORE
+
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
 #include <string_view>
 
 #include "_pymacro.h"
+
+/* Include CPython internal frame headers for zero-refcount frame walking.
+ * Python 3.14+: _PyInterpreterFrame definition moved to pycore_interpframe_structs.h
+ * Python 3.12-3.13: _PyInterpreterFrame is in pycore_frame.h */
+#ifdef _PY312_AND_LATER
+#if PY_VERSION_HEX >= 0x030e0000
+#include <internal/pycore_interpframe_structs.h>
+#else
+#include <internal/pycore_frame.h>
+#endif
+#include <internal/pycore_code.h>
+#endif /* _PY312_AND_LATER */
 
 #include "_memalloc_debug.h"
 #include "_memalloc_reentrant.h"
@@ -36,6 +54,116 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     // Pass empty name; push_threadinfo will fall back to str(thread_id)
     sample.push_threadinfo(thread_id, thread_native_id, "");
 }
+
+#ifdef _PY312_AND_LATER
+/* Walk the _PyInterpreterFrame chain directly without creating any new
+ * Python object references.
+ *
+ * CRITICAL: This function is called from inside CPython's PYMEM_DOMAIN_OBJ
+ * allocation hook. The previous implementation used PyFrame_GetCode() and
+ * PyFrame_GetBack(), which return NEW references that must be Py_DECREF'd.
+ * Those Py_DECREF calls can trigger _Py_Dealloc, which re-enters the
+ * allocator via memalloc_free -> memalloc_heap_untrack, corrupting the
+ * heap tracker's hash map or pymalloc's arena metadata.
+ *
+ * By accessing _PyInterpreterFrame fields directly, we use only BORROWED
+ * references. No Py_INCREF, no Py_DECREF, no possibility of re-entering
+ * the allocator through reference counting.
+ *
+ * Field access by Python version:
+ *   3.12:  f_code (PyCodeObject*), prev_instr, previous, owner
+ *   3.13:  f_executable (PyObject*), instr_ptr, previous, owner
+ *   3.14+: f_executable (tagged PyObject*; clear LSB), instr_ptr, previous, owner
+ */
+static void
+push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
+{
+    PyThreadState* tstate = PyThreadState_Get();
+    if (tstate == NULL) {
+        sample.push_frame("<no thread state>", "<unknown>", 0, 0);
+        return;
+    }
+
+    _PyInterpreterFrame* iframe = tstate->current_frame;
+    if (iframe == NULL) {
+        sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
+        return;
+    }
+
+    for (; iframe != NULL; iframe = iframe->previous) {
+        /* Skip incomplete frames (C shim frames on 3.12+, interpreter frames
+         * on 3.13+). These don't have valid Python code objects.
+         * _PyFrame_IsIncomplete checks owner >= FRAME_OWNED_BY_CSTACK. */
+        if (iframe->owner >= FRAME_OWNED_BY_CSTACK) {
+            continue;
+        }
+
+        /* Get code object — borrowed reference, no INCREF needed. */
+#if PY_VERSION_HEX >= 0x030e0000
+        /* Python 3.14+: f_executable uses tagged pointers (LSB set).
+         * Clear the tag bit to recover the PyObject* pointer. */
+        PyCodeObject* code = (PyCodeObject*)((uintptr_t)iframe->f_executable & ~(uintptr_t)1);
+#elif PY_VERSION_HEX >= 0x030d0000
+        /* Python 3.13: f_executable is an untagged PyObject*. */
+        PyCodeObject* code = (PyCodeObject*)iframe->f_executable;
+#else
+        /* Python 3.12: f_code is a direct PyCodeObject*. */
+        PyCodeObject* code = iframe->f_code;
+#endif
+
+        if (code == NULL) {
+            continue;
+        }
+
+        /* Extract function name — borrowed reference from code object.
+         * co_qualname (3.11+) gives qualified names like "Class.method". */
+        std::string_view name_sv = "<unknown>";
+        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+        if (name_obj != NULL) {
+            Py_ssize_t len;
+            const char* ptr = PyUnicode_AsUTF8AndSize(name_obj, &len);
+            if (ptr) {
+                name_sv = std::string_view(ptr, len);
+            } else {
+                PyErr_Clear();
+            }
+        }
+
+        /* Extract filename — borrowed reference from code object. */
+        std::string_view filename_sv = "<unknown>";
+        if (code->co_filename != NULL) {
+            Py_ssize_t len;
+            const char* ptr = PyUnicode_AsUTF8AndSize(code->co_filename, &len);
+            if (ptr) {
+                filename_sv = std::string_view(ptr, len);
+            } else {
+                PyErr_Clear();
+            }
+        }
+
+        /* Compute line number from instruction pointer offset.
+         * _PyCode_CODE(code) gives the start of the bytecode array.
+         * PyCode_Addr2Line takes a byte offset (not instruction index). */
+#if PY_VERSION_HEX >= 0x030d0000
+        /* Python 3.13+: instr_ptr points to the NEXT instruction.
+         * Subtract 1 to get the last executed instruction. */
+        int lasti = (int)(iframe->instr_ptr - 1 - _PyCode_CODE(code));
+#else
+        /* Python 3.12: prev_instr points to the last executed instruction. */
+        int lasti = (int)(iframe->prev_instr - _PyCode_CODE(code));
+#endif
+        int line = PyCode_Addr2Line(code, lasti * (int)sizeof(_Py_CODEUNIT));
+        if (line < 0) {
+            line = 0;
+        }
+
+        /* push_frame handles the max_nframe limit internally and tracks
+         * dropped frames. It copies strings into its StringArena immediately,
+         * so the borrowed string_views are safe here. */
+        sample.push_frame(name_sv, filename_sv, 0, line);
+    }
+}
+#endif /* _PY312_AND_LATER */
 
 /* Helper function to collect frames from PyFrameObject chain and push to sample
  * Uses Sample::push_pyframes for the actual frame unwinding */
@@ -96,7 +224,15 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 
     // Collect frames from the Python frame chain and push to Sample
     // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
+#ifdef _PY312_AND_LATER
+    // On Python 3.12+, walk _PyInterpreterFrame directly to avoid all
+    // Py_DECREF calls inside the allocator hook. Py_DECREF can trigger
+    // _Py_Dealloc which re-enters the allocator via memalloc_free,
+    // potentially corrupting the heap tracker or pymalloc arenas.
+    push_stacktrace_to_sample_no_decref(sample);
+#else
     push_stacktrace_to_sample_invokes_cpython(sample);
+#endif
 }
 
 // AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
