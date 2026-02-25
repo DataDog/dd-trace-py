@@ -118,9 +118,6 @@ class DataDogProvider(AbstractProvider):
                 "please set DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED=true to enable it",
             )
 
-        # Register this provider instance for status updates
-        _register_provider(self)
-
     def get_metadata(self) -> Metadata:
         """Returns provider metadata."""
         return self._metadata
@@ -142,6 +139,10 @@ class DataDogProvider(AbstractProvider):
         """
         if not self._enabled:
             return
+
+        # Register for RC config callbacks (in initialize, not __init__, so
+        # re-initialization after shutdown re-registers the provider)
+        _register_provider(self)
 
         try:
             # Start the exposure writer for reporting
