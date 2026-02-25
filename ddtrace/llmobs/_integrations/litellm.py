@@ -4,20 +4,18 @@ from typing import Optional
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_chat
-from ddtrace.llmobs._integrations.openai import openai_set_meta_tags_from_completion
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.trace import Span
 
 
@@ -80,12 +78,18 @@ class LiteLLMIntegration(BaseLLMIntegration):
         update_proxy_workflow_input_output_value(span, span_kind)
 
         metrics = self._extract_llmobs_metrics(response, span_kind)
-        span._set_ctx_items(
-            {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=model_name or "",
+            model_provider=model_provider,
+            metrics=metrics,
         )
 
     def _update_litellm_metadata(self, span: Span, kwargs: dict[str, Any], operation: str):
-        metadata = span._get_ctx_item(METADATA) or {}
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
+        metadata = meta.get(LLMOBS_STRUCT.METADATA) or {}
         base_url = kwargs.get("base_url") or kwargs.get("api_base")
         # select certain keys within metadata to avoid sending sensitive data
         if "metadata" in metadata:
@@ -104,15 +108,15 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         if base_url and "model" in kwargs:
             metadata["model"] = kwargs["model"]
-            span._set_ctx_items({METADATA: metadata})
+            _annotate_llmobs_span_data(span, metadata=metadata)
             return
         if base_url or "router" not in operation:
-            span._set_ctx_items({METADATA: metadata})
+            _annotate_llmobs_span_data(span, metadata=metadata)
             return
 
         llm_router = kwargs.get(LITELLM_ROUTER_INSTANCE_KEY)
         if not llm_router:
-            span._set_ctx_items({METADATA: metadata})
+            _annotate_llmobs_span_data(span, metadata=metadata)
             return
 
         metadata["router_settings"] = {
@@ -126,7 +130,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         if hasattr(llm_router, "get_model_list"):
             metadata["router_settings"]["model_list"] = self._construct_litellm_model_list(llm_router.get_model_list())
 
-        span._set_ctx_items({METADATA: metadata})
+        _annotate_llmobs_span_data(span, metadata=metadata)
 
     def _construct_litellm_model_list(self, model_list: list[dict[str, Any]]) -> list[dict[str, Any]]:
         new_model_list = []

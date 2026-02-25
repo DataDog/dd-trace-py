@@ -4,22 +4,15 @@ from typing import Optional
 
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_vertexai
 from ddtrace.llmobs._integrations.google_utils import get_system_instructions_vertexai
 from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_vertexai
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
 from ddtrace.trace import Span
@@ -63,19 +56,17 @@ class VertexAIIntegration(BaseLLMIntegration):
             metrics = self._extract_metrics_from_response(response)
 
         tool_definitions = self._extract_tools(instance, kwargs.get("tools", []))
-        if tool_definitions:
-            span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "llm",
-                MODEL_NAME: span.get_tag("vertexai.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("vertexai.request.provider") or "",
-                METADATA: metadata,
-                INPUT_MESSAGES: input_messages,
-                OUTPUT_MESSAGES: output_messages,
-                METRICS: metrics,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="llm",
+            model_name=span.get_tag("vertexai.request.model") or "",
+            model_provider=span.get_tag("vertexai.request.provider") or "",
+            metadata=metadata,
+            input_messages=input_messages,
+            output_messages=output_messages,
+            metrics=metrics,
+            tool_definitions=tool_definitions if tool_definitions else None,
         )
 
     def _extract_metrics_from_response(self, response):

@@ -8,19 +8,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import INTEGRATION
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
@@ -30,6 +18,7 @@ from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs.types import Message
@@ -100,8 +89,6 @@ class BedrockIntegration(BaseLLMIntegration):
         prompt = request_params.get("prompt", "")
         tool_config = request_params.get("tool_config", {})
         tool_definitions = self._extract_tool_definitions(tool_config)
-        if tool_definitions:
-            span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
 
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
@@ -130,17 +117,16 @@ class BedrockIntegration(BaseLLMIntegration):
             else:
                 output_messages = self._extract_output_message(response)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: span_kind,
-                MODEL_NAME: ctx.get_item("model_name") or "",
-                MODEL_PROVIDER: ctx.get_item("model_provider") or "",
-                INPUT_MESSAGES: input_messages,
-                METADATA: metadata,
-                METRICS: usage_metrics if span_kind != "workflow" else {},
-                OUTPUT_MESSAGES: output_messages,
-                INTEGRATION: self._integration_name,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=ctx.get_item("model_name") or "",
+            model_provider=ctx.get_item("model_provider") or "",
+            input_messages=input_messages,
+            output_messages=output_messages,
+            metadata=metadata,
+            metrics=usage_metrics if span_kind != "workflow" else {},
+            tool_definitions=tool_definitions if tool_definitions else None,
         )
 
         update_proxy_workflow_input_output_value(span, span_kind)
@@ -153,18 +139,16 @@ class BedrockIntegration(BaseLLMIntegration):
         agent_id = input_args.get("agentId", "")
         agent_alias_id = input_args.get("agentAliasId", "")
         session_id = input_args.get("sessionId", "")
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "agent",
-                INPUT_VALUE: str(input_value),
-                TAGS: {"session_id": session_id},
-                METADATA: {"agent_id": agent_id, "agent_alias_id": agent_alias_id},
-                INTEGRATION: "bedrock_agents",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="agent",
+            input_value=str(input_value),
+            tags={"session_id": session_id},
+            metadata={"agent_id": agent_id, "agent_alias_id": agent_alias_id},
         )
         if not response:
             return
-        span._set_ctx_item(OUTPUT_VALUE, str(response))
+        _annotate_llmobs_span_data(span, output_value=str(response))
 
     def translate_bedrock_traces(self, traces, root_span) -> None:
         """Translate bedrock agent traces to LLMObs span events."""
