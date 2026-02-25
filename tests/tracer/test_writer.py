@@ -1423,7 +1423,7 @@ class TestSafelog:
             mock_log.error.assert_called_once_with("Error with extra", extra={"key": "value"}, exc_info=True)
 
 
-@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "_DD_API_KEY": "test-api-key"})
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "DD_API_KEY": "test-api-key"})
 def test_agentless_writer_enabled():
     import json
     from unittest.mock import patch
@@ -1481,10 +1481,10 @@ def test_agentless_writer_enabled():
 @pytest.mark.subprocess(
     env={
         "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
-        "_DD_API_KEY": "test-api-key",
-        # "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
+        "DD_API_KEY": "test-api-key",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
         "DD_TRACE_HEALTH_METRICS_ENABLED": "true",
-        # "DD_TRACE_RATE_LIMIT": "1",
+        "DD_TRACE_RATE_LIMIT": "1",
         "DD_TRACE_COMPUTE_STATS": "true",
     }
 )
@@ -1547,3 +1547,18 @@ def test_agentless_writer_serialize_span_fields():
     assert span_json["metrics"]["metric2"] == 2.0
     assert span_json["metrics"]["_dd.top_level"] == 1
     assert span_json["metrics"]["_sampling_priority_v1"] == 1
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "DD_API_KEY": None,
+    },
+    err=b"APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
+)
+def test_agentless_writer_no_api_key():
+    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert not isinstance(writer, AgentlessTraceWriter)
