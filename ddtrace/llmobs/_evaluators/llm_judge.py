@@ -741,16 +741,19 @@ class LLMJudge(BaseEvaluator):
         if assessment_criteria is not None:
             byop_config["assessment_criteria"] = assessment_criteria
 
+        app_payload: dict[str, Any] = {
+            "application_name": ml_app,
+            "enabled": False,
+            "integration_provider": integration_provider,
+            "byop_config": byop_config,
+        }
+        model_name = self._model.strip() if isinstance(self._model, str) else ""
+        if model_name:
+            app_payload["model_name"] = model_name
+
         evaluation_payload: dict[str, Any] = {
             "eval_name": resolved_eval_name,
-            "applications": [
-                {
-                    "application_name": ml_app,
-                    "enabled": False,
-                    "integration_provider": integration_provider,
-                    "byop_config": byop_config,
-                }
-            ],
+            "applications": [app_payload],
         }
 
         from ddtrace.llmobs import LLMObs

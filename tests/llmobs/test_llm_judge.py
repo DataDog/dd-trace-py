@@ -307,6 +307,34 @@ class TestLLMJudgePublish:
         else:
             assert output_schema["properties"]["boolean_eval"]["type"] == "boolean"
 
+    @pytest.mark.parametrize(
+        "model,expected_model_name",
+        [
+            ("  gpt-4o  ", "gpt-4o"),
+            (None, None),
+            ("   ", None),
+        ],
+    )
+    def test_publish_sends_model_name_only_when_present(self, model, expected_model_name, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            model=model,
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="model_eval",
+        )
+
+        judge.publish(ml_app="my-app")
+        app_payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]["applications"][0]
+
+        if expected_model_name is None:
+            assert "model_name" not in app_payload
+        else:
+            assert app_payload["model_name"] == expected_model_name
+
     def test_publish_variable_mapping_replaces_prompt_placeholders(self, monkeypatch):
         mock_dne_client = self._mock_publish_backend(monkeypatch)
 
