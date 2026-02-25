@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 import subprocess
 import sys
@@ -135,6 +136,17 @@ def sign_image(config: Config, metadata_file: str) -> None:
     )
 
 
+def replicate_image(config: Config, metadata_file: str) -> None:
+    """Replicate the signed image to us1.ddbuild.io."""
+    with open(metadata_file) as f:
+        metadata = json.load(f)
+    digest = metadata["containerimage.digest"]
+    image_with_digest = f"{config.full_image_ref}@{digest}"
+    run_command(
+        ["ddsign", "replicate", "--to", "us1.ddbuild.io", image_with_digest],
+    )
+
+
 def extract_manifest(config: Config) -> list[FuzzBinary]:
     """Extract the fuzz-binary manifest via a cached buildx export."""
     output_dir = tempfile.mkdtemp()
@@ -203,6 +215,7 @@ def main() -> None:
 
     metadata_file = build_and_push_image(config)
     sign_image(config, metadata_file)
+    replicate_image(config, metadata_file)
     binaries = extract_manifest(config)
     if not binaries:
         print("No fuzz binaries found in manifest")
