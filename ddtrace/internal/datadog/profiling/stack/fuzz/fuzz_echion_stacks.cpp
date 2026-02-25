@@ -21,7 +21,6 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
     uintptr_t p0 = addr_from_u64(load_u64_le(data, size, 0));
     uintptr_t p1 = addr_from_u64(load_u64_le(data, size, 8));
-    uintptr_t p2 = addr_from_u64(load_u64_le(data, size, 16));
 
     EchionSampler echion_sampler;
 
@@ -46,6 +45,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         tstate.frame = reinterpret_cast<PyFrameObject*>(p1);
 #endif
 #if PY_VERSION_HEX >= 0x030b0000
+        uintptr_t p2 = addr_from_u64(load_u64_le(data, size, 16));
         tstate.datastack_chunk = reinterpret_cast<_PyStackChunk*>(p2);
 #endif
         FrameStack fuzz_stack;

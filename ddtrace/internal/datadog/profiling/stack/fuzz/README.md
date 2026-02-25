@@ -1,7 +1,8 @@
 # Stack v2 / Echion Fuzz Targets
 
 Fuzz targets for the stack v2 profiler's echion-based unwinder.
-All targets are built with **libFuzzer + ASAN + UBSAN** inside a Docker image.
+All targets are built with **libFuzzer + ASAN + UBSAN** inside a Docker image
+and orchestrated by [fuzzydog](https://datadoghq.atlassian.net/wiki/spaces/fuzzing).
 
 ## Targets
 
@@ -15,51 +16,35 @@ All targets are built with **libFuzzer + ASAN + UBSAN** inside a Docker image.
 ## Build the Docker image
 
 ```bash
-docker build -f docker/Dockerfile.fuzz -t ddtrace-py-stackv2-fuzz .
+docker build -f docker/Dockerfile.fuzz --build-arg PYTHON_IMAGE_TAG=3.12.0 -t ddtrace-py-stackv2-fuzz .
 ```
 
-## Run a single target
+## Run with fuzzydog
 
-The default CMD runs `fuzz_echion_remote_read`:
+The default CMD runs `fuzz_echion_remote_read` via fuzzydog.
+`FUZZYDOG_AUTH_TOKEN` must be set in the environment:
 
 ```bash
-docker run --rm -it ddtrace-py-stackv2-fuzz
+docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz
 ```
 
 To run a specific target, override the command:
 
 ```bash
-docker run --rm -it ddtrace-py-stackv2-fuzz /tmp/fuzz/build/fuzz/fuzz_echion_strings /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/
-docker run --rm -it ddtrace-py-stackv2-fuzz /tmp/fuzz/build/fuzz/fuzz_echion_mirrors /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/
-docker run --rm -it ddtrace-py-stackv2-fuzz /tmp/fuzz/build/fuzz/fuzz_echion_stacks /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/
-```
-
-## Persist corpus and artifacts with a volume mount
-
-Mount a host directory to `/tmp/fuzz/` so corpus inputs and crash artifacts survive container restarts:
-
-```bash
-mkdir -p .fuzz
-docker run --rm -it -v "$PWD/.fuzz:/tmp/fuzz/" ddtrace-py-stackv2-fuzz \
-    /tmp/fuzz/build/fuzz/fuzz_echion_remote_read /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/
-```
-
-## Quick sanity check (all targets)
-
-Run each target for 10 seconds to verify they start without errors:
-
-```bash
-for target in fuzz_echion_remote_read fuzz_echion_strings fuzz_echion_mirrors fuzz_echion_stacks; do
-    echo "=== $target ==="
-    docker run --rm ddtrace-py-stackv2-fuzz \
-        /tmp/fuzz/build/fuzz/$target /tmp/fuzz/ -artifact_prefix=/tmp/fuzz/ -max_total_time=10
-done
+docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz \
+    fuzzydog fuzzer run dd-trace-py-local fuzz_echion_strings \
+    --type libfuzzer --team profiling-python \
+    --build-path /fuzzer/builds/ \
+    --skip-dl-build --skip-dl-inputs \
+    --slack-channel fuzzing-ops \
+    --repository-url https://github.com/DataDog/dd-trace-py
 ```
 
 ## List built binaries (manifest)
 
-The build script writes a manifest of all built fuzz binaries:
+The build script writes a manifest of all built fuzz binaries.
+Binaries are copied to `/fuzzer/builds/` in the final image:
 
 ```bash
-docker run --rm ddtrace-py-stackv2-fuzz cat /tmp/fuzz/build/fuzz_binaries.txt
+docker run --rm ddtrace-py-stackv2-fuzz ls -la /fuzzer/builds/
 ```
