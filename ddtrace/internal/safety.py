@@ -70,17 +70,17 @@ class SafeObjectProxy(wrapt.ObjectProxy):
                 raise AttributeError("Access denied")
             else:
                 return super(SafeObjectProxy, self).__wrapped__
-        return type(self).safe(super(SafeObjectProxy, self).__getattr__(name))
+        return type(self).safe(super(SafeObjectProxy, self).__getattr__(name)) # type: ignore
 
     def __getitem__(self, item: Any) -> Any:
-        return type(self).safe(super(SafeObjectProxy, self).__getitem__(item))
+        return type(self).safe(super(SafeObjectProxy, self).__getitem__(item)) # type: ignore
 
     def __iter__(self) -> Any:
-        return iter(type(self).safe(_) for _ in super(SafeObjectProxy, self).__iter__())
+        return iter(type(self).safe(_) for _ in super(SafeObjectProxy, self).__iter__()) # type: ignore
 
     def items(self) -> Iterator[tuple[Any, Any]]:
         return (
-            (type(self).safe(k), type(self).safe(v)) for k, v in super(SafeObjectProxy, self).__getattr__("items")()
+            (type(self).safe(k), type(self).safe(v)) for k, v in super(SafeObjectProxy, self).__getattr__("items")() # type: ignore
         )
 
     # Custom object representations might cause side-effects

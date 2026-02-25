@@ -149,5 +149,5 @@ def _reset_objects() -> None:
 register(_reset_objects)
 
 
-def Event() -> _unpatched.threading_Event:
+def Event() -> ResetObject[_unpatched.threading_Event]:
     return ResetObject(_unpatched.threading_Event)
