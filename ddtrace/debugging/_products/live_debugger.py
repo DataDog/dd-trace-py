@@ -5,7 +5,7 @@ from ddtrace.internal.settings.live_debugging import config
 # requires = ["tracer"]
 
 
-def post_preload():
+def post_preload() -> None:
     pass
 
 
@@ -20,12 +20,12 @@ def restart(join: bool = False) -> None:
     pass
 
 
-def stop(join: bool = False):
+def stop(join: bool = False) -> None:
     if config.enabled:
         from ddtrace.debugging._live import disable
 
         disable()
 
 
-def at_exit(join: bool = False):
+def at_exit(join: bool = False) -> None:
     stop(join=join)

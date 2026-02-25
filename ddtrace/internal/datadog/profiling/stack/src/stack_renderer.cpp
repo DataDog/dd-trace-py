@@ -111,12 +111,6 @@ StackRenderer::render_task_begin(const std::string& task_name, bool on_cpu)
 }
 
 void
-StackRenderer::render_stack_begin()
-{
-    // This function is part of the necessary API, but it is unused by the Datadog profiler for now.
-}
-
-void
 StackRenderer::render_frame(Frame& frame)
 {
     if (sample == nullptr) {
@@ -236,7 +230,6 @@ StackRenderer::render_stack_end()
         return;
     }
 
-    sample->set_reverse_locations(true);
     sample->flush_sample();
     SampleManager::drop_sample(sample);
     sample = nullptr;
