@@ -8,6 +8,7 @@ and forwards the raw bytes to the native FFE processor.
 from collections import OrderedDict
 from collections.abc import MutableMapping
 from importlib.metadata import version
+import threading
 import typing
 
 from openfeature.evaluation_context import EvaluationContext
@@ -87,11 +88,20 @@ class DataDogProvider(AbstractProvider):
     Feature Flags and Experimentation (FFE) product.
     """
 
-    def __init__(self, *args: typing.Any, **kwargs: typing.Any):
+    def __init__(self, *args: typing.Any, init_timeout: typing.Optional[float] = None, **kwargs: typing.Any):
         super().__init__(*args, **kwargs)
         self._metadata = Metadata(name="Datadog")
         self._status = ProviderStatus.NOT_READY
         self._config_received = False
+
+        # Init timeout: constructor arg takes priority, then env var (default 30s)
+        if init_timeout is not None:
+            self._init_timeout = init_timeout
+        else:
+            self._init_timeout = ffe_config.initialization_timeout_ms / 1000.0
+
+        # Event used to block initialize() until config arrives
+        self._config_event = threading.Event()
 
         # Cache for reported exposures to prevent duplicates
         # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
@@ -119,16 +129,17 @@ class DataDogProvider(AbstractProvider):
         """
         Initialize the provider.
 
-        Called by the OpenFeature SDK when the provider is set.
-        Provider Creation → NOT_READY
-                                 ↓
-                   First Remote Config Payload
-                                 ↓
-                            READY (emits PROVIDER_READY event)
-                                 ↓
-                           Shutdown
-                                 ↓
-                          NOT_READY
+        Blocks until Remote Config delivers the first FFE configuration or
+        the initialization timeout expires. This matches the behavior of the
+        Java (CountDownLatch), Go (sync.Cond), and Node.js (Promise) providers.
+
+        The timeout is configurable via:
+        - Constructor: DataDogProvider(init_timeout=10.0)  # seconds
+        - Env var: DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS=10000
+
+        Provider lifecycle:
+            NOT_READY → initialize() blocks → config arrives → READY
+            NOT_READY → initialize() blocks → timeout → raises ProviderNotReadyError
         """
         if not self._enabled:
             return
@@ -139,12 +150,27 @@ class DataDogProvider(AbstractProvider):
         except ServiceStatusError:
             logger.debug("Exposure writer is already running", exc_info=True)
 
-        # If configuration was already received before initialization, emit ready now
+        # Fast path: config already available (RC delivered before set_provider)
         config = _get_ffe_config()
-        if config is not None and not self._config_received:
+        if config is not None:
             self._config_received = True
             self._status = ProviderStatus.READY
-            self._emit_ready_event()
+            return  # SDK will dispatch PROVIDER_READY
+
+        # Block until config arrives or timeout expires
+        logger.debug("Waiting up to %.1fs for initial FFE configuration from Remote Config", self._init_timeout)
+        if not self._config_event.wait(timeout=self._init_timeout):
+            # Timeout expired without receiving config
+            from openfeature.exception import ProviderNotReadyError
+
+            raise ProviderNotReadyError(
+                f"Provider timed out after {self._init_timeout:.1f}s waiting for "
+                "initial configuration from Remote Config"
+            )
+
+        # Config received during wait
+        self._config_received = True
+        self._status = ProviderStatus.READY
 
     def shutdown(self) -> None:
         """
@@ -168,6 +194,7 @@ class DataDogProvider(AbstractProvider):
         _unregister_provider(self)
         self._status = ProviderStatus.NOT_READY
         self._config_received = False
+        self._config_event.clear()
 
     def resolve_boolean_details(
         self,
@@ -423,12 +450,17 @@ class DataDogProvider(AbstractProvider):
         """
         Called when a Remote Configuration payload is received and processed.
 
-        Emits PROVIDER_READY event on first configuration.
+        Unblocks initialize() if it's waiting, and emits PROVIDER_READY for
+        late arrivals (config received after initialize() timed out).
         """
+        # Always signal the event to unblock initialize() if it's waiting
+        self._config_event.set()
+
         if not self._config_received:
             self._config_received = True
             self._status = ProviderStatus.READY
             logger.debug("First FFE configuration received, provider is now READY")
+            # Emit READY for late recovery: config arrived after init timed out
             self._emit_ready_event()
 
     def _emit_ready_event(self) -> None:
