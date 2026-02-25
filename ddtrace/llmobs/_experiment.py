@@ -13,6 +13,7 @@ from typing import Any
 from typing import Awaitable
 from typing import Callable
 from typing import Iterator
+from typing import Literal
 from typing import Optional
 from typing import Sequence
 from typing import TypedDict
@@ -48,6 +49,18 @@ JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONT
 NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONType]]
 ConfigType = dict[str, JSONType]
 DatasetRecordInputType = dict[str, NonNoneJSONType]
+
+ConfigFieldType = Literal["string", "number", "bool", "prompt"]
+
+
+class ConfigField(TypedDict, total=False):
+    type: ConfigFieldType
+    default: Any
+    description: str
+    choices: list[Any]
+    min: Optional[float]
+    max: Optional[float]
+
 
 TaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType]
 AsyncTaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], Awaitable[JSONType]]
@@ -423,6 +436,7 @@ class TaskResult(TypedDict):
     output: JSONType
     metadata: dict[str, JSONType]
     error: dict[str, Optional[str]]
+    span_event: Any
 
 
 class EvaluationResult(TypedDict):
@@ -469,6 +483,24 @@ class ExperimentResult(TypedDict):
     summary_evaluations: dict[str, dict[str, JSONType]]
     rows: list[ExperimentRowResult]
     runs: list[ExperimentRun]
+
+
+ProgressStatus = Literal["running", "task_complete", "evaluations_complete", "success", "error"]
+
+
+class ProgressEvent(TypedDict, total=False):
+    record_index: int
+    status: ProgressStatus
+    record: DatasetRecord
+    output: JSONType
+    evaluations: dict[str, dict[str, JSONType]]
+    error: dict[str, Optional[str]]
+    span_context: Any
+    eval_metrics: list["LLMObsExperimentEvalMetricEvent"]
+
+
+ProgressCallbackType = Callable[["ProgressEvent"], None]
+OnStartCallbackType = Callable[[str, str], None]
 
 
 class Dataset:
@@ -761,6 +793,7 @@ class Experiment:
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
+        remote_config: Optional[dict[str, ConfigField]] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
@@ -772,7 +805,9 @@ class Experiment:
         self._evaluators = list(evaluators)
         self._summary_evaluators = list(summary_evaluators) if summary_evaluators else []
         self._description = description
-        self._tags: dict[str, str] = tags or {}
+        self._remote_config: dict[str, ConfigField] = remote_config or {}
+        self._user_tags: dict[str, str] = dict(tags or {})
+        self._tags: dict[str, str] = dict(self._user_tags)
         self._tags["ddtrace.version"] = str(__version__)
         self._tags["project_name"] = project_name
         self._tags["dataset_name"] = dataset.name
@@ -1022,6 +1057,8 @@ class Experiment:
         jobs: int = 10,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
+        on_start: Optional[OnStartCallbackType] = None,
+        progress_callback: Optional[ProgressCallbackType] = None,
     ) -> ExperimentResult:
         """Run the experiment by executing the task on all dataset records and evaluating the results.
 
@@ -1029,6 +1066,8 @@ class Experiment:
         :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
         :param sample_size: Optional number of dataset records to sample for testing
                             (default: None, uses full dataset)
+        :param on_start: Optional callback invoked with (experiment_id, run_name) after setup
+        :param progress_callback: Optional callback invoked with ProgressEvent dicts as the experiment progresses
         :return: ExperimentResult containing evaluation results and metadata
         """
         if jobs < 1:
@@ -1039,13 +1078,20 @@ class Experiment:
             "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
         )
 
+        if on_start:
+            on_start(cast(str, self._id), cast(str, self._run_name))
+
         run_results = []
         for run_iteration in range(self._runs):
             run = _ExperimentRunInfo(run_iteration)
             self._tags["run_id"] = str(run._id)
             self._tags["run_iteration"] = str(run._run_iteration)
-            task_results = await self._run_task(jobs, run, raise_errors, sample_size)
+            task_results = await self._run_task(jobs, run, raise_errors, sample_size, progress_callback)
             evaluations = await self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+
+            if progress_callback:
+                self._emit_post_eval_progress(task_results, evaluations, progress_callback)
+
             summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
             run_result = self._merge_results(run, task_results, evaluations, summary_evals)
             experiment_evals = self._generate_metrics_from_exp_results(run_result)
@@ -1060,11 +1106,41 @@ class Experiment:
             "runs": run_results,
         }
 
+    def _emit_post_eval_progress(
+        self,
+        task_results: list[TaskResult],
+        evaluations: list[EvaluationResult],
+        progress_callback: ProgressCallbackType,
+    ) -> None:
+        for idx, task_result in enumerate(task_results):
+            evals = evaluations[idx]["evaluations"] if idx < len(evaluations) else {}
+            span_event = task_result.get("span_event")
+
+            per_record_metrics: list["LLMObsExperimentEvalMetricEvent"] = []
+            for eval_name, eval_data in evals.items():
+                if not eval_data:
+                    continue
+                per_record_metrics.append(
+                    self._generate_metric_from_evaluation(
+                        eval_name,
+                        eval_data.get("value"),
+                        eval_data.get("error"),
+                        task_result.get("span_id", ""),
+                        task_result.get("trace_id", ""),
+                        cast(int, task_result.get("timestamp", 0)),
+                    )
+                )
+
+            shared = dict(record_index=idx, span_context=span_event, eval_metrics=per_record_metrics)
+            progress_callback(ProgressEvent(status="evaluations_complete", evaluations=evals, **shared))
+            progress_callback(ProgressEvent(status="success", **shared))
+
     async def _process_record(
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
         semaphore: asyncio.Semaphore,
+        progress_callback: Optional[ProgressCallbackType] = None,
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -1106,13 +1182,24 @@ class Experiment:
                         tags[key] = value
                 if canonical_id:
                     tags["dataset_record_canonical_id"] = canonical_id
+                if progress_callback:
+                    progress_callback(
+                        ProgressEvent(
+                            record_index=idx,
+                            status="running",
+                            record=record,
+                        )
+                    )
+
                 output_data = None
+                task_error = False
                 try:
                     if asyncio.iscoroutinefunction(self._task):
                         output_data = await self._task(input_data, self._config)
                     else:
                         output_data = await asyncio.to_thread(self._task, input_data, self._config)
                 except Exception:
+                    task_error = True
                     span.set_exc_info(*sys.exc_info())
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
@@ -1122,23 +1209,43 @@ class Experiment:
                 if self._config:
                     span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
 
-                return {
-                    "idx": idx,
-                    "span_id": span_id,
-                    "trace_id": trace_id,
-                    "timestamp": span.start_ns,
-                    "output": output_data,
-                    "metadata": {
-                        "dataset_record_index": idx,
-                        "experiment_name": self.name,
-                        "dataset_name": self._dataset.name,
-                    },
-                    "error": {
-                        "message": span.get_tag(ERROR_MSG),
-                        "stack": span.get_tag(ERROR_STACK),
-                        "type": span.get_tag(ERROR_TYPE),
-                    },
+                error_dict: dict[str, Optional[str]] = {
+                    "message": span.get_tag(ERROR_MSG),
+                    "stack": span.get_tag(ERROR_STACK),
+                    "type": span.get_tag(ERROR_TYPE),
                 }
+
+            # Span has finished — build the full span event with duration
+            span_event = None
+            try:
+                span_event = self._llmobs_instance._llmobs_span_event(span)
+            except Exception:
+                logger.debug("failed to build span event for progress callback", exc_info=True)
+
+            if progress_callback:
+                event = ProgressEvent(record_index=idx, span_context=span_event)
+                if task_error:
+                    event["status"] = "error"
+                    event["error"] = error_dict
+                else:
+                    event["status"] = "task_complete"
+                    event["output"] = output_data
+                progress_callback(event)
+
+            return {
+                "idx": idx,
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "timestamp": span.start_ns,
+                "output": output_data,
+                "metadata": {
+                    "dataset_record_index": idx,
+                    "experiment_name": self.name,
+                    "dataset_name": self._dataset.name,
+                },
+                "error": error_dict,
+                "span_event": span_event,
+            }
 
     async def _run_task(
         self,
@@ -1146,13 +1253,17 @@ class Experiment:
         run: _ExperimentRunInfo,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
+        progress_callback: Optional[ProgressCallbackType] = None,
     ) -> list[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
 
         semaphore = asyncio.Semaphore(jobs)
-        coros = [self._process_record(idx_record, run, semaphore) for idx_record in enumerate(subset_dataset)]
+        coros = [
+            self._process_record(idx_record, run, semaphore, progress_callback)
+            for idx_record in enumerate(subset_dataset)
+        ]
         results = await asyncio.gather(*coros, return_exceptions=True)
 
         task_results: list[TaskResult] = []
@@ -1461,6 +1572,7 @@ class SyncExperiment:
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
+        remote_config: Optional[dict[str, ConfigField]] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
@@ -1474,6 +1586,7 @@ class SyncExperiment:
             description=description,
             tags=tags,
             config=config,
+            remote_config=remote_config,
             _llmobs_instance=_llmobs_instance,
             summary_evaluators=summary_evaluators,
             runs=runs,
@@ -1484,6 +1597,8 @@ class SyncExperiment:
         jobs: int = 1,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
+        on_start: Optional[OnStartCallbackType] = None,
+        progress_callback: Optional[ProgressCallbackType] = None,
     ) -> ExperimentResult:
         """Run the experiment synchronously.
 
@@ -1491,9 +1606,17 @@ class SyncExperiment:
         :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
         :param sample_size: Optional number of dataset records to sample for testing
                             (default: None, uses full dataset)
+        :param on_start: Optional callback invoked with (experiment_id, run_name) after setup
+        :param progress_callback: Optional callback invoked with ProgressEvent dicts as the experiment progresses
         :return: ExperimentResult containing evaluation results and metadata
         """
-        coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
+        coro = self._experiment.run(
+            jobs=jobs,
+            raise_errors=raise_errors,
+            sample_size=sample_size,
+            progress_callback=progress_callback,
+            on_start=on_start,
+        )
         try:
             asyncio.get_running_loop()
         except RuntimeError:

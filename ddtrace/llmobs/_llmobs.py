@@ -107,6 +107,7 @@ from ddtrace.llmobs._experiment import BaseAsyncEvaluator
 from ddtrace.llmobs._experiment import BaseAsyncSummaryEvaluator
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import BaseSummaryEvaluator
+from ddtrace.llmobs._experiment import ConfigField
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
@@ -1227,6 +1228,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
+        remote_config: Optional[dict[str, ConfigField]] = None,
         summary_evaluators: Optional[Sequence[SummaryEvaluatorType]] = None,
         runs: Optional[int] = 1,
     ) -> SyncExperiment:
@@ -1243,6 +1245,9 @@ class LLMObs(Service):
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
+        :param remote_config: An optional dictionary of typed configuration fields for the devserver UI.
+                              Each key maps to a ConfigField dict with ``type``, ``default``, ``description``, etc.
+                              Defaults are extracted and merged into ``config`` when the devserver handles requests.
         :param summary_evaluators: A list of summary evaluator functions or BaseSummaryEvaluator instances to evaluate
                                    the task results and evaluations to produce a single value.
                                    Function-based summary evaluators must accept parameters ``inputs``, ``outputs``,
@@ -1271,6 +1276,7 @@ class LLMObs(Service):
             tags=tags,
             description=description,
             config=config,
+            remote_config=remote_config,
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators,
             runs=runs,
@@ -1287,6 +1293,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
+        remote_config: Optional[dict[str, ConfigField]] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = 1,
     ) -> Experiment:
@@ -1309,6 +1316,9 @@ class LLMObs(Service):
         :param description: A description of the experiment.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
         :param config: A configuration dictionary describing the experiment.
+        :param remote_config: An optional dictionary of typed configuration fields for the devserver UI.
+                              Each key maps to a ConfigField dict with ``type``, ``default``, ``description``, etc.
+                              Defaults are extracted and merged into ``config`` when the devserver handles requests.
         :param summary_evaluators: A list of summary evaluator functions or BaseSummaryEvaluator/
                                    BaseAsyncSummaryEvaluator instances. Supports both sync and async.
                                    Function-based summary evaluators must accept parameters ``inputs``, ``outputs``,
@@ -1338,6 +1348,7 @@ class LLMObs(Service):
             tags=tags,
             description=description,
             config=config,
+            remote_config=remote_config,
             _llmobs_instance=cls._instance,
             summary_evaluators=summary_evaluators,
             runs=runs,
@@ -1372,6 +1383,25 @@ class LLMObs(Service):
             ensure_unique=False,
         )
         return experiment
+
+    @classmethod
+    def devserver(
+        cls,
+        experiments: list[Experiment],
+        host: str = "0.0.0.0",
+        port: int = 8787,
+        cors_origins: Optional[list[str]] = None,
+    ) -> None:
+        """Start a devserver for interactive experiment execution. Blocks until Ctrl+C.
+
+        :param experiments: A list of Experiment objects to expose via the devserver.
+        :param host: The host to bind to (default: "0.0.0.0").
+        :param port: The port to bind to (default: 8787).
+        :param cors_origins: Optional list of allowed CORS origins.
+        """
+        from ddtrace.llmobs._devserver import run_dev_server
+
+        run_dev_server(experiments, cls._instance, host, port, cors_origins)
 
     @classmethod
     def _run_for_experiment(
