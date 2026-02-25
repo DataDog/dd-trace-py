@@ -437,7 +437,7 @@ class Config(object):
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
-        self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
+        self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
@@ -695,15 +695,16 @@ class Config(object):
         if self._trace_agentless_enabled:
             log.debug(
                 "APM Agentless Enabled. Sampling and Trace Rate Limits will be ignored. Health Metrics "
-                "will be disabled. rate_limit=%s, compute_stats=%s, sampling_rules=%s, health_metrics=%s",
+                "will be disabled. These values maybe ignored: rate_limit=%s, compute_stats=%s, "
+                "sampling_rules=%s, health_metrics=%s",
                 self._trace_rate_limit,
                 self._trace_compute_stats,
-                self._trace_sampling_rules,
+                getattr(self, "_trace_sampling_rules", ""),
                 self._health_metrics_enabled,
             )
             self._trace_rate_limit = -1
             self._trace_compute_stats = False
-            self._trace_sampling_rules = ""
+            setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
 

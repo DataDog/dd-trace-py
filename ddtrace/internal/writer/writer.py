@@ -362,7 +362,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict[str, str]:
         headers = self._headers.copy()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        headers.update({"Content-Type": client.encoder.content_type})
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
@@ -646,7 +646,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         if headers:
             _headers.update(headers)
 
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        _headers.update({"Content-Type": client.encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
