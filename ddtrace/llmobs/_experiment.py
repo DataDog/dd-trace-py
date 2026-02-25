@@ -377,7 +377,6 @@ class RemoteEvaluator(BaseEvaluator):
         self,
         eval_name: str,
         transform_fn: Optional[ContextTransformFn] = None,
-        _client: Optional["LLMObsExperimentsClient"] = None,
     ) -> None:
         """Initialize a RemoteEvaluator.
 
@@ -386,8 +385,6 @@ class RemoteEvaluator(BaseEvaluator):
                              the format expected by the backend template. If not provided,
                              uses default mapping to span_input, span_output,
                              meta.expected_output, and meta.metadata.
-        :param _client: Internal: LLMObsExperimentsClient for API calls.
-                        If not provided, obtained from LLMObs instance.
         """
         if not isinstance(eval_name, str) or not eval_name.strip():
             raise ValueError("eval_name must be a non-empty string")
@@ -397,7 +394,6 @@ class RemoteEvaluator(BaseEvaluator):
         self.name = eval_name.strip()
         self._eval_name = eval_name.strip()
         self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
-        self._client = _client
 
     def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
         """Evaluate using the remote LLM-as-Judge evaluator.
@@ -407,7 +403,7 @@ class RemoteEvaluator(BaseEvaluator):
         """
         from ddtrace.llmobs import LLMObs
 
-        client = self._client or LLMObs._instance._dne_client
+        client = LLMObs._instance._dne_client
 
         result = client.evaluator_infer(
             eval_name=self._eval_name,
@@ -1599,11 +1595,11 @@ class Experiment:
             span.get("span_id", "") if span else "",
             span.get("trace_id", "") if span else "",
             timestamp_ns,
-            "summary" if is_summary_eval else "custom",
-            reasoning,
-            assessment,
-            metadata,
-            tags,
+            source="summary" if is_summary_eval else "custom",
+            reasoning=reasoning,
+            assessment=assessment,
+            metadata=metadata,
+            tags=tags,
         )
 
         self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]

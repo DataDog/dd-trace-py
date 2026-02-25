@@ -86,7 +86,7 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
 # To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1771602113367279000
+MOCK_TIMESTAMP_NS = 1772023135809672000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
