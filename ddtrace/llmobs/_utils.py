@@ -16,17 +16,21 @@ from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.types import Document
@@ -350,6 +354,20 @@ def get_span_links(span: Span) -> list[_SpanLink]:
     return current_span_links
 
 
+def _get_parent_prompt(span: Span) -> Optional[Prompt]:
+    # Check parent for prompt inheritance
+    parent_span = _get_nearest_llmobs_ancestor(span)
+    if parent_span is None:
+        return None
+    parent_llmobs_data = _get_llmobs_data_metastruct(parent_span)
+    if parent_llmobs_data:
+        parent_llmobs_input = parent_llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {})
+        parent_prompt = parent_llmobs_input.get(LLMOBS_STRUCT.PROMPT) if parent_llmobs_input else None
+    else:
+        parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)
+    return parent_prompt
+
+
 def mark_as_evaluation_span(span: Span) -> None:
     """Mark a span as an evaluation span in span._meta_struct."""
     llmobs_data = _get_llmobs_data_metastruct(span)
@@ -364,22 +382,31 @@ def _get_llmobs_data_metastruct(span: Span) -> dict[str, Any]:
 
 
 def _get_span_kind(span: Span) -> Optional[str]:
-    """Get the span kind from span._meta_struct."""
+    """Get the span kind, checking meta_struct first then falling back to ctx_item."""
     llmobs_data = _get_llmobs_data_metastruct(span)
     llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
-    return llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+    kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+    if kind:
+        return kind
+    return span._get_ctx_item(SPAN_KIND)
 
 
 def _get_llmobs_parent_id(span: Span) -> Optional[str]:
-    """Get the LLMObs parent ID from span._meta_struct."""
+    """Get the LLMObs parent ID, checking meta_struct first then falling back to ctx_item."""
     llmobs_data = _get_llmobs_data_metastruct(span)
-    return llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
+    parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
+    if parent_id:
+        return parent_id
+    return span._get_ctx_item(PARENT_ID_KEY)
 
 
 def _get_llmobs_trace_id(span: Span) -> Optional[str]:
-    """Get the LLMObs trace ID from span._meta_struct."""
+    """Get the LLMObs trace ID, checking meta_struct first then falling back to ctx_item."""
     llmobs_data = _get_llmobs_data_metastruct(span)
-    return llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+    trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+    if trace_id:
+        return trace_id
+    return span._get_ctx_item(LLMOBS_TRACE_ID)
 
 
 def _annotate_llmobs_span_data(
