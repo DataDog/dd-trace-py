@@ -26,7 +26,6 @@ TEAM_NAME = "profiling-python"
 REPOSITORY_URL = "https://github.com/DataDog/dd-trace-py"
 PROJECT_NAME = "dd-trace-py"
 FUZZ_TYPE = "libfuzzer"
-MANIFEST_PATH = "/tmp/fuzz/build/fuzz_binaries.txt"
 MAX_PKG_NAME_LENGTH = 50
 
 
@@ -120,7 +119,6 @@ def build_and_push_image(config: Config) -> str:
             "-t",
             config.full_image_ref,
             "--push",
-            "--load",
             "--metadata-file",
             metadata_file,
             ".",
@@ -138,12 +136,30 @@ def sign_image(config: Config, metadata_file: str) -> None:
 
 
 def extract_manifest(config: Config) -> list[FuzzBinary]:
-    """Pull the manifest from the built image and parse it into FuzzBinary entries."""
-    result = run_command(
-        ["docker", "run", "--rm", config.full_image_ref, "cat", MANIFEST_PATH],
+    """Extract the fuzz-binary manifest via a cached buildx export."""
+    output_dir = tempfile.mkdtemp()
+    run_command(
+        [
+            "docker",
+            "buildx",
+            "build",
+            "--target",
+            "manifest",
+            "-f",
+            "docker/Dockerfile.fuzz",
+            "--build-arg",
+            f"PYTHON_IMAGE_TAG={config.python_image_tag}",
+            "--output",
+            f"type=local,dest={output_dir}",
+            ".",
+        ],
+        capture_output=False,
     )
+    manifest_file = os.path.join(output_dir, "fuzz_binaries.txt")
+    with open(manifest_file) as f:
+        content = f.read()
     binaries: list[FuzzBinary] = []
-    for line in result.stdout.splitlines():
+    for line in content.splitlines():
         binary_path = line.strip()
         if not binary_path:
             continue

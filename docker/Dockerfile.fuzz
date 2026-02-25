@@ -72,3 +72,7 @@ CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read"
      "--skip-dl-inputs", \
      "--slack-channel", "fuzzing-ops", \
      "--repository-url", "https://github.com/DataDog/dd-trace-py"]
+
+# ── Manifest — export the fuzz binary list for CI ─────────────────────
+FROM scratch AS manifest
+COPY --from=build /tmp/fuzz/build/fuzz_binaries.txt /fuzz_binaries.txt
