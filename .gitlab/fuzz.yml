@@ -34,7 +34,7 @@ fuzz_infra:
       - PYTHON_VERSION: "3.14"
         PYTHON_IMAGE_TAG: "3.14.2-slim"
   before_script:
-    - apk add --no-cache python3 unzip
+    - apt update && apt install -y python3 unzip
     # TODO: Install fuzzydog on the image directly when version is stable
     - >-
       curl -sL "https://binaries.ddbuild.io/fuzzing/fuzzydog/${FUZZYDOG_VERSION}/fuzzydog-tar.tar.gz"
