@@ -632,18 +632,15 @@ def test_wrapping_context_unwrapping():
     assert wc.exc_info is None
 
 
-def test_wrapping_context_pickle_simulates_airflow_cadwyn_deepcopy():
-    """Simulate Cadwyn (Airflow 3) deepcopy(route): route holds a wrapping context.
-
-    When Cadwyn builds versioned routers it deepcopies routes. If the route's
-    endpoint was wrapped by our code (e.g. code origin), the context is in the
-    object graph and must be picklable via __getstate__/__setstate__.
+def test_wrapping_context_deepcopy():
+    """Deepcopy of a route holding a wrapping context (e.g. Cadwyn/Airflow 3) must not raise.
+    This is a regression for: https://github.com/DataDog/dd-trace-py/issues/16443.
     """
 
     def endpoint():
         return 1
 
-    wc = DummyWrappingContext(endpoint)
+    wc = DummyLazyWrappingContext(endpoint)
     wc.wrap()
 
     class Route:
@@ -658,6 +655,7 @@ def test_wrapping_context_pickle_simulates_airflow_cadwyn_deepcopy():
 
     assert route_copy.ctx is not wc
     assert hasattr(route_copy.ctx, "_storage_stack")
+    assert hasattr(route_copy.ctx, "_trampoline_lock")
     # Use base __enter__/__exit__ so we don't trigger __frame__ (which expects
     # to run inside a wrapped call). This verifies the copied context's
     # _storage_stack is a new, working ContextVar.

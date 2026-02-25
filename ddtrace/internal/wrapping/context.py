@@ -475,6 +475,15 @@ class LazyWrappingContext(WrappingContext):
                 unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
                 self._trampoline = None
 
+    def __getstate__(self) -> dict[str, t.Any]:
+        state = super().__getstate__()
+        state.pop("_trampoline_lock", None)  # remove unpicklable field
+        return state
+
+    def __setstate__(self, state: dict[str, t.Any]) -> None:
+        super().__setstate__(state)
+        self._trampoline_lock = Lock()
+
 
 class ContextWrappedFunction(Protocol):
     """A wrapped function."""
