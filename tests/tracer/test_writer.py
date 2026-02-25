@@ -1482,6 +1482,7 @@ def test_agentless_writer_enabled():
     env={
         "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
         "DD_API_KEY": "test-api-key",
+        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
         "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
         "DD_TRACE_HEALTH_METRICS_ENABLED": "true",
         "DD_TRACE_RATE_LIMIT": "1",
