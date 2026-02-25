@@ -248,6 +248,87 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
 }
 
 void
+Datadog::Sample::push_pytraceback(PyTracebackObject* tb)
+{
+    /* Walk the Python traceback chain and push each frame to the sample.
+     * The chain goes from outermost (root) to innermost (leaf) via tb_next.
+     * We collect frames first, then push in reverse (leaf-to-root) order to
+     * match the convention used by push_pyframes and the rest of the profiler.
+     * This is because the in the traceback chain tb_next is the next level in
+     * the stack trace (towards the frame where the exception occurred)
+     * https://docs.python.org/3/reference/datamodel.html#traceback.tb_next
+     *
+     * Ownership: tb_frame is a borrowed reference owned by the traceback.
+     * PyFrame_GetCode() returns a new reference that we DECREF internally. */
+
+    PythonErrorRestorer error_restorer;
+
+    struct TracebackFrameInfo
+    {
+        PyCodeObject* code; // new reference from PyFrame_GetCode; must be DECREF'd
+        int lineno;
+    };
+
+    // Collect frame info root→leaf by following tb_next.
+    std::vector<TracebackFrameInfo> frames;
+    for (; tb != nullptr; tb = reinterpret_cast<PyTracebackObject*>(tb->tb_next)) {
+        int lineno = tb->tb_lineno;
+        if (lineno < 0) {
+            // In Python 3.12+, tb_lineno can be -1 (lazy). Resolve it through
+            // the Python property which calls PyCode_Addr2Line internally.
+            PyObject* lineno_obj = PyObject_GetAttrString(reinterpret_cast<PyObject*>(tb), "tb_lineno");
+            if (lineno_obj != nullptr) {
+                lineno = PyLong_AsLong(lineno_obj);
+                Py_DECREF(lineno_obj);
+                if (lineno < 0) {
+                    lineno = 0;
+                }
+            } else {
+                PyErr_Clear();
+                lineno = 0;
+            }
+        }
+        PyCodeObject* code = (tb->tb_frame != nullptr) ? PyFrame_GetCode(tb->tb_frame) : nullptr;
+        frames.push_back({ code, lineno });
+    }
+
+    // Push in leaf-to-root order (reverse of collected).
+    for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
+        // Early exit: once we've hit the frame limit, count all remaining
+        // frames as dropped and release their code refs without further
+        // string extraction.
+        if (locations.size() > max_nframes) {
+            for (auto jt = it; jt != frames.rend(); ++jt) {
+                ++dropped_frames;
+                Py_XDECREF(jt->code);
+            }
+            break;
+        }
+
+        PyCodeObject* code = it->code;
+        int lineno = it->lineno;
+
+        std::string_view name_sv = "<unknown>";
+        std::string_view filename_sv = "<unknown>";
+
+        if (code != nullptr) {
+            // Use co_qualname for Python 3.11+ for better context (e.g. Class.method)
+#if defined(_PY311_AND_LATER)
+            PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
+#else
+            PyObject* name_obj = code->co_name;
+#endif
+            name_sv = unicode_to_string_view(name_obj);
+            filename_sv = unicode_to_string_view(code->co_filename);
+        }
+
+        push_frame(name_sv, filename_sv, 0, lineno);
+        Py_XDECREF(code);
+    }
+    // Error state is automatically restored by error_restorer destructor.
+}
+
+void
 Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t line)
 {
     if (locations.size() <= max_nframes) {
@@ -557,6 +638,13 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
         std::cerr << "bad push gpu flops" << std::endl;
     }
     return false;
+}
+
+bool
+Datadog::Sample::push_exception_message(std::string_view exception_message)
+{
+    push_label(ExportLabelKey::exception_message, exception_message);
+    return true;
 }
 
 bool

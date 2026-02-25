@@ -104,10 +104,16 @@ class EventBaseClass:
 
 class StackEvent(EventBaseClass):
     def __init__(
-        self, locations: Optional[Sequence[StackLocation]] = None, exception_type: Optional[str] = None, *args, **kwargs
+        self,
+        locations: Optional[Sequence[StackLocation]] = None,
+        exception_type: Optional[str] = None,
+        exception_message: Optional[str] = None,
+        *args,
+        **kwargs,
     ) -> None:
         self.locations = locations
         self.exception_type = exception_type
+        self.exception_message = exception_message
         super().__init__(*args, **kwargs)
 
 
@@ -500,6 +506,7 @@ def assert_stack_event(
     try:
         # Check that the sample has label "exception type" with value (no-op if expected_event.exception_type is None)
         assert_str_label(profile.string_table, sample, "exception type", expected_event.exception_type)
+        assert_str_label(profile.string_table, sample, "exception message", expected_event.exception_message)
         assert_sample_has_locations(profile, sample, expected_event.locations)
         assert_base_event(profile.string_table, sample, expected_event)
     except AssertionError as e:

@@ -42,6 +42,8 @@ cdef extern from "sample.hpp" namespace "Datadog":
 cdef extern from "ddup_interface.hpp":
     ctypedef struct PyFrameObject:
         pass
+    ctypedef struct PyTracebackObject:
+        pass
 
     void ddup_config_env(string_view env)
     void ddup_config_service(string_view service)
@@ -85,10 +87,12 @@ cdef extern from "ddup_interface.hpp":
     void ddup_push_local_root_span_id(Sample *sample, uint64_t local_root_span_id)
     void ddup_push_trace_type(Sample *sample, string_view trace_type)
     void ddup_push_exceptioninfo(Sample *sample, string_view exception_type, int64_t count)
+    void ddup_push_exception_message(Sample *sample, string_view exception_message)
     void ddup_push_class_name(Sample *sample, string_view class_name)
     void ddup_push_gpu_device_name(Sample *sample, string_view device_name)
     void ddup_push_frame(Sample *sample, string_view _name, string_view _filename, uint64_t address, int64_t line)
     void ddup_push_pyframes(Sample *sample, PyFrameObject* frame)
+    void ddup_push_pytraceback(Sample *sample, PyTracebackObject* tb)
     void ddup_push_monotonic_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_push_absolute_ns(Sample *sample, int64_t monotonic_ns)
     void ddup_flush_sample(Sample *sample)
@@ -271,6 +275,18 @@ cdef call_ddup_push_exceptioninfo(Sample* sample, exception_name: StringType, ui
     utf8_data = PyUnicode_AsUTF8AndSize(exception_name, &utf8_size)
     if utf8_data != NULL:
         ddup_push_exceptioninfo(sample, string_view(utf8_data, utf8_size), count)
+
+cdef call_ddup_push_exception_message(Sample* sample, exception_message: StringType):
+    if not exception_message:
+        return
+    if isinstance(exception_message, bytes):
+        ddup_push_exception_message(sample, string_view(<const char*>exception_message, len(exception_message)))
+        return
+    cdef const char* utf8_data
+    cdef Py_ssize_t utf8_size
+    utf8_data = PyUnicode_AsUTF8AndSize(exception_message, &utf8_size)
+    if utf8_data != NULL:
+        ddup_push_exception_message(sample, string_view(utf8_data, utf8_size))
 
 cdef call_ddup_push_class_name(Sample* sample, class_name: StringType):
     if not class_name:
@@ -490,6 +506,21 @@ cdef class SampleHandle:
             frame_ptr = <PyFrameObject*>frame_obj
             ddup_push_pyframes(self.ptr, frame_ptr)
 
+    def push_pytraceback(self, object tb) -> None:
+        cdef PyObject* tb_obj
+        cdef PyTracebackObject* tb_ptr
+
+        if self.ptr is not NULL and tb is not None:
+            # Validate that tb is actually a traceback object to avoid crashes
+            # from invalid casts (e.g., if tb contains a non-traceback object)
+            if not isinstance(tb, types.TracebackType):
+                return
+            # In Cython, 'tb' is already a PyObject*. Get the raw pointer.
+            tb_obj = <PyObject*>tb
+            # Cast to PyTracebackObject* - both are just pointers to the same memory
+            tb_ptr = <PyTracebackObject*>tb_obj
+            ddup_push_pytraceback(self.ptr, tb_ptr)
+
     def push_threadinfo(self, thread_id: int, thread_native_id: int, thread_name: StringType) -> None:
         if self.ptr is not NULL:
             thread_id = thread_id if thread_id is not None else 0
@@ -519,6 +550,13 @@ cdef class SampleHandle:
             else:
                 exc_name = exc_type
             call_ddup_push_exceptioninfo(self.ptr, exc_name, clamp_to_uint64_unsigned(count))
+
+    def push_exception_message(self, exception_message: StringType) -> None:
+        if self.ptr is NULL:
+            return
+        if exception_message is None:
+            return
+        call_ddup_push_exception_message(self.ptr, exception_message)
 
     def push_class_name(self, class_name: StringType) -> None:
         if self.ptr is not NULL:
