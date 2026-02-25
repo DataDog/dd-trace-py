@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import re
 import sys
+import time
 import traceback
 from typing import TYPE_CHECKING
 from typing import Any
@@ -26,6 +27,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
@@ -37,6 +39,7 @@ if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
+    from ddtrace.llmobs.types import ExportedLLMObsSpan
 
 
 logger = get_logger(__name__)
@@ -393,12 +396,14 @@ class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
+    tags: list[str]
 
 
 class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
+    tags: list[str]
 
 
 class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
@@ -407,6 +412,7 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
 
 class DatasetRecord(DatasetRecordRaw):
     record_id: str
+    canonical_id: Optional[str]
 
 
 class TaskResult(TypedDict):
@@ -468,6 +474,7 @@ class ExperimentResult(TypedDict):
 class Dataset:
     name: str
     description: str
+    filter_tags: Optional[list[str]]
     _id: str
     _records: list[DatasetRecord]
     _version: int
@@ -489,10 +496,12 @@ class Dataset:
         latest_version: int,
         version: int,
         _dne_client: "LLMObsExperimentsClient",
+        filter_tags: Optional[list[str]] = None,
     ) -> None:
         self.name = name
         self.project = project
         self.description = description
+        self.filter_tags = filter_tags or []
         self._id = dataset_id
         self._latest_version = latest_version
         self._version = version
@@ -551,8 +560,9 @@ class Dataset:
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
-            new_version, new_record_ids = self._dne_client.dataset_batch_update(
+            new_version, new_record_ids, new_canonical_ids = self._dne_client.dataset_batch_update(
                 dataset_id=self._id,
+                project_id=self.project["_id"],
                 insert_records=list(self._new_records_by_record_id.values()),
                 update_records=updated_records,
                 delete_record_ids=self._deleted_record_ids,
@@ -568,8 +578,10 @@ class Dataset:
             # delete() call treats them as local-only rather than sending the non-deterministic
             # placeholder id to the server as a delete_record_id.
             pending_keys = list(self._new_records_by_record_id.keys())
-            for key, record_id in zip(pending_keys, new_record_ids):
+            for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
                 self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
+                if canonical_id:  # avoid overriding if not present in response
+                    self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
                 del self._new_records_by_record_id[key]
 
             data_changed = len(new_record_ids) > 0
@@ -608,7 +620,7 @@ class Dataset:
         record_id: str = uuid.uuid4().hex
         # this record ID will be discarded after push, BE will generate a new one, this is just
         # for tracking new records locally before the push
-        r: DatasetRecord = {**record, "record_id": record_id}
+        r: DatasetRecord = {**record, "record_id": record_id, "canonical_id": None}
         # keep the same reference in both lists to enable us to update the record_id after push
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
@@ -734,6 +746,11 @@ class Experiment:
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
 
+    @classmethod
+    def _NO_OP_TASK(cls, input_data, config):
+        """No-op task used when initializing distributed experiment objects on remote hosts."""
+        return None
+
     def __init__(
         self,
         name: str,
@@ -747,6 +764,7 @@ class Experiment:
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
+        is_distributed: Optional[bool] = False,
     ) -> None:
         self.name = name
         self._task = task
@@ -760,8 +778,12 @@ class Experiment:
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
         self._config: dict[str, JSONType] = config or {}
+        # Write dataset tags to experiment config
+        if dataset.filter_tags:
+            self._config["filtered_record_tags"] = cast(JSONType, dataset.filter_tags)
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
+        self._is_distributed = is_distributed
 
         if not project_name:
             raise ValueError(
@@ -773,6 +795,7 @@ class Experiment:
         self._project_id: Optional[str] = None
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
+        self.experiment_span: Optional["ExportedLLMObsSpan"] = None
 
     @property
     def url(self) -> str:
@@ -971,7 +994,7 @@ class Experiment:
 
         return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
 
-    def _setup_experiment(self, llmobs_not_enabled_error: str) -> None:
+    def _setup_experiment(self, llmobs_not_enabled_error: str, ensure_unique: bool = True) -> None:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
 
@@ -988,6 +1011,7 @@ class Experiment:
             convert_tags_dict_to_list(self._tags),
             self._description,
             self._runs,
+            ensure_unique,
         )
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
@@ -1058,6 +1082,8 @@ class Experiment:
                 experiment_name=self.name,
             ) as span:
                 span_context = self._llmobs_instance.export_span(span=span)
+                if self._is_distributed:
+                    self.experiment_span = span_context
                 if span_context:
                     span_id = span_context.get("span_id", "")
                     trace_id = span_context.get("trace_id", "")
@@ -1065,12 +1091,21 @@ class Experiment:
                     span_id, trace_id = "", ""
                 input_data = record["input_data"]
                 record_id = record.get("record_id", "")
+                canonical_id = record.get("canonical_id")
                 tags = {
                     **self._tags,
                     "dataset_id": str(self._dataset._id),
                     "dataset_record_id": str(record_id),
                     "experiment_id": str(self._id),
                 }
+                # Propagate dataset record tags to the experiment span
+                record_tags = record.get("tags", [])
+                for tag in record_tags:
+                    if ":" in tag:
+                        key, value = tag.split(":", 1)
+                        tags[key] = value
+                if canonical_id:
+                    tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 try:
                     if asyncio.iscoroutinefunction(self._task):
@@ -1084,6 +1119,8 @@ class Experiment:
                 span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+                if self._config:
+                    span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
 
                 return {
                     "idx": idx,
@@ -1320,6 +1357,92 @@ class Experiment:
             evaluations.append({"idx": idx, "evaluations": evals_dict})
 
         return evaluations
+
+    async def _run_task_single_iteration(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        run_iteration: Optional[int] = 0,
+    ) -> ExperimentResult:
+        run = _ExperimentRunInfo(run_iteration or 0)
+        self._tags["run_id"] = str(run._id)
+        self._tags["run_iteration"] = str(run._run_iteration)
+        task_results = await self._run_task(jobs, run, raise_errors, None)
+        evaluations = await self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+        run_result = self._merge_results(run, task_results, evaluations, [])
+        experiment_evals = self._generate_metrics_from_exp_results(run_result)
+        self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+            cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
+        )
+        return {
+            "summary_evaluations": {},
+            "rows": [],
+            "runs": [run_result],
+        }
+
+    def _submit_eval_metric(
+        self,
+        eval_name: str,
+        eval_value: JSONType,
+        span: Optional["ExportedLLMObsSpan"] = None,
+        timestamp_ms: Optional[int] = None,
+        is_summary_eval: Optional[bool] = None,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[dict[str, JSONType]] = None,
+        tags: Optional[dict[str, str]] = None,
+    ) -> None:
+        """Submit an evaluation metric for a distributed experiment.
+
+        :param eval_name: Name of the evaluation metric
+        :param eval_value: Value of the evaluation metric
+        :param span: Optional span context dict with span_id and trace_id. If None and not a
+                     summary eval, uses the last span from _run_task_single_iteration.
+        :param timestamp_ms: Optional timestamp in milliseconds
+        :param is_summary_eval: Whether this is a summary-level evaluation
+        :param reasoning: Optional reasoning string
+        :param assessment: Optional assessment string
+        :param metadata: Optional metadata dict
+        :param tags: Optional tags dict
+        """
+        if not self._is_distributed:
+            raise ValueError("this method is only used for distributed experiments")
+
+        if span is not None and (
+            not isinstance(span, dict)
+            or not isinstance(span.get("span_id"), str)
+            or not isinstance(span.get("trace_id"), str)
+        ):
+            raise TypeError(
+                "`span` must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+
+        if span is None and not is_summary_eval and self.experiment_span is None:
+            raise TypeError("unexpected state, must supply span or must run the experiment first")
+
+        if span is None and not is_summary_eval:
+            span = self.experiment_span
+
+        timestamp_ns = int(timestamp_ms * 1e6) if timestamp_ms is not None else int(time.time() * 1e9)
+
+        eval_metric = self._generate_metric_from_evaluation(
+            eval_name,
+            eval_value,
+            None,
+            span.get("span_id", "") if span else "",
+            span.get("trace_id", "") if span else "",
+            timestamp_ns,
+            "summary" if is_summary_eval else "custom",
+            reasoning,
+            assessment,
+            metadata,
+            tags,
+        )
+
+        self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+            cast(str, self._id), [eval_metric], convert_tags_dict_to_list(self._tags)
+        )
 
 
 class SyncExperiment:

@@ -236,7 +236,7 @@ def test_libdd_failure_telemetry_logging_with_auto():
 
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
-    err="Failed to load stack module (mock failure message), falling back to v1 stack sampler\n",
+    err="Failed to load stack module (mock failure message), disabling stack profiling\n",
 )
 def test_stack_failure_telemetry_logging():
     # Test that stack initialization failures log to telemetry. This is
