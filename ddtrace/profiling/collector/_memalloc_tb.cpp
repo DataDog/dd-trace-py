@@ -171,6 +171,7 @@ push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
 }
 #endif /* _PY312_AND_LATER */
 
+#ifndef _PY312_AND_LATER
 /* Helper function to collect frames from PyFrameObject chain and push to sample
  * Uses Sample::push_pyframes for the actual frame unwinding */
 static void
@@ -205,6 +206,7 @@ push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
     sample.push_pyframes(pyframe);
     Py_DECREF(pyframe);
 }
+#endif /* !_PY312_AND_LATER */
 
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
