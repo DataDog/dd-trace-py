@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 from mock.mock import call
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery

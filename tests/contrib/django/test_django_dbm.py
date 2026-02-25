@@ -48,8 +48,9 @@ def test_django_postgres_dbm_propagation_enabled():
 def test_django_postgres_dbm_propagation_comment_with_global_service_name_configured():
     """tests if dbm comment is set in postgres"""
 
+    from unittest import mock
+
     import django
-    import mock
 
     from ddtrace.contrib.internal.django.database import instrument_dbs
     from tests.contrib import shared_tests
@@ -85,8 +86,9 @@ def test_django_postgres_dbm_propagation_comment_with_global_service_name_config
 def test_django_postgres_dbm_propagation_comment_integration_service_name_override():
     """tests if dbm comment is set in postgres"""
 
+    from unittest import mock
+
     import django
-    import mock
 
     from ddtrace.contrib.internal.django.database import instrument_dbs
     from tests.contrib import shared_tests
@@ -132,8 +134,9 @@ def test_django_postgres_dbm_propagation_comment_integration_service_name_overri
 def test_django_postgres_dbm_propagation_comment_peer_service_enabled():
     """tests if dbm comment is set in postgres"""
 
+    from unittest import mock
+
     import django
-    import mock
 
     from ddtrace.contrib.internal.django.database import instrument_dbs
     from tests.contrib import shared_tests

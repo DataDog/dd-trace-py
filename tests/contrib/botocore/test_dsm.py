@@ -2,10 +2,10 @@ import base64
 import json
 import sys
 import unittest
+from unittest import mock
 
 import botocore
 import botocore.session
-import mock
 from moto import mock_kinesis
 from moto import mock_sns
 from moto import mock_sqs

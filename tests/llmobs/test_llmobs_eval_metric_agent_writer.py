@@ -1,6 +1,5 @@
 import time
-
-import mock
+from unittest import mock
 
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.settings._agent import config as agent_config

@@ -3,8 +3,8 @@ import glob
 import json
 import os
 import tempfile
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.ext import ci

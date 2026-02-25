@@ -1,7 +1,7 @@
 import json
+from unittest import mock
 
 import crewai
-import mock
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.crewai.utils import fun_fact_text

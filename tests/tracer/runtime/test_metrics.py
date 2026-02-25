@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 
 from ddtrace.internal.runtime.collector import ValueCollector
 from tests.utils import BaseTestCase

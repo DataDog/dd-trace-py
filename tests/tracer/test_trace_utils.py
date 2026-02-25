@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ipaddress import ip_network
+from unittest import mock
 
 from hypothesis import given
 from hypothesis.strategies import booleans
@@ -10,7 +11,6 @@ from hypothesis.strategies import none
 from hypothesis.strategies import recursive
 from hypothesis.strategies import text
 from hypothesis.strategies import tuples
-import mock
 import pytest
 
 from ddtrace import config

@@ -2,8 +2,8 @@ import os
 import re
 import threading
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace
@@ -1110,7 +1110,7 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
-import mock
+from unittest import mock
 import sys
 import time
 from ddtrace.llmobs import LLMObs

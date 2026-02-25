@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.internal.hostname import _reset

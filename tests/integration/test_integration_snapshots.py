@@ -2,8 +2,8 @@
 import logging
 import os
 import signal
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO

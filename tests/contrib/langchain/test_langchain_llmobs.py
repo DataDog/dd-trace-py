@@ -3,8 +3,8 @@ import json
 from operator import itemgetter
 import os
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace import patch

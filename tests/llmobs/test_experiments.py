@@ -17,6 +17,7 @@ import tempfile
 import time
 from typing import Generator
 from typing import Optional
+from unittest import mock
 from unittest.mock import MagicMock
 from uuid import UUID
 
@@ -31,7 +32,7 @@ except ImportError:
     LLMTestCase = None  # type: ignore[misc, assignment]
     DEEPEVAL_AVAILABLE = False
 
-import mock
+
 import pytest
 
 import ddtrace

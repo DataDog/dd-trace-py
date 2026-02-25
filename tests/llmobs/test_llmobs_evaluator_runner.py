@@ -1,8 +1,8 @@
 import json
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner

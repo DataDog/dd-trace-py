@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.bytecode_injection import InvalidLine

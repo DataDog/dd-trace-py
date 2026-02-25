@@ -4,8 +4,8 @@ import re
 from typing import NamedTuple
 from typing import Optional
 from typing import Union
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace._trace._span_pointer import _SpanPointerDescription

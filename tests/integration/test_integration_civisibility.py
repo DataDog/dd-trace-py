@@ -1,6 +1,6 @@
 import os
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.ci_visibility import CIVisibility
@@ -77,8 +77,7 @@ def test_civisibility_intake_with_apikey():
 @pytest.mark.subprocess()
 def test_civisibility_intake_payloads():
     import gzip
-
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
     from ddtrace.internal.ci_visibility.recorder import CIVisibilityWriter

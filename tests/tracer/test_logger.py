@@ -1,7 +1,7 @@
 import logging
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace.internal.logger

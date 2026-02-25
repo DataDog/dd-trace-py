@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import mysql
 
 from ddtrace.contrib.internal.mysql.patch import patch

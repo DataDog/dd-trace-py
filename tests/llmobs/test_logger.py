@@ -1,7 +1,7 @@
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs._log_writer import V2LogWriter

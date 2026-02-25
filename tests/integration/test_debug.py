@@ -3,8 +3,8 @@ import logging
 import os
 import re
 import subprocess
+from unittest import mock
 
-import mock
 import pytest
 
 import ddtrace

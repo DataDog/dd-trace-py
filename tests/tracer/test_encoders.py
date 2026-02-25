@@ -670,8 +670,7 @@ def test_span_link_v04_encoding():
 )
 def test_span_event_encoding_msgpack():
     import os
-
-    import mock
+    from unittest import mock
 
     from ddtrace.internal.encoding import MSGPACK_ENCODERS
     from ddtrace.trace import Span

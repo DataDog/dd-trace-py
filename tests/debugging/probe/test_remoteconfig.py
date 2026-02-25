@@ -1,7 +1,7 @@
 import random
+from unittest import mock
 from uuid import uuid4
 
-import mock
 import pytest
 
 from ddtrace.debugging._config import di_config
