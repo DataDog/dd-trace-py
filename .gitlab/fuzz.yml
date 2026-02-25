@@ -9,7 +9,7 @@ fuzz_infra:
   image: registry.ddbuild.io/images/docker:27.3.1
   tags: ["arch:amd64"]
   stage: fuzz
-  timeout: 10m
+  timeout: 20m
   allow_failure: true
   id_tokens:
     DDSIGN_ID_TOKEN:
