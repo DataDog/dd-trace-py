@@ -138,6 +138,7 @@ def sign_image(config: Config, metadata_file: str) -> None:
 
 def extract_manifest(config: Config) -> list[FuzzBinary]:
     """Pull the manifest from the built image and parse it into FuzzBinary entries."""
+    run_command(["docker", "pull", config.full_image_ref])
     result = run_command(
         ["docker", "run", "--rm", config.full_image_ref, "cat", MANIFEST_PATH],
     )
