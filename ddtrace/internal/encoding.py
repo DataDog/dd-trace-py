@@ -31,6 +31,12 @@ if TYPE_CHECKING:  # pragma: no cover
 log = get_logger(__name__)
 
 
+def _json_dumps_bytes(obj: object) -> bytes:
+    """Serialize to JSON and return UTF-8 bytes (alternative to json.dumps that returns binary)."""
+    # TODO(munir): Consider vendoring orjson to avoid this intermeriate strings
+    return json.dumps(obj).encode("utf-8", errors="backslashreplace")
+
+
 class _EncoderBase(object):
     """
     Encoder interface that provides the logic to encode traces and service.
@@ -170,7 +176,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     def __init__(self, max_size: int, max_item_size: int) -> None:
         self.max_size = max_size
         self.max_item_size = max_item_size
-        self._buffer: list[str] = []
+        self._buffer: list[bytes] = []
         self._size = 0
         self._lock = RLock()
 
@@ -185,41 +191,41 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
 
     def put(self, item) -> None:
         with self._lock:
-            span_strs, item_size = self._items_to_json_strings(item)
+            span_bytes_list, item_size = self._items_to_json_bytes(item)
             if item_size > self.max_item_size:
                 raise BufferItemTooLarge(item_size)
             elif item_size + self._size > self.max_size:
                 raise BufferFull(item_size + self._size)
-            self._buffer.extend(span_strs)
+            self._buffer.extend(span_bytes_list)
             self._size += item_size
 
     def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
             if not self._buffer:
                 return []
-            payload_bytes = f'{{"spans": [{",".join(self._buffer)}]}}'.encode("utf-8", errors="backslashreplace")
+            payload_bytes = b'{"spans": [' + b",".join(self._buffer) + b"]}"
             n_traces = len(self._buffer)
             self._buffer = []
             self._size = 0
             return [(payload_bytes, n_traces)]
 
-    def _items_to_json_strings(self, items: list["Span"]) -> tuple[list[str], int]:
+    def _items_to_json_bytes(self, items: list["Span"]) -> tuple[list[bytes], int]:
         total_size = 0
-        span_strs = []
+        span_bytes_list = []
         for item in items:
-            span_str = self._item_to_json_string(item)
-            span_strs.append(span_str)
-            total_size += len(span_str)
-        return span_strs, total_size
+            span_bytes = self._item_to_json_bytes(item)
+            span_bytes_list.append(span_bytes)
+            total_size += len(span_bytes)
+        return span_bytes_list, total_size
 
-    def _item_to_json_string(self, item: "Span") -> str:
+    def _item_to_json_bytes(self, item: "Span") -> bytes:
         span_dict = JSONEncoderV2._convert_span(item)
         span_dict["meta_struct"] = item._meta_struct
         # Intake Requires ids to be in lowercase
         span_dict["trace_id"] = span_dict["trace_id"].lower()
         span_dict["parent_id"] = span_dict["parent_id"].lower()
         span_dict["span_id"] = span_dict["span_id"].lower()
-        return json.dumps(span_dict)
+        return _json_dumps_bytes(span_dict)
 
 
 MSGPACK_ENCODERS = {
