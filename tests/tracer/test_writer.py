@@ -1453,23 +1453,23 @@ def test_agentless_writer_enabled():
     assert len(spans) == 4
     # root1
     assert spans[0]["name"] == "root1"
-    assert spans[0]["trace_id"] == "{:016x}".format(root1._trace_id_64bits).upper()
-    assert spans[0]["span_id"] == "{:016x}".format(root1.span_id).upper()
+    assert spans[0]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
+    assert spans[0]["span_id"] == "{:016x}".format(root1.span_id)
     assert spans[0]["parent_id"] == "0000000000000000"
     # child1
     assert spans[1]["name"] == "child1"
-    assert spans[1]["trace_id"] == "{:016x}".format(root1._trace_id_64bits).upper()
-    assert spans[1]["span_id"] == "{:016x}".format(child1.span_id).upper()
-    assert spans[1]["parent_id"] == "{:016x}".format(root1.span_id).upper()
+    assert spans[1]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
+    assert spans[1]["span_id"] == "{:016x}".format(child1.span_id)
+    assert spans[1]["parent_id"] == "{:016x}".format(root1.span_id)
     # child2
     assert spans[2]["name"] == "child2"
-    assert spans[2]["trace_id"] == "{:016x}".format(root1._trace_id_64bits).upper()
-    assert spans[2]["span_id"] == "{:016x}".format(child2.span_id).upper()
-    assert spans[2]["parent_id"] == "{:016x}".format(root1.span_id).upper()
+    assert spans[2]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
+    assert spans[2]["span_id"] == "{:016x}".format(child2.span_id)
+    assert spans[2]["parent_id"] == "{:016x}".format(root1.span_id)
     # root2
     assert spans[3]["name"] == "root2"
-    assert spans[3]["trace_id"] == "{:016x}".format(root2._trace_id_64bits).upper()
-    assert spans[3]["span_id"] == "{:016x}".format(root2.span_id).upper()
+    assert spans[3]["trace_id"] == "{:016x}".format(root2._trace_id_64bits)
+    assert spans[3]["span_id"] == "{:016x}".format(root2.span_id)
     assert spans[3]["parent_id"] == "0000000000000000"
 
     headers = mock_put.call_args_list[0][0][1]
@@ -1478,11 +1478,23 @@ def test_agentless_writer_enabled():
     assert headers["Datadog-Meta-Lang"] == "python"
 
 
-@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "_DD_API_KEY": "test-api-key"})
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
+        "_DD_API_KEY": "test-api-key",
+        # "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
+        "DD_TRACE_HEALTH_METRICS_ENABLED": "true",
+        # "DD_TRACE_RATE_LIMIT": "1",
+        "DD_TRACE_COMPUTE_STATS": "true",
+    }
+)
 def test_agentless_writer_serialize_span_fields():
     import json
+    from os import getpid
     from unittest.mock import patch
 
+    from ddtrace.internal.hostname import get_hostname
+    from ddtrace.internal.runtime import get_runtime_id
     from ddtrace.internal.utils.http import Response
     from ddtrace.internal.writer.writer import AgentlessTraceWriter
     from ddtrace.trace import tracer
@@ -1491,14 +1503,47 @@ def test_agentless_writer_serialize_span_fields():
     assert isinstance(writer, AgentlessTraceWriter)
 
     with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
-        with tracer.trace("root1"):
-            pass
+        with tracer.trace("root1", resource="resource1", service="service1") as span:
+            span.set_tag("tag1", "value1")
+            span.set_tag("tag2", "value2")
+            span.set_metric("metric1", 1.0)
+            span.set_metric("metric2", 2.0)
+            span.set_link(trace_id=3, span_id=4)
+            span.error = 1
+            span._set_struct_tag("payload", {"key": "value"})
         writer.flush_queue()
 
     assert mock_put.call_count == 1
-    payload1_json = json.loads(mock_put.call_args_list[0][0][0])
-    assert "spans" in payload1_json
-    spans = payload1_json["spans"]
-    assert len(spans) == 1
-    assert spans[0]["name"] == "root1"
-    assert spans[0]["parent_id"] == "123456789"
+    payload_json_bytes = mock_put.call_args_list[0][0][0]
+    payload_json = json.loads(payload_json_bytes.decode("utf-8"))
+
+    assert "spans" in payload_json
+    assert len(payload_json["spans"]) == 1
+    span_json = payload_json["spans"][0]
+
+    assert span_json["trace_id"] == "{:016x}".format(span._trace_id_64bits)
+    assert span_json["parent_id"] == "0000000000000000"
+    assert span_json["span_id"] == "{:016x}".format(span.span_id)
+    assert span_json["service"] == "service1"
+    assert span_json["resource"] == "resource1"
+    assert span_json["name"] == "root1"
+    assert span_json["error"] == 1
+    assert span_json["start"] == span.start_ns
+    assert span_json["duration"] == span.duration_ns
+    assert span_json["span_links"] == [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}]
+    assert span_json["meta_struct"] == {"payload": {"key": "value"}}
+
+    assert span_json["meta"]["_dd.hostname"] == get_hostname()
+    assert span_json["meta"]["runtime-id"] == get_runtime_id()
+    assert span_json["meta"]["tag1"] == "value1"
+    assert span_json["meta"]["tag2"] == "value2"
+    # Sampling rules and rate limits are ignored. Default is used.
+    assert span_json["meta"]["_dd.p.dm"] == "-0"
+    assert span_json["meta"]["language"] == "python"
+    assert span_json["meta"]["_dd.p.tid"] == "{:016x}".format(span.trace_id >> 64)
+
+    assert span_json["metrics"]["process_id"] == getpid()
+    assert span_json["metrics"]["metric1"] == 1.0
+    assert span_json["metrics"]["metric2"] == 2.0
+    assert span_json["metrics"]["_dd.top_level"] == 1
+    assert span_json["metrics"]["_sampling_priority_v1"] == 1
