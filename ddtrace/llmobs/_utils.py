@@ -443,6 +443,8 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
             meta[LLMOBS_STRUCT.METADATA].update(metadata)
+        if agent_manifest is not None:
+            meta[LLMOBS_STRUCT.METADATA][LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update(metrics)
         if tags is not None:
@@ -469,8 +471,6 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
         if tool_definitions is not None:
             meta[LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
-        if agent_manifest is not None:
-            meta[LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
         if expected_output is not None:
             meta[LLMOBS_STRUCT.EXPECTED_OUTPUT] = expected_output
         if experiment_input is not None:

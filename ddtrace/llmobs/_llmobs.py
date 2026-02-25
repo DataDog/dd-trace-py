@@ -76,6 +76,7 @@ from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
 from ddtrace.llmobs._constants import METADATA
@@ -133,6 +134,7 @@ from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _batched
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -396,7 +398,17 @@ class LLMObs(Service):
 
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Span event object structure."""
-        span_kind = span._get_ctx_item(SPAN_KIND)
+        # Check if span has meta_struct data; if so, use it, otherwise fall back to ctx_item
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        use_meta_struct = bool(llmobs_data)
+        llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {}) if use_meta_struct else {}
+        llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT, {}) if use_meta_struct else {}
+        llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT, {}) if use_meta_struct else {}
+
+        if use_meta_struct:
+            span_kind = llmobs_meta.get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+        else:
+            span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
@@ -411,21 +423,42 @@ class LLMObs(Service):
         }
 
         meta = _Meta(span=_SpanField(kind=span_kind), input=_MetaIO(), output=_MetaIO())
-        if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
-            meta["model_name"] = span._get_ctx_item(MODEL_NAME) or ""
-            meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
-        metadata = span._get_ctx_item(METADATA) or {}
-        if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
-            metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
+
+        if use_meta_struct:
+            model_name = llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME)
+            model_provider = llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER)
+        else:
+            model_name = span._get_ctx_item(MODEL_NAME)
+            model_provider = span._get_ctx_item(MODEL_PROVIDER)
+
+        if span_kind in ("llm", "embedding") and model_name is not None:
+            meta["model_name"] = model_name or ""
+            meta["model_provider"] = (model_provider or "custom").lower()
+
+        if use_meta_struct:
+            metadata = llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {}
+            agent_manifest = llmobs_meta.get(LLMOBS_STRUCT.AGENT_MANIFEST)
+        else:
+            metadata = span._get_ctx_item(METADATA) or {}
+            agent_manifest = span._get_ctx_item(AGENT_MANIFEST)
+
+        if span_kind == "agent" and agent_manifest is not None:
+            metadata["agent_manifest"] = agent_manifest
         meta["metadata"] = metadata
 
         input_type: Literal["value", "messages", ""] = ""
         output_type: Literal["value", "messages", ""] = ""
-        if span._get_ctx_item(INPUT_VALUE) is not None:
+
+        if use_meta_struct:
+            input_value = llmobs_input.get(LLMOBS_STRUCT.VALUE) if isinstance(llmobs_input, dict) else None
+        else:
+            input_value = span._get_ctx_item(INPUT_VALUE)
+
+        if input_value is not None:
             input_type = "value"
             llmobs_span.input = [
                 Message(
-                    content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "",
+                    content=safe_json(input_value, ensure_ascii=False) or "",
                     role="",
                 )
             ]
@@ -433,61 +466,104 @@ class LLMObs(Service):
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
             if span_kind == "experiment":
-                expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+                if use_meta_struct:
+                    expected_output = llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT)
+                    # For experiments, input/output can be any type
+                    if llmobs_input:
+                        meta["input"] = llmobs_input
+                    if llmobs_output:
+                        meta["output"] = llmobs_output
+                else:
+                    expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+                    input_data = span._get_ctx_item(EXPERIMENTS_INPUT)
+                    if input_data:
+                        meta["input"] = input_data
+                    output_data = span._get_ctx_item(EXPERIMENTS_OUTPUT)
+                    if output_data:
+                        meta["output"] = output_data
                 if expected_output:
                     meta["expected_output"] = expected_output
 
-                input_data = span._get_ctx_item(EXPERIMENTS_INPUT)
-                if input_data:
-                    meta["input"] = input_data
+        if use_meta_struct:
+            input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES) if isinstance(llmobs_input, dict) else None
+        else:
+            input_messages = span._get_ctx_item(INPUT_MESSAGES)
 
-                output_data = span._get_ctx_item(EXPERIMENTS_OUTPUT)
-                if output_data:
-                    meta["output"] = output_data
-
-        input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
             input_type = "messages"
             llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
 
-        if span._get_ctx_item(OUTPUT_VALUE) is not None:
+        if use_meta_struct:
+            output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE) if isinstance(llmobs_output, dict) else None
+        else:
+            output_value = span._get_ctx_item(OUTPUT_VALUE)
+
+        if output_value is not None:
             output_type = "value"
             llmobs_span.output = [
                 Message(
-                    content=safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False) or "",
+                    content=safe_json(output_value, ensure_ascii=False) or "",
                     role="",
                 )
             ]
 
-        output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
+        if use_meta_struct:
+            output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES) if isinstance(llmobs_output, dict) else None
+        else:
+            output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
+
         if span_kind == "llm" and output_messages is not None:
             output_type = "messages"
             llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
 
-        if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
-            meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS) or []
-        if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
-            meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS) or []
+        if use_meta_struct:
+            input_documents = llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS) if isinstance(llmobs_input, dict) else None
+            output_documents = llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS) if isinstance(llmobs_output, dict) else None
+        else:
+            input_documents = span._get_ctx_item(INPUT_DOCUMENTS)
+            output_documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
 
-        if span._get_ctx_item(INPUT_PROMPT) is not None:
-            prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
+        if span_kind == "embedding" and input_documents is not None:
+            meta["input"]["documents"] = input_documents or []
+        if span_kind == "retrieval" and output_documents is not None:
+            meta["output"]["documents"] = output_documents or []
+
+        if use_meta_struct:
+            input_prompt = llmobs_input.get(LLMOBS_STRUCT.PROMPT) if isinstance(llmobs_input, dict) else None
+        else:
+            input_prompt = span._get_ctx_item(INPUT_PROMPT)
+
+        if input_prompt is not None:
             if span_kind != "llm":
                 log.warning(
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                prompt_dict = cast(Prompt, prompt_json_str)
+                prompt_dict = cast(Prompt, input_prompt)
                 meta["input"]["prompt"] = prompt_dict
         elif span_kind == "llm":
             parent_span = _get_nearest_llmobs_ancestor(span)
             if parent_span is not None:
-                parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)
+                parent_llmobs_data = _get_llmobs_data_metastruct(parent_span)
+                if parent_llmobs_data:
+                    parent_llmobs_input = parent_llmobs_data.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {})
+                    parent_prompt = (
+                        parent_llmobs_input.get(LLMOBS_STRUCT.PROMPT) if isinstance(parent_llmobs_input, dict) else None
+                    )
+                else:
+                    parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)
                 if parent_prompt is not None:
                     meta["input"]["prompt"] = parent_prompt
 
-        if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
-            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
-        intent = span._get_ctx_item(MCP_TOOL_CALL_INTENT)
+        if use_meta_struct:
+            tool_definitions = llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS)
+            intent = llmobs_meta.get(LLMOBS_STRUCT.INTENT)
+        else:
+            tool_definitions = span._get_ctx_item(TOOL_DEFINITIONS)
+            intent = span._get_ctx_item(MCP_TOOL_CALL_INTENT)
+
+        if tool_definitions is not None:
+            meta["tool_definitions"] = tool_definitions or []
         if intent is not None:
             meta["intent"] = str(intent)
         if span.error:
@@ -500,7 +576,10 @@ class LLMObs(Service):
         if self._user_span_processor:
             error = False
             try:
-                llmobs_span._tags = cast(dict[str, str], span._get_ctx_item(TAGS))
+                if use_meta_struct:
+                    llmobs_span._tags = cast(dict[str, str], llmobs_data.get(LLMOBS_STRUCT.TAGS, {}))
+                else:
+                    llmobs_span._tags = cast(dict[str, str], span._get_ctx_item(TAGS))
                 user_llmobs_span = self._user_span_processor(llmobs_span)
                 if user_llmobs_span is None:
                     return None
@@ -534,7 +613,11 @@ class LLMObs(Service):
             meta.pop("input")
         if not meta["output"]:
             meta.pop("output")
-        metrics = span._get_ctx_item(METRICS) or {}
+
+        if use_meta_struct:
+            metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
+        else:
+            metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
 
         if ml_app is None:
@@ -544,9 +627,16 @@ class LLMObs(Service):
             )
 
         span._set_ctx_item(ML_APP, ml_app)
-        parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
-        llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
+        if use_meta_struct:
+            parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
+        else:
+            parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
+
+        if use_meta_struct:
+            llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
+        else:
+            llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
@@ -568,20 +658,32 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
-        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id)
+        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id, use_meta_struct, llmobs_data)
 
-        span_links = span._get_ctx_item(SPAN_LINKS)
+        if use_meta_struct:
+            span_links = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS)
+        else:
+            span_links = span._get_ctx_item(SPAN_LINKS)
         if isinstance(span_links, list) and span_links:
             llmobs_span_event["span_links"] = span_links
 
-        experiment_config = span._get_ctx_item(EXPERIMENT_CONFIG)
+        if use_meta_struct:
+            experiment_config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
+        else:
+            experiment_config = span._get_ctx_item(EXPERIMENT_CONFIG)
         if experiment_config:
             llmobs_span_event["config"] = experiment_config
 
         return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> list[str]:
+    def _llmobs_tags(
+        span: Span,
+        ml_app: str,
+        session_id: Optional[str] = None,
+        use_meta_struct: bool = False,
+        llmobs_data: Optional[dict[str, Any]] = None,
+    ) -> list[str]:
         dd_tags = config.tags
         tags = {
             **dd_tags,
@@ -599,11 +701,19 @@ class LLMObs(Service):
             tags["error_type"] = err_type
         if session_id:
             tags["session_id"] = session_id
-        if span._get_ctx_item(INTEGRATION):
-            tags["integration"] = span._get_ctx_item(INTEGRATION)
+
+        if use_meta_struct and llmobs_data:
+            llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS, {})
+            if llmobs_tags.get("integration"):
+                tags["integration"] = llmobs_tags.get("integration")
+            existing_tags = llmobs_tags
+        else:
+            if span._get_ctx_item(INTEGRATION):
+                tags["integration"] = span._get_ctx_item(INTEGRATION)
+            existing_tags = span._get_ctx_item(TAGS)
+
         if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
-        existing_tags = span._get_ctx_item(TAGS)
         if existing_tags is not None:
             tags.update(existing_tags)
 

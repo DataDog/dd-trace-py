@@ -114,7 +114,6 @@ class _Meta(TypedDict, total=False):
     expected_output: _MetaIO
     evaluations: Any
     tool_definitions: list[ToolDefinition]
-    agent_manifest: dict[str, Any]
     intent: str
 
 
