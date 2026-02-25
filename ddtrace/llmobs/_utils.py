@@ -18,16 +18,11 @@ from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
-from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -208,7 +203,7 @@ def _get_span_name(span: Span) -> str:
         client_name = span.get_tag("openai.request.provider") or "OpenAI"
         return "{}.{}".format(client_name, span.resource)
     llmobs_data = _get_llmobs_data_metastruct(span)
-    return llmobs_data.get(LLMOBS_STRUCT.NAME) or span._get_ctx_item(NAME) or span.name
+    return llmobs_data.get(LLMOBS_STRUCT.NAME) or span.name
 
 
 def _is_evaluation_span(span: Span) -> bool:
@@ -217,15 +212,13 @@ def _is_evaluation_span(span: Span) -> bool:
     nearest LLMObs span ancestor. Default to 'False'
     """
     llmobs_data = _get_llmobs_data_metastruct(span)
-    is_evaluation_span = llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN) or span._get_ctx_item(IS_EVALUATION_SPAN)
+    is_evaluation_span = llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN)
     if is_evaluation_span:
         return is_evaluation_span
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
         parent_llmobs_data = _get_llmobs_data_metastruct(llmobs_parent)
-        is_evaluation_span = parent_llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN) or llmobs_parent._get_ctx_item(
-            IS_EVALUATION_SPAN
-        )
+        is_evaluation_span = parent_llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN)
         if is_evaluation_span:
             return is_evaluation_span
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
@@ -238,13 +231,13 @@ def _get_ml_app(span: Span) -> Optional[str]:
     Default to the global config LLMObs ML app name otherwise.
     """
     llmobs_data = _get_llmobs_data_metastruct(span)
-    ml_app = llmobs_data.get(LLMOBS_STRUCT.ML_APP) or span._get_ctx_item(ML_APP)
+    ml_app = llmobs_data.get(LLMOBS_STRUCT.ML_APP)
     if ml_app:
         return ml_app
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
         parent_llmobs_data = _get_llmobs_data_metastruct(llmobs_parent)
-        ml_app = parent_llmobs_data.get(LLMOBS_STRUCT.ML_APP) or llmobs_parent._get_ctx_item(ML_APP)
+        ml_app = parent_llmobs_data.get(LLMOBS_STRUCT.ML_APP)
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
@@ -254,13 +247,13 @@ def _get_ml_app(span: Span) -> Optional[str]:
 def _get_session_id(span: Span) -> Optional[str]:
     """Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor."""
     llmobs_data = _get_llmobs_data_metastruct(span)
-    session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID) or span._get_ctx_item(SESSION_ID)
+    session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID)
     if session_id:
         return session_id
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
         parent_llmobs_data = _get_llmobs_data_metastruct(llmobs_parent)
-        session_id = parent_llmobs_data.get(LLMOBS_STRUCT.SESSION_ID) or llmobs_parent._get_ctx_item(SESSION_ID)
+        session_id = parent_llmobs_data.get(LLMOBS_STRUCT.SESSION_ID)
         if session_id is not None:
             return session_id
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
@@ -344,9 +337,7 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
 
 def get_span_links(span: Span) -> list[_SpanLink]:
     llmobs_data = _get_llmobs_data_metastruct(span)
-    current_span_links: list[_SpanLink] = (
-        llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or span._get_ctx_item(SPAN_LINKS) or []
-    )
+    current_span_links: list[_SpanLink] = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
     return current_span_links
 
 
