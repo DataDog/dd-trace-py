@@ -1,8 +1,8 @@
 # stdlib
 import time
+from unittest import mock
 from unittest import skipIf
 
-import mock
 import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras

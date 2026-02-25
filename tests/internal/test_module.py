@@ -2,9 +2,9 @@ import json
 import os
 from pathlib import Path
 import sys
+from unittest import mock
 from warnings import warn
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO

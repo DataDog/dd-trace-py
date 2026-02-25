@@ -9,9 +9,9 @@ import logging
 from os import getpid
 import threading
 import time
+from unittest import mock
 from unittest.case import SkipTest
 
-import mock
 import pytest
 
 import ddtrace
@@ -705,7 +705,7 @@ def test_tracer_url_default():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_no_timeout():
-    import mock
+     from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -719,7 +719,7 @@ def test_tracer_shutdown_no_timeout():
 
 @pytest.mark.subprocess()
 def test_tracer_shutdown_timeout():
-    import mock
+     from unittest import mock
 
     from ddtrace.trace import tracer as t
 
@@ -739,7 +739,7 @@ def test_tracer_shutdown_timeout():
 def test_tracer_shutdown():
     import os
 
-    import mock
+     from unittest import mock
 
     from ddtrace._trace.span import Span
     from ddtrace.trace import tracer as t
@@ -1892,7 +1892,7 @@ def test_gc_not_used_on_root_spans():
 
 @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
 def test_detect_agent_config_with_lambda_extension():
-    import mock
+     from unittest import mock
 
     def mock_os_path_exists(path):
         return path == "/opt/extensions/datadog-agent"
@@ -1912,7 +1912,7 @@ def test_detect_agent_config_with_lambda_extension():
 
 @pytest.mark.subprocess()
 def test_multiple_tracer_instances():
-    import mock
+     from unittest import mock
 
     import ddtrace
 

@@ -6,8 +6,8 @@ from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
+from unittest import mock
 
-import mock
 from mock.mock import call
 import pytest
 

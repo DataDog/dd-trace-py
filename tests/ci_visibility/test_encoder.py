@@ -1,7 +1,7 @@
 import json
 import os
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 

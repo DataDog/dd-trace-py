@@ -2,8 +2,8 @@
 import enum
 import json
 import os
+from unittest import mock
 
-import mock
 from mock.mock import ANY
 import pytest
 

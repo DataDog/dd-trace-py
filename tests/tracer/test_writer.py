@@ -8,8 +8,8 @@ import sys
 import tempfile
 import threading
 import time
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 

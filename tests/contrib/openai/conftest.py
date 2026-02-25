@@ -1,8 +1,8 @@
 import os
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Optional  # noqa:F401
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.contrib.internal.openai.patch import patch

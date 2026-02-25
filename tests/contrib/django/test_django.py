@@ -3,6 +3,7 @@ import itertools
 import os
 import subprocess
 import types
+from unittest import mock
 import uuid
 
 import django
@@ -15,7 +16,6 @@ from django.test import override_settings
 from django.test.client import RequestFactory
 from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
-import mock
 import pytest
 
 from ddtrace import config

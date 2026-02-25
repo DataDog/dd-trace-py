@@ -11,9 +11,9 @@ from typing import Callable
 from typing import Optional
 from typing import Union
 from typing import cast
+from unittest import mock
 import uuid
 
-import mock
 import pytest
 
 from ddtrace import ext
@@ -414,7 +414,7 @@ def test_assertion_error_raised_with_enable_asserts():
     """Ensure that AssertionError is propagated when config.enable_asserts=True."""
     import threading
 
-    import mock
+     from unittest import mock
     import pytest
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
@@ -580,7 +580,7 @@ def test_all_exceptions_suppressed_by_default() -> None:
     """
     import threading
 
-    import mock
+     from unittest import mock
 
     from ddtrace.profiling.collector.threading import ThreadingLockCollector
     from tests.profiling.collector.test_utils import init_ddup

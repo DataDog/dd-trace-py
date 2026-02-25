@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+from unittest import mock
+
 import kombu
-import mock
 import pytest
 
 from ddtrace.contrib.internal.kombu import utils
