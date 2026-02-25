@@ -29,9 +29,6 @@ REPOSITORY_URL = "https://github.com/DataDog/dd-trace-py"
 PROJECT_NAME = "dd-trace-py"
 FUZZ_TYPE = "libfuzzer"
 MAX_PKG_NAME_LENGTH = 50
-REPLICATION_TIMEOUT = 120  # seconds
-REPLICATION_POLL_INTERVAL = 5  # seconds
-REPLICATION_TARGET = "us1.ddbuild.io"
 
 
 @dataclass(frozen=True)
@@ -153,27 +150,12 @@ def replicate_image(config: Config, metadata_file: str) -> None:
 
 
 def wait_for_replication(image_with_digest: str) -> None:
-    """Poll replication status until us1.ddbuild.io is available (max 2 min)."""
-    cmd = ["ddsign", "replicate", "--status", image_with_digest]
-    deadline = time.monotonic() + REPLICATION_TIMEOUT
-    while time.monotonic() < deadline:
-        print(f"+ {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            status = json.loads(result.stdout)
-            target_status = status.get("availability", {}).get(REPLICATION_TARGET, {}).get("status")
-            if target_status == "available":
-                print(f"Replication to {REPLICATION_TARGET} complete")
-                return
-            print(f"Replication status for {REPLICATION_TARGET}: {target_status}")
-        else:
-            print(
-                f"Status check failed (rc={result.returncode}):"
-                f" stdout={result.stdout!r} stderr={result.stderr!r},"
-                " retrying..."
-            )
-        time.sleep(REPLICATION_POLL_INTERVAL)
-    print(f"WARNING: replication to {REPLICATION_TARGET} not confirmed after {REPLICATION_TIMEOUT}s, continuing anyway")
+    """Wait for replication to complete."""
+    # TODO: remove this fixed sleep once our backend infra has fixed retries on this failure.
+    # If it's not enough, it's not a huge deal, our automatic scheduler will run that automatically in the next 24hours
+    # but it won't be "now".
+    print("Waiting 30s for replication to complete...")
+    time.sleep(30)
 
 
 def extract_manifest(config: Config) -> list[FuzzBinary]:
