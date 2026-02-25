@@ -390,6 +390,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(
             input_data={"query": "test"},
@@ -424,6 +425,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -442,6 +444,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=bad_transform,
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -456,6 +459,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -479,6 +483,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -492,20 +497,18 @@ class TestRemoteEvaluator:
 
         assert "Failed to call evaluator 'test-eval': HTTP 500" in str(exc_info.value)
 
-    def test_evaluate_llmobs_not_enabled(self, llmobs):
-        """Test that AttributeError is raised if LLMObs not enabled."""
+    def test_evaluate_llmobs_not_enabled(self):
+        """Test that AttributeError is raised if _llmobs_instance is not set."""
         evaluator = RemoteEvaluator(
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
         )
+        ctx = EvaluatorContext(input_data={}, output_data="")
 
-        with mock.patch("ddtrace.llmobs.LLMObs._instance", None):
-            ctx = EvaluatorContext(input_data={}, output_data="")
+        with pytest.raises(AttributeError) as exc_info:
+            evaluator.evaluate(ctx)
 
-            with pytest.raises(AttributeError) as exc_info:
-                evaluator.evaluate(ctx)
-
-            assert "'NoneType' object has no attribute '_dne_client'" in str(exc_info.value)
+        assert "'NoneType' object has no attribute '_dne_client'" in str(exc_info.value)
 
     def test_is_remote_evaluator_marker(self):
         """Test that RemoteEvaluator has _is_remote_evaluator marker."""
@@ -518,6 +521,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
@@ -548,6 +552,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
@@ -578,6 +583,7 @@ class TestRemoteEvaluator:
             eval_name="missing-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
@@ -597,6 +603,7 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
+        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
