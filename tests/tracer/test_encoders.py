@@ -871,9 +871,10 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     assert encoder.size == len(encoder.encode()[0][0])
 
 
-def test_encoder_buffer_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_size_limit(encoder_cls):
     buffer_size = 1 << 10
-    encoder = MsgpackEncoderV05(buffer_size, buffer_size)
+    encoder = encoder_cls(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
     encoder.put(trace)
@@ -892,9 +893,10 @@ def test_encoder_buffer_size_limit_v05():
         encoder.put(trace)
 
 
-def test_encoder_buffer_item_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_item_size_limit(encoder_cls):
     max_item_size = 1 << 10
-    encoder = MsgpackEncoderV05(max_item_size << 1, max_item_size)
+    encoder = encoder_cls(max_item_size << 1, max_item_size)
 
     span = Span(name="test")
     trace = [span]
