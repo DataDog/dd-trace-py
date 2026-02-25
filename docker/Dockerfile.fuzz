@@ -15,9 +15,6 @@
 #       --slack-channel fuzzing-ops \
 #       --repository-url https://github.com/DataDog/dd-trace-py
 
-# Build CI image (deps + source, used by CI):
-#   $ docker buildx build --target ci -f docker/Dockerfile.fuzz -t fuzz-ci .
-
 # ── Stage 1: deps — all build dependencies ───────────────────────────
 ARG PYTHON_IMAGE_TAG=3.12.0
 FROM registry.ddbuild.io/images/mirror/python:${PYTHON_IMAGE_TAG} AS deps
@@ -52,13 +49,10 @@ RUN FUZZYDOG_VERSION=0.26.2 \
 # Standard fuzzer directory layout
 RUN mkdir -p /fuzzer/inputs /fuzzer/crashes /fuzzer/builds
 
-# ── Stage 2: ci — deps + source (used by CI) ────────────────────────
-FROM deps AS ci
+# ── Stage 2: build — discover, build, and package all fuzz targets ───
+FROM deps AS build
 WORKDIR /src
 COPY . /src
-
-# ── Stage 3: build — discover, build, and package all fuzz targets ───
-FROM ci AS build
 
 # Discover and build all fuzz targets (0-click onboarding)
 RUN find /src -path '*/fuzz/build.sh' -type f | while IFS= read -r script; do \
@@ -70,11 +64,11 @@ RUN find /src -path '*/fuzz/build.sh' -type f | while IFS= read -r script; do \
 RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /tmp/fuzz/build/fuzz_binaries.txt \
   && ls -la /fuzzer/builds/
 
-CMD fuzzydog fuzzer run dd-trace-py-local fuzz_echion_remote_read \
-    --type libfuzzer \
-    --team profiling-python \
-    --build-path /fuzzer/builds/ \
-    --skip-dl-build \
-    --skip-dl-inputs \
-    --slack-channel fuzzing-ops \
-    --repository-url https://github.com/DataDog/dd-trace-py
+CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read", \
+     "--type", "libfuzzer", \
+     "--team", "profiling-python", \
+     "--build-path", "/fuzzer/builds/", \
+     "--skip-dl-build", \
+     "--skip-dl-inputs", \
+     "--slack-channel", "fuzzing-ops", \
+     "--repository-url", "https://github.com/DataDog/dd-trace-py"]

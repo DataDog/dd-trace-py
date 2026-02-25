@@ -29,8 +29,6 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         return 0;
     }
 
-    uintptr_t p0 = addr_from_u64(load_u64_le(data, size, 0));
-    uintptr_t p1 = addr_from_u64(load_u64_le(data, size, 8));
     uintptr_t p2 = addr_from_u64(load_u64_le(data, size, 16));
     uintptr_t p3 = addr_from_u64(load_u64_le(data, size, 24));
     uintptr_t p4 = addr_from_u64(load_u64_le(data, size, 32));
@@ -38,6 +36,8 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
 #if PY_VERSION_HEX >= 0x030b0000
     {
+        uintptr_t p0 = addr_from_u64(load_u64_le(data, size, 0));
+        uintptr_t p1 = addr_from_u64(load_u64_le(data, size, 8));
         StackChunk sc;
         (void)sc.update(reinterpret_cast<_PyStackChunk*>(p0));
         (void)sc.resolve(reinterpret_cast<void*>(p1));
