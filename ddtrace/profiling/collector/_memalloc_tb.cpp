@@ -84,7 +84,13 @@ push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
         return;
     }
 
+#if PY_VERSION_HEX >= 0x030d0000
+    /* Python 3.13+: current_frame is directly on PyThreadState. */
     _PyInterpreterFrame* iframe = tstate->current_frame;
+#else
+    /* Python 3.12: current_frame is on the _PyCFrame, not PyThreadState. */
+    _PyInterpreterFrame* iframe = tstate->cframe->current_frame;
+#endif
     if (iframe == NULL) {
         sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
         return;
