@@ -807,6 +807,13 @@ class AgentlessTraceWriter(HTTPWriter):
         )
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
+        try:
+            # Stop the writer to ensure it is not running while we reconfigure it.
+            self.stop()
+        except ServiceStatusError:
+            # Writers like AgentWriter may not start until the first trace is encoded.
+            # Stopping them before that will raise a ServiceStatusError.
+            pass
         return self.__class__(
             intake_url=self.intake_url,
             api_key=self._headers["dd-api-key"],
@@ -1288,15 +1295,17 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
         return LogWriter()
 
     if config._trace_agentless_enabled:
-        intake_url = "https://{}.{}".format(AGENTLESS_TRACE_INTAKE_HOST, config._dd_site)
-        verify_url(intake_url)
-        return AgentlessTraceWriter(
-            intake_url=intake_url,
-            api_key=config._dd_api_key,
-            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-            sync_mode=_use_sync_mode(),
-            report_metrics=not asm_config._apm_opt_out,
-        )
+        if config._dd_api_key:
+            intake_url = "https://{}.{}".format(AGENTLESS_TRACE_INTAKE_HOST, config._dd_site)
+            verify_url(intake_url)
+            return AgentlessTraceWriter(
+                intake_url=intake_url,
+                api_key=config._dd_api_key,
+                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+                sync_mode=_use_sync_mode(),
+                report_metrics=not asm_config._apm_opt_out,
+            )
+        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
 
     verify_url(agent_config.trace_agent_url)
 
