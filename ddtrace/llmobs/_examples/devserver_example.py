@@ -13,8 +13,12 @@
 #   curl -X POST http://localhost:8787/eval \
 #     -d '{"name":"capitals","stream":false,"config_override":{"system_prompt":"Answer in a full sentence."}}'
 import random
+from typing import Optional
+from typing import cast
 
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._experiment import ConfigType
+from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import JSONType
 
@@ -29,12 +33,12 @@ ANSWERS = {
 _DEFAULT_SYSTEM_PROMPT = "You are a geography expert. Answer with just the city name."
 
 
-async def task(input_data: DatasetRecordInputType, config: dict) -> str:
-    question = input_data["question"]
+async def task(input_data: DatasetRecordInputType, config: Optional[ConfigType]) -> str:
+    question = str(input_data["question"])
     cfg = config or {}
-    accuracy = cfg.get("accuracy", 1.0)
-    prefix = cfg.get("prefix", "")
-    system_prompt = cfg.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+    accuracy = float(cfg.get("accuracy", 1.0))  # type: ignore[arg-type]
+    prefix = str(cfg.get("prefix", ""))
+    system_prompt = str(cfg.get("system_prompt", _DEFAULT_SYSTEM_PROMPT))
 
     country_name = next((c for c in ANSWERS if c in question), None)
     answer = ANSWERS.get(country_name, "Unknown") if country_name else "Unknown"
@@ -83,26 +87,29 @@ def main() -> None:
         ds = LLMObs.create_dataset(
             "capitals",
             project_name="devserver-example",
-            records=[
-                {
-                    "input_data": {"question": "What is the capital of France?"},
-                    "expected_output": "Paris",
-                    "metadata": {},
-                    "tags": [],
-                },
-                {
-                    "input_data": {"question": "What is the capital of Germany?"},
-                    "expected_output": "Berlin",
-                    "metadata": {},
-                    "tags": [],
-                },
-                {
-                    "input_data": {"question": "What is the capital of Japan?"},
-                    "expected_output": "Tokyo",
-                    "metadata": {},
-                    "tags": [],
-                },
-            ],
+            records=cast(
+                list[DatasetRecord],
+                [
+                    {
+                        "input_data": {"question": "What is the capital of France?"},
+                        "expected_output": "Paris",
+                        "metadata": {},
+                        "tags": [],
+                    },
+                    {
+                        "input_data": {"question": "What is the capital of Germany?"},
+                        "expected_output": "Berlin",
+                        "metadata": {},
+                        "tags": [],
+                    },
+                    {
+                        "input_data": {"question": "What is the capital of Japan?"},
+                        "expected_output": "Tokyo",
+                        "metadata": {},
+                        "tags": [],
+                    },
+                ],
+            ),
         )
 
     exp = LLMObs.async_experiment(

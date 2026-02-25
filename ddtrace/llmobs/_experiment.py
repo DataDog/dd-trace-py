@@ -1131,9 +1131,23 @@ class Experiment:
                     )
                 )
 
-            shared = dict(record_index=idx, span_context=span_event, eval_metrics=per_record_metrics)
-            progress_callback(ProgressEvent(status="evaluations_complete", evaluations=evals, **shared))
-            progress_callback(ProgressEvent(status="success", **shared))
+            progress_callback(
+                ProgressEvent(
+                    status="evaluations_complete",
+                    evaluations=evals,
+                    record_index=idx,
+                    span_context=span_event,
+                    eval_metrics=per_record_metrics,
+                )
+            )
+            progress_callback(
+                ProgressEvent(
+                    status="success",
+                    record_index=idx,
+                    span_context=span_event,
+                    eval_metrics=per_record_metrics,
+                )
+            )
 
     async def _process_record(
         self,
