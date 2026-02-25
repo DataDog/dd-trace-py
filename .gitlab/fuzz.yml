@@ -39,7 +39,7 @@ fuzz_infra:
     - >-
       curl -sL "https://binaries.ddbuild.io/fuzzing/fuzzydog/${FUZZYDOG_VERSION}/fuzzydog-tar.tar.gz"
       -o /tmp/fuzzydog-tar.tar.gz
-    - tar -C /usr/local/bin -zxf /tmp/fuzzydog-tar.tar.gz ./fuzzydog-linux-amd64
+    - tar -C /usr/local/bin -zxf /tmp/fuzzydog-tar.tar.gz fuzzydog-linux-amd64
     - mv /usr/local/bin/fuzzydog-linux-amd64 /usr/local/bin/fuzzydog
     - rm /tmp/fuzzydog-tar.tar.gz
     # Install vault for fuzzing API authentication
