@@ -107,13 +107,6 @@ def _resolve_otlp_traces_url() -> str:
     return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
 
 
-def _is_otlp_traces_endpoint_set() -> bool:
-    """True when user has set at least one of the OTLP endpoint env vars."""
-    return any(
-        _get_env_non_empty(k) is not None for k in ("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT")
-    )
-
-
 def _is_otlp_traces_exporter_otlp() -> bool:
     """True when OTEL_TRACES_EXPORTER is set to otlp (use OTLP trace export)."""
     return (_get_env_non_empty("OTEL_TRACES_EXPORTER") or "").lower() == "otlp"
@@ -123,14 +116,14 @@ class OTLPTraceExporterConfig:
     """
     Configuration for OTLP trace export.
 
-    Enablement (Option A): OTLP is enabled when OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-    or OTEL_EXPORTER_OTLP_ENDPOINT is set. Single export: either Datadog agent or OTLP.
+    OTLP export is enabled when OTEL_TRACES_EXPORTER=otlp.
+    Endpoint/headers/timeout are then read from the corresponding env vars
     """
 
     @property
     def otlp_traces_enabled(self) -> bool:
-        """True when OTLP trace export should be used: endpoint set or OTEL_TRACES_EXPORTER=otlp."""
-        return _is_otlp_traces_endpoint_set() or _is_otlp_traces_exporter_otlp()
+        """True when OTLP trace export should be used (OTEL_TRACES_EXPORTER=otlp)."""
+        return _is_otlp_traces_exporter_otlp()
 
     @property
     def otlp_traces_endpoint(self) -> str:
