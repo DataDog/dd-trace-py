@@ -138,6 +138,25 @@ variables:
     - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
     - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" manylinux2014_x86_64
 
+# Only the limited artifacts needed by downstream serverless jobs
+"upload serverless":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp311-cp311"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "arch64"
+            PYTHON_TAG: "cp311-cp311"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_aarch64"
+    - job: "package version"
+  script:
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" serverless
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" serverless
+
 "test sdist":
   image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
   tags: [ "arch:arm64" ]
