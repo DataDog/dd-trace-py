@@ -36,10 +36,8 @@ def _parse_otel_headers(headers_str: Optional[str]) -> dict[str, str]:
 OTLP_HTTP_DEFAULT_ENDPOINT = "http://localhost:4318"
 OTLP_HTTP_TRACES_PATH = "/v1/traces"
 OTLP_GRPC_DEFAULT_ENDPOINT = "http://localhost:4317"  # grpc support not implemented yet
-
 # Supported protocol (as of now)
 OTLP_PROTOCOL_HTTP_JSON = "http/json"
-
 # Default timeout: 10000 ms per OTEL convention (e.g. ddtrace opentelemetry DEFAULT_TIMEOUT)
 OTLP_TIMEOUT_MS_DEFAULT = 10000
 
@@ -98,18 +96,14 @@ def _get_otel_traces_timeout_seconds() -> float:
 def _resolve_otlp_traces_url() -> str:
     """Resolve full OTLP traces URL (endpoint + path for HTTP).
 
-    Only HTTP/JSON is supported; when no endpoint is set we always use the HTTP
-    default (localhost:4318/v1/traces) so that protocol=grpc does not result in
-    HTTP POSTs to the gRPC port.
+    When OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (or generic) is set, use it as-is.
+    When no endpoint is set, use HTTP default with /v1/traces (only HTTP/JSON
+    is supported).
     """
     endpoint = _get_otel_traces_endpoint()
-    protocol = _get_otel_traces_protocol()
     if endpoint:
-        endpoint = endpoint.rstrip("/")
-        if protocol.startswith("http/") and not endpoint.endswith(OTLP_HTTP_TRACES_PATH):
-            return endpoint + OTLP_HTTP_TRACES_PATH
-        return endpoint
-    # No endpoint set: use HTTP default (only HTTP/JSON is supported)
+        return endpoint.rstrip("/")
+    # No endpoint set: use HTTP default with /v1/traces
     return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
 
 

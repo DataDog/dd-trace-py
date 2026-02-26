@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-import threading
 import time
 from typing import Optional
 
@@ -14,10 +13,14 @@ log = get_logger(__name__)
 
 # Retry on these status codes (transient/server errors)
 RETRY_STATUS_CODES = (429, 502, 503, 504)
-# Do not retry on 4xx (e.g. 400 Bad Request) except 429
 OTLP_RETRY_ATTEMPTS = 5
-# Backoff: ~100ms, ~200ms, ... (guide: 5 retries, backoff 100ms, 200ms, ...)
 OTLP_INITIAL_BACKOFF_SECONDS = 0.1
+
+
+def _backoff_delay(attempt: int) -> float:
+    """Exponential backoff with jitter for retry attempt (0-based)."""
+    wait = OTLP_INITIAL_BACKOFF_SECONDS * (2**attempt)
+    return wait + random.uniform(0, wait * 0.2)  # nosec
 
 
 def _send_otlp_post(
@@ -55,12 +58,10 @@ class OTLPHttpTraceExporter:
         headers: Optional[dict[str, str]] = None,
         timeout_seconds: float = 10.0,
     ) -> None:
+        # Use endpoint as-is (config already adds /v1/traces only for default)
         self._endpoint_url = endpoint_url.rstrip("/")
-        if not self._endpoint_url.endswith("/v1/traces"):
-            self._endpoint_url = self._endpoint_url + "/v1/traces"
         self._headers = headers or {}
         self._timeout = timeout_seconds
-        self._lock = threading.Lock()
 
     def export(self, body: bytes) -> Optional[Response]:
         """
@@ -88,31 +89,29 @@ class OTLPHttpTraceExporter:
                     return resp
                 if resp.status in RETRY_STATUS_CODES:
                     if attempt < OTLP_RETRY_ATTEMPTS - 1:
-                        wait = OTLP_INITIAL_BACKOFF_SECONDS * (2**attempt)
-                        jitter = random.uniform(0, wait * 0.2)  # nosec
+                        delay = _backoff_delay(attempt)
                         log.debug(
                             "OTLP trace export got %s, retrying in %.3fs (attempt %d/%d)",
                             resp.status,
-                            wait + jitter,
+                            delay,
                             attempt + 1,
                             OTLP_RETRY_ATTEMPTS,
                         )
-                        time.sleep(wait + jitter)
+                        time.sleep(delay)
                         continue
                 # Non-retryable or last attempt
                 break
             except Exception as e:
                 if attempt < OTLP_RETRY_ATTEMPTS - 1:
-                    wait = OTLP_INITIAL_BACKOFF_SECONDS * (2**attempt)
-                    jitter = random.uniform(0, wait * 0.2)  # nosec
+                    delay = _backoff_delay(attempt)
                     log.debug(
                         "OTLP trace export connection error: %s, retrying in %.3fs (attempt %d/%d)",
                         e,
-                        wait + jitter,
+                        delay,
                         attempt + 1,
                         OTLP_RETRY_ATTEMPTS,
                     )
-                    time.sleep(wait + jitter)
+                    time.sleep(delay)
                 else:
                     log.error(
                         "Failed to send OTLP traces to %s after %d attempts: %s. "
