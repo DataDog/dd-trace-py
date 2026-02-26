@@ -1,14 +1,11 @@
 #define PY_SSIZE_T_CLEAN
-#include <Python.h>
-#include <frameobject.h>
+
 #include <string_view>
 
-#include "_pymacro.h"
-
-#include "_memalloc_debug.h"
-#include "_memalloc_reentrant.h"
+#include "_memalloc_frame.h"
 #include "_memalloc_tb.h"
 #include "python_helpers.hpp"
+
 /* Helper function to get thread info using C-level APIs and push to sample.
  *
  * Uses only PyThread_get_thread_ident() and PyThread_get_thread_native_id(),
@@ -37,39 +34,85 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     sample.push_threadinfo(thread_id, thread_native_id, "");
 }
 
-/* Helper function to collect frames from PyFrameObject chain and push to sample
- * Uses Sample::push_pyframes for the actual frame unwinding */
+/* Collect frames from the current thread's frame chain and push to sample.
+ *
+ * Uses direct internal CPython frame access instead of the public
+ * PyThreadState_GetFrame() / PyFrame_GetBack() / PyFrame_GetCode() APIs.
+ * Those public APIs return new references, meaning every frame visited would
+ * require an INCREF + DECREF pair.  Inside an allocator hook those refcount
+ * operations can themselves trigger re-entrant allocations, leading to
+ * undefined behaviour.
+ *
+ * By reading frame pointers directly (borrowed references, no refcount change)
+ * we eliminate that risk and reduce per-frame overhead.
+ *
+ * AIDEV-NOTE: Implementation mirrors ddtrace/internal/utils/_inspection.cpp
+ * (PR #16430).  Keep in sync when updating CPython version support.
+ */
 static void
 push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
 {
     PyThreadState* tstate = PyThreadState_Get();
     if (tstate == NULL) {
-        // Push a placeholder frame when thread state is unavailable
         sample.push_frame("<no thread state>", "<unknown>", 0, 0);
         return;
     }
 
-    // Python 3.9+: PyThreadState_GetFrame() returns a new reference
-    PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
+    // Get the innermost frame as a borrowed pointer (no new reference created).
+    void* current_frame = memalloc_get_frame_from_thread_state(tstate);
 
-    if (pyframe == NULL) {
-        // No Python frames available (e.g., during thread initialization/cleanup in "Dummy" threads).
-        // This occurs in Python 3.10-3.12 but not in 3.13+ due to threading implementation changes.
-        //
-        // The previous implementation (before dd_wrapper Sample refactor) dropped these samples entirely
-        // by returning NULL from traceback_new(). This new approach is strictly better: we still capture
-        // allocation metrics and make it explicit in profiles that the stack wasn't available.
-        //
-        // TODO(profiling): Investigate if there's a way to capture C-level stack traces or other context
-        // when Python frames aren't available during thread initialization/cleanup.
+    if (current_frame == NULL) {
+        // No Python frames available (e.g., during thread init/cleanup in "Dummy" threads).
+        // This occurs in Python 3.10-3.12 but not in 3.13+ due to threading changes.
         sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
         return;
     }
 
-    // Use the unified frame unwinding API
-    // Note: push_pyframes does not take ownership of the initial frame, so we must DECREF it here
-    sample.push_pyframes(pyframe);
-    Py_DECREF(pyframe);
+    // Walk the frame chain.  All pointers are borrowed — no INCREF/DECREF needed.
+    for (void* frame = current_frame; frame != NULL; frame = memalloc_get_previous_frame(frame)) {
+        if (memalloc_should_skip_frame(frame)) {
+            continue;
+        }
+
+        // Borrowed reference — do NOT decref.
+        PyCodeObject* code = memalloc_get_code_from_frame(frame);
+        if (code == NULL) {
+            break;
+        }
+
+        int lasti = memalloc_get_lasti_from_frame(frame);
+        int lineno = memalloc_get_lineno_from_code(code, lasti);
+
+        // co_filename and co_qualname/co_name are borrowed string objects.
+        // PyUnicode_AsUTF8AndSize reads their UTF-8 cache and does not allocate
+        // when the cache is already populated (which it normally is for code objects).
+        static constexpr std::string_view unknown_sv = "<unknown>";
+
+        std::string_view filename_sv = unknown_sv;
+        if (code->co_filename != NULL) {
+            Py_ssize_t len = 0;
+            const char* ptr = PyUnicode_AsUTF8AndSize(code->co_filename, &len);
+            if (ptr != NULL) {
+                filename_sv = std::string_view(ptr, static_cast<size_t>(len));
+            } else {
+                PyErr_Clear();
+            }
+        }
+
+        std::string_view name_sv = unknown_sv;
+        PyObject* name_obj = memalloc_get_code_name(code);
+        if (name_obj != NULL) {
+            Py_ssize_t len = 0;
+            const char* ptr = PyUnicode_AsUTF8AndSize(name_obj, &len);
+            if (ptr != NULL) {
+                name_sv = std::string_view(ptr, static_cast<size_t>(len));
+            } else {
+                PyErr_Clear();
+            }
+        }
+
+        sample.push_frame(name_sv, filename_sv, 0, lineno);
+    }
 }
 
 void
