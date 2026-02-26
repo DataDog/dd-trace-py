@@ -163,7 +163,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Re-installing here ensures our handler is active when the sampling thread runs.
     // Only do this once to avoid overwriting g_old_segv with our own handler.
     static std::once_flag segv_handler_once;
-    if (use_alternative_copy_memory()) {
+    if (fast_copy_active) {
         std::call_once(segv_handler_once, init_segv_catcher);
     }
 
@@ -190,6 +190,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
         Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
+        Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
+
+        // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
+        auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
+        if (copy_errors > 0) {
+            Sample::profile_borrow().stats().add_copy_memory_error_count(copy_errors);
+        }
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -298,7 +305,7 @@ Sampler::restart_after_fork()
 }
 
 static void
-_stack_postfork_cleanup()
+stack_postfork_cleanup()
 {
     // Update PID in Echion
     _set_pid(getpid());
@@ -311,10 +318,10 @@ _stack_postfork_cleanup()
 }
 
 void
-_stack_atfork_child()
+stack_atfork_child()
 {
     // Clean up Sampler state, do not start the Sampler yet.
-    _stack_postfork_cleanup();
+    stack_postfork_cleanup();
 
     // Restart the sampler if it was running before fork.
     Sampler::get().restart_after_fork();
@@ -324,7 +331,7 @@ __attribute__((constructor)) void
 stack_init()
 {
     // At just do start-of-process cleanup (e.g., set PID)
-    _stack_postfork_cleanup();
+    stack_postfork_cleanup();
 }
 
 void
@@ -332,8 +339,8 @@ Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
-    _stack_postfork_cleanup();
-    pthread_atfork(nullptr, nullptr, _stack_atfork_child);
+    stack_postfork_cleanup();
+    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void
