@@ -265,6 +265,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     // Per Python 3.14 release notes (gh-123923): f_executable uses a tagged pointer.
     // Profilers must clear the least significant bit to recover the PyObject* pointer.
     PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable));
+    if (code_obj == nullptr || frame_addr->instr_ptr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
     int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
@@ -276,6 +280,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #elif PY_VERSION_HEX >= 0x030d0000
+    if (frame_addr->f_executable == nullptr || frame_addr->instr_ptr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     const int lasti =
       (static_cast<int>(
         (frame_addr->instr_ptr - 1 -
@@ -288,6 +296,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #else
+    if (frame_addr->f_code == nullptr || frame_addr->prev_instr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     const int lasti =
       (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
