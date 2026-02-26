@@ -1,14 +1,3 @@
-"""
-OTLP trace exporter configuration.
-
-Supports standard OTEL exporter environment variables for traces with
-traces-specific keys taking precedence over generic OTEL_EXPORTER_OTLP_*.
-
-Enablement (Option A): OTLP trace export is used when the user sets at least
-one of OTEL_EXPORTER_OTLP_TRACES_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT.
-If neither is set, the tracer uses Datadog agent export only (single export).
-"""
-
 from __future__ import annotations
 
 import os

@@ -1,9 +1,3 @@
-"""
-OTLP HTTP trace exporter: POST JSON to OTLP endpoint with retries and timeout.
-
-Retries with exponential backoff on 429, 502, 503, 504. No retry on 4xx (e.g. 400).
-"""
-
 from __future__ import annotations
 
 import random

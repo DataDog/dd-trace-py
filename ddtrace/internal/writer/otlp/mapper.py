@@ -1,10 +1,3 @@
-"""
-Map Datadog trace (list of spans) to OTLP ExportTraceServiceRequest structure.
-
-Produces an in-memory dict compatible with OTLP JSON encoding:
-ResourceSpans -> ScopeSpans -> Spans, with attributes, timestamps, status.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

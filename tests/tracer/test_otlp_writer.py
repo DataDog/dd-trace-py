@@ -1,10 +1,3 @@
-"""
-Tests for OTLP trace export: config, mapper, serializer, exporter, and writer.
-
-Enablement: Option A — OTLP is used when OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-or OTEL_EXPORTER_OTLP_ENDPOINT is set (single export, no Datadog agent).
-"""
-
 from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
@@ -119,7 +112,9 @@ class TestOTLPSerializer(BaseTestCase):
         raw = otlp_request_to_json_bytes(request)
         assert isinstance(raw, bytes)
         decoded = json.loads(raw.decode("utf-8"))
-        assert decoded == request
+        # OTLP JSON spec requires lowerCamelCase keys
+        assert "resourceSpans" in decoded
+        assert decoded["resourceSpans"] == []
 
 
 class TestCreateTraceWriterOTLP(BaseTestCase):
@@ -191,9 +186,10 @@ class TestOTLPWriterExport(BaseTestCase):
             with lock:
                 assert len(received) == 1
                 path, body = received[0]
-                assert "traces" in path or body.get("resource_spans")
-                assert len(body["resource_spans"]) == 1
-                assert len(body["resource_spans"][0]["scope_spans"][0]["spans"]) == 1
+                # OTLP JSON uses lowerCamelCase (resourceSpans, scopeSpans, etc.)
+                assert "traces" in path or body.get("resourceSpans")
+                assert len(body["resourceSpans"]) == 1
+                assert len(body["resourceSpans"][0]["scopeSpans"][0]["spans"]) == 1
         finally:
             server.shutdown()
             server.server_close()
