@@ -1,4 +1,5 @@
 #include "profile_borrow.hpp"
+
 #include "profile.hpp"
 
 Datadog::ProfileBorrow::ProfileBorrow(Profile& profile)

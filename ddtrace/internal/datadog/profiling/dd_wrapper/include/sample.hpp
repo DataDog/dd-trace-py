@@ -1,6 +1,7 @@
 #pragma once
 
 #include "libdatadog_helpers.hpp"
+
 #include "profile.hpp"
 #include "profile_borrow.hpp"
 #include "types.hpp"

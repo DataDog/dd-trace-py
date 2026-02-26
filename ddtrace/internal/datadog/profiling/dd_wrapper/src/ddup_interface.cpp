@@ -1,82 +1,83 @@
 #include "ddup_interface.hpp"
 
-#include "defer.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
+
+#include "exporter_manager.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
-#include "uploader.hpp"
-#include "uploader_builder.hpp"
 
+#include <cstdlib>
 #include <iostream>
 #include <string_view>
 #include <unordered_map>
+
 
 // Configuration
 void
 ddup_config_env(std::string_view dd_env) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_env(dd_env);
+    Datadog::ExporterManager::set_env(dd_env);
 }
 
 void
 ddup_config_service(std::string_view service) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_service(service);
+    Datadog::ExporterManager::set_service(service);
 }
 
 void
 ddup_config_version(std::string_view version) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_version(version);
+    Datadog::ExporterManager::set_version(version);
 }
 
 void
 ddup_config_runtime(std::string_view runtime) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_runtime(runtime);
+    Datadog::ExporterManager::set_runtime(runtime);
 }
 
 void
 ddup_set_runtime_id(std::string_view runtime_id) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_runtime_id(runtime_id);
+    Datadog::ExporterManager::set_runtime_id(runtime_id);
 }
 
 void
 ddup_set_process_id() // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_process_id();
+    Datadog::ExporterManager::set_process_id();
 }
 
 void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_runtime_version(runtime_version);
+    Datadog::ExporterManager::set_runtime_version(runtime_version);
 }
 
 void
 ddup_config_profiler_version(std::string_view profiler_version) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_profiler_version(profiler_version);
+    Datadog::ExporterManager::set_profiler_version(profiler_version);
 }
 
 void
 ddup_config_url(std::string_view url) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_url(url);
+    Datadog::ExporterManager::set_url(url);
 }
 
 void
 ddup_config_user_tag(std::string_view key, std::string_view val) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_tag(key, val);
+    Datadog::ExporterManager::set_tag(key, val);
 }
 
 void
 ddup_config_process_tags(std::string_view process_tags) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_process_tags(process_tags);
+    Datadog::ExporterManager::set_process_tags(process_tags);
 }
 
 void
@@ -100,7 +101,7 @@ ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
 void
 ddup_config_output_filename(std::string_view output_filename) // cppcheck-suppress unusedFunction
 {
-    Datadog::UploaderBuilder::set_output_filename(output_filename);
+    Datadog::ExporterManager::set_output_filename(output_filename);
 }
 
 void
@@ -112,7 +113,7 @@ ddup_config_sample_pool_capacity(uint64_t capacity) // cppcheck-suppress unusedF
 void
 ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 {
-    Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
+    Datadog::ExporterManager::set_max_timeout_ms(max_timeout_ms);
 }
 
 bool
@@ -318,43 +319,33 @@ ddup_upload() // cppcheck-suppress unusedFunction
         return false;
     }
 
-    // Acquire the upload lock before building the uploader.
-    // This ensures that if a fork happens, the prefork handler will wait for us to finish
-    // building and uploading before allowing the fork to proceed. This prevents memory
-    // allocated during build() from being orphaned in the child process.
-    Datadog::Uploader::lock();
-    defer
-    {
-        Datadog::Uploader::unlock();
-    };
-
-    // Build the Uploader, which takes care of serializing the Profile and capturing ProfilerStats.
-    // This takes a reference in a way that locks the areas where the profile might
-    // be modified. It gets cleared and released as soon as serialization is complete (or has failed).
-    auto uploader_or_err = Datadog::UploaderBuilder::build();
-
-    if (std::holds_alternative<std::string>(uploader_or_err)) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+    // Initialize ExporterManager on first upload (all config must be set by now)
+    if (!Datadog::ExporterManager::is_initialized()) {
+        if (!Datadog::ExporterManager::init()) {
+            if (!already_warned) {
+                already_warned = true;
+                std::cerr << "Failed to initialize ExporterManager" << std::endl;
+            }
+            return false;
         }
-        return false;
     }
 
-    // Get the reference to the uploader
-    auto& uploader = std::get<Datadog::Uploader>(uploader_or_err);
-
-    // Upload while holding the lock (encoding has already been done in UploaderBuilder::build)
-    // This also cancels inflight uploads. There are better ways to do this, but this is what
-    // we have for now.
-    bool result = uploader.upload_unlocked();
-
-    return result;
+    // Queue the profile for async upload via ExporterManager
+    // The manager handles serialization internally and queues to background worker
+    return Datadog::ExporterManager::upload();
 }
 
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 // Pass by value is intentional: the map may be modified concurrently by other threads,
 // so we take a copy to avoid data races while iterating.
+void
+ddup_shutdown() // cppcheck-suppress unusedFunction
+{
+    // Cleanly shut down the ExporterManager to avoid data races in background threads
+    // Call this before process exit (especially in tests)
+    Datadog::ExporterManager::shutdown();
+}
+
 void
 ddup_profile_set_endpoints(
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
