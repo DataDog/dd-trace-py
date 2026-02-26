@@ -1,33 +1,6 @@
-/* Py_BUILD_CORE must be defined before Python.h to access internal CPython
- * frame structures (_PyInterpreterFrame). Required on Python 3.11+ for the
- * zero-refcount frame walking path, which avoids Py_DECREF inside the
- * allocator hook to prevent re-entering the allocator's free path.
- *
- * Harmless on pre-3.11 where we don't include any internal headers. */
-#define Py_BUILD_CORE
-
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
-#include <frameobject.h>
 #include <string_view>
 
-#include "_pymacro.h"
-
-/* Include CPython internal frame headers for zero-refcount frame walking.
- * Python 3.11+: _PyInterpreterFrame is needed for direct frame chain walking.
- * Python 3.14+: definition moved to pycore_interpframe_structs.h
- * Python 3.11-3.13: definition is in pycore_frame.h */
-#ifdef _PY311_AND_LATER
-#if PY_VERSION_HEX >= 0x030e0000
-#include <internal/pycore_interpframe_structs.h>
-#else
-#include <internal/pycore_frame.h>
-#endif
-#include <internal/pycore_code.h>
-#endif /* _PY311_AND_LATER */
-
-#include "_memalloc_debug.h"
-#include "_memalloc_reentrant.h"
+#include "_memalloc_frame.h"
 #include "_memalloc_tb.h"
 
 /* Extract a UTF-8 string_view from a Python unicode object without any
@@ -79,28 +52,17 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     sample.push_threadinfo(thread_id, thread_native_id, "");
 }
 
-/* Unified zero-DECREF frame walking for ALL Python versions.
+/* Collect frames from the current thread's frame chain and push to sample.
  *
- * CRITICAL: This function is called from inside CPython's PYMEM_DOMAIN_OBJ
- * allocation hook. Every operation here must be allocation-free,
- * deallocation-free, and must not touch Python error state.
+ * Uses the helpers from _memalloc_frame.h for direct internal CPython frame
+ * access instead of the public PyThreadState_GetFrame() / PyFrame_GetBack() /
+ * PyFrame_GetCode() APIs. Those public APIs return new references, meaning
+ * every frame visited would require an INCREF + DECREF pair. Inside an
+ * allocator hook those refcount operations can themselves trigger re-entrant
+ * allocations or frees, leading to undefined behaviour.
  *
- * No Py_INCREF, no Py_DECREF, no PyUnicode_AsUTF8AndSize, no PyErr_Clear.
- * All references are borrowed. All string reads use inline struct access
- * via unicode_to_sv_no_alloc().
- *
- * Version-specific approaches:
- *   Pre-3.11:  Walk PyFrameObject chain via tstate->frame / f_back / f_code.
- *              These are public struct fields in Include/cpython/frameobject.h.
- *   3.11:      Walk _PyInterpreterFrame via tstate->cframe->current_frame.
- *              Skip incomplete frames via _PyFrame_IsIncomplete().
- *   3.12:      Walk _PyInterpreterFrame via tstate->cframe->current_frame.
- *              Skip frames via owner >= FRAME_OWNED_BY_CSTACK.
- *   3.13:      Walk _PyInterpreterFrame via tstate->current_frame.
- *              f_executable replaces f_code; instr_ptr replaces prev_instr.
- *   3.14+:     Same as 3.13 but f_executable is a tagged _PyStackRef.
- *              Clear low tag bits to extract the PyObject* pointer.
- */
+ * By reading frame pointers directly (borrowed references, no refcount change)
+ * we eliminate that risk and reduce per-frame overhead. */
 static void
 push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
 {
@@ -110,149 +72,33 @@ push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
         return;
     }
 
-#ifdef _PY311_AND_LATER
-    /* Python 3.11+: Walk the _PyInterpreterFrame chain directly. */
-
-#if PY_VERSION_HEX >= 0x030d0000
-    /* Python 3.13+: current_frame is directly on PyThreadState. */
-    _PyInterpreterFrame* iframe = tstate->current_frame;
-#else
-    /* Python 3.11-3.12: current_frame is on the _PyCFrame. */
-    _PyInterpreterFrame* iframe = tstate->cframe->current_frame;
-#endif
-    if (iframe == NULL) {
+    void* current_frame = memalloc_get_frame_from_thread_state(tstate);
+    if (current_frame == NULL) {
         sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
         return;
     }
 
-    for (; iframe != NULL; iframe = iframe->previous) {
-        /* Skip frames that don't represent complete Python execution.
-         * Use a whitelist: only THREAD and GENERATOR frames have valid,
-         * fully-initialized code objects. All other owner types
-         * (FRAME_OBJECT, CSTACK, INTERPRETER, or future additions) are
-         * either C shim frames, partially initialized, or owned by
-         * the interpreter for internal bookkeeping.
-         *
-         * Owner enum by version:
-         *   3.11:      THREAD=0, GENERATOR=1, FRAME_OBJECT=2
-         *   3.12-3.13: THREAD=0, GENERATOR=1, FRAME_OBJECT=2, CSTACK=3
-         *   3.14+:     THREAD=0, GENERATOR=1, FRAME_OBJECT=2, INTERPRETER=3, CSTACK=4
-         *
-         * On 3.11 we also need _PyFrame_IsIncomplete() because
-         * THREAD-owned frames can be incomplete (prev_instr < firsttraceable). */
-#ifdef _PY312_AND_LATER
-        if (iframe->owner != FRAME_OWNED_BY_THREAD && iframe->owner != FRAME_OWNED_BY_GENERATOR) {
+    for (void* frame = current_frame; frame != NULL; frame = memalloc_get_previous_frame(frame)) {
+        if (memalloc_should_skip_frame(frame)) {
             continue;
         }
-#else
-        /* Python 3.11: FRAME_OWNED_BY_CSTACK doesn't exist yet.
-         * Use _PyFrame_IsIncomplete() which checks both ownership
-         * and whether prev_instr has reached firsttraceable. */
-        if (_PyFrame_IsIncomplete(iframe)) {
-            continue;
-        }
-#endif
 
-        /* Get code object -- borrowed reference, no INCREF needed. */
-#if PY_VERSION_HEX >= 0x030e0000
-        /* Python 3.14+: f_executable is a _PyStackRef (tagged pointer).
-         * Clear the tag bits to recover the PyObject* pointer.
-         * We avoid including pycore_stackref.h (which defines
-         * PyStackRef_AsPyObjectBorrow) because it transitively pulls in
-         * many internal headers. The tag bits are defined by Py_TAG_BITS
-         * in pycore_stackref.h: 0 (debug+GIL), 1 (no-GIL), 3 (release+GIL).
-         * Masking with ~7 (clearing 3 lowest bits) safely covers all configs,
-         * since PyObject* is always aligned to at least 8 bytes. */
-        PyCodeObject* code = (PyCodeObject*)((uintptr_t)iframe->f_executable.bits & ~(uintptr_t)7);
-#elif PY_VERSION_HEX >= 0x030d0000
-        /* Python 3.13: f_executable is an untagged PyObject*. */
-        PyCodeObject* code = (PyCodeObject*)iframe->f_executable;
-#else
-        /* Python 3.11-3.12: f_code is a direct PyCodeObject*. */
-        PyCodeObject* code = iframe->f_code;
-#endif
+        PyCodeObject* code = memalloc_get_code_from_frame(frame);
         if (code == NULL) {
             continue;
         }
 
-        /* Extract function name -- borrowed reference, zero-allocation read.
-         * co_qualname (3.11+) gives qualified names like "Class.method". */
-        PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
-        std::string_view name_sv = unicode_to_sv_no_alloc(name_obj);
+        std::string_view name_sv = unicode_to_sv_no_alloc(memalloc_get_code_name(code));
         std::string_view filename_sv = unicode_to_sv_no_alloc(code->co_filename);
-
-        /* Compute line number from instruction pointer offset.
-         * _PyCode_CODE(code) gives the start of the bytecode array.
-         * PyCode_Addr2Line takes a byte offset (not instruction index).
-         * PyCode_Addr2Line is pure line-table parsing: no allocation,
-         * no error state mutation -- safe inside allocator hooks. */
-#if PY_VERSION_HEX >= 0x030d0000
-        /* Python 3.13+: instr_ptr points to the NEXT instruction.
-         * Subtract 1 to get the last executed instruction. */
-        int lasti = (int)(iframe->instr_ptr - 1 - _PyCode_CODE(code));
-#else
-        /* Python 3.11-3.12: prev_instr points to the last executed instruction. */
-        int lasti = (int)(iframe->prev_instr - _PyCode_CODE(code));
-#endif
-        int line = PyCode_Addr2Line(code, lasti * (int)sizeof(_Py_CODEUNIT));
-        if (line < 0) {
-            line = 0;
-        }
-
-        /* push_frame handles the max_nframe limit internally and tracks
-         * dropped frames. It copies strings into its StringArena immediately,
-         * so the borrowed string_views are safe here. */
-        sample.push_frame(name_sv, filename_sv, 0, line);
-    }
-
-#else /* Pre-3.11: Walk the PyFrameObject chain directly. */
-
-    /* tstate->frame is a public field on PyThreadState in 3.9/3.10.
-     * This is a borrowed reference -- no INCREF needed (unlike
-     * PyThreadState_GetFrame() which returns a new reference). */
-    PyFrameObject* frame = tstate->frame;
-    if (frame == NULL) {
-        sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
-        return;
-    }
-
-    for (; frame != NULL; frame = frame->f_back) {
-        /* f_back and f_code are public struct fields on PyFrameObject
-         * in pre-3.11. Both are borrowed references -- no INCREF needed
-         * (unlike PyFrame_GetBack()/PyFrame_GetCode() which return new refs). */
-        PyCodeObject* code = frame->f_code;
-        if (code == NULL) {
-            continue;
-        }
-
-        /* Pre-3.11 has no co_qualname; use co_name only. */
-        std::string_view name_sv = unicode_to_sv_no_alloc(code->co_name);
-        std::string_view filename_sv = unicode_to_sv_no_alloc(code->co_filename);
-
-        /* f_lasti is the byte offset of the last executed instruction.
-         * PyCode_Addr2Line is pure line-table parsing -- safe to call. */
-        int line = PyCode_Addr2Line(code, frame->f_lasti);
-        if (line < 0) {
-            line = 0;
-        }
+        int line = memalloc_get_lineno(frame, code);
 
         sample.push_frame(name_sv, filename_sv, 0, line);
     }
-
-#endif /* _PY311_AND_LATER */
 }
 
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
-    /* No PythonErrorRestorer needed -- the unified frame walking path uses
-     * only direct struct-field reads, unicode_to_sv_no_alloc (inline ASCII
-     * check), and PyCode_Addr2Line (pure line-table parsing). None of these
-     * operations touch Python error state, so there is nothing to save/restore.
-     *
-     * push_threadinfo_to_sample uses PyThread_get_thread_ident() and
-     * PyThread_get_thread_native_id() which are also error-state-free. */
-
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0
@@ -261,15 +107,8 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     size_t count = (size_t)scaled_count;
 
-    // Push allocation info to sample
-    // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
-
-    // Get thread id and native_id using C-level APIs and push to sample
     push_threadinfo_to_sample(sample);
-
-    // Walk the frame chain directly using struct field access.
-    // No Py_INCREF/Py_DECREF, no allocation, no error state mutation.
     push_stacktrace_to_sample_no_decref(sample);
 }
 
@@ -277,9 +116,7 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
-    // Validate Sample object is in a valid state before use
     if (max_nframe == 0) {
-        // Should not happen, but defensive check
         return;
     }
 
