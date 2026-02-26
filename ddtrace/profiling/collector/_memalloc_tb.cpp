@@ -126,17 +126,29 @@ push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
     }
 
     for (; iframe != NULL; iframe = iframe->previous) {
-        /* Skip incomplete/shim frames. The check differs by version:
-         * 3.12+: FRAME_OWNED_BY_CSTACK was added; owner >= that value means
-         *         the frame is a C shim or interpreter-owned frame.
-         * 3.11:  No FRAME_OWNED_BY_CSTACK; use _PyFrame_IsIncomplete() which
-         *         checks prev_instr < firsttraceable bytecode offset. */
+        /* Skip frames that don't represent complete Python execution.
+         * Use a whitelist: only THREAD and GENERATOR frames have valid,
+         * fully-initialized code objects. All other owner types
+         * (FRAME_OBJECT, CSTACK, INTERPRETER, or future additions) are
+         * either C shim frames, partially initialized, or owned by
+         * the interpreter for internal bookkeeping.
+         *
+         * Owner enum by version:
+         *   3.11:      THREAD=0, GENERATOR=1, FRAME_OBJECT=2
+         *   3.12-3.13: THREAD=0, GENERATOR=1, FRAME_OBJECT=2, CSTACK=3
+         *   3.14+:     THREAD=0, GENERATOR=1, FRAME_OBJECT=2, INTERPRETER=3, CSTACK=4
+         *
+         * On 3.11 we also need _PyFrame_IsIncomplete() because
+         * THREAD-owned frames can be incomplete (prev_instr < firsttraceable). */
 #ifdef _PY312_AND_LATER
-        if (iframe->owner >= FRAME_OWNED_BY_CSTACK) {
+        if (iframe->owner != FRAME_OWNED_BY_THREAD &&
+            iframe->owner != FRAME_OWNED_BY_GENERATOR) {
             continue;
         }
 #else
-        /* Python 3.11 */
+        /* Python 3.11: FRAME_OWNED_BY_CSTACK doesn't exist yet.
+         * Use _PyFrame_IsIncomplete() which checks both ownership
+         * and whether prev_instr has reached firsttraceable. */
         if (_PyFrame_IsIncomplete(iframe)) {
             continue;
         }
