@@ -9,7 +9,7 @@ from ddtrace.internal.core.events import Event
 
 if TYPE_CHECKING:
     # DEV: potential source of circular import in the future
-    from .provider import ActiveTrace
+    from ddtrace._trace.provider import ActiveTrace
 
 
 @dataclass
