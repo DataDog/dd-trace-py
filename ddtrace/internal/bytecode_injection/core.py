@@ -199,7 +199,7 @@ def _inject_invocation_nonrecursive(
     instrumented_lines: list[int] = []
     is_first_instrumented_module_line = code.co_name == "<module>"
 
-    def append_instruction(opcode: int, extended_arg: int):
+    def append_instruction(opcode: int, extended_arg: int) -> None:
         """
         Append an operation and its argument to the new bytecode.
 

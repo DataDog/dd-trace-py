@@ -203,7 +203,7 @@ def _wait_for_profile_samples(
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            files = glob.glob(f"{filename_prefix}.*.pprof")
+            files = glob.glob(f"{filename_prefix}.{pid}.*.pprof")
             if not files:
                 raise FileNotFoundError(f"No profile files found for {filename_prefix}")
 
@@ -280,9 +280,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        assert len(samples) > 0
+        _wait_for_profile_samples(filename, pid, "wall-time")
 
 
 def test_uwsgi_threads_processes_no_primary_lazy_apps(

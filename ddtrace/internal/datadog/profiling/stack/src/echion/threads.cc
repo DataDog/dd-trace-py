@@ -87,7 +87,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             if (is_boundary_frame) {
                 // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
                 // even if the Frame gets evicted from the cache.
-                // This means we can keep the cache key and re-use it to determine
+                // This means we can keep the cache key and reuse it to determine
                 // whether we see the boundary Frame in the Python stack.
                 frame_cache_key = frame.cache_key;
                 upper_python_stack_size = python_stack.size() - i;
@@ -197,6 +197,17 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         }
     }
 
+    // Pre-compute per-task coroutine stacks so that each task's coroutine chain is walked exactly once.
+    // Without this, a parent task's coroutine chain would be walked once for each child task that
+    // references it in its task chain (e.g. 10 children from asyncio.gather = 10 redundant unwinds
+    // of the parent's coroutine chain).
+    std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
+    for (auto& task : all_tasks) {
+        FrameStack task_stack;
+        task->unwind(echion, task_stack, using_uvloop);
+        task_coro_stacks.emplace(task->origin, std::move(task_stack));
+    }
+
     // Make sure the on CPU task is first
     for (size_t i = 0; i < leaf_tasks.size(); i++) {
         if (leaf_tasks[i].get().is_on_cpu) {
@@ -211,10 +222,25 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu);
         auto& stack = stack_info->stack;
 
+        // Safety: prevent infinite loops from cycles in task chain maps
+        size_t task_chain_depth = 0;
         for (auto current_task = leaf_task;;) {
+            if (++task_chain_depth > MAX_RECURSION_DEPTH) {
+                break;
+            }
             auto& task = current_task.get();
 
-            auto task_stack_size = task.unwind(echion, stack, using_uvloop);
+            // Look up the pre-computed coroutine stack for this task
+            size_t task_stack_size = 0;
+            if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
+                task_stack_size = it->second.size();
+                for (const auto& frame_ref : it->second) {
+                    if (stack.size() >= max_frames) {
+                        break;
+                    }
+                    stack.push_back(frame_ref);
+                }
+            }
             if (task.is_on_cpu) {
                 // Get the "bottom" part of the Python synchronous Stack, that is to say the
                 // synchronous functions and coroutines called by the Task's outermost coroutine
@@ -640,7 +666,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             const auto& task_name = maybe_task_name->get();
             renderer.render_task_begin(task_name, task_stack_info->on_cpu);
-            renderer.render_stack_begin();
 
             task_stack_info->stack.render(echion);
 
@@ -657,7 +682,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
             const auto& task_name = maybe_task_name->get();
             renderer.render_task_begin(task_name, greenlet_stack->on_cpu);
-            renderer.render_stack_begin();
 
             auto& stack = greenlet_stack->stack;
             stack.render(echion);
@@ -667,7 +691,6 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
         current_greenlets.clear();
     } else {
-        renderer.render_stack_begin();
         python_stack.render(echion);
         renderer.render_stack_end();
     }
@@ -718,7 +741,7 @@ ThreadInfo::update_cpu_time()
 }
 
 void
-for_each_thread(EchionSampler& echion, InterpreterInfo& interp, PyThreadStateCallback callback)
+for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadStateCallback& callback)
 {
     std::unordered_set<PyThreadState*> threads;
     std::unordered_set<PyThreadState*> seen_threads;

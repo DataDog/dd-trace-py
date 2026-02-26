@@ -2,47 +2,15 @@
 
 #include "defer.hpp"
 #include "libdatadog_helpers.hpp"
-#include "profiler_stats.hpp"
+#include "profiler_state.hpp"
 #include "sample.hpp"
 #include "sample_manager.hpp"
 #include "uploader.hpp"
 #include "uploader_builder.hpp"
 
-#include <cstdio>
-#include <cstdlib>
 #include <iostream>
 #include <string_view>
-#include <unistd.h>
 #include <unordered_map>
-
-// State
-bool is_ddup_initialized = false; // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
-std::once_flag ddup_init_flag;    // NOLINT (cppcoreguidelines-avoid-non-const-global-variables)
-
-// When a fork is detected, we need to reinitialize this state.
-// This handler will be called in the single thread of the child process after the fork
-void
-ddup_postfork_child()
-{
-    Datadog::Uploader::postfork_child();
-    Datadog::SampleManager::postfork_child();
-}
-
-void
-ddup_postfork_parent()
-{
-    Datadog::Uploader::postfork_parent();
-}
-
-// Since we don't control the internal state of libdatadog's exporter and we want to prevent state-tearing
-// after a `fork()`, we just outright prevent uploads from happening during a `fork()` operation.  Since a
-// new upload may be scheduled _just_ as `fork()` is entered, we also need to prevent new uploads from happening.
-// This mutex is released in both the child and the parent.
-void
-ddup_prefork()
-{
-    Datadog::Uploader::prefork();
-}
 
 // Configuration
 void
@@ -150,24 +118,19 @@ ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 bool
 ddup_is_initialized() // cppcheck-suppress unusedFunction
 {
-    return is_ddup_initialized;
+    return Datadog::ProfilerState::get().is_initialized();
 }
 
 void
 ddup_start() // cppcheck-suppress unusedFunction
 {
-    std::call_once(ddup_init_flag, []() {
-        // Perform any one-time startup operations
-        Datadog::SampleManager::init();
+    Datadog::ProfilerState::get().start();
+}
 
-        // install the ddup_fork_handler for pthread_atfork
-        // Right now, only do things in the child _after_ fork
-        pthread_atfork(ddup_prefork, ddup_postfork_parent, ddup_postfork_child);
-
-        // Set the global initialization flag
-        is_ddup_initialized = true;
-        return true;
-    });
+void
+ddup_cleanup()
+{
+    Datadog::ProfilerState::get().cleanup();
 }
 
 Datadog::Sample*
@@ -177,13 +140,16 @@ ddup_start_sample() // cppcheck-suppress unusedFunction
     // ddup_start() uses std::call_once, so it's safe to call multiple times.
     ddup_start();
 
+    if (!ddup_is_initialized()) {
+        return nullptr;
+    }
+
     return Datadog::SampleManager::start_sample();
 }
 
 void
 ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count) // cppcheck-suppress unusedFunction
 {
-
     sample->push_walltime(walltime, count);
 }
 
@@ -344,7 +310,7 @@ bool
 ddup_upload() // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    if (!is_ddup_initialized) {
+    if (!ddup_is_initialized()) {
         if (!already_warned) {
             already_warned = true;
             std::cerr << "ddup_upload() called before ddup_start()" << std::endl;
@@ -386,12 +352,15 @@ ddup_upload() // cppcheck-suppress unusedFunction
     return result;
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+// Pass by value is intentional: the map may be modified concurrently by other threads,
+// so we take a copy to avoid data races while iterating.
 void
 ddup_profile_set_endpoints(
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto borrowed = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
@@ -408,11 +377,14 @@ ddup_profile_set_endpoints(
     }
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+// Pass by value is intentional: the map may be modified concurrently by other threads,
+// so we take a copy to avoid data races while iterating.
 void
 ddup_profile_add_endpoint_counts(std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    auto borrowed = Datadog::Sample::profile_borrow();
+    auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
         ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);

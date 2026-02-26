@@ -117,11 +117,11 @@ async def test_data_streams_offset_monitoring_auto_commit(dsm_processor):
     bucket = list(buckets.values())[0]
 
     # Check produce offsets were tracked
-    produce_offset = bucket.latest_produce_offsets.get(PartitionKey(topic, 0))
+    produce_offset = bucket.latest_produce_offsets.get(PartitionKey(topic, 0, ""))
     assert produce_offset is not None and produce_offset == 1
 
     # Check consume offsets were tracked
-    commit_key = ConsumerPartitionKey(GROUP_ID, topic, 0)
+    commit_key = ConsumerPartitionKey(GROUP_ID, topic, 0, "")
     commit_offset = bucket.latest_commit_offsets.get(commit_key)
     assert commit_offset is not None and commit_offset == msg.offset + 1
 
@@ -153,11 +153,11 @@ async def test_data_streams_offset_monitoring_commit(dsm_processor, offsets):
     bucket = list(buckets.values())[0]
 
     # Check produce offsets were tracked
-    produce_offset = bucket.latest_produce_offsets.get(PartitionKey(topic, 0))
+    produce_offset = bucket.latest_produce_offsets.get(PartitionKey(topic, 0, ""))
     assert produce_offset is not None and produce_offset == 1
 
     # Check consume offsets were tracked
-    commit_key = ConsumerPartitionKey(GROUP_ID, topic, 0)
+    commit_key = ConsumerPartitionKey(GROUP_ID, topic, 0, "")
     commit_offset = bucket.latest_commit_offsets.get(commit_key)
     assert commit_offset is not None and commit_offset == msg.offset + 1
 

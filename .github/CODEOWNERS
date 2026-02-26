@@ -80,14 +80,14 @@ tests/lib-injection                 @DataDog/apm-core-python
 # ddtrace files
 ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
 ddtrace/contrib/internal/freezegun                    @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest                        @DataDog/ci-app-libraries
-ddtrace/contrib/internal/pytest_bdd                    @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
+ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
 ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
-ddtrace/ext/ci.py                                     @DataDog/ci-app-libraries
+ddtrace/ext/ci/                                       @DataDog/ci-app-libraries
 ddtrace/ext/git.py                                    @DataDog/ci-app-libraries @DataDog/apm-core-python
 ddtrace/ext/test.py                                   @DataDog/ci-app-libraries
-ddtrace/ext/test_visibility                            @DataDog/ci-app-libraries
+ddtrace/ext/test_visibility                           @DataDog/ci-app-libraries
 ddtrace/internal/ci_visibility                        @DataDog/ci-app-libraries
 ddtrace/internal/codeowners.py                        @DataDog/apm-core-python @DataDog/ci-app-libraries
 ddtrace/internal/coverage                             @DataDog/apm-core-python @DataDog/ci-app-libraries
@@ -155,13 +155,14 @@ scripts/iast/*                      @DataDog/asm-python
 
 
 # Profiling
-ddtrace/profiling                   @DataDog/profiling-python
+ddtrace/profiling                            @DataDog/profiling-python
 ddtrace/internal/settings/profiling.py       @DataDog/profiling-python
-ddtrace/internal/datadog/profiling  @DataDog/profiling-python
-tests/profiling                     @DataDog/profiling-python
+ddtrace/internal/settings/profiling.pyi      @DataDog/profiling-python
+ddtrace/internal/datadog/profiling           @DataDog/profiling-python
+tests/profiling                              @DataDog/profiling-python
 .github/workflows/profiling-native.yml       @DataDog/profiling-python
-.gitlab/tests/profiling.yml         @DataDog/profiling-python
-.github/workflows/pytorch_gpu_tests.yml @DataDog/profiling-python
+.gitlab/tests/profiling.yml                  @DataDog/profiling-python
+.github/workflows/pytorch_gpu_tests.yml      @DataDog/profiling-python
 
 # Crashtracker
 ddtrace/internal/core/crashtracking.py       @DataDog/profiling-python @DataDog/apm-core-python
@@ -220,7 +221,7 @@ tests/snapshots/tests.contrib.openai.*                        @DataDog/ml-observ
 tests/snapshots/tests.contrib.vertexai.*                      @DataDog/ml-observability
 tests/snapshots/tests.contrib.botocore.test_bedrock_agents.*  @DataDog/ml-observability
 tests/snapshots/tests.contrib.botocore.test_bedrock.*         @DataDog/ml-observability
-tests/snapshots/tests.contrib.google_adk.*                   @DataDog/ml-observability
+tests/snapshots/tests.contrib.google_adk.*                    @DataDog/ml-observability
 tests/snapshots/tests.contrib.google_generativeai.*           @DataDog/ml-observability
 tests/snapshots/tests.contrib.langgraph.*                     @DataDog/ml-observability
 tests/snapshots/tests.contrib.crewai.*                        @DataDog/ml-observability
@@ -248,7 +249,7 @@ ddtrace/opentelemetry/                             @DataDog/apm-sdk-capabilities
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-capabilities-python
 ddtrace/opentracer/                                @DataDog/apm-sdk-capabilities-python
 ddtrace/propagation/                               @DataDog/apm-sdk-capabilities-python
-ddtrace/internal/settings/_opentelemetry.py                 @DataDog/apm-sdk-capabilities-python
+ddtrace/internal/settings/_opentelemetry.py        @DataDog/apm-sdk-capabilities-python
 
 ddtrace/internal/sampling.py                       @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-capabilities-python
@@ -256,7 +257,7 @@ ddtrace/internal/metrics.py                        @DataDog/apm-sdk-capabilities
 ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-capabilities-python
 ddtrace/runtime/                                   @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities-python
-ddtrace/internal/settings/_otel_remapper.py                 @DataDog/apm-sdk-capabilities-python
+ddtrace/internal/settings/_otel_remapper.py        @DataDog/apm-sdk-capabilities-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-capabilities-python
 tests/integration/test_propagation.py              @DataDog/apm-sdk-capabilities-python
 tests/runtime/                                     @DataDog/apm-sdk-capabilities-python
@@ -266,6 +267,8 @@ tests/opentelemetry/                               @DataDog/apm-sdk-capabilities
 tests/tracer/                                      @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
+tests/tracer/test_ci_utils.py                      @DataDog/ci-app-libraries
+
 
 # AWS Lambda
 ddtrace/contrib/internal/aws_lambda                       @DataDog/apm-serverless @DataDog/serverless-aws
@@ -300,8 +303,8 @@ tests/datastreams                                         @DataDog/data-streams-
 tests/contrib/**/test_*dsm.py                             @DataDog/data-streams-monitoring
 
 # ASM (order matters)
-tests/**/*appsec*               @DataDog/asm-python
-tests/**/*iast*                 @DataDog/asm-python
+tests/**/*appsec*                       @DataDog/asm-python
+tests/**/*iast*                         @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
 
 # Fuzzing

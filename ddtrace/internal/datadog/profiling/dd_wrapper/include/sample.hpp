@@ -5,21 +5,19 @@
 #include "profile_borrow.hpp"
 #include "types.hpp"
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
-
-extern "C"
-{
-#include "datadog/profiling.h"
-}
 
 // Forward declaration of Python types.
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
+// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct name
 struct _frame;
 typedef struct _frame PyFrameObject;
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace Datadog {
 
@@ -35,21 +33,25 @@ namespace internal {
 // whole time we build samples.
 struct StringArena
 {
+  private:
     // Default size, in bytes, of each Chunk. The value is a power of 2 (nice to
     // allocate) that is bigger than any actual sample string size seen over a
     // random selection of a few hundred Python profiles at Datadog. So ideally
     // we only need one chunk, which we can reuse between samples
     static constexpr size_t KB = 1024;
     static constexpr size_t DEFAULT_SIZE = 16 * KB;
+
     // Strings are backed by fixed-size Chunks. The Chunks can't grow, or
     // they'll move and invalidate pointers into the arena. At the same time,
     // they must be dynamically sized at creation because we get arbitrary
     // user-provided strings.
     using Chunk = std::vector<char>;
+
     // We keep the Chunks for this arena in a vector so we can track them, and
     // free them when the StringArena is deallocated.
     std::vector<Chunk> chunks;
 
+  public:
     StringArena();
     // Clear the backing data of the arena, except for a smaller initial segment.
     // Views returned by insert are invalid after this call.
@@ -62,37 +64,40 @@ struct StringArena
 
 } // namespace internal
 
+using string_id = ddog_prof_StringId2;
+using function_id = ddog_prof_FunctionId2;
+
+std::optional<string_id>
+intern_string(std::string_view s);
+
+std::optional<function_id>
+intern_function(string_id name, string_id filename);
+
 class SampleManager; // friend
 
+// Sample represents a single profiling sample being built.
+// Profile state is stored in the ProfilerState singleton.
 class Sample
 {
   private:
-    static inline Profile profile_state{}; // TODO pointer to global state?
     unsigned int max_nframes;
     SampleType type_mask;
     std::string errmsg;
 
-    // Timeline support works by endowing each sample with a timestamp. Collection of this data this data is cheap, but
-    // due to the underlying pprof format, timeline support increases the sample cardinality. Rather than switching
-    // around the frontend code too much, we push enablement down to whether or not timestamps get added to samples (a
-    // 0 value suppresses the tag). However, Sample objects are short-lived, so we make the flag static.
-    static inline bool timeline_enabled = false;
-
     // Keeps temporary buffer of frames in the stack
-    std::vector<ddog_prof_Location> locations;
+    std::vector<ddog_prof_Location2> locations;
     size_t dropped_frames = 0;
     bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
     // Storage for labels
-    std::vector<ddog_prof_Label> labels{};
+    std::vector<ddog_prof_Label2> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};
 
     // Additional metadata
-    int64_t endtime_ns = 0;         // end of the event
-    bool reverse_locations = false; // whether to reverse locations when exporting/flushing
+    int64_t endtime_ns = 0; // end of the event
 
     // Backing memory for string copies
     internal::StringArena string_storage{};
@@ -102,6 +107,7 @@ class Sample
     bool push_label(ExportLabelKey key, std::string_view val);
     bool push_label(ExportLabelKey key, int64_t val);
     void push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    void push_frame_impl(function_id function_id, uint64_t address, int64_t line);
     void clear_buffers();
 
     // Add values
@@ -138,10 +144,10 @@ class Sample
     bool push_gpu_device_name(std::string_view device_name);
 
     // Assumes frames are pushed in leaf-order
-    void push_frame(std::string_view name,     // for ddog_prof_Function
-                    std::string_view filename, // for ddog_prof_Function
-                    uint64_t address,          // for ddog_prof_Location
-                    int64_t line               // for ddog_prof_Location
+    void push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
+    void push_frame(function_id function_id, // for ddog_prof_Location
+                    uint64_t address,        // for ddog_prof_Location
+                    int64_t line             // for ddog_prof_Location
     );
 
     // Push an entire PyFrameObject chain to the sample.
@@ -152,9 +158,6 @@ class Sample
     // released by this function.
     void push_pyframes(PyFrameObject* frame);
 
-    // Set whether to reverse locations when exporting/flushing
-    void set_reverse_locations(bool reverse) { reverse_locations = reverse; }
-
     // Flushes the current buffer, clearing it
     bool flush_sample();
 
@@ -164,9 +167,9 @@ class Sample
 
     static ProfileBorrow profile_borrow();
     static void postfork_child();
+    static void cleanup();
     Sample(SampleType _type_mask, unsigned int _max_nframes);
 
-    // friend class SampleManager;
     friend class SampleManager;
 };
 

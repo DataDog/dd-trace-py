@@ -722,7 +722,7 @@ def test_debugger_function_probe_on_lazy_wrapped_function(stuff):
 def test_probe_status_logging(remote_config_worker, stuff):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
+    with rcm_endpoint(), debugger(enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 probe_id="line-probe-ok",
@@ -760,7 +760,7 @@ def test_probe_status_logging(remote_config_worker, stuff):
 def test_probe_status_logging_reemit_on_modify(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-    with rcm_endpoint(), debugger(diagnostics_interval=float("inf"), enabled=True) as d:
+    with rcm_endpoint(), debugger(enabled=True) as d:
         d.add_probes(
             create_snapshot_line_probe(
                 version=1,
@@ -1182,7 +1182,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == "child"
 
-            assert span.parent_id is root.span_id
+            assert span.parent_id == root.span_id
 
     def test_debugger_function_probe_ordering(self):
         from tests.submod.stuff import mutator

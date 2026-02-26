@@ -2,8 +2,10 @@
 
 #include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
+#include "profiler_state.hpp"
 #include "profiler_stats.hpp"
 
+#include <datadog/profiling.h>
 #include <iostream>
 
 #include <fcntl.h>
@@ -20,19 +22,23 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
              ddog_prof_Profile& profile)
 {
     // Private helper function for creating a ddog_prof_Profile from arguments
+
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-    ddog_prof_Profile_NewResult res = ddog_prof_Profile_new(sample_types, period);
-    if (res.tag != DDOG_PROF_PROFILE_NEW_RESULT_OK) { // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = res.err;                           // NOLINT (cppcoreguidelines-pro-type-union-access)
-        if (!already_warned) {
-            already_warned = true;
-            const std::string errmsg = Datadog::err_to_msg(&err, "Error initializing profile");
-            std::cerr << errmsg << std::endl;
-        }
-        ddog_Error_drop(&err);
+    auto maybe_dict = Datadog::ProfilerState::get().get_profiles_dictionary();
+    if (!maybe_dict) {
         return false;
     }
-    profile = res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
+
+    auto& dict = maybe_dict.value();
+    auto res = ddog_prof_Profile_with_dictionary(&profile, &dict, sample_types, period);
+    if (res.flags) { // NOLINT (cppcoreguidelines-pro-type-union-access)
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = std::string(res.err);
+            std::cerr << errmsg << std::endl;
+        }
+        return false;
+    }
     return true;
 }
 
@@ -59,6 +65,13 @@ Datadog::Profile::reset_profile()
 
     cur_profiler_stats.reset_state();
     return true;
+}
+
+void
+Datadog::Profile::cleanup()
+{
+    // Drop the profile and release its resources
+    ddog_prof_Profile_drop(&cur_profile);
 }
 
 void
@@ -204,19 +217,17 @@ Datadog::Profile::val()
 }
 
 bool
-Datadog::Profile::collect(const ddog_prof_Sample& sample, int64_t endtime_ns)
+Datadog::Profile::collect(const ddog_prof_Sample2& sample, int64_t endtime_ns)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     const std::lock_guard<std::mutex> lock(profile_mtx);
-    auto res = ddog_prof_Profile_add(&cur_profile, sample, endtime_ns);
-    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
-        auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+    auto res = ddog_prof_Profile_add2(&cur_profile, sample, endtime_ns);
+    if (res.flags) { // NOLINT (cppcoreguidelines-pro-type-union-access)
         if (!already_warned) {
             already_warned = true;
-            const std::string errmsg = err_to_msg(&err, "Error adding sample to profile");
+            const std::string errmsg = std::string(res.err);
             std::cerr << errmsg << std::endl;
         }
-        ddog_Error_drop(&err);
         return false;
     }
     return true;
@@ -226,7 +237,15 @@ void
 Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
-    // Reset the profile to clear any samples collected in the parent process
+    // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
-    reset_profile();
+
+    // Drop the old profile - it references the old (now-released) dictionary
+    ddog_prof_Profile_drop(&cur_profile);
+
+    // Create a new profile with the new dictionary
+    const ddog_prof_Slice_ValueType sample_types = { .ptr = samplers.data(), .len = samplers.size() };
+    if (!make_profile(sample_types, &default_period, cur_profile)) {
+        std::cerr << "Error re-initializing profile after fork" << std::endl;
+    }
 }
