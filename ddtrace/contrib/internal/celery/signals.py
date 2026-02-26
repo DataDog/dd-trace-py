@@ -108,7 +108,7 @@ def trace_before_publish(*args, **kwargs):
             # This is useful for cases where the task is not attached to a span, but
             # there is a trace active (e.g. a web request span).
             _inject_distributed_headers(active, kwargs)
-        log.debug("unable to extract the Task and the task_id. This version of Celery may not be supported.")
+        log.debug("Task was not found in the local registry. Unable to create producer span. Task name: {}, ID: {}", task_name, task_id)
         return
 
     # If Task A calls Task B, and Task A excepts, then Task B may have no parent when apply is called.
