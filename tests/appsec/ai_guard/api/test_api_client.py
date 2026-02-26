@@ -173,6 +173,24 @@ def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_clie
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_http_error_empty_json_body(mock_execute_request, telemetry_mock, ai_guard_client):
+    """Test HTTP error handling when the response body is empty."""
+    mock_response = Mock()
+    mock_response.status = 500
+    mock_response.get_json.return_value = None
+    mock_execute_request.return_value = mock_response
+
+    with pytest.raises(AIGuardClientError) as exc_info:
+        ai_guard_client.evaluate(TOOL_CALL)
+
+    assert str(exc_info.value) == "AI Guard service call failed, status: 500"
+    assert exc_info.value.status == 500
+    assert exc_info.value.errors == []
+    assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_invalid_json(mock_execute_request, telemetry_mock, ai_guard_client):
     """Test invalid JSON response handling."""
     mock_response = Mock()
