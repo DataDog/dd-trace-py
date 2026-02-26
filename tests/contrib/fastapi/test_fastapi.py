@@ -742,7 +742,17 @@ def _run_websocket_context_propagation_test():
         fastapi_unpatch()
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+def _is_known_fastapi_websocket_teardown_stderr(stderr):
+    if stderr == "":
+        return True
+
+    return "Exception ignored in: <function BaseEventLoop.__del__" in stderr and "Invalid file descriptor: -1" in stderr
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"),
+    err=_is_known_fastapi_websocket_teardown_stderr,
+)
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_context_propagation(snapshot_app):
     """Test trace context propagation."""
