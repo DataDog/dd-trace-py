@@ -89,7 +89,10 @@ class Frame
 
   private:
     [[nodiscard]] Result<void> inline infer_location(PyCodeObject* code, int lasti);
-    static inline Key key(PyCodeObject* code, int lasti);
+    // co_firstlineno is included in the key to prevent stale cache hits when Python
+    // reuses a freed PyCodeObject's memory address for a new code object. Without it,
+    // the profiler can return a cached <module> frame for a function frame.
+    static inline Key key(PyCodeObject* code, int lasti, int firstlineno);
 };
 
 inline auto INVALID_FRAME = Frame(StringTable::INVALID);
