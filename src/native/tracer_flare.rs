@@ -110,7 +110,9 @@ impl FlareActionPy {
 
     #[staticmethod]
     fn none_action() -> FlareActionPy {
-        FlareActionPy { inner: FlareAction::None }
+        FlareActionPy {
+            inner: FlareAction::None,
+        }
     }
 }
 
@@ -152,11 +154,7 @@ impl TracerFlareManagerPy {
     ///
     /// Raises:
     ///     ParsingError: If the product type is unexpected or if parsing the data fails
-    fn handle_remote_config_data(
-        &self,
-        data: &[u8],
-        product: &str,
-    ) -> PyResult<FlareActionPy> {
+    fn handle_remote_config_data(&self, data: &[u8], product: &str) -> PyResult<FlareActionPy> {
         let manager = &self.manager;
 
         let product: RemoteConfigProduct = match product {
