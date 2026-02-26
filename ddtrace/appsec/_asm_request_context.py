@@ -283,6 +283,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     flush_waf_triggers(env)
     for function in env.callbacks[_CONTEXT_CALL]:
         function(env)
+    env.callbacks.clear()
     entry_span = env.entry_span
     if entry_span:
         if env.waf_info:
@@ -355,7 +356,7 @@ def set_waf_address(address: str, value: Any) -> None:
 
 def get_value(category: str, address: str, default: Any = None) -> Any:
     env = _get_asm_context()
-    if env is None:
+    if env is None or env.finalized:
         extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
         logger.debug("asm_context::get_value::no_active_context", extra=extra, stack_info=True)
         return default
