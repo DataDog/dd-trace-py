@@ -520,6 +520,8 @@ class SpanData:
     duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
     error: int
     span_id: int
+    trace_id: int
+    _trace_id_64bits: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
@@ -531,7 +533,7 @@ class SpanData:
         service: Optional[str] = None,
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
-        trace_id: Optional[int] = None,  # placeholder for Span.__init__
+        trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
         parent_id: Optional[int] = None,
         start: Optional[float] = None,
@@ -559,3 +561,15 @@ class SpanLinkData:
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+
+class config:
+    """Native config module for tracer configuration managed in Rust."""
+
+    @staticmethod
+    def get_128_bit_trace_id_enabled() -> bool:
+        """Return whether 128-bit trace ID generation is enabled."""
+        ...
+    @staticmethod
+    def set_128_bit_trace_id_enabled(val: bool) -> None:
+        """Set whether 128-bit trace ID generation is enabled."""
+        ...
