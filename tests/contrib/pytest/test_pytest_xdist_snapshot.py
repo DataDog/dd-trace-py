@@ -96,6 +96,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                        DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
             )
@@ -142,6 +143,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                        DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
             )
@@ -178,6 +180,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         DD_PATCH_MODULES="httpx:true",
                         _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                        DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
             )
@@ -232,6 +235,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                        DD_PYTEST_USE_NEW_PLUGIN="false",
                     )
                 ),
             )

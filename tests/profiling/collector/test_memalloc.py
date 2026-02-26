@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import inspect
 import os
 from pathlib import Path
@@ -595,6 +596,20 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
             second_batch.append(two(512))
 
         del first_batch
+
+        # Force a full GC collection to clear CPython's internal free lists
+        # (tuple, float, list, dict, etc.).  On Python < 3.13, calling
+        # bytearray(256) inside one() goes through _PyObject_MakeTpCall,
+        # which creates a temporary 1-element args tuple (256,).  When that
+        # tuple's refcount drops to zero, tupledealloc caches it in the
+        # tuple free list WITHOUT calling PyObject_Free, so the profiler's
+        # memalloc_free hook is never triggered and the allocation stays
+        # tracked as "live" in allocs_m even though the Python object is
+        # logically dead.  gc.collect(generation=2) calls clear_freelists()
+        # -> _PyTuple_ClearFreeList() -> PyObject_GC_Del() -> PyObject_Free(),
+        # which properly fires memalloc_free -> untrack and removes these
+        # ghost entries.
+        gc.collect()
 
         final_profile = mc.snapshot_and_parse_pprof(output_filename)
 

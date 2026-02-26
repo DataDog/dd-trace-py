@@ -645,6 +645,80 @@ def test_collect_gevent_thread_task() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_gevent_task_started_before_profiler",
+    ),
+    err=None,
+)
+def test_collect_gevent_task_started_before_profiler() -> None:
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import threading
+    import time
+
+    import gevent
+
+    should_stop = threading.Event()
+
+    def pre_started_greenlet_task() -> None:
+        # Keep this greenlet alive long enough to be sampled after profiler start.
+        while not should_stop.is_set():
+            start = time.time()
+            while time.time() - start < 0.01:
+                pass
+            gevent.sleep(0)
+
+    # Start a named greenlet before profiler startup (remote-enable scenario).
+    pre_started_greenlet_name = "pre-started-before-profiler"
+    pre_started_greenlet = gevent.spawn(pre_started_greenlet_task)
+    pre_started_greenlet.name = pre_started_greenlet_name
+    gevent.sleep(0.05)
+
+    # Import profiler modules after gevent patching and greenlet creation
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    p = profiler.Profiler()
+    p.start()
+
+    try:
+        gevent.sleep(1.0)
+    finally:
+        should_stop.set()
+        pre_started_greenlet.join(timeout=2)
+        p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=pre_started_greenlet_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name=pre_started_greenlet_task.__name__,
+                    filename="test_stack.py",
+                    line_no=-1,
+                )
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
@@ -652,7 +726,7 @@ def test_repr() -> None:
     )
 
 
-# Tests from tests/profiling/collector/test_stack.py (v1)
+# Tests from tests/profiling/collector/test_stack.py
 # Function to use for stress-test of polling
 MAX_FN_NUM = 30
 FN_TEMPLATE = """def _f{num}():

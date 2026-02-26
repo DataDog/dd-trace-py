@@ -19,7 +19,7 @@ DEFAULT_STALE_FLARE_DURATION_MINS = 20
 class TracerFlareState:
     """Shared state between the callback and stale check service."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.current_request_start: Optional[datetime] = None
 
 

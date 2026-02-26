@@ -49,7 +49,7 @@ class Sampler
     void adapt_sampling_interval();
 
     void atfork_child();
-    friend void _stack_atfork_child();
+    friend void stack_atfork_child();
 
   public:
     // Singleton instance
