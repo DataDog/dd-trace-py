@@ -1259,3 +1259,54 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
         t.join(timeout=10)
 
     _memalloc.stop()
+
+
+@pytest.mark.subprocess(timeout=30)
+def test_memalloc_no_allocator_reentry_from_frame_walking() -> None:
+    """Regression test: frame walking in the allocator hook must not re-enter the allocator.
+
+    Before the fix, the allocator hook used PyFrame_GetBack()/PyFrame_GetCode()
+    which call CPython APIs that may allocate (e.g., PyFrame_GetBack can create
+    a new PyFrameObject via _PyFrame_GetFrameObject, and PyUnicode_AsUTF8AndSize
+    can allocate a UTF-8 cache). These reentrant allocations are caught by the
+    reentry guard, but indicate unsafe API usage inside the allocator hook.
+
+    The fix replaces all CPython API calls with direct struct field reads
+    (zero-DECREF frame walking), eliminating all reentrant allocations.
+
+    This test verifies the fix by checking the reentry bailout counter:
+    - _reset_reentry_bailout_count() zeroes the counter
+    - Allocations with deep call stacks trigger the hook and frame walking
+    - _get_reentry_bailout_count() returns how many reentrant allocations were caught
+    - The counter must be 0 (no CPython API calls that allocate during frame walking)
+
+    On the unpatched code (main), _get_reentry_bailout_count does not exist,
+    so this test fails with AttributeError, confirming the fix is required.
+    """
+    from ddtrace.profiling.collector import _memalloc
+
+    # Verify the counter API exists (added by the fix)
+    assert hasattr(_memalloc, "_get_reentry_bailout_count"), (
+        "_get_reentry_bailout_count not found: the zero-DECREF frame walking fix is not applied"
+    )
+
+    _memalloc.start(64, 64)
+    try:
+        _memalloc._reset_reentry_bailout_count()
+
+        def recursive_alloc(depth: int) -> None:
+            _throwaway = [object() for _ in range(16)]
+            if depth > 0:
+                recursive_alloc(depth - 1)
+
+        # Do enough allocations with deep stacks to trigger many hook invocations
+        for _ in range(20):
+            recursive_alloc(100)
+
+        count = _memalloc._get_reentry_bailout_count()
+        assert count == 0, (
+            f"Detected {count} reentrant allocations during frame walking. "
+            "Frame walking in the allocator hook must not call CPython APIs that allocate."
+        )
+    finally:
+        _memalloc.stop()
