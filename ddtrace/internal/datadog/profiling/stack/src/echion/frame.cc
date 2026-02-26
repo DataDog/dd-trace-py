@@ -87,7 +87,6 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
     for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
         bc += (table[i] & 7) + 1;
         int code = (table[i] >> 3) & 15;
-        unsigned char next_byte = 0;
         switch (code) {
             case 15:
                 break;
@@ -95,19 +94,18 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
             case 14: // Long form
                 lineno += read_signed_varint(table_data, len, &i);
 
-                this->location.line = lineno;
-                this->location.line_end = lineno + read_varint(table_data, len, &i);
-                this->location.column = read_varint(table_data, len, &i);
-                this->location.column_end = read_varint(table_data, len, &i);
+                this->line = lineno;
+                // Skip line_end, column, and column_end varints (not exported)
+                read_varint(table_data, len, &i);
+                read_varint(table_data, len, &i);
+                read_varint(table_data, len, &i);
 
                 break;
 
             case 13: // No column data
                 lineno += read_signed_varint(table_data, len, &i);
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = this->location.column_end = 0;
+                this->line = lineno;
 
                 break;
 
@@ -120,10 +118,9 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
                 lineno += code - 10;
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + table[++i];
-                this->location.column_end = 1 + table[++i];
+                this->line = lineno;
+                // Skip column and column_end bytes (not exported)
+                i += 2;
 
                 break;
 
@@ -132,12 +129,10 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
                     return ErrorKind::LocationError;
                 }
 
-                next_byte = table[++i];
+                // Skip the next byte (column data, not exported)
+                ++i;
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + (code << 3) + ((next_byte >> 4) & 7);
-                this->location.column_end = this->location.column + (next_byte & 15);
+                this->line = lineno;
         }
 
         if (bc > lasti)
@@ -188,10 +183,7 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
 #endif
 
-    this->location.line = lineno;
-    this->location.line_end = lineno;
-    this->location.column = 0;
-    this->location.column_end = 0;
+    this->line = lineno;
 
     return Result<void>::ok();
 }
