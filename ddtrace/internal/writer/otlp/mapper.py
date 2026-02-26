@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import islice
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -10,7 +11,6 @@ from ddtrace.version import __version__ as _dd_version
 
 if TYPE_CHECKING:
     from ddtrace.trace import Span
-
 
 # OTLP SpanKind (enum value)
 OTLP_SPAN_KIND_UNSPECIFIED = 0
@@ -25,8 +25,10 @@ OTLP_STATUS_CODE_UNSET = 0
 OTLP_STATUS_CODE_OK = 1
 OTLP_STATUS_CODE_ERROR = 2
 
-# Attribute count limit per span (apply reasonable limit, set dropped_attributes_count)
+# Limits 
 MAX_ATTRIBUTES_PER_SPAN = 128
+MAX_EVENTS_PER_SPAN = 32
+MAX_ATTRIBUTES_PER_EVENT = 16
 
 
 def _trace_id_to_hex(trace_id: int) -> str:
@@ -58,9 +60,9 @@ def _dd_span_type_to_otlp_kind(span_type: str | None) -> int:
 
 def _span_status(span: Span) -> dict[str, Any]:
     """
-    Build OTLP Status from Datadog span;
-    code = STATUS_CODE_ERROR if span.error == 1 else STATUS_CODE_UNSET
-    message = span.tags["error.msg"]
+    Build OTLP Status from Datadog span.
+    code = STATUS_CODE_ERROR if span.error == 1 else STATUS_CODE_UNSET.
+    message = span._meta["error.message"] or span._meta["error.msg"].
     """
     error_flag = getattr(span, "error", 0)
     if error_flag == 1:
@@ -68,7 +70,7 @@ def _span_status(span: Span) -> dict[str, Any]:
     else:
         code = OTLP_STATUS_CODE_UNSET
     meta = getattr(span, "_meta", None) or {}
-    # DD uses ERROR_MSG ("error.message"); RFC references error.msg
+    # DD uses ERROR_MSG ("error.message"); RFC uses error.msg
     message = meta.get(ERROR_MSG) or meta.get("error.msg") or ""
     status = {"code": code}
     if message:
@@ -139,7 +141,7 @@ def _span_events(span: Span) -> tuple[list[dict[str, Any]], int]:
     if not events:
         return [], 0
     result = []
-    for ev in events[:32]:  # limit events per span
+    for ev in islice(events, MAX_EVENTS_PER_SPAN):
         name = getattr(ev, "name", "event")
         time_ns = getattr(ev, "time_unix_nano", None)
         if time_ns is None:
@@ -148,10 +150,12 @@ def _span_events(span: Span) -> tuple[list[dict[str, Any]], int]:
         otlp_ev = {
             "time_unix_nano": str(time_ns),
             "name": name,
-            "attributes": [{"key": k, "value": _attribute_value(v)} for k, v in list(attrs.items())[:16]],
+            "attributes": [
+                {"key": k, "value": _attribute_value(v)} for k, v in islice(attrs.items(), MAX_ATTRIBUTES_PER_EVENT)
+            ],
         }
         result.append(otlp_ev)
-    dropped = max(0, len(events) - 32)
+    dropped = max(0, len(events) - MAX_EVENTS_PER_SPAN)
     return result, dropped
 
 
