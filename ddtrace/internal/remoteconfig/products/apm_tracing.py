@@ -119,23 +119,26 @@ def post_preload():
     pass
 
 
+def enabled() -> bool:
+    return config._remote_config_enabled
+
+
 def start():
-    if config._remote_config_enabled:
-        from ddtrace.internal.products import manager
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.products import manager
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register(
-            "APM_TRACING",
-            APMTracingCallback(),
-            capabilities=[
-                cap for product in manager.__products__.values() for cap in getattr(product, "APMCapabilities", [])
-            ],
-        )
+    remoteconfig_poller.register(
+        "APM_TRACING",
+        APMTracingCallback(),
+        capabilities=[
+            cap for product in manager.__products__.values() for cap in getattr(product, "APMCapabilities", [])
+        ],
+    )
 
-        # Register remote config handlers
-        for name, product in manager.__products__.items():
-            if (rc_handler := getattr(product, "apm_tracing_rc", None)) is not None:
-                on("apm-tracing.rc", rc_handler, name)
+    # Register remote config handlers
+    for name, product in manager.__products__.items():
+        if (rc_handler := getattr(product, "apm_tracing_rc", None)) is not None:
+            on("apm-tracing.rc", rc_handler, name)
 
 
 def restart(join=False):
@@ -143,10 +146,9 @@ def restart(join=False):
 
 
 def stop(join=False):
-    if config._remote_config_enabled:
-        from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.unregister("APM_TRACING")
+    remoteconfig_poller.unregister("APM_TRACING")
 
 
 def at_exit(join=False):

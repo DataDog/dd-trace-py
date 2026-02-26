@@ -20,48 +20,40 @@ DI_PRODUCT_KEY = "dynamic-instrumentation"
 # requires = ["tracer"]
 
 
+# We need to instrument the entrypoints on boot because this is the only
+# time the tracer will notify us of entrypoints being registered.
+@partial(core.on, "service_entrypoint.patch")
+def _(f: t.Union[FunctionType, MethodType]) -> None:
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
+
+    SpanCodeOriginProcessorEntry.instrument_view(f)
+
+
 def post_preload() -> None:
     pass
 
 
-def _start() -> None:
+def start() -> None:
     from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
     SpanCodeOriginProcessorEntry.enable()
 
 
-def start() -> None:
-    # We need to instrument the entrypoints on boot because this is the only
-    # time the tracer will notify us of entrypoints being registered.
-    @partial(core.on, "service_entrypoint.patch")
-    def _(f: t.Union[FunctionType, MethodType]) -> None:
-        from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
-
-        SpanCodeOriginProcessorEntry.instrument_view(f)
-
-    log.debug("Registered entrypoint patching hook for code origin for spans")
-
+def enabled() -> bool:
     # If dynamic instrumentation is enabled, and code origin for spans is not explicitly disabled,
     # we'll enable code origin for spans.
     di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
-    if config.span.enabled or di_enabled:
-        _start()
+    return config.span.enabled or di_enabled
 
 
 def restart(join: bool = False) -> None:
     pass
 
 
-def _stop() -> None:
+def stop(join: bool = False) -> None:
     from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
     SpanCodeOriginProcessorEntry.disable()
-
-
-def stop(join: bool = False) -> None:
-    di_enabled = product_manager.is_enabled(DI_PRODUCT_KEY) and config.value_source(CO_ENABLED) == ValueSource.DEFAULT
-    if config.span.enabled or di_enabled:
-        _stop()
 
 
 def at_exit(join: bool = False) -> None:
@@ -75,4 +67,4 @@ class APMCapabilities(enum.IntFlag):
 def apm_tracing_rc(lib_config: t.Any, _config: t.Any) -> None:
     if (enabled := lib_config.get("code_origin_enabled")) is not None:
         should_start = (config.span.spec.enabled.full_name not in config.source or config.span.enabled) and enabled
-        _start() if should_start else _stop()
+        start() if should_start else stop()

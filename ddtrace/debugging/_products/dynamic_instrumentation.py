@@ -1,8 +1,14 @@
 import enum
 from typing import Any
 
+from ddtrace.debugging._import import DebuggerModuleWatchdog
 from ddtrace.internal.settings.dynamic_instrumentation import config
 
+
+# We need to install this on start-up because if DI gets enabled remotely
+# we won't be able to capture many of the code objects from the modules
+# that are already loaded.
+DebuggerModuleWatchdog.install()
 
 requires = ["remote-configuration"]
 
@@ -11,22 +17,14 @@ def post_preload() -> None:
     pass
 
 
-def _start() -> None:
+def start() -> None:
     from ddtrace.debugging import DynamicInstrumentation
 
     DynamicInstrumentation.enable()
 
 
-def start() -> None:
-    from ddtrace.debugging._import import DebuggerModuleWatchdog
-
-    # We need to install this on start-up because if DI gets enabled remotely
-    # we won't be able to capture many of the code objects from the modules
-    # that are already loaded.
-    DebuggerModuleWatchdog.install()
-
-    if config.enabled:
-        _start()
+def enabled() -> bool:
+    return config.enabled
 
 
 def before_fork() -> None:
@@ -40,10 +38,9 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False) -> None:
-    if config.enabled:
-        from ddtrace.debugging import DynamicInstrumentation
+    from ddtrace.debugging import DynamicInstrumentation
 
-        DynamicInstrumentation.disable(join=join)
+    DynamicInstrumentation.disable(join=join)
 
 
 def at_exit(join: bool = False) -> None:
@@ -57,4 +54,4 @@ class APMCapabilities(enum.IntFlag):
 def apm_tracing_rc(lib_config: Any, _config: Any) -> None:
     if (enabled := lib_config.get("dynamic_instrumentation_enabled")) is not None:
         should_start = (config.spec.enabled.full_name not in config.source or config.enabled) and enabled
-        _start() if should_start else stop()
+        start() if should_start else stop()
