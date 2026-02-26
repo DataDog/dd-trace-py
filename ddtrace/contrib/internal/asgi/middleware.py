@@ -480,8 +480,10 @@ class TraceMiddleware:
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
-                if span in scope["datadog"]["request_spans"]:
-                    scope["datadog"]["request_spans"].remove(span)
+                # missing datadog scope should not crash request teardown.
+                request_spans = scope.get("datadog", {}).get("request_spans")
+                if request_spans and span in request_spans:
+                    request_spans.remove(span)
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:
