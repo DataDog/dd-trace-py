@@ -141,8 +141,7 @@ push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
          * On 3.11 we also need _PyFrame_IsIncomplete() because
          * THREAD-owned frames can be incomplete (prev_instr < firsttraceable). */
 #ifdef _PY312_AND_LATER
-        if (iframe->owner != FRAME_OWNED_BY_THREAD &&
-            iframe->owner != FRAME_OWNED_BY_GENERATOR) {
+        if (iframe->owner != FRAME_OWNED_BY_THREAD && iframe->owner != FRAME_OWNED_BY_GENERATOR) {
             continue;
         }
 #else
