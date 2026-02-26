@@ -19,8 +19,8 @@ def waf_module() -> Optional[type[WAF]]:
     try:
         import ddtrace.appsec._ddwaf.waf as waf_module
 
+        global _DDWAF_LOADED, version
         _DDWAF_LOADED = True
-        global version
         version = waf_module.version()
         return waf_module.DDWaf
     except Exception:
