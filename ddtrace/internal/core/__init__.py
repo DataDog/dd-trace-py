@@ -103,15 +103,18 @@ import logging
 import types
 import typing
 from typing import Any  # noqa:F401
+from typing import Generic
 from typing import Optional  # noqa:F401
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
+from .event_hub import dispatch_event  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
+from .events import EventType
 
 
 if typing.TYPE_CHECKING:
@@ -130,12 +133,19 @@ log = logging.getLogger(__name__)
 ROOT_CONTEXT_ID = "__root"
 
 
-class ExecutionContext(object):
-    __slots__ = ("identifier", "_data", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+class ExecutionContext(Generic[EventType]):
+    __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
-    def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        identifier: str,
+        parent: Optional["ExecutionContext"] = None,
+        event: Optional["EventType"] = None,
+        **kwargs,
+    ) -> None:
         self.identifier: str = identifier
         self._data: dict[str, Any] = {}
+        self._event: Optional["EventType"] = event
         self._suppress_exceptions: list[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
@@ -262,6 +272,12 @@ class ExecutionContext(object):
         if "span_key" in self._data:
             self._data[self._data["span_key"]] = value
 
+    @property
+    def event(self) -> EventType:
+        if self._event is None:
+            raise ValueError("No event provided in context")
+        return self._event
+
 
 def __getattr__(name):
     if name == "root":
@@ -271,7 +287,9 @@ def __getattr__(name):
     raise AttributeError
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+_CURRENT_CONTEXT: contextvars.ContextVar[ExecutionContext] = contextvars.ContextVar(
+    "ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID)
+)
 _CONTEXT_CLASS = ExecutionContext
 
 
@@ -283,6 +301,10 @@ def _reset_context():
 
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def context_with_event(event: "EventType", parent=None) -> ExecutionContext[EventType]:
+    return _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
 
 
 def add_suppress_exception(exc_type: type) -> None:
