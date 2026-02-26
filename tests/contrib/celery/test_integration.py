@@ -1,6 +1,8 @@
 from collections import Counter
 import os
 import subprocess
+import sys
+import time
 from time import sleep
 
 import celery
@@ -16,6 +18,8 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 
 from ...utils import override_global_config
+from .base import BACKEND_URL
+from .base import BROKER_URL
 from .base import CeleryBaseTestCase
 
 
@@ -819,3 +823,72 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             output, _ = celery_proc.communicate(timeout=10)
             # Check for panics in the output
             assert b"panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
+
+
+@pytest.mark.snapshot(
+    ignores=[
+        "meta.tracestate",
+        "meta.celery.id",
+        "meta.celery.correlation_id",
+        "meta.celery.hostname",
+        "meta.celery.reply_to",
+    ]
+)
+def test_distributed_tracing_propagation_no_producer_span(ddtrace_run_python_code_in_subprocess):
+    """Snapshot: one trace across producer and worker when send_task is used without registering the task locally."""
+    producer_code = """
+import os
+import sys
+from celery import Celery
+from ddtrace import tracer
+
+celery_app = Celery()
+
+with tracer.trace("mock.request") as span:
+    result = celery_app.send_task("consumer.compare_trace_id", args=(span.trace_id,))
+    value = result.get(timeout=5)
+assert value, "expected True, got %r" % (value,)
+sys.exit(0)
+"""
+
+    consumer_code = """
+import os
+from celery import Celery
+from ddtrace import tracer
+
+celery_app = Celery("consumer")
+
+@celery_app.task
+def compare_trace_id(trace_id):
+    span = tracer.current_span()
+    assert span is not None
+    return span.trace_id == trace_id
+
+celery_app.worker_main(["worker", "--loglevel=info"])
+"""
+
+    env = os.environ.copy()
+    env["CELERY_BROKER_URL"] = BROKER_URL
+    env["CELERY_RESULT_BACKEND"] = BACKEND_URL
+    env["DD_CELERY_DISTRIBUTED_TRACING"] = "true"
+    # Disable Redis to reduce noise in the snapshot file
+    env["DD_TRACE_REDIS_ENABLED"] = "false"
+
+    worker_process = subprocess.Popen(
+        ["ddtrace-run", sys.executable, "-c", consumer_code],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+        preexec_fn=os.setsid if os.name != "nt" else None,
+        close_fds=True,
+    )
+    try:
+        time.sleep(1)
+        _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(producer_code, env=env, timeout=30)
+        assert status == 0, stderr.decode() if stderr else "producer failed"
+    finally:
+        try:
+            worker_process.terminate()
+            worker_process.wait(timeout=5)
+        except Exception:
+            worker_process.kill()

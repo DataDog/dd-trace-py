@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "mock.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "mock.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69a0532900000000",
+      "language": "python",
+      "runtime-id": "dad7b747066341a5a282fe10c2ab2739"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 16183.0
+    },
+    "duration": 144847000,
+    "start": 1772114729799156000
+  },
+     {
+       "name": "celery.run",
+       "service": "celery-worker",
+       "resource": "consumer.compare_trace_id",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "",
+         "_dd.p.dm": "-0",
+         "_dd.p.tid": "69a0532900000000",
+         "celery.action": "run",
+         "celery.correlation_id": "c6df918b-d8e5-4711-8982-db548f8f4d13",
+         "celery.delivery_info.exchange": "",
+         "celery.delivery_info.redelivered": "False",
+         "celery.delivery_info.routing_key": "celery",
+         "celery.hostname": "gen16183@COMP-C0Y00TTVQR",
+         "celery.id": "c6df918b-d8e5-4711-8982-db548f8f4d13",
+         "celery.reply_to": "8363ee3f-5e9d-3c5f-9934-235edd2000fb",
+         "celery.state": "SUCCESS",
+         "component": "celery",
+         "language": "python",
+         "runtime-id": "21674d3e64db480a87ee28460df9fc9e",
+         "span.kind": "consumer",
+         "tracestate": "dd=p:5dc36790bcad22c6;s:1;t.dm:-0;t.tid:69a0532900000000"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": 1.0,
+         "celery.delivery_info.priority": 0.0,
+         "process_id": 16005.0
+       },
+       "duration": 14477000,
+       "start": 1772114729930692000
+     }]]
