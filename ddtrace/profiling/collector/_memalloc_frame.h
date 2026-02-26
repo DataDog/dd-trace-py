@@ -7,6 +7,8 @@
 #include <Python.h>
 #include <frameobject.h>
 
+#include "python_helpers.hpp"
+
 // Disable MSVC warning about CPython internal header syntax
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -159,6 +161,7 @@ memalloc_read_signed_varint(unsigned char* table, Py_ssize_t size, Py_ssize_t* i
 static inline int
 memalloc_get_lineno_from_code(PyCodeObject* code_obj, int lasti)
 {
+    PythonErrorRestorer error_restorer;
     unsigned int lineno = code_obj->co_firstlineno;
     Py_ssize_t len = 0;
     unsigned char* table = nullptr;
@@ -166,7 +169,7 @@ memalloc_get_lineno_from_code(PyCodeObject* code_obj, int lasti)
 #if PY_VERSION_HEX >= 0x030b0000
     // Python 3.11+: new linetable format stored in co_linetable
     if (PyBytes_AsStringAndSize(code_obj->co_linetable, (char**)&table, &len) == -1) {
-        PyErr_Clear();
+        PyErr_Clear(); // transient local failure; pre-existing exception restored by error_restorer
         return static_cast<int>(lineno);
     }
 
@@ -207,7 +210,7 @@ memalloc_get_lineno_from_code(PyCodeObject* code_obj, int lasti)
 #elif PY_VERSION_HEX >= 0x030a0000
     // Python 3.10: co_linetable uses a different (simpler) format
     if (PyBytes_AsStringAndSize(code_obj->co_linetable, (char**)&table, &len) == -1) {
-        PyErr_Clear();
+        PyErr_Clear(); // transient local failure; pre-existing exception restored by error_restorer
         return static_cast<int>(lineno);
     }
 
@@ -230,7 +233,7 @@ memalloc_get_lineno_from_code(PyCodeObject* code_obj, int lasti)
 #else
     // Python < 3.10: classic co_lnotab
     if (PyBytes_AsStringAndSize(code_obj->co_lnotab, (char**)&table, &len) == -1) {
-        PyErr_Clear();
+        PyErr_Clear(); // transient local failure; pre-existing exception restored by error_restorer
         return static_cast<int>(lineno);
     }
 
