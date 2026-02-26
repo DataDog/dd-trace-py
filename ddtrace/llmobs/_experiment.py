@@ -1058,8 +1058,9 @@ class Experiment:
         except BaseException:
             self._interrupted = True
             raise
-        result = self._build_result(self._run_results)
-        self._log_experiment_summary(result)
+        finally:
+            result = self._build_result(self._run_results)
+            self._log_experiment_summary(result)
         return result
 
     @staticmethod
@@ -1551,21 +1552,15 @@ class SyncExperiment:
         """
         coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
         try:
-            try:
-                asyncio.get_running_loop()
-            except RuntimeError:
-                return asyncio.run(coro)
-            else:
-                import concurrent.futures
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+        else:
+            import concurrent.futures
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    future = pool.submit(asyncio.run, coro)
-                    return future.result()
-        except BaseException:
-            self._experiment._interrupted = True
-            result = self._experiment._build_result(self._experiment._run_results)
-            print(self._experiment._format_experiment_summary(result), flush=True)
-            raise
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
 
     @property
     def url(self) -> str:
