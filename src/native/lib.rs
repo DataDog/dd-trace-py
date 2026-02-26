@@ -5,6 +5,7 @@ pub use datadog_profiling_ffi::*;
 mod data_pipeline;
 mod ddsketch;
 mod ffe;
+mod importlib_metadata;
 mod library_config;
 mod log;
 mod py_string;
@@ -47,6 +48,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Add logger submodule
     let logger_module = pyo3::wrap_pymodule!(log::logger);
     m.add_wrapped(logger_module)?;
+
+    // Add importlib_metadata optimizations
+    importlib_metadata::register_importlib_metadata(m)?;
 
     Ok(())
 }
