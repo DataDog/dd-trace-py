@@ -239,13 +239,15 @@ memalloc_reset_reentry_bailout_count(PyObject* Py_UNUSED(module), PyObject* Py_U
     Py_RETURN_NONE;
 }
 
-static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-                                        { "_get_reentry_bailout_count", (PyCFunction)memalloc_get_reentry_bailout_count, METH_NOARGS, NULL },
-                                        { "_reset_reentry_bailout_count", (PyCFunction)memalloc_reset_reentry_bailout_count, METH_NOARGS, NULL },
-                                        /* sentinel */
-                                        { NULL, NULL, 0, NULL } };
+static PyMethodDef module_methods[] = {
+    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
+    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+    { "_get_reentry_bailout_count", (PyCFunction)memalloc_get_reentry_bailout_count, METH_NOARGS, NULL },
+    { "_reset_reentry_bailout_count", (PyCFunction)memalloc_reset_reentry_bailout_count, METH_NOARGS, NULL },
+    /* sentinel */
+    { NULL, NULL, 0, NULL }
+};
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
