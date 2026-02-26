@@ -21,7 +21,7 @@ Datadog::ProfilerStats::increment_sampling_event_count(size_t k_sampling_event_c
 }
 
 size_t
-Datadog::ProfilerStats::get_sampling_event_count()
+Datadog::ProfilerStats::get_sampling_event_count() const
 {
     return sampling_event_count;
 }
@@ -33,7 +33,7 @@ Datadog::ProfilerStats::increment_sample_count(size_t k_sample_count)
 }
 
 size_t
-Datadog::ProfilerStats::get_sample_count()
+Datadog::ProfilerStats::get_sample_count() const
 {
     return sample_count;
 }
@@ -57,7 +57,7 @@ Datadog::ProfilerStats::set_fast_copy_memory_enabled(bool enabled)
 }
 
 std::optional<bool>
-Datadog::ProfilerStats::get_fast_copy_memory_enabled()
+Datadog::ProfilerStats::get_fast_copy_memory_enabled() const
 {
     return fast_copy_memory_enabled;
 }
@@ -69,7 +69,7 @@ Datadog::ProfilerStats::add_copy_memory_error_count(size_t count)
 }
 
 size_t
-Datadog::ProfilerStats::get_copy_memory_error_count()
+Datadog::ProfilerStats::get_copy_memory_error_count() const
 {
     return copy_memory_error_count;
 }
@@ -81,7 +81,7 @@ Datadog::ProfilerStats::set_sampling_interval_us(size_t interval_us)
 }
 
 std::optional<size_t>
-Datadog::ProfilerStats::get_sampling_interval_us()
+Datadog::ProfilerStats::get_sampling_interval_us() const
 {
     return sampling_interval_us;
 }
@@ -93,7 +93,7 @@ Datadog::ProfilerStats::set_string_table_count(size_t count)
 }
 
 std::optional<size_t>
-Datadog::ProfilerStats::get_string_table_count()
+Datadog::ProfilerStats::get_string_table_count() const
 {
     return string_table_count;
 }
@@ -105,7 +105,7 @@ Datadog::ProfilerStats::set_string_table_ephemeral_count(size_t count)
 }
 
 std::optional<size_t>
-Datadog::ProfilerStats::get_string_table_ephemeral_count()
+Datadog::ProfilerStats::get_string_table_ephemeral_count() const
 {
     return string_table_ephemeral_count;
 }
