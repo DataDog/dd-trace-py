@@ -49,6 +49,7 @@ class Flare:
 
     def handle_remote_config_data(self, config_data: dict, product_type: str) -> native_flare.FlareAction:
         """Return the flare action for a remote-config payload."""
+        # Reserializing the config to let the native code handle the parsing
         json_config_data = json.dumps(config_data).encode("utf-8")
         try:
             return self._native_manager.handle_remote_config_data(json_config_data, product_type)
@@ -64,7 +65,6 @@ class Flare:
         """
         try:
             self.flare_dir.mkdir(exist_ok=True)
-            print(f"Flare directory created at: {self.flare_dir.absolute()}")
         except Exception as e:
             log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
             return False
@@ -96,9 +96,10 @@ class Flare:
             self.revert_configs()
 
             self._send_flare_request(flare_action)
+        except Exception as e:
+            log.error("Error sending tracer flare: %s", e)
         finally:
             self.clean_up_files()
-
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")
@@ -168,14 +169,13 @@ class Flare:
             # Create lock file atomically, will fail if it already exists
             pathlib.Path(TRACER_FLARE_LOCK).open("x").close()
         except FileExistsError:
-            pass
+            return
 
         log.debug("Sending tracer flare")
         # Use native zip_and_send
         try:
             self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
         except Exception as e:
-            log.error("Error sending tracer flare: %s", e)
             raise
         log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
 

@@ -20,9 +20,7 @@ from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.native._native import register_tracer_flare as native_flare  # type: ignore
 
 
-def setup_task_request(
-    flare: Flare, case_id: str, hostname: str, email: str, uuid: str
-) -> native_flare.FlareAction:
+def setup_task_request(flare: Flare, case_id: str, hostname: str, email: str, uuid: str) -> native_flare.FlareAction:
     config = {
         "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
         "task_type": "tracer_flare",

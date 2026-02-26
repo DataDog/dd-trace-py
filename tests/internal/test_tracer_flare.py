@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Union
 from typing import cast
 import unittest
+from unittest import mock
 from uuid import uuid4
 
 import pytest
@@ -100,9 +101,7 @@ def _multiproc_do_tracer_flare(
         errors.put(e)
 
 
-def setup_task_request(
-    flare: Flare, case_id: str, hostname: str, email: str, uuid: str
-) -> native_flare.FlareAction:
+def setup_task_request(flare: Flare, case_id: str, hostname: str, email: str, uuid: str) -> native_flare.FlareAction:
     config = {
         "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
         "task_type": "tracer_flare",
@@ -317,7 +316,7 @@ class TracerFlareTests(unittest.TestCase):
 
     @pytest.mark.xfail(
         reason="The case of case_id being empty is not handled in the v27.0.0 of libdatadog, but is handled in the v28.0.0+ versions. We should remove this xfail once we update to v28.0.0+ in dd-trace-py.",
-        strict=True
+        strict=True,
     )
     def test_case_id_must_be_numeric(self):
         """
@@ -377,6 +376,10 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.send(valid_request)
         # Verify that zip_and_send was attempted for valid case_id
         assert self._flare_upload_count() == uploads_before + 1
+
+        # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
+        self.flare.revert_configs()
+        self.flare.prepare("DEBUG")
 
         # Test with empty string case_id
         empty_case_request = setup_task_request(
@@ -501,12 +504,11 @@ class TracerFlareTests(unittest.TestCase):
             email="user.name@datadoghq.com",
             uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
-        try:
+
+        with mock.patch("ddtrace.internal.flare.flare.log") as mock_log:
             self.flare.send(valid_request)
-        except Exception as exc:
-            assert "error" in str(exc).lower()
-        else:
-            assert False, "Expected send to fail for unreachable test agent"
+            mock_log.error.assert_called_with("Error sending tracer flare: %s", mock.ANY)
+
         assert not self.flare.flare_dir.exists()
 
     def test_uuid_field_validation(self):

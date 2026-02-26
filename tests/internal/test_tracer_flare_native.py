@@ -42,6 +42,7 @@ def test_exceptions_available():
     native_flare = _get_native_flare_or_skip()
     # Verify all exception types exist
     assert hasattr(native_flare, "ListeningError")
+    assert hasattr(native_flare, "LockError")
     assert hasattr(native_flare, "ParsingError")
     assert hasattr(native_flare, "SendError")
     assert hasattr(native_flare, "ZipError")
