@@ -1,3 +1,8 @@
+from collections.abc import ItemsView
+from collections.abc import Iterator
+from collections.abc import KeysView
+from collections.abc import Mapping
+from collections.abc import ValuesView
 from enum import Enum
 from typing import Any
 from typing import Literal
@@ -542,8 +547,28 @@ class SpanData:
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
-class SpanEventData:
-    def __init__(self, name: str, attributes: Optional[dict[str, Any]], time_unix_nano: Optional[int]): ...
+class SpanEventAttributes(Mapping[str, Any]):
+    def __len__(self) -> int: ...
+    def __getitem__(self, key: str) -> Any: ...
+    def __contains__(self, key: object) -> bool: ...
+    def __iter__(self) -> Iterator[str]: ...
+    def items(self) -> ItemsView[str, Any]: ...
+    def keys(self) -> KeysView[str]: ...
+    def values(self) -> ValuesView[Any]: ...
+
+class SpanEvent:
+    name: str
+    attributes: SpanEventAttributes
+    time_unix_nano: int
+    def __new__(
+        cls,
+        name: str,
+        attributes: Optional[dict[str, Any]] = None,
+        time_unix_nano: Optional[int] = None,
+    ) -> "SpanEvent": ...
+    def to_dict(self) -> dict[str, Any]: ...
+    def __repr__(self) -> str: ...
+    def __iter__(self) -> Iterator[tuple[str, Any]]: ...
 
 class SpanLinkData:
     def __init__(
