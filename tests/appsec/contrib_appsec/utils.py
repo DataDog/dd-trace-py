@@ -135,7 +135,7 @@ class Contrib_TestClass_For_Threats:
     #         if interface.tracer._appsec_processor:
     #             interface.printer(
     #                 f"""ASM enabled: {asm_config._asm_enabled}
-    # {ddtrace.appsec._ddwaf.version()}
+    # {ddtrace.appsec._ddwaf.version}
     # {interface.tracer._appsec_processor._ddwaf.info}
     # {asm_config._asm_libddwaf}
     # """
