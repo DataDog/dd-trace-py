@@ -42,6 +42,14 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
+    /* If we're already inside the allocation hook (e.g. frame walking triggered
+     * a Py_DECREF that freed an object), count this as a reentrant call.
+     * This catches the malloc->free reentry pattern in addition to the
+     * malloc->malloc pattern caught by the reentry guard in track. */
+    if (_MEMALLOC_ON_THREAD) {
+        _MEMALLOC_REENTRY_BAILOUT_COUNT++;
+    }
+
     memalloc_heap_untrack_no_cpython(ptr);
 
     alloc->free(alloc->ctx, ptr);

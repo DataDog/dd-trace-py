@@ -42,6 +42,30 @@ def _allocate_1k() -> list[object]:
 _ALLOC_LINE_NUMBER = _allocate_1k.__code__.co_firstlineno + 1
 
 
+@pytest.fixture(autouse=True)
+def _check_memalloc_reentry():
+    """Assert that no reentrant allocations occurred during each test.
+
+    Resets the reentry bailout counter before each test and asserts it is zero
+    after the test completes.  A non-zero count means the allocator hook called
+    a CPython API that re-entered the allocator (e.g. PyFrame_GetBack), which
+    is the bug the zero-DECREF frame-walking fix eliminates.
+
+    Note: for @pytest.mark.subprocess tests the fixture runs in the *parent*
+    process (where the allocator hook is not active), so those tests carry
+    their own inline counter checks inside the subprocess.
+    """
+    from ddtrace.profiling.collector import _memalloc
+
+    _memalloc._reset_reentry_bailout_count()
+    yield
+    count = _memalloc._get_reentry_bailout_count()
+    assert count == 0, (
+        f"Detected {count} reentrant allocations during test. "
+        "Frame walking in the allocator hook must not call CPython APIs that allocate."
+    )
+
+
 def _setup_profiling_prelude(tmp_path: Path, test_name: str) -> str:
     """Setup ddup configuration and return the output filename for pprof parsing.
 
@@ -74,6 +98,7 @@ def test_heap_samples_collected() -> None:
     import os
 
     from ddtrace.profiling import Profiler
+    from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_memalloc import _allocate_1k
 
@@ -81,10 +106,15 @@ def test_heap_samples_collected() -> None:
     pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
     output_filename = pprof_prefix + "." + str(os.getpid())
 
+    _memalloc._reset_reentry_bailout_count()
+
     p = Profiler()
     p.start()
     x = _allocate_1k()  # noqa: F841
     p.stop()
+
+    reentry_count = _memalloc._get_reentry_bailout_count()
+    assert reentry_count == 0, f"Detected {reentry_count} reentrant allocations during frame walking."
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
@@ -170,7 +200,10 @@ def test_memory_collector_ignore_profiler(tmp_path: Path) -> None:
 def test_heap_profiler_large_heap_overhead() -> None:
     # NOTE: A regression test for integer arithmetic bugs.
     from ddtrace.profiling import Profiler
+    from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector.test_memalloc import one
+
+    _memalloc._reset_reentry_bailout_count()
 
     p = Profiler()
     p.start()
@@ -190,6 +223,9 @@ def test_heap_profiler_large_heap_overhead() -> None:
     del junk
 
     p.stop()
+
+    reentry_count = _memalloc._get_reentry_bailout_count()
+    assert reentry_count == 0, f"Detected {reentry_count} reentrant allocations during frame walking."
 
 
 # one, two, three, and four exist to give us distinct things
@@ -782,6 +818,8 @@ def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
     from ddtrace.profiling.collector import _memalloc
     from tests.profiling.collector.test_memalloc import _allocate_with_lone_surrogate_filename
 
+    _memalloc._reset_reentry_bailout_count()
+
     _memalloc.start(64, 1)
     try:
         # This intentionally triggers PyUnicode_AsUTF8AndSize() failure in
@@ -790,6 +828,9 @@ def test_memalloc_ignores_internal_utf8_conversion_errors() -> None:
         _allocate_with_lone_surrogate_filename()
     finally:
         _memalloc.stop()
+
+    reentry_count = _memalloc._get_reentry_bailout_count()
+    assert reentry_count == 0, f"Detected {reentry_count} reentrant allocations during frame walking."
 
 
 def test_memory_collector_allocation_during_shutdown() -> None:
@@ -1221,6 +1262,8 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
 
     from ddtrace.profiling.collector import _memalloc
 
+    _memalloc._reset_reentry_bailout_count()
+
     # sample_size=1: sample nearly every allocation so the hook fires
     # during dictresize's internal malloc while the dict is inconsistent.
     _memalloc.start(64, 1)
@@ -1259,6 +1302,12 @@ def test_memalloc_allocator_hook_does_not_release_gil() -> None:
         t.join(timeout=10)
 
     _memalloc.stop()
+
+    # Note: this only checks the main thread's counter (TLS). Worker threads
+    # have their own counters, but the main thread also performs allocations
+    # while the hook is active.
+    reentry_count = _memalloc._get_reentry_bailout_count()
+    assert reentry_count == 0, f"Detected {reentry_count} reentrant allocations during frame walking."
 
 
 @pytest.mark.subprocess(timeout=30)
