@@ -4,8 +4,6 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_STACK
-from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanKind as DDSpanKind
 from ddtrace.version import __version__ as _dd_version
 
@@ -58,10 +56,24 @@ def _dd_span_type_to_otlp_kind(span_type: str | None) -> int:
     return OTLP_SPAN_KIND_INTERNAL
 
 
-def _span_has_error(span: Span) -> bool:
-    """True if span indicates an error (for OTLP status)."""
+def _span_status(span: Span) -> dict[str, Any]:
+    """
+    Build OTLP Status from Datadog span;
+    code = STATUS_CODE_ERROR if span.error == 1 else STATUS_CODE_UNSET
+    message = span.tags["error.msg"]
+    """
+    error_flag = getattr(span, "error", 0)
+    if error_flag == 1:
+        code = OTLP_STATUS_CODE_ERROR
+    else:
+        code = OTLP_STATUS_CODE_UNSET
     meta = getattr(span, "_meta", None) or {}
-    return bool(meta.get(ERROR_MSG) or meta.get(ERROR_TYPE) or meta.get(ERROR_STACK))
+    # DD uses ERROR_MSG ("error.message"); RFC references error.msg
+    message = meta.get(ERROR_MSG) or meta.get("error.msg") or ""
+    status = {"code": code}
+    if message:
+        status["message"] = str(message)[:8192]  # truncate long messages
+    return status
 
 
 def _attribute_value(v: Any) -> dict[str, Any]:
@@ -158,8 +170,7 @@ def _map_span(span: Span) -> dict[str, Any]:
     attrs, dropped_attrs = _span_attributes(span)
     events, dropped_events = _span_events(span)
 
-    status_code = OTLP_STATUS_CODE_ERROR if _span_has_error(span) else OTLP_STATUS_CODE_OK
-    status = {"code": status_code}
+    status = _span_status(span)
 
     return {
         "trace_id": trace_id_hex,

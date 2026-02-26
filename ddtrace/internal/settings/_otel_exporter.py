@@ -4,6 +4,15 @@ import os
 from typing import Optional
 
 
+def _get_env_non_empty(key: str) -> Optional[str]:
+    """Return stripped env value if set and non-empty, else None."""
+    val = os.environ.get(key)
+    if val is None:
+        return None
+    s = str(val).strip()
+    return s if s else None
+
+
 def _parse_otel_headers(headers_str: Optional[str]) -> dict[str, str]:
     """Parse OTEL header string (key1=value1,key2=value2) into a dict."""
     out: dict[str, str] = {}
@@ -19,29 +28,25 @@ def _parse_otel_headers(headers_str: Optional[str]) -> dict[str, str]:
             if key:
                 out[key] = val
         else:
-            if part:
-                out[part] = ""
+            out[part] = ""
     return out
 
 
-# Default OTLP endpoints (HTTP trace export uses port 4318)
+# Default OTLP endpoints
 OTLP_HTTP_DEFAULT_ENDPOINT = "http://localhost:4318"
 OTLP_HTTP_TRACES_PATH = "/v1/traces"
-OTLP_GRPC_DEFAULT_ENDPOINT = "http://localhost:4317"
+OTLP_GRPC_DEFAULT_ENDPOINT = "http://localhost:4317"  # grpc support not implemented yet
 
-# Supported protocol for first version
+# Supported protocol (as of now)
 OTLP_PROTOCOL_HTTP_JSON = "http/json"
+
+# Default timeout: 10000 ms per OTEL convention (e.g. ddtrace opentelemetry DEFAULT_TIMEOUT)
+OTLP_TIMEOUT_MS_DEFAULT = 10000
 
 
 def _get_otel_traces_config(key: str, generic_key: str, default: Optional[str] = None) -> Optional[str]:
     """Read config with traces-specific override: TRACES_* over generic OTEL_*."""
-    val = os.environ.get(key)
-    if val is not None and str(val).strip() != "":
-        return str(val).strip()
-    val = os.environ.get(generic_key)
-    if val is not None and str(val).strip() != "":
-        return str(val).strip()
-    return default
+    return _get_env_non_empty(key) or _get_env_non_empty(generic_key) or default
 
 
 def _get_otel_traces_protocol() -> str:
@@ -51,9 +56,7 @@ def _get_otel_traces_protocol() -> str:
         "OTEL_EXPORTER_OTLP_PROTOCOL",
         default=OTLP_PROTOCOL_HTTP_JSON,
     )
-    if val is None:
-        return OTLP_PROTOCOL_HTTP_JSON
-    return val.strip().lower()
+    return (val or OTLP_PROTOCOL_HTTP_JSON).lower()
 
 
 def _get_otel_traces_endpoint() -> Optional[str]:
@@ -76,27 +79,29 @@ def _get_otel_traces_headers() -> dict[str, str]:
 
 
 def _get_otel_traces_timeout_seconds() -> float:
-    """Request timeout in seconds. OTEL convention often uses milliseconds."""
+    """Request timeout in seconds. OTEL env vars are in milliseconds."""
     val = _get_otel_traces_config(
         "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
         "OTEL_EXPORTER_OTLP_TIMEOUT",
     )
     if not val:
-        return 10.0
+        return OTLP_TIMEOUT_MS_DEFAULT / 1000.0
     try:
-        n = float(val)
-        # If value is small (< 100), assume seconds; else assume milliseconds
-        if n > 0 and n < 100:
-            return n
-        if n >= 100:
-            return n / 1000.0
+        ms = float(val)
+        if ms > 0:
+            return ms / 1000.0
     except (TypeError, ValueError):
         pass
-    return 10.0
+    return OTLP_TIMEOUT_MS_DEFAULT / 1000.0
 
 
 def _resolve_otlp_traces_url() -> str:
-    """Resolve full OTLP traces URL (endpoint + path for HTTP)."""
+    """Resolve full OTLP traces URL (endpoint + path for HTTP).
+
+    Only HTTP/JSON is supported; when no endpoint is set we always use the HTTP
+    default (localhost:4318/v1/traces) so that protocol=grpc does not result in
+    HTTP POSTs to the gRPC port.
+    """
     endpoint = _get_otel_traces_endpoint()
     protocol = _get_otel_traces_protocol()
     if endpoint:
@@ -104,24 +109,20 @@ def _resolve_otlp_traces_url() -> str:
         if protocol.startswith("http/") and not endpoint.endswith(OTLP_HTTP_TRACES_PATH):
             return endpoint + OTLP_HTTP_TRACES_PATH
         return endpoint
-    if protocol.startswith("http/"):
-        return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
-    return OTLP_GRPC_DEFAULT_ENDPOINT
+    # No endpoint set: use HTTP default (only HTTP/JSON is supported)
+    return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
 
 
 def _is_otlp_traces_endpoint_set() -> bool:
     """True when user has set at least one of the OTLP endpoint env vars."""
-    for key in ("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"):
-        val = os.environ.get(key)
-        if val is not None and str(val).strip() != "":
-            return True
-    return False
+    return any(
+        _get_env_non_empty(k) is not None for k in ("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT")
+    )
 
 
 def _is_otlp_traces_exporter_otlp() -> bool:
     """True when OTEL_TRACES_EXPORTER is set to otlp (use OTLP trace export)."""
-    val = os.environ.get("OTEL_TRACES_EXPORTER", "").strip().lower()
-    return val == "otlp"
+    return (_get_env_non_empty("OTEL_TRACES_EXPORTER") or "").lower() == "otlp"
 
 
 class OTLPTraceExporterConfig:
