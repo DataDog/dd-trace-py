@@ -202,8 +202,9 @@ impl TracerFlareManagerPy {
     /// Args:
     ///    level: The log level to set (e.g., "DEBUG", "INFO", "WARN", "ERROR")
     fn set_current_log_level(&self, level: &str) -> PyResult<()> {
-        self.manager.set_current_log_level(level);
-        Ok(())
+        self.manager
+            .set_current_log_level(level)
+            .map_err(|e| FlareErrorPy::from(e).into())
     }
 
     fn __repr__(&self) -> String {
