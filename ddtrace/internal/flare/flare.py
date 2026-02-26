@@ -4,6 +4,7 @@ import os
 import pathlib
 import shutil
 from typing import Optional
+import json
 
 from ddtrace import config
 from ddtrace._logger import _add_file_handler
@@ -44,16 +45,17 @@ class Flare:
         self.url: str = trace_agent_url
         self._api_key: Optional[str] = api_key
         self.ddconfig = ddconfig
-
-        self._create_native_manager()
-
-    def _create_native_manager(self):
-        """Create or recreate the native manager to ensure clean state."""
         self._native_manager = native_flare.TracerFlareManager(agent_url=self.url)
 
     def handle_remote_config_data(self, config_data: dict, product_type: str) -> native_flare.FlareAction:
         """Return the flare action for a remote-config payload."""
-        return self._native_manager.handle_remote_config_data(config_data, product_type)
+        json_config_data = json.dumps(config_data).encode("utf-8")
+        try:
+            return self._native_manager.handle_remote_config_data(json_config_data, product_type)
+        except Exception as e:
+            log.error("Error handling remote config data for product %s: %s", product_type, e)
+            # Return a none action on error to avoid disrupting tracer functionality
+            return native_flare.FlareAction.none_action()
 
     def prepare(self, log_level: str) -> bool:
         """
@@ -62,6 +64,7 @@ class Flare:
         """
         try:
             self.flare_dir.mkdir(exist_ok=True)
+            print(f"Flare directory created at: {self.flare_dir.absolute()}")
         except Exception as e:
             log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
             return False
@@ -74,6 +77,8 @@ class Flare:
         if flare_log_level_int is None or not isinstance(flare_log_level_int, int):
             log.error("Flare prepare: Invalid log level provided: %s", log_level)
             return False
+
+        self._native_manager.set_current_log_level(log_level)
 
         # Setup logging and create config file
         self._setup_flare_logging(flare_log_level_int)
@@ -90,14 +95,10 @@ class Flare:
                 return
             self.revert_configs()
 
-            # Ensure the flare directory exists (it might have been deleted by clean_up_files)
-            self.flare_dir.mkdir(exist_ok=True)
-
             self._send_flare_request(flare_action)
         finally:
             self.clean_up_files()
-            # Recreate the native manager to reset its state for the next flare
-            self._create_native_manager()
+
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")
@@ -163,20 +164,25 @@ class Flare:
         """
         # We only want the flare to be sent once, even if there are
         # multiple tracer instances
-        lock_path = self.flare_dir / TRACER_FLARE_LOCK
-        if not os.path.exists(lock_path):
-            open(lock_path, "w").close()
+        try:
+            # Create lock file atomically, will fail if it already exists
+            pathlib.Path(TRACER_FLARE_LOCK).open("x").close()
+        except FileExistsError:
+            pass
 
-            # Use native implementation
-            log.debug("Sending tracer flare")
-
-            # Use native zip_and_send
+        log.debug("Sending tracer flare")
+        # Use native zip_and_send
+        try:
             self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
-            log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
+        except Exception as e:
+            log.error("Error sending tracer flare: %s", e)
+            raise
+        log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
 
     def clean_up_files(self):
         """Clean up the flare directory using Python's shutil."""
         try:
             shutil.rmtree(self.flare_dir)
+            os.remove(TRACER_FLARE_LOCK)
         except Exception as e:
             log.warning("Failed to clean up tracer flare files: %s", e)

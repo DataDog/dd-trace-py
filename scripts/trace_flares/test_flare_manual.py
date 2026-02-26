@@ -21,14 +21,14 @@ from ddtrace.internal.native._native import register_tracer_flare as native_flar
 
 
 def setup_task_request(
-    manager: native_flare.TracerFlareManager, case_id: str, hostname: str, email: str, uuid: str
+    flare: Flare, case_id: str, hostname: str, email: str, uuid: str
 ) -> native_flare.FlareAction:
     config = {
         "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
         "task_type": "tracer_flare",
         "uuid": uuid,
     }
-    return manager.handle_remote_config_data(config, "AGENT_TASK")
+    return flare.handle_remote_config_data(config, "AGENT_TASK")
 
 
 def main():
@@ -152,7 +152,7 @@ def main():
         print("      - Form fields: source, case_id, hostname, email, flare_file")
         print(f"      - Zip filename: tracer-python-{case_id}-{int(time.time() * 1000)}-debug.zip")
 
-        send_request = setup_task_request(flare.native_manager, case_id, hostname, email, uuid_str)
+        send_request = setup_task_request(flare, case_id, hostname, email, uuid_str)
         # Send the flare
         try:
             flare.send(send_request)

@@ -1,16 +1,6 @@
-use datadog_remote_config::config::{agent_config::AgentConfig, agent_task::AgentTask};
-use datadog_remote_config::{
-    config::{agent_config::AgentConfigFile, agent_task::AgentTaskFile},
-    RemoteConfigData,
-};
+use datadog_remote_config::{RemoteConfigData, RemoteConfigProduct};
 use datadog_tracer_flare::{error::FlareError, FlareAction, TracerFlareManager};
-use regex::Regex;
-use std::sync::LazyLock;
-
-/// ERROR
-use pyo3::{
-    create_exception, exceptions::PyException, prelude::*, types::PyDict, Bound, PyAny, PyErr,
-};
+use pyo3::{create_exception, exceptions::PyException, prelude::*, Bound, PyErr};
 
 create_exception!(
     tracer_flare_exceptions,
@@ -40,9 +30,6 @@ create_exception!(tracer_flare_exceptions, ZipError, PyException, "Zip error");
 
 pub struct FlareErrorPy(pub FlareError);
 
-static CASE_ID_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\d+-(with-debug|with-content)$").expect("valid case_id regex"));
-
 impl From<FlareErrorPy> for PyErr {
     fn from(value: FlareErrorPy) -> Self {
         match value.0 {
@@ -68,84 +55,6 @@ fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("SendError", m.py().get_type::<SendError>())?;
     m.add("ZipError", m.py().get_type::<ZipError>())?;
     Ok(())
-}
-
-/// Internal wrapper for AgentTaskFile (not exposed to Python, only for conversion)
-struct AgentTaskFileWrapper {
-    inner: AgentTaskFile,
-}
-
-impl<'py> FromPyObject<'_, 'py> for AgentTaskFileWrapper {
-    type Error = PyErr;
-
-    fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        let dict_binding = ob.cast::<PyDict>()?;
-        let dict = dict_binding.as_mapping();
-
-        let args_value = dict.get_item("args")?;
-        let args_binding = args_value.cast::<PyDict>()?;
-        let args_dict = args_binding.as_mapping();
-
-        let case_id: String = args_dict.get_item("case_id")?.extract()?;
-
-        if case_id.is_empty() || case_id == "0" {
-            return Err(ParsingError::new_err(format!(
-                "Invalid case_id: '{}'",
-                case_id
-            )));
-        }
-        if !case_id.chars().all(|c| c.is_ascii_digit()) && !CASE_ID_REGEX.is_match(&case_id) {
-            return Err(ParsingError::new_err(format!(
-                "Invalid case_id format: '{}'",
-                case_id
-            )));
-        }
-
-        let hostname: String = args_dict.get_item("hostname")?.extract()?;
-        let user_handle: String = args_dict.get_item("user_handle")?.extract()?;
-
-        let task_type: String = dict.get_item("task_type")?.extract()?;
-        let uuid: String = dict.get_item("uuid")?.extract()?;
-
-        Ok(Self {
-            inner: AgentTaskFile {
-                args: AgentTask {
-                    case_id,
-                    hostname,
-                    user_handle,
-                },
-                task_type,
-                uuid,
-            },
-        })
-    }
-}
-
-/// Internal wrapper for AgentConfigFile (not exposed to Python, only for conversion)
-struct AgentConfigFileWrapper {
-    inner: AgentConfigFile,
-}
-
-impl<'py> FromPyObject<'_, 'py> for AgentConfigFileWrapper {
-    type Error = PyErr;
-
-    fn extract(ob: pyo3::Borrowed<'_, 'py, PyAny>) -> PyResult<Self> {
-        let dict_binding = ob.cast::<PyDict>()?;
-        let dict = dict_binding.as_mapping();
-
-        let name: String = dict.get_item("name")?.extract()?;
-        let config_value = dict.get_item("config")?;
-        let config_binding = config_value.cast::<PyDict>()?;
-        let config_dict = config_binding.as_mapping();
-        let log_level: Option<String> = config_dict.get_item("log_level")?.extract()?;
-
-        Ok(Self {
-            inner: AgentConfigFile {
-                name,
-                config: AgentConfig { log_level },
-            },
-        })
-    }
 }
 
 /// Python wrapper for FlareAction
@@ -198,6 +107,11 @@ impl FlareActionPy {
             _ => Ok(None),
         }
     }
+
+    #[staticmethod]
+    fn none_action() -> FlareActionPy {
+        FlareActionPy { inner: FlareAction::None }
+    }
 }
 
 impl From<FlareAction> for FlareActionPy {
@@ -227,43 +141,42 @@ impl TracerFlareManagerPy {
         }
     }
 
+    /// Handles incoming remote configuration data and determines the appropriate action.
+    ///
+    /// Args:
+    ///     data: Raw bytes of the remote configuration payload
+    ///     product: The product type of the remote configuration (e.g., "AGENT_CONFIG", "AGENT_TASK")
+    ///
+    /// Returns:
+    ///     FlareAction indicating what action to take based on the remote configuration
+    ///
+    /// Raises:
+    ///     ParsingError: If the product type is unexpected or if parsing the data fails
     fn handle_remote_config_data(
         &self,
-        data: &Bound<PyAny>,
+        data: &[u8],
         product: &str,
     ) -> PyResult<FlareActionPy> {
         let manager = &self.manager;
 
-        if product == "AGENT_CONFIG" {
-            let agent_config: AgentConfigFileWrapper = match data.extract() {
-                Ok(agent_config) => agent_config,
-                Err(_) => {
-                    return Ok(FlareActionPy::from(FlareAction::None));
-                }
-            };
-            Ok(manager
-                .handle_remote_config_data(&RemoteConfigData::TracerFlareConfig(agent_config.inner))
-                .map_err(|e| {
-                    ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e))
-                })?
-                .into())
-        } else if product == "AGENT_TASK" {
-            let agent_task: AgentTaskFileWrapper = match data.extract() {
-                Ok(agent_task) => agent_task,
-                Err(_) => {
-                    return Ok(FlareActionPy::from(FlareAction::None));
-                }
-            };
-            Ok(manager
-                .handle_remote_config_data(&RemoteConfigData::TracerFlareTask(agent_task.inner))
-                .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_TASK: {}", e)))?
-                .into())
-        } else {
-            Err(ParsingError::new_err(format!(
-                "Received unexpected tracer flare product type: {}",
-                product
-            )))
-        }
+        let product: RemoteConfigProduct = match product {
+            "AGENT_CONFIG" => RemoteConfigProduct::AgentConfig,
+            "AGENT_TASK" => RemoteConfigProduct::AgentTask,
+            _ => {
+                return Err(ParsingError::new_err(format!(
+                    "Received unexpected tracer flare product type: {}",
+                    product
+                )));
+            }
+        };
+
+        let config_data: RemoteConfigData = RemoteConfigData::try_parse(product, data)
+            .map_err(|e| ParsingError::new_err(format!("Parsing error: {}", e)))?;
+
+        Ok(manager
+            .handle_remote_config_data(&config_data)
+            .map_err(|e| ParsingError::new_err(format!("Parsing error for AGENT_CONFIG: {}", e)))?
+            .into())
     }
 
     /// Zips files from a directory and sends them to the agent.
@@ -284,6 +197,15 @@ impl TracerFlareManagerPy {
         manager
             .zip_and_send_sync(vec![directory.to_string()], send_action.inner)
             .map_err(|e| FlareErrorPy::from(e).into())
+    }
+
+    /// Sets the current log level for the tracer flare manager.
+    ///
+    /// Args:
+    ///    level: The log level to set (e.g., "DEBUG", "INFO", "WARN", "ERROR")
+    fn set_current_log_level(&self, level: &str) -> PyResult<()> {
+        self.manager.set_current_log_level(level);
+        Ok(())
     }
 
     fn __repr__(&self) -> String {

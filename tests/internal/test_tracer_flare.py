@@ -53,14 +53,13 @@ def _multiproc_handle_agent_config(trace_agent_url: str, shared_dir: pathlib.Pat
 def _multiproc_handle_agent_task(trace_agent_url: str, shared_dir: pathlib.Path, errors: multiprocessing.Queue):
     """Helper for multiprocessing tests - handles AGENT_TASK (send)."""
     try:
-        # Create both Flare and data_manager inside the process to avoid pickling issues
-        data_manager = native_flare.TracerFlareManager(trace_agent_url)
+        # Create Flare inside the process to avoid pickling issues
         flare = Flare(
             trace_agent_url=trace_agent_url,
             flare_dir=str(shared_dir),
             ddconfig={"config": "testconfig"},
         )
-        flare.send(setup_task_request(data_manager, *FLARE_REQUEST_DATA))
+        flare.send(setup_task_request(flare, *FLARE_REQUEST_DATA))
         # In multiprocess mode, workers share the same directory and may overlap:
         # one worker can recreate the directory while another is still checking it.
         # Avoid asserting per-process cleanup to keep this test deterministic.
@@ -81,14 +80,13 @@ def _multiproc_do_tracer_flare(
     """Helper for multiprocessing partial failure test."""
     try:
         # Create Flare and FlareAction inside the process to avoid pickling issues
-        data_manager = native_flare.TracerFlareManager(trace_agent_url)
-        send_request = setup_task_request(data_manager, case_id, hostname, email, uuid)
-
         flare = Flare(
             trace_agent_url=trace_agent_url,
             flare_dir=str(shared_dir),
             ddconfig={"config": "testconfig"},
         )
+        send_request = setup_task_request(flare, case_id, hostname, email, uuid)
+
         result = flare.prepare(log_level)
         if not result:
             raise Exception(f"Prepare failed with log_level={log_level}")
@@ -103,14 +101,14 @@ def _multiproc_do_tracer_flare(
 
 
 def setup_task_request(
-    manager: native_flare.TracerFlareManager, case_id: str, hostname: str, email: str, uuid: str
+    flare: Flare, case_id: str, hostname: str, email: str, uuid: str
 ) -> native_flare.FlareAction:
     config = {
         "args": {"case_id": case_id, "hostname": hostname, "user_handle": email},
         "task_type": "tracer_flare",
         "uuid": uuid,
     }
-    return manager.handle_remote_config_data(config, "AGENT_TASK")
+    return flare.handle_remote_config_data(config, "AGENT_TASK")
 
 
 class TracerFlareTests(unittest.TestCase):
@@ -125,9 +123,6 @@ class TracerFlareTests(unittest.TestCase):
 
         self.shared_dir = self.tmp_path / "tracer_flare_test"
         self.shared_dir.mkdir(parents=True, exist_ok=True)
-
-        # Real manager for setup_task_request
-        self.data_manager = native_flare.TracerFlareManager(TRACE_AGENT_URL)
 
         self.flare = Flare(
             trace_agent_url=TRACE_AGENT_URL,
@@ -190,7 +185,7 @@ class TracerFlareTests(unittest.TestCase):
 
         assert os.path.exists(self.flare_file_path)
 
-        self.flare.send(setup_task_request(self.data_manager, *FLARE_REQUEST_DATA))
+        self.flare.send(setup_task_request(self.flare, *FLARE_REQUEST_DATA))
 
     def test_single_process_partial_failure(self):
         """
@@ -210,7 +205,7 @@ class TracerFlareTests(unittest.TestCase):
 
         assert os.path.exists(self.flare_file_path)
 
-        self.flare.send(setup_task_request(self.data_manager, *FLARE_REQUEST_DATA))
+        self.flare.send(setup_task_request(self.flare, *FLARE_REQUEST_DATA))
 
     def test_no_app_logs(self):
         """
@@ -320,6 +315,10 @@ class TracerFlareTests(unittest.TestCase):
         if self.prepare_called:
             assert self._get_handler() is None, "File handler was not removed"
 
+    @pytest.mark.xfail(
+        reason="The case of case_id being empty is not handled in the v27.0.0 of libdatadog, but is handled in the v28.0.0+ versions. We should remove this xfail once we update to v28.0.0+ in dd-trace-py.",
+        strict=True
+    )
     def test_case_id_must_be_numeric(self):
         """
         Validate that case_id must be numeric (contain only digits)
@@ -329,7 +328,7 @@ class TracerFlareTests(unittest.TestCase):
 
         # Test with non-numeric case_id
         non_numeric_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="abc123",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -343,22 +342,13 @@ class TracerFlareTests(unittest.TestCase):
         # Verify that zip_and_send was not attempted
         assert self._flare_upload_count() == uploads_before
 
-        # Test with empty string case_id
-        empty_case_request = setup_task_request(
-            self.data_manager,
-            case_id="",
-            hostname="myhostname",
-            email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
-        )
-
-        uploads_before = self._flare_upload_count()
-        self.flare.send(empty_case_request)
-        assert self._flare_upload_count() == uploads_before
+        # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
+        self.flare.revert_configs()
+        self.flare.prepare("DEBUG")
 
         # Test with case_id containing special characters - should work with pattern like "123-456"
         special_char_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="123-with-debug",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -370,9 +360,13 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.send(special_char_request)
         assert self._flare_upload_count() == uploads_before + 1
 
+        # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
+        self.flare.revert_configs()
+        self.flare.prepare("DEBUG")
+
         # Test with valid numeric case_id (should work)
         valid_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -384,6 +378,19 @@ class TracerFlareTests(unittest.TestCase):
         # Verify that zip_and_send was attempted for valid case_id
         assert self._flare_upload_count() == uploads_before + 1
 
+        # Test with empty string case_id
+        empty_case_request = setup_task_request(
+            self.flare,
+            case_id="",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        uploads_before = self._flare_upload_count()
+        self.flare.send(empty_case_request)
+        assert self._flare_upload_count() == uploads_before
+
     def test_case_id_cannot_be_zero(self):
         """
         Validate that case_id cannot be 0 or "0"
@@ -393,7 +400,7 @@ class TracerFlareTests(unittest.TestCase):
 
         # Test with case_id as "0"
         zero_case_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="0",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -406,9 +413,13 @@ class TracerFlareTests(unittest.TestCase):
         # Verify that zip_and_send was not attempted
         assert self._flare_upload_count() == uploads_before
 
+        # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
+        self.flare.revert_configs()
+        self.flare.prepare("DEBUG")
+
         # Test with valid non-zero case_id (should work)
         valid_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -428,7 +439,7 @@ class TracerFlareTests(unittest.TestCase):
         self.prepare_called = True
         # Early return: case_id is '0'
         zero_case_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="0",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -442,9 +453,13 @@ class TracerFlareTests(unittest.TestCase):
         assert self._flare_upload_count() == uploads_before
         assert not self.flare.flare_dir.exists()
 
+        # Need to prepare again since the previous send would have cleaned up the flare dir and handlers
+        self.flare.revert_configs()
+        self.flare.prepare("DEBUG")
+
         # Success case: valid case_id
         valid_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -473,35 +488,14 @@ class TracerFlareTests(unittest.TestCase):
         # Also revert configs to remove the file handler
         self.flare.revert_configs()
 
-    def test_send_creates_flare_dir_if_missing(self):
-        """
-        Send should create the flare directory if it doesn't exist and then clean it up.
-        """
-        # Remove directory if it exists
-        if self.flare.flare_dir.exists():
-            shutil.rmtree(self.flare.flare_dir)
-
-        valid_request = setup_task_request(
-            self.data_manager,
-            case_id="123456",
-            hostname="myhostname",
-            email="user.name@datadoghq.com",
-            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
-        )
-        uploads_before = self._flare_upload_count()
-        self.flare.send(valid_request)
-        assert self._flare_upload_count() == uploads_before + 1
-        # Directory should be cleaned up after send
-        assert not self.flare.flare_dir.exists()
-
     def test_flare_dir_cleaned_on_send_error(self):
         """
         Flare directory should be cleaned up if send raises an error.
         """
         self.flare.url = "http://localhost:1"
-        self.flare._create_native_manager()
+        self.flare._native_manager = native_flare.TracerFlareManager(agent_url=self.flare.url)
         valid_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -524,7 +518,7 @@ class TracerFlareTests(unittest.TestCase):
 
         # Test with valid uuid
         valid_request = setup_task_request(
-            self.data_manager,
+            self.flare,
             case_id="123456",
             hostname="myhostname",
             email="user.name@datadoghq.com",
@@ -535,9 +529,12 @@ class TracerFlareTests(unittest.TestCase):
         self.flare.send(valid_request)
         assert self._flare_upload_count() == uploads_before + 1
 
+        self.flare.revert_configs()
+        self.flare.prepare("DEBUG")
+
         # Test with empty uuid
         empty_uuid_request = setup_task_request(
-            self.data_manager, case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=""
+            self.flare, case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=""
         )
 
         uploads_before = self._flare_upload_count()
@@ -821,8 +818,7 @@ def test_native_logs(tmp_path):
 
         # Sends request to testagent
         # This just validates the request params
-        data_manager = native_flare.TracerFlareManager(TRACE_AGENT_URL)
-        send_request = setup_task_request(data_manager, *FLARE_REQUEST_DATA)
+        send_request = setup_task_request(flare, *FLARE_REQUEST_DATA)
         flare.send(send_request)
     finally:
         config._trace_writer_native = original_trace_writer_native
