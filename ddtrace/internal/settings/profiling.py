@@ -330,8 +330,9 @@ class ProfilingConfigMemory(DDConfig):
     )
 
     # AIDEV-NOTE: Feature flag for enhanced memory leak detection data collection.
-    # When enabled, collects additional data: RSS snapshots, allocation timestamps,
-    # object type tracking (Phase 2), and heap diff analysis (Phase 2).
+    # Currently gates future Phase 2 features: allocation age labels, object type
+    # tracking, and heap diff analysis. Allocation timestamps (Phase 1) are always-on
+    # (no-op when timeline is disabled) and do not require this flag.
     # Disabled by default to avoid impacting existing customers until the feature is validated.
     leak_detection_enabled = DDConfig.v(
         bool,
@@ -339,8 +340,8 @@ class ProfilingConfigMemory(DDConfig):
         default=False,
         help_type="Boolean",
         help="Whether to enable enhanced memory leak detection data collection. "
-        "When enabled, the profiler collects additional metrics including RSS snapshots, "
-        "allocation timestamps, and object type information to help identify memory leaks.",
+        "When enabled, the profiler collects additional data including allocation age labels "
+        "and object type information to help identify memory leaks.",
     )
 
 
