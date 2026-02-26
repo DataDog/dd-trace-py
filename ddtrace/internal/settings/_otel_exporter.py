@@ -152,5 +152,10 @@ class OTLPTraceExporterConfig:
         """Protocol from env (e.g. http/json). This version supports http/json only."""
         return _get_otel_traces_protocol()
 
+    @property
+    def otlp_http_default_traces_url(self) -> str:
+        """HTTP default URL for OTLP traces (used when falling back from grpc/http-protobuf)."""
+        return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
+
 
 config = OTLPTraceExporterConfig()

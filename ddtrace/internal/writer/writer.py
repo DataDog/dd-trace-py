@@ -63,6 +63,9 @@ log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
 
+# Max queued traces for OTLP writer; when full, oldest trace is dropped (backpressure).
+OTLP_TRACE_BUFFER_MAX_TRACES = 10000
+
 
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
     """
@@ -1193,7 +1196,6 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
         self.intake_url = endpoint_url
         self._sync_mode = sync_mode
         self._headers = headers or {}
-        self._timeout = timeout_seconds
         self._buffer: list[list["Span"]] = []
         self._lock = threading.Lock()
         from ddtrace.internal.writer.otlp import OTLPHttpTraceExporter
@@ -1218,6 +1220,14 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
             except ServiceStatusError:
                 pass
         with self._lock:
+            if len(self._buffer) >= OTLP_TRACE_BUFFER_MAX_TRACES:
+                self._buffer.pop(0)
+                _safelog(
+                    log.warning,
+                    "OTLP trace buffer full (%d traces), dropping oldest trace",
+                    OTLP_TRACE_BUFFER_MAX_TRACES,
+                    extra={"send_to_telemetry": False},
+                )
             self._buffer.append(spans)
         if self._sync_mode:
             self.flush_queue()
@@ -1227,6 +1237,8 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
             traces = self._buffer[:]
             self._buffer.clear()
         for trace in traces:
+            if not trace:
+                continue
             try:
                 request = self._mapper(
                     trace,
@@ -1258,10 +1270,7 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
         self.join(timeout=timeout)
 
     def on_shutdown(self) -> None:
-        try:
-            self.periodic()
-        finally:
-            pass
+        self.periodic()
 
     def stop(self, timeout: Optional[float] = None) -> None:
         self.on_shutdown()
@@ -1325,11 +1334,6 @@ def _use_sync_mode() -> bool:
 
 
 def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
-    if _use_log_writer():
-        return LogWriter()
-
-    # OTLP trace export (Option A): when OTEL_EXPORTER_OTLP_TRACES_ENDPOINT or
-    # OTEL_EXPORTER_OTLP_ENDPOINT is set, use OTLP only (single export, no agent).
     try:
         from ddtrace.internal.settings._otel_exporter import config as otel_exporter_config
 
@@ -1337,18 +1341,24 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
             if otel_exporter_config.otlp_traces_protocol != "http/json":
                 log.warning(
                     "OTLP trace export only supports http/json for this version; "
-                    "protocol %s requested, using http/json",
+                    "protocol %s requested, using http/json to default HTTP endpoint",
                     otel_exporter_config.otlp_traces_protocol,
                 )
-            verify_url(otel_exporter_config.otlp_traces_endpoint)
+                endpoint_url = otel_exporter_config.otlp_http_default_traces_url
+            else:
+                endpoint_url = otel_exporter_config.otlp_traces_endpoint
+            verify_url(endpoint_url)
             return OTLPWriter(
-                endpoint_url=otel_exporter_config.otlp_traces_endpoint,
+                endpoint_url=endpoint_url,
                 headers=otel_exporter_config.otlp_traces_headers,
                 timeout_seconds=otel_exporter_config.otlp_traces_timeout_seconds,
                 sync_mode=_use_sync_mode(),
             )
     except ImportError:
         pass
+
+    if _use_log_writer():
+        return LogWriter()
 
     verify_url(agent_config.trace_agent_url)
 
