@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 // Thread-local storage macro for Unix (GCC/Clang)
 // NB - we explicitly specify global-dynamic on Unix because the others are problematic.
 // See e.g. https://fuchsia.dev/fuchsia-src/development/kernel/threads/tls for
@@ -11,6 +13,7 @@
 // to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
 extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
+extern MEMALLOC_TLS uint64_t _MEMALLOC_REENTRY_BAILOUT_COUNT;
 
 /* RAII guard for reentrancy protection. Automatically acquires the guard in the
  * constructor and releases it in the destructor.
@@ -26,6 +29,8 @@ class memalloc_reentrant_guard_t
         if (!_MEMALLOC_ON_THREAD) {
             _MEMALLOC_ON_THREAD = true;
             acquired_ = true;
+        } else {
+            _MEMALLOC_REENTRY_BAILOUT_COUNT++;
         }
     }
 
