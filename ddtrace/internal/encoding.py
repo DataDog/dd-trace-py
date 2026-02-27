@@ -225,7 +225,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             self._size = 0
             num_traces = self._num_traces
             self._num_traces = 0
-            return [(payload_bytes, self._num_traces)]
+            return [(payload_bytes, num_traces)]
 
     def _item_to_json_bytes(self, item: "Span") -> bytes:
         span_dict = JSONEncoderV2._convert_span(item)
