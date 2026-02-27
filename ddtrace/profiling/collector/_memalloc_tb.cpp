@@ -1,14 +1,29 @@
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
-#include <frameobject.h>
 #include <string_view>
 
-#include "_pymacro.h"
-
-#include "_memalloc_debug.h"
-#include "_memalloc_reentrant.h"
+#include "_memalloc_frame.h"
 #include "_memalloc_tb.h"
-#include "python_helpers.hpp"
+
+/* Extract a UTF-8 string_view from a Python unicode object without any
+ * CPython API calls that could allocate, free, or touch error state.
+ *
+ * Uses only inline struct-field reads: PyUnicode_IS_COMPACT_ASCII,
+ * PyUnicode_DATA, PyUnicode_GET_LENGTH. These are available on Python 3.3+.
+ *
+ * For non-ASCII strings (extremely rare for function names and filenames),
+ * returns "<non-ascii>" rather than calling PyUnicode_AsUTF8AndSize which
+ * can trigger allocation of a UTF-8 cache via PyObject_Malloc. */
+static inline std::string_view
+unicode_to_sv_no_alloc(PyObject* obj)
+{
+    if (obj == NULL || !PyUnicode_Check(obj)) {
+        return "<unknown>";
+    }
+    if (PyUnicode_IS_COMPACT_ASCII(obj)) {
+        return std::string_view((const char*)PyUnicode_DATA(obj), (size_t)PyUnicode_GET_LENGTH(obj));
+    }
+    return "<non-ascii>";
+}
+
 /* Helper function to get thread info using C-level APIs and push to sample.
  *
  * Uses only PyThread_get_thread_ident() and PyThread_get_thread_native_id(),
@@ -37,48 +52,53 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
     sample.push_threadinfo(thread_id, thread_native_id, "");
 }
 
-/* Helper function to collect frames from PyFrameObject chain and push to sample
- * Uses Sample::push_pyframes for the actual frame unwinding */
+/* Collect frames from the current thread's frame chain and push to sample.
+ *
+ * Uses the helpers from _memalloc_frame.h for direct internal CPython frame
+ * access instead of the public PyThreadState_GetFrame() / PyFrame_GetBack() /
+ * PyFrame_GetCode() APIs. Those public APIs return new references, meaning
+ * every frame visited would require an INCREF + DECREF pair. Inside an
+ * allocator hook those refcount operations can themselves trigger re-entrant
+ * allocations or frees, leading to undefined behaviour.
+ *
+ * By reading frame pointers directly (borrowed references, no refcount change)
+ * we eliminate that risk and reduce per-frame overhead. */
 static void
-push_stacktrace_to_sample_invokes_cpython(Datadog::Sample& sample)
+push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
 {
     PyThreadState* tstate = PyThreadState_Get();
     if (tstate == NULL) {
-        // Push a placeholder frame when thread state is unavailable
         sample.push_frame("<no thread state>", "<unknown>", 0, 0);
         return;
     }
 
-    // Python 3.9+: PyThreadState_GetFrame() returns a new reference
-    PyFrameObject* pyframe = PyThreadState_GetFrame(tstate);
-
-    if (pyframe == NULL) {
-        // No Python frames available (e.g., during thread initialization/cleanup in "Dummy" threads).
-        // This occurs in Python 3.10-3.12 but not in 3.13+ due to threading implementation changes.
-        //
-        // The previous implementation (before dd_wrapper Sample refactor) dropped these samples entirely
-        // by returning NULL from traceback_new(). This new approach is strictly better: we still capture
-        // allocation metrics and make it explicit in profiles that the stack wasn't available.
-        //
-        // TODO(profiling): Investigate if there's a way to capture C-level stack traces or other context
-        // when Python frames aren't available during thread initialization/cleanup.
+    void* current_frame = memalloc_get_frame_from_thread_state(tstate);
+    if (current_frame == NULL) {
         sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
         return;
     }
 
-    // Use the unified frame unwinding API
-    // Note: push_pyframes does not take ownership of the initial frame, so we must DECREF it here
-    sample.push_pyframes(pyframe);
-    Py_DECREF(pyframe);
+    for (void* frame = current_frame; frame != NULL; frame = memalloc_get_previous_frame(frame)) {
+        if (memalloc_should_skip_frame(frame)) {
+            continue;
+        }
+
+        PyCodeObject* code = memalloc_get_code_from_frame(frame);
+        if (code == NULL) {
+            continue;
+        }
+
+        std::string_view name_sv = unicode_to_sv_no_alloc(memalloc_get_code_name(code));
+        std::string_view filename_sv = unicode_to_sv_no_alloc(code->co_filename);
+        int line = memalloc_get_lineno(frame, code);
+
+        sample.push_frame(name_sv, filename_sv, 0, line);
+    }
 }
 
 void
 traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 {
-    // Preserve any raised C-level exception already in flight before touching
-    // CPython C-API from inside the allocator hook.
-    PythonErrorRestorer error_restorer;
-
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
     // but we can't sample it, so we sample the next allocation which happens to be 0
@@ -87,25 +107,16 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
     double scaled_count = ((double)weighted_size) / ((double)adjusted_size);
     size_t count = (size_t)scaled_count;
 
-    // Push allocation info to sample
-    // Note: profile_state is initialized in memalloc_start() before any traceback_t objects are created
     sample.push_alloc(weighted_size, count);
-
-    // Get thread id and native_id using C-level APIs and push to sample
     push_threadinfo_to_sample(sample);
-
-    // Collect frames from the Python frame chain and push to Sample
-    // Note: Sample.push_frame() automatically enforces the max_nframe limit and tracks dropped frames.
-    push_stacktrace_to_sample_invokes_cpython(sample);
+    push_stacktrace_to_sample_no_decref(sample);
 }
 
 // AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
-    // Validate Sample object is in a valid state before use
     if (max_nframe == 0) {
-        // Should not happen, but defensive check
         return;
     }
 
