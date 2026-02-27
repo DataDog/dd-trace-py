@@ -484,7 +484,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
+            raise ValueError(  # nosec
+                f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}"
+            )
         response_data = resp.get_json()
         data = response_data["data"]
 
