@@ -42,6 +42,14 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
+    /* If we're already inside the allocation hook (e.g. frame walking triggered
+     * a Py_DECREF that freed an object), count this as a reentrant call.
+     * This catches the malloc->free reentry pattern in addition to the
+     * malloc->malloc pattern caught by the reentry guard in track. */
+    if (_MEMALLOC_ON_THREAD) {
+        _MEMALLOC_REENTRY_BAILOUT_COUNT++;
+    }
+
     memalloc_heap_untrack_no_cpython(ptr);
 
     alloc->free(alloc->ctx, ptr);
@@ -227,11 +235,28 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
-static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-                                        /* sentinel */
-                                        { NULL, NULL, 0, NULL } };
+static PyObject*
+memalloc_get_reentry_bailout_count(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    return PyLong_FromUnsignedLongLong(_MEMALLOC_REENTRY_BAILOUT_COUNT);
+}
+
+static PyObject*
+memalloc_reset_reentry_bailout_count(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
+{
+    _MEMALLOC_REENTRY_BAILOUT_COUNT = 0;
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef module_methods[] = {
+    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
+    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+    { "_get_reentry_bailout_count", (PyCFunction)memalloc_get_reentry_bailout_count, METH_NOARGS, NULL },
+    { "_reset_reentry_bailout_count", (PyCFunction)memalloc_reset_reentry_bailout_count, METH_NOARGS, NULL },
+    /* sentinel */
+    { NULL, NULL, 0, NULL }
+};
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
