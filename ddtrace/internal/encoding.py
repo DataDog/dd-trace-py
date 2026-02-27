@@ -223,6 +223,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             payload_bytes = b"".join(self._buffer)
             self._buffer = []
             self._size = 0
+            num_traces = self._num_traces
             self._num_traces = 0
             return [(payload_bytes, self._num_traces)]
 
