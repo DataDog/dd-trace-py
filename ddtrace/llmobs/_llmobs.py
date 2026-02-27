@@ -111,7 +111,6 @@ from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
-from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
@@ -120,6 +119,9 @@ from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import SummaryEvaluatorType
 from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
+from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
+from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
+from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -197,7 +199,12 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
 # Constants for validation
 _TASK_REQUIRED_PARAMS = {"input_data", "config"}
 _EVALUATOR_REQUIRED_PARAMS = ("input_data", "output_data", "expected_output")
-_SUMMARY_EVALUATOR_REQUIRED_PARAMS = ("inputs", "outputs", "expected_outputs", "evaluators_results")
+_SUMMARY_EVALUATOR_REQUIRED_PARAMS = (
+    "inputs",
+    "outputs",
+    "expected_outputs",
+    "evaluators_results",
+)
 
 
 def _validate_task_signature(task: Callable, is_async: bool) -> None:
@@ -218,6 +225,9 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
         valid_base_classes = (BaseEvaluator, BaseAsyncEvaluator)
 
     if isinstance(evaluator, valid_base_classes):
+        return
+
+    if _is_deep_eval_evaluator(evaluator):
         return
 
     if not callable(evaluator):
@@ -959,13 +969,19 @@ class LLMObs(Service):
             else:
                 num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
                 batch_size = math.ceil(len(records) / num_batches)
-                log.debug("batched upload num_batches :%d, batch_size: %d", num_batches, batch_size)
+                log.debug(
+                    "batched upload num_batches :%d, batch_size: %d",
+                    num_batches,
+                    batch_size,
+                )
                 create_new_version = True  # wether the server should attempt to bump the data version or not
                 for record_batch in _batched(records, batch_size):
                     for record in record_batch:
                         ds.append(record)
                     data_changed = ds._push(
-                        deduplicate=deduplicate, create_new_version=create_new_version, bulk_upload=False
+                        deduplicate=deduplicate,
+                        create_new_version=create_new_version,
+                        bulk_upload=False,
                     )
                     if data_changed:
                         # Since we are batching a single upload, we should only bump the version at most once
@@ -1257,8 +1273,19 @@ class LLMObs(Service):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators:
             raise TypeError("Evaluators must be a list of callable functions or BaseEvaluator instances.")
-        for evaluator in evaluators:
+        evaluators_list = list(evaluators)
+        for idx, evaluator in enumerate(evaluators_list):
             _validate_evaluator_signature(evaluator, is_async=False)
+            if _is_deep_eval_evaluator(evaluator):
+                evaluators_list[idx] = _deep_eval_evaluator_wrapper(evaluator)
+                continue
+        if summary_evaluators and not all(
+            callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
+            for summary_evaluator in summary_evaluators
+        ):
+            raise TypeError(
+                "Summary evaluators must be a list of callable functions or BaseSummaryEvaluator instances."
+            )
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=False)
@@ -1266,7 +1293,7 @@ class LLMObs(Service):
             name,
             task,
             dataset,
-            evaluators,
+            evaluators_list,
             project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
@@ -1324,8 +1351,12 @@ class LLMObs(Service):
             raise TypeError(
                 "Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator instances."
             )
-        for evaluator in evaluators:
+        evaluators_list = list(evaluators)
+        for idx, evaluator in enumerate(evaluators_list):
             _validate_evaluator_signature(evaluator, is_async=True)
+            if _is_deep_eval_evaluator(evaluator):
+                evaluators_list[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
+                continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
                 _validate_summary_evaluator_signature(summary_evaluator, is_async=True)
@@ -1333,7 +1364,7 @@ class LLMObs(Service):
             name,
             task,
             dataset,
-            evaluators,
+            evaluators_list,
             project_name=project_name or cls._project_name,
             tags=tags,
             description=description,
@@ -1379,12 +1410,7 @@ class LLMObs(Service):
         experiment_id: str,
         task: Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
         dataset_records: list[DatasetRecord],
-        evaluators: list[
-            Union[
-                Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, EvaluatorResult]],
-                Callable[[], Union[JSONType, EvaluatorResult]],
-            ]
-        ],
+        evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]],
         jobs: int = 1,
         raise_errors: bool = False,
         run_iteration: Optional[int] = 0,
@@ -1396,7 +1422,7 @@ class LLMObs(Service):
         experiment._llmobs_instance = cls._instance
         experiment._dataset._records = dataset_records
         experiment._task = task
-        experiment._evaluators = evaluators  # type: ignore[assignment]
+        experiment._evaluators = evaluators
 
         coro = experiment._run_task_single_iteration(jobs, raise_errors, run_iteration)
         try:
@@ -1522,7 +1548,12 @@ class LLMObs(Service):
                     (
                         annotation_id,
                         ctx_id,
-                        {"tags": tags, "prompt": prompt, "_name": name, "_linked_spans": _linked_spans},
+                        {
+                            "tags": tags,
+                            "prompt": prompt,
+                            "_name": name,
+                            "_linked_spans": _linked_spans,
+                        },
                     )
                 )
 
@@ -2213,7 +2244,9 @@ class LLMObs(Service):
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
                     cls._set_dict_attribute(
-                        span, TAGS, {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED}
+                        span,
+                        TAGS,
+                        {PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED},
                     )
                 except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
@@ -2245,7 +2278,11 @@ class LLMObs(Service):
                 for linked_span in _linked_spans:
                     # for now, assume all span links are output to input as we do not currently use this for anything
                     add_span_link(
-                        span, linked_span.get("span_id", ""), linked_span.get("trace_id", ""), "output", "input"
+                        span,
+                        linked_span.get("span_id", ""),
+                        linked_span.get("trace_id", ""),
+                        "output",
+                        "input",
                     )
             if annotation_error_message:
                 raise LLMObsAnnotateSpanError(annotation_error_message)

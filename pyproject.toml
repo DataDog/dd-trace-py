@@ -44,6 +44,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+llmobs = [
+    "deepeval>=0.21.0",
+]
 opentracing = [
     "opentracing>=2,<3",
 ]

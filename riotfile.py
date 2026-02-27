@@ -2536,6 +2536,8 @@ venv = Venv(
             name="reno",
             pkgs={
                 "reno": latest,
+                # PyYAML>=6.0.1 has wheels / builds on Python 3.13; 6.0 fails with modern setuptools
+                "PyYAML": ">=6.0.1",
             },
             command="reno {cmdargs}",
         ),
@@ -3297,6 +3299,23 @@ venv = Venv(
             # we only need to run this on one version of Python
             pys=["3.13"],
         ),
+        # Python 3.9: llmobs without deepeval (deepeval requires 3.10+ for X|None type hints)
+        Venv(
+            name="llmobs",
+            command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
+            pkgs={
+                "vcrpy": latest,
+                "openai": latest,
+                "google-cloud-aiplatform": latest,
+                "boto3": latest,
+                "pytest-asyncio": "==0.21.1",
+                "ragas": "==0.1.21",
+                "langchain": latest,
+                "pandas": latest,
+            },
+            pys=["3.9"],
+        ),
+        # Python 3.10+: llmobs with deepeval (runs all tests including test_deep_eval_evaluators.py)
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs",
@@ -3309,8 +3328,9 @@ venv = Venv(
                 "ragas": "==0.1.21",
                 "langchain": latest,
                 "pandas": latest,
+                "deepeval": latest,
             },
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.10", max_version="3.13"),
         ),
         Venv(
             name="vllm",
