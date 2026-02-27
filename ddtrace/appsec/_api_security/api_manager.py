@@ -8,6 +8,7 @@ from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
+from ddtrace.appsec._asm_request_context import _WAF_CALL
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -196,7 +197,8 @@ class APIManager(Service):
                 value = transform(value)
             waf_payload[address] = value
 
-        result = self._asm_context.call_waf_callback(waf_payload)
+        callback = env.callbacks[_WAF_CALL]
+        result = callback(waf_payload)
         if result is None:
             return
         nb_schemas = 0

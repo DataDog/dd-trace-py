@@ -2,20 +2,11 @@ import dataclasses
 import errno
 from json.decoder import JSONDecodeError
 import os
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import Optional
 from typing import Sequence
 from typing import Union
-
-from ddtrace.ext import SpanTypes
-from ddtrace.internal import core
-
-
-if TYPE_CHECKING:
-    import ddtrace.appsec._ddwaf as ddwaf
-
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
@@ -27,6 +18,8 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
+import ddtrace.appsec._ddwaf.ddwaf_types as ddwaf_types
+from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
@@ -35,6 +28,8 @@ from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import is_inferred_span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
+from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
@@ -134,21 +129,29 @@ class AppSecSpanProcessor(SpanProcessor):
     def delayed_init(self) -> None:
         try:
             if self._rules is not None and not hasattr(self, "_ddwaf"):
-                from ddtrace.appsec._ddwaf import DDWaf  # noqa: E402
+                from ddtrace.appsec._ddwaf import waf_module  # noqa: E402
                 import ddtrace.appsec._metrics as metrics  # noqa: E402
 
+                DDWaf = waf_module()
+                if DDWaf is None:
+                    log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
+                    return
                 self.metrics = metrics
-                self._ddwaf = DDWaf(
+                self._ddwaf: Optional[WAF] = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
                 )
-                self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
+                if self._ddwaf:
+                    self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
+            self._ddwaf = None
 
         self._update_required()
 
     def _update_required(self):
+        if self._ddwaf is None:
+            return
         self._addresses_to_keep.clear()
         for address in self._ddwaf.required_data:
             self._addresses_to_keep.add(address)
@@ -162,6 +165,8 @@ class AppSecSpanProcessor(SpanProcessor):
     ) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
+        if self._ddwaf is None:
+            return False
         result = False
         if asm_config._asm_static_rule_file is not None:
             return result
@@ -195,6 +200,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
+        if self._ddwaf is None:
+            return
 
         if span.span_type not in asm_config._asm_processed_span_types:
             return
@@ -246,7 +253,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def _waf_action(
         self,
         entry_span: Span,
-        ctx: "ddwaf.ddwaf_types.ddwaf_context_capsule",
+        ctx: ddwaf_types.ddwaf_context_capsule,
         custom_data: Optional[dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,
@@ -263,6 +270,9 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
+        if not hasattr(self, "_ddwaf") or self._ddwaf is None:
+            return None
+
         if _asm_request_context.get_blocked():
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
@@ -310,7 +320,7 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.debug("appsec::processor::waf::run", exc_info=True)
             waf_results = Binding_error
-        _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
+        _asm_request_context.set_waf_info(lambda: self._ddwaf.info)  # type: ignore
         if waf_results.return_code < 0:
             error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
             previous = entry_span.get_tag(error_tag)
@@ -390,9 +400,12 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
+        ddwaf = getattr(self, "_ddwaf", None)
+        if ddwaf is None:
+            return
         if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()
-            self._ddwaf._at_request_end()
+            ddwaf._at_request_end()
             _asm_request_context.end_context(span)
 
     @classmethod
