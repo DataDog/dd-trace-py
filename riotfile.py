@@ -3108,6 +3108,14 @@ venv = Venv(
             },
         ),
         Venv(
+            name="mlflow",
+            command="pytest {cmdargs} tests/contrib/mlflow",
+            pys=select_pys(min_version="3.11", max_version="3.13"),
+            pkgs={
+                "mlflow[default]": ["~=3.9.0", latest],
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
