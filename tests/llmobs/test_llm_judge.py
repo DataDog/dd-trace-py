@@ -5,6 +5,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
@@ -238,6 +239,329 @@ class TestLLMJudge:
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
         assert result.reasoning is None
+
+
+class TestLLMJudgePublish:
+    @staticmethod
+    def _mock_publish_backend(monkeypatch):
+        mock_response = mock.Mock(status=200, reason="OK", body=b"")
+        mock_response.get_json.return_value = {}
+        mock_dne_client = mock.Mock()
+        mock_dne_client.publish_custom_evaluator.return_value = mock_response
+        monkeypatch.setattr(LLMObs, "_instance", mock.Mock(_dne_client=mock_dne_client))
+        return mock_dne_client
+
+    @pytest.mark.parametrize(
+        "provider,expected_provider,expects_wrapped_schema",
+        [
+            ("openai", "openai", True),
+            ("azure_openai", "azure_openai", True),
+            ("anthropic", "anthropic", False),
+            ("vertexai", "vertex_ai", False),
+            ("bedrock", "amazon_bedrock", False),
+        ],
+    )
+    def test_publish_provider_mapping_and_schema_format(
+        self, provider, expected_provider, expects_wrapped_schema, monkeypatch
+    ):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider=provider,
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            model_params={"temperature": 0.2},
+            name="quality_eval",
+        )
+
+        with mock.patch("ddtrace.llmobs._evaluators.llm_judge._get_base_url", return_value="https://app.datadoghq.com"):
+            result = judge.publish(ml_app="test-app")
+
+        assert result["ui_url"] == (
+            "https://app.datadoghq.com/llm/evaluations/custom?evalName=quality_eval&applicationName=test-app"
+        )
+
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        assert payload["eval_name"] == "quality_eval"
+        app_payload = payload["applications"][0]
+
+        assert app_payload["application_name"] == "test-app"
+        assert app_payload["enabled"] is False
+        assert app_payload["integration_provider"] == expected_provider
+        assert app_payload["model_provider"] == expected_provider
+        assert set(app_payload) == {
+            "application_name",
+            "enabled",
+            "integration_provider",
+            "model_provider",
+            "byop_config",
+        }
+
+        byop_config = app_payload["byop_config"]
+        assert byop_config["inference_params"] == {"temperature": 0.2}
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"pass_when": True}
+        assert byop_config["prompt_template"] == [
+            {"role": "system", "content": ""},
+            {"role": "user", "content": "Evaluate: {{output_data}}"},
+        ]
+
+        output_schema = byop_config["output_schema"]
+        if expects_wrapped_schema:
+            assert output_schema["name"] == "boolean_eval"
+            assert output_schema["strict"] is True
+            assert output_schema["schema"]["properties"]["boolean_eval"]["type"] == "boolean"
+        else:
+            assert output_schema["properties"]["boolean_eval"]["type"] == "boolean"
+
+    def test_publish_score_output_includes_threshold_assessment_criteria(self, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Score: {{output_data}}",
+            structured_output=ScoreStructuredOutput(
+                "Quality",
+                min_score=0.0,
+                max_score=1.0,
+                min_threshold=0.3,
+                max_threshold=0.8,
+            ),
+            name="score_eval_publish",
+        )
+
+        judge.publish(ml_app="test-app")
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        byop_config = payload["applications"][0]["byop_config"]
+
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"min_threshold": 0.3, "max_threshold": 0.8}
+
+    def test_publish_categorical_output_includes_pass_values_assessment_criteria(self, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Classify: {{output_data}}",
+            structured_output=CategoricalStructuredOutput(
+                categories={
+                    "positive": "Positive sentiment",
+                    "negative": "Negative sentiment",
+                },
+                pass_values=["positive"],
+            ),
+            name="categorical_eval_publish",
+        )
+
+        judge.publish(ml_app="test-app")
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        byop_config = payload["applications"][0]["byop_config"]
+
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"pass_values": ["positive"]}
+
+    @pytest.mark.parametrize(
+        "model,expected_model_name",
+        [
+            ("  gpt-4o  ", "gpt-4o"),
+            (None, None),
+            ("   ", None),
+        ],
+    )
+    def test_publish_sends_model_name_only_when_present(self, model, expected_model_name, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            model=model,
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="model_eval",
+        )
+
+        judge.publish(ml_app="my-app")
+        app_payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]["applications"][0]
+
+        assert app_payload["model_provider"] == app_payload["integration_provider"]
+        if expected_model_name is None:
+            assert "model_name" not in app_payload
+        else:
+            assert app_payload["model_name"] == expected_model_name
+
+    def test_publish_variable_mapping_replaces_prompt_placeholders(self, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            system_prompt="System sees {{input_data}}",
+            user_prompt=(
+                "Input {{input_data}} Output {{output_data}} Expected {{expected_output}} "
+                "Metadata {{metadata.customer_id}}"
+            ),
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="mapping_eval",
+        )
+
+        judge.publish(
+            ml_app="test-app",
+            variable_mapping={"input_data": "span_input", "output_data": "span_output"},
+        )
+
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
+
+        assert prompt_template[0]["content"] == "System sees {{input_data}}"
+        assert prompt_template[1]["content"] == (
+            "Input {{span_input}} Output {{span_output}} Expected {{expected_output}} Metadata {{metadata.customer_id}}"
+        )
+
+    def test_publish_variable_mapping_does_not_chain_replacements(self, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Input {{input_data}} Output {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="mapping_eval",
+        )
+
+        judge.publish(
+            ml_app="test-app",
+            variable_mapping={"input_data": "output_data", "output_data": "span_output"},
+        )
+
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
+
+        assert prompt_template[1]["content"] == "Input {{output_data}} Output {{span_output}}"
+
+    def test_publish_custom_schema_uses_json_parsing_and_encoded_url(self, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+
+        custom_schema = {
+            "type": "object",
+            "properties": {
+                "grade": {"type": "string"},
+                "reasoning": {"type": "string"},
+            },
+            "required": ["grade"],
+            "additionalProperties": False,
+        }
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="vertexai",
+            user_prompt="Grade {{output_data}}",
+            structured_output=custom_schema,
+            name="json_eval",
+        )
+
+        with mock.patch("ddtrace.llmobs._evaluators.llm_judge._get_base_url", return_value="https://app.datadoghq.com"):
+            result = judge.publish(ml_app="my app")
+
+        assert result["ui_url"] == (
+            "https://app.datadoghq.com/llm/evaluations/custom?evalName=json_eval&applicationName=my+app"
+        )
+
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        app_payload = payload["applications"][0]
+        assert app_payload["integration_provider"] == "vertex_ai"
+        assert app_payload["byop_config"]["parsing_type"] == "json"
+        assert app_payload["byop_config"]["output_schema"] == custom_schema
+        assert "assessment_criteria" not in app_payload["byop_config"]
+
+    def test_publish_requires_ml_app(self):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="ml_app"):
+            judge.publish(ml_app="   ")
+
+    def test_publish_requires_structured_output(self):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=None,
+        )
+        with pytest.raises(ValueError, match="structured_output"):
+            judge.publish(ml_app="my-app")
+
+    def test_publish_requires_initialized_experiments_client(self, monkeypatch):
+        monkeypatch.setattr(LLMObs, "_instance", None)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="experiments client is not initialized"):
+            judge.publish(ml_app="my-app")
+
+    def test_publish_raises_on_backend_error_response(self, monkeypatch):
+        mock_response = mock.Mock(status=500, reason="Internal Server Error", body=b'{"error":"backend_failure"}')
+        mock_response.get_json.return_value = {"error": "backend_failure"}
+        mock_dne_client = mock.Mock()
+        mock_dne_client.publish_custom_evaluator.return_value = mock_response
+        monkeypatch.setattr(LLMObs, "_instance", mock.Mock(_dne_client=mock_dne_client))
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+            name="publish_error_eval",
+        )
+
+        with pytest.raises(ValueError, match="Failed to publish evaluator publish_error_eval: 500"):
+            judge.publish(ml_app="my-app")
+
+    def test_publish_validates_eval_name_format(self, monkeypatch):
+        self._mock_publish_backend(monkeypatch)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+            name="valid_name",
+        )
+        with pytest.raises(ValueError, match="Evaluator name .* is invalid"):
+            judge.publish(ml_app="my-app", eval_name="invalid name!")
+
+    def test_publish_accepts_hyphenated_eval_name(self, monkeypatch):
+        mock_dne_client = self._mock_publish_backend(monkeypatch)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+            name="fallback",
+        )
+        judge.publish(ml_app="my-app", eval_name="hyphen-name")
+        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        assert payload["eval_name"] == "hyphen-name"
+
+    def test_publish_validates_variable_mapping(self):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="variable_mapping keys"):
+            judge.publish(ml_app="my-app", variable_mapping={"": "span_output"})
+
+        with pytest.raises(ValueError, match="variable_mapping values"):
+            judge.publish(ml_app="my-app", variable_mapping={"output_data": "   "})
 
 
 AZURE_OPENAI_CLIENT_OPTIONS = {

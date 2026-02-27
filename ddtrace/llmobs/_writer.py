@@ -355,6 +355,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         finally:
             conn.close()
 
+    def publish_custom_evaluator(self, evaluation: JSONType) -> Response:
+        path = "/api/unstable/llm-obs/v1/config/evaluators/custom"
+        return self.request(
+            "PUT", path, body={"data": {"type": "evaluator_config", "attributes": {"evaluation": evaluation}}}
+        )
+
     def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
         headers = {
             "Content-Type": content_type,
