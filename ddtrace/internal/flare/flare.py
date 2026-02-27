@@ -1,10 +1,10 @@
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 import os
 import pathlib
 import shutil
 from typing import Optional
-import json
 
 from ddtrace import config
 from ddtrace._logger import _add_file_handler
