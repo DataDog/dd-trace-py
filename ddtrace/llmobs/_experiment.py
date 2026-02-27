@@ -392,11 +392,14 @@ class Project(TypedDict):
     _id: str
 
 
-class DatasetRecordRaw(TypedDict):
+class _DatasetRecordRawOptional(TypedDict, total=False):
+    tags: list[str]
+
+
+class DatasetRecordRaw(_DatasetRecordRawOptional):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
-    tags: list[str]
 
 
 class _UpdatableDatasetRecordOptional(TypedDict, total=False):
@@ -410,9 +413,12 @@ class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
-class DatasetRecord(DatasetRecordRaw):
-    record_id: str
+class _DatasetRecordOptional(TypedDict, total=False):
     canonical_id: Optional[str]
+
+
+class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptional):
+    record_id: str
 
 
 class TaskResult(TypedDict):
