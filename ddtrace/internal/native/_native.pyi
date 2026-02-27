@@ -547,34 +547,40 @@ class SpanData:
 
     # Write methods
     def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
-    def _set_str_attribute(self, key: str, value: str) -> None: ...
-    def _set_numeric_attribute(self, key: str, value: Union[int, float]) -> None: ...
     def _set_attributes(self, attrs: Mapping[str, Union[str, int, float]]) -> None: ...
     def _remove_attribute(self, key: str) -> None: ...
 
-    # Read methods
+    # Read methods — typed single-key accessors (prefer these for general use)
     def _get_attribute(self, key: str) -> Union[str, float, None]: ...
     def _get_str_attribute(self, key: str) -> Optional[str]: ...
     def _get_numeric_attribute(self, key: str) -> Optional[float]: ...
     def _has_attribute(self, key: str) -> bool: ...
+
+    # Bulk read methods — encoder helpers only, do not use elsewhere
     def _get_str_attributes(self) -> Mapping[str, str]:
         """Return all string attributes as the live internal dict cache (no copy).
 
+        **Encoder helper — do not use in general code.** Prefer ``_get_str_attribute`` for
+        single-key reads.
+
         **Do not mutate the returned mapping.**  It is the internal cache kept in sync with the
         Rust HashMap.  Mutating it directly bypasses that sync and corrupts internal state.
-        The return type is declared as ``Mapping`` (not ``dict``) to surface mutation attempts as
-        type errors.  The underlying object is a ``PyDict`` — a deliberate performance
-        optimisation so that encoders can use ``PyDict_Next`` for zero-copy iteration.
+        The return type is ``Mapping`` (not ``dict``) to surface mutation attempts as type errors.
+        The underlying object is a ``PyDict`` — a deliberate performance optimisation so that
+        encoders can use ``PyDict_Next`` for zero-copy iteration.
         """
         ...
     def _get_numeric_attributes(self) -> Mapping[str, float]:
         """Return all numeric attributes as the live internal dict cache (no copy).
 
+        **Encoder helper — do not use in general code.** Prefer ``_get_numeric_attribute`` for
+        single-key reads.
+
         **Do not mutate the returned mapping.**  It is the internal cache kept in sync with the
         Rust HashMap.  Mutating it directly bypasses that sync and corrupts internal state.
-        The return type is declared as ``Mapping`` (not ``dict``) to surface mutation attempts as
-        type errors.  The underlying object is a ``PyDict`` — a deliberate performance
-        optimisation so that encoders can use ``PyDict_Next`` for zero-copy iteration.
+        The return type is ``Mapping`` (not ``dict``) to surface mutation attempts as type errors.
+        The underlying object is a ``PyDict`` — a deliberate performance optimisation so that
+        encoders can use ``PyDict_Next`` for zero-copy iteration.
         """
         ...
 

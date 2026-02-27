@@ -546,32 +546,6 @@ impl SpanData {
 
     // --- Attribute write methods ---
 
-    /// Set a string attribute. Silently drops if key or value are not strings.
-    /// Enforces mutual exclusion with metrics (removes same key from metrics).
-    #[pyo3(name = "_set_str_attribute")]
-    fn set_str_attribute(&mut self, key: Bound<'_, PyAny>, value: Bound<'_, PyAny>) {
-        let Ok(key_bs) = key.extract::<PyBackedString>() else {
-            return;
-        };
-        let Ok(value_bs) = value.extract::<PyBackedString>() else {
-            return;
-        };
-        self.meta_insert(key.py(), key_bs, value_bs);
-    }
-
-    /// Set a numeric attribute. Silently drops if key is not a string or value is not numeric.
-    /// Enforces mutual exclusion with meta (removes same key from meta).
-    #[pyo3(name = "_set_numeric_attribute")]
-    fn set_numeric_attribute(&mut self, key: Bound<'_, PyAny>, value: Bound<'_, PyAny>) {
-        let Ok(key_bs) = key.extract::<PyBackedString>() else {
-            return;
-        };
-        let Ok(val_f64) = value.extract::<f64>() else {
-            return;
-        };
-        self.metrics_insert(key.py(), key_bs, val_f64);
-    }
-
     /// Remove an attribute from both meta and metrics.
     #[pyo3(name = "_remove_attribute")]
     fn remove_attribute(&mut self, key: Bound<'_, PyAny>) {
