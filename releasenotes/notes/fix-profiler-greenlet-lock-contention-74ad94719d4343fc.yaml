@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fix lock contention in the profiler's greenlet stack sampler
+    that could cause connection pool exhaustion in gevent-based applications
+    (e.g. gunicorn + gevent + psycopg2).
