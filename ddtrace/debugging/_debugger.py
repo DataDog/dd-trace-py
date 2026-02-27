@@ -244,7 +244,8 @@ class Debugger(Service):
 
         callback = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
 
-        remoteconfig_poller.unregister("LIVE_DEBUGGING")
+        remoteconfig_poller.unregister_callback("LIVE_DEBUGGING")
+        remoteconfig_poller.disable_product("LIVE_DEBUGGING")
 
         # Currently the product enablement and the callback registration are
         # tied together within the RC client so here we have to pretend that
@@ -302,7 +303,8 @@ class Debugger(Service):
                 self._probe_registry,
                 di_config.diagnostics_interval,
             )
-            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+            remoteconfig_poller.register_callback("LIVE_DEBUGGING", di_callback)
+            remoteconfig_poller.enable_product("LIVE_DEBUGGING")
 
             # Load local probes from the probe file.
             self._load_local_config()
