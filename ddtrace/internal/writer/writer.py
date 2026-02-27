@@ -337,7 +337,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     log_func = log.warning
                 else:
                     log_func = log.debug
-
                 _safelog(
                     log_func,
                     "Got response: %d %s sent %s in %.5fs to %s",
@@ -756,17 +755,14 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         self._headers["X-Datadog-Test-Session-Token"] = token or ""
 
 
-# Base URL for the agentless trace JSON intake (EvP / track_type:spans).
-AGENTLESS_TRACE_INTAKE_HOST = "public-trace-http-intake.logs"
-
-
 class AgentlessTraceWriter(HTTPWriter):
     """
-    HTTP writer for the agentless JSON span intake (EvP). Uses POST and the
-    AgentlessWriterClient (JSON encoder). Used when _DD_APM_TRACING_AGENTLESS_ENABLED is true.
+    HTTP writer for agentless JSON span intake. Used when _DD_APM_TRACING_AGENTLESS_ENABLED is true.
     """
 
     HTTP_METHOD = "POST"
+    # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
+    INTAKE_HOST = "public-trace-http-intake.logs"
 
     def __init__(
         self,
@@ -808,11 +804,8 @@ class AgentlessTraceWriter(HTTPWriter):
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
         try:
-            # Stop the writer to ensure it is not running while we reconfigure it.
             self.stop()
         except ServiceStatusError:
-            # Writers like AgentWriter may not start until the first trace is encoded.
-            # Stopping them before that will raise a ServiceStatusError.
             pass
         return self.__class__(
             intake_url=self.intake_url,
@@ -1296,7 +1289,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
 
     if config._trace_agentless_enabled:
         if config._dd_api_key:
-            intake_url = "https://{}.{}".format(AGENTLESS_TRACE_INTAKE_HOST, config._dd_site)
+            intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
             verify_url(intake_url)
             return AgentlessTraceWriter(
                 intake_url=intake_url,
