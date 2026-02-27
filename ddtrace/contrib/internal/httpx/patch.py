@@ -8,19 +8,19 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.httpx import HttpxRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
+
+from .utils import httpx_url_to_str
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
@@ -92,45 +92,63 @@ async def _wrapped_async_send_single_request(
 async def _wrapped_async_send(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
 ):
-    req = get_argument_value(args, kwargs, 0, "request")
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
-    with core.context_with_data(
-        "httpx.request",
-        call_trace=True,
-        span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.HTTP,
-        service=_get_service_name(req),
-        tags=HTTP_REQUEST_TAGS,
-        request=req,
+    with core.context_with_event(
+        HttpxRequestEvent(
+            http_operation="http.request",
+            service=_get_service_name(req),
+            component=config.httpx.integration_name,
+            request_method=req.method,
+            request_headers=req.headers,
+            config=config.httpx,
+            url=httpx_url_to_str(req.url),
+            query=req.url.query,
+            target_host=req.url.host,
+        )
     ) as ctx:
         resp = None
         try:
             resp = await wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                event: HttpxRequestEvent = ctx.event
+                event.response_headers = getattr(resp, "headers", {})
+                event.response_status_code = resp.status_code
+                # Keep raw response available for AppSec body analysis hooks.
+                ctx.set_item("response", resp)
 
 
 def _wrapped_sync_send(
     wrapped: BoundFunctionWrapper, instance: httpx.AsyncClient, args: tuple[httpx.Request], kwargs: dict[str, Any]
 ):
-    req = get_argument_value(args, kwargs, 0, "request")
+    req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
-    with core.context_with_data(
-        "httpx.request",
-        call_trace=True,
-        span_name=schematize_url_operation("http.request", protocol="http", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.HTTP,
-        service=_get_service_name(req),
-        tags=HTTP_REQUEST_TAGS,
-        request=req,
+    with core.context_with_event(
+        HttpxRequestEvent(
+            component=config.httpx.integration_name,
+            http_operation="http.request",
+            service=_get_service_name(req),
+            request_method=req.method,
+            request_headers=req.headers,
+            config=config.httpx,
+            url=httpx_url_to_str(req.url),
+            query=req.url.query,
+            target_host=req.url.host,
+        )
     ) as ctx:
         resp = None
         try:
             resp = wrapped(*args, **kwargs)
             return resp
         finally:
-            ctx.set_item("response", resp)
+            if resp is not None:
+                event: HttpxRequestEvent = ctx.event
+                event.response_headers = getattr(resp, "headers", {})
+                event.response_status_code = resp.status_code
+                # Keep raw response available for AppSec body analysis hooks.
+                ctx.set_item("response", resp)
 
 
 def patch() -> None:
