@@ -133,7 +133,9 @@ def test_capture_exc_info():
 
     assert serialized is not None
     assert serialized["type"] == "ValueError"
-    assert [_["function"] for _ in serialized["stacktrace"][-3:]] == ["c", "b", "a"]
+    # Python 3.11+ uses qualified names, earlier versions use simple names
+    functions = [_["function"] for _ in serialized["stacktrace"][-3:]]
+    assert all(f.endswith(expected) for f, expected in zip(functions, ["c", "b", "a"]))
     assert serialized["message"] == "'bad'"
 
 
