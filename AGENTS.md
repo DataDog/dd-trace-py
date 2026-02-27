@@ -24,6 +24,7 @@
 5. Consider performance impact (this runs in production)
 6. Consider architecture (try to use well-established patterns for the problem at hand)
 7. Check for and remove unexpected prints
+8. When writing Rust/PyO3 code in src/native/, follow the guidelines in docs/contributing-pyo3.rst
 
 ## Initial Setup for AI Assistants
 
@@ -37,6 +38,7 @@ When starting a new chat session, ALWAYS read and apply the rules from:
    - `repo-structure.mdc` - Repository structure
    - `appsec.mdc` - Application Security (AppSec) features including IAST, AAP, RASP, API Security
    - `iast.mdc` - IAST (Interactive Application Security Testing) development guide
+   - `pyo3.mdc` - Rust/PyO3 performance guidelines for native extensions
 
 ## Skills
 
