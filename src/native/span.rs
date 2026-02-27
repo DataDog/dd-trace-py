@@ -1,11 +1,14 @@
-
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyDictMethods as _, PyFloat, PyInt, PyModule, PyModuleMethods as _, PyTuple},
-    Bound, PyAny, PyResult, Python,
+    types::{
+        PyAnyMethods as _, PyDict, PyFloat, PyInt, PyList, PyMapping, PyMappingMethods as _,
+        PyModule, PyModuleMethods as _, PyTuple,
+    },
+    Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
 
 use crate::py_string::{PyBackedString, PyTraceData};
+use crate::span_attributes::{NumericAttributesMapping, StrAttributesMapping};
 use libdd_trace_utils::span::SpanText;
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
@@ -73,8 +76,46 @@ impl SpanLinkData {
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
-    data: libdd_trace_utils::span::v04::Span<PyTraceData>,
+    pub(crate) data: libdd_trace_utils::span::v04::Span<PyTraceData>,
     span_api: PyBackedString,
+    /// Lazy Python int cache for the `trace_id` getter.
+    /// Populated on first read; invalidated on every write to `data.trace_id`.
+    /// `data.trace_id` is always the source of truth.
+    _trace_id_py: Option<Py<PyAny>>,
+}
+
+impl SpanData {
+    /// Set `data.trace_id` and invalidate `_trace_id_py`.
+    ///
+    /// **All writes to `data.trace_id` must go through this method** to keep `_trace_id_py`
+    /// consistent. Bypassing it leaves a stale cached Python int that silently returns the
+    /// old value on the next `span.trace_id` read.
+    #[inline(always)]
+    fn set_trace_id_native(&mut self, id: u128) {
+        self.data.trace_id = id;
+        self._trace_id_py = None;
+    }
+
+    /// Insert a string attribute, enforcing mutual exclusion with metrics.
+    #[inline(always)]
+    pub(crate) fn meta_insert(&mut self, key: PyBackedString, value: PyBackedString) {
+        self.data.metrics.remove(&*key);
+        self.data.meta.insert(key, value);
+    }
+
+    /// Insert a numeric attribute, enforcing mutual exclusion with meta.
+    #[inline(always)]
+    pub(crate) fn metrics_insert(&mut self, key: PyBackedString, value: f64) {
+        self.data.meta.remove(&*key);
+        self.data.metrics.insert(key, value);
+    }
+
+    /// Remove an attribute from both meta and metrics.
+    #[inline(always)]
+    pub(crate) fn attribute_remove(&mut self, key: &PyBackedString) {
+        self.data.meta.remove(&**key);
+        self.data.metrics.remove(&**key);
+    }
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -133,7 +174,7 @@ impl SpanData {
         service=None,
         resource=None,
         span_type=None,
-        trace_id=None,     // placeholder for Span.__init__ positional arg
+        trace_id=None,
         span_id=None,
         parent_id=None,
         start=None,
@@ -149,7 +190,7 @@ impl SpanData {
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<&Bound<'p, PyAny>>,
         span_type: Option<&Bound<'p, PyAny>>,
-        trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        trace_id: Option<&Bound<'p, PyAny>>,
         span_id: Option<&Bound<'p, PyAny>>,
         parent_id: Option<&Bound<'p, PyAny>>,
         start: Option<&Bound<'p, PyAny>>,
@@ -197,6 +238,45 @@ impl SpanData {
         span.data.span_id = span_id
             .and_then(|obj| obj.extract::<u64>().ok())
             .unwrap_or_else(crate::rand::rand64bits);
+        // Initialize trace_id: use provided value, or generate based on 128-bit mode config.
+        // When auto-generating, reads the Rust-owned AtomicBool set by Python Config.__init__:
+        //   enabled  → generate_128bit_trace_id() (SystemTime upper bits + random lower bits)
+        //   disabled → rand64bits() cast to u128   (random 64-bit value, upper bits zero)
+        // The stored value is always the full intended ID; no masking is applied on reads.
+        //
+        // Optimization: when the caller passes a Python int, we seed `_trace_id_py` with it
+        // directly.  This avoids allocating a brand-new PyLong when `span.trace_id` is first
+        // read — the caller's object is already alive and can be reused.
+        let trace_id_cached = match trace_id {
+            Some(obj) => match obj.extract::<u128>() {
+                Ok(id) => {
+                    span.set_trace_id_native(id);
+                    // Seed the cache with the caller-provided Python int.
+                    Some(obj.clone().unbind())
+                }
+                Err(_) => {
+                    // Invalid type — fall through to auto-generation.
+                    let id = if crate::config::get_128_bit_trace_id_enabled() {
+                        crate::rand::generate_128bit_trace_id()
+                    } else {
+                        crate::rand::rand64bits() as u128
+                    };
+                    span.set_trace_id_native(id);
+                    None
+                }
+            },
+            None => {
+                let id = if crate::config::get_128_bit_trace_id_enabled() {
+                    crate::rand::generate_128bit_trace_id()
+                } else {
+                    crate::rand::rand64bits() as u128
+                };
+                span.set_trace_id_native(id);
+                None
+            }
+        };
+        // Override the None left by set_trace_id_native with the pre-seeded cache (if any).
+        span._trace_id_py = trace_id_cached;
         // Initialize span_api: use provided value or default to "datadog"
         span.span_api = span_api
             .map(|obj| extract_backed_string_or_default(obj))
@@ -329,6 +409,44 @@ impl SpanData {
         }
     }
 
+    // trace_id property - returns the stored trace_id as-is
+    #[getter]
+    #[inline(always)]
+    fn get_trace_id<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyAny> {
+        // Lazy-init: create the Python int on first read, reuse on subsequent reads.
+        // Invalidated (set to None) on every write to data.trace_id.
+        // data.trace_id is always the source of truth; _trace_id_py is purely a Python-side cache.
+        if self._trace_id_py.is_none() {
+            let val = self.data.trace_id;
+            // SAFETY: u128 can always be converted to a Python int
+            self._trace_id_py = Some(
+                val.into_pyobject(py)
+                    .expect("u128 into_pyobject")
+                    .into_any()
+                    .unbind(),
+            );
+        }
+        // SAFETY: guaranteed Some above
+        self._trace_id_py.as_ref().unwrap().bind(py).clone()
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_trace_id(&mut self, value: &Bound<'_, PyAny>) {
+        // Extract u128, silently ignore invalid types (keep existing value)
+        if let Ok(id) = value.extract::<u128>() {
+            self.set_trace_id_native(id);
+        }
+    }
+
+    // _trace_id_64bits property - always returns lower 64 bits
+    #[getter]
+    #[inline(always)]
+    #[allow(non_snake_case)]
+    fn get__trace_id_64bits(&self) -> u64 {
+        (self.data.trace_id & 0xFFFF_FFFF_FFFF_FFFF) as u64
+    }
+
     // finished property (native for performance - avoids Python property hop)
     #[getter]
     #[inline(always)]
@@ -423,8 +541,7 @@ impl SpanData {
         let Ok(value_bs) = value.extract::<PyBackedString>() else {
             return;
         };
-        self.data.metrics.remove(&*key_bs); // mutual exclusion
-        self.data.meta.insert(key_bs, value_bs);
+        self.meta_insert(key_bs, value_bs);
     }
 
     /// Set a numeric attribute. Silently drops if key is not a string or value is not numeric.
@@ -437,8 +554,7 @@ impl SpanData {
         let Ok(val_f64) = value.extract::<f64>() else {
             return;
         };
-        self.data.meta.remove(&*key_bs); // mutual exclusion
-        self.data.metrics.insert(key_bs, val_f64);
+        self.metrics_insert(key_bs, val_f64);
     }
 
     /// Remove an attribute from both meta and metrics.
@@ -447,8 +563,7 @@ impl SpanData {
         let Ok(key_bs) = key.extract::<PyBackedString>() else {
             return;
         };
-        self.data.meta.remove(&*key_bs);
-        self.data.metrics.remove(&*key_bs);
+        self.attribute_remove(&key_bs);
     }
 
     /// Set an attribute dispatching on type: str → meta, int/float → metrics.
@@ -460,42 +575,46 @@ impl SpanData {
         };
         // Try string first (most common case)
         if let Ok(s) = value.extract::<PyBackedString>() {
-            self.data.metrics.remove(&*key_bs);
-            self.data.meta.insert(key_bs, s);
+            self.meta_insert(key_bs, s);
             return;
         }
         // Try numeric (int or float → f64)
         if let Ok(val) = value.extract::<f64>() {
-            self.data.meta.remove(&*key_bs);
-            self.data.metrics.insert(key_bs, val);
+            self.metrics_insert(key_bs, val);
             return;
         }
         // Unrecognized type: stringify and store in meta
         if let Ok(s) = value.str().and_then(|s| s.extract::<PyBackedString>()) {
-            self.data.metrics.remove(&*key_bs);
-            self.data.meta.insert(key_bs, s);
+            self.meta_insert(key_bs, s);
         }
     }
 
-    /// Set multiple attributes from a dict.
+    /// Set multiple attributes from any Mapping (dict, StrAttributesMapping, etc.).
     #[pyo3(name = "_set_attributes")]
     fn set_attributes(&mut self, attrs: Bound<'_, PyAny>) {
-        let Ok(dict) = attrs.cast::<PyDict>() else {
+        let Ok(mapping) = attrs.cast::<PyMapping>() else {
             return;
         };
-        for (key, value) in dict.iter() {
+        let Ok(items) = mapping.items() else {
+            return;
+        };
+        let Ok(iter) = items.into_any().try_iter() else {
+            return;
+        };
+        for item in iter {
+            let Ok(item) = item else { continue };
+            let Ok((key, value)) = item.extract::<(Bound<'_, PyAny>, Bound<'_, PyAny>)>() else {
+                continue;
+            };
             let Ok(key_bs) = key.extract::<PyBackedString>() else {
                 continue;
             };
             if let Ok(s) = value.extract::<PyBackedString>() {
-                self.data.metrics.remove(&*key_bs);
-                self.data.meta.insert(key_bs, s);
+                self.meta_insert(key_bs, s);
             } else if let Ok(val) = value.extract::<f64>() {
-                self.data.meta.remove(&*key_bs);
-                self.data.metrics.insert(key_bs, val);
+                self.metrics_insert(key_bs, val);
             } else if let Ok(s) = value.str().and_then(|s| s.extract::<PyBackedString>()) {
-                self.data.metrics.remove(&*key_bs);
-                self.data.meta.insert(key_bs, s);
+                self.meta_insert(key_bs, s);
             }
         }
     }
@@ -505,7 +624,11 @@ impl SpanData {
     /// Get an attribute by key, checking meta first then metrics.
     /// Returns str if found in meta, float if found in metrics, None if not found.
     #[pyo3(name = "_get_attribute")]
-    fn get_attribute<'py>(&self, py: Python<'py>, key: Bound<'_, PyAny>) -> Option<Bound<'py, PyAny>> {
+    fn get_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
         let Ok(key_bs) = key.extract::<PyBackedString>() else {
             return None;
         };
@@ -520,7 +643,11 @@ impl SpanData {
 
     /// Get a string attribute by key. Returns None if not found.
     #[pyo3(name = "_get_str_attribute")]
-    fn get_str_attribute<'py>(&self, py: Python<'py>, key: Bound<'_, PyAny>) -> Option<Bound<'py, PyAny>> {
+    fn get_str_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyAny>> {
         let Ok(key_bs) = key.extract::<PyBackedString>() else {
             return None;
         };
@@ -529,11 +656,18 @@ impl SpanData {
 
     /// Get a numeric attribute by key. Always returns float. Returns None if not found.
     #[pyo3(name = "_get_numeric_attribute")]
-    fn get_numeric_attribute<'py>(&self, py: Python<'py>, key: Bound<'_, PyAny>) -> Option<Bound<'py, PyFloat>> {
+    fn get_numeric_attribute<'py>(
+        &self,
+        py: Python<'py>,
+        key: Bound<'_, PyAny>,
+    ) -> Option<Bound<'py, PyFloat>> {
         let Ok(key_bs) = key.extract::<PyBackedString>() else {
             return None;
         };
-        self.data.metrics.get(&*key_bs).map(|&v| PyFloat::new(py, v))
+        self.data
+            .metrics
+            .get(&*key_bs)
+            .map(|&v| PyFloat::new(py, v))
     }
 
     /// Check if an attribute exists in either meta or metrics.
@@ -545,40 +679,84 @@ impl SpanData {
         self.data.meta.contains_key(&*key_bs) || self.data.metrics.contains_key(&*key_bs)
     }
 
+    // --- Encoding path helpers (avoid mapping wrapper allocation) ---
+
+    /// Number of string attributes. Used by the encoding path to avoid creating a
+    /// StrAttributesMapping object just for a length check.
+    #[pyo3(name = "_meta_len")]
+    fn meta_len(&self) -> usize {
+        self.data.meta.len()
+    }
+
+    /// Number of numeric attributes. Used by the encoding path to avoid creating a
+    /// NumericAttributesMapping object just for a length check.
+    #[pyo3(name = "_metrics_len")]
+    fn metrics_len(&self) -> usize {
+        self.data.metrics.len()
+    }
+
+    /// String attributes as a `PyList` of `(key, value)` tuples.
+    ///
+    /// Bypasses the `StrAttributesMapping` wrapper — used by the encoding path so it
+    /// never needs to allocate the mapping object at all.
+    #[pyo3(name = "_meta_items")]
+    fn meta_items_direct<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let items: Vec<Bound<'py, PyAny>> = self
+            .data
+            .meta
+            .iter()
+            .map(|(k, v)| {
+                PyTuple::new(py, [k.as_py(py), v.as_py(py)])
+                    .map(|t| t.into_any())
+                    .expect("PyTuple::new failed")
+            })
+            .collect();
+        PyList::new(py, items)
+    }
+
+    /// Numeric attributes as a `PyList` of `(key, value)` tuples.
+    ///
+    /// Bypasses the `NumericAttributesMapping` wrapper — used by the encoding path so it
+    /// never needs to allocate the mapping object at all.
+    #[pyo3(name = "_metrics_items")]
+    fn metrics_items_direct<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        let items: Vec<Bound<'py, PyAny>> = self
+            .data
+            .metrics
+            .iter()
+            .map(|(k, &v)| {
+                PyTuple::new(py, [k.as_py(py), PyFloat::new(py, v).into_any()])
+                    .map(|t| t.into_any())
+                    .expect("PyTuple::new failed")
+            })
+            .collect();
+        PyList::new(py, items)
+    }
+
     // --- Bulk read methods ---
 
-    /// Return all string attributes as a Python dict.
+    /// Return all string attributes as a zero-copy Mapping view over the internal HashMap.
+    ///
+    /// The returned `StrAttributesMapping` holds a reference to this span and reads
+    /// directly from `data.meta` on each access. `__len__` and `__bool__` are O(1).
+    /// `items()` returns a `PyList` of `(key, value)` tuples with near-zero-copy keys/values
+    /// (PyBackedString.as_py() is just a Py_INCREF).
     #[pyo3(name = "_get_str_attributes")]
-    fn get_str_attributes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new(py);
-        for (k, v) in self.data.meta.iter() {
-            dict.set_item(k.as_py(py), v.as_py(py))?;
+    fn get_str_attributes(slf: Bound<'_, Self>) -> StrAttributesMapping {
+        StrAttributesMapping {
+            parent: slf.unbind(),
         }
-        Ok(dict)
     }
 
-    /// Return all numeric attributes as a Python dict (values are float).
+    /// Return all numeric attributes as a zero-copy Mapping view over the internal HashMap.
+    ///
+    /// The returned `NumericAttributesMapping` holds a reference to this span and reads
+    /// directly from `data.metrics` on each access. Values are `PyFloat` (unavoidable allocation).
     #[pyo3(name = "_get_numeric_attributes")]
-    fn get_numeric_attributes<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let dict = PyDict::new(py);
-        for (k, v) in self.data.metrics.iter() {
-            dict.set_item(k.as_py(py), *v)?;
+    fn get_numeric_attributes(slf: Bound<'_, Self>) -> NumericAttributesMapping {
+        NumericAttributesMapping {
+            parent: slf.unbind(),
         }
-        Ok(dict)
-    }
-
-    // --- Read-only _meta / _metrics properties (aliases) ---
-
-    /// Read-only property returning all string attributes as a Python dict.
-    #[getter(_meta)]
-    fn get_meta<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        self.get_str_attributes(py)
-    }
-
-    /// Read-only property returning all numeric attributes as a Python dict.
-    #[getter(_metrics)]
-    fn get_metrics_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        self.get_numeric_attributes(py)
     }
 }
 
@@ -586,5 +764,7 @@ pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpanLinkData>()?;
     m.add_class::<SpanEventData>()?;
     m.add_class::<SpanData>()?;
+    m.add_class::<StrAttributesMapping>()?;
+    m.add_class::<NumericAttributesMapping>()?;
     Ok(())
 }

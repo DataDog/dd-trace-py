@@ -169,8 +169,8 @@ class RaySpanManager:
         )
         new_span._set_tag_str("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
-        new_span.set_tags(job_span._meta)
-        new_span.set_tags(job_span._metrics)
+        new_span._set_attributes(job_span._get_str_attributes())
+        new_span._set_attributes(job_span._get_numeric_attributes())
 
         return new_span
 

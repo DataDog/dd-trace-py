@@ -156,7 +156,7 @@ class APIManager(Service):
             return
         root = env.entry_span
         collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
-        if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
+        if not root or any(root._has_attribute(meta_name) for _, meta_name, _ in collected):
             return
 
         try:

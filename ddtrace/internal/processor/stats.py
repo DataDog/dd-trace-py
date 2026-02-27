@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 def _is_measured(span: Span) -> bool:
     """Return whether the span is flagged to be measured or not."""
-    return span._metrics.get(_SPAN_MEASURED_KEY) == 1
+    return span._get_numeric_attribute(_SPAN_MEASURED_KEY) == 1
 
 
 """

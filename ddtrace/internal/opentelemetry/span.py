@@ -152,7 +152,7 @@ class Span(OtelSpan):
         # BUG: Span.kind is required by the otel library instrumentation (ex: flask, asgi, django) but
         # this property is only defined in the opentelemetry-sdk and NOT defined the opentelemetry-api.
         # TODO: Propose a fix in opentelemetry-python-contrib project
-        return self._ddspan._meta.get(SPAN_KIND, SpanKind.INTERNAL.name.lower())
+        return self._ddspan._get_str_attribute(SPAN_KIND) or SpanKind.INTERNAL.name.lower()
 
     def get_span_context(self):
         # type: () -> SpanContext

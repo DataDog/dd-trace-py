@@ -346,7 +346,7 @@ class SpanAggregator(SpanProcessor):
         with self._lock:
             trace = self._traces[span.trace_id]
             trace.spans.append(span)
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_str_attribute(COMPONENT) or span._span_api
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
@@ -355,7 +355,7 @@ class SpanAggregator(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # Acquire lock to get finished and update trace.spans
         with self._lock:
-            integration_name = span._meta.get(COMPONENT, span._span_api)
+            integration_name = span._get_str_attribute(COMPONENT) or span._span_api
             self._span_metrics["spans_finished"][integration_name] += 1
 
             if span.trace_id not in self._traces:
