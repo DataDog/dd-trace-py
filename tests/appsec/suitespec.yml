@@ -251,7 +251,7 @@ suites:
       - '@appsec_iast'
       - '@asgi'
       - '@wsgi'
-      - '@flask'
+      - '@tornado'
       - '@remoteconfig'
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
