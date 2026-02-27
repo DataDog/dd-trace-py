@@ -1,7 +1,7 @@
 use pyo3::{
     types::{
-        PyAnyMethods as _, PyDict, PyDictMethods as _, PyFloat, PyInt, PyMapping,
-        PyMappingMethods as _, PyModule, PyModuleMethods as _, PyTuple,
+        PyAnyMethods as _, PyDict, PyDictMethods as _, PyFloat, PyInt, PyModule,
+        PyModuleMethods as _, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
@@ -74,7 +74,7 @@ impl SpanLinkData {
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 pub struct SpanData {
-    pub(crate) data: libdd_trace_utils::span::v04::Span<PyTraceData>,
+    data: libdd_trace_utils::span::v04::Span<PyTraceData>,
     span_api: PyBackedString,
     /// Lazy Python int cache for the `trace_id` getter.
     /// Populated on first read; invalidated on every write to `data.trace_id`.
@@ -98,25 +98,33 @@ impl SpanData {
 
     /// Insert a string attribute, enforcing mutual exclusion with metrics.
     #[inline(always)]
-    pub(crate) fn meta_insert(&mut self, key: PyBackedString, value: PyBackedString) {
-        self.data.metrics.remove(&*key);
-        self._metrics.del_item(key);
+    fn meta_insert(&mut self, py: Python<'_>, key: PyBackedString, value: PyBackedString) {
+        if self.data.metrics.remove(&*key).is_some() {
+            let _ = self._metrics.bind(py).del_item(key.as_py(py));
+        }
+        let _ = self._meta.bind(py).set_item(key.as_py(py), value.as_py(py));
         self.data.meta.insert(key, value);
-        self._meta.set_item(key, value).ok();
     }
 
     /// Insert a numeric attribute, enforcing mutual exclusion with meta.
     #[inline(always)]
-    pub(crate) fn metrics_insert(&mut self, key: PyBackedString, value: f64) {
-        self.data.meta.remove(&*key);
+    fn metrics_insert(&mut self, py: Python<'_>, key: PyBackedString, value: f64) {
+        if self.data.meta.remove(&*key).is_some() {
+            let _ = self._meta.bind(py).del_item(key.as_py(py));
+        }
+        let _ = self._metrics.bind(py).set_item(key.as_py(py), PyFloat::new(py, value));
         self.data.metrics.insert(key, value);
     }
 
     /// Remove an attribute from both meta and metrics.
     #[inline(always)]
-    pub(crate) fn attribute_remove(&mut self, key: &PyBackedString) {
-        self.data.meta.remove(&**key);
-        self.data.metrics.remove(&**key);
+    fn attribute_remove(&mut self, py: Python<'_>, key: &PyBackedString) {
+        if self.data.meta.remove(&**key).is_some() {
+            let _ = self._meta.bind(py).del_item(key.as_py(py));
+        }
+        if self.data.metrics.remove(&**key).is_some() {
+            let _ = self._metrics.bind(py).del_item(key.as_py(py));
+        }
     }
 }
 
@@ -548,7 +556,7 @@ impl SpanData {
         let Ok(value_bs) = value.extract::<PyBackedString>() else {
             return;
         };
-        self.meta_insert(key_bs, value_bs);
+        self.meta_insert(key.py(), key_bs, value_bs);
     }
 
     /// Set a numeric attribute. Silently drops if key is not a string or value is not numeric.
@@ -561,7 +569,7 @@ impl SpanData {
         let Ok(val_f64) = value.extract::<f64>() else {
             return;
         };
-        self.metrics_insert(key_bs, val_f64);
+        self.metrics_insert(key.py(), key_bs, val_f64);
     }
 
     /// Remove an attribute from both meta and metrics.
@@ -570,7 +578,7 @@ impl SpanData {
         let Ok(key_bs) = key.extract::<PyBackedString>() else {
             return;
         };
-        self.attribute_remove(&key_bs);
+        self.attribute_remove(key.py(), &key_bs);
     }
 
     /// Set an attribute dispatching on type: str → meta, int/float → metrics.
@@ -580,32 +588,30 @@ impl SpanData {
         let Ok(key_bs) = key.extract::<PyBackedString>() else {
             return;
         };
+        let py = key.py();
         // Try string first (most common case)
         if let Ok(s) = value.extract::<PyBackedString>() {
-            self.meta_insert(key_bs, s);
+            self.meta_insert(py, key_bs, s);
             return;
         }
         // Try numeric (int or float → f64)
         if let Ok(val) = value.extract::<f64>() {
-            self.metrics_insert(key_bs, val);
+            self.metrics_insert(py, key_bs, val);
             return;
         }
         // Unrecognized type: stringify and store in meta
         if let Ok(s) = value.str().and_then(|s| s.extract::<PyBackedString>()) {
-            self.meta_insert(key_bs, s);
+            self.meta_insert(py, key_bs, s);
         }
     }
 
     /// Set multiple attributes from any Mapping (dict, StrAttributesMapping, etc.).
     #[pyo3(name = "_set_attributes")]
     fn set_attributes(&mut self, attrs: Bound<'_, PyAny>) {
-        let Ok(mapping) = attrs.cast::<PyMapping>() else {
+        let Ok(items) = attrs.call_method0("items") else {
             return;
         };
-        let Ok(items) = mapping.items() else {
-            return;
-        };
-        let Ok(iter) = items.into_any().try_iter() else {
+        let Ok(iter) = items.try_iter() else {
             return;
         };
         for item in iter {
@@ -613,16 +619,7 @@ impl SpanData {
             let Ok((key, value)) = item.extract::<(Bound<'_, PyAny>, Bound<'_, PyAny>)>() else {
                 continue;
             };
-            let Ok(key_bs) = key.extract::<PyBackedString>() else {
-                continue;
-            };
-            if let Ok(s) = value.extract::<PyBackedString>() {
-                self.meta_insert(key_bs, s);
-            } else if let Ok(val) = value.extract::<f64>() {
-                self.metrics_insert(key_bs, val);
-            } else if let Ok(s) = value.str().and_then(|s| s.extract::<PyBackedString>()) {
-                self.meta_insert(key_bs, s);
-            }
+            self.set_attribute(key, value);
         }
     }
 
@@ -688,24 +685,30 @@ impl SpanData {
 
     // --- Bulk read methods ---
 
-    /// Return all string attributes as a zero-copy Mapping view over the internal HashMap.
+    /// Return all string attributes as the live PyDict cache (no copy).
     ///
-    /// The returned `StrAttributesMapping` holds a reference to this span and reads
-    /// directly from `data.meta` on each access. `__len__` and `__bool__` are O(1).
-    /// `items()` returns a `PyList` of `(key, value)` tuples with near-zero-copy keys/values
-    /// (PyBackedString.as_py() is just a Py_INCREF).
+    /// **IMPORTANT — do not mutate the returned dict.**
+    /// The dict is the internal `_meta` cache that is kept in sync with the Rust `HashMap`.
+    /// Mutating it directly bypasses the sync and will corrupt the internal state.
+    /// This is intentionally a `PyDict` (not a copy) as a performance optimisation: callers such
+    /// as the encoder use `PyDict_Next` for zero-copy iteration.  Treat the return value as a
+    /// read-only `Mapping[str, str]`.
     #[pyo3(name = "_get_str_attributes")]
-    fn get_str_attributes(slf: Bound<'_, Self>) -> PyDict {
-        return self._meta.clone_ref(slf.py());
+    fn get_str_attributes<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
+        self._meta.bind(py).clone()
     }
 
-    /// Return all numeric attributes as a zero-copy Mapping view over the internal HashMap.
+    /// Return all numeric attributes as the live PyDict cache (no copy).
     ///
-    /// The returned `NumericAttributesMapping` holds a reference to this span and reads
-    /// directly from `data.metrics` on each access. Values are `PyFloat` (unavoidable allocation).
+    /// **IMPORTANT — do not mutate the returned dict.**
+    /// The dict is the internal `_metrics` cache that is kept in sync with the Rust `HashMap`.
+    /// Mutating it directly bypasses the sync and will corrupt the internal state.
+    /// This is intentionally a `PyDict` (not a copy) as a performance optimisation: callers such
+    /// as the encoder use `PyDict_Next` for zero-copy iteration.  Treat the return value as a
+    /// read-only `Mapping[str, float]`.
     #[pyo3(name = "_get_numeric_attributes")]
-    fn get_numeric_attributes(slf: Bound<'_, Self>) -> PyDict {
-        return self._metrics.clone_ref(slf.py());
+    fn get_numeric_attributes<'py>(&self, py: Python<'py>) -> Bound<'py, PyDict> {
+        self._metrics.bind(py).clone()
     }
 }
 

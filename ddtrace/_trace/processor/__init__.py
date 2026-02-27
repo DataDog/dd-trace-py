@@ -204,7 +204,7 @@ class TopLevelSpanProcessor(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
         if span._is_top_level:
-            span._set_numeric_attribute("_dd.top_level", 1)  # PERF: avoid setting via Span.set_metric
+            span._set_attribute("_dd.top_level", 1)  # PERF: avoid setting via Span.set_metric
 
 
 class ServiceNameProcessor(TraceProcessor):

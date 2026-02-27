@@ -505,7 +505,7 @@ class Tracer(object):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
                 if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._set_str_attribute(k, v)
+                    span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
             span = Span(
@@ -522,7 +522,7 @@ class Tracer(object):
 
         if not span._parent:
             span._set_tag_str("runtime-id", get_runtime_id())
-            span._set_numeric_attribute(PID, self._pid)
+            span._set_attribute(PID, self._pid)
 
         # Apply default global tags.
         if self._tags:

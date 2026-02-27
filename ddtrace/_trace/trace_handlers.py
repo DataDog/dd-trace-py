@@ -250,11 +250,11 @@ def _set_inferred_proxy_tags(span, status_code):
         if span.error == 1:
             inferred_span.error = span.error
             if (v := span._get_str_attribute(ERROR_MSG)) is not None:
-                inferred_span._set_str_attribute(ERROR_MSG, v)
+                inferred_span._set_attribute(ERROR_MSG, v)
             if (v := span._get_str_attribute(ERROR_TYPE)) is not None:
-                inferred_span._set_str_attribute(ERROR_TYPE, v)
+                inferred_span._set_attribute(ERROR_TYPE, v)
             if (v := span._get_str_attribute(ERROR_STACK)) is not None:
-                inferred_span._set_str_attribute(ERROR_STACK, v)
+                inferred_span._set_attribute(ERROR_STACK, v)
 
 
 def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
@@ -537,7 +537,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx.get_item("pin"), ctx.span, request)
-    ctx.span._set_numeric_attribute(_SPAN_MEASURED_KEY, 1)
+    ctx.span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_request_final_tags(span):
@@ -825,12 +825,12 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
     span = ctx.span
     if args is not None:
         # PERF: avoid extra overhead from checks in Span.set_metric
-        span._set_numeric_attribute(redisx.ARGS_LEN, len(args))
+        span._set_attribute(redisx.ARGS_LEN, len(args))
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
                 # PERF: avoid extra overhead from checks in Span.set_metric
-                span._set_numeric_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
+                span._set_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
@@ -1336,7 +1336,7 @@ def _on_aiokafka_getmany_message(
 
 def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
     span = _start_span(ctx, call_trace, **kwargs)
-    span._set_numeric_attribute(_SPAN_MEASURED_KEY, 1)
+    span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
     request = ctx.get_item("request")
 

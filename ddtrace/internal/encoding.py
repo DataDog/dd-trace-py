@@ -72,11 +72,11 @@ class _EncoderBase(object):
 
         meta = span._get_str_attributes()
         if meta:
-            d["meta"] = dict(meta.items())
+            d["meta"] = meta
 
         metrics = span._get_numeric_attributes()
         if metrics:
-            d["metrics"] = dict(metrics.items())
+            d["metrics"] = metrics
 
         if span.span_type:
             d["type"] = span.span_type

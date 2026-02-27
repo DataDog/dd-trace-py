@@ -702,19 +702,18 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         return ret
 
     cdef inline int _pack_meta(
-        self, object span, Py_ssize_t meta_len, char *dd_origin, str span_events,
+        self, dict meta_mapping, char *dd_origin, str span_events,
     ) except? -1:
         cdef Py_ssize_t L
         cdef int ret
 
-        # Use span._meta_items() directly — avoids allocating a StrAttributesMapping wrapper
-        L = meta_len + (dd_origin is not NULL) + (len(span_events) > 0)
+        L = len(meta_mapping) + (dd_origin is not NULL) + (len(span_events) > 0)
         if L > ITEM_LIMIT:
             raise ValueError("dict is too large")
 
         ret = msgpack_pack_map(&self.pk, L)
         if ret == 0:
-            for k, v in span._meta_items():
+            for k, v in meta_mapping.items():
                 ret = pack_text(&self.pk, k)
                 if ret != 0:
                     break
@@ -733,18 +732,17 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     ret = pack_text(&self.pk, span_events)
         return ret
 
-    cdef inline int _pack_metrics(self, object span, Py_ssize_t metrics_len) except? -1:
+    cdef inline int _pack_metrics(self, dict metrics_mapping) except? -1:
         cdef Py_ssize_t L
         cdef int ret
 
-        # Use span._metrics_items() directly — avoids allocating a NumericAttributesMapping wrapper
-        L = metrics_len
+        L = len(metrics_mapping)
         if L > ITEM_LIMIT:
             raise ValueError("dict is too large")
 
         ret = msgpack_pack_map(&self.pk, L)
         if ret == 0:
-            for k, v in span._metrics_items():
+            for k, v in metrics_mapping.items():
                 ret = pack_text(&self.pk, k)
                 if ret != 0:
                     break
@@ -760,21 +758,25 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
         cdef int has_meta
         cdef int has_metrics
         cdef uint64_t span_id = span.span_id
-        cdef Py_ssize_t meta_map_len, metrics_map_len
+        cdef dict meta, metrics
 
-        # Use direct len methods — avoids allocating StrAttributesMapping/NumericAttributesMapping
-        meta_map_len = span._meta_len()
-        metrics_map_len = span._metrics_len()
+        # PERF: unsafe cast skips PyDict_Check at assignment. Safe because
+        # _get_str_attributes() / _get_numeric_attributes() are guaranteed to
+        # return a PyDict (Rust Py<PyDict>). Risk: if the return type ever
+        # changes to a non-dict, this silently produces undefined behaviour
+        # instead of a TypeError.
+        meta = <dict>span._get_str_attributes()
+        metrics = <dict>span._get_numeric_attributes()
 
         has_error = <bint> (span.error != 0)
         has_span_type = <bint> (span.span_type is not None)
         has_span_events = <bint> (len(span._events) > 0)
-        has_metrics = <bint> (metrics_map_len > 0)
+        has_metrics = <bint> (len(metrics) > 0)
         has_parent_id = <bint> (span.parent_id is not None)
         has_links = <bint> (len(span._links) > 0)
         has_meta_struct = <bint> (len(span._meta_struct) > 0)
         has_meta = <bint> (
-            meta_map_len > 0
+            len(meta) > 0
             or dd_origin is not NULL
             or (not self.top_level_span_event_encoding and has_span_events)
         )
@@ -884,7 +886,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 span_events = ""
                 if has_span_events and not self.top_level_span_event_encoding:
                     span_events = json_dumps([vars(event)()  for event in span._events])
-                ret = self._pack_meta(span, meta_map_len, <char *> dd_origin, span_events)
+                ret = self._pack_meta(meta, <char *> dd_origin, span_events)
                 if ret != 0:
                     return ret
 
@@ -912,7 +914,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                 if ret != 0:
                     return ret
 
-                ret = self._pack_metrics(span, metrics_map_len)
+                ret = self._pack_metrics(metrics)
                 if ret != 0:
                     return ret
 
@@ -1040,6 +1042,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         cdef int ret
         cdef Py_ssize_t meta_map_len, metrics_map_len
         cdef uint64_t span_id = span.span_id
+        cdef dict meta, metrics
 
         ret = msgpack_pack_array(&self.pk, 12)
         if ret != 0:
@@ -1093,8 +1096,9 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if span._events:
             span_events = json_dumps([vars(event)() for event in span._events])
 
-        # Use direct len/items — avoids allocating a StrAttributesMapping wrapper
-        meta_map_len = span._meta_len()
+        # PERF: unsafe cast skips PyDict_Check — see V04 pack_span comment.
+        meta = <dict>span._get_str_attributes()
+        meta_map_len = len(meta)
 
         ret = msgpack_pack_map(
             &self.pk,
@@ -1102,7 +1106,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         )
         if ret != 0:
             return ret
-        for k, v in span._meta_items():
+        for k, v in meta.items():
             ret = self._pack_string(k)
             if ret != 0:
                 return ret
@@ -1131,13 +1135,14 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             if ret != 0:
                 return ret
 
-        # Use direct len/items — avoids allocating a NumericAttributesMapping wrapper
-        metrics_map_len = span._metrics_len()
+        # PERF: unsafe cast skips PyDict_Check — see V04 pack_span comment.
+        metrics = <dict>span._get_numeric_attributes()
+        metrics_map_len = len(metrics)
 
         ret = msgpack_pack_map(&self.pk, metrics_map_len)
         if ret != 0:
             return ret
-        for k, v in span._metrics_items():
+        for k, v in metrics.items():
             ret = self._pack_string(k)
             if ret != 0:
                 return ret

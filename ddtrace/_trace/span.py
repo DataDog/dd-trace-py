@@ -183,10 +183,10 @@ class Span(SpanData):
         with self.context:
             for tag, tag_value in self.context._meta.items():
                 if not self._has_attribute(tag):
-                    self._set_str_attribute(tag, tag_value)
+                    self._set_attribute(tag, tag_value)
             for metric, metric_value in self.context._metrics.items():
                 if not self._has_attribute(metric):
-                    self._set_numeric_attribute(metric, metric_value)
+                    self._set_attribute(metric, metric_value)
 
     def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -305,7 +305,7 @@ class Span(SpanData):
             return
 
         try:
-            self._set_str_attribute(key, str(value))
+            self._set_attribute(key, str(value))
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -326,7 +326,7 @@ class Span(SpanData):
         U+FFFD.
         """
         try:
-            self._set_str_attribute(key, ensure_text(value, errors="replace"))
+            self._set_attribute(key, ensure_text(value, errors="replace"))
         except Exception as e:
             if config._raise:
                 raise e
@@ -374,7 +374,7 @@ class Span(SpanData):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        self._set_numeric_attribute(key, value)
+        self._set_attribute(key, value)
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
@@ -415,7 +415,7 @@ class Span(SpanData):
             if limit is None:
                 limit = config._span_traceback_max_size
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self._set_str_attribute(ERROR_STACK, tb)
+            self._set_attribute(ERROR_STACK, tb)
 
     def _get_traceback(
         self,
@@ -484,18 +484,18 @@ class Span(SpanData):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-        self._set_str_attribute(ERROR_TYPE, exc_type_str)
+        self._set_attribute(ERROR_TYPE, exc_type_str)
 
         try:
-            self._set_str_attribute(ERROR_MSG, str(exc_val))
+            self._set_attribute(ERROR_MSG, str(exc_val))
         except Exception:
             # An exception can occur if a custom Exception overrides __str__
             # If this happens str(exc_val) won't work, so best we can do is print the class name
             # Otherwise, don't try to set an error message
             if exc_val and hasattr(exc_val, "__class__"):
-                self._set_str_attribute(ERROR_MSG, exc_val.__class__.__name__)
+                self._set_attribute(ERROR_MSG, exc_val.__class__.__name__)
 
-        self._set_str_attribute(ERROR_STACK, tb)
+        self._set_attribute(ERROR_STACK, tb)
 
         # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
         # this event such that the additional tags for inferred aws api gateway spans can be appended here.
