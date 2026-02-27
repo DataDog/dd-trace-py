@@ -36,5 +36,5 @@ class GreenletInfo
     {
     }
 
-    int unwind(EchionSampler& echion, PyObject*, PyThreadState*, FrameStack&);
+    void unwind(EchionSampler& echion, PyObject*, PyThreadState*, FrameStack&);
 };
