@@ -136,7 +136,7 @@ class TracerFlareCallback(RCCallback):
 
 
 class TracerFlareSubscriber(RemoteConfigSubscriber):
-    """Compatibility subscriber retained for existing unit tests."""
+    """Subscriber for tracer flare requests."""
 
     def __init__(
         self,

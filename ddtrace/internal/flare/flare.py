@@ -81,7 +81,8 @@ class Flare:
         self._native_manager.set_current_log_level(log_level)
 
         # Setup logging and create config file
-        self._setup_flare_logging(flare_log_level_int)
+        pid = self._setup_flare_logging(flare_log_level_int)
+        self._generate_config_file(pid)
         return True
 
     def send(self, flare_action: native_flare.FlareAction):
@@ -117,6 +118,29 @@ class Flare:
             except ValueError:
                 log.debug("Native file logger is not enabled")
             _configure_ddtrace_native_logger()
+
+    def _generate_config_file(self, pid: int):
+        config_file = self.flare_dir / f"tracer_config_{pid}.json"
+        try:
+            with open(config_file, "w") as f:
+                # Redact API key if present
+                api_key = self.ddconfig.get("_dd_api_key")
+                if api_key:
+                    self.ddconfig["_dd_api_key"] = "*" * (len(api_key) - 4) + api_key[-4:]
+
+                tracer_configs = {
+                    "configs": self.ddconfig,
+                }
+                json.dump(
+                    tracer_configs,
+                    f,
+                    default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
+                    indent=4,
+                )
+        except Exception as e:
+            log.warning("Failed to generate %s: %s", config_file, e)
+            if os.path.exists(config_file):
+                os.remove(config_file)
 
     def _setup_flare_logging(self, flare_log_level_int: int) -> int:
         """
@@ -167,22 +191,18 @@ class Flare:
         # multiple tracer instances
         try:
             # Create lock file atomically, will fail if it already exists
-            pathlib.Path(TRACER_FLARE_LOCK).open("x").close()
+            pathlib.Path(str(self.flare_dir / TRACER_FLARE_LOCK)).open("x").close()
         except FileExistsError:
             return
 
         log.debug("Sending tracer flare")
         # Use native zip_and_send
-        try:
-            self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
-        except Exception as e:
-            raise
+        self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
         log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
 
     def clean_up_files(self):
         """Clean up the flare directory using Python's shutil."""
         try:
             shutil.rmtree(self.flare_dir)
-            os.remove(TRACER_FLARE_LOCK)
         except Exception as e:
             log.warning("Failed to clean up tracer flare files: %s", e)

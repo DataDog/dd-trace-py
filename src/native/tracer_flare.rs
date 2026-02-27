@@ -206,10 +206,6 @@ impl TracerFlareManagerPy {
             .set_current_log_level(level)
             .map_err(|e| FlareErrorPy::from(e).into())
     }
-
-    fn __repr__(&self) -> String {
-        "TracerFlareManager".to_string()
-    }
 }
 
 /// END
