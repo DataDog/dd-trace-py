@@ -1,3 +1,4 @@
+#include <chrono>
 #include <mutex>
 #include <stdbool.h>
 #include <stdint.h>
@@ -34,6 +35,13 @@ static memalloc_context_t global_memalloc_ctx;
 static bool memalloc_enabled = false;
 static std::once_flag memalloc_fork_handler_once_flag;
 
+// AIDEV-NOTE: Timing instrumentation for memalloc_alloc and memalloc_free.
+// Prints average duration every 100 calls to stderr.
+static uint64_t memalloc_alloc_call_count = 0;
+static uint64_t memalloc_alloc_total_ns = 0;
+static uint64_t memalloc_free_call_count = 0;
+static uint64_t memalloc_free_total_ns = 0;
+
 static void
 memalloc_free(void* ctx, void* ptr)
 {
@@ -42,9 +50,19 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
+    auto t0 = std::chrono::steady_clock::now();
     memalloc_heap_untrack_no_cpython(ptr);
-
     alloc->free(alloc->ctx, ptr);
+    auto t1 = std::chrono::steady_clock::now();
+
+    memalloc_free_total_ns += (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+    memalloc_free_call_count++;
+    if (memalloc_free_call_count % 100 == 0) {
+        fprintf(stderr,
+                "[memalloc] free: avg %.1f ns over %lu calls\n",
+                (double)memalloc_free_total_ns / (double)memalloc_free_call_count,
+                (unsigned long)memalloc_free_call_count);
+    }
 }
 
 static void*
@@ -58,8 +76,19 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
     else
         ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
 
+    auto t0 = std::chrono::steady_clock::now();
     if (ptr) {
         memalloc_heap_track_invokes_cpython(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+    }
+    auto t1 = std::chrono::steady_clock::now();
+
+    memalloc_alloc_total_ns += (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
+    memalloc_alloc_call_count++;
+    if (memalloc_alloc_call_count % 100 == 0) {
+        fprintf(stderr,
+                "[memalloc] alloc: avg %.1f ns over %lu calls\n",
+                (double)memalloc_alloc_total_ns / (double)memalloc_alloc_call_count,
+                (unsigned long)memalloc_alloc_call_count);
     }
 
     return ptr;
