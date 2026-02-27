@@ -38,9 +38,6 @@ More specifically, this module defines dataclass-based event objects that are us
        with core.context_with_event(MyContextEvent(user_id="123")):
            pass
 
-``SpanEvent`` extends ``Event`` with mandatory span-related attributes used by tracing
-handlers.
-
 For event classes used with ``core.context_with_event(...)``, use ``event_field()``
 for every dataclass attribute:
 
@@ -72,8 +69,8 @@ _PY3_9 = sys.version_info < (3, 10)
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:
     """Creates a dataclass field with special handling to ensure retro compatibility
-    as python 3.9 does not support kw_only which is required by SpanContextEvent to
-    allow a child class to have attributes without value.
+    as python 3.9 does not support kw_only which is required by TracingEvent to
+    allow a child class to have attributes without a default value.
     """
     kwargs: dict[str, Any] = {}
     if default is not MISSING:

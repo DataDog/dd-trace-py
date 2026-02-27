@@ -726,7 +726,7 @@ def test_repr() -> None:
     )
 
 
-# Tests from tests/profiling/collector/test_stack.py (v1)
+# Tests from tests/profiling/collector/test_stack.py
 # Function to use for stress-test of polling
 MAX_FN_NUM = 30
 FN_TEMPLATE = """def _f{num}():

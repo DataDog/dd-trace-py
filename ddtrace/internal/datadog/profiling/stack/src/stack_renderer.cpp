@@ -128,7 +128,7 @@ StackRenderer::render_frame(Frame& frame)
 
     const auto& string_table = Sampler::get().get_echion().string_table();
 
-    auto line = frame.location.line;
+    auto line = frame.line;
 
     string_id name_id;
     auto maybe_name_id = string_id_cache.find(frame.name);
