@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    rq: Fixes an ``AttributeError`` caused by ``Job.get_id()`` being removed in
+    `RQ 2.0 <https://github.com/rq/rq/releases/tag/v2.0>`_. The integration now
+    uses the ``job.id`` property, which has been available since RQ 1.8.1 and is
+    the canonical way to access a job's identifier across all supported versions.
