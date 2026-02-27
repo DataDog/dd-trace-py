@@ -47,6 +47,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
 
 
@@ -805,6 +806,8 @@ class Dataset:
             }
 
     def append(self, record: DatasetRecordRaw) -> None:
+        if record.get("tags"):
+            validate_tags_list(record["tags"])
         record_id: str = uuid.uuid4().hex
         # this record ID will be discarded after push, BE will generate a new one, this is just
         # for tracking new records locally before the push
@@ -819,6 +822,7 @@ class Dataset:
 
     def add_tags(self, index: int, tags: list[str]) -> None:
         """Add tags to an existing record. Tags are merged with any existing tags on the record."""
+        validate_tags_list(tags)
         record = self._records[index]
         record_id = record["record_id"]
 
@@ -840,6 +844,7 @@ class Dataset:
 
     def remove_tags(self, index: int, tags: list[str]) -> None:
         """Remove tags from an existing record."""
+        validate_tags_list(tags)
         record = self._records[index]
         record_id = record["record_id"]
 
@@ -861,6 +866,7 @@ class Dataset:
 
     def replace_tags(self, index: int, tags: list[str]) -> None:
         """Replace all tags on an existing record with the given tags."""
+        validate_tags_list(tags)
         record = self._records[index]
         record_id = record["record_id"]
 
@@ -968,7 +974,11 @@ class Dataset:
 
     def _estimate_delta_size(self) -> int:
         """rough estimate (in bytes) of the size of the next batch update call if it happens"""
-        size = len(safe_json(self._new_records_by_record_id)) + len(safe_json(self._updated_record_ids_to_new_fields))
+        size = (
+            len(safe_json(self._new_records_by_record_id))
+            + len(safe_json(self._updated_record_ids_to_new_fields))
+            + len(safe_json(self._pending_tag_operations))
+        )
         logger.debug("estimated delta size %d", size)
         return size
 

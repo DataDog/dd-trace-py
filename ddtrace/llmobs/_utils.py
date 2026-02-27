@@ -337,6 +337,16 @@ def enforce_message_role(messages: list[dict[str, str]]) -> list[dict[str, str]]
     return messages
 
 
+def validate_tags_list(tags: list[str]) -> None:
+    if not isinstance(tags, list):
+        raise TypeError(f"Tags must be a list of strings")
+    for tag in tags:
+        if not isinstance(tag, str):
+            raise TypeError(f"Each tag must be a string")
+        if ":" not in tag:
+            raise ValueError(f"Tag '{tag}' is malformed. Tags must be in 'key:value' format (e.g., 'env:prod').")
+
+
 def convert_tags_dict_to_list(tags: dict[str, str]) -> list[str]:
     if not tags:
         return []
