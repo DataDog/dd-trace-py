@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    celery: Propagate distributed tracing headers for tasks that are not registered locally so traces link correctly across workers.
