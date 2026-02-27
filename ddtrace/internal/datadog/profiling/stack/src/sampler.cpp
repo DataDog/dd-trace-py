@@ -1,6 +1,7 @@
 #include "sampler.hpp"
 
 #include "constants.hpp"
+#include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -171,8 +172,22 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    // Track upload sequence to clear ephemeral string table entries periodically.
+    // We clear every 25 uploads (~25 minutes at default 60s intervals) to avoid
+    // churning entries for long-lived tasks while still bounding growth.
+    uint64_t last_cleared_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+    constexpr uint64_t ephemeral_clear_interval = 25;
+
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        // Clear ephemeral string table entries (task names, greenlet names) periodically.
+        // Safe because strings are copied into StringArena during sample construction.
+        auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+        if (current_upload_seq - last_cleared_upload_seq >= ephemeral_clear_interval) {
+            last_cleared_upload_seq = current_upload_seq;
+            echion->string_table().clear_ephemeral();
+        }
+
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
