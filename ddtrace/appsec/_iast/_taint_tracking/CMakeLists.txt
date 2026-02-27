@@ -49,11 +49,18 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDONT_COMPILE_ABSEIL) # Define DONT_COMPILE_ABSEIL preprocessor variable
 else()
     message("Release, RelWithDebInfo, or MinSizeRel mode: using abseil (DD_COMPILE_ABSEIL unset or not 0/false)")
+    # Use a git-based fetch rather than a ZIP download: git shallow clones are more resilient to GitHub transient
+    # failures than release archive downloads. FETCHCONTENT_UPDATES_DISCONNECTED prevents re-fetching on every configure
+    # once the initial clone is in the cache (set by FETCHCONTENT_BASE_DIR in setup.py).
+    set(FETCHCONTENT_UPDATES_DISCONNECTED
+        ON
+        CACHE BOOL "" FORCE)
     FetchContent_Declare(
         absl
-        URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/20250127.1.zip"
-        TIMEOUT 180
-        INACTIVITY_TIMEOUT 120 DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+        GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
+        GIT_TAG 20250127.1
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE)
     FetchContent_MakeAvailable(absl)
 endif()
 
