@@ -1,6 +1,5 @@
 # stdlib
 import contextlib
-import functools
 
 # 3p
 import pymongo
@@ -8,7 +7,6 @@ from wrapt import ObjectProxy
 
 # project
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -44,15 +42,12 @@ VERSION = pymongo.version_tuple
 if VERSION >= (4, 9):
     from pymongo.synchronous.pool import Connection
     from pymongo.synchronous.server import Server
-    from pymongo.synchronous.topology import Topology
 elif VERSION >= (4, 5):
     from pymongo.pool import Connection
     from pymongo.server import Server
-    from pymongo.topology import Topology
 else:
     from pymongo.pool import SocketInfo as Connection
     from pymongo.server import Server
-    from pymongo.topology import Topology
 
 
 log = get_logger(__name__)
@@ -67,8 +62,6 @@ class TracedMongoClient(ObjectProxy):
 
 def patch_pymongo_sync_modules():
     """Patch synchronous pymongo modules."""
-    _w(pymongo.MongoClient.__init__, _trace_mongo_client_init)
-    _w(Topology.select_server, _trace_topology_select_server)
     if VERSION >= (3, 12):
         _w(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
@@ -86,9 +79,6 @@ def patch_pymongo_sync_modules():
 
 def unpatch_pymongo_sync_modules():
     """Unpatch synchronous pymongo modules."""
-    _u(pymongo.MongoClient.__init__, _trace_mongo_client_init)
-    _u(Topology.select_server, _trace_topology_select_server)
-
     if VERSION >= (3, 12):
         _u(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
@@ -104,46 +94,6 @@ def unpatch_pymongo_sync_modules():
     _u(Connection.write_command, _trace_socket_write_command)
 
 
-def setup_mongo_client_pin(client):
-    """Set up pin handling on mongo client. Shared between sync and async."""
-
-    def __setddpin__(client, pin):
-        pin.onto(client._topology)
-
-    def __getddpin__(client):
-        return Pin.get_from(client._topology)
-
-    client.__setddpin__ = functools.partial(__setddpin__, client)
-    client.__getddpin__ = functools.partial(__getddpin__, client)
-    Pin(service=None).onto(client)
-
-
-def _trace_mongo_client_init(func, args, kwargs):
-    func(*args, **kwargs)
-    client = get_argument_value(args, kwargs, 0, "self")
-    setup_mongo_client_pin(client)
-
-
-def propagate_pin_to_server(server, topology_instance):
-    """Propagate pin from topology to server. Shared between sync and async."""
-    pin = Pin.get_from(topology_instance)
-    if pin:
-        pin.onto(server)
-
-
-def _trace_topology_select_server(func, args, kwargs):
-    """Wrapper for Topology.select_server to propagate pin to selected server."""
-    server = func(*args, **kwargs)
-    topology_instance = get_argument_value(args, kwargs, 0, "self")
-    propagate_pin_to_server(server, topology_instance)
-    return server
-
-
-# TODO(mabdinur): Remove TracedServer when ddtrace.contrib.pymongo.client is removed from the public API.
-class TracedServer(ObjectProxy):
-    pass
-
-
 def datadog_trace_operation(operation, wrapped):
     cmd = None
     # Only try to parse something we think is a query.
@@ -153,16 +103,14 @@ def datadog_trace_operation(operation, wrapped):
         except Exception:
             log.exception("error parsing query")
 
-    # Gets the pin from the mongo client (through the topology object)
-    pin = Pin.get_from(wrapped)
     # if we couldn't parse or shouldn't trace the message, just go.
-    if not cmd or not pin or not pin.enabled():
+    if not cmd or not tracer.enabled:
         return None
 
     span = tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=trace_utils.ext_service(pin, config.pymongo),
+        service=trace_utils.ext_service(None, config.pymongo),
     )
 
     span._set_tag_str(COMPONENT, config.pymongo.integration_name)
@@ -213,7 +161,7 @@ def parse_socket_command_spec(args, kwargs):
     Parse socket command spec.
 
     Returns:
-        tuple: (socket_instance, dbname, cmd, pin) if parsing succeeds and tracing should proceed
+        tuple: (socket_instance, dbname, cmd) if parsing succeeds and tracing should proceed
         None: if parsing fails or tracing should be skipped
     """
     socket_instance = get_argument_value(args, kwargs, 0, "self")
@@ -225,13 +173,12 @@ def parse_socket_command_spec(args, kwargs):
     except Exception:
         log.exception("error parsing spec. skipping trace")
 
-    pin = Pin.get_from(socket_instance)
     # skip tracing if we don't have a piece of data we need
-    if not dbname or not cmd or not pin or not pin.enabled():
+    if not dbname or not cmd or not tracer.enabled:
         return None
 
     cmd.db = dbname
-    return (socket_instance, dbname, cmd, pin)
+    return (socket_instance, dbname, cmd)
 
 
 def _trace_socket_command(func, args, kwargs):
@@ -239,7 +186,7 @@ def _trace_socket_command(func, args, kwargs):
     if parsed is None:
         return func(*args, **kwargs)
 
-    socket_instance, dbname, cmd, pin = parsed
+    socket_instance, dbname, cmd = parsed
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         s, args, kwargs = dbm_dispatch(s, args, kwargs)
         return func(*args, **kwargs)
@@ -250,7 +197,7 @@ def parse_socket_write_command_msg(args, kwargs):
     Parse socket write command msg.
 
     Returns:
-        tuple: (socket_instance, cmd, pin) if parsing succeeds and tracing should proceed
+        tuple: (socket_instance, cmd) if parsing succeeds and tracing should proceed
         None: if parsing fails or tracing should be skipped
     """
     socket_instance = get_argument_value(args, kwargs, 0, "self")
@@ -261,12 +208,11 @@ def parse_socket_write_command_msg(args, kwargs):
     except Exception:
         log.exception("error parsing msg")
 
-    pin = Pin.get_from(socket_instance)
     # if we couldn't parse it, don't try to trace it.
-    if not cmd or not pin or not pin.enabled():
+    if not cmd or not tracer.enabled:
         return None
 
-    return (socket_instance, cmd, pin)
+    return (socket_instance, cmd)
 
 
 def _trace_socket_write_command(func, args, kwargs):
@@ -274,7 +220,7 @@ def _trace_socket_write_command(func, args, kwargs):
     if parsed is None:
         return func(*args, **kwargs)
 
-    socket_instance, cmd, pin = parsed
+    socket_instance, cmd = parsed
     with trace_cmd(cmd, socket_instance, socket_instance.address) as s:
         result = func(*args, **kwargs)
         if result:
@@ -283,11 +229,10 @@ def _trace_socket_write_command(func, args, kwargs):
 
 
 def trace_cmd(cmd, socket_instance, address):
-    pin = Pin.get_from(socket_instance)
     s = tracer.trace(
         schematize_database_operation("pymongo.cmd", database_provider="mongodb"),
         span_type=SpanTypes.MONGODB,
-        service=trace_utils.ext_service(pin, config.pymongo),
+        service=trace_utils.ext_service(None, config.pymongo),
     )
 
     s._set_tag_str(COMPONENT, config.pymongo.integration_name)
@@ -311,13 +256,12 @@ def trace_cmd(cmd, socket_instance, address):
 @contextlib.contextmanager
 def traced_get_socket(func, args, kwargs):
     instance = get_argument_value(args, kwargs, 0, "self")
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not tracer.enabled:
         with func(*args, **kwargs) as sock_info:
             yield sock_info
             return
 
-    with create_checkout_span(pin) as span:
+    with create_checkout_span() as span:
         with func(*args, **kwargs) as sock_info:
             setup_checkout_span_tags(span, sock_info, instance)
             yield sock_info
