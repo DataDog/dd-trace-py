@@ -11,7 +11,6 @@ mod log;
 mod py_string;
 mod rand;
 mod span;
-mod span_attributes;
 
 use pyo3::prelude::*;
 

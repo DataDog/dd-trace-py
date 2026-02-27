@@ -1,14 +1,13 @@
 use pyo3::{
     types::{
-        PyAnyMethods as _, PyDict, PyFloat, PyInt, PyList, PyMapping, PyMappingMethods as _,
-        PyModule, PyModuleMethods as _, PyTuple,
+        PyAnyMethods as _, PyDict, PyDictMethods as _, PyFloat, PyInt, PyMapping,
+        PyMappingMethods as _, PyModule, PyModuleMethods as _, PyTuple,
     },
     Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
 
 use crate::py_string::{PyBackedString, PyTraceData};
-use crate::span_attributes::{NumericAttributesMapping, StrAttributesMapping};
 use libdd_trace_utils::span::SpanText;
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
@@ -74,7 +73,6 @@ impl SpanLinkData {
 }
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
 pub struct SpanData {
     pub(crate) data: libdd_trace_utils::span::v04::Span<PyTraceData>,
     span_api: PyBackedString,
@@ -82,6 +80,8 @@ pub struct SpanData {
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
     _trace_id_py: Option<Py<PyAny>>,
+    _meta: Py<PyDict>,
+    _metrics: Py<PyDict>,
 }
 
 impl SpanData {
@@ -100,7 +100,9 @@ impl SpanData {
     #[inline(always)]
     pub(crate) fn meta_insert(&mut self, key: PyBackedString, value: PyBackedString) {
         self.data.metrics.remove(&*key);
+        self._metrics.del_item(key);
         self.data.meta.insert(key, value);
+        self._meta.set_item(key, value).ok();
     }
 
     /// Insert a numeric attribute, enforcing mutual exclusion with meta.
@@ -201,7 +203,16 @@ impl SpanData {
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
-        let mut span = Self::default();
+        let mut span = Self {
+            data: Default::default(),
+            _trace_id_py: None,
+            _meta: PyDict::new(py).into(),
+            _metrics: PyDict::new(py).into(),
+            span_api: span_api
+                .map(|obj| extract_backed_string_or_default(obj))
+                .unwrap_or_else(|| PyBackedString::from_static_str("datadog")),
+        };
+
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
@@ -277,10 +288,6 @@ impl SpanData {
         };
         // Override the None left by set_trace_id_native with the pre-seeded cache (if any).
         span._trace_id_py = trace_id_cached;
-        // Initialize span_api: use provided value or default to "datadog"
-        span.span_api = span_api
-            .map(|obj| extract_backed_string_or_default(obj))
-            .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         span
     }
 
@@ -679,60 +686,6 @@ impl SpanData {
         self.data.meta.contains_key(&*key_bs) || self.data.metrics.contains_key(&*key_bs)
     }
 
-    // --- Encoding path helpers (avoid mapping wrapper allocation) ---
-
-    /// Number of string attributes. Used by the encoding path to avoid creating a
-    /// StrAttributesMapping object just for a length check.
-    #[pyo3(name = "_meta_len")]
-    fn meta_len(&self) -> usize {
-        self.data.meta.len()
-    }
-
-    /// Number of numeric attributes. Used by the encoding path to avoid creating a
-    /// NumericAttributesMapping object just for a length check.
-    #[pyo3(name = "_metrics_len")]
-    fn metrics_len(&self) -> usize {
-        self.data.metrics.len()
-    }
-
-    /// String attributes as a `PyList` of `(key, value)` tuples.
-    ///
-    /// Bypasses the `StrAttributesMapping` wrapper — used by the encoding path so it
-    /// never needs to allocate the mapping object at all.
-    #[pyo3(name = "_meta_items")]
-    fn meta_items_direct<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        let items: Vec<Bound<'py, PyAny>> = self
-            .data
-            .meta
-            .iter()
-            .map(|(k, v)| {
-                PyTuple::new(py, [k.as_py(py), v.as_py(py)])
-                    .map(|t| t.into_any())
-                    .expect("PyTuple::new failed")
-            })
-            .collect();
-        PyList::new(py, items)
-    }
-
-    /// Numeric attributes as a `PyList` of `(key, value)` tuples.
-    ///
-    /// Bypasses the `NumericAttributesMapping` wrapper — used by the encoding path so it
-    /// never needs to allocate the mapping object at all.
-    #[pyo3(name = "_metrics_items")]
-    fn metrics_items_direct<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        let items: Vec<Bound<'py, PyAny>> = self
-            .data
-            .metrics
-            .iter()
-            .map(|(k, &v)| {
-                PyTuple::new(py, [k.as_py(py), PyFloat::new(py, v).into_any()])
-                    .map(|t| t.into_any())
-                    .expect("PyTuple::new failed")
-            })
-            .collect();
-        PyList::new(py, items)
-    }
-
     // --- Bulk read methods ---
 
     /// Return all string attributes as a zero-copy Mapping view over the internal HashMap.
@@ -742,10 +695,8 @@ impl SpanData {
     /// `items()` returns a `PyList` of `(key, value)` tuples with near-zero-copy keys/values
     /// (PyBackedString.as_py() is just a Py_INCREF).
     #[pyo3(name = "_get_str_attributes")]
-    fn get_str_attributes(slf: Bound<'_, Self>) -> StrAttributesMapping {
-        StrAttributesMapping {
-            parent: slf.unbind(),
-        }
+    fn get_str_attributes(slf: Bound<'_, Self>) -> PyDict {
+        return self._meta.clone_ref(slf.py());
     }
 
     /// Return all numeric attributes as a zero-copy Mapping view over the internal HashMap.
@@ -753,10 +704,8 @@ impl SpanData {
     /// The returned `NumericAttributesMapping` holds a reference to this span and reads
     /// directly from `data.metrics` on each access. Values are `PyFloat` (unavoidable allocation).
     #[pyo3(name = "_get_numeric_attributes")]
-    fn get_numeric_attributes(slf: Bound<'_, Self>) -> NumericAttributesMapping {
-        NumericAttributesMapping {
-            parent: slf.unbind(),
-        }
+    fn get_numeric_attributes(slf: Bound<'_, Self>) -> PyDict {
+        return self._metrics.clone_ref(slf.py());
     }
 }
 
@@ -764,7 +713,5 @@ pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpanLinkData>()?;
     m.add_class::<SpanEventData>()?;
     m.add_class::<SpanData>()?;
-    m.add_class::<StrAttributesMapping>()?;
-    m.add_class::<NumericAttributesMapping>()?;
     Ok(())
 }
