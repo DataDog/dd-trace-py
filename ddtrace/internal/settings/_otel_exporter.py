@@ -96,15 +96,18 @@ def _get_otel_traces_timeout_seconds() -> float:
 def _resolve_otlp_traces_url() -> str:
     """Resolve full OTLP traces URL (endpoint + path for HTTP).
 
-    When OTEL_EXPORTER_OTLP_TRACES_ENDPOINT (or generic) is set, use it as-is.
-    When no endpoint is set, use HTTP default with /v1/traces (only HTTP/JSON
-    is supported).
+    When OTEL_EXPORTER_OTLP_TRACES_ENDPOINT or OTEL_EXPORTER_OTLP_ENDPOINT is set,
+    the value is treated as a base URL; /v1/traces is appended if not already present
+    (OTEL spec: generic endpoint is base, traces path is /v1/traces). When no
+    endpoint is set, use HTTP default with /v1/traces.
     """
     endpoint = _get_otel_traces_endpoint()
-    if endpoint:
-        return endpoint.rstrip("/")
-    # No endpoint set: use HTTP default with /v1/traces
-    return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
+    if not endpoint:
+        return OTLP_HTTP_DEFAULT_ENDPOINT.rstrip("/") + OTLP_HTTP_TRACES_PATH
+    base = endpoint.rstrip("/")
+    if base.endswith(OTLP_HTTP_TRACES_PATH):
+        return base
+    return base + OTLP_HTTP_TRACES_PATH
 
 
 def _is_otlp_traces_exporter_otlp() -> bool:
