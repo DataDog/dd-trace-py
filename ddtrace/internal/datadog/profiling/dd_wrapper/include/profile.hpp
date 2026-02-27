@@ -41,7 +41,7 @@ class Profile
     ValueIndex val_idx{};
 
     // Configuration for the pprof exporter
-    std::vector<ddog_prof_ValueType> samplers{};
+    std::vector<ddog_prof_SampleType> samplers{};
 
     // The profile object is initialized here as a skeleton object, but it
     // cannot be used until it's initialized by libdatadog
