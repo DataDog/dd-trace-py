@@ -333,11 +333,17 @@ def set_body_response(body_response):
     # local import to avoid circular import
     from ddtrace.appsec._utils import parse_response_body
 
+    env = _get_asm_context()
+    if env is None:
+        extra = {"product": "appsec", "more_info": "::set_body_response", "stack_limit": 4}
+        logger.debug("asm_context::set_body_response::no_active_context", extra=extra, stack_info=True)
+        return
+
     set_waf_address(
         SPAN_DATA_NAMES.RESPONSE_BODY,
         lambda: parse_response_body(
             body_response,
-            get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES),
+            env.waf_addresses.get(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, None),
         ),
     )
 
@@ -609,6 +615,7 @@ def _on_pre_tracedrequest(ctx):
 
 
 def _set_headers_and_response(response, headers, *_):
+    print(f"headers: {headers}, response: {response}")
     if not asm_config._asm_enabled:
         return
 
