@@ -296,6 +296,18 @@ class BaseWrappingContext(ABC):
         self.__wrapped__ = f
         self._storage_stack: ContextVar[list[dict]] = ContextVar(f"{type(self).__name__}__storage_stack", default=[])
 
+    def __getstate__(self) -> dict[str, t.Any]:
+        state = self.__dict__.copy()
+        state.pop("_storage_stack", None)  # remove unpicklable field
+        return state
+
+    def __setstate__(self, state: dict[str, t.Any]) -> None:
+        self.__dict__.update(state)
+        self._storage_stack = ContextVar(
+            f"{type(self).__name__}__storage_stack",
+            default=[],
+        )
+
     def __enter__(self) -> "BaseWrappingContext":
         self._storage_stack.get().append({})
         return self
@@ -462,6 +474,17 @@ class LazyWrappingContext(WrappingContext):
 
                 unwrap(t.cast(WrappedFunction, self.__wrapped__), self._trampoline)
                 self._trampoline = None
+
+    def __getstate__(self) -> dict[str, t.Any]:
+        state = super().__getstate__()
+        state.pop("_trampoline_lock", None)  # thread lock not picklable
+        state.pop("_trampoline", None)  # closure not picklable
+        return state
+
+    def __setstate__(self, state: dict[str, t.Any]) -> None:
+        super().__setstate__(state)
+        self._trampoline_lock = Lock()
+        self._trampoline = None
 
 
 class ContextWrappedFunction(Protocol):
