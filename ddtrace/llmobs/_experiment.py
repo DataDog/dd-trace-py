@@ -48,6 +48,7 @@ JSONType = Union[str, int, float, bool, None, list["JSONType"], dict[str, "JSONT
 NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONType]]
 ConfigType = dict[str, JSONType]
 DatasetRecordInputType = dict[str, NonNoneJSONType]
+ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
 TaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType]
 AsyncTaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], Awaitable[JSONType]]
@@ -95,6 +96,20 @@ class EvaluatorResult:
         self.tags = tags
 
 
+class RemoteEvaluatorResult(EvaluatorResult):
+    """Internal result type for remote evaluators that includes backend status."""
+
+    def __init__(
+        self,
+        value: JSONType,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> None:
+        super().__init__(value=value, reasoning=reasoning, assessment=assessment)
+        self.status = status
+
+
 def _validate_evaluator_name(name: str) -> None:
     """Validate that evaluator name is valid.
 
@@ -110,6 +125,25 @@ def _validate_evaluator_name(name: str) -> None:
         raise ValueError(
             f"Evaluator name '{name}' is invalid. Name must contain only alphanumeric characters and underscores."
         )
+
+
+class RemoteEvaluatorError(Exception):
+    """Error raised when a remote evaluator fails.
+
+    Preserves backend error details (type, message, recommended_resolution)
+    for proper error handling in the experiment framework.
+    """
+
+    def __init__(self, message: str, status: str, backend_error: Optional[dict[str, Any]] = None) -> None:
+        """Initialize a RemoteEvaluatorError.
+
+        :param message: The error message
+        :param status: The backend evaluation status (e.g. "ERROR", "WARN")
+        :param backend_error: The backend error details dict with type, message, recommended_resolution
+        """
+        super().__init__(message)
+        self.status = status
+        self.backend_error = backend_error or {}
 
 
 @dataclass(frozen=True)
@@ -283,6 +317,106 @@ class BaseSummaryEvaluator(ABC):
         :return: Evaluation result as a JSON-serializable value (dict, primitive, list, None)
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
+
+
+def _default_context_transform(context: "EvaluatorContext") -> dict[str, Any]:
+    """Default transform: maps EvaluatorContext to remote evaluator format.
+
+    Transforms the context into the format expected by remote LLM-as-Judge evaluators.
+    Uses span_input/span_output at top level, with meta.expected_output and meta.metadata.
+
+    :param context: The evaluation context to transform
+    :return: Dictionary with span_input, span_output, optional meta.expected_output,
+             optional meta.metadata, and optional trace identifiers (span_id, trace_id)
+    """
+    result: dict[str, Any] = {
+        "span_input": context.input_data,
+        "span_output": context.output_data,
+    }
+
+    meta: dict[str, Any] = {}
+    if context.expected_output is not None:
+        meta["expected_output"] = context.expected_output
+    if context.metadata:
+        meta["metadata"] = context.metadata
+    if meta:
+        result["meta"] = meta
+
+    if context.span_id:
+        result["span_id"] = context.span_id
+    if context.trace_id:
+        result["trace_id"] = context.trace_id
+
+    return result
+
+
+class RemoteEvaluator(BaseEvaluator):
+    """Evaluator that references a production BYOP evaluation by name.
+
+    This class allows users to run LLM-as-Judge evaluations configured in the Datadog
+    UI by referencing the evaluation name.
+
+    Example (simple usage)::
+
+        evaluator = RemoteEvaluator(eval_name="my-byop-evaluator")
+
+    Example (with custom transform function)::
+
+        def custom_transform(ctx: EvaluatorContext) -> dict[str, Any]:
+            return {"span_input": ctx.input_data, "span_output": ctx.output_data}
+
+        evaluator = RemoteEvaluator(
+            eval_name="my-byop-evaluator",
+            transform_fn=custom_transform,
+        )
+    """
+
+    _is_remote_evaluator: bool = True
+
+    def __init__(
+        self,
+        eval_name: str,
+        transform_fn: Optional[ContextTransformFn] = None,
+    ) -> None:
+        """Initialize a RemoteEvaluator.
+
+        :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog.
+        :param transform_fn: Optional function to transform EvaluatorContext into
+                             the format expected by the backend template. If not provided,
+                             uses default mapping to span_input, span_output,
+                             meta.expected_output, and meta.metadata.
+        """
+        if not isinstance(eval_name, str) or not eval_name.strip():
+            raise ValueError("eval_name must be a non-empty string")
+        if transform_fn is not None and not callable(transform_fn):
+            raise TypeError("transform_fn must be callable")
+
+        self.name = eval_name.strip()
+        self._eval_name = eval_name.strip()
+        self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
+        self._llmobs_instance: Optional["LLMObs"] = None
+
+    def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
+        """Evaluate using the remote LLM-as-Judge evaluator.
+
+        :param context: The evaluation context containing input, output, and metadata
+        :return: RemoteEvaluatorResult or raw value if no reasoning or assessment is provided
+        """
+        client = self._llmobs_instance._dne_client  # type: ignore[union-attr]
+
+        result = client.evaluator_infer(
+            eval_name=self._eval_name,
+            context=self._transform_fn(context),
+        )
+
+        value = result.get("value")
+        reasoning = result.get("reasoning")
+        assessment = result.get("assessment")
+        status = result.get("status")
+
+        if reasoning or assessment:
+            return RemoteEvaluatorResult(value=value, reasoning=reasoning, assessment=assessment, status=status)
+        return value
 
 
 class BaseAsyncEvaluator(ABC):
@@ -785,6 +919,10 @@ class Experiment:
         self._llmobs_instance = _llmobs_instance
         self._is_distributed = is_distributed
 
+        for evaluator in self._evaluators:
+            if hasattr(evaluator, "_is_remote_evaluator"):
+                evaluator._llmobs_instance = self._llmobs_instance  # type: ignore[union-attr]
+
         if not project_name:
             raise ValueError(
                 "project_name must be provided for the experiment, either configured via the `DD_LLMOBS_PROJECT_NAME` "
@@ -847,11 +985,13 @@ class Experiment:
         span_id: str,
         trace_id: str,
         timestamp_ns: int,
+        status: Optional[str] = None,
         source: str = "custom",
         reasoning: Optional[str] = None,
         assessment: Optional[str] = None,
         metadata: Optional[dict[str, JSONType]] = None,
         tags: Optional[dict[str, str]] = None,
+        eval_source_type: Optional[str] = None,
     ) -> "LLMObsExperimentEvalMetricEvent":
         if eval_value is None:
             metric_type = "categorical"
@@ -871,17 +1011,21 @@ class Experiment:
             "timestamp_ms": int(timestamp_ns / 1e6),
             "metric_type": metric_type,
             "label": eval_name,
-            f"{metric_type}_value": eval_value,  # type: ignore
+            f"{metric_type}_value": eval_value,  # type: ignore[misc]
             "error": err,
             "tags": convert_tags_dict_to_list(tags),
             "experiment_id": self._id,
         }
+        if status:
+            eval_metric["status"] = status
         if reasoning:
             eval_metric["reasoning"] = reasoning
         if assessment:
             eval_metric["assessment"] = assessment
         if metadata:
             eval_metric["metadata"] = metadata
+        if eval_source_type:
+            eval_metric["eval_source_type"] = eval_source_type
         return eval_metric
 
     def _generate_metrics_from_exp_results(
@@ -889,6 +1033,12 @@ class Experiment:
     ) -> list["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
         latest_timestamp: int = 0
+        remote_evaluator_names = {
+            evaluator.name  # type: ignore[union-attr]
+            for evaluator in self._evaluators
+            if hasattr(evaluator, "_is_remote_evaluator") and evaluator._is_remote_evaluator
+        }
+
         for exp_result in experiment_result.rows:
             evaluations = exp_result.get("evaluations") or {}
             span_id = exp_result.get("span_id", "")
@@ -918,6 +1068,8 @@ class Experiment:
                     tags=cast(dict[str, str], eval_data.get("tags"))
                     if isinstance(eval_data.get("tags"), dict)
                     else None,
+                    eval_source_type="managed" if eval_name in remote_evaluator_names else None,
+                    status=str(eval_data.get("status")) if isinstance(eval_data.get("status"), str) else "OK",
                 )
                 eval_metrics.append(eval_metric)
 
@@ -953,7 +1105,27 @@ class Experiment:
             )
         return self._dataset
 
+    def _extract_evaluator_result(
+        self, eval_result: Union[JSONType, EvaluatorResult]
+    ) -> tuple[JSONType, dict[str, JSONType]]:
+        extra_return_values: dict[str, JSONType] = {}
+        if isinstance(eval_result, EvaluatorResult):
+            if eval_result.reasoning:
+                extra_return_values["reasoning"] = eval_result.reasoning
+            if eval_result.assessment:
+                extra_return_values["assessment"] = eval_result.assessment
+            if eval_result.metadata:
+                extra_return_values["metadata"] = eval_result.metadata
+            if eval_result.tags:
+                extra_return_values["tags"] = eval_result.tags
+            if isinstance(eval_result, RemoteEvaluatorResult) and eval_result.status:
+                extra_return_values["status"] = eval_result.status
+            return eval_result.value, extra_return_values
+        return eval_result, extra_return_values
+
     def _build_evaluator_error(self, exc: Exception) -> dict[str, Any]:
+        if isinstance(exc, RemoteEvaluatorError) and exc.backend_error:
+            return exc.backend_error
         exc_type, exc_value, exc_tb = sys.exc_info()
         exc_type_name = type(exc).__name__ if exc_type is not None else "Unknown Exception"
         exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -962,6 +1134,11 @@ class Experiment:
             "type": exc_type_name,
             "stack": exc_stack,
         }
+
+    def _build_evaluator_status(self, exc: Exception) -> str:
+        if isinstance(exc, RemoteEvaluatorError):
+            return exc.status
+        return "ERROR"
 
     def _prepare_summary_evaluator_data(
         self, task_results: list[TaskResult], eval_results: list[EvaluationResult]
@@ -1244,22 +1421,10 @@ class Experiment:
                             evaluator_name = str(evaluator)
                             eval_result = None
 
-                        extra_return_values: dict[str, JSONType] = {}
-                        if isinstance(eval_result, EvaluatorResult):
-                            if eval_result.reasoning:
-                                extra_return_values["reasoning"] = eval_result.reasoning
-                            if eval_result.assessment:
-                                extra_return_values["assessment"] = eval_result.assessment
-                            if eval_result.metadata:
-                                extra_return_values["metadata"] = eval_result.metadata
-                            if eval_result.tags:
-                                extra_return_values["tags"] = eval_result.tags
-                            eval_result_value = eval_result.value
-                        else:
-                            eval_result_value = eval_result
+                        eval_result_value, extra_return_values = self._extract_evaluator_result(eval_result)
 
                     except Exception as e:
-                        extra_return_values = {}
+                        extra_return_values = {"status": self._build_evaluator_status(e)}
                         eval_err = self._build_evaluator_error(e)
                         if raise_errors:
                             raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
@@ -1433,11 +1598,11 @@ class Experiment:
             span.get("span_id", "") if span else "",
             span.get("trace_id", "") if span else "",
             timestamp_ns,
-            "summary" if is_summary_eval else "custom",
-            reasoning,
-            assessment,
-            metadata,
-            tags,
+            source="summary" if is_summary_eval else "custom",
+            reasoning=reasoning,
+            assessment=assessment,
+            metadata=metadata,
+            tags=tags,
         )
 
         self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]

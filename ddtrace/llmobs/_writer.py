@@ -42,6 +42,7 @@ from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
@@ -102,12 +103,23 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     score_value: float
     boolean_value: bool
     json_value: dict[str, JSONType]
+    status: str
     error: Optional[dict[str, str]]
     tags: list[str]
     experiment_id: str
     reasoning: str
     assessment: str
     metadata: dict[str, JSONType]
+    eval_source_type: str
+
+
+class EvaluatorInferResponse(TypedDict, total=False):
+    """Response from the evaluator_infer API endpoint."""
+
+    value: JSONType
+    assessment: Optional[str]
+    reasoning: Optional[str]
+    status: Optional[str]
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -484,7 +496,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
+            error_msg = f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}"
+            raise ValueError(error_msg)  # nosec
         response_data = resp.get_json()
         data = response_data["data"]
 
@@ -790,6 +803,50 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
+
+    def evaluator_infer(
+        self,
+        eval_name: str,
+        context: dict[str, Any],
+    ) -> EvaluatorInferResponse:
+        """Call backend to run inference on a LLM-as-Judge evaluator.
+
+        :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog
+        :param context: The evaluation context
+        :return: EvaluatorInferResponse with status, value, assessment, and reasoning
+        :raises RemoteEvaluatorError: If backend returns an evaluation error (structured error with
+            type/message/recommended_resolution)
+        :raises RuntimeError: If HTTP request fails and no structured error info is available
+        """
+        path = f"/api/unstable/llm-obs/v1/evaluators/{eval_name}/infer"
+        body: JSONType = {"data": {"type": "evaluator_inference", "attributes": {"context": context}}}
+
+        resp = self.request("POST", path, body)
+        response_data = resp.get_json() or {}
+
+        attributes = response_data.get("data", {}).get("attributes", {})
+
+        if resp.status != 200:
+            error_details = attributes.get("error", {})
+            if error_details:
+                raise RemoteEvaluatorError(
+                    f"Remote evaluator '{eval_name}' failed: {error_details.get('message', f'HTTP {resp.status}')}",
+                    status=attributes.get("status", "ERROR"),
+                    backend_error=error_details,
+                )
+            error_msg = f"HTTP {resp.status}"
+            if "errors" in response_data and response_data["errors"]:
+                error = response_data["errors"][0]
+                if isinstance(error, dict):
+                    error_msg = error.get("detail") or error.get("title") or error_msg
+            raise RuntimeError(f"Failed to call evaluator '{eval_name}': {error_msg}")
+
+        return {
+            "value": attributes.get("value"),
+            "assessment": attributes.get("assessment"),
+            "reasoning": attributes.get("reasoning"),
+            "status": attributes.get("status"),
+        }
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

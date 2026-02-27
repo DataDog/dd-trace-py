@@ -1,0 +1,53 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test_submit_eval_metric_with_explicit_span",
+      "description": "", "dataset_id": "126b1329-c830-4904-94d6-c278ac3d75c6", "project_id":
+      "569aa33c-7acf-4061-abd0-4f2078e61ee8", "dataset_version": 1, "config": {},
+      "metadata": {"tags": ["ddtrace.version:4.6.0rc1", "project_name:test-project-clean",
+      "dataset_name:test-dataset-123", "experiment_name:test_submit_eval_metric_with_explicit_span",
+      "project_id:569aa33c-7acf-4061-abd0-4f2078e61ee8"]}, "ensure_unique": false,
+      "run_count": 1}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '539'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Datadog-Entity-ID
+      : - in-968
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"8216d32c-28ec-4e57-a6d3-fbb859c249c7","type":"experiments","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"config":{},"created_at":"2026-02-20T17:07:41.837856Z","dataset_id":"126b1329-c830-4904-94d6-c278ac3d75c6","dataset_version":1,"description":"","experiment":"test_submit_eval_metric_with_explicit_span","metadata":{"tags":["ddtrace.version:4.5.0rc4","project_name:test-project-clean","dataset_name:test-dataset-123","experiment_name:test_submit_eval_metric_with_explicit_span","project_id:569aa33c-7acf-4061-abd0-4f2078e61ee8"]},"name":"test_submit_eval_metric_with_explicit_span","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","run_count":1,"updated_at":"2026-02-20T17:07:41.837856Z"}}}'
+    headers:
+      content-length:
+      - '734'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 25 Feb 2026 12:44:24 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

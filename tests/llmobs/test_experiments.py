@@ -27,6 +27,8 @@ import ddtrace
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import RemoteEvaluator
+from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 from tests.utils import override_global_config
 
@@ -83,7 +85,7 @@ DUMMY_EXPERIMENT_FIRST_RUN_ID = UUID("12345678-abcd-abcd-abcd-123456789012")
 # Timestamp in nanoseconds for mocked experiment runs.
 # Must be within 24 hours of current time for server validation.
 # To regenerate when re-recording cassettes: python3 -c "import time; print(time.time_ns())"
-MOCK_TIMESTAMP_NS = 1771602113367279000
+MOCK_TIMESTAMP_NS = 1772023135809672000
 
 
 def run_info_with_stable_id(iteration: int, run_id: Optional[str] = None) -> _ExperimentRunInfo:
@@ -1865,7 +1867,7 @@ def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY}},
+        "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}},
     }
     err = eval_results[0]["evaluations"]["faulty_evaluator"]["error"]
     assert err["message"] == "This is a test error in evaluator"
@@ -2024,7 +2026,7 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     assert exp_result["timestamp"] == mock.ANY
     assert exp_result["span_id"] == mock.ANY
     assert exp_result["trace_id"] == mock.ANY
-    assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY}}
+    assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}}
     assert exp_result["evaluations"]["faulty_evaluator"]["error"] == {
         "message": "This is a test error in evaluator",
         "type": "ValueError",
@@ -2426,6 +2428,183 @@ def test_summary_evaluators_with_errors_concurrent(llmobs, test_dataset_one_reco
     # Successful evaluator completed
     assert summary_evals_dict["successful_summary_evaluator"]["value"] == 100
     assert summary_evals_dict["successful_summary_evaluator"]["error"] is None
+
+
+def test_experiment_with_remote_evaluator(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator integrates with experiment framework."""
+    mock_response = {
+        "status": "OK",
+        "value": 0.9,
+        "assessment": "pass",
+        "reasoning": "Looks correct",
+    }
+
+    with mock.patch.object(llmobs._instance._dne_client, "evaluator_infer", return_value=mock_response):
+
+        def transform(ctx):
+            return {
+                "span_input": ctx.input_data,
+                "span_output": ctx.output_data,
+            }
+
+        remote_eval = RemoteEvaluator(
+            eval_name="my-eval",
+            transform_fn=transform,
+        )
+
+        exp = llmobs.experiment(
+            "test_experiment_remote",
+            dummy_task,
+            test_dataset_one_record,
+            [remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        assert "my-eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["my-eval"]
+        assert result["error"] is None
+
+        assert result["value"] == 0.9
+        assert result["reasoning"] == "Looks correct"
+        assert result["assessment"] == "pass"
+
+
+def test_experiment_remote_evaluator_error_handling(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator errors are properly captured."""
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "evaluator_infer",
+        side_effect=RemoteEvaluatorError(
+            "Backend failed",
+            status="ERROR",
+            backend_error={
+                "type": "evaluator_not_found",
+                "message": "Evaluator not configured",
+                "recommended_resolution": "Configure the evaluator in Datadog",
+            },
+        ),
+    ):
+        remote_eval = RemoteEvaluator(
+            eval_name="missing-eval",
+            transform_fn=lambda ctx: {},
+        )
+
+        exp = llmobs.experiment(
+            "test_experiment_remote_error",
+            dummy_task,
+            test_dataset_one_record,
+            [remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        result = eval_results[0]["evaluations"]["missing-eval"]
+        assert result["value"] is None
+        assert result["error"]["type"] == "evaluator_not_found"
+        assert result["error"]["message"] == "Evaluator not configured"
+
+
+def test_experiment_remote_evaluator_warn_status(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator WARN status is properly handled as an error."""
+    with mock.patch.object(
+        llmobs._instance._dne_client,
+        "evaluator_infer",
+        side_effect=RemoteEvaluatorError(
+            "Remote evaluator 'rate-limited-eval' failed: Rate limit exceeded",
+            status="WARN",
+            backend_error={
+                "type": "RATE_LIMIT_EXCEEDED",
+                "message": "Rate limit exceeded for OpenAI API",
+                "recommended_resolution": "Wait before retrying or increase rate limits",
+            },
+        ),
+    ):
+        remote_eval = RemoteEvaluator(
+            eval_name="rate-limited-eval",
+            transform_fn=lambda ctx: {"input": ctx.input_data},
+        )
+
+        exp = llmobs.experiment(
+            "test_experiment_remote_warn",
+            dummy_task,
+            test_dataset_one_record,
+            [remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        result = eval_results[0]["evaluations"]["rate-limited-eval"]
+        assert result["value"] is None
+        assert result["error"] is not None
+        assert result["error"]["type"] == "RATE_LIMIT_EXCEEDED"
+        assert result["error"]["message"] == "Rate limit exceeded for OpenAI API"
+        assert "rate limits" in result["error"]["recommended_resolution"]
+
+
+def test_experiment_mixed_local_and_remote_evaluators(llmobs, test_dataset_one_record):
+    """Test mixing RemoteEvaluator with local evaluators."""
+    mock_response = {"status": "OK", "value": 0.8, "assessment": None, "reasoning": None}
+
+    with mock.patch.object(llmobs._instance._dne_client, "evaluator_infer", return_value=mock_response):
+        remote_eval = RemoteEvaluator(
+            eval_name="remote-eval",
+            transform_fn=lambda ctx: {},
+        )
+
+        exp = llmobs.experiment(
+            "test_mixed_evaluators",
+            dummy_task,
+            test_dataset_one_record,
+            [dummy_evaluator, remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+
+        assert len(eval_results) == 1
+        evaluations = eval_results[0]["evaluations"]
+        assert "dummy_evaluator" in evaluations
+        assert "remote-eval" in evaluations
+        assert evaluations["dummy_evaluator"]["value"] == 0
+        assert evaluations["remote-eval"]["value"] == 0.8
+
+
+def test_experiment_remote_evaluator_eval_source_type(llmobs, test_dataset_one_record):
+    """Test that RemoteEvaluator metrics get eval_source_type='managed'."""
+    mock_response = {"status": "OK", "value": 0.85, "assessment": None, "reasoning": None}
+
+    with mock.patch.object(llmobs._instance._dne_client, "evaluator_infer", return_value=mock_response):
+        remote_eval = RemoteEvaluator(eval_name="remote-eval")
+
+        exp = llmobs.experiment(
+            "test_eval_source_type",
+            dummy_task,
+            test_dataset_one_record,
+            [dummy_evaluator, remote_eval],
+        )
+
+        run_info = run_info_with_stable_id(0)
+        task_results = asyncio.run(exp._experiment._run_task(1, run=run_info, raise_errors=False))
+        eval_results = asyncio.run(exp._experiment._run_evaluators(task_results, raise_errors=False))
+        experiment_run = exp._experiment._merge_results(run_info, task_results, eval_results, [])
+
+        metrics = exp._experiment._generate_metrics_from_exp_results(experiment_run)
+        remote_metric = next(m for m in metrics if m["label"] == "remote-eval")
+        local_metric = next(m for m in metrics if m["label"] == "dummy_evaluator")
+
+        assert remote_metric.get("eval_source_type") == "managed"
+        assert "eval_source_type" not in local_metric
 
 
 # =============================================================================
@@ -2881,7 +3060,7 @@ async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_re
     assert len(eval_results) == 1
     assert eval_results[0] == {
         "idx": 0,
-        "evaluations": {"async_faulty_evaluator": {"value": None, "error": mock.ANY}},
+        "evaluations": {"async_faulty_evaluator": {"value": None, "error": mock.ANY, "status": "ERROR"}},
     }
     err = eval_results[0]["evaluations"]["async_faulty_evaluator"]["error"]
     assert err["message"] == "This is an async test error in evaluator"

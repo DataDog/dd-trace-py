@@ -1,0 +1,56 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"metric_source": "custom", "span_id": "123", "trace_id": "456",
+      "timestamp_ms": 1234, "metric_type": "score", "label": "dummy_evaluator", "score_value":
+      0, "error": null, "tags": [], "experiment_id": "c35ee209-ccc7-4484-9e3b-c81039da06d4",
+      "status": "OK"}, {"metric_source": "summary", "span_id": "", "trace_id": "",
+      "timestamp_ms": 1234, "metric_type": "score", "label": "dummy_summary_evaluator",
+      "score_value": 4, "error": null, "tags": [], "experiment_id": "c35ee209-ccc7-4484-9e3b-c81039da06d4"}],
+      "tags": ["ddtrace.version:1.2.3", "project_id:569aa33c-7acf-4061-abd0-4f2078e61ee8",
+      "experiment_id:c35ee209-ccc7-4484-9e3b-c81039da06d4", "run_id:12345678-abcd-abcd-abcd-123456789012",
+      "run_iteration:1"]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '795'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Datadog-Entity-ID
+      : - in-882
+      User-Agent:
+      - python-requests/2.32.5
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/c35ee209-ccc7-4484-9e3b-c81039da06d4/events
+  response:
+    body:
+      string: ''
+    headers:
+      content-length:
+      - '0'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 19 Feb 2026 21:04:35 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1
