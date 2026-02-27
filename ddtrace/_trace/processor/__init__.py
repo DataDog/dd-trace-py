@@ -252,8 +252,10 @@ class TraceTagsProcessor(TraceProcessor):
             if p_tags := process_tags.process_tags:
                 span._set_tag_str(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids
-            if span.trace_id > MAX_UINT_64BITS:
-                trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
+            # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+            trace_id = span.trace_id
+            if trace_id > MAX_UINT_64BITS:
+                trace_id_hob = _get_64_highest_order_bits_as_hex(trace_id)
                 span._set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
             if span._parent is not None:
@@ -343,8 +345,10 @@ class SpanAggregator(SpanProcessor):
         )
 
     def on_span_start(self, span: Span) -> None:
+        # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+        trace_id = span.trace_id
         with self._lock:
-            trace = self._traces[span.trace_id]
+            trace = self._traces[trace_id]
             trace.spans.append(span)
             integration_name = span._get_str_attribute(COMPONENT) or span._span_api
 
@@ -353,15 +357,17 @@ class SpanAggregator(SpanProcessor):
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
+        # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+        trace_id = span.trace_id
         # Acquire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._get_str_attribute(COMPONENT) or span._span_api
             self._span_metrics["spans_finished"][integration_name] += 1
 
-            if span.trace_id not in self._traces:
+            if trace_id not in self._traces:
                 return
 
-            trace = self._traces[span.trace_id]
+            trace = self._traces[trace_id]
             trace.num_finished += 1
             num_buffered = len(trace.spans)
             is_trace_complete = trace.num_finished >= num_buffered
@@ -369,7 +375,7 @@ class SpanAggregator(SpanProcessor):
             should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
-                del self._traces[span.trace_id]
+                del self._traces[trace_id]
                 # perf: Flush span finish metrics to the telemetry writer after the trace is complete
                 self._queue_span_count_metrics("spans_finished", "integration_name")
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:

@@ -117,41 +117,122 @@ payloads.
   - Send heartbeats
 - **Default behavior**: No-op (does nothing)
 
-### Registering a Callback
+### The RemoteConfigPoller API
 
-To receive RC updates, register your callback with the Remote Config poller:
+The `RemoteConfigPoller` (exposed as the `remoteconfig_poller` singleton)
+exposes two orthogonal operations that must be managed independently:
+
+1. **Callback registration** — installs the handler that receives RC payloads.
+   A registered callback also receives periodic calls every poll cycle, even
+   when no new configuration arrives.
+
+2. **Product enablement** — controls whether the product name is included in
+   the `products` field of the client payload sent to the agent.  Only enabled
+   products are advertised to the agent; only advertised products get
+   configuration pushed back to them.
+
+The two operations are deliberately separate because a product may need its
+callback to be active (e.g. for periodic housekeeping) without yet requesting
+configuration from the agent, or vice-versa.
+
+#### `register_callback(product, callback, capabilities=[])`
+
+Installs a callback for a product.  The callback will receive all payloads
+dispatched by the RC subscriber, as well as periodic calls.  If this is the
+first callback being registered, the RC poller is started automatically (if
+`DD_REMOTE_CONFIGURATION_ENABLED` is set).
+
+Registering a callback **does not** enable the product: the product name will
+**not** appear in client payloads until `enable_product()` is called.
 
 ```python
-from ddtrace.internal.remoteconfig import remoteconfig_poller
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-# Create callback instance
 callback = MyProductCallback()
-
-# Register for a product
-remoteconfig_poller.register(
-    product=PRODUCTS.MY_PRODUCT,  # e.g., "ASM_FEATURES", "LIVE_DEBUGGING"
-    callback=callback,
-    skip_enabled=False,  # Set True to skip enabling RC client
-    capabilities=[],  # Optional: RC capabilities to report
+remoteconfig_poller.register_callback(
+    "MY_PRODUCT",
+    callback,
+    capabilities=[MyCapabilities.SOME_FLAG],
 )
 ```
 
-**Registration parameters:**
-- `product` (str): Product identifier (use constants from `PRODUCTS`)
-- `callback` (RCCallback): Your callback instance
-- `skip_enabled` (bool): If True, don't auto-enable RC client on registration
-- `capabilities` (list): RC capabilities to advertise for this product
+#### `unregister_callback(product)`
 
+Removes the callback for a product.  The callback will no longer receive
+payloads or periodic calls.  This **does not** disable the product: if
+`enable_product()` was called previously, the product name will still appear in
+client payloads until `disable_product()` is called.
+
+```python
+remoteconfig_poller.unregister_callback("MY_PRODUCT")
+```
+
+#### `enable_product(product)`
+
+Adds the product name to the `products` field of client payloads sent to the
+agent, signalling that this client wants to receive configurations for it.
+`register_callback()` must be called first so that the agent's responses can be
+dispatched to a handler.
+
+```python
+remoteconfig_poller.enable_product("MY_PRODUCT")
+```
+
+#### `disable_product(product)`
+
+Removes the product name from client payloads.  The callback, if still
+registered, remains active and will continue to receive any payloads the agent
+may still send for that product.
+
+```python
+remoteconfig_poller.disable_product("MY_PRODUCT")
+```
+
+#### `update_product_callback(product, callback)`
+
+Replaces the callback for an already-registered product without affecting its
+enabled/disabled state or capabilities.  Returns `True` if the product was
+found, `False` otherwise.  This is primarily used after a fork, when a new
+callback instance must be installed for the child process.
+
+```python
+new_callback = MyProductCallback()
+remoteconfig_poller.update_product_callback("MY_PRODUCT", new_callback)
+```
+
+### Typical Lifecycle
+
+Most products follow this pattern in their `start()` / `stop()` functions:
+
+```python
+def start():
+    # 1. Register the callback so the subscriber can dispatch payloads.
+    remoteconfig_poller.register_callback("MY_PRODUCT", MyProductCallback())
+    # 2. Advertise the product to the agent so it starts sending configuration.
+    remoteconfig_poller.enable_product("MY_PRODUCT")
+
+def stop(join=False):
+    # 1. Stop requesting configuration from the agent.
+    remoteconfig_poller.disable_product("MY_PRODUCT")
+    # 2. Remove the callback.
+    remoteconfig_poller.unregister_callback("MY_PRODUCT")
+```
+
+A product that only needs its callback active for internal housekeeping but
+does not yet want the agent to push configuration can call
+`register_callback()` without `enable_product()`.
 
 ### Best Practices
 
-1. **Keep `__call__` fast**: The subscriber thread processes all products
-   sequentially, so slow callbacks delay other products
+1. **Keep `__call__` fast**: The subscriber thread processes all registered
+   products sequentially, so a slow callback delays all others.
 2. **Handle errors gracefully**: Wrap processing logic in try/except to avoid
-   crashing the subscriber
-3. **Use `periodic()` for time-based operations**: Don't do periodic work in
-   `__call__` since it only runs on updates
-4. **Thread safety**: Both methods run in the subscriber thread - ensure any
-   shared state is thread-safe
-5. **Clean registration**: Call `remoteconfig_poller.unregister(product)` in
-   cleanup/test teardown
+   crashing the subscriber.
+3. **Use `periodic()` for time-based operations**: `__call__` is only invoked
+   when new configuration arrives; use `periodic()` for work that must happen
+   every poll cycle.
+4. **Thread safety**: Both `__call__` and `periodic()` run in the subscriber
+   thread — protect any shared state that is also accessed from the main thread.
+5. **Always pair register with unregister**: Call `unregister_callback()` (and
+   `disable_product()` if applicable) in your product's `stop()` / `at_exit()`
+   to release resources and stop advertising the product to the agent.
