@@ -19,6 +19,7 @@ from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 import ddtrace.appsec._ddwaf.ddwaf_types as ddwaf_types
+from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
@@ -136,10 +137,11 @@ class AppSecSpanProcessor(SpanProcessor):
                     log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
                     return
                 self.metrics = metrics
-                self._ddwaf = DDWaf(
+                self._ddwaf: Optional[WAF] = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
                 )
-                self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
+                if self._ddwaf:
+                    self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
@@ -268,7 +270,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if getattr(self, "_ddwaf", None) is None:
+        if not hasattr(self, "_ddwaf") or self._ddwaf is None:
             return None
 
         if _asm_request_context.get_blocked():
@@ -318,7 +320,7 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.debug("appsec::processor::waf::run", exc_info=True)
             waf_results = Binding_error
-        _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
+        _asm_request_context.set_waf_info(lambda: self._ddwaf.info)  # type: ignore
         if waf_results.return_code < 0:
             error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
             previous = entry_span.get_tag(error_tag)
