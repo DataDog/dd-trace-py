@@ -181,6 +181,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
         self.max_item_size = max_item_size
         self._buffer: list[bytes] = []
         self._size = 0
+        self._num_traces = 0
         self._lock = RLock()
 
     def __len__(self) -> int:
@@ -202,6 +203,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
                 elif item_size + self._size > self.max_size:
                     raise BufferFull(item_size + self._size)
                 self._append_to_buffer(span_bytes)
+                self._num_traces += 1
 
     def _append_to_buffer(self, item_bytes: bytes) -> None:
         if self._size == 0:
@@ -219,10 +221,10 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
                 return []
             self._buffer.append(self.BUFFER_END)
             payload_bytes = b"".join(self._buffer)
-            n_traces = len(self._buffer)
             self._buffer = []
             self._size = 0
-            return [(payload_bytes, n_traces)]
+            self._num_traces = 0
+            return [(payload_bytes, self._num_traces)]
 
     def _item_to_json_bytes(self, item: "Span") -> bytes:
         span_dict = JSONEncoderV2._convert_span(item)
