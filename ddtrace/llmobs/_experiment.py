@@ -32,6 +32,7 @@ from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
 
 
@@ -399,11 +400,18 @@ class DatasetRecordRaw(TypedDict):
     tags: list[str]
 
 
+class _TagOperations(TypedDict, total=False):
+    add: list[str]
+    remove: list[str]
+    replace: list[str]
+
+
 class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
     tags: list[str]
+    tag_operations: _TagOperations
 
 
 class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
@@ -510,6 +518,7 @@ class Dataset:
         self._new_records_by_record_id = {}
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
+        self._pending_tag_operations: dict[str, _TagOperations] = {}
 
     def push(self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None):
         """Pushes any local changes in this dataset since the last push.
@@ -559,6 +568,10 @@ class Dataset:
             self._dne_client.dataset_bulk_upload(self._id, self._records, deduplicate=deduplicate)
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
+            # Inject accumulated tag operations into update records before sending
+            for record_id, tag_ops in self._pending_tag_operations.items():
+                if record_id in self._updated_record_ids_to_new_fields:
+                    self._updated_record_ids_to_new_fields[record_id]["tag_operations"] = tag_ops
             updated_records = list(self._updated_record_ids_to_new_fields.values())
             new_version, new_record_ids, new_canonical_ids = self._dne_client.dataset_batch_update(
                 dataset_id=self._id,
@@ -596,27 +609,37 @@ class Dataset:
             self._version = self._latest_version
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
+        self._pending_tag_operations = {}
         return data_changed
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
-        if all(k not in record for k in ("input_data", "expected_output", "metadata")):
+        if all(k not in record for k in ("input_data", "expected_output", "metadata", "tags")):
             raise ValueError(
                 "invalid update, record should contain at least one of "
-                "input_data, expected_output, or metadata to update"
+                "input_data, expected_output, metadata, or tags to update"
             )
+        # If tags are provided, delegate to replace_tags for that record
+        tags = record.pop("tags", None) if "tags" in record else None  # type: ignore[misc]
+        if tags is not None:
+            self.replace_tags(index, tags)
+
         record_id = self._records[index]["record_id"]
-        self._updated_record_ids_to_new_fields[record_id] = {
-            **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
-            **record,
-            "record_id": record_id,
-        }
-        self._records[index] = {
-            **self._records[index],
-            **record,
-            "record_id": record_id,
-        }
+        # Only update non-tag fields if there are any
+        if any(k in record for k in ("input_data", "expected_output", "metadata")):
+            self._updated_record_ids_to_new_fields[record_id] = {
+                **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
+                **record,
+                "record_id": record_id,
+            }
+            self._records[index] = {
+                **self._records[index],
+                **record,
+                "record_id": record_id,
+            }
 
     def append(self, record: DatasetRecordRaw) -> None:
+        if record.get("tags"):
+            validate_tags_list(record["tags"])
         record_id: str = uuid.uuid4().hex
         # this record ID will be discarded after push, BE will generate a new one, this is just
         # for tracking new records locally before the push
@@ -628,6 +651,122 @@ class Dataset:
     def extend(self, records: list[DatasetRecordRaw]) -> None:
         for record in records:
             self.append(record)
+
+    def add_tags(self, index: int, tags: list[str]) -> None:
+        """Add tags to an existing record. Tags are merged with any existing tags on the record."""
+        validate_tags_list(tags)
+        record = self._records[index]
+        record_id = record["record_id"]
+
+        # For not-yet-pushed records, modify tags directly
+        if record_id in self._new_records_by_record_id:
+            existing = set(record.get("tags") or [])
+            existing.update(tags)
+            record["tags"] = sorted(existing)
+            return
+
+        self._accumulate_tag_operations(record_id, "add", tags)
+        # Update in-memory state for read consistency
+        existing = set(record.get("tags") or [])
+        existing.update(tags)
+        record["tags"] = sorted(existing)
+        # Ensure the record is tracked for updates
+        if record_id not in self._updated_record_ids_to_new_fields:
+            self._updated_record_ids_to_new_fields[record_id] = {"record_id": record_id}
+
+    def remove_tags(self, index: int, tags: list[str]) -> None:
+        """Remove tags from an existing record."""
+        validate_tags_list(tags)
+        record = self._records[index]
+        record_id = record["record_id"]
+
+        # For not-yet-pushed records, modify tags directly
+        if record_id in self._new_records_by_record_id:
+            existing = set(record.get("tags") or [])
+            existing -= set(tags)
+            record["tags"] = sorted(existing)
+            return
+
+        self._accumulate_tag_operations(record_id, "remove", tags)
+        # Update in-memory state for read consistency
+        existing = set(record.get("tags") or [])
+        existing -= set(tags)
+        record["tags"] = sorted(existing)
+        # Ensure the record is tracked for updates
+        if record_id not in self._updated_record_ids_to_new_fields:
+            self._updated_record_ids_to_new_fields[record_id] = {"record_id": record_id}
+
+    def replace_tags(self, index: int, tags: list[str]) -> None:
+        """Replace all tags on an existing record with the given tags."""
+        validate_tags_list(tags)
+        record = self._records[index]
+        record_id = record["record_id"]
+
+        # For not-yet-pushed records, modify tags directly
+        if record_id in self._new_records_by_record_id:
+            record["tags"] = list(tags)
+            return
+
+        self._accumulate_tag_operations(record_id, "replace", tags)
+        # Update in-memory state for read consistency
+        record["tags"] = list(tags)
+        # Ensure the record is tracked for updates
+        if record_id not in self._updated_record_ids_to_new_fields:
+            self._updated_record_ids_to_new_fields[record_id] = {"record_id": record_id}
+
+    def _accumulate_tag_operations(self, record_id: str, operation: str, tags: list[str]) -> None:
+        """Accumulate tag operations for a record before push.
+
+        Handles merging logic:
+        - replace overrides all prior add/remove operations
+        - After a replace, subsequent add/remove fold into the replace list
+        - Without replace, add and remove accumulate independently with cancellation
+        """
+        ops = self._pending_tag_operations.get(record_id, _TagOperations())
+
+        if operation == "replace":
+            # Replace overrides everything
+            ops = _TagOperations(replace=list(tags))
+        elif operation == "add":
+            if "replace" in ops:
+                # After a replace, fold adds into the replace list
+                existing = set(ops["replace"])
+                existing.update(tags)
+                ops["replace"] = sorted(existing)
+            else:
+                add_set = set(ops.get("add", []))
+                remove_set = set(ops.get("remove", []))
+                for tag in tags:
+                    if tag in remove_set:
+                        remove_set.discard(tag)
+                    else:
+                        add_set.add(tag)
+                ops = _TagOperations()
+                if add_set:
+                    ops["add"] = sorted(add_set)
+                if remove_set:
+                    ops["remove"] = sorted(remove_set)
+        elif operation == "remove":
+            if "replace" in ops:
+                # After a replace, fold removes into the replace list
+                existing = set(ops["replace"])
+                existing -= set(tags)
+                ops["replace"] = sorted(existing)
+            else:
+                add_set = set(ops.get("add", []))
+                remove_set = set(ops.get("remove", []))
+                for tag in tags:
+                    if tag in add_set:
+                        add_set.discard(tag)
+                    else:
+                        remove_set.add(tag)
+                ops = _TagOperations()
+                if add_set:
+                    ops["add"] = sorted(add_set)
+                if remove_set:
+                    ops["remove"] = sorted(remove_set)
+
+        self._pending_tag_operations[record_id] = ops
 
     def delete(self, index: int) -> None:
         record_id = self._records[index]["record_id"]
@@ -641,6 +780,9 @@ class Dataset:
 
         if record_id in self._updated_record_ids_to_new_fields:
             del self._updated_record_ids_to_new_fields[record_id]
+
+        if record_id in self._pending_tag_operations:
+            del self._pending_tag_operations[record_id]
 
         if record_id in self._new_records_by_record_id:
             del self._new_records_by_record_id[record_id]
@@ -664,7 +806,11 @@ class Dataset:
 
     def _estimate_delta_size(self) -> int:
         """rough estimate (in bytes) of the size of the next batch update call if it happens"""
-        size = len(safe_json(self._new_records_by_record_id)) + len(safe_json(self._updated_record_ids_to_new_fields))
+        size = (
+            len(safe_json(self._new_records_by_record_id))
+            + len(safe_json(self._updated_record_ids_to_new_fields))
+            + len(safe_json(self._pending_tag_operations))
+        )
         logger.debug("estimated delta size %d", size)
         return size
 

@@ -3065,3 +3065,964 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
     # Both sync and async summary evaluators should have run
     assert "dummy_summary_evaluator" in exp_results["summary_evaluations"]
     assert "async_dummy_summary_evaluator" in exp_results["summary_evaluations"]
+
+
+# --- Tag operations unit tests ---
+
+
+def _make_dataset_with_records(records):
+    """Helper to create a Dataset with mock client for unit testing tag operations."""
+    mock_client = MagicMock()
+    project = {"name": "test-project", "_id": "proj-123"}
+    dataset_records = []
+    for i, r in enumerate(records):
+        dr = {
+            "input_data": r.get("input_data", {}),
+            "expected_output": r.get("expected_output"),
+            "metadata": r.get("metadata", {}),
+            "tags": r.get("tags", []),
+            "record_id": r.get("record_id", f"rec-{i}"),
+            "canonical_id": None,
+        }
+        dataset_records.append(dr)
+    return Dataset(
+        name="test-ds",
+        project=project,
+        dataset_id="ds-123",
+        records=dataset_records,
+        description="test",
+        latest_version=1,
+        version=1,
+        _dne_client=mock_client,
+    )
+
+
+def test_dataset_add_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.add_tags(0, ["priority:high", "team:ml"])
+    assert ds[0]["tags"] == ["env:prod", "priority:high", "team:ml"]
+
+
+def test_dataset_remove_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod", "priority:high", "team:ml"]},
+        ]
+    )
+    ds.remove_tags(0, ["priority:high"])
+    assert ds[0]["tags"] == ["env:prod", "team:ml"]
+
+
+def test_dataset_replace_tags_updates_local_state():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod", "priority:high"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging", "version:2"])
+    assert ds[0]["tags"] == ["env:staging", "version:2"]
+
+
+def test_dataset_replace_tags_with_empty_list():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, [])
+    assert ds[0]["tags"] == []
+
+
+def test_dataset_add_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["env:prod"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(add=["env:prod"])
+    assert "rec-0" in ds._updated_record_ids_to_new_fields
+
+
+def test_dataset_remove_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.remove_tags(0, ["env:prod"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(remove=["env:prod"])
+
+
+def test_dataset_replace_tags_creates_pending_operations():
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_accumulate_add_then_remove_cancels():
+    """Adding and then removing the same tag should cancel out."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["env:prod"])
+    ds.remove_tags(0, ["env:prod"])
+    # Should have no operations left
+    ops = ds._pending_tag_operations["rec-0"]
+    assert "add" not in ops
+    assert "remove" not in ops
+
+
+def test_dataset_accumulate_remove_then_add_cancels():
+    """Removing and then adding the same tag should cancel out."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.remove_tags(0, ["env:prod"])
+    ds.add_tags(0, ["env:prod"])
+    ops = ds._pending_tag_operations["rec-0"]
+    assert "add" not in ops
+    assert "remove" not in ops
+
+
+def test_dataset_accumulate_replace_overrides_add_remove():
+    """Replace should override any prior add/remove operations."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.add_tags(0, ["priority:high"])
+    ds.remove_tags(0, ["env:prod"])
+    ds.replace_tags(0, ["env:staging"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_accumulate_add_after_replace_folds_into_replace():
+    """After a replace, adds should fold into the replace list."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging"])
+    ds.add_tags(0, ["priority:high"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging", "priority:high"])
+
+
+def test_dataset_accumulate_remove_after_replace_folds_into_replace():
+    """After a replace, removes should fold into the replace list."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.replace_tags(0, ["env:staging", "priority:high"])
+    ds.remove_tags(0, ["priority:high"])
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_tag_operations_on_new_record_modifies_directly():
+    """For appended-but-not-pushed records, tags should be modified directly, not via tag operations."""
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}, "expected_output": None, "metadata": {}, "tags": ["env:prod"]})
+    ds.add_tags(0, ["priority:high"])
+    assert ds[0]["tags"] == ["env:prod", "priority:high"]
+    # Should NOT create pending tag operations for new records
+    assert len(ds._pending_tag_operations) == 0
+
+    ds.remove_tags(0, ["env:prod"])
+    assert ds[0]["tags"] == ["priority:high"]
+    assert len(ds._pending_tag_operations) == 0
+
+    ds.replace_tags(0, ["env:staging"])
+    assert ds[0]["tags"] == ["env:staging"]
+    assert len(ds._pending_tag_operations) == 0
+
+
+def test_dataset_update_with_tags_delegates_to_replace_tags():
+    """Passing tags in update() should trigger replace_tags."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"tags": ["env:staging", "version:2"]})
+    assert ds[0]["tags"] == ["env:staging", "version:2"]
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging", "version:2"])
+
+
+def test_dataset_update_with_tags_and_other_fields():
+    """update() with both tags and other fields should handle both."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"input_data": {"prompt": "world"}, "tags": ["env:staging"]})
+    assert ds[0]["tags"] == ["env:staging"]
+    assert ds[0]["input_data"] == {"prompt": "world"}
+    assert ds._pending_tag_operations["rec-0"] == _TagOperations(replace=["env:staging"])
+
+
+def test_dataset_update_with_only_tags():
+    """update() with only tags should not raise."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds.update(0, {"tags": ["env:staging"]})
+    assert ds[0]["tags"] == ["env:staging"]
+
+
+def test_dataset_delete_cleans_up_tag_operations():
+    """Deleting a record should remove its pending tag operations."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+            {"input_data": {"prompt": "world"}, "tags": []},
+        ]
+    )
+    ds.add_tags(0, ["priority:high"])
+    assert "rec-0" in ds._pending_tag_operations
+    ds.delete(0)
+    assert "rec-0" not in ds._pending_tag_operations
+
+
+def test_dataset_push_injects_tag_operations():
+    """Push should inject tag operations into update records and clear state."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    ds._dne_client.dataset_batch_update.return_value = (2, [], [])
+
+    ds.add_tags(0, ["priority:high"])
+    ds._push()
+
+    # Verify that dataset_batch_update was called with tag_operations in the update records
+    call_args = ds._dne_client.dataset_batch_update.call_args
+    update_records = call_args.kwargs["update_records"]
+    assert len(update_records) == 1
+    assert "tag_operations" in update_records[0]
+    assert update_records[0]["tag_operations"]["add"] == ["priority:high"]
+
+    # State should be cleared after push
+    assert ds._pending_tag_operations == {}
+    assert ds._updated_record_ids_to_new_fields == {}
+
+
+def test_dataset_push_clears_tag_operations_on_success():
+    """After a successful push, _pending_tag_operations should be empty."""
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": []},
+        ]
+    )
+    ds._dne_client.dataset_batch_update.return_value = (2, [], [])
+
+    ds.replace_tags(0, ["env:staging"])
+    assert len(ds._pending_tag_operations) == 1
+    ds._push()
+    assert len(ds._pending_tag_operations) == 0
+
+
+def test_get_record_json_serializes_tag_operations():
+    """_get_record_json should serialize tag_operations with replace→set mapping."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+        "tag_operations": {"add": ["env:prod"], "replace": ["version:2"]},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["id"] == "rec-1"
+    assert "tag_operations" in result
+    assert result["tag_operations"]["add"] == ["env:prod"]
+    assert result["tag_operations"]["set"] == ["version:2"]
+    assert "replace" not in result["tag_operations"]
+
+
+def test_get_record_json_no_tag_operations_for_insert():
+    """_get_record_json should NOT include tag_operations for insert records."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "input_data": {"prompt": "hello"},
+        "expected_output": None,
+        "metadata": {},
+        "tags": ["env:prod"],
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=False)
+    assert "tag_operations" not in result
+    assert result["tags"] == ["env:prod"]
+
+
+def test_get_record_json_update_without_tag_operations():
+    """_get_record_json should not include tag_operations when absent."""
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["id"] == "rec-1"
+    assert "tag_operations" not in result
+
+
+# --- Tag validation tests ---
+
+
+def test_dataset_add_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'bad' is malformed"):
+        ds.add_tags(0, ["bad"])
+
+
+def test_dataset_remove_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'notag' is malformed"):
+        ds.remove_tags(0, ["notag"])
+
+
+def test_dataset_replace_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'oops' is malformed"):
+        ds.replace_tags(0, ["oops"])
+
+
+def test_dataset_append_rejects_malformed_tag():
+    ds = _make_dataset_with_records([])
+    with pytest.raises(ValueError, match="Tag 'invalid' is malformed"):
+        ds.append({"input_data": {"prompt": "hello"}, "tags": ["invalid"]})
+
+
+def test_dataset_add_tags_rejects_non_list():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        ds.add_tags(0, "env:staging")
+
+
+def test_dataset_add_tags_rejects_non_string_element():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        ds.add_tags(0, [123])
+
+
+def test_dataset_append_accepts_valid_tags():
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod", "team:ml"]})
+    assert len(ds) == 1
+    assert ds[0]["tags"] == ["env:prod", "team:ml"]
+
+
+def test_dataset_append_without_tags_succeeds():
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}})
+    assert len(ds) == 1
+
+
+# --- Size estimation includes tag operations ---
+
+
+def test_estimate_delta_size_includes_tag_operations():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    size_before = ds._estimate_delta_size()
+    ds.add_tags(0, ["priority:high"])
+    size_after = ds._estimate_delta_size()
+    assert size_after > size_before
+
+
+# --- extend tests ---
+
+
+def test_dataset_extend_with_valid_tags(llmobs, test_dataset):
+    test_dataset.extend(
+        [
+            {"input_data": {"prompt": "a"}, "tags": ["env:prod"]},
+            {"input_data": {"prompt": "b"}, "tags": ["env:staging", "team:ml"]},
+        ]
+    )
+    assert len(test_dataset) == 2
+    assert test_dataset[0]["tags"] == ["env:prod"]
+    assert test_dataset[1]["tags"] == ["env:staging", "team:ml"]
+
+
+def test_dataset_extend_rejects_malformed_tag(llmobs, test_dataset):
+    """extend delegates to append; a malformed tag in any record should raise."""
+    with pytest.raises(ValueError, match="Tag 'bad' is malformed"):
+        test_dataset.extend(
+            [
+                {"input_data": {"prompt": "a"}, "tags": ["env:prod"]},
+                {"input_data": {"prompt": "b"}, "tags": ["bad"]},
+            ]
+        )
+    # First record was appended before the second raised
+    assert len(test_dataset) == 1
+
+
+def test_dataset_extend_rejects_non_list_tags(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.extend([{"input_data": {"prompt": "a"}, "tags": "env:prod"}])
+
+
+def test_dataset_extend_rejects_non_string_tag_element(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.extend([{"input_data": {"prompt": "a"}, "tags": [42]}])
+
+
+def test_dataset_extend_without_tags(llmobs, test_dataset):
+    test_dataset.extend(
+        [
+            {"input_data": {"prompt": "a"}},
+            {"input_data": {"prompt": "b"}},
+        ]
+    )
+    assert len(test_dataset) == 2
+
+
+def test_dataset_extend_records_tracked_as_new(llmobs, test_dataset):
+    """Records added via extend should be tracked in _new_records_by_record_id."""
+    test_dataset.extend(
+        [
+            {"input_data": {"prompt": "a"}, "tags": ["env:prod"]},
+            {"input_data": {"prompt": "b"}, "tags": ["env:staging"]},
+        ]
+    )
+    assert len(test_dataset._new_records_by_record_id) == 2
+
+
+# --- append tag behavior tests ---
+
+
+def test_dataset_append_stores_tags_on_record(llmobs, test_dataset):
+    """Tags passed to append should be stored on the record and in _new_records_by_record_id."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod", "version:1"]})
+    record_id = test_dataset[0]["record_id"]
+    assert test_dataset._new_records_by_record_id[record_id]["tags"] == ["env:prod", "version:1"]
+
+
+def test_dataset_append_with_empty_tags_succeeds(llmobs, test_dataset):
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": []})
+    assert len(test_dataset) == 1
+    assert test_dataset[0]["tags"] == []
+
+
+def test_dataset_append_rejects_non_list_tags(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.append({"input_data": {"prompt": "hello"}, "tags": "env:prod"})
+
+
+def test_dataset_append_rejects_non_string_tag_element(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.append({"input_data": {"prompt": "hello"}, "tags": [True]})
+
+
+# --- Additional tag validation tests (remove_tags, replace_tags, update type checks) ---
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_remove_tags_rejects_non_list(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.remove_tags(0, "env:prod")
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_remove_tags_rejects_non_string_element(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.remove_tags(0, [None])
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_replace_tags_rejects_non_list(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.replace_tags(0, "env:staging")
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_replace_tags_rejects_non_string_element(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Each tag must be a string"):
+        test_dataset.replace_tags(0, [3.14])
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_update_rejects_malformed_tags(llmobs, test_dataset):
+    """update() delegates tags to replace_tags, which validates."""
+    with pytest.raises(ValueError, match="Tag 'nope' is malformed"):
+        test_dataset.update(0, {"tags": ["nope"]})
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_update_rejects_non_list_tags(llmobs, test_dataset):
+    with pytest.raises(TypeError, match="Tags must be a list of strings"):
+        test_dataset.update(0, {"tags": "env:staging"})
+
+
+# --- Tag operation edge cases ---
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_add_tags_deduplicates(llmobs, test_dataset):
+    """Adding a tag that already exists should not create a duplicate."""
+    test_dataset.add_tags(0, ["env:prod", "team:ml"])
+    assert test_dataset[0]["tags"] == ["env:prod", "team:ml"]
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_remove_tags_nonexistent_is_noop(llmobs, test_dataset):
+    """Removing a tag that doesn't exist should not error."""
+    test_dataset.remove_tags(0, ["team:ml"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=[],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_add_tags_to_record_with_no_tags(llmobs, test_dataset):
+    test_dataset.add_tags(0, ["env:prod"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod", "team:ml"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_remove_all_tags(llmobs, test_dataset):
+    test_dataset.remove_tags(0, ["env:prod", "team:ml"])
+    assert test_dataset[0]["tags"] == []
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "a"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            ),
+            DatasetRecord(
+                input_data={"prompt": "b"},
+                expected_output=None,
+                metadata={},
+                tags=["env:staging"],
+                record_id="",
+                canonical_id=None,
+            ),
+        ]
+    ],
+)
+def test_dataset_tag_operations_multiple_records_independent(llmobs, test_dataset):
+    """Tag operations on different records should be tracked independently."""
+    from ddtrace.llmobs._experiment import _TagOperations
+
+    rec0_id = test_dataset[0]["record_id"]
+    rec1_id = test_dataset[1]["record_id"]
+    test_dataset.add_tags(0, ["priority:high"])
+    test_dataset.remove_tags(1, ["env:staging"])
+    assert test_dataset._pending_tag_operations[rec0_id] == _TagOperations(add=["priority:high"])
+    assert test_dataset._pending_tag_operations[rec1_id] == _TagOperations(remove=["env:staging"])
+    assert test_dataset[0]["tags"] == ["env:prod", "priority:high"]
+    assert test_dataset[1]["tags"] == []
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=[],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_replace_tags_on_record_with_no_tags(llmobs, test_dataset):
+    test_dataset.replace_tags(0, ["env:staging"])
+    assert test_dataset[0]["tags"] == ["env:staging"]
+
+
+def test_dataset_add_tags_on_new_record_deduplicates(llmobs, test_dataset):
+    """Adding a tag to a new (unpushed) record that already has it should not duplicate."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.add_tags(0, ["env:prod"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+
+
+def test_dataset_remove_tags_on_new_record(llmobs, test_dataset):
+    """Removing tags from a new (unpushed) record should modify directly."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod", "team:ml"]})
+    test_dataset.remove_tags(0, ["team:ml"])
+    assert test_dataset[0]["tags"] == ["env:prod"]
+    assert len(test_dataset._pending_tag_operations) == 0
+
+
+def test_dataset_replace_tags_on_new_record(llmobs, test_dataset):
+    """Replacing tags on a new (unpushed) record should modify directly."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.replace_tags(0, ["env:staging", "version:2"])
+    assert test_dataset[0]["tags"] == ["env:staging", "version:2"]
+    assert len(test_dataset._pending_tag_operations) == 0
+
+
+# --- update with tags on new records ---
+
+
+def test_dataset_update_with_tags_on_new_record(llmobs, test_dataset):
+    """update() with tags on a new (appended, not pushed) record should modify directly."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.update(0, {"tags": ["env:staging"]})
+    assert test_dataset[0]["tags"] == ["env:staging"]
+    assert len(test_dataset._pending_tag_operations) == 0
+
+
+# --- Writer serialization additional tests ---
+
+
+def test_get_record_json_serializes_remove_only():
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+        "tag_operations": {"remove": ["env:prod"]},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["tag_operations"] == {"remove": ["env:prod"]}
+    assert "add" not in result["tag_operations"]
+    assert "set" not in result["tag_operations"]
+
+
+def test_get_record_json_serializes_add_only():
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
+    record = {
+        "record_id": "rec-1",
+        "input_data": {"prompt": "hello"},
+        "tag_operations": {"add": ["env:prod", "team:ml"]},
+    }
+    result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
+    assert result["tag_operations"] == {"add": ["env:prod", "team:ml"]}
+
+
+# --- Push integration with tag operations ---
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_push_with_replace_maps_to_set(llmobs, test_dataset):
+    """Push with replace tag operations should serialize replace as 'set' in the update records."""
+    test_dataset.replace_tags(0, ["env:staging"])
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert set(ds[0]["tags"]) == {"env:staging"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod", "team:ml"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_push_with_remove_operations(llmobs, test_dataset):
+    test_dataset.remove_tags(0, ["team:ml"])
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert set(ds[0]["tags"]) == {"env:prod"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "hello"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            )
+        ]
+    ],
+)
+def test_dataset_push_with_mixed_tag_and_field_updates(llmobs, test_dataset):
+    """Push with both tag operations and field updates on the same record."""
+    test_dataset.update(0, {"input_data": {"prompt": "world"}, "tags": ["env:staging"]})
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert ds[0]["input_data"] == {"prompt": "world"}
+    assert set(ds[0]["tags"]) == {"env:staging"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "a"},
+                expected_output=None,
+                metadata={},
+                tags=["env:prod"],
+                record_id="",
+                canonical_id=None,
+            ),
+            DatasetRecord(
+                input_data={"prompt": "b"},
+                expected_output=None,
+                metadata={},
+                tags=["env:staging"],
+                record_id="",
+                canonical_id=None,
+            ),
+        ]
+    ],
+)
+def test_dataset_push_multiple_records_with_tag_operations(llmobs, test_dataset):
+    """Push with tag operations on multiple records."""
+    test_dataset.add_tags(0, ["priority:high"])
+    test_dataset.remove_tags(1, ["env:staging"])
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    tags_by_input = {ds[i]["input_data"]["prompt"]: set(ds[i]["tags"]) for i in range(len(ds))}
+    assert tags_by_input["a"] == {"env:prod", "priority:high"}
+    assert tags_by_input["b"] == set()
+
+
+def test_dataset_push_new_record_with_tags_no_tag_operations(llmobs, test_dataset):
+    """New records carry tags directly; they should NOT have tag_operations."""
+    test_dataset.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod"]})
+    test_dataset.push()
+    wait_for_backend()
+
+    ds = llmobs.pull_dataset(dataset_name=test_dataset.name)
+    assert len(ds) == 1
+    assert set(ds[0]["tags"]) == {"env:prod"}
