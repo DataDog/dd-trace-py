@@ -471,6 +471,48 @@ class ExperimentResult(TypedDict):
     runs: list[ExperimentRun]
 
 
+def experiment_result_as_dataframe(result: ExperimentResult) -> Any:
+    """Convert an ExperimentResult to a pandas DataFrame.
+
+    Flattens rows into columns: idx, input, output, expected_output, error_message,
+    error_type, and eval_<name>_value / eval_<name>_error for each evaluator.
+
+    :param result: An ExperimentResult returned by experiment.run()
+    :return: A pandas DataFrame
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        raise ImportError("pandas is required for as_dataframe(). Install it with: pip install pandas")
+
+    flat_rows: list[dict[str, Any]] = []
+    for row in result["rows"]:
+        flat: dict[str, Any] = {
+            "idx": row["idx"],
+            "input": row["input"],
+            "output": row["output"],
+            "expected_output": row["expected_output"],
+            "error_message": (row.get("error") or {}).get("message"),
+            "error_type": (row.get("error") or {}).get("type"),
+        }
+        for eval_name, eval_data in (row.get("evaluations") or {}).items():
+            if isinstance(eval_data, dict):
+                flat[f"eval_{eval_name}_value"] = eval_data.get("value")
+                flat[f"eval_{eval_name}_error"] = eval_data.get("error")
+        flat_rows.append(flat)
+    return pd.DataFrame(flat_rows)
+
+
+def experiment_result_to_csv(result: ExperimentResult, path: str) -> None:
+    """Export an ExperimentResult to a CSV file.
+
+    :param result: An ExperimentResult returned by experiment.run()
+    :param path: File path for the CSV output
+    """
+    df = experiment_result_as_dataframe(result)
+    df.to_csv(path, index=False)
+
+
 class Dataset:
     name: str
     description: str
@@ -796,11 +838,17 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
         self.experiment_span: Optional["ExportedLLMObsSpan"] = None
+        self._last_result: Optional[ExperimentResult] = None
 
     @property
     def url(self) -> str:
         # FIXME: will not work for subdomain orgs
         return f"{_get_base_url()}/llm/experiments/{self._id}"
+
+    @property
+    def result(self) -> Optional[ExperimentResult]:
+        """The result of the last run, or None if the experiment has not been run yet."""
+        return self._last_result
 
     def _merge_results(
         self,
@@ -1054,11 +1102,12 @@ class Experiment:
             )
             run_results.append(run_result)
 
-        return {
+        self._last_result = {
             "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
             "rows": run_results[0].rows if run_results else [],
             "runs": run_results,
         }
+        return self._last_result
 
     async def _process_record(
         self,
@@ -1478,6 +1527,11 @@ class SyncExperiment:
             summary_evaluators=summary_evaluators,
             runs=runs,
         )
+
+    @property
+    def result(self) -> Optional[ExperimentResult]:
+        """The result of the last run, or None if the experiment has not been run yet."""
+        return self._experiment.result
 
     def run(
         self,

@@ -791,6 +791,47 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
 
+    def experiment_get_events(
+        self,
+        experiment_id: str,
+        page_limit: int = 100,
+    ) -> dict[str, Any]:
+        """Fetch experiment events (spans + summary metrics) with pagination.
+
+        :param experiment_id: The experiment ID to fetch events for
+        :param page_limit: Number of events per page (default: 100)
+        :return: Dict with "spans" and "summary_metrics" keys
+        """
+        all_spans: list[dict[str, Any]] = []
+        summary_metrics: list[dict[str, Any]] = []
+        cursor: Optional[str] = None
+
+        while True:
+            path = "/api/v2/llm-obs/v3/experiments/{}/events?page[limit]={}".format(
+                quote(str(experiment_id), safe=""), page_limit
+            )
+            if cursor:
+                path += "&page[cursor]={}".format(quote(cursor, safe=""))
+
+            resp = self.request("GET", path)
+            if resp.status != 200:
+                raise ValueError(
+                    "Failed to fetch experiment events for {}: {} {}".format(experiment_id, resp.status, resp.body)
+                )
+
+            data = resp.get_json()
+            attrs = data.get("data", {}).get("attributes", {})
+            all_spans.extend(attrs.get("spans", []))
+            if not summary_metrics:
+                summary_metrics = attrs.get("summary_metrics", [])
+
+            next_cursor = data.get("data", {}).get("meta", {}).get("page", {}).get("cursor")
+            if not next_cursor or not attrs.get("spans"):
+                break
+            cursor = next_cursor
+
+        return {"spans": all_spans, "summary_metrics": summary_metrics}
+
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""
