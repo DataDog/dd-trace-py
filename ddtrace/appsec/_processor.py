@@ -143,10 +143,13 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             # Partial of DDAS-0005-00
             log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
+            self._ddwaf = None
 
         self._update_required()
 
     def _update_required(self):
+        if self._ddwaf is None:
+            return
         self._addresses_to_keep.clear()
         for address in self._ddwaf.required_data:
             self._addresses_to_keep.add(address)
@@ -160,7 +163,7 @@ class AppSecSpanProcessor(SpanProcessor):
     ) -> bool:
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
-        if not hasattr(self, "_ddwaf"):
+        if self._ddwaf is None:
             return False
         result = False
         if asm_config._asm_static_rule_file is not None:
@@ -195,7 +198,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
-        if not hasattr(self, "_ddwaf"):
+        if self._ddwaf is None:
             return
 
         if span.span_type not in asm_config._asm_processed_span_types:
@@ -265,6 +268,9 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
+        if getattr(self, "_ddwaf", None) is None:
+            return None
+
         if _asm_request_context.get_blocked():
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
@@ -392,9 +398,12 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
+        ddwaf = getattr(self, "_ddwaf", None)
+        if ddwaf is None:
+            return
         if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()
-            self._ddwaf._at_request_end()
+            ddwaf._at_request_end()
             _asm_request_context.end_context(span)
 
     @classmethod
