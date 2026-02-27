@@ -569,6 +569,21 @@ def gen_debugger_exploration() -> None:
 
 def gen_detect_global_locks() -> None:
     """Generate the global lock detection job."""
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            "ddtrace/*",
+            "setup.py",
+            "setup.cfg",
+            "pyproject.toml",
+            "src/native/*",
+            "scripts/global-lock-detection.py",
+            ".gitlab/templates/detect-global-locks.yml",
+        }
+    ):
+        return
+
     with TESTS_GEN.open("a") as f:
         f.write(template("detect-global-locks"))
 
