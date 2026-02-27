@@ -39,7 +39,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={"agent_manifest": expected_agent_manifest()},
+            metadata={"_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -70,7 +70,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={"max_turns": 3, "agent_manifest": expected_agent_manifest(max_iterations=3)},
+            metadata={"max_turns": 3, "_dd": {"agent_manifest": expected_agent_manifest(max_iterations=3)}},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -95,7 +95,7 @@ class TestLLMObsClaudeAgentSdk:
             span_kind="agent",
             input_value=safe_json([{"content": prompt, "role": "user"}]),
             output_value=safe_json([{"content": ""}]),
-            metadata={"agent_manifest": {"framework": "Claude Agent SDK"}},
+            metadata={"_dd": {"agent_manifest": {"framework": "Claude Agent SDK"}}},
             token_metrics={},
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
             error="builtins.ValueError",
@@ -129,9 +129,11 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={
-                "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
-                "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
-                "agent_manifest": expected_agent_manifest(),
+                "_dd": {
+                    "agent_manifest": expected_agent_manifest(),
+                    "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                    "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                },
             },
             token_metrics={
                 "input_tokens": 14599,
@@ -193,7 +195,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={"agent_manifest": expected_agent_manifest()},
+            metadata={"_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -247,7 +249,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={"agent_manifest": expected_agent_manifest()},
+            metadata={"_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -301,7 +303,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={"agent_manifest": expected_agent_manifest()},
+            metadata={"_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -334,7 +336,7 @@ class TestLLMObsClaudeAgentSdk:
                     {"content": "4", "role": "system"},
                 ]
             ),
-            metadata={"agent_manifest": expected_agent_manifest()},
+            metadata={"_dd": {"agent_manifest": expected_agent_manifest()}},
             token_metrics=EXPECTED_QUERY_USAGE,
             tags={"ml_app": "unnamed-ml-app", "service": "tests.llmobs"},
         )
@@ -372,9 +374,11 @@ class TestLLMObsClaudeAgentSdk:
                 ]
             ),
             metadata={
-                "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
-                "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
-                "agent_manifest": expected_agent_manifest(),
+                "_dd": {
+                    "agent_manifest": expected_agent_manifest(),
+                    "after_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                    "before_context": {"categories": {}, "used_tokens": None, "total_tokens": None},
+                },
             },
             token_metrics={
                 "input_tokens": 14599,

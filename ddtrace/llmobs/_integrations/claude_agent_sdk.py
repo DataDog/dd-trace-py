@@ -191,15 +191,16 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         return result
 
-    def _format_context(self, parameters: dict[str, Any], kwargs: dict[str, Any]) -> None:
+    def _format_context(self, metadata: dict[str, Any], kwargs: dict[str, Any]) -> None:
         after_context = kwargs.get("_dd_context")
         before_context = kwargs.get("_dd_before_context")
 
+        if "_dd" not in metadata or not isinstance(metadata["_dd"], dict):
+            metadata["_dd"] = {}
         if after_context:
-            parameters["after_context"] = self._parse_context_categories(after_context)
-
+            metadata["_dd"]["after_context"] = self._parse_context_categories(after_context)
         if before_context:
-            parameters["before_context"] = self._parse_context_categories(before_context)
+            metadata["_dd"]["before_context"] = self._parse_context_categories(before_context)
 
     def _extract_input_messages(self, prompt: Any, span: Span) -> list[Message]:
         prompt_wrapper = span._get_ctx_item("_dd_prompt_wrapper") if span else None
