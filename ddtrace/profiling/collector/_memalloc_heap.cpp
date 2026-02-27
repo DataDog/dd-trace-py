@@ -280,6 +280,8 @@ heap_tracker_t::export_heap_no_cpython()
         (void)ptr; // Suppress unused variable warning
         tb->sample.export_sample();
     }
+
+    Datadog::Sample::profile_borrow().stats().set_heap_tracker_size(allocs_m.size());
 }
 
 void
