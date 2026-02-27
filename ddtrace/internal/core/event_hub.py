@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import logging
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -8,6 +9,7 @@ from ddtrace.internal.settings._config import config
 
 
 _listeners: dict[str, dict[Any, Callable[..., Any]]] = {}
+log = logging.getLogger(__name__)
 
 
 class ResultType(enum.Enum):
