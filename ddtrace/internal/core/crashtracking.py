@@ -7,9 +7,9 @@ from typing import Optional
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import forksafe
+from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.process_tags import process_tags
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -42,6 +42,8 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
         "severity": "crash",
     }
 
+    process_tags._set_globals()
+
     # Here we check for the presence of each tags, as the underlying Metadata
     # object expects std::collections::HashMap<String, String> which doesn't
     # support None values.
@@ -60,8 +62,8 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
     library_version = version.__version__
     if library_version:
         tags["library_version"] = library_version
-    if process_tags:
-        tags["process_tags"] = process_tags
+    if process_tags.process_tags:
+        tags["process_tags"] = process_tags.process_tags
 
     for k, v in crashtracker_config.tags.items():
         if k and v:

@@ -98,6 +98,7 @@ def test_data_streams_processor():
 )
 def test_new_pathway_uses_container_tags_hash():
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
+    from ddtrace.internal.process_tags import _set_globals
     from ddtrace.internal.process_tags import compute_base_hash
 
     processor = DataStreamsProcessor("http://localhost:8126")
@@ -107,6 +108,7 @@ def test_new_pathway_uses_container_tags_hash():
     ctx.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"])
     hash_without_base = ctx.hash
 
+    _set_globals()
     compute_base_hash("container-hash-123")
     ctx_with_base = processor.new_pathway(now_sec=mocked_time)
     ctx_with_base.set_checkpoint(["direction:out", "topic:topicA", "type:kafka"])

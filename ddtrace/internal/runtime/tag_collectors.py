@@ -103,5 +103,6 @@ class ProcessTagCollector(RuntimeTagCollector):
     def collect_fn(self, keys):
         # DEV: we do not access direct process_tags_list so we can
         # reload it in the tests
+        process_tags._set_globals()
         process_tags_list = process_tags.process_tags_list
         return process_tags_list or []

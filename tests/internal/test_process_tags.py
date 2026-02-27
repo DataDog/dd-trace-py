@@ -86,6 +86,7 @@ def test_compute_process_tag_excluded_values(excluded_value):
 class TestProcessTags(TracerTestCase):
     def setUp(self):
         super(TestProcessTags, self).setUp()
+        process_tags._set_globals()
         self._original_process_tags_enabled = config.enabled
         self._original_process_tags = process_tags.process_tags
         self._original_process_tags_list = process_tags.process_tags_list
@@ -106,6 +107,17 @@ class TestProcessTags(TracerTestCase):
 
     @pytest.mark.snapshot
     def test_process_tags_activated(self):
+        with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
+            config.enabled = True  # type: ignore[assignment]
+            process_tag_reload()
+
+            with self.tracer.trace("parent"):
+                with self.tracer.trace("child"):
+                    pass
+
+    @pytest.mark.snapshot
+    @run_in_subprocess(env_overrides=dict(DD_SERVICE="foobar"))
+    def test_process_tags_user_defined_service(self):
         with patch("sys.argv", [TEST_SCRIPT_PATH]), patch("os.getcwd", return_value=TEST_WORKDIR_PATH):
             config.enabled = True  # type: ignore[assignment]
             process_tag_reload()

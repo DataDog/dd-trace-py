@@ -289,7 +289,8 @@ class DataStreamsProcessor(PeriodicService):
             raw_payload["Env"] = compat.ensure_text(config.env)
         if config.version:
             raw_payload["Version"] = compat.ensure_text(config.version)
-        if p_tags := process_tags.process_tags_list:
+        process_tags._set_globals()
+        if p_tags := process_tags.process_tags_list:  # type: ignore[attr-defined]
             raw_payload["ProcessTags"] = p_tags
 
         payload = packb(raw_payload)

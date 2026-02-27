@@ -239,7 +239,8 @@ class RemoteConfigClient:
             tags=[":".join(_) for _ in tags.items()],
         )
 
-        if p_tags_list := process_tags.process_tags_list:
+        process_tags._set_globals()
+        if p_tags_list := process_tags.process_tags_list:  # type: ignore[attr-defined]
             self._client_tracer["process_tags"] = p_tags_list
 
         self.cached_target_files: list[AppliedConfigType] = []

@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6911dc5a00000000",
-      "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir",
+      "_dd.tags.process": "entrypoint.basedir:to,entrypoint.name:test_script,entrypoint.type:script,entrypoint.workdir:workdir,svc.auto:tests.internal",
       "language": "python",
       "runtime-id": "2d5de91f8dd9442cad7faca5554a09f1"
     },

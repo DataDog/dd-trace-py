@@ -111,6 +111,7 @@ def _build_log_track_payload(
         "timestamp": int(signal.timestamp * 1e3),  # milliseconds,
     }
 
+    process_tags._set_globals()
     if p_tags := process_tags.process_tags:
         payload["process_tags"] = p_tags
 

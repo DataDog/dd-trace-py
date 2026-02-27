@@ -18,6 +18,8 @@ ENTRYPOINT_WORKDIR_TAG = "entrypoint.workdir"
 ENTRYPOINT_TYPE_TAG = "entrypoint.type"
 ENTRYPOINT_TYPE_SCRIPT = "script"
 ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
+SVC_USER_TAG = "svc.user"
+SVC_AUTO_TAG = "svc.auto"
 
 _CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
 _ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/._-")
@@ -62,11 +64,15 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
     if not config.enabled:
         return None, None
 
+    from ddtrace import config as ddtrace_config
+
     tag_definitions = [
         (ENTRYPOINT_WORKDIR_TAG, lambda: os.path.basename(os.getcwd())),
         (ENTRYPOINT_BASEDIR_TAG, lambda: Path(sys.argv[0]).resolve().parent.name),
         (ENTRYPOINT_NAME_TAG, lambda: os.path.splitext(os.path.basename(sys.argv[0]))[0]),
         (ENTRYPOINT_TYPE_TAG, lambda: ENTRYPOINT_TYPE_SCRIPT),
+        (SVC_USER_TAG, lambda: "true" if ddtrace_config._is_user_provided_service else None),
+        (SVC_AUTO_TAG, lambda: ddtrace_config.service if not ddtrace_config._is_user_provided_service else None),
     ]
 
     process_tags_list = sorted(
@@ -93,4 +99,11 @@ def compute_base_hash(container_tags_hash):
 
 
 base_hash, base_hash_bytes = None, b""
-process_tags, process_tags_list = generate_process_tags()
+process_tags = None
+
+
+def _set_globals():
+    global process_tags
+    global process_tags_list
+    if not process_tags:
+        process_tags, process_tags_list = generate_process_tags()
