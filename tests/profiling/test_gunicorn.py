@@ -1,6 +1,7 @@
 # -*- encoding: utf-8 -*-
 from __future__ import annotations
 
+import concurrent.futures
 import os
 import pathlib
 import re
@@ -164,6 +165,124 @@ def test_gunicorn(
 ) -> None:
     args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)
+
+
+def _run_sigterm_graceful_shutdown_test(
+    cmd: list[str],
+    bind_addr: str,
+    label: str,
+) -> None:
+    """Shared logic for SIGTERM graceful-shutdown tests.
+
+    Starts gunicorn with the given cmd, waits for readiness, fires a slow
+    request, sends SIGTERM, and asserts the slow request completes.
+    """
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        # Wait for the server to be ready
+        ready = False
+        for _ in range(30):
+            time.sleep(1)
+            if proc.poll() is not None:
+                assert proc.stdout is not None
+                output = proc.stdout.read().decode()
+                pytest.fail(f"[{label}] Gunicorn exited early:\n{output}")
+            try:
+                with urllib.request.urlopen(f"http://{bind_addr}/health", timeout=2) as resp:
+                    if resp.getcode() == 200:
+                        ready = True
+                        break
+            except Exception:
+                continue
+
+        if not ready:
+            pytest.fail(f"[{label}] Gunicorn server never became ready")
+
+        debug_print(f"[{label}] Firing slow request")
+
+        # Fire the slow request in a background thread
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            slow_future = pool.submit(
+                urllib.request.urlopen,
+                f"http://{bind_addr}/slow",
+                timeout=30,
+            )
+
+            # Give the request time to reach the worker
+            time.sleep(1)
+
+            debug_print(f"[{label}] Sending SIGTERM to gunicorn master (pid={proc.pid})")
+            proc.send_signal(signal.SIGTERM)
+
+            # The slow request should complete successfully despite SIGTERM
+            try:
+                resp = slow_future.result(timeout=30)
+                status_code = resp.getcode()
+                body = resp.read().decode()
+                resp.close()
+            except Exception as e:
+                assert proc.stdout is not None
+                output = proc.stdout.read().decode()
+                pytest.fail(f"[{label}] Slow request failed after SIGTERM: {e}\nGunicorn output:\n{output}")
+
+        debug_print(f"[{label}] Slow request returned: status={status_code}, body={body!r}")
+        assert status_code == 200, f"[{label}] Expected 200, got {status_code}"
+        assert body == "slow-ok", f"[{label}] Expected 'slow-ok', got {body!r}"
+
+        # Gunicorn should exit cleanly
+        try:
+            exit_code = proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            assert proc.stdout is not None
+            output = proc.stdout.read().decode()
+            pytest.fail(f"[{label}] Gunicorn did not exit after SIGTERM:\n{output}")
+
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        debug_print(f"[{label}] Gunicorn exit code: {exit_code}")
+        for line in output.splitlines():
+            debug_print(line)
+
+        assert exit_code == 0, f"[{label}] Gunicorn exited with code {exit_code}:\n{output}"
+
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+
+
+def test_gunicorn_gevent_sigterm_graceful_shutdown(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression test for SCP-1077.
+
+    When profiling is enabled with a gevent worker, sending SIGTERM to gunicorn
+    should allow in-flight requests to complete (graceful shutdown) rather than
+    killing them immediately.
+    """
+    pytest.importorskip("gevent")
+
+    monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+
+    bind_addr = "127.0.0.1:7645"
+    cmd = [
+        "ddtrace-run",
+        "gunicorn",
+        "--bind",
+        bind_addr,
+        "--worker-tmp-dir",
+        "/dev/shm",
+        "-k",
+        "gevent",
+        "-w",
+        "1",
+        "--graceful-timeout",
+        "10",
+        "--chdir",
+        os.path.dirname(__file__),
+        "gunicorn_sigterm_app:app",
+    ]
+
+    _run_sigterm_graceful_shutdown_test(cmd, bind_addr, label="ddtrace")
 
 
 def test_gunicorn_profile_export_count_two_workers(
