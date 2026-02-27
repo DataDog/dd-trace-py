@@ -172,6 +172,9 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     """
 
     content_type = "application/json"
+    BUFFER_START = b'{"spans": ['
+    BUFFER_END = b"]}"
+    ITEM_SEPARATOR = b","
 
     def __init__(self, max_size: int, max_item_size: int) -> None:
         self.max_size = max_size
@@ -198,28 +201,28 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
                     raise BufferItemTooLarge(item_size)
                 elif item_size + self._size > self.max_size:
                     raise BufferFull(item_size + self._size)
-                item_size += len(span_bytes)
-                self._buffer.append(span_bytes)
-                self._size += item_size
+                self._append_to_buffer(span_bytes)
+
+    def _append_to_buffer(self, item_bytes: bytes) -> None:
+        if self._size == 0:
+            self._buffer.append(self.BUFFER_START)
+            self._size += len(self.BUFFER_START)
+        else:
+            self._buffer.append(self.ITEM_SEPARATOR)
+            self._size += len(self.ITEM_SEPARATOR)
+        self._size += len(item_bytes)
+        self._buffer.append(item_bytes)
 
     def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
             if not self._buffer:
                 return []
-            payload_bytes = b"".join([b'{"spans": [', b",".join(self._buffer), b"]}"])
+            self._buffer.append(self.BUFFER_END)
+            payload_bytes = b"".join(self._buffer)
             n_traces = len(self._buffer)
             self._buffer = []
             self._size = 0
             return [(payload_bytes, n_traces)]
-
-    def _items_to_json_bytes(self, items: list["Span"]) -> tuple[list[bytes], int]:
-        total_size = 0
-        span_bytes_list = []
-        for item in items:
-            span_bytes = self._item_to_json_bytes(item)
-            span_bytes_list.append(span_bytes)
-            total_size += len(span_bytes)
-        return span_bytes_list, total_size
 
     def _item_to_json_bytes(self, item: "Span") -> bytes:
         span_dict = JSONEncoderV2._convert_span(item)
