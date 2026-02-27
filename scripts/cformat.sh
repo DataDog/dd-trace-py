@@ -20,6 +20,7 @@ exclude_patterns() {
         '_taint_tracking/_vendor/'
         'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/'
         'ddtrace/profiling/collector/vendor/'
+        '^ddtrace/internal/_rand\.c$'
     )
 
     # Join all patterns with '|'

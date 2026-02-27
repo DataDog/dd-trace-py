@@ -60,9 +60,14 @@ def _remap_traces_sampler(otel_value: str) -> Optional[str]:
 
 
 def _remap_traces_exporter(otel_value: str) -> Optional[str]:
-    """Remaps the otel trace exporter to ddtrace trace enabled"""
+    """Remaps the otel trace exporter to ddtrace trace enabled.
+    When OTEL_TRACES_EXPORTER=otlp, keep tracing enabled; OTLP export is handled
+    by the tracer's OTLP writer (ddtrace.internal.settings._otel_exporter).
+    """
     if otel_value == "none":
         return "False"
+    if otel_value == "otlp":
+        return "True"  # Enable tracing; OTLP export enabled via OTLP config
     return None
 
 
@@ -133,10 +138,15 @@ ENV_VAR_MAPPINGS: dict[str, tuple[str, Callable[[str], Optional[str]]]] = {
 SUPPORTED_OTEL_ENV_VARS = {
     "OTEL_PYTHON_CONTEXT",
     "OTEL_TRACES_SAMPLER_ARG",
+    "OTEL_TRACES_EXPORTER",
     "OTEL_EXPORTER_OTLP_TIMEOUT",
     "OTEL_EXPORTER_OTLP_PROTOCOL",
     "OTEL_EXPORTER_OTLP_HEADERS",
     "OTEL_EXPORTER_OTLP_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+    "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+    "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+    "OTEL_EXPORTER_OTLP_TRACES_TIMEOUT",
     "OTEL_EXPORTER_OTLP_COMPRESSION",
     "OTEL_EXPORTER_OTLP_CERTIFICATE",
     "OTEL_LOGS_EXPORTER",

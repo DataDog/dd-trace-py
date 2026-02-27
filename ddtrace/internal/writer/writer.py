@@ -63,6 +63,9 @@ log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
 
+# Max queued traces for OTLP writer; when full, oldest trace is dropped (backpressure).
+OTLP_TRACE_BUFFER_MAX_TRACES = 10000
+
 
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
     """
@@ -1171,6 +1174,120 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
 
+class OTLPWriter(periodic.PeriodicService, TraceWriter):
+    """
+    Export traces via OTLP HTTP/JSON. Buffers full traces and flushes periodically.
+
+    No partial flush: only complete traces are exported (aggregator sends full traces
+    when OTLP is enabled). Single export: when OTLP is used, Datadog agent is not used.
+    """
+
+    def __init__(
+        self,
+        endpoint_url: str,
+        headers: Optional[dict[str, str]] = None,
+        timeout_seconds: float = 10.0,
+        processing_interval: Optional[float] = None,
+        sync_mode: bool = False,
+    ) -> None:
+        if processing_interval is None:
+            processing_interval = config._trace_writer_interval_seconds
+        super(OTLPWriter, self).__init__(interval=processing_interval)
+        self.intake_url = endpoint_url
+        self._sync_mode = sync_mode
+        self._headers = headers or {}
+        self._buffer: list[list["Span"]] = []
+        self._lock = threading.Lock()
+        from ddtrace.internal.writer.otlp import OTLPHttpTraceExporter
+        from ddtrace.internal.writer.otlp import dd_trace_to_otlp_request
+        from ddtrace.internal.writer.otlp import otlp_request_to_json_bytes
+
+        self._exporter = OTLPHttpTraceExporter(
+            endpoint_url=endpoint_url,
+            headers=self._headers,
+            timeout_seconds=timeout_seconds,
+        )
+        self._mapper = dd_trace_to_otlp_request
+        self._serializer = otlp_request_to_json_bytes
+
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
+        if not spans:
+            return
+        if not self._sync_mode:
+            try:
+                if self.status != service.ServiceStatus.RUNNING:
+                    self.start()
+            except ServiceStatusError:
+                pass
+        with self._lock:
+            if len(self._buffer) >= OTLP_TRACE_BUFFER_MAX_TRACES:
+                self._buffer.pop(0)
+                _safelog(
+                    log.warning,
+                    "OTLP trace buffer full (%d traces), dropping oldest trace",
+                    OTLP_TRACE_BUFFER_MAX_TRACES,
+                    extra={"send_to_telemetry": False},
+                )
+            self._buffer.append(spans)
+        if self._sync_mode:
+            self.flush_queue()
+
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        with self._lock:
+            traces = self._buffer[:]
+            self._buffer.clear()
+        for trace in traces:
+            if not trace:
+                continue
+            try:
+                request = self._mapper(
+                    trace,
+                    service_name=config.service,
+                    env=config.env,
+                    version=config.version,
+                )
+                body = self._serializer(request)
+                resp = self._exporter.export(body)
+                if resp is None or resp.status >= 400:
+                    if raise_exc:
+                        raise RuntimeError("OTLP export failed to %s" % self.intake_url)
+            except Exception:
+                if raise_exc:
+                    raise
+                _safelog(
+                    log.error,
+                    "OTLP trace export failed for trace (len=%d)",
+                    len(trace),
+                    exc_info=True,
+                    extra={"send_to_telemetry": False},
+                )
+
+    def periodic(self) -> None:
+        self.flush_queue(raise_exc=False)
+
+    def _stop_service(self, timeout: Optional[float] = None) -> None:
+        super(OTLPWriter, self)._stop_service()
+        self.join(timeout=timeout)
+
+    def on_shutdown(self) -> None:
+        self.periodic()
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        self.on_shutdown()
+        super(OTLPWriter, self).stop(timeout=timeout)
+
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
+        from ddtrace.internal.settings._otel_exporter import config as otel_config
+
+        return OTLPWriter(
+            endpoint_url=otel_config.otlp_traces_endpoint,
+            headers=otel_config.otlp_traces_headers,
+            timeout_seconds=otel_config.otlp_traces_timeout_seconds,
+            processing_interval=self._interval,
+            sync_mode=self._sync_mode,
+        )
+
+
 def _use_log_writer() -> bool:
     """Returns whether the LogWriter should be used in the environment by
     default.
@@ -1217,6 +1334,29 @@ def _use_sync_mode() -> bool:
 
 
 def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
+    try:
+        from ddtrace.internal.settings._otel_exporter import config as otel_exporter_config
+
+        if otel_exporter_config.otlp_traces_enabled:
+            if otel_exporter_config.otlp_traces_protocol != "http/json":
+                log.warning(
+                    "OTLP trace export only supports http/json for this version; "
+                    "protocol %s requested, using http/json to default HTTP endpoint",
+                    otel_exporter_config.otlp_traces_protocol,
+                )
+                endpoint_url = otel_exporter_config.otlp_http_default_traces_url
+            else:
+                endpoint_url = otel_exporter_config.otlp_traces_endpoint
+            verify_url(endpoint_url)
+            return OTLPWriter(
+                endpoint_url=endpoint_url,
+                headers=otel_exporter_config.otlp_traces_headers,
+                timeout_seconds=otel_exporter_config.otlp_traces_timeout_seconds,
+                sync_mode=_use_sync_mode(),
+            )
+    except ImportError:
+        pass
+
     if _use_log_writer():
         return LogWriter()
 
