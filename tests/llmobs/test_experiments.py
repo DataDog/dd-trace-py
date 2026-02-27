@@ -3400,3 +3400,90 @@ def test_get_record_json_update_without_tag_operations():
     result = LLMObsExperimentsClient._get_record_json(record, is_update=True)
     assert result["id"] == "rec-1"
     assert "tag_operations" not in result
+
+
+# --- Tag validation tests ---
+
+
+def test_dataset_add_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'bad' is malformed"):
+        ds.add_tags(0, ["bad"])
+
+
+def test_dataset_remove_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'notag' is malformed"):
+        ds.remove_tags(0, ["notag"])
+
+
+def test_dataset_replace_tags_rejects_malformed_tag():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(ValueError, match="Tag 'oops' is malformed"):
+        ds.replace_tags(0, ["oops"])
+
+
+def test_dataset_append_rejects_malformed_tag():
+    ds = _make_dataset_with_records([])
+    with pytest.raises(ValueError, match="Tag 'invalid' is malformed"):
+        ds.append({"input_data": {"prompt": "hello"}, "tags": ["invalid"]})
+
+
+def test_dataset_add_tags_rejects_non_list():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(TypeError, match="Tags must be a list of strings, got str"):
+        ds.add_tags(0, "env:staging")
+
+
+def test_dataset_add_tags_rejects_non_string_element():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    with pytest.raises(TypeError, match="Each tag must be a string, got int"):
+        ds.add_tags(0, [123])
+
+
+def test_dataset_append_accepts_valid_tags():
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}, "tags": ["env:prod", "team:ml"]})
+    assert len(ds) == 1
+    assert ds[0]["tags"] == ["env:prod", "team:ml"]
+
+
+def test_dataset_append_without_tags_succeeds():
+    ds = _make_dataset_with_records([])
+    ds.append({"input_data": {"prompt": "hello"}})
+    assert len(ds) == 1
+
+
+# --- Size estimation includes tag operations ---
+
+
+def test_estimate_delta_size_includes_tag_operations():
+    ds = _make_dataset_with_records(
+        [
+            {"input_data": {"prompt": "hello"}, "tags": ["env:prod"]},
+        ]
+    )
+    size_before = ds._estimate_delta_size()
+    ds.add_tags(0, ["priority:high"])
+    size_after = ds._estimate_delta_size()
+    assert size_after > size_before
