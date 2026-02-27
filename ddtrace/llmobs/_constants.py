@@ -119,6 +119,8 @@ DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH = "on_openai_agent_span_finish"
 OAI_HANDOFF_TOOL_ARG = "{}"
 
 LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
+LITELLM_STREAM_MODEL_KEY = "_dd.litellm_model"
+LITELLM_STREAM_PROVIDER_KEY = "_dd.litellm_provider"
 
 PROXY_REQUEST = "llmobs.proxy_request"
 
