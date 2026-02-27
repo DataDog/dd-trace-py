@@ -8,7 +8,8 @@ from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
-from ddtrace.appsec._asm_request_context import _WAF_CALL, ASM_Environment
+from ddtrace.appsec._asm_request_context import _WAF_CALL
+from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._trace_utils import _asm_manual_keep
