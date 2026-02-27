@@ -899,15 +899,10 @@ def test_encoder_buffer_item_size_limit(encoder_cls):
     encoder = encoder_cls(max_item_size << 1, max_item_size)
 
     span = Span(name="test")
-    trace = [span]
-    encoder.put(trace)
-    base_size = encoder.size
-    encoder.put(trace)
-
-    trace_size = encoder.size - base_size
-
+    encoder.put([span])
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(max_item_size / trace_size) + 2))
+        span.set_tag("test", "a" * (max_item_size + 1))
+        encoder.put([span])
 
 
 def test_custom_msgpack_encode_v05():

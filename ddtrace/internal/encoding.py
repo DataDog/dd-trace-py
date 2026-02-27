@@ -190,22 +190,23 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return self._size
 
     def put(self, item) -> None:
-        span_bytes_list, item_size = self._items_to_json_bytes(item)
         with self._lock:
-            if item_size > self.max_item_size:
-                raise BufferItemTooLarge(item_size)
-            elif item_size + self._size > self.max_size:
-                raise BufferFull(item_size + self._size)
-            # TODO(munir): Consider using a more efficient way to append to the buffer
-            # instead of using extend and then appending each item individually.
-            self._buffer.extend(span_bytes_list)
-            self._size += item_size
+            for span in item:
+                span_bytes = self._item_to_json_bytes(span)
+                item_size = len(span_bytes)
+                if item_size > self.max_item_size:
+                    raise BufferItemTooLarge(item_size)
+                elif item_size + self._size > self.max_size:
+                    raise BufferFull(item_size + self._size)
+                item_size += len(span_bytes)
+                self._buffer.append(span_bytes)
+                self._size += item_size
 
     def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
             if not self._buffer:
                 return []
-            payload_bytes = b''.join([b'{"spans": [', b",".join(self._buffer), b"]}"])
+            payload_bytes = b"".join([b'{"spans": [', b",".join(self._buffer), b"]}"])
             n_traces = len(self._buffer)
             self._buffer = []
             self._size = 0
