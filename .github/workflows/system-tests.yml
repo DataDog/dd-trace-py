@@ -321,6 +321,12 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'debugger-2'
         run: ./run.sh DEBUGGER_SYMDB
 
+      - name: Upload test results to Test Optimization
+        if: always() && steps.docker_load.outcome == 'success'
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        with:
+          datadog_api_key: ${{ secrets.DATADOG_API_KEY }}
+
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
         if: always() && steps.docker_load.outcome == 'success'
@@ -366,6 +372,12 @@ jobs:
       - name: Run
         if: always() && steps.build_runner.outcome == 'success'
         run: ./run.sh PARAMETRIC
+
+      - name: Upload test results to Test Optimization
+        if: always() && steps.build_runner.outcome == 'success'
+        uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
+        with:
+          datadog_api_key: ${{ secrets.DATADOG_API_KEY }}
 
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'
@@ -449,10 +461,28 @@ jobs:
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
 
+  tracer-release:
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
+    secrets:
+      DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+    permissions:
+      contents: read
+      packages: write
+    with:
+      library: python
+      ref: main
+      scenarios_groups: tracer-release
+      skip_empty_scenarios: true
+      _system_tests_dev_mode: true
+      push_to_test_optimization: true
+      desired_execution_time: 300
+
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
+    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests, tracer-release]
     if: success() || failure()
     steps:
       - name: Print results
@@ -460,6 +490,11 @@ jobs:
           echo "parametric: ${{ needs.parametric.result }}"
           echo "system-tests: ${{ needs.system-tests.result }}"
           echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
+          echo "tracer-release: ${{ needs.tracer-release.result }}"
       - name: Fail if any dependency failed
-        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
+        if: |
+          needs.parametric.result != 'success'
+          || needs.system-tests.result != 'success'
+          || needs.serverless-system-tests.result != 'success'
+          || (needs.tracer-release.result != 'success' && needs.tracer-release.result != 'skipped')
         run: exit 1
