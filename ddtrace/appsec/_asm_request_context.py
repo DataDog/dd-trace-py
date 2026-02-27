@@ -615,7 +615,6 @@ def _on_pre_tracedrequest(ctx):
 
 
 def _set_headers_and_response(response, headers, *_):
-    print(f"headers: {headers}, response: {response}")
     if not asm_config._asm_enabled:
         return
 
