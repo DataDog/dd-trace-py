@@ -2054,5 +2054,7 @@ def _get_base_url() -> str:
     subdomain = ""
     if config._dd_site in DD_SITES_NEEDING_APP_SUBDOMAIN:
         subdomain = "app."
+    elif config._dd_site == "datad0g.com":
+        subdomain = "dd."
 
     return f"https://{subdomain}{config._dd_site}"
