@@ -435,7 +435,10 @@ class TestBackendConnectorSetup:
         assert connector.use_gzip is True
         assert connector.default_headers["dd-api-key"] == "the-key"
 
-    def test_detect_agentless_setup_with_citestcycle_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize("subdomain", list(Subdomain))
+    def test_detect_agentless_setup_with_url_override_for_all_subdomains(
+        self, monkeypatch: pytest.MonkeyPatch, subdomain: Subdomain
+    ) -> None:
         monkeypatch.setattr(
             os,
             "environ",
@@ -449,14 +452,7 @@ class TestBackendConnectorSetup:
         connector_setup = BackendConnectorSetup.detect_setup()
         assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
 
-        connector = connector_setup.get_connector_for_subdomain(Subdomain.API)
-        assert isinstance(connector.conn, http.client.HTTPSConnection)
-        assert connector.conn.host == "api.datadoghq.com"
-        assert connector.conn.port == 443
-        assert connector.use_gzip is True
-        assert connector.default_headers["dd-api-key"] == "the-key"
-
-        connector = connector_setup.get_connector_for_subdomain(Subdomain.CITESTCYCLE)
+        connector = connector_setup.get_connector_for_subdomain(subdomain)
         assert isinstance(connector.conn, http.client.HTTPSConnection)
         assert connector.conn.host == "localhost"
         assert connector.conn.port == 33333

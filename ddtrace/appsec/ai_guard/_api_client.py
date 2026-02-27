@@ -236,7 +236,7 @@ class AIGuardClient:
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
-                    result = response.get_json()
+                    result = response.get_json() or {}
                 except Exception as e:
                     raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
 

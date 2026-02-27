@@ -450,6 +450,41 @@ deploy_to_di_backend:manual:
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
 
+# Trigger profiling correctness tests with just-built wheels.
+# Runs the prof-correctness test suite (Python scenarios) against the wheels
+# uploaded to S3 for this commit.
+prof-correctness:
+  stage: shared-pipeline
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: ["arch:amd64"]
+  needs:
+    - job: "upload all"
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - changes:
+        - .gitlab-ci.yml
+        - ddtrace/internal/datadog/profiling/**/*
+        - ddtrace/profiling/**/*
+        - src/native/**/*
+    - when: manual
+      allow_failure: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+      fi
+    - |
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
+      # Trigger pipeline, but do not wait for the job to complete
+      gh workflow run downstream-python.yml \
+        --repo DataDog/prof-correctness \
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
   needs: []
