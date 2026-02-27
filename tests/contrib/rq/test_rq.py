@@ -129,6 +129,38 @@ def test_worker_class_job(queue):
     worker.work(burst=True)
 
 
+def test_job_id_tag_on_enqueue_span(sync_queue, test_spans):
+    """Regression test: job.id property is correctly set on enqueue spans (RQ 2.x removed get_id())."""
+    job = sync_queue.enqueue(job_add1, 1)
+    spans = test_spans.pop()
+    enqueue_span = next(s for s in spans if s.name == "rq.queue.enqueue_job")
+    assert enqueue_span.get_tag("job.id") == job.id
+
+
+def test_job_id_tag_on_worker_spans(queue, test_spans):
+    """Regression test: job.id property is correctly set on worker and job.perform spans."""
+    job = queue.enqueue(job_add1, 1)
+    worker = rq.SimpleWorker([queue], connection=queue.connection)
+    worker.work(burst=True)
+    spans = test_spans.pop()
+    worker_span = next(s for s in spans if s.name == "rq.worker.perform_job")
+    job_span = next(s for s in spans if s.name == "rq.job.perform")
+    assert worker_span.get_tag("job.id") == job.id
+    assert job_span.get_tag("job.id") == job.id
+
+
+def test_custom_job_id_in_span_tags(sync_queue, test_spans):
+    """Verify a user-supplied job ID is propagated correctly to all span tags."""
+    custom_id = "my-custom-job-id"
+    job = sync_queue.enqueue(job_add1, 1, job_id=custom_id)
+    assert job.id == custom_id
+    spans = test_spans.pop()
+    tagged = [s for s in spans if s.get_tag("job.id") is not None]
+    assert tagged, "Expected at least one span with job.id tag"
+    for span in tagged:
+        assert span.get_tag("job.id") == custom_id
+
+
 @pytest.mark.parametrize("distributed_tracing_enabled", [False, None])
 @pytest.mark.parametrize("worker_service_name", [None, "custom-worker-service"])
 def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
