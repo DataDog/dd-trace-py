@@ -1,4 +1,5 @@
 #include <mutex>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -9,6 +10,7 @@
 #include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
 #include "_memalloc_reentrant.h"
+#include "_memalloc_rng.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
@@ -32,7 +34,15 @@ typedef struct
 static memalloc_context_t global_memalloc_ctx;
 
 static bool memalloc_enabled = false;
+
 static std::once_flag memalloc_fork_handler_once_flag;
+
+static void
+memalloc_postfork_child()
+{
+    memalloc_rng_reseed();
+    memalloc_heap_postfork_child();
+}
 
 static void
 memalloc_free(void* ctx, void* ptr)
@@ -128,14 +138,7 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
     // we want to ensure that the fork handlers are registered only once per
     // process, even when the memory profiler is restarted after fork.
     std::call_once(memalloc_fork_handler_once_flag,
-                   []() { pthread_atfork(nullptr, nullptr, memalloc_heap_postfork_child); });
-
-    char* val = getenv("_DD_MEMALLOC_DEBUG_RNG_SEED");
-    if (val) {
-        /* NB: we don't bother checking whether val is actually a valid integer.
-         * Doesn't really matter as long as it's consistent */
-        srand(atoi(val));
-    }
+                   []() { pthread_atfork(nullptr, nullptr, memalloc_postfork_child); });
 
     long max_nframe;
     long long int heap_sample_size;
