@@ -1,0 +1,277 @@
+---
+description: Profiling guardrails - patterns to avoid based on historical incidents
+globs:
+  - "**/profiling/**"
+  - "**/ddtrace/internal/datadog/profiling/**"
+  - "**/ddtrace/profiling/**"
+  - "**/tests/profiling/**"
+---
+
+# Profiling Code Guardrails
+
+These rules are derived from real production incidents and bugs fixed in dd-trace-py's profiling subsystem since May 2024 (~89 `fix(profiling)` PRs, plus related `fix(internal)` incidents). Each rule exists because its absence caused crashes, data corruption, deadlocks, or incorrect profiling data for customers.
+This guidance applies primarily to profiling/native runtime paths; use engineering judgment for unrelated code paths.
+
+## Maintenance and Human Review
+
+- Last updated: 2026-02-10
+- Staleness check basis: compare today's calendar date against "Last updated" in this file.
+- If this document is more than 3 months old from "Last updated", agents should ask a human reviewer to refresh it with recent `fix(profiling)` / `fix(internal)` PRs and re-review existing guidance.
+- If guidance here is unclear, or an agent has a viable fix that might conflict with this document, escalate to human review before finalizing. Humans should review the proposal thoroughly and may request revisiting/updating this document.
+
+## 1. Fork Safety
+
+### What goes wrong
+Native state (C++ mutexes, Rust atomics, memory pools, hash maps, sample pools, thread info maps) survives `fork()` in an inconsistent state. In a multi-threaded parent, a thread may hold a lock or be mid-operation when `fork()` copies the address space. The child inherits the locked/partial state but the thread that held it no longer exists. Fork handlers registered via `pthread_atfork` execute in registration order, and one handler can free state that a later handler (or the still-running profiler) tries to access.
+
+### How it was fixed
+Register `pthread_atfork` child handlers that reset/clear every piece of native state: reinitialize mutexes, clear maps, clear pools, stop running profiler components before freeing their dependencies.
+
+### Review checklist
+- Does this change introduce or modify any native state (mutex, atomic, map, pool, queue)?
+- If yes, is it reset via an existing higher-level object registered in `pthread_atfork` (preferred), or via a dedicated child handler when necessary?
+- Prefer a small number of centralized atfork handlers; many independent handlers are hard to reason about for init/free ordering and can introduce sequencing bugs.
+- Does this change add or reorder fork handlers? If so, what is the full handler execution order, and can any handler access state freed by an earlier handler?
+- Has this been tested with a multi-threaded parent that forks (uWSGI workers, gunicorn prefork, `subprocess.Popen`)?
+- After fork in the child process, is any native state used before handlers run?
+- If running under uWSGI, does this behavior respect `--skip-atexit` requirements (especially with `--lazy` / `--lazy-apps`)?
+- Are we registering Python `atexit` handlers in environments where native teardown can happen before Python-level cleanup?
+
+### Historical examples
+- C++ mutexes locked by parent threads that don't exist in child caused deadlocks ([#11768](https://github.com/DataDog/dd-trace-py/pull/11768))
+- Rust `crossbeam::ArrayQueue` atomics inconsistent after fork ([#11350](https://github.com/DataDog/dd-trace-py/pull/11350))
+- ddup fork handler freed `ProfilesDictionary`, then forksafe handler stopped memalloc which tried to write a Sample using that freed dictionary causing segfault ([#16257](https://github.com/DataDog/dd-trace-py/pull/16257))
+- `thread_info_map` contained parent's threads, child reported wrong thread data ([#16096](https://github.com/DataDog/dd-trace-py/pull/16096))
+- PeriodicThread_start crash after uvloop fork ([#15798](https://github.com/DataDog/dd-trace-py/pull/15798))
+- String interning feature had to be **reverted** because it crashed with memory profiling + fork ([#16243](https://github.com/DataDog/dd-trace-py/pull/16243))
+- Respect uWSGI `--skip-atexit` to avoid registering unsafe atexit handlers ([#16353](https://github.com/DataDog/dd-trace-py/pull/16353))
+
+---
+
+## 2. GIL Release and Thread Safety in Native Code
+
+### What goes wrong
+Calling Python C API functions (e.g., `PyObject_CallObject`, `Py_DECREF`) from native profiling code can release the GIL or enter the eval loop, allowing other Python threads to run. Those threads may observe partially-constructed CPython internal state, leading to crashes in unrelated functions (`dictresize`, `PyObject_GetAttr`). Returning pointers/references from mutex-protected sections allows data races after the lock is released.
+
+### How it was fixed
+Replace Python API calls with C-level APIs that don't enter the eval loop. Return copies instead of pointers from locked sections. In cases where native thread safety proved too hard, revert to pure Python.
+
+### Review checklist
+- Does this native code call any Python C API function? Which ones? Can any of them release the GIL or enter the eval loop?
+- If the GIL is released, what state is visible to other threads at that moment? Is any of it partially constructed?
+- Does any function return a pointer or reference to data protected by a mutex? Should it return a copy instead?
+- Can a shared container/list change size during iteration from another thread?
+- After signaling "done" (e.g., setting a flag, notifying a condition variable), does the thread still execute any Python operations like `Py_DECREF`?
+- Has this been tested with ThreadSanitizer (TSan)?
+
+### Historical examples
+- `PyObject_CallObject(threading_current_thread)` in memalloc released GIL, other threads crashed on partially-constructed objects ([#16396](https://github.com/DataDog/dd-trace-py/pull/16396))
+- `get_active_span_from_thread_id` returned a pointer after releasing the mutex, concurrent `link_span` modified the Span ([#11167](https://github.com/DataDog/dd-trace-py/pull/11167))
+- Rust rate limiter released GIL during `_is_allowed`, Rust saw concurrent mutation. Mutex fix failed, **reverted to pure Python** ([#10176](https://github.com/DataDog/dd-trace-py/pull/10176), [#10225](https://github.com/DataDog/dd-trace-py/pull/10225))
+- `Py_DECREF` in thread destructor ran after thread signaled completion, `join()` returned while background thread still ran refcounting, crashed on Python 3.14+ ([#16055](https://github.com/DataDog/dd-trace-py/pull/16055))
+- Iterating a shared endpoints list while another thread mutated it caused runtime exceptions/race behavior ([#15018](https://github.com/DataDog/dd-trace-py/pull/15018))
+
+---
+
+## 3. Memory Safety in Native Code
+
+### What goes wrong
+(a) Collecting tracebacks during memory allocation hooks triggers further allocations, which trigger GC, which visits objects whose underlying memory was just reallocated (use-after-free). (b) Integer types too small for array sizes cause overflow, resulting in smaller allocation than needed, leading to out-of-bounds writes. (c) Objects returned to pools without clearing state leak stale data to the next user.
+
+### How it was fixed
+Disable GC during allocation hooks (and **verify** it is actually disabled in compiled output). Use `size_t` for sizes. Always clear state when returning objects to pools. Add overflow assertions.
+
+### Review checklist
+- Does this allocation hook or traceback collection do anything that could trigger GC? If so, is GC explicitly disabled for the duration?
+- Is the GC disable actually compiled in? (Verify with `objdump` or equivalent, not just code review. A previous fix was dead code because of a missing `#include`.)
+- What integer type is used for sizes/counts? Can it overflow for realistic workloads? Prefer `size_t`.
+- When an object is returned to a pool/cache, is all its state cleared? What happens if the next user reads a field that wasn't re-initialized?
+- Has this been tested with AddressSanitizer (ASan)?
+
+### Historical examples
+- `realloc` hook collected traceback which triggered GC which visited old memory from the just-reallocated data structure, causing use-after-free ([#14550](https://github.com/DataDog/dd-trace-py/pull/14550))
+- Fix for above used preprocessor macros to disable GC, but forgot to `#include` the header, so macros were undefined and the fix was silently dead code ([#15388](https://github.com/DataDog/dd-trace-py/pull/15388))
+- `uint16_t` for traceback array size overflowed at 65536 elements, allocated smaller array, wrote out of bounds ([#12286](https://github.com/DataDog/dd-trace-py/pull/12286))
+- `drop_sample` returned Sample to pool without `clear_buffers()`, next user inherited stale `span_id` ([#16186](https://github.com/DataDog/dd-trace-py/pull/16186))
+
+---
+
+## 4. Unbounded Loops and Recursion
+
+### What goes wrong
+Code iterates over CPython internal linked lists (interpreters, greenlets, stack chunks) without any upper bound. Corrupted or cyclic data structures cause infinite loops, often while holding a lock, causing deadlocks. Calling Python-level functions (logging, exceptions) from instrumentation code can re-enter the instrumented primitives, causing infinite recursion.
+
+### How it was fixed
+Add hard iteration limits on all loops over external data structures. Add recursion depth counters. Remove all Python-level side effects (logging, exception handling that triggers Python code) from instrumentation hot paths.
+
+### Review checklist
+- Does this code loop over any external or system data structure (CPython linked list, greenlet chain, stack chunks)? What is the iteration upper bound?
+- Can any function called from this instrumentation code acquire a lock that we instrument? Trace the full call chain (e.g., `LOG.debug()` -> `logging` -> `threading.current_thread()` -> `Event.set()` -> lock acquire -> lock profiler -> `LOG.debug()` -> infinite recursion).
+- Is there any recursive function? What limits the recursion depth?
+- If this code holds a lock, can any function it calls block indefinitely?
+
+### Historical examples
+- Loop over interpreters via linked list with no bound caused infinite loop ([#16002](https://github.com/DataDog/dd-trace-py/pull/16002))
+- `unwind_greenlets()` looped unboundedly while holding `greenlet_info_map_lock`, causing deadlock ([#15973](https://github.com/DataDog/dd-trace-py/pull/15973))
+- Stack chunk chain with cycle caused unbounded recursion, stack overflow ([#16236](https://github.com/DataDog/dd-trace-py/pull/16236))
+- Lock profiler `_release` called `LOG.debug()`, logging acquired a lock, lock profiler `_release` called, `LOG.debug()` again, infinite recursion ([#13147](https://github.com/DataDog/dd-trace-py/pull/13147))
+
+---
+
+## 5. Instrumentation Transparency
+
+### What goes wrong
+The profiler replaces lock classes and patches functions with wrapper objects. These wrappers don't implement all Python protocols that the original classes support, breaking user code that depends on those protocols: subclassing (`__mro_entries__`), pickling (`__reduce__`), return values from patched functions, error propagation.
+
+### How it was fixed
+Implement missing Python protocols (`__mro_entries__`, `__reduce__`). Always return the wrapped function's return value. Add defensive fallbacks for edge cases (shallow call stacks during atexit, missing attributes).
+
+### Review checklist
+- Does this wrapper/patch replace a type that users might subclass? If so, does it implement `__mro_entries__` (PEP 560)?
+- Can the wrapped object be pickled? (Consider multiprocessing with forkserver on Python 3.14+, shelve, etc.) Does it implement `__reduce__`?
+- Does the patched function return the original function's return value in **all** code paths, including error paths?
+- Can this instrumentation code be called during shutdown (atexit, signal handlers)? Does it assume anything about Python runtime state (minimum stack depth, thread existence, module availability)?
+- Does `isinstance(wrapper, OriginalType)` still return True?
+- Does `type(wrapper)` behave as expected for user code doing type checks?
+
+### Historical examples
+- `asyncio.Lock` replaced with `_LockAllocatorWrapper` (not a type), `class AsyncRLock(asyncio.Lock)` failed because wrapper had no `__mro_entries__` ([#15604](https://github.com/DataDog/dd-trace-py/pull/15604))
+- Python 3.14 changed multiprocessing default to forkserver (requires pickling), `_LockAllocatorWrapper` had no `__reduce__`, `PicklingError` ([#15899](https://github.com/DataDog/dd-trace-py/pull/15899))
+- Patched `gevent.joinall` returned `None` instead of the original function's return value (a list of greenlets) ([#16242](https://github.com/DataDog/dd-trace-py/pull/16242))
+- `sys._getframe(3)` in lock profiler assumed stack depth >= 3, raised `ValueError` during atexit when stack was shallow, crashing user's Cassandra shutdown ([#16083](https://github.com/DataDog/dd-trace-py/pull/16083))
+
+---
+
+## 6. Sampling Logic Correctness
+
+### What goes wrong
+Sampling decisions made at acquire time are not carried through to release time, causing measurement of events that were never sampled. Sentinel/default values for timestamps (like `0`) are confused with valid measurements. Racy runtime checks (`is_running`) cause the profiler to become blind to entire categories of data.
+
+### How it was fixed
+Use sentinel values that cannot be confused with valid data (`None` not `0`). Guard dependent events (release) on whether the triggering event (acquire) was actually sampled. Remove racy checks that cause data loss when they give wrong answers.
+
+### Review checklist
+- What is the sentinel/default value for timestamps and durations? Can it be confused with a valid measurement? (`0` is a valid timestamp; `None` is not.)
+- If event A is not sampled, can event B (which depends on A having been sampled) still produce a sample? Is there a guard?
+- Does this code make a decision based on a racy check (e.g., "is thread running")? What happens if the check gives the wrong answer? Is losing all data for a thread/task acceptable?
+- Has this been tested at low sampling rates (1%, 0.1%), not just 100%?
+
+### Historical examples
+- `acquire_time` initialized to `0` instead of `None`. When `capture()` returned False (99% of acquires at default 1% rate), release still computed `duration = now - 0 = system_uptime`. Lock hold times showed hundreds of days. **Affected virtually ALL customers.** ([#15408](https://github.com/DataDog/dd-trace-py/pull/15408))
+- `is_running` thread check was inherently racy, made profiler blind to CPU time for entire services after ddtrace upgrade ([#16273](https://github.com/DataDog/dd-trace-py/pull/16273))
+
+---
+
+## 7. Async Task Stack Correctness
+
+### What goes wrong
+The profiler captures thread stacks and task stacks at slightly different times. Between capturing the thread stack and inspecting individual task objects, a task's state can change (running to sleeping, or vice versa). This causes frames from one task to appear in another task's stack, producing nonsensical flame graphs.
+
+### How it was fixed
+Walk the Python stack first to determine the "synchronous top" depth. Detect and skip samples known to be bogus rather than emit incorrect data. Use debouncing for task link cleanup to avoid removing links for just-created tasks. Fix on-CPU detection to recursively check awaited coroutines.
+
+### Review checklist
+- Between capturing the thread stack and reading task state, can any task's state change? What happens if it does?
+- Do tests validate the **complete** stack (including asyncio runtime frames), not just the presence of user-code frames?
+- Do tests validate the **absence** of wrong data (frames from other tasks, stale task names)?
+- Is there a cleanup/GC process for task metadata? Can it race with task creation?
+- If we detect inconsistency between the thread stack and task state, do we skip the sample or emit bogus data?
+
+### Historical examples
+- Race between unwinding Thread Stack and Task Stacks caused Task A's frames to leak into Task B's stack ([#15780](https://github.com/DataDog/dd-trace-py/pull/15780))
+- On-CPU task detection only checked `task->coro->is_running`, missed awaited sub-coroutines ([#15452](https://github.com/DataDog/dd-trace-py/pull/15452))
+- Task link cleanup removed links for just-created tasks not yet in snapshot ([#15552](https://github.com/DataDog/dd-trace-py/pull/15552))
+- Idle task stacks missing asyncio runtime frames; tests only checked "relevant" frames so this was missed ([#15962](https://github.com/DataDog/dd-trace-py/pull/15962))
+
+---
+
+## 8. Build and Release Validation
+
+### What goes wrong
+Bugs that only manifest in release builds (wheels) but not in development/in-tree builds. Preprocessor macros that compile to nothing because of missing includes. CMake relative paths that work during development but break in the wheel directory layout.
+
+### How it was fixed
+Fix paths and includes. Verify compiled output contains expected symbols (`objdump`). Test on actual release wheels, not just in-tree builds.
+
+### Review checklist
+- Does this fix depend on preprocessor macros or conditional compilation? Are the headers that define them included? (Verify the fix is present in compiled output, not just in source code.)
+- Has this been tested on an actual release wheel, not just an in-tree/editable build?
+- If this changes build scripts (CMake, setup.py, pyproject.toml), has it been tested with the exact directory layout used during wheel building?
+- For linking changes, have the symbols been verified present in the final `.so`?
+
+### Historical examples
+- CMake path had an extra `../`, causing `undefined symbol` in release wheels only; undetected because in-tree builds used a different layout ([#15818](https://github.com/DataDog/dd-trace-py/pull/15818))
+- Fix used `PyGC_Disable()`/`PyGC_Enable()` macros but didn't `#include` the defining header, so macros were undefined and the fix was silently dead code that compiled without errors ([#15388](https://github.com/DataDog/dd-trace-py/pull/15388))
+- Reentrancy guard intended to be `thread_local` was declared incorrectly, resulting in a global variable ([#12526](https://github.com/DataDog/dd-trace-py/pull/12526))
+
+---
+
+## 9. Python Version Compatibility
+
+### What goes wrong
+New Python versions change defaults (3.14: fork to forkserver for multiprocessing), add safety checks (3.14: recursion check in `_Py_Dealloc`), deprecate/replace internal APIs (3.13: official `PyGen_yf`), or break third-party dependencies.
+
+### Review checklist
+- Does this code use CPython internal APIs or access internal struct fields? What Python versions are supported? Use the `compare-cpython-versions` skill when adding support for a new version.
+- Has this been tested against the latest Python RC/beta?
+- Does this code depend on Python's default behavior for multiprocessing start method, GC scheduling, or finalization order? Could a new Python version change those defaults?
+- Does this code depend on third-party packages that may not yet support the target Python version?
+- If this fix relies on a third-party package bugfix, is the minimum required dependency version pinned/documented?
+
+### Historical examples
+- Python 3.14 changed default multiprocessing start method from fork to forkserver, requiring lock wrappers to be picklable ([#15899](https://github.com/DataDog/dd-trace-py/pull/15899))
+- Python 3.14 `_Py_Dealloc` dereferences `tstate` immediately, crashing if finalization set it to NULL ([#16055](https://github.com/DataDog/dd-trace-py/pull/16055))
+- CPython 3.13 introduced official `PyGen_yf` replacing internal access ([#15450](https://github.com/DataDog/dd-trace-py/pull/15450))
+- Python 3.12 required `bytecode>=0.15.1` to avoid known upstream bug ([#12467](https://github.com/DataDog/dd-trace-py/pull/12467))
+
+---
+
+## 10. Validating That Fixes Actually Work
+
+### What goes wrong
+Fixes that appear correct in code review but don't actually work: dead code from missing includes, thread-safety fixes that don't survive real concurrency, features that crash when combined with other profiling features (CPU + memory + lock) under fork.
+
+### Review checklist
+- If this is a thread-safety fix, has it been validated with TSan, not just "it doesn't crash in my test"?
+- If this interacts with fork, has it been tested with **all** profiling features enabled simultaneously (CPU + memory + lock)?
+- If this fix uses preprocessor macros or conditional compilation, has the compiled output been verified to contain the fix?
+- Does CI run all impacted suites, including non-default or slower suites that historically caught regressions?
+- What is the rollback plan if this fix causes regressions? Can it be feature-flagged?
+- Does the test actually exercise the fixed code path? (A test that passes both with and without the fix is not a valid test.)
+
+### Historical examples
+- String interning into libdatadog had to be **reverted** because it crashed with memory profiling + fork; the fork handler ordering problem was not caught ([#16243](https://github.com/DataDog/dd-trace-py/pull/16243))
+- Rust rate limiter mutex fix **reverted** because it didn't solve the thread safety problem under real concurrency; went back to pure Python ([#10176](https://github.com/DataDog/dd-trace-py/pull/10176), [#10225](https://github.com/DataDog/dd-trace-py/pull/10225))
+- GC disable fix was **dead code** because of a missing `#include`; compiled without errors but did nothing ([#15388](https://github.com/DataDog/dd-trace-py/pull/15388))
+- Logging rate limiter move had to be reverted because affected suites were not run in CI; re-landed later with broader validation ([#12243](https://github.com/DataDog/dd-trace-py/pull/12243), [#12275](https://github.com/DataDog/dd-trace-py/pull/12275), [#12293](https://github.com/DataDog/dd-trace-py/pull/12293))
+
+---
+
+## CPython Source Reference
+
+When investigating CPython internal APIs, struct layouts, or behavior (e.g., what `PyObject_CallObject` does under the hood, whether a function releases the GIL, how `_Py_Dealloc` works), **read the actual CPython source code** rather than guessing or relying on documentation alone. Clone or use the CPython repo at `~/dd/cpython`. If it doesn't exist yet, clone it:
+
+```bash
+git clone https://github.com/python/cpython.git ~/dd/cpython
+```
+
+Use `git checkout` to switch to the relevant version tag (e.g., `v3.12.0`, `v3.13.0`, `v3.14.0a1`) and read the actual C source. **Check the supported Python version range in `pyproject.toml` (`requires-python`)** — currently `>=3.9,<3.15` — and verify behavior across all supported versions, not just one. Struct layouts, internal APIs, and GIL behavior can differ between minor versions. This is especially important for:
+- Verifying whether a C API function can release the GIL or enter the eval loop
+- Understanding internal struct field layouts that profiling code accesses
+- Checking what changed between Python versions (use the `compare-cpython-versions` skill or `git diff v3.12.0..v3.13.0 -- Include/`)
+- Confirming behavior of undocumented or internal APIs (`_Py_*`, `_PyFrame_*`, etc.)
+
+---
+
+## Quick Reference: The "Never" List
+
+1. **Never** loop over CPython internal linked lists without a hard upper bound
+2. **Never** call Python-level functions from lock/memalloc instrumentation hot paths unless explicitly proven non-reentrant and safe
+3. **Never** return pointers or references from mutex-protected sections; return copies
+4. **Never** add native state without an atfork-reset path (prefer centralized higher-level `pthread_atfork` ownership)
+5. **Never** use a valid timestamp value as a sentinel (e.g., `0`); use an impossible sentinel (`None` or explicit invalid-state marker)
+6. **Never** assume a preprocessor fix works without verifying the compiled output
+7. **Never** assume in-tree build behavior matches release wheel behavior
+8. **Never** omit return values from patched/wrapped functions
+9. **Never** trust racy runtime checks (`is_running`, `is_alive`) for correctness-critical decisions
+10. **Never** ship a fix without attempting to produce a reproducer/regression test. When a deterministic reproducer is not feasible (e.g., limited customer signal or highly timing-dependent crashes), document why, add the strongest practical stress/targeted test coverage, and get explicit reviewer sign-off on the exception
