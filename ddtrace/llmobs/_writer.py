@@ -53,6 +53,22 @@ from ddtrace.version import __version__
 logger = get_logger(__name__)
 
 
+class LLMObsSpanData(TypedDict, total=False):
+    """Structure of LLMObs span data attached to APM spans."""
+
+    name: str
+    parent_id: str
+    trace_id: str
+    ml_app: str
+    session_id: str
+    tags: dict[str, str]
+    metrics: dict[str, Any]
+    span_links: list[_SpanLink]
+    config: ConfigType
+    is_evaluation_span: bool
+    meta: _Meta
+
+
 class _LLMObsSpanEventOptional(TypedDict, total=False):
     session_id: str
     service: str

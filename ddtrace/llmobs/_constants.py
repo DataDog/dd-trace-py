@@ -154,3 +154,37 @@ DEFAULT_PROMPTS_TIMEOUT = 5.0  # seconds for all prompt fetch operations
 
 # Managed Prompts API
 PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
+
+
+class LLMOBS_STRUCT:
+    """Nested LLMObs struct keys in span._meta_struct."""
+
+    KEY = "llmobs"
+    NAME = "name"
+    PARENT_ID = "parent_id"
+    TRACE_ID = "trace_id"
+    ML_APP = "ml_app"
+    SESSION_ID = "session_id"
+    TAGS = "tags"
+    PROMPT = "prompt"
+    METRICS = "metrics"
+    METADATA = "metadata"
+    SPAN_LINKS = "span_links"
+    # All ragas traces have this context item set so we can differentiate
+    # spans generated from the ragas integration vs user application spans.
+    IS_EVALUATION_SPAN = "is_evaluation_span"
+    META = "meta"
+    TOOL_DEFINITIONS = "tool_definitions"
+    INPUT = "input"
+    OUTPUT = "output"
+    EXPECTED_OUTPUT = "expected_output"
+    VALUE = "value"
+    MESSAGES = "messages"
+    DOCUMENTS = "documents"
+    AGENT_MANIFEST = "agent_manifest"
+    SPAN = "span"
+    KIND = "kind"
+    MODEL_NAME = "model_name"
+    MODEL_PROVIDER = "model_provider"
+    INTENT = "intent"
+    CONFIG = "config"
