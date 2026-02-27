@@ -205,7 +205,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
         with self._lock:
             if not self._buffer:
                 return []
-            payload_bytes = b'{"spans": [' + b",".join(self._buffer) + b"]}"
+            payload_bytes = b''.join([b'{"spans": [', b",".join(self._buffer), b"]}"])
             n_traces = len(self._buffer)
             self._buffer = []
             self._size = 0
