@@ -1067,6 +1067,7 @@ class LLMObs(Service):
         stopping_condition: Optional[Callable[[dict[str, dict[str, Any]]], bool]] = None,
         dataset_split: Union[bool, tuple[float, ...]] = False,
         test_dataset: Optional[str] = None,
+        method: str = "metaprompting",
     ) -> PromptOptimization:
         """Initialize a PromptOptimization to iteratively improve prompts using experiments.
 
@@ -1125,6 +1126,9 @@ class LLMObs(Service):
                             pulled automatically, the main dataset is split into train/valid (80/20),
                             and the test dataset is used for the final unbiased score.
                             Implicitly enables dataset splitting.
+        :param method: Optimization method to use. ``"metaprompting"`` (default) uses the built-in
+                      iterative optimization loop. ``"gepa"`` uses the GEPA evolutionary optimizer
+                      (requires ``pip install ddtrace[gepa]``).
         :return: PromptOptimization object. Call ``.run()`` to execute the optimization.
         :raises TypeError: If task, optimization_task, evaluators, or dataset have incorrect types
                           or signatures.
@@ -1214,6 +1218,7 @@ class LLMObs(Service):
             stopping_condition=stopping_condition,
             dataset_split=dataset_split,
             test_dataset=pulled_test_dataset,
+            method=method,
         )
 
     @classmethod
