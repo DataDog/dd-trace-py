@@ -236,6 +236,27 @@ download_dependency_wheels:
       .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}"
     fi
 
+# Upload wheels to first-party internal registry (main/release branches only)
+# Uses the adms CLI to publish wheels with +dd.repackaging version suffix
+# See: https://datadoghq.atlassian.net/wiki/spaces/DEVX/pages/4957474529/Onboarding+Publishing+-+Python+First+Party+Packages
+"upload first-party":
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/first-party-publisher:0.0.5-adms
+  stage: package
+  needs: ["ddtrace package", "package version"]
+  rules:
+    - if: $CI_COMMIT_BRANCH
+      when: on_success
+  script:
+    - |
+      set -euo pipefail
+      echo "Uploading wheels to first-party registry..."
+      for wheel in pywheels/*.whl; do
+        echo "Uploading: ${wheel}"
+        adms first-party python upload --local "${wheel}"
+      done
+      echo "First-party upload complete."
+
 # Extract package version from pyproject.toml and save to dotenv artifact
 "package version":
   image: registry.ddbuild.io/images/mirror/python:3.14.0
