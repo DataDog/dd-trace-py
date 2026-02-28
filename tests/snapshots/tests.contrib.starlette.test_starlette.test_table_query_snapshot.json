@@ -11,7 +11,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65e7e27f00000000",
+      "_dd.p.tid": "699da02e00000000",
+      "_dd.svc.src": "true",
       "component": "starlette",
       "http.method": "POST",
       "http.route": "/notes",
@@ -20,17 +21,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "5444022027b74fcead7ac4f888aaa621",
+      "runtime-id": "92d72f2fb2be425aa0b5aa929251bdda",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 85074
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92038.0
     },
-    "duration": 1914000,
-    "start": 1709695615910493000
+    "duration": 4095542,
+    "start": 1771937838848595052
   },
      {
        "name": "sqlite.query",
@@ -48,12 +49,12 @@
          "sql.db": "test.db"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1,
-         "db.row_count": 1
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0,
+         "db.row_count": 1.0
        },
-       "duration": 337000,
-       "start": 1709695615911521000
+       "duration": 984834,
+       "start": 1771937838850559010
      }],
 [
   {
@@ -68,7 +69,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65e7e27f00000000",
+      "_dd.p.tid": "699da02e00000000",
+      "_dd.svc.src": "true",
       "component": "starlette",
       "http.method": "GET",
       "http.route": "/notes",
@@ -77,17 +79,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "5444022027b74fcead7ac4f888aaa621",
+      "runtime-id": "92d72f2fb2be425aa0b5aa929251bdda",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 85074
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92038.0
     },
-    "duration": 627000,
-    "start": 1709695615914421000
+    "duration": 1440458,
+    "start": 1771937838854296677
   },
      {
        "name": "sqlite.query",
@@ -105,9 +107,9 @@
          "sql.db": "test.db"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "_dd.top_level": 1
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
        },
-       "duration": 98000,
-       "start": 1709695615914713000
+       "duration": 339458,
+       "start": 1771937838854976844
      }]]

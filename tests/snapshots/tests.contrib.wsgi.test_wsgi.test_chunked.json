@@ -11,24 +11,25 @@
     "meta": {
       "_dd.base_service": "tests.contrib.wsgi",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699da0ab00000000",
+      "_dd.svc.src": "true",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/chunked",
       "language": "python",
-      "runtime-id": "2161c5835c094c75b8ddbd3c00e590d6",
+      "runtime-id": "b1b4dcdd742343c6a6a8810413d77edb",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7611
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92714.0
     },
-    "duration": 1205000,
-    "start": 1692650304931696340
+    "duration": 3251000,
+    "start": 1771937963197826137
   },
      {
        "name": "wsgi.application",
@@ -41,11 +42,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.wsgi",
-         "_dd.p.tid": "654a694400000000",
          "component": "wsgi"
        },
-       "duration": 30042,
-       "start": 1692650304931793465
+       "duration": 47417,
+       "start": 1771937963197973929
      },
         {
           "name": "wsgi.start_response",
@@ -58,12 +58,12 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.wsgi",
-            "_dd.p.tid": "654a694400000000",
+            "_dd.svc.src": "true",
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 32083,
-          "start": 1692650304931912340
+          "duration": 81500,
+          "start": 1771937963198189512
         },
      {
        "name": "wsgi.response",
@@ -76,10 +76,9 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.wsgi",
-         "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "result_class": "generator"
        },
-       "duration": 1042583,
-       "start": 1692650304931846757
+       "duration": 2999334,
+       "start": 1771937963198058012
      }]]

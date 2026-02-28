@@ -11,7 +11,8 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "686d277900000000",
+      "_dd.p.tid": "699d775200000000",
+      "_dd.svc.src": "true",
       "asgi.version": "3.0",
       "component": "fastapi",
       "http.method": "GET",
@@ -20,15 +21,15 @@
       "http.useragent": "python-httpx/0.27.2",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "c9d7e9d7fc41438a83321b3847e2a2fe",
+      "runtime-id": "1a3e1f9fc6bb49c893e8c0a6abead38a",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 67824
+      "_sampling_priority_v1": 1.0,
+      "process_id": 82380.0
     },
-    "duration": 143000,
-    "start": 1751983993177259000
+    "duration": 1427541,
+    "start": 1771927378239234842
   }]]

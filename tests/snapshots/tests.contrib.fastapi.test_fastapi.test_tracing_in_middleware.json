@@ -11,7 +11,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.fastapi",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65e2cd9000000000",
+      "_dd.p.tid": "699d774500000000",
+      "_dd.svc.src": "true",
       "component": "fastapi",
       "http.method": "GET",
       "http.route": "/",
@@ -20,17 +21,17 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "a89de0282259441ba89e19dca313cc1f",
+      "runtime-id": "9d242ad9d6014b8e8b05c98324d108b2",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 73182
+      "_sampling_priority_v1": 1.0,
+      "process_id": 82094.0
     },
-    "duration": 1687000,
-    "start": 1709362576043267000
+    "duration": 3375042,
+    "start": 1771927365695300169
   },
      {
        "name": "traced_middlware",
@@ -44,8 +45,8 @@
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi"
        },
-       "duration": 359000,
-       "start": 1709362576043450000
+       "duration": 1783500,
+       "start": 1771927365695782544
      },
         {
           "name": "fastapi.serialize_response",
@@ -59,6 +60,6 @@
           "meta": {
             "_dd.base_service": "tests.contrib.fastapi"
           },
-          "duration": 25000,
-          "start": 1709362576043632000
+          "duration": 95292,
+          "start": 1771927365697212294
         }]]

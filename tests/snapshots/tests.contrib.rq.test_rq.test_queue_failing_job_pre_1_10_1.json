@@ -44,6 +44,7 @@
        "meta": {
          "_dd.base_service": "tests.contrib.rq",
          "_dd.p.tid": "654a694400000000",
+         "_dd.svc.src": "true",
          "component": "rq",
          "error.message": "error",
          "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 709, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~181_click712/lib/python3.9/site-packages/rq/job.py\", line 732, in _execute\n    result = self.func(*self.args, **self.kwargs)\n  File \"/root/project/tests/contrib/rq/jobs.py\", line 10, in job_fail\n    raise MyException(\"error\")\ntests.contrib.rq.jobs.MyException: error\n",

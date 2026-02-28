@@ -10,19 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "660a332900000000",
-      "_dd.span_links": "[{\"trace_id\": \"660a3327000000008449256363f198a8\", \"span_id\": \"92db06edf6ed92a6\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
+      "_dd.p.tid": "699da02600000000",
+      "_dd.span_links": "[{\"trace_id\": \"699da0240000000036c2700fee83701a\", \"span_id\": \"a4718084d92d7aaa\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
       "language": "python",
-      "runtime-id": "2c92a35bf98a4b02af66c1340b9fc3bc"
+      "runtime-id": "92d72f2fb2be425aa0b5aa929251bdda"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7548
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92038.0
     },
-    "duration": 2004714626,
-    "start": 1711944489796649052
+    "duration": 2006961710,
+    "start": 1771937830650128006
   }],
 [
   {
@@ -36,19 +36,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "660a332700000000",
-      "_dd.span_links": "[{\"trace_id\": \"660a3327000000008449256363f198a8\", \"span_id\": \"92db06edf6ed92a6\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
+      "_dd.p.tid": "699da02400000000",
+      "_dd.span_links": "[{\"trace_id\": \"699da0240000000036c2700fee83701a\", \"span_id\": \"a4718084d92d7aaa\", \"tracestate\": \"dd=s:1;t.dm:-0\", \"flags\": 1}]",
       "language": "python",
-      "runtime-id": "2c92a35bf98a4b02af66c1340b9fc3bc"
+      "runtime-id": "92d72f2fb2be425aa0b5aa929251bdda"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7548
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92038.0
     },
-    "duration": 2003761042,
-    "start": 1711944487791773926
+    "duration": 2009697376,
+    "start": 1771937828635796380
   }],
 [
   {
@@ -63,7 +63,8 @@
     "meta": {
       "_dd.base_service": "tests.contrib.starlette",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "660a332700000000",
+      "_dd.p.tid": "699da02400000000",
+      "_dd.svc.src": "true",
       "component": "starlette",
       "http.method": "GET",
       "http.route": "/backgroundtask",
@@ -72,15 +73,15 @@
       "http.useragent": "testclient",
       "http.version": "1.1",
       "language": "python",
-      "runtime-id": "2c92a35bf98a4b02af66c1340b9fc3bc",
+      "runtime-id": "92d72f2fb2be425aa0b5aa929251bdda",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7548
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92038.0
     },
-    "duration": 501334,
-    "start": 1711944487791160467
+    "duration": 1134542,
+    "start": 1771937828634382380
   }]]

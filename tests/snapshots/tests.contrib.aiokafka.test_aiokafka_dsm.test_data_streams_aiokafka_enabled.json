@@ -11,7 +11,8 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "697bafc000000000",
+      "_dd.p.tid": "699d6d8f00000000",
+      "_dd.svc.src": "true",
       "component": "aiokafka",
       "kafka.message_key": "None",
       "kafka.tombstone": "False",
@@ -21,7 +22,7 @@
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
       "pathway.hash": "15940366017932999317",
-      "runtime-id": "42e5f390c3384f45b0f4697a34a5a61a",
+      "runtime-id": "cb7ceb5215b049fcbb02584551f2bbd9",
       "span.kind": "producer"
     },
     "metrics": {
@@ -30,10 +31,10 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
       "kafka.partition": -1.0,
-      "process_id": 90414.0
+      "process_id": 40174.0
     },
-    "duration": 3881000,
-    "start": 1769713600013631000
+    "duration": 16392250,
+    "start": 1771924879266062088
   }],
 [
   {
@@ -48,7 +49,8 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "697bafc000000000",
+      "_dd.p.tid": "699d6d8f00000000",
+      "_dd.svc.src": "true",
       "component": "aiokafka",
       "kafka.group_id": "test_group",
       "kafka.received_message": "True",
@@ -59,7 +61,7 @@
       "messaging.kafka.bootstrap.servers": "['127.0.0.1:29092']",
       "messaging.system": "kafka",
       "pathway.hash": "3652005990883303490",
-      "runtime-id": "42e5f390c3384f45b0f4697a34a5a61a",
+      "runtime-id": "cb7ceb5215b049fcbb02584551f2bbd9",
       "span.kind": "consumer"
     },
     "metrics": {
@@ -67,10 +69,10 @@
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "kafka.message_offset": 1.0,
+      "kafka.message_offset": -1.0,
       "kafka.partition": -1.0,
-      "process_id": 90414.0
+      "process_id": 40174.0
     },
-    "duration": 1462000,
-    "start": 1769713600521591000
+    "duration": 4898125,
+    "start": 1771924879789737047
   }]]

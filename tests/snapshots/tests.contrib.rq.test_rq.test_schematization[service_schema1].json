@@ -11,77 +11,24 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699da4a600000000",
       "component": "rq",
       "job.func_name": "__call__",
-      "job.id": "b642272b-400d-4f4a-bc80-2af7657cd79f",
+      "job.id": "e3ec6724-9430-4b61-86a1-3a09c90267cf",
       "language": "python",
       "queue.name": "q",
-      "runtime-id": "1eca261b26dc4be18210aa93d0c8bbcc",
+      "runtime-id": "1303b91482024400a34a17ca751185df",
       "span.kind": "producer"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2694
+      "_sampling_priority_v1": 1.0,
+      "process_id": 94944.0
     },
-    "duration": 2221916,
-    "start": 1692649926552517971
-  },
-     {
-       "name": "rq.worker.perform_job",
-       "service": "rq-worker",
-       "resource": "__call__",
-       "trace_id": 0,
-       "span_id": 2,
-       "parent_id": 1,
-       "type": "worker",
-       "error": 1,
-       "meta": {
-         "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.dm": "-0",
-         "_dd.p.tid": "654a694400000000",
-         "component": "rq",
-         "job.id": "b642272b-400d-4f4a-bc80-2af7657cd79f",
-         "job.origin": "q",
-         "job.status": "failed",
-         "language": "python",
-         "runtime-id": "1eca261b26dc4be18210aa93d0c8bbcc",
-         "span.kind": "consumer",
-         "traceparent": "00-0000000000000000c442b92d52cf553d-bd0aeeb9fcd2186d-01",
-         "tracestate": "dd=s:1;t.dm:-0"
-       },
-       "metrics": {
-         "_dd.top_level": 1,
-         "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 1,
-         "process_id": 2694
-       },
-       "duration": 3544625,
-       "start": 1692649926586536721
-     },
-        {
-          "name": "rq.job.perform",
-          "service": "rq-worker",
-          "resource": "__call__",
-          "trace_id": 0,
-          "span_id": 3,
-          "parent_id": 2,
-          "type": "",
-          "error": 1,
-          "meta": {
-            "_dd.base_service": "ddtrace_subprocess_dir",
-            "_dd.p.tid": "654a694400000000",
-            "component": "rq",
-            "error.message": "__call__() got an unexpected keyword argument 'key'",
-            "error.stack": "Traceback (most recent call last):\n  File \"/root/project/ddtrace/contrib/rq/__init__.py\", line 215, in traced_job_perform\n    return func(*args, **kwargs)\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~1100_click712/lib/python3.9/site-packages/rq/job.py\", line 821, in perform\n    self._result = self._execute()\n  File \"/root/project/.riot/venv_py3916_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_rq~1100_click712/lib/python3.9/site-packages/rq/job.py\", line 844, in _execute\n    result = self.func(*self.args, **self.kwargs)\nTypeError: __call__() got an unexpected keyword argument 'key'\n",
-            "error.type": "builtins.TypeError",
-            "job.id": "b642272b-400d-4f4a-bc80-2af7657cd79f"
-          },
-          "duration": 1257833,
-          "start": 1692649926586910929
-        }],
+    "duration": 8698541,
+    "start": 1771938982812503803
+  }],
 [
   {
     "name": "rq.queue.fetch_job",
@@ -95,18 +42,71 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699da4a600000000",
+      "_dd.svc.src": "true",
       "component": "rq",
       "job.id": "abc",
       "language": "python",
-      "runtime-id": "1eca261b26dc4be18210aa93d0c8bbcc"
+      "runtime-id": "1303b91482024400a34a17ca751185df"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 2694
+      "_sampling_priority_v1": 1.0,
+      "process_id": 94944.0
     },
-    "duration": 417459,
-    "start": 1692649926581650512
-  }]]
+    "duration": 520084,
+    "start": 1771938982824901219
+  }],
+[
+  {
+    "name": "rq.worker.perform_job",
+    "service": "rq-worker",
+    "resource": "__call__",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "699da4a600000000",
+      "_dd.svc.src": "true",
+      "component": "rq",
+      "job.id": "e3ec6724-9430-4b61-86a1-3a09c90267cf",
+      "job.origin": "q",
+      "job.status": "failed",
+      "language": "python",
+      "runtime-id": "1303b91482024400a34a17ca751185df",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 94944.0
+    },
+    "duration": 7450792,
+    "start": 1771938982834028636
+  },
+     {
+       "name": "rq.job.perform",
+       "service": "rq-worker",
+       "resource": "__call__",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 1,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "rq",
+         "error.message": "JobClass.__call__() got an unexpected keyword argument 'key'",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/rq/patch.py\", line 163, in traced_job_perform\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/job.py\", line 1278, in perform\n    self._result = self._execute()\n                   ^^^^^^^^^^^^^^^\n  File \"/home/bits/project/.riot/venv_py31211_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio0211_pytest-randomly_rq/lib/python3.12/site-packages/rq/job.py\", line 1315, in _execute\n    result = self.func(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: JobClass.__call__() got an unexpected keyword argument 'key'\n",
+         "error.type": "builtins.TypeError",
+         "job.id": "e3ec6724-9430-4b61-86a1-3a09c90267cf"
+       },
+       "duration": 2026208,
+       "start": 1771938982835538303
+     }]]

@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6913a07500000000",
+      "_dd.p.tid": "699d707a00000000",
       "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
@@ -21,21 +21,21 @@
       "django.db.vendor": "postgresql",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "29c5e48f968f4341ab5038f9a3a40e5a",
+      "runtime-id": "07558bb433b24c6384c696a2827d04f0",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "network.destination.port": 5432,
-      "process_id": 690
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 1.0,
+      "network.destination.port": 5432.0,
+      "process_id": 44350.0
     },
-    "duration": 512000,
-    "start": 1762893941787372760
+    "duration": 2388792,
+    "start": 1771925626337169170
   }],
 [
   {
@@ -50,7 +50,7 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6913a07500000000",
+      "_dd.p.tid": "699d707a00000000",
       "component": "psycopg",
       "db.application": "None",
       "db.name": "postgres",
@@ -60,19 +60,19 @@
       "django.db.vendor": "postgresql",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "29c5e48f968f4341ab5038f9a3a40e5a",
+      "runtime-id": "07558bb433b24c6384c696a2827d04f0",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 1,
-      "network.destination.port": 5432,
-      "process_id": 690
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 1.0,
+      "network.destination.port": 5432.0,
+      "process_id": 44350.0
     },
-    "duration": 162000,
-    "start": 1762893941788237219
+    "duration": 398708,
+    "start": 1771925626343816670
   }]]

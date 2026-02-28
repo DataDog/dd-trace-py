@@ -11,24 +11,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699da0a500000000",
+      "_dd.svc.src": "true",
       "component": "wsgi",
       "http.method": "GET",
       "http.status_code": "200",
       "http.status_msg": "OK",
       "http.url": "http://localhost:80/",
       "language": "python",
-      "runtime-id": "d7223707ab41490eb3437b2476f75456",
+      "runtime-id": "be792b43dbd74d0dade601a90f1c332a",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 7626
+      "_sampling_priority_v1": 1.0,
+      "process_id": 92738.0
     },
-    "duration": 295500,
-    "start": 1692650306811551966
+    "duration": 1528709,
+    "start": 1771937957139035509
   },
      {
        "name": "wsgi.application",
@@ -41,11 +42,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "654a694400000000",
          "component": "wsgi"
        },
-       "duration": 107583,
-       "start": 1692650306811666591
+       "duration": 455625,
+       "start": 1771937957139846468
      },
         {
           "name": "wsgi.start_response",
@@ -58,12 +58,12 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "ddtrace_subprocess_dir",
-            "_dd.p.tid": "654a694400000000",
+            "_dd.svc.src": "true",
             "component": "wsgi",
             "span.kind": "server"
           },
-          "duration": 32042,
-          "start": 1692650306811715674
+          "duration": 84333,
+          "start": 1771937957139968593
         },
      {
        "name": "wsgi.response",
@@ -76,10 +76,9 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "ddtrace_subprocess_dir",
-         "_dd.p.tid": "654a694400000000",
          "component": "wsgi",
          "result_class": "list"
        },
-       "duration": 56584,
-       "start": 1692650306811784424
+       "duration": 218625,
+       "start": 1771937957140334968
      }]]

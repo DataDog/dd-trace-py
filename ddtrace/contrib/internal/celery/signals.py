@@ -53,6 +53,9 @@ def trace_prerun(*args, **kwargs):
     # propagate the `Span` in the current task Context
     service = config.celery["worker_service_name"]
     span = tracer.trace(c.WORKER_ROOT_SPAN, service=service, resource=task.name, span_type=SpanTypes.WORKER)
+    # Use inline check for worker default service
+    if span.service == config.celery["_default_service_worker"]:
+        span.set_tag("_dd.svc.src", "true")
 
     # set span.kind to the type of request being performed
     span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -121,6 +124,9 @@ def trace_before_publish(*args, **kwargs):
     # in the task_after_publish signal
     service = config.celery["producer_service_name"]
     span = tracer.trace(c.PRODUCER_ROOT_SPAN, service=service, resource=task_name)
+    # Use inline check for producer default service
+    if span.service == config.celery["_default_service_producer"]:
+        span.set_tag("_dd.svc.src", "true")
 
     # Store an item called "task span" in case after_task_publish doesn't get called
     core.set_item("task_span", span)

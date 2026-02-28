@@ -11,24 +11,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d742a00000000",
+      "_dd.svc.src": "true",
       "component": "elasticsearch",
       "elasticsearch.method": "PUT",
       "elasticsearch.params": "ignore=400",
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
-      "runtime-id": "4f0e480280db4fdeb2a8b3ee3967e2c2",
+      "runtime-id": "f783db7aac1d402b8ecd1d8ce6e9a0b5",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 618
+      "_sampling_priority_v1": 1.0,
+      "process_id": 50054.0
     },
-    "duration": 210670,
-    "start": 1696414414908857624
+    "duration": 42832791,
+    "start": 1771926570027690010
   }],
 [
   {
@@ -43,24 +44,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d742a00000000",
+      "_dd.svc.src": "true",
       "component": "elasticsearch",
       "elasticsearch.method": "DELETE",
       "elasticsearch.params": "ignore=%5B400%2C+404%5D",
       "elasticsearch.url": "/ddtrace_index",
       "language": "python",
-      "out.host": "localhost",
-      "runtime-id": "4f0e480280db4fdeb2a8b3ee3967e2c2",
-      "server.address": "localhost",
+      "out.host": "127.0.0.1",
+      "runtime-id": "f783db7aac1d402b8ecd1d8ce6e9a0b5",
+      "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 618
+      "_sampling_priority_v1": 1.0,
+      "process_id": 50054.0
     },
-    "duration": 219614,
-    "start": 1696414415048011665
+    "duration": 12696792,
+    "start": 1771926570074367801
   }]]

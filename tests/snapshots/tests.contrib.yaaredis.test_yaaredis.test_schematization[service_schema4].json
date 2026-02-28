@@ -11,28 +11,29 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d6cc300000000",
+      "_dd.svc.src": "true",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "FLUSHALL",
-      "runtime-id": "d8705f1ada1545908f6144a2d6b15900",
+      "runtime-id": "a3477d4b768d4dfea2923290c2236061",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 5160,
-      "redis.args_length": 1
+      "_sampling_priority_v1": 1.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 39038.0,
+      "redis.args_length": 1.0
     },
-    "duration": 10873959,
-    "start": 1692650071606791218
+    "duration": 8356416,
+    "start": 1771924675689971925
   }],
 [
   {
@@ -47,27 +48,28 @@
     "meta": {
       "_dd.base_service": "mysvc",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "699d6cc300000000",
+      "_dd.svc.src": "true",
       "component": "yaaredis",
       "db.system": "redis",
       "language": "python",
       "out.host": "localhost",
       "redis.raw_command": "GET cheese",
-      "runtime-id": "d8705f1ada1545908f6144a2d6b15900",
+      "runtime-id": "a3477d4b768d4dfea2923290c2236061",
       "server.address": "localhost",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1,
-      "_dd.top_level": 1,
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "db.row_count": 0,
-      "network.destination.port": 6379,
-      "out.redis_db": 0,
-      "process_id": 5160,
-      "redis.args_length": 2
+      "_sampling_priority_v1": 1.0,
+      "db.row_count": 0.0,
+      "network.destination.port": 6379.0,
+      "out.redis_db": 0.0,
+      "process_id": 39038.0,
+      "redis.args_length": 2.0
     },
-    "duration": 328375,
-    "start": 1692650071643705427
+    "duration": 252458,
+    "start": 1771924675701913883
   }]]
