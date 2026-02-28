@@ -87,7 +87,6 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
     for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
         bc += (table[i] & 7) + 1;
         int code = (table[i] >> 3) & 15;
-        unsigned char next_byte = 0;
         switch (code) {
             case 15:
                 break;
@@ -95,19 +94,18 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
             case 14: // Long form
                 lineno += read_signed_varint(table_data, len, &i);
 
-                this->location.line = lineno;
-                this->location.line_end = lineno + read_varint(table_data, len, &i);
-                this->location.column = read_varint(table_data, len, &i);
-                this->location.column_end = read_varint(table_data, len, &i);
+                this->line = lineno;
+                // Skip line_end, column, and column_end varints (not exported)
+                read_varint(table_data, len, &i);
+                read_varint(table_data, len, &i);
+                read_varint(table_data, len, &i);
 
                 break;
 
             case 13: // No column data
                 lineno += read_signed_varint(table_data, len, &i);
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = this->location.column_end = 0;
+                this->line = lineno;
 
                 break;
 
@@ -120,10 +118,9 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
                 lineno += code - 10;
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + table[++i];
-                this->location.column_end = 1 + table[++i];
+                this->line = lineno;
+                // Skip column and column_end bytes (not exported)
+                i += 2;
 
                 break;
 
@@ -132,12 +129,10 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
                     return ErrorKind::LocationError;
                 }
 
-                next_byte = table[++i];
+                // Skip the next byte (column data, not exported)
+                ++i;
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + (code << 3) + ((next_byte >> 4) & 7);
-                this->location.column_end = this->location.column + (next_byte & 15);
+                this->line = lineno;
         }
 
         if (bc > lasti)
@@ -188,10 +183,7 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
 #endif
 
-    this->location.line = lineno;
-    this->location.line_end = lineno;
-    this->location.column = 0;
-    this->location.column_end = 0;
+    this->line = lineno;
 
     return Result<void>::ok();
 }
@@ -265,6 +257,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     // Per Python 3.14 release notes (gh-123923): f_executable uses a tagged pointer.
     // Profilers must clear the least significant bit to recover the PyObject* pointer.
     PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable));
+    if (code_obj == nullptr || frame_addr->instr_ptr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
     int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
@@ -276,6 +272,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #elif PY_VERSION_HEX >= 0x030d0000
+    if (frame_addr->f_executable == nullptr || frame_addr->instr_ptr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     const int lasti =
       (static_cast<int>(
         (frame_addr->instr_ptr - 1 -
@@ -288,6 +288,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #else
+    if (frame_addr->f_code == nullptr || frame_addr->prev_instr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     const int lasti =
       (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);

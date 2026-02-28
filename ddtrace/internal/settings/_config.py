@@ -22,6 +22,7 @@ from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import config as _native_config
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
@@ -554,7 +555,9 @@ class Config(object):
                 removal_version="5.0.0",
                 category=DDTraceDeprecationWarning,
             )
-        self._128_bit_trace_id_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+        _native_config.set_128_bit_trace_id_enabled(
+            _get_config("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", True, asbool)
+        )
 
         self._128_bit_trace_id_logging_enabled = _get_config("DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", False, asbool)
         self._sampling_rules = _get_config("DD_SPAN_SAMPLING_RULES")
@@ -703,6 +706,14 @@ class Config(object):
             setattr(self, "_trace_sampling_rules", "")
             self._report_hostname = True
             self._health_metrics_enabled = False
+
+    @property
+    def _128_bit_trace_id_enabled(self) -> bool:
+        return _native_config.get_128_bit_trace_id_enabled()
+
+    @_128_bit_trace_id_enabled.setter
+    def _128_bit_trace_id_enabled(self, value: bool) -> None:
+        _native_config.set_128_bit_trace_id_enabled(bool(value))
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
