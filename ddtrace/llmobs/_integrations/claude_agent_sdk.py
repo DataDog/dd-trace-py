@@ -3,19 +3,13 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import Message
@@ -50,13 +44,12 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         tool_output = kwargs.get("tool_output", "")
         tool_id = kwargs.get("tool_id", "")
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "tool",
-                INPUT_VALUE: tool_input,
-                OUTPUT_VALUE: tool_output,
-                METADATA: {"tool_id": tool_id},
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="tool",
+            input_value=tool_input,
+            output_value=tool_output,
+            metadata={"tool_id": tool_id},
         )
 
     def _llmobs_set_agent_tags(
@@ -81,16 +74,15 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
 
         agent_manifest = self._build_agent_manifest(model, metadata, init_system_message)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: "agent",
-                MODEL_NAME: model or "",
-                INPUT_VALUE: input_messages,
-                METADATA: metadata,
-                OUTPUT_VALUE: output_messages,
-                METRICS: metrics,
-                AGENT_MANIFEST: agent_manifest,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind="agent",
+            model_name=model or "",
+            input_value=input_messages,
+            output_value=output_messages,
+            metadata=metadata,
+            metrics=metrics,
+            agent_manifest=agent_manifest,
         )
 
     def _build_agent_manifest(

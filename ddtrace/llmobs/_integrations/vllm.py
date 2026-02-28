@@ -11,17 +11,8 @@ from ddtrace.contrib.internal.vllm._constants import TAG_PROVIDER
 from ddtrace.contrib.internal.vllm.extractors import LatencyMetrics
 from ddtrace.contrib.internal.vllm.extractors import RequestData
 from ddtrace.contrib.internal.vllm.extractors import parse_prompt_to_messages
-from ddtrace.llmobs._constants import INPUT_DOCUMENTS
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TIME_IN_MODEL_DECODE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_INFERENCE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_IN_MODEL_PREFILL_METRIC_KEY
@@ -29,6 +20,7 @@ from ddtrace.llmobs._constants import TIME_IN_QUEUE_METRIC_KEY
 from ddtrace.llmobs._constants import TIME_TO_FIRST_TOKEN_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -95,50 +87,50 @@ class VLLMIntegration(BaseLLMIntegration):
 
         return metrics
 
-    def _build_embedding_context(
-        self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
-    ) -> dict[str, Any]:
-        """Build LLMObs context for embedding operations."""
-        ctx: dict[str, Any] = {
-            SPAN_KIND: "embedding",
-            METADATA: self._build_metadata(data),
-            METRICS: self._build_metrics(data, latency_metrics),
-        }
-
+    def _set_embedding_tags(
+        self, span: Span, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
+    ) -> None:
+        """Set LLMObs tags for embedding operations."""
         docs: list[Document] = []
         if data.prompt:
             docs = [Document(text=data.prompt)]
         elif data.input_:
             docs = [Document(text=str(data.input_))]
 
-        if docs:
-            ctx[INPUT_DOCUMENTS] = docs
-
         num_emb = data.num_embeddings
         dim = data.embedding_dim
-        ctx[OUTPUT_VALUE] = (
+        output_value = (
             f"[{num_emb} embedding(s) returned with size {dim}]" if dim else f"[{num_emb} embedding(s) returned]"
         )
 
-        return ctx
+        _annotate_llmobs_span_data(
+            span,
+            kind="embedding",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
+            metadata=self._build_metadata(data),
+            metrics=self._build_metrics(data, latency_metrics),
+            input_documents=docs if docs else None,
+            output_value=output_value,
+        )
 
-    def _build_completion_context(
-        self, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
-    ) -> dict[str, Any]:
-        """Build LLMObs context for completion operations."""
-        ctx: dict[str, Any] = {
-            SPAN_KIND: "llm",
-            METADATA: self._build_metadata(data),
-            METRICS: self._build_metrics(data, latency_metrics),
-        }
+    def _set_completion_tags(
+        self, span: Span, data: RequestData, latency_metrics: Optional[LatencyMetrics] = None
+    ) -> None:
+        """Set LLMObs tags for completion operations."""
+        input_messages = parse_prompt_to_messages(data.prompt) if data.prompt else None
+        output_messages = [Message(role="assistant", content=data.output_text)] if data.output_text else None
 
-        if data.prompt:
-            ctx[INPUT_MESSAGES] = parse_prompt_to_messages(data.prompt)
-
-        if data.output_text:
-            ctx[OUTPUT_MESSAGES] = [Message(role="assistant", content=data.output_text)]
-
-        return ctx
+        _annotate_llmobs_span_data(
+            span,
+            kind="llm",
+            model_name=span.get_tag(TAG_MODEL) or "",
+            model_provider=span.get_tag(TAG_PROVIDER) or "",
+            metadata=self._build_metadata(data),
+            metrics=self._build_metrics(data, latency_metrics),
+            input_messages=input_messages,
+            output_messages=output_messages,
+        )
 
     def _llmobs_set_tags(
         self,
@@ -154,11 +146,7 @@ class VLLMIntegration(BaseLLMIntegration):
             return
 
         latency_metrics = kwargs.get("latency_metrics")
-        ctx = (
-            self._build_embedding_context(data, latency_metrics)
-            if operation == "embedding"
-            else self._build_completion_context(data, latency_metrics)
-        )
-        ctx[MODEL_NAME] = span.get_tag(TAG_MODEL) or ""
-        ctx[MODEL_PROVIDER] = span.get_tag(TAG_PROVIDER) or ""
-        span._set_ctx_items(ctx)
+        if operation == "embedding":
+            self._set_embedding_tags(span, data, latency_metrics)
+        else:
+            self._set_completion_tags(span, data, latency_metrics)

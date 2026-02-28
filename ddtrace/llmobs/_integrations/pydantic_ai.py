@@ -4,17 +4,11 @@ from typing import Sequence
 
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _get_span_kind
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -37,7 +31,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         kind = kwargs.get("kind", None)
         if kind:
             self._register_span(span, kind)
-            span._set_ctx_item(SPAN_KIND, kind)
+            _annotate_llmobs_span_data(span, kind=kind)
         return span
 
     def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
@@ -62,19 +56,18 @@ class PydanticAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span_kind = span._get_ctx_item(SPAN_KIND)
+        span_kind = _get_span_kind(span)
 
         if span_kind == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif span_kind == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
 
-        span._set_ctx_items(
-            {
-                SPAN_KIND: span_kind,
-                MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
-            }
+        _annotate_llmobs_span_data(
+            span,
+            kind=span_kind,
+            model_name=span.get_tag("pydantic_ai.request.model") or "",
+            model_provider=span.get_tag("pydantic_ai.request.provider") or "",
         )
 
     def _llmobs_set_tags_agent(
@@ -97,12 +90,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
                     result += part.content
                 elif hasattr(part, "args_as_json_str"):
                     result += part.args_as_json_str()
-        span._set_ctx_items(
-            {
-                NAME: agent_name or "PydanticAI Agent",
-                INPUT_VALUE: user_prompt,
-                OUTPUT_VALUE: result,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            name=agent_name or "PydanticAI Agent",
+            input_value=user_prompt,
+            output_value=result,
         )
 
     def _llmobs_set_tags_tool(
@@ -123,17 +115,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_description = (
             _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
-        span._set_ctx_items(
-            {
-                NAME: tool_name,
-                METADATA: {"description": tool_description},
-                INPUT_VALUE: tool_input,
-            }
+        _annotate_llmobs_span_data(
+            span,
+            name=tool_name,
+            metadata={"description": tool_description},
+            input_value=tool_input,
         )
         if not span.error:
             # depending on the version, the output may be a ToolReturnPart or the raw response
             output_content = getattr(response, "content", "") or response
-            span._set_ctx_item(OUTPUT_VALUE, output_content)
+            _annotate_llmobs_span_data(span, output_value=output_content)
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
@@ -166,7 +157,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["system_prompts"] = agent._system_prompts
         manifest["tools"] = self._get_agent_tools(agent)
 
-        span._set_ctx_item(AGENT_MANIFEST, manifest)
+        _annotate_llmobs_span_data(span, agent_manifest=manifest)
 
     def _get_agent_tools(self, agent: Any) -> list[dict[str, Any]]:
         """

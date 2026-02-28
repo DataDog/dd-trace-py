@@ -15,7 +15,7 @@ from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
@@ -1309,7 +1309,9 @@ def test_llmobs_with_evaluator_runner(llmobs, mock_llmobs_evaluator_runner):
 
 def test_llmobs_with_evaluator_runner_does_not_enqueue_evaluation_spans(mock_llmobs_evaluator_runner, llmobs):
     with llmobs.agent(name="test") as agent:
-        agent._set_ctx_item(IS_EVALUATION_SPAN, True)
+        llmobs_meta_struct = agent._get_struct_tag(LLMOBS_STRUCT.KEY) or {}
+        llmobs_meta_struct[LLMOBS_STRUCT.IS_EVALUATION_SPAN] = True
+        agent._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_meta_struct)
         with llmobs.llm(model_name="test_model"):
             pass
     time.sleep(0.1)
