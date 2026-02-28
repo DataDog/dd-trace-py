@@ -9,7 +9,7 @@ from typing import Sequence
 from typing import Union
 
 from ddtrace import config
-from ddtrace.ext import SpanTypes
+from ddtrace.ext import SpanTypes, SpanKind
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
@@ -21,14 +21,13 @@ from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
-from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import NAME
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
-from ddtrace.llmobs._constants import SESSION_ID
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
+from ddtrace.llmobs.types import ToolDefinition
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
@@ -46,6 +45,108 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
     LITELLM_APM_SPAN_NAME,
     VERTEXAI_APM_SPAN_NAME,
 )
+
+
+def _get_llmobs_data_metastruct(span: Span):
+    llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
+    return llmobs_span_data or {}
+
+
+def _get_llmobs_trace_id(span: Span):
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    return llmobs_span_data.get(LLMOBS_STRUCT.TRACE_ID)
+
+
+def _get_llmobs_parent_id(span: Span):
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    return llmobs_span_data.get(LLMOBS_STRUCT.PARENT_ID)
+
+
+def _get_llmobs_span_kind(span: Span):
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    return llmobs_span_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.SPAN, {}).get(LLMOBS_STRUCT.KIND)
+
+def _annotate_llmobs_span_data(
+    span: Span,
+    name: Optional[str] = None,
+    kind: Optional[str] = None,
+    ml_app: Optional[str] = None,
+    model_name: Optional[str] = None,
+    model_provider: Optional[str] = None,
+    metadata: Optional[dict[str, Any]] = None,
+    metrics: Optional[dict[str, Any]] = None,
+    tags: Optional[dict[str, str]] = None,
+    input_messages: Optional[list[Message]] = None,
+    input_value: Optional[str] = None,
+    input_documents: Optional[list[Document]] = None,
+    prompt: Optional[Prompt] = None,
+    output_messages: Optional[list[Message]] = None,
+    output_value: Optional[str] = None,
+    output_documents: Optional[list[Document]] = None,
+    tool_definitions: Optional[list[ToolDefinition]] = None,
+    session_id: Optional[str] = None,
+    agent_manifest: Optional[dict[str, Any]] = None,
+    experiment_input: Optional[str] = None,
+    experiment_output: Optional[str] = None,
+) -> None:
+    """Internal llmobs helper for integrations to annotate llmobs data.
+
+    metadata, metrics, and tags are updated on any existing metadata/metrics/tags instead of being overwritten.
+    """
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    try:
+        if name is not None:
+            llmobs_span_data[LLMOBS_STRUCT.NAME] = name
+        if ml_app is not None:
+            llmobs_span_data[LLMOBS_STRUCT.ML_APP] = ml_app
+        if kind is not None:
+            span_field = llmobs_span_data[LLMOBS_STRUCT.META].setdefault(LLMOBS_STRUCT.SPAN, {})
+            span_field[LLMOBS_STRUCT.KIND] = kind
+        if model_name is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.MODEL_NAME] = model_name
+        if model_provider is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
+        if metadata is not None:
+            existing_metadata = llmobs_span_data[LLMOBS_STRUCT.META].get(LLMOBS_STRUCT.METADATA) or {}
+            existing_metadata.update(metadata)
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA] = existing_metadata
+        if metrics is not None:
+            existing_metrics = llmobs_span_data.get(LLMOBS_STRUCT.METRICS) or {}
+            existing_metrics.update(metrics)
+            llmobs_span_data[LLMOBS_STRUCT.METRICS] = existing_metrics
+        if tags is not None:
+            existing_tags = llmobs_span_data.get(LLMOBS_STRUCT.TAGS) or {}
+            existing_tags.update(tags)
+            llmobs_span_data[LLMOBS_STRUCT.TAGS] = existing_tags
+        if input_messages is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
+        if input_value is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = input_value
+        if input_documents is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
+        if prompt is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.PROMPT] = prompt
+        if output_messages is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
+        if output_value is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = output_value
+        if output_documents is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
+        if tool_definitions is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.TOOL_DEFINITIONS] = tool_definitions
+        if session_id is not None:
+            llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
+        if agent_manifest is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.AGENT_MANIFEST] = agent_manifest
+        if experiment_input is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.INPUT] = experiment_input
+        if experiment_output is not None:
+            llmobs_span_data[LLMOBS_STRUCT.META][LLMOBS_STRUCT.OUTPUT] = experiment_output
+    except Exception:
+        log.warning("Error auto-annotating llmobs data")
+
+    finally:
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
 
 
 def _validate_prompt(prompt: Union[dict[str, Any], Prompt], strict_validation: bool) -> ValidatedPromptDict:
@@ -204,7 +305,8 @@ def _get_span_name(span: Span) -> str:
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
         client_name = span.get_tag("openai.request.provider") or "OpenAI"
         return "{}.{}".format(client_name, span.resource)
-    return span._get_ctx_item(NAME) or span.name
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    return llmobs_span_data.get(LLMOBS_STRUCT.NAME) or span.name
 
 
 def _is_evaluation_span(span: Span) -> bool:
@@ -229,12 +331,17 @@ def _get_ml_app(span: Span) -> Optional[str]:
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the global config LLMObs ML app name otherwise.
     """
-    ml_app = span._get_ctx_item(ML_APP)
+    ml_app = None
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    if llmobs_span_data:
+        ml_app = llmobs_span_data.get(LLMOBS_STRUCT.ML_APP)
     if ml_app:
         return ml_app
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
-        ml_app = llmobs_parent._get_ctx_item(ML_APP)
+        llmobs_span_data = _get_llmobs_data_metastruct(llmobs_parent)
+        if llmobs_span_data:
+            ml_app = llmobs_span_data.get(LLMOBS_STRUCT.ML_APP)
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
@@ -243,12 +350,14 @@ def _get_ml_app(span: Span) -> Optional[str]:
 
 def _get_session_id(span: Span) -> Optional[str]:
     """Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor."""
-    session_id = span._get_ctx_item(SESSION_ID)
+    llmobs_span_data = _get_llmobs_data_metastruct(span)
+    session_id = llmobs_span_data.get(LLMOBS_STRUCT.SESSION_ID)
     if session_id:
         return session_id
     llmobs_parent = _get_nearest_llmobs_ancestor(span)
     while llmobs_parent:
-        session_id = llmobs_parent._get_ctx_item(SESSION_ID)
+        llmobs_span_data = _get_llmobs_data_metastruct(llmobs_parent)
+        session_id = llmobs_span_data.get(LLMOBS_STRUCT.SESSION_ID)
         if session_id is not None:
             return session_id
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
@@ -318,8 +427,8 @@ def format_tool_call_arguments(tool_args: str) -> str:
     return formatted_tool_args
 
 
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links: list[_SpanLink] = span._get_ctx_item(SPAN_LINKS) or []
+def add_span_link(llmobs_span_data, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+    current_span_links: list[_SpanLink] = llmobs_span_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
     current_span_links.append(
         _SpanLink(
             span_id=span_id,
@@ -327,7 +436,7 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
             attributes={"from": from_io, "to": to_io},
         )
     )
-    span._set_ctx_item(SPAN_LINKS, current_span_links)
+    llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = current_span_links
 
 
 def enforce_message_role(messages: list[dict[str, str]]) -> list[dict[str, str]]:

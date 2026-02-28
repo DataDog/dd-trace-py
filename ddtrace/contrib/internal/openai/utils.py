@@ -29,13 +29,18 @@ class BaseOpenAIStreamHandler:
 
 
 class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
+    def __init__(self, integration, span, args, kwargs, **options):
+        super().__init__(integration, span, args, kwargs, **options)
+        # Check if we should auto-extract token chunks from the stream
+        self.auto_extract_token_chunk = kwargs.get("_dd_auto_extract_token_chunk", False)
+
     def process_chunk(self, chunk, iterator=None):
         self._extract_token_chunk(chunk, iterator)
         _loop_handler(self.primary_span, chunk, self.chunks)
 
     def _extract_token_chunk(self, chunk, iterator=None):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        if not self.primary_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+        if not self.auto_extract_token_chunk:
             return
         choices = getattr(chunk, "choices")
         if not choices:
@@ -54,13 +59,18 @@ class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
 
 
 class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
+    def __init__(self, integration, span, args, kwargs, **options):
+        super().__init__(integration, span, args, kwargs, **options)
+        # Check if we should auto-extract token chunks from the stream
+        self.auto_extract_token_chunk = kwargs.get("_dd_auto_extract_token_chunk", False)
+
     async def process_chunk(self, chunk, iterator=None):
         await self._extract_token_chunk(chunk, iterator)
         _loop_handler(self.primary_span, chunk, self.chunks)
 
     async def _extract_token_chunk(self, chunk, iterator=None):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        if not self.primary_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+        if not self.auto_extract_token_chunk:
             return
         choices = getattr(chunk, "choices")
         if not choices:

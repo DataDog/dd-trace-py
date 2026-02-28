@@ -9,9 +9,9 @@ from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.integration import IntegrationConfig
-from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -70,8 +70,6 @@ class BaseLLMIntegration:
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
-        if self.llmobs_enabled:
-            span._set_ctx_item(INTEGRATION, self._integration_name)
         return span
 
     def llmobs_set_tags(
@@ -85,6 +83,7 @@ class BaseLLMIntegration:
         """Extract input/output information from the request and response to be submitted to LLMObs."""
         if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
             return
+        _annotate_llmobs_span_data(span, tags={"integration": self._integration_name})
         try:
             self._llmobs_set_tags(span, args, kwargs, response, operation)
         except Exception:

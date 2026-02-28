@@ -26,6 +26,32 @@ OUTPUT_VALUE = "_ml_obs.meta.output.value"
 
 MCP_TOOL_CALL_INTENT = "_ml_obs.meta.intent"
 
+class LLMOBS_STRUCT:
+    KEY = "llmobs"
+    NAME = "name"
+    PARENT_ID = "parent_id"
+    TRACE_ID = "trace_id"
+    ML_APP = "ml_app"
+    SESSION_ID = "session_id"
+    TAGS = "tags"
+    PROMPT = "prompt"
+    METRICS = "metrics"
+    METADATA = "metadata"
+    SPAN_LINKS = "span_links"
+    META = "meta"
+    TOOL_DEFINITIONS = "tool_definitions"
+    INPUT = "input"
+    OUTPUT = "output"
+    VALUE = "value"
+    MESSAGES = "messages"
+    DOCUMENTS = "documents"
+    AGENT_MANIFEST = "agent_manifest"
+    SPAN = "span"
+    KIND = "kind"
+    MODEL_NAME = "model_name"
+    MODEL_PROVIDER = "model_provider"
+
+
 SPAN_START_WHILE_DISABLED_WARNING = (
     "Span started with LLMObs disabled."
     " If using ddtrace-run, ensure DD_LLMOBS_ENABLED is set to 1. Else, use LLMObs.enable()."

@@ -10,8 +10,8 @@ from typing import OrderedDict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 
 
 log = get_logger(__name__)
@@ -199,11 +199,13 @@ def _llmobs_decorator(operation_kind):
                         if _automatic_io_annotation and bound_args.arguments:
                             LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                         resp = await func(*args, **kwargs)
+                        llmobs_span_data = _get_llmobs_data_metastruct(span)
                         if (
                             _automatic_io_annotation
                             and resp is not None
                             and operation_kind != "retrieval"
-                            and span._get_ctx_item(OUTPUT_VALUE) is None
+                            and llmobs_span_data is not None
+                            and llmobs_span_data["meta"]["output"].get("value") is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
@@ -249,11 +251,13 @@ def _llmobs_decorator(operation_kind):
                         if _automatic_io_annotation and bound_args.arguments:
                             LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
                         resp = func(*args, **kwargs)
+                        llmobs_span_data = _get_llmobs_data_metastruct(span)
                         if (
                             _automatic_io_annotation
                             and resp is not None
                             and operation_kind != "retrieval"
-                            and span._get_ctx_item(OUTPUT_VALUE) is None
+                            and llmobs_span_data is not None
+                            and llmobs_span_data["meta"]["output"].get("value") is None
                         ):
                             LLMObs.annotate(span=span, output_data=resp)
                         return resp
