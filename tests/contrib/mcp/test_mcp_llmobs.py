@@ -4,8 +4,7 @@ from importlib.metadata import version
 import json
 import os
 from textwrap import dedent
-
-import mock
+from unittest import mock
 
 from ddtrace.internal.utils.version import parse_version
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event

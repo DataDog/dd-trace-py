@@ -4,11 +4,11 @@ import io
 import json
 import sys
 import unittest
+from unittest import mock
 import zipfile
 
 import botocore.exceptions
 import botocore.session
-import mock
 from moto import mock_dynamodb
 from moto import mock_ec2
 from moto import mock_events

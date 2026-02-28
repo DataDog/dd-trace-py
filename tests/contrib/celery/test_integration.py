@@ -2,10 +2,10 @@ from collections import Counter
 import os
 import subprocess
 from time import sleep
+from unittest import mock
 
 import celery
 from celery.exceptions import Retry
-import mock
 import pytest
 
 from ddtrace.constants import ERROR_MSG

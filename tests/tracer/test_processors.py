@@ -1,6 +1,6 @@
 from typing import Any  # noqa:F401
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace._trace.processor import SpanAggregator
@@ -472,7 +472,7 @@ def test_trace_128bit_processor(trace_id, tracer):
 )
 def test_span_creation_metrics():
     """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
     from ddtrace.trace import tracer

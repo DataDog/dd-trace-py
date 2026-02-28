@@ -26,7 +26,7 @@ def test_public_api():
 
 @pytest.mark.subprocess(env={"DD_DATA_STREAMS_ENABLED": "true"})
 def test_manual_checkpoint_behavior():
-    import mock
+     from unittest import mock
 
     from ddtrace.data_streams import set_consume_checkpoint
     from ddtrace.internal.datastreams import data_streams_processor

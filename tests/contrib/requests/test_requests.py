@@ -517,7 +517,7 @@ def test_traced_session_no_patch_all(tmpdir):
     f = tmpdir.join("test.py")
     f.write(
         """
-import mock
+from unittest import mock
 import ddtrace
 from ddtrace.contrib.requests import TracedSession
 

@@ -1,6 +1,6 @@
 import json
+from unittest import mock
 
-import mock
 from mock import patch as mock_patch
 import pytest
 

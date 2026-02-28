@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 from ddtrace.internal import agent
@@ -114,7 +115,7 @@ def test_stats_port_not_set():
 )
 def test_trace_url_uds():
     # with nothing set by user, and the default UDS available, we choose UDS
-    import mock
+     from unittest import mock
 
     with mock.patch("os.path.exists", return_value=True):
         from ddtrace.internal.settings._agent import config
@@ -133,7 +134,7 @@ def test_trace_url_uds():
 )
 def test_trace_url_default():
     # with nothing set by user, and the default UDS unavailable, we choose default http address
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -146,7 +147,7 @@ def test_trace_url_default():
 )
 def test_trace_url_with_port():
     # with port set by user, and default UDS unavailable, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -166,7 +167,7 @@ def test_trace_url_with_port():
 )
 def test_trace_url_with_host():
     # with host set by user, and default UDS unavailable, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -184,7 +185,7 @@ def test_trace_url_with_host():
 )
 def test_trace_url_with_host_and_port():
     # with host and port set by user, and default UDS unavailable, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -197,7 +198,7 @@ def test_trace_url_with_host_and_port():
 )
 def test_trace_url_with_uds_and_port():
     # with port set by user, and default UDS available, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -216,7 +217,7 @@ def test_trace_url_with_uds_and_port():
 )
 def test_trace_url_with_uds_and_host():
     # with host set by user, and default UDS available, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -234,7 +235,7 @@ def test_trace_url_with_uds_and_host():
 )
 def test_trace_url_with_uds_host_and_port():
     # with host and port set by user, and default UDS available, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -247,7 +248,7 @@ def test_trace_url_with_uds_host_and_port():
 )
 def test_trace_url_with_uds_url_host_and_port():
     # with port, host, and url set by user, and default UDS available, we choose url
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -260,7 +261,7 @@ def test_trace_url_with_uds_url_host_and_port():
 )
 def test_trace_url_with_url_host_and_port():
     # with port, host, and url set by user, and default UDS unavailable, we choose url
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -279,7 +280,7 @@ def test_trace_url_with_url_host_and_port():
 )
 def test_stats_url_default():
     # with nothing set by user, and the default UDS unavailable, we choose default http address
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -298,7 +299,7 @@ def test_stats_url_default():
 )
 def test_stats_url_with_port():
     # with port set by user, and default UDS unavailable, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -317,7 +318,7 @@ def test_stats_url_with_port():
 )
 def test_stats_url_with_host():
     # with host set by user, and default UDS unavailable, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -330,7 +331,7 @@ def test_stats_url_with_host():
 )
 def test_stats_url_with_host_and_port():
     # with host and port set by user, and default UDS unavailable, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -349,7 +350,7 @@ def test_stats_url_with_host_and_port():
 )
 def test_stats_url_with_uds_and_port():
     # with port set by user, and default UDS available, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -368,7 +369,7 @@ def test_stats_url_with_uds_and_port():
 )
 def test_stats_url_with_uds_and_host():
     # with host set by user, and default UDS available, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -381,7 +382,7 @@ def test_stats_url_with_uds_and_host():
 )
 def test_stats_url_with_uds_host_and_port():
     # with host and port set by user, and default UDS available, we choose user settings
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -394,7 +395,7 @@ def test_stats_url_with_uds_host_and_port():
 )
 def test_stats_url_with_uds_url_host_and_port():
     # with port, host, and url set by user, and default UDS available, we choose url
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 
@@ -407,7 +408,7 @@ def test_stats_url_with_uds_url_host_and_port():
 )
 def test_stats_url_with_url_host_and_port():
     # with port, host, and url set by user, and default UDS unavailable, we choose url
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.settings._agent import config
 

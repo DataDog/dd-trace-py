@@ -350,7 +350,7 @@ def test_rate_limiter_on_long_running_spans(tracer):
     """
     Ensure that the rate limiter is applied on increasing time intervals
     """
-    import mock
+     from unittest import mock
 
     from ddtrace._trace.sampler import DatadogSampler
     from ddtrace.trace import tracer

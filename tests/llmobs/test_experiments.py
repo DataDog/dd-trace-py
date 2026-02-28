@@ -17,10 +17,10 @@ import tempfile
 import time
 from typing import Generator
 from typing import Optional
+from unittest import mock
 from unittest.mock import MagicMock
 from uuid import UUID
 
-import mock
 import pytest
 
 import ddtrace

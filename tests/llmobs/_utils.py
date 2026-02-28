@@ -1,6 +1,5 @@
 import os
-
-import mock
+from unittest import mock
 
 from ddtrace.llmobs.types import _ErrorField
 from ddtrace.llmobs.types import _Meta

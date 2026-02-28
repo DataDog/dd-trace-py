@@ -1,5 +1,6 @@
+from unittest import mock
+
 import flask
-import mock
 
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.contrib.internal.flask.patch import unpatch

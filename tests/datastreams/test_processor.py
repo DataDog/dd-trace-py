@@ -1,8 +1,8 @@
 import gzip
 import os
 import time
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
@@ -51,7 +51,7 @@ def test_periodic_payload_tags():
     )
 )
 def test_periodic_payload_process_tags():
-    import mock
+     from unittest import mock
 
     from ddtrace.internal.datastreams.processor import DataStreamsProcessor
     from tests.datastreams.test_processor import _decode_datastreams_payload

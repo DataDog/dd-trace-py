@@ -1,7 +1,7 @@
 # Opentelemetry Tracer shim Unit Tests
 import logging
+from unittest import mock
 
-import mock
 from opentelemetry.trace import Link
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import set_span_in_context

@@ -1,8 +1,8 @@
 import os
 from typing import Generator  # noqa:F401
+from unittest import mock
 
 import asyncpg
-import mock
 import pytest
 
 from ddtrace.contrib.internal.asyncpg.patch import patch
