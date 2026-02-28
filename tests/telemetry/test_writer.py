@@ -472,6 +472,11 @@ import opentelemetry
             "origin": "default",
             "value": 7500,
         },
+        {
+            "name": "_DD_APM_TRACING_AGENTLESS_ENABLED",
+            "origin": "default",
+            "value": False,
+        },
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},

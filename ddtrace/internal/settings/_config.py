@@ -438,7 +438,7 @@ class Config(object):
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
-        self._trace_rate_limit = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
+        self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
             log.warning(
                 "DD_TRACE_RATE_LIMIT is set to %s and DD_TRACE_SAMPLING_RULES is not set. "
@@ -693,6 +693,19 @@ class Config(object):
         self._long_running_initial_flush_interval = _get_config(
             "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
+        # When True, traces are sent via the JSON span intake (agentless EvP), e.g. browser-intake-*.
+        self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
+        if self._trace_agentless_enabled:
+            log.debug(
+                "APM Agentless enabled: sampling, rate limits, health metrics, and client-side stats are disabled. "
+                "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
+                "bypassing the agent.",
+            )
+            self._trace_rate_limit = -1
+            self._trace_compute_stats = False
+            setattr(self, "_trace_sampling_rules", "")
+            self._report_hostname = True
+            self._health_metrics_enabled = False
 
     @property
     def _128_bit_trace_id_enabled(self) -> bool:
