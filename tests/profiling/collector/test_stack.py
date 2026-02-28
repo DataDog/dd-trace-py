@@ -994,3 +994,971 @@ def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.Stack
 
     for t in threads:
         t.join()
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+def test_top_c_frame_detection(tmp_path: Path) -> None:
+    """Test that the top-most native C frame is tracked and appears as the leaf frame in the profile."""
+    test_name = "test_top_c_frame_detection"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sleep_loop() -> None:
+        for _ in range(10):
+            time.sleep(0.1)
+
+    with stack.StackCollector():
+        sleep_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name="sleep",
+                    filename="",
+                    line_no=-1,
+                ),
+                pprof_utils.StackLocation(
+                    function_name="sleep_loop",
+                    filename="test_stack.py",
+                    line_no=-1,
+                ),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_hashlib() -> None:
+    """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
+    import hashlib
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_hashlib"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sha256_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.sha256(b"Hello, world!")
+
+    with stack.StackCollector():
+        sha256_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    expected_stacks = [
+        [loc("sha256"), loc("sha256_loop", FILE_NAME)],
+        [loc("monotonic"), loc("sha256_loop", FILE_NAME)],
+    ]
+
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(),
+                thread_name="MainThread",
+                locations=exp_stack,
+            ),
+            print_samples_on_failure=True,
+        )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_hashlib_kwarg() -> None:
+    """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
+    import hashlib
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_hashlib"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sha256_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.sha256(b"Hello, world!")
+
+    with stack.StackCollector():
+        sha256_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    expected_stacks = [
+        [loc("sha256"), loc("sha256_loop", FILE_NAME)],
+        [loc("monotonic"), loc("sha256_loop", FILE_NAME)],
+    ]
+
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess(
+    env=dict(
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    )
+)
+def test_top_c_frame_detection_numpy_flat() -> None:
+    """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    import numpy as np
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_hashlib"
+    pprof_prefix = str(tmp_path / test_name)
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def numpy_loop() -> None:
+        test_start = time.monotonic()
+        while time.monotonic() - test_start < 2:
+            mat = np.random.rand(1000, 1000)
+            np.matmul(mat, mat)
+
+    with stack.StackCollector():
+        numpy_loop()
+
+    ddup.upload()
+
+    all_files_for_pid = sorted([x for x in os.listdir(tmp_path) if ".pprof" in x])
+    parent_files = [str(tmp_path / f) for f in all_files_for_pid if f".{str(os.getpid())}." in f]
+    profiles = [pprof_utils.parse_profile(f) for f in parent_files]
+    profile = pprof_utils.merge_profiles(profiles)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    expected_stacks = [
+        [loc("matmul"), loc("numpy_loop", FILE_NAME)],
+        [loc("rand"), loc("numpy_loop", FILE_NAME)],
+    ]
+
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess(
+    env=dict(
+        _DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED="0",
+    )
+)
+def test_top_c_frame_detection_numpy_nested() -> None:
+    """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    import numpy as np
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_hashlib"
+    pprof_prefix = str(tmp_path / test_name)
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def numpy_loop() -> None:
+        test_start = time.monotonic()
+        while time.monotonic() - test_start < 2:
+            np.matmul(np.random.rand(1000, 1000), np.random.rand(1000, 1000))
+
+    with stack.StackCollector():
+        numpy_loop()
+
+    ddup.upload()
+
+    all_files_for_pid = sorted([x for x in os.listdir(tmp_path) if ".pprof" in x])
+    parent_files = [str(tmp_path / f) for f in all_files_for_pid if f".{str(os.getpid())}." in f]
+    profiles = [pprof_utils.parse_profile(f) for f in parent_files]
+    profile = pprof_utils.merge_profiles(profiles)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    expected_stacks = [
+        [loc("matmul"), loc("numpy_loop", FILE_NAME)],
+        [loc("rand"), loc("numpy_loop", FILE_NAME)],
+    ]
+
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_zlib() -> None:
+    """Test module-level C function: zlib.compress (LOAD_GLOBAL → LOAD_ATTR → PUSH_NULL → CALL)."""
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+    import zlib
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_zlib"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def zlib_loop() -> None:
+        data = b"x" * 100000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(data)
+
+    with stack.StackCollector():
+        zlib_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("compress"), loc("zlib_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_sorted_builtin() -> None:
+    """Test builtin function: sorted() (LOAD_GLOBAL+NULL → CALL, no LOAD_ATTR)."""
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_sorted_builtin"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sorted_loop() -> None:
+        data = list(range(10000, 0, -1))
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            sorted(data)
+
+    with stack.StackCollector():
+        sorted_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sorted"), loc("sorted_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_list_sort_method() -> None:
+    """Test method call: list.sort() (LOAD_FAST → LOAD_ATTR method → CALL)."""
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_list_sort"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sort_loop() -> None:
+        original = list(range(10000, 0, -1))
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            data = original.copy()
+            data.sort()
+
+    with stack.StackCollector():
+        sort_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sort"), loc("sort_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_regex_method() -> None:
+    """Test method call on C object: Pattern.findall() (LOAD_FAST → LOAD_ATTR method → LOAD_FAST → CALL)."""
+    import _thread
+    import os
+    import pathlib
+    import re
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_regex"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def regex_loop() -> None:
+        pattern = re.compile(r"[a-z]+")
+        text = "hello world foo bar baz " * 10000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            pattern.findall(text)
+
+    with stack.StackCollector():
+        regex_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("findall"), loc("regex_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_expression_arg() -> None:
+    """Test C call with expression as argument: zlib.compress(chunk_a + chunk_b).
+
+    Exercises BINARY_OP and LOAD_FAST_BORROW_LOAD_FAST_BORROW in depth tracking.
+    Bytecode: LOAD_GLOBAL → LOAD_ATTR → PUSH_NULL → LOAD_FAST_x2 → BINARY_OP → CALL.
+    """
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+    import zlib
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_expression_arg"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def compress_concat_loop() -> None:
+        chunk_a = b"x" * 50000
+        chunk_b = b"y" * 50000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(chunk_a + chunk_b)
+
+    with stack.StackCollector():
+        compress_concat_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("compress"), loc("compress_concat_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_nested_c_calls() -> None:
+    """Test nested C calls: hashlib.sha256(zlib.compress(data)).
+
+    When caught in sha256, backward scan must skip past the inner CALL (compress)
+    and its arguments to reach the LOAD_ATTR for sha256.
+    """
+    import _thread
+    import hashlib
+    import os
+    import pathlib
+    import tempfile
+    import time
+    import zlib
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_nested_c_calls"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def nested_loop() -> None:
+        data = os.urandom(100000)
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.sha256(zlib.compress(data))
+
+    with stack.StackCollector():
+        nested_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    expected_stacks = [
+        [loc("sha256"), loc("nested_loop", FILE_NAME)],
+        [loc("compress"), loc("nested_loop", FILE_NAME)],
+    ]
+
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_call_kw() -> None:
+    """Test builtin with keyword argument: sorted(data, reverse=True).
+
+    Exercises CALL_KW opcode which consumes an extra kwnames tuple.
+    Bytecode: LOAD_GLOBAL+NULL → LOAD_FAST → LOAD_CONST → LOAD_CONST (kwnames) → CALL_KW.
+    """
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_call_kw"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sorted_kw_loop() -> None:
+        data = list(range(10000, 0, -1))
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            sorted(data, reverse=True)
+
+    with stack.StackCollector():
+        sorted_kw_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sorted"), loc("sorted_kw_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_many_args() -> None:
+    """Test C function with many positional arguments: hashlib.pbkdf2_hmac(algo, pwd, salt, iters).
+
+    Depth tracking must skip past 4 LOAD_CONST/LOAD_FAST + PUSH_NULL before reaching LOAD_ATTR.
+    """
+    import _thread
+    import hashlib
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_many_args"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def pbkdf2_loop() -> None:
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            hashlib.pbkdf2_hmac("sha256", b"password", b"salt", 50000)
+
+    with stack.StackCollector():
+        pbkdf2_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("pbkdf2_hmac"), loc("pbkdf2_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_method_two_args() -> None:
+    """Test C method call with 2 arguments: Pattern.sub(repl, text).
+
+    Bytecode: LOAD_FAST → LOAD_ATTR (method) → LOAD_CONST → LOAD_FAST → CALL 2.
+    """
+    import _thread
+    import os
+    import pathlib
+    import re
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_method_two_args"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def regex_sub_loop() -> None:
+        pattern = re.compile(r"[a-z]+")
+        text = "hello world foo bar baz " * 10000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            pattern.sub("X", text)
+
+    with stack.StackCollector():
+        regex_sub_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("sub"), loc("regex_sub_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_method_on_literal() -> None:
+    """Test method call on a literal: b''.join(chunks).
+
+    Receiver is LOAD_CONST (not LOAD_FAST/LOAD_GLOBAL), consumed by LOAD_ATTR method variant.
+    Bytecode: LOAD_CONST b'' → LOAD_ATTR (join, method) → LOAD_FAST → CALL 1.
+    """
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_method_on_literal"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def join_loop() -> None:
+        chunks = [b"x" * 1000] * 1000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            b"".join(chunks)
+
+    with stack.StackCollector():
+        join_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("join"), loc("join_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
+@pytest.mark.skipif(sys.version_info < (3, 13), reason="Native C frame tracking requires Python 3.13+")
+@pytest.mark.subprocess()
+def test_top_c_frame_detection_sequential_calls() -> None:
+    """Test multiple sequential C calls in one function: compress then sha256.
+
+    Both C frames should appear in the profile with distinct callable names.
+    Tests that STORE_FAST between calls doesn't confuse the backward scan.
+    """
+    import _thread
+    import hashlib
+    import os
+    import pathlib
+    import tempfile
+    import time
+    import zlib
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_top_c_frame_detection_sequential_calls"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def sequential_loop() -> None:
+        data = os.urandom(100000)
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(data)
+            hashlib.sha256(data)
+
+    with stack.StackCollector():
+        sequential_loop()
+
+    ddup.upload()
+
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
+    assert len(samples) > 0
+
+    expected_stacks = [
+        [loc("compress"), loc("sequential_loop", FILE_NAME)],
+        [loc("sha256"), loc("sequential_loop", FILE_NAME)],
+    ]
+
+    for exp_stack in expected_stacks:
+        pprof_utils.assert_profile_has_sample(
+            profile,
+            samples=samples,
+            expected_sample=pprof_utils.StackEvent(
+                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
+            ),
+            print_samples_on_failure=True,
+        )
