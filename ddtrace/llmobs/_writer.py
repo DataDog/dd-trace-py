@@ -557,6 +557,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "tags": attrs.get("tags", []),
                 }
                 class_records.append(dataset_record)
+            logger.info("Dataset '%s': fetched %d records (page %d)", dataset_name, len(class_records), page_num + 1)
             next_cursor = records_data.get("meta", {}).get("after")
 
             url_options = {}
