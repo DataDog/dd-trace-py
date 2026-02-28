@@ -1588,6 +1588,26 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="niquests",
+            command="pytest {cmdargs} tests/contrib/niquests",
+            pkgs={
+                "pytest-asyncio": "==0.21.1",
+                "pytest-randomly": latest,
+                "httpretty": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={
+                        "niquests": [
+                            "~=3.17.0",
+                            latest,
+                        ],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="wsgi",
             command="pytest {cmdargs} tests/contrib/wsgi",
             venvs=[

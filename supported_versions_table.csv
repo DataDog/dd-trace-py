@@ -65,6 +65,7 @@ mcp,mcp,1.10.1,1.16.0,True
 molten,molten,1.0.2,1.0.2,True
 mysql-connector-python,mysql,8.0.5,9.4.0,True
 mysqlclient,mysqldb,2.2.1,2.2.6,True
+niquests,niquests,3.17.0,3.17.0,True
 openai,openai,1.0.0,2.3.0,True
 openai-agents,openai_agents,0.0.8,0.0.16,True
 protobuf,protobuf,6.30.1,6.32.0,False
