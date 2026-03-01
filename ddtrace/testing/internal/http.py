@@ -29,7 +29,7 @@ from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
 from ddtrace.testing.internal.utils import asbool
 
 
-DEFAULT_TIMEOUT_SECONDS = 15.0
+DEFAULT_TIMEOUT_SECONDS = 2.0
 MAX_ATTEMPTS = 5
 
 log = logging.getLogger(__name__)
