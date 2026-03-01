@@ -489,7 +489,7 @@ integrations:
   tested_versions_by_dependency:
     kombu:
       min: 4.6.11
-      max: 5.5.4
+      max: 5.6.2
 
 - integration_name: langchain
   is_external_package: true
