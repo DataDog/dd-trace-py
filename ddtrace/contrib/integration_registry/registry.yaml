@@ -135,6 +135,16 @@ integrations:
       min: 6.105.0
       max: 6.105.0
 
+- integration_name: azure_cosmos
+  is_external_package: true
+  is_tested: false
+  dependency_names:
+  - azure-cosmos
+  tested_versions_by_dependency:
+    azure-cosmos:
+      min: 4.14.5
+      max: 4.14.6
+
 - integration_name: azure_eventhubs
   is_external_package: true
   is_tested: true
