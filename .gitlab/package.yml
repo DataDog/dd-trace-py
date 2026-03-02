@@ -149,7 +149,7 @@ variables:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp311-cp311"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
-          - ARCH_TAG: "arch64"
+          - ARCH_TAG: "arm64"
             PYTHON_TAG: "cp311-cp311"
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_aarch64"
     - job: "package version"
