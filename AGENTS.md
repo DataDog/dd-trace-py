@@ -7,8 +7,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 
 1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
 2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`hatch run lint:*` commands).
-3. **Format after every edit** — Run `hatch run lint:fmt -- <file>` immediately after editing any Python file.
-4. **Lint before committing** — Run `hatch run lint:checks` before every git commit.
+3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
 5. **No public API breakage** — Never change public API contracts; real applications depend on them.
 6. **No secrets** — Never commit secrets; use environment variables.
 7. **Don't assume business logic** — Ask when unsure about implementation details.
