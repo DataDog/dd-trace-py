@@ -57,6 +57,20 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/fuzz.yml"
 
+"pipeline variables":
+  stage: .pre
+  tags: [ "arch:amd64" ]
+  script:
+    - |
+      echo "CURRENT_YEAR=$(date +%Y)" >> pipeline_variables.env
+      echo "CURRENT_MONTH=$(date +%-m)" >> pipeline_variables.env
+      echo "CURRENT_WEEK=$(date +%-V)" >> pipeline_variables.env
+      echo "CURRENT_BIWEEK=$(( $(date +%-V) / 2 ))" >> pipeline_variables.env
+      cat pipeline_variables.env
+  artifacts:
+    reports:
+      dotenv: pipeline_variables.env
+
 tests-gen:
   stage: tests
   extends: .testrunner
@@ -427,8 +441,12 @@ publish-lib-init-pinned-tags:
       artifacts: true
 
 configure_system_tests:
+  needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+
+system_tests:
+  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
 
 deploy_to_reliability_env:
   needs: []

@@ -112,7 +112,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
 
 
 def _expected_agent_metadata(agent_name: str) -> dict:
-    return {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}
+    return {"_dd": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}}
 
 
 def _assert_expected_agent_run(
