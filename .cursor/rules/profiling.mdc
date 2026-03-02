@@ -12,6 +12,8 @@ globs:
 These rules are derived from real production incidents and bugs fixed in dd-trace-py's profiling subsystem since May 2024 (~89 `fix(profiling)` PRs, plus related `fix(internal)` incidents). Each rule exists because its absence caused crashes, data corruption, deadlocks, or incorrect profiling data for customers.
 This guidance applies primarily to profiling/native runtime paths; use engineering judgment for unrelated code paths.
 
+**How to use the review checklists:** When generating or reviewing code, work through each applicable checklist item and include your assessment in the PR description or review comments (e.g., "Fork safety: no new native state introduced" or "New mutex added to X, reset in existing `atfork_child` handler Y"). This makes the review reasoning visible and auditable by human reviewers.
+
 ## Maintenance and Human Review
 
 - Last updated: 2026-02-10
@@ -30,7 +32,7 @@ Register `pthread_atfork` child handlers that reset/clear every piece of native 
 ### Review checklist
 - Does this change introduce or modify any native state (mutex, atomic, map, pool, queue)?
 - If yes, is it reset via an existing higher-level object registered in `pthread_atfork` (preferred), or via a dedicated child handler when necessary?
-- Prefer a small number of centralized atfork handlers; many independent handlers are hard to reason about for init/free ordering and can introduce sequencing bugs.
+- Prefer a small number of centralized atfork handlers; many independent handlers are hard to reason about for init/free ordering and can introduce sequencing bugs. If a dedicated `atfork` handler is added, justify why it cannot be handled through an existing centralized handler (in a code comment and the PR description).
 - Does this change add or reorder fork handlers? If so, what is the full handler execution order, and can any handler access state freed by an earlier handler?
 - Has this been tested with a multi-threaded parent that forks (uWSGI workers, gunicorn prefork, `subprocess.Popen`)?
 - After fork in the child process, is any native state used before handlers run?
@@ -62,7 +64,7 @@ Replace Python API calls with C-level APIs that don't enter the eval loop. Retur
 - Does any function return a pointer or reference to data protected by a mutex? Should it return a copy instead?
 - Can a shared container/list change size during iteration from another thread?
 - After signaling "done" (e.g., setting a flag, notifying a condition variable), does the thread still execute any Python operations like `Py_DECREF`?
-- Has this been tested with ThreadSanitizer (TSan)?
+- For native-only components, has this been tested with ThreadSanitizer (TSan)? (Note: TSan currently only works for native tests independent of Python; running ddtrace + Python under TSan is not yet supported.)
 
 ### Historical examples
 - `PyObject_CallObject(threading_current_thread)` in memalloc released GIL, other threads crashed on partially-constructed objects ([#16396](https://github.com/DataDog/dd-trace-py/pull/16396))
@@ -81,7 +83,7 @@ Replace Python API calls with C-level APIs that don't enter the eval loop. Retur
 - Objects returned to pools without clearing state leak stale data to the next user.
 
 ### How it was fixed
-Disable GC during allocation hooks (and **verify** it is actually disabled in compiled output). Use `size_t` for sizes. Always clear state when returning objects to pools. Add overflow assertions.
+Disable GC during allocation hooks and **verify via `objdump`/`nm`** that the GC-disable calls are actually present in the compiled binary (a previous fix was silently dead code due to a missing `#include`). Use `size_t` for sizes. Always clear state when returning objects to pools. Add overflow assertions.
 
 ### Review checklist
 - Does this allocation hook or traceback collection do anything that could trigger GC? If so, is GC explicitly disabled for the duration?
@@ -173,11 +175,11 @@ The profiler captures thread stacks and task stacks at slightly different times.
 Walk the Python stack first to determine the "synchronous top" depth. Detect and skip samples known to be bogus rather than emit incorrect data. Use debouncing for task link cleanup to avoid removing links for just-created tasks. Fix on-CPU detection to recursively check awaited coroutines.
 
 ### Review checklist
-- Between capturing the thread stack and reading task state, can any task's state change? What happens if it does?
+- Between capturing the thread stack and reading task state, task state **will** change. What happens when it does?
 - Do tests validate the **complete** stack (including asyncio runtime frames), not just the presence of user-code frames?
 - Do tests validate the **absence** of wrong data (frames from other tasks, stale task names)?
 - Is there a cleanup/GC process for task metadata? Can it race with task creation?
-- If we detect inconsistency between the thread stack and task state, do we skip the sample or emit bogus data?
+- When inconsistency is detected between thread stack and task state, skip the sample rather than emitting incorrect data. (Design decision: prefer no data over wrong data.)
 
 ### Historical examples
 - Race between unwinding Thread Stack and Task Stacks caused Task A's frames to leak into Task B's stack ([#15780](https://github.com/DataDog/dd-trace-py/pull/15780))
@@ -197,7 +199,7 @@ Fix paths and includes. Verify compiled output contains expected symbols (`objdu
 
 ### Review checklist
 - Does this fix depend on preprocessor macros or conditional compilation? Are the headers that define them included? (Verify the fix is present in compiled output, not just in source code.)
-- Has this been tested on an actual release wheel, not just an in-tree/editable build?
+- Has this been tested on an actual release wheel, not just an in-tree/editable build? (Note: in-tree/riot/ddtest builds may not reproduce wheel-specific issues; flag for human verification when the change affects build layout, linking, or conditional compilation.)
 - If this changes build scripts (CMake, setup.py, pyproject.toml), has it been tested with the exact directory layout used during wheel building?
 - For linking changes, have the symbols been verified present in the final `.so`?
 
@@ -234,7 +236,7 @@ New Python versions change defaults (3.14: fork to forkserver for multiprocessin
 Fixes that appear correct in code review but don't actually work: dead code from missing includes, thread-safety fixes that don't survive real concurrency, features that crash when combined with other profiling features (CPU + memory + lock) under fork.
 
 ### Review checklist
-- If this is a thread-safety fix, has it been validated with TSan, not just "it doesn't crash in my test"?
+- If this is a thread-safety fix for native-only components, has it been validated with TSan, not just "it doesn't crash in my test"? (See TSan limitation note in Section 2.)
 - If this interacts with fork, has it been tested with **all** profiling features enabled simultaneously (CPU + memory + lock)?
 - If this fix uses preprocessor macros or conditional compilation, has the compiled output been verified to contain the fix?
 - Does CI run all impacted suites, including non-default or slower suites that historically caught regressions?
