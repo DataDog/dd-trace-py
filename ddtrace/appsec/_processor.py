@@ -135,6 +135,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 DDWaf = waf_module()
                 if DDWaf is None:
                     log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
+                    self._ddwaf = None
                     return
                 self.metrics = metrics
                 self._ddwaf: Optional[WAF] = DDWaf(
