@@ -42,11 +42,11 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
     /* Abort in test builds if we're re-entering from the malloc hook.
      * In production we can't abort or skip untrack (skipping would leak
      * heap tracker entries), so we just let it proceed — direct struct
      * access frame walking avoids calling CPython APIs that could free. */
-#ifdef MEMALLOC_ASSERT_ON_REENTRY
     if (_MEMALLOC_ON_THREAD) {
         _memalloc_abort_reentry("free");
     }
