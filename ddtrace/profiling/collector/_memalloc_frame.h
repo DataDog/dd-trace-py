@@ -105,12 +105,9 @@ memalloc_should_skip_frame(void* frame)
         return true;
     }
 
-#if PY_VERSION_HEX >= 0x030e0000
+#if PY_VERSION_HEX >= 0x030c0000
     _PyInterpreterFrame* iframe = (_PyInterpreterFrame*)frame;
     return iframe->owner != FRAME_OWNED_BY_THREAD && iframe->owner != FRAME_OWNED_BY_GENERATOR;
-#elif PY_VERSION_HEX >= 0x030c0000
-    _PyInterpreterFrame* iframe = (_PyInterpreterFrame*)frame;
-    return iframe->owner >= FRAME_OWNED_BY_CSTACK;
 #elif PY_VERSION_HEX >= 0x030b0000
     return _PyFrame_IsIncomplete((_PyInterpreterFrame*)frame);
 #else
