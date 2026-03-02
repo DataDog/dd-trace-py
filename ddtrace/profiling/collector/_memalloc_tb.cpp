@@ -64,7 +64,7 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
  * By reading frame pointers directly (borrowed references, no refcount change)
  * we eliminate that risk and reduce per-frame overhead. */
 static void
-push_stacktrace_to_sample_no_decref(Datadog::Sample& sample)
+push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample)
 {
     PyThreadState* tstate = PyThreadState_Get();
     if (tstate == NULL) {
@@ -109,7 +109,7 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 
     sample.push_alloc(weighted_size, count);
     push_threadinfo_to_sample(sample);
-    push_stacktrace_to_sample_no_decref(sample);
+    push_stacktrace_to_sample_no_refcount(sample);
 }
 
 // AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
