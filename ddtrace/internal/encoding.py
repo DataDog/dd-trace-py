@@ -176,7 +176,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
     def __init__(self, max_size: int, max_item_size: int) -> None:
         self.max_size = max_size
         self.max_item_size = max_item_size
-        self._payloads: list[tuple[bytes, int]] = []
+        self._payloads: list[tuple[Optional[bytes], int]] = []
         self._size = 0
         self._lock = RLock()
 
@@ -206,7 +206,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             self._size += item_size
             self._payloads.append((encoded, 1))
 
-    def encode(self) -> list[tuple[bytes, int]]:
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
             payloads = self._payloads
             self._payloads = []
