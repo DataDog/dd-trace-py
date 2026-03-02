@@ -1279,8 +1279,13 @@ class OTLPWriter(periodic.PeriodicService, TraceWriter):
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
         from ddtrace.internal.settings._otel_exporter import config as otel_config
 
+        if otel_config.otlp_traces_protocol != "http/json":
+            endpoint_url = otel_config.otlp_http_default_traces_url
+        else:
+            endpoint_url = otel_config.otlp_traces_endpoint
+
         return OTLPWriter(
-            endpoint_url=otel_config.otlp_traces_endpoint,
+            endpoint_url=endpoint_url,
             headers=otel_config.otlp_traces_headers,
             timeout_seconds=otel_config.otlp_traces_timeout_seconds,
             processing_interval=self._interval,
