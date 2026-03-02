@@ -59,6 +59,7 @@ add_library(
     src/libdatadog_helpers.cpp
     src/profile.cpp
     src/profile_borrow.cpp
+    src/profiler_state.cpp
     src/profiler_stats.cpp
     src/sample.cpp
     src/sample_manager.cpp

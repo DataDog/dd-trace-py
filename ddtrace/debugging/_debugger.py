@@ -11,6 +11,7 @@ import time
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
+from typing import Any
 from typing import Iterable
 from typing import Optional
 from typing import TypeVar
@@ -74,7 +75,12 @@ class DebuggerWrappingContext(WrappingContext):
     __priority__ = 99  # Execute after all other contexts
 
     def __init__(
-        self, f, collector: SignalCollector, registry: ProbeRegistry, tracer: Tracer, probe_meter: Metrics.Meter
+        self,
+        f: FunctionType,
+        collector: SignalCollector,
+        registry: ProbeRegistry,
+        tracer: Tracer,
+        probe_meter: Metrics.Meter,
     ) -> None:
         super().__init__(f)
 
@@ -135,7 +141,7 @@ class DebuggerWrappingContext(WrappingContext):
             self.set("start_time", time.monotonic_ns())
             self.set("signals", signals)
 
-    def _close_signals(self, retval=None, exc_info: ExcInfoType = NO_EXCEPTION) -> None:
+    def _close_signals(self, retval: Any = None, exc_info: tuple[Any, Any, Any] = NO_EXCEPTION) -> None:
         end_time = time.monotonic_ns()
 
         try:
@@ -238,7 +244,8 @@ class Debugger(Service):
 
         callback = remoteconfig_poller.get_registered("LIVE_DEBUGGING")
 
-        remoteconfig_poller.unregister("LIVE_DEBUGGING")
+        remoteconfig_poller.unregister_callback("LIVE_DEBUGGING")
+        remoteconfig_poller.disable_product("LIVE_DEBUGGING")
 
         # Currently the product enablement and the callback registration are
         # tied together within the RC client so here we have to pretend that
@@ -296,7 +303,8 @@ class Debugger(Service):
                 self._probe_registry,
                 di_config.diagnostics_interval,
             )
-            remoteconfig_poller.register("LIVE_DEBUGGING", di_callback)
+            remoteconfig_poller.register_callback("LIVE_DEBUGGING", di_callback)
+            remoteconfig_poller.enable_product("LIVE_DEBUGGING")
 
             # Load local probes from the probe file.
             self._load_local_config()
