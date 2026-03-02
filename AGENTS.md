@@ -26,6 +26,7 @@
 7. Run the relevant tests to validate changes before committing
 8. Add/update documentation when making changes to internal or public APIs
 9. Check for and remove unexpected prints
+10. When writing Rust/PyO3 code in src/native/, follow the guidelines in docs/contributing-pyo3.rst
 
 ## Initial Setup for AI Assistants
 
@@ -39,6 +40,7 @@ When starting a new chat session, ALWAYS read and apply the rules from:
    - `repo-structure.mdc` - Repository structure
    - `appsec.mdc` - Application Security (AppSec) features including IAST, AAP, RASP, API Security
    - `iast.mdc` - IAST (Interactive Application Security Testing) development guide
+   - `pyo3.mdc` - Rust/PyO3 performance guidelines for native extensions
 
 ## Skills
 

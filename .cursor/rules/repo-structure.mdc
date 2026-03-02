@@ -1,6 +1,6 @@
 ---
 description: dd-trace-py repository structure
-globs: 
+globs:
 alwaysApply: false
 ---
 # Repository Structure
@@ -118,7 +118,7 @@ dd-trace-py/
 │   └── basic_usage.rst    # Getting started guide
 │
 ├── src/                    # Native code sources
-│   └── native/            # C/C++ native extensions for performance
+│   └── native/            # Rust/PyO3 native extensions (compiled to _native.so)
 │
 ├── lib-injection/         # Library injection for serverless and containers
 ├── docker/               # Docker build configurations
@@ -160,7 +160,7 @@ dd-trace-py/
 - **Docker**: Containerized development and testing environments
 
 ### Build & Distribution
-- **Native Code**: C/C++ extensions for performance-critical components
+- **Native Code**: Rust/PyO3 extensions for performance-critical components
 - **Multiple Build Systems**: Support for setuptools, hatch, and modern Python packaging
 - **Release Management**: Automated release notes and versioning
 
