@@ -301,6 +301,90 @@ def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_cli
     assert len(messages[0]["tool_calls"]) == 1
 
 
+@pytest.mark.parametrize(
+    "sds_findings",
+    [
+        pytest.param(
+            [
+                {
+                    "rule_display_name": "Credit Card Number",
+                    "rule_tag": "credit_card",
+                    "category": "pii",
+                    "matched_text": "4111111111111111",
+                    "location": {
+                        "start_index": 10,
+                        "end_index_exclusive": 26,
+                        "path": "messages[0].content[0].text",
+                    },
+                }
+            ],
+            id="single finding",
+        ),
+        pytest.param(
+            [
+                {
+                    "rule_display_name": "Credit Card Number",
+                    "rule_tag": "credit_card",
+                    "category": "pii",
+                    "matched_text": "4111111111111111",
+                    "location": {
+                        "start_index": 10,
+                        "end_index_exclusive": 26,
+                        "path": "messages[0].content[0].text",
+                    },
+                },
+                {
+                    "rule_display_name": "Social Security Number",
+                    "rule_tag": "ssn",
+                    "category": "pii",
+                    "matched_text": "123-45-6789",
+                    "location": {
+                        "start_index": 30,
+                        "end_index_exclusive": 41,
+                        "path": "messages[1].tool_calls[0].function.arguments",
+                    },
+                },
+            ],
+            id="multiple findings",
+        ),
+    ],
+)
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sds_findings(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, sds_findings):
+    """Test that sds_findings from the response are added to the span meta_struct."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", sds_findings=sds_findings)
+
+    ai_guard_client.evaluate(PROMPT)
+
+    expected_meta_struct = {"messages": PROMPT, "sds": sds_findings}
+    assert_ai_guard_span(
+        test_spans,
+        {"ai_guard.target": "prompt", "ai_guard.action": "ALLOW"},
+        expected_meta_struct,
+    )
+
+
+@pytest.mark.parametrize(
+    "sds_findings",
+    [
+        pytest.param(None, id="absent"),
+        pytest.param([], id="empty list"),
+    ],
+)
+@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_sds_findings_empty(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, sds_findings):
+    """Test that empty or absent sds_findings are not added to the span meta_struct."""
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", sds_findings=sds_findings)
+
+    ai_guard_client.evaluate(PROMPT)
+
+    span = find_ai_guard_span(test_spans)
+    meta = span._get_struct_tag(AI_GUARD.TAG)
+    assert "sds" not in meta
+
+
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_meta_attribute(mock_execute_request):
     messages = [Message(role="user", content="What is your name?")]
