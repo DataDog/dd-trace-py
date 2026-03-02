@@ -14,7 +14,8 @@
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
 
 /* Tracks which allocator hook operation is currently in progress on this thread.
- * Used to detect and diagnose reentrant calls into the allocator hook. */
+ * Used to prevent reentrant heap tracking (which would corrupt the heap tracker's
+ * data structures) and to detect reentrant calls in assert builds. */
 enum memalloc_op_t : uint8_t
 {
     MEMALLOC_OP_NONE = 0,
@@ -52,11 +53,15 @@ _memalloc_abort_reentry(const char* inner_op)
 }
 #endif /* MEMALLOC_ASSERT_ON_REENTRY */
 
-/* RAII guard for reentrancy protection. Automatically acquires the guard in the
- * constructor and releases it in the destructor.
+/* RAII guard for reentrancy protection. Sets _MEMALLOC_CURRENT_OP in the
+ * constructor and clears it in the destructor.
  *
- * Ordinarily, a process-wide semaphore would require a CAS, but since this is
- * thread-local we can just set it.  */
+ * If the TLS is already set (reentrant call), the guard does not acquire:
+ *  - In assert builds, it aborts immediately for early detection.
+ *  - In production builds, callers check acquired() / operator bool() to
+ *    skip heap tracking and avoid data structure corruption.
+ *
+ * Since this is thread-local, no CAS or atomic is needed.  */
 class memalloc_reentrant_guard_t
 {
   public:

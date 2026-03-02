@@ -42,10 +42,15 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
-    /* Guard detects all reentry into free: malloc->free, free->free.
-     * In non-assert builds, the guard increments the bailout counter and
-     * continues (untrack + free must still happen for correctness).
-     * In assert builds (MEMALLOC_ASSERT_ON_REENTRY), it aborts immediately. */
+    /* Mark that a free is in progress on this thread. This serves two purposes:
+     * 1. Prevents the malloc hook from running heap tracking if free->malloc
+     *    reentry occurs (e.g., untrack triggers an internal allocation),
+     *    avoiding data structure corruption while the heap tracker is being
+     *    modified by untrack.
+     * 2. In assert builds (MEMALLOC_ASSERT_ON_REENTRY), aborts immediately
+     *    on any reentrant call for early detection in CI.
+     * Note: untrack + free below always run regardless of reentry state,
+     * since skipping them would leak memory or leave stale tracker entries. */
     memalloc_reentrant_guard_t guard(MEMALLOC_OP_FREE);
 
     memalloc_heap_untrack_no_cpython(ptr);
