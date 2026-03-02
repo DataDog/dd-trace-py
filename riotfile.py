@@ -64,9 +64,7 @@ MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
 MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
-def select_pys(
-    min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION
-) -> list[str]:
+def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
@@ -81,11 +79,7 @@ def select_pys(
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
 
-    return [
-        version_to_str(version)
-        for version in SUPPORTED_PYTHON_VERSIONS
-        if min_version <= version <= max_version
-    ]
+    return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
 # NOTE: When NIGHTLY_BUILD is "true" (e.g. in GitLab CI), sets
@@ -934,9 +928,7 @@ venv = Venv(
                 "daphne": [latest],
                 "requests": [latest],
                 "redis": ">=2.10,<2.11",
-                "psycopg2-binary": [
-                    ">=2.8.6"
-                ],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
+                "psycopg2-binary": [">=2.8.6"],  # We need <2.9.0 for Python 2.7, and >2.9.0 for 3.9+
                 "pytest-django[testing]": "==3.10.0",
                 "pylibmc": latest,
                 "python-memcached": latest,
@@ -1129,9 +1121,7 @@ venv = Venv(
         Venv(
             name="elasticsearch:async",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
-            env={
-                "AIOHTTP_NO_EXTENSIONS": "1"
-            },  # needed until aiohttp is updated to support python 3.12
+            env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
             venvs=[
                 Venv(
                     pys=select_pys(),
@@ -1430,12 +1420,8 @@ venv = Venv(
                 ],
             },
             venvs=[
-                Venv(
-                    command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"
-                ),
-                Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"
-                ),
+                Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
+                Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
         ),
         Venv(
@@ -2726,9 +2712,7 @@ venv = Venv(
                     # opentelemetry-api doesn't yet work with Python 3.14
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
-                    pkgs={
-                        "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]
-                    },
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
                 ),
                 Venv(
                     # opentelemetry-exporter-otlp doesn't yet work with Python 3.14
@@ -3021,9 +3005,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                 ),
-                Venv(
-                    pys=select_pys(min_version="3.14"), pkgs={"ormsgpack": ">=1.11.0"}
-                ),
+                Venv(pys=select_pys(min_version="3.14"), pkgs={"ormsgpack": ">=1.11.0"}),
             ],
         ),
         Venv(
@@ -3426,9 +3408,7 @@ venv = Venv(
                 Venv(
                     name="profile-uwsgi",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
-                    pys=select_pys(
-                        max_version="3.13"
-                    ),  # uwsgi<2.0.30 is not compatible with Python 3.14
+                    pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
                     pkgs={
                         "uwsgi": "<2.0.30",
                         "protobuf": latest,
