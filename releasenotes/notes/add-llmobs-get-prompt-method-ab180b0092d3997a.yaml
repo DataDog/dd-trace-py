@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    LLM Observability: This introduces ``LLMObs.get_prompt()`` to retrieve managed prompts from Datadog's Prompt Registry.
+    The method returns a ``ManagedPrompt`` object with a ``format()`` method for variable substitution.
+    Prompt updates propagate to running applications within the cache TTL (default: 60 seconds).
+    Use with ``annotation_context`` or ``annotate`` to correlate prompts with LLM spans::
+
+        prompt = LLMObs.get_prompt("greeting")
+        variables = {"user": "Alice"}
+        with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(**variables)):
+            openai.chat.completions.create(messages=prompt.format(**variables))

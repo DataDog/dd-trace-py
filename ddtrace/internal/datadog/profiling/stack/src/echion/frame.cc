@@ -87,7 +87,6 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
     for (Py_ssize_t i = 0, bc = 0; i < len; i++) {
         bc += (table[i] & 7) + 1;
         int code = (table[i] >> 3) & 15;
-        unsigned char next_byte = 0;
         switch (code) {
             case 15:
                 break;
@@ -95,19 +94,18 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
             case 14: // Long form
                 lineno += read_signed_varint(table_data, len, &i);
 
-                this->location.line = lineno;
-                this->location.line_end = lineno + read_varint(table_data, len, &i);
-                this->location.column = read_varint(table_data, len, &i);
-                this->location.column_end = read_varint(table_data, len, &i);
+                this->line = lineno;
+                // Skip line_end, column, and column_end varints (not exported)
+                read_varint(table_data, len, &i);
+                read_varint(table_data, len, &i);
+                read_varint(table_data, len, &i);
 
                 break;
 
             case 13: // No column data
                 lineno += read_signed_varint(table_data, len, &i);
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = this->location.column_end = 0;
+                this->line = lineno;
 
                 break;
 
@@ -120,10 +118,9 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
                 lineno += code - 10;
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + table[++i];
-                this->location.column_end = 1 + table[++i];
+                this->line = lineno;
+                // Skip column and column_end bytes (not exported)
+                i += 2;
 
                 break;
 
@@ -132,12 +129,10 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
                     return ErrorKind::LocationError;
                 }
 
-                next_byte = table[++i];
+                // Skip the next byte (column data, not exported)
+                ++i;
 
-                this->location.line = lineno;
-                this->location.line_end = lineno;
-                this->location.column = 1 + (code << 3) + ((next_byte >> 4) & 7);
-                this->location.column_end = this->location.column + (next_byte & 15);
+                this->line = lineno;
         }
 
         if (bc > lasti)
@@ -188,19 +183,27 @@ Frame::infer_location(PyCodeObject* code_obj, int lasti)
 
 #endif
 
-    this->location.line = lineno;
-    this->location.line_end = lineno;
-    this->location.column = 0;
-    this->location.column_end = 0;
+    this->line = lineno;
 
     return Result<void>::ok();
 }
 
 // ------------------------------------------------------------------------
 Frame::Key
-Frame::key(PyCodeObject* code, int lasti)
+Frame::key(PyCodeObject* code, int lasti, int firstlineno)
 {
-    return ((static_cast<uintptr_t>(((reinterpret_cast<uintptr_t>(code)))) << 16) | lasti);
+    // Include co_firstlineno in the key to prevent ABA-problem cache collisions.
+    // Python's GC can free a PyCodeObject and allocate a new one at the same address. Without
+    // firstlineno, a cached <module> frame could be returned for an unrelated function frame.
+    // The original (code_addr << 16) | lasti formula also loses the top 16 bits of code_addr
+    // and collides when lasti > 0xFFFF; this hash avoids both issues.
+    uintptr_t h = reinterpret_cast<uintptr_t>(code);
+    // 2654435761 is the Knuth multiplicative hash constant: floor(2^32 / phi), where phi is the
+    // golden ratio. It spreads sequential integers across the full 32-bit range.
+    h ^= static_cast<uintptr_t>(static_cast<uint32_t>(lasti)) * 2654435761ULL;
+    // 40503 is floor(2^16 / phi), the 16-bit analogue of the Knuth constant above.
+    h ^= static_cast<uintptr_t>(static_cast<uint32_t>(firstlineno)) * 40503ULL;
+    return h;
 }
 
 // ------------------------------------------------------------------------
@@ -254,6 +257,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     // Per Python 3.14 release notes (gh-123923): f_executable uses a tagged pointer.
     // Profilers must clear the least significant bit to recover the PyObject* pointer.
     PyCodeObject* code_obj = reinterpret_cast<PyCodeObject*>(BITS_TO_PTR_MASKED(frame_addr->f_executable));
+    if (code_obj == nullptr || frame_addr->instr_ptr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
     int instr_offset = static_cast<int>(frame_addr->instr_ptr - 1 - code_units);
     int code_offset = offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
@@ -265,6 +272,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #elif PY_VERSION_HEX >= 0x030d0000
+    if (frame_addr->f_executable == nullptr || frame_addr->instr_ptr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     const int lasti =
       (static_cast<int>(
         (frame_addr->instr_ptr - 1 -
@@ -277,6 +288,10 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
     auto& frame = maybe_frame->get();
 #else
+    if (frame_addr->f_code == nullptr || frame_addr->prev_instr == nullptr) {
+        return ErrorKind::FrameError;
+    }
+
     const int lasti =
       (static_cast<int>((frame_addr->prev_instr - reinterpret_cast<_Py_CODEUNIT*>((frame_addr->f_code))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
@@ -321,7 +336,21 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 Result<std::reference_wrapper<Frame>>
 Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
 {
-    auto frame_key = Frame::key(code_addr, lasti);
+    // Read co_firstlineno before the cache lookup so it is part of the key.
+    // This prevents ABA-problem false hits: if Python frees a PyCodeObject and allocates
+    // a new one at the same address, co_firstlineno will differ and we get a cache miss
+    // (triggering a fresh read) instead of returning a stale frame (e.g. "<module>").
+    // We read only the single int field to keep the cost of cache hits low.
+    int firstlineno;
+    {
+        auto* firstlineno_addr = reinterpret_cast<decltype(PyCodeObject::co_firstlineno)*>(
+          reinterpret_cast<char*>(code_addr) + offsetof(PyCodeObject, co_firstlineno));
+        if (copy_type(firstlineno_addr, firstlineno)) {
+            return std::ref(INVALID_FRAME);
+        }
+    }
+
+    auto frame_key = Frame::key(code_addr, lasti, firstlineno);
 
     auto maybe_frame = echion.frame_cache().lookup(frame_key);
     if (maybe_frame) {
