@@ -359,7 +359,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
     }
 
     /* Avoid loops */
-    memalloc_reentrant_guard_t guard;
+    memalloc_reentrant_guard_t guard(MEMALLOC_OP_MALLOC);
     if (!guard) {
         return;
     }
