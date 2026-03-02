@@ -183,7 +183,7 @@ call_apm_tracing_rc(
 )
 with tracer.trace("test") as span:
     pass
-assert span.get_metric("_dd.rule_psr") == 0.5, span._meta
+assert span.get_metric("_dd.rule_psr") == 0.5, span._get_str_attributes()
         """,
         env=env,
     )

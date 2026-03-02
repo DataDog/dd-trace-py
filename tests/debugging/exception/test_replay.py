@@ -156,7 +156,7 @@ class ExceptionReplayTestCase(TracerTestCase):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
-                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots, span._meta
+                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots, span._get_str_attributes()
                     assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
