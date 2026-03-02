@@ -33,12 +33,12 @@ features:
           return evaluators_results["Correctness"].count(True)
 
       experiment = LLMObs.experiment(
-          name="deepeval-demo",
+          name="<EXPERIMENT_NAME>",
           task=my_task, 
           dataset=dataset,
           evaluators=[correctness_metric],
-          summary_evaluators=[num_exact_matches], # optional, used to summarize the experiment results
-          description="Determine whether the actual output is factually correct based on the expected output.",
+          summary_evaluators=[my_summary_evaluator], # optional, used to summarize the experiment results
+          description="<EXPERIMENT_DESCRIPTION>.",
       )
 
       result = experiment.run()
