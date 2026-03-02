@@ -23,8 +23,10 @@
 4. Update AIDEV- anchors when modifying related code
 5. Consider performance impact (this runs in production)
 6. Consider architecture (try to use well-established patterns for the problem at hand)
-7. Check for and remove unexpected prints
-8. When writing Rust/PyO3 code in src/native/, follow the guidelines in docs/contributing-pyo3.rst
+7. Run the relevant tests to validate changes before committing
+8. Add/update documentation when making changes to internal or public APIs
+9. Check for and remove unexpected prints
+10. When writing Rust/PyO3 code in src/native/, follow the guidelines in docs/contributing-pyo3.rst
 
 ## Initial Setup for AI Assistants
 

@@ -584,12 +584,9 @@ class Dataset:
                     self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
                 del self._new_records_by_record_id[key]
 
-            data_changed = len(new_record_ids) > 0
+            data_changed = len(new_record_ids) > 0 or len(self._deleted_record_ids) > 0
             if new_version != -1:
                 self._latest_version = new_version
-            else:
-                # FIXME: we don't get version numbers in responses to deletion requests
-                self._latest_version = self._latest_version + 1
             logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
             # no matter what the version was before the push, pushing will result in the dataset being on the current
             # version tracked by the backend
