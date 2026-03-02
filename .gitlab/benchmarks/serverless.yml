@@ -5,9 +5,10 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+    branch: brettlangdon/serverless.index
     strategy: depend
   needs:
-    - job: "upload all"
+    - job: "upload serverless"
   rules:
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
       allow_failure: true
