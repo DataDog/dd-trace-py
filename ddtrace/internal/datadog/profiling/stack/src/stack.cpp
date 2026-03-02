@@ -1,4 +1,5 @@
 #include "cast_to_pyfunc.hpp"
+#include "native_call_tracker.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
@@ -40,6 +41,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     // across tests, as the tests are run in the same process.
     Py_BEGIN_ALLOW_THREADS; // Release GIL before busy-waiting
     ThreadSpanLinks::get_instance().reset();
+    NativeCallRegistry::get_instance().reset();
     Py_END_ALLOW_THREADS; // Re-acquire GIL
 
     Py_RETURN_NONE;
@@ -307,6 +309,227 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     Py_RETURN_NONE;
 }
 
+// ---- Native call monitoring (C callback for sys.monitoring CALL events) ----
+
+// Cached sys.monitoring.DISABLE sentinel
+static PyObject* g_disable_sentinel = nullptr;
+
+// C callback for sys.monitoring CALL events.
+// On every CALL, extracts callable info, registers C callables in the registry,
+// and returns DISABLE for all callables (Python and C) so each call site fires only once.
+static PyObject*
+native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t nargs)
+{
+    // args: [code, instruction_offset, callable, arg0]
+    if (nargs < 3) {
+        Py_RETURN_NONE;
+    }
+
+    PyObject* callable = args[2];
+
+    // Python callable -> just DISABLE, don't register
+    if (PyFunction_Check(callable)) {
+        return Py_NewRef(g_disable_sentinel);
+    }
+
+    // C callable -> extract name+module, register call site, DISABLE
+    PyObject* code = args[0];
+    PyObject* offset_obj = args[1];
+    int offset = static_cast<int>(PyLong_AsLong(offset_obj));
+    if (offset == -1 && PyErr_Occurred()) {
+        PyErr_Clear();
+        return Py_NewRef(g_disable_sentinel);
+    }
+
+    uintptr_t code_ptr = reinterpret_cast<uintptr_t>(code);
+
+    // Get name: try __qualname__, fall back to __name__, then type name
+    std::string name;
+    PyObject* qualname = PyObject_GetAttrString(callable, "__qualname__");
+    if (qualname && PyUnicode_Check(qualname)) {
+        const char* s = PyUnicode_AsUTF8(qualname);
+        if (s) {
+            name = s;
+        }
+        Py_DECREF(qualname);
+    } else {
+        Py_XDECREF(qualname);
+        PyErr_Clear();
+        PyObject* pyname = PyObject_GetAttrString(callable, "__name__");
+        if (pyname && PyUnicode_Check(pyname)) {
+            const char* s = PyUnicode_AsUTF8(pyname);
+            if (s) {
+                name = s;
+            }
+            Py_DECREF(pyname);
+        } else {
+            Py_XDECREF(pyname);
+            PyErr_Clear();
+            name = Py_TYPE(callable)->tp_name;
+        }
+    }
+
+    // Get module: try __module__, default ""
+    std::string module;
+    PyObject* pymod = PyObject_GetAttrString(callable, "__module__");
+    if (pymod && PyUnicode_Check(pymod)) {
+        const char* s = PyUnicode_AsUTF8(pymod);
+        if (s) {
+            module = s;
+        }
+        Py_DECREF(pymod);
+    } else {
+        Py_XDECREF(pymod);
+        PyErr_Clear();
+    }
+
+    NativeCallRegistry::get_instance().register_call_site(code_ptr, offset, std::move(name), std::move(module));
+
+    return Py_NewRef(g_disable_sentinel);
+}
+
+static PyMethodDef native_call_handler_def = {
+    "native_call_handler",
+    reinterpret_cast<PyCFunction>(reinterpret_cast<void*>(native_call_handler)),
+    METH_FASTCALL,
+    "C callback for sys.monitoring CALL events"
+};
+
+static PyObject*
+start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Import sys.monitoring
+    PyObject* sys_mod = PyImport_ImportModule("sys");
+    if (!sys_mod) {
+        return NULL;
+    }
+
+    PyObject* monitoring = PyObject_GetAttrString(sys_mod, "monitoring");
+    Py_DECREF(sys_mod);
+    if (!monitoring) {
+        return NULL;
+    }
+
+    // Cache the DISABLE sentinel
+    if (!g_disable_sentinel) {
+        g_disable_sentinel = PyObject_GetAttrString(monitoring, "DISABLE");
+        if (!g_disable_sentinel) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+    }
+
+    // use_tool_id(5, "dd-profiling")
+    // We use tool_id=5 which is sys.monitoring.PROFILER_ID
+    PyObject* result = PyObject_CallMethod(monitoring, "use_tool_id", "is", 5, "dd-profiling");
+    if (!result) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // Get events.CALL
+    PyObject* events = PyObject_GetAttrString(monitoring, "events");
+    if (!events) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    PyObject* call_event = PyObject_GetAttrString(events, "CALL");
+    Py_DECREF(events);
+    if (!call_event) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    // set_events(5, CALL)
+    result = PyObject_CallMethod(monitoring, "set_events", "iO", 5, call_event);
+    if (!result) {
+        Py_DECREF(call_event);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // Create the handler function object
+    PyObject* handler = PyCFunction_New(&native_call_handler_def, NULL);
+    if (!handler) {
+        Py_DECREF(call_event);
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    // register_callback(5, CALL, handler)
+    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", 5, call_event, handler);
+    Py_DECREF(handler);
+    Py_DECREF(call_event);
+    Py_DECREF(monitoring);
+
+    if (!result) {
+        PyErr_Print();
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    PyObject* sys_mod = PyImport_ImportModule("sys");
+    if (!sys_mod) {
+        return NULL;
+    }
+
+    PyObject* monitoring = PyObject_GetAttrString(sys_mod, "monitoring");
+    Py_DECREF(sys_mod);
+    if (!monitoring) {
+        return NULL;
+    }
+
+    // set_events(5, 0) - disable all events
+    PyObject* result = PyObject_CallMethod(monitoring, "set_events", "ii", 5, 0);
+    if (!result) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // Get events.CALL for unregistering
+    PyObject* events = PyObject_GetAttrString(monitoring, "events");
+    if (!events) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    PyObject* call_event = PyObject_GetAttrString(events, "CALL");
+    Py_DECREF(events);
+    if (!call_event) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+
+    // register_callback(5, CALL, None)
+    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", 5, call_event, Py_None);
+    Py_DECREF(call_event);
+    if (!result) {
+        Py_DECREF(monitoring);
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    // free_tool_id(5)
+    result = PyObject_CallMethod(monitoring, "free_tool_id", "i", 5);
+    Py_DECREF(monitoring);
+    if (!result) {
+        return NULL;
+    }
+    Py_DECREF(result);
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
@@ -330,6 +553,15 @@ static PyMethodDef stack_methods[] = {
 
     { "set_adaptive_sampling", stack_set_adaptive_sampling, METH_VARARGS, "Set adaptive sampling" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
+    // Native call monitoring
+    { "start_native_monitoring",
+      start_native_monitoring,
+      METH_NOARGS,
+      "Start sys.monitoring-based native call tracking" },
+    { "stop_native_monitoring",
+      stop_native_monitoring,
+      METH_NOARGS,
+      "Stop sys.monitoring-based native call tracking" },
     { NULL, NULL, 0, NULL }
 };
 

@@ -209,6 +209,33 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
+StackRenderer::render_native_frame(const std::string& name, const std::string& module)
+{
+    if (sample == nullptr) {
+        return;
+    }
+
+    auto maybe_name_id = Datadog::intern_string(name);
+    if (!maybe_name_id) {
+        return;
+    }
+    auto name_id = *maybe_name_id;
+
+    auto maybe_filename_id = Datadog::intern_string(module);
+    if (!maybe_filename_id) {
+        return;
+    }
+    auto filename_id = *maybe_filename_id;
+
+    auto maybe_function_id = Datadog::intern_function(name_id, filename_id);
+    if (!maybe_function_id) {
+        return;
+    }
+
+    sample->push_frame(*maybe_function_id, 1, 0);
+}
+
+void
 StackRenderer::render_cpu_time(uint64_t cpu_time_us)
 {
     if (sample == nullptr) {

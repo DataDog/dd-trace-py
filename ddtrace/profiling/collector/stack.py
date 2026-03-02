@@ -1,6 +1,7 @@
 """Simple wrapper around stack native extension module."""
 
 import logging
+import sys
 import typing
 
 from ddtrace.internal import core
@@ -21,6 +22,7 @@ class StackCollector(collector.Collector):
     __slots__ = (
         "nframes",
         "tracer",
+        "_native_call_monitor",
     )
 
     def __init__(self, nframes: typing.Optional[int] = None, tracer: typing.Optional[Tracer] = None):
@@ -28,6 +30,7 @@ class StackCollector(collector.Collector):
 
         self.nframes = nframes if nframes is not None else config.max_frames
         self.tracer = tracer
+        self._native_call_monitor = None
 
     def __repr__(self) -> str:
         class_name = self.__class__.__name__
@@ -52,6 +55,16 @@ class StackCollector(collector.Collector):
         stack.set_adaptive_sampling(config.stack.adaptive_sampling)
         stack.start()
 
+        # Start native C function call tracking (Python 3.12+ only)
+        if sys.version_info >= (3, 12):
+            try:
+                from ddtrace.internal.datadog.profiling import native_call_monitor
+
+                native_call_monitor.start()
+                self._native_call_monitor = native_call_monitor
+            except Exception:
+                LOG.debug("Failed to start native call monitor", exc_info=True)
+
         # Now patch the Threading module and register existing threads/asyncio loops.
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()
@@ -64,6 +77,12 @@ class StackCollector(collector.Collector):
 
     def _stop_service(self) -> None:
         LOG.debug("Profiling StackCollector stopping")
+        if self._native_call_monitor is not None:
+            try:
+                self._native_call_monitor.stop()
+            except Exception:
+                LOG.debug("Failed to stop native call monitor", exc_info=True)
+            self._native_call_monitor = None
         if self.tracer is not None:
             core.reset_listeners("ddtrace.context_provider.activate", stack.link_span)
         LOG.debug("Profiling StackCollector stopped")
