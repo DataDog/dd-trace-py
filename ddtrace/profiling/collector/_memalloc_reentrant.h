@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <stdbool.h>
 
 // Thread-local storage macro for Unix (GCC/Clang)
 // NB - we explicitly specify global-dynamic on Unix because the others are problematic.
@@ -13,50 +13,28 @@
 // to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
 
-/* Tracks which allocator hook operation is currently in progress on this thread.
- * Used to prevent reentrant heap tracking (which would corrupt the heap tracker's
- * data structures) and to detect reentrant calls in assert builds. */
-enum memalloc_op_t : uint8_t
-{
-    MEMALLOC_OP_NONE = 0,
-    MEMALLOC_OP_MALLOC = 1,
-    MEMALLOC_OP_FREE = 2,
-};
-
-extern MEMALLOC_TLS memalloc_op_t _MEMALLOC_CURRENT_OP;
+/* True while the malloc allocator hook is running on this thread.
+ * Used to prevent reentrant heap tracking (which would corrupt the heap
+ * tracker's data structures) and to detect reentrant calls in assert builds. */
+extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
 #include <stdio.h>
 #include <stdlib.h>
 
-/* Print a diagnostic to stderr and abort. We're about to abort() anyway,
- * so even if fprintf triggers another reentrant call, the worst case is
- * a double-abort — not a hang or data corruption. */
 static inline void
 _memalloc_abort_reentry(const char* inner_op)
 {
-    const char* outer_op = "unknown";
-    switch (_MEMALLOC_CURRENT_OP) {
-        case MEMALLOC_OP_MALLOC:
-            outer_op = "malloc";
-            break;
-        case MEMALLOC_OP_FREE:
-            outer_op = "free";
-            break;
-        default:
-            outer_op = "none";
-            break;
-    }
-
-    fprintf(stderr, "[memalloc] FATAL: reentrant allocator hook detected: %s -> %s\n", outer_op, inner_op);
+    fprintf(stderr, "[memalloc] FATAL: reentrant allocator hook detected: malloc -> %s\n", inner_op);
     abort();
 }
 #endif /* MEMALLOC_ASSERT_ON_REENTRY */
 
-/* RAII guard for reentrancy protection. Sets _MEMALLOC_CURRENT_OP in the
+/* RAII guard for reentrancy protection. Sets _MEMALLOC_ON_THREAD in the
  * constructor and clears it in the destructor.
  *
- * If the TLS is already set (reentrant call), the guard does not acquire:
+ * If _MEMALLOC_ON_THREAD is already set (reentrant call), the guard does
+ * not acquire:
  *  - In assert builds, it aborts immediately for early detection.
  *  - In production builds, callers check acquired() / operator bool() to
  *    skip heap tracking and avoid data structure corruption.
@@ -65,25 +43,26 @@ _memalloc_abort_reentry(const char* inner_op)
 class memalloc_reentrant_guard_t
 {
   public:
-    explicit memalloc_reentrant_guard_t(memalloc_op_t op)
+    memalloc_reentrant_guard_t()
       : acquired_(false)
-      , op_(op)
     {
-        if (_MEMALLOC_CURRENT_OP == MEMALLOC_OP_NONE) {
-            _MEMALLOC_CURRENT_OP = op;
+        if (!_MEMALLOC_ON_THREAD) {
+            _MEMALLOC_ON_THREAD = true;
             acquired_ = true;
         } else {
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
-            const char* inner = (op == MEMALLOC_OP_MALLOC) ? "malloc" : "free";
-            _memalloc_abort_reentry(inner);
+            _memalloc_abort_reentry("malloc");
 #endif
         }
     }
 
     ~memalloc_reentrant_guard_t()
     {
+        /* We only release _MEMALLOC_ON_THREAD if this guard object successfully
+         * acquired it (acquired_ == true). This is important because if acquisition failed
+         * (we're already in a reentrant call), we don't own the lock and shouldn't release it. */
         if (acquired_) {
-            _MEMALLOC_CURRENT_OP = MEMALLOC_OP_NONE;
+            _MEMALLOC_ON_THREAD = false;
         }
     }
 
@@ -101,5 +80,4 @@ class memalloc_reentrant_guard_t
 
   private:
     bool acquired_;
-    memalloc_op_t op_;
 };

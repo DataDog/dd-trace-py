@@ -247,7 +247,9 @@ class ProfilingConfig(DDConfig):
         "enable_asserts",
         default=False,
         help_type="Boolean",
-        help="Whether to enable debug assertions in the profiler code",
+        help="Whether to enable debug assertions in the profiler code. "
+        "When set at build time, also enables compile-time asserts in native extensions "
+        "(e.g. abort on reentrant allocator hook calls in _memalloc).",
     )
 
     sample_pool_capacity = DDConfig.v(
