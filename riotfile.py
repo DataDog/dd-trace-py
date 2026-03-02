@@ -3303,22 +3303,8 @@ venv = Venv(
         Venv(
             name="llmobs",
             command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
-            pkgs={
-                "vcrpy": latest,
-                "openai": latest,
-                "google-cloud-aiplatform": latest,
-                "boto3": latest,
-                "pytest-asyncio": "==0.21.1",
-                "ragas": "==0.1.21",
-                "langchain": latest,
-                "pandas": latest,
-            },
-            pys=["3.9"],
-        ),
-        # Python 3.10+: llmobs with deepeval (runs all tests including test_deep_eval_evaluators.py)
         Venv(
             name="llmobs",
-            command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
                 "openai": latest,
@@ -3328,10 +3314,23 @@ venv = Venv(
                 "ragas": "==0.1.21",
                 "langchain": latest,
                 "pandas": latest,
-                "deepeval": latest,
             },
-            pys=select_pys(min_version="3.10", max_version="3.13"),
-        ),
+            venvs=[
+                # Python 3.9: llmobs without deepeval (deepeval requires 3.10+ for X|None type hints)
+                Venv(
+                    pys=["3.9"],
+                    command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
+                ),
+                # Python 3.10+: llmobs with deepeval (runs all tests including test_deep_eval_evaluators.py)
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    command="pytest {cmdargs} tests/llmobs",
+                    pkgs={
+                        "deepeval": latest,
+                    },
+                ),
+            ],
+        ),  
         Venv(
             name="vllm",
             command="pytest {cmdargs} tests/contrib/vllm",
