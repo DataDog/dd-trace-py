@@ -160,22 +160,22 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     append_to_string(internal_metadata_json, sampling_event_count);
     internal_metadata_json += ",";
 
-    internal_metadata_json += R"("copy_memory_error_count": )";
-    append_to_string(internal_metadata_json, copy_memory_error_count);
-
     auto maybe_fast_copy_enabled = get_fast_copy_memory_enabled();
     if (maybe_fast_copy_enabled) {
-        internal_metadata_json += ",";
         internal_metadata_json += R"("fast_copy_memory_enabled": )";
         internal_metadata_json += *maybe_fast_copy_enabled ? "true" : "false";
+        internal_metadata_json += ",";
     }
 
     auto maybe_heap_tracker_count = get_heap_tracker_size();
     if (maybe_heap_tracker_count) {
-        internal_metadata_json += ",";
         internal_metadata_json += R"("heap_tracker_count": )";
         append_to_string(internal_metadata_json, *maybe_heap_tracker_count);
+        internal_metadata_json += ",";
     }
+
+    internal_metadata_json += R"("copy_memory_error_count": )";
+    append_to_string(internal_metadata_json, copy_memory_error_count);
 
     internal_metadata_json += "}";
 
