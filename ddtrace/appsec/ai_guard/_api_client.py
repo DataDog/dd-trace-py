@@ -246,6 +246,7 @@ class AIGuardClient:
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
                         tags = attributes.get("tags", [])
+                        sds_findings = attributes.get("sds_findings", [])
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -265,6 +266,8 @@ class AIGuardClient:
                         meta_struct.update({"attack_categories": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
+                    if sds_findings:
+                        meta_struct.update({"sds": sds_findings})
                 else:
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
