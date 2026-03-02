@@ -153,7 +153,7 @@ Sampling decisions made at acquire time are not carried through to release time,
 Use sentinel values that cannot be confused with valid data (`None` not `0`). Guard dependent events (release) on whether the triggering event (acquire) was actually sampled. Remove racy checks that cause data loss when they give wrong answers.
 
 ### Review checklist
-- What is the sentinel/default value for timestamps and durations? Can it be confused with a valid measurement? (`0` is a valid timestamp; `None` is not.)
+- What is the sentinel/default value for timestamps and durations? Can it be confused with a valid measurement? (`0` is a valid timestamp; `None` is not.) Is the code properly typed?
 - If event A is not sampled, can event B (which depends on A having been sampled) still produce a sample? Is there a guard?
 - Does this code make a decision based on a racy check (e.g., "is thread running")? What happens if the check gives the wrong answer? Is losing all data for a thread/task acceptable?
 - Has this been tested at low sampling rates (1%, 0.1%), not just 100%?
