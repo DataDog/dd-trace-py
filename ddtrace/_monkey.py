@@ -114,6 +114,7 @@ PATCH_MODULES = {
     "ray": False,
     "protobuf": config._data_streams_enabled,
     "claude_agent_sdk": True,
+    "niquests": True,
 }
 
 

@@ -158,6 +158,8 @@ components:
   requests:
     - ddtrace/contrib/requests.py
     - ddtrace/contrib/internal/requests/*
+  niquests:
+    - ddtrace/contrib/internal/niquests/*
   rq:
     - ddtrace/contrib/internal/rq/*
   sanic:
@@ -1093,6 +1095,20 @@ suites:
       - '@tracing'
       - '@requests'
       - tests/contrib/requests/*
+    runner: riot
+    services:
+      - httpbin
+    snapshot: true
+  niquests:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@niquests'
+      - tests/contrib/niquests/*
+      - tests/snapshots/tests.contrib.niquests.*
     runner: riot
     services:
       - httpbin
