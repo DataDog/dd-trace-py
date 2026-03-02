@@ -13,15 +13,15 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 7. **Don't assume business logic** — Ask when unsure about implementation details.
 8. **AIDEV comments are protected** — Never remove `AIDEV-` comments without explicit human instruction. Update them when modifying related code.
 9. **Test before committing** — Run relevant tests to validate changes before committing.
-10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/Cython code.
+10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
 11. **Update docs** — Add/update documentation when changing internal or public APIs.
 12. **No stray prints** — Check for and remove unexpected `print()` calls.
 
 ## Key Architecture
 
 - **Monkey-patching** is the core instrumentation mechanism. Don't break it; understand it before modifying integrations.
-- **Performance-critical code uses C/Cython** — profile and benchmark when touching these paths.
-- **Configuration is via environment variables** — follow existing patterns in `ddtrace/settings/`.
+- **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
+- **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
 ## AIDEV Anchor Comments
