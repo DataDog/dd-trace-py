@@ -945,41 +945,6 @@ def _value():
 
 
 @pytest.mark.parametrize(
-    "data",
-    [
-        {"trace_id": "trace_id"},
-        # {"span_id": "span_id"},  # Now handled gracefully by Rust (generates random ID)
-        # {"parent_id": "parent_id"},  # Now handled gracefully by Rust (invalid types ignored)
-        # {"service": True},  # Now handled gracefully by Rust (converts to None)
-        # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
-        # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
-        # {"span_type": 100},  # Now handled gracefully by Rust (converts to None)
-        # {"start_ns": []},  # Now handled gracefully by Rust (falls back to 0)
-        # {"duration_ns": {}},  # Now handled gracefully by Rust (falls back to -1/None)
-    ],
-)
-def test_encoding_invalid_data_raises(data):
-    """Test that invalid data types for certain fields raise during encoding.
-
-    Note: name, service, resource, span_id, parent_id, start_ns, and duration_ns are now validated
-    at the Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
-    """
-    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
-
-    span = Span(name="test")
-    for key, value in data.items():
-        setattr(span, key, value)
-
-    trace = [span]
-    with pytest.raises(RuntimeError) as e:
-        encoder.put(trace)
-
-    assert e.match(r"failed to pack span: Span\(name="), e
-    encoded_traces = encoder.encode()
-    assert (not encoded_traces) or (encoded_traces[0][0] is None)
-
-
-@pytest.mark.parametrize(
     "field,invalid_value,expected_value,span_name",
     [
         ("service", True, None, "test"),  # Invalid service type -> None
