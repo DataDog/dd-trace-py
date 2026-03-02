@@ -57,6 +57,20 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/fuzz.yml"
 
+"pipeline variables":
+  stage: .pre
+  tags: [ "arch:amd64" ]
+  script:
+    - |
+      echo "CURRENT_YEAR=$(date +%Y)" >> pipeline_variables.env
+      echo "CURRENT_MONTH=$(date +%-m)" >> pipeline_variables.env
+      echo "CURRENT_WEEK=$(date +%-V)" >> pipeline_variables.env
+      echo "CURRENT_BIWEEK=$(( $(date +%-V) / 2 ))" >> pipeline_variables.env
+      cat pipeline_variables.env
+  artifacts:
+    reports:
+      dotenv: pipeline_variables.env
+
 tests-gen:
   stage: tests
   extends: .testrunner
