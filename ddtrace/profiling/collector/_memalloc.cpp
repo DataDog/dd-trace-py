@@ -42,16 +42,15 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
-    /* Mark that a free is in progress on this thread. This serves two purposes:
-     * 1. Prevents the malloc hook from running heap tracking if free->malloc
-     *    reentry occurs (e.g., untrack triggers an internal allocation),
-     *    avoiding data structure corruption while the heap tracker is being
-     *    modified by untrack.
-     * 2. In assert builds (MEMALLOC_ASSERT_ON_REENTRY), aborts immediately
-     *    on any reentrant call for early detection in CI.
-     * Note: untrack + free below always run regardless of reentry state,
-     * since skipping them would leak memory or leave stale tracker entries. */
-    memalloc_reentrant_guard_t guard(MEMALLOC_OP_FREE);
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+    /* Abort in test builds if we're re-entering from the malloc hook.
+     * In production we can't abort or skip untrack (skipping would leak
+     * heap tracker entries), so we just let it proceed — direct struct
+     * access frame walking avoids calling CPython APIs that could free. */
+    if (_MEMALLOC_ON_THREAD) {
+        _memalloc_abort_reentry("free");
+    }
+#endif
 
     memalloc_heap_untrack_no_cpython(ptr);
     alloc->free(alloc->ctx, ptr);
