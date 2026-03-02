@@ -47,7 +47,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        assert_stats(result, passed=2)
+        assert_stats(result, passed=2, rerun=11)
 
         # There should be events for 1 new test + 10 retries + 1 known test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 15
@@ -151,7 +151,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v", "-s")
 
         assert result.ret == 0
-        assert_stats(result, passed=1)
+        assert_stats(result, passed=1, rerun=6)
 
         # There should be events for 6 tests, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 9
@@ -268,7 +268,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v")
 
         assert result.ret == 0
-        assert_stats(result, flaky=1)
+        assert_stats(result, flaky=1, rerun=11)
 
         # There should be events for 1 new test + 10 retries, test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 14
@@ -298,7 +298,7 @@ class TestEFD:
         # Test failure is reported.
         assert output.out.count("FAILED test_foo.py::TestFlaky::test_new - assert 2 <= 1") == 1
         # Check final stats.
-        assert output.out.count("=== 1 flaky in ") == 1
+        assert output.out.count("=== 11 rerun, 1 flaky in ") == 1
 
     def test_efd_skip_fail(self, pytester: Pytester, capsys: pytest.CaptureFixture) -> None:
         """Test that a test that skips and fails is logged as failed."""
@@ -334,7 +334,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v")
 
         assert result.ret == 1
-        assert_stats(result, failed=1)
+        assert_stats(result, failed=1, rerun=11)
 
         # There should be events for 1 new test + 10 retries, test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 14
@@ -364,7 +364,7 @@ class TestEFD:
         # Test failure is reported.
         assert output.out.count("FAILED test_foo.py::TestFlaky::test_new - assert False") == 1
         # Check final stats.
-        assert output.out.count("=== 1 failed in ") == 1
+        assert output.out.count("=== 1 failed, 11 rerun in ") == 1
 
     def test_efd_skip_fail_pass(self, pytester: Pytester, capsys: pytest.CaptureFixture) -> None:
         """Test that a test that skips, fails and passes is logged as flaky."""
@@ -402,7 +402,7 @@ class TestEFD:
                 result = pytester.inline_run("--ddtrace", "-v")
 
         assert result.ret == 0
-        assert_stats(result, flaky=1)
+        assert_stats(result, flaky=1, rerun=11)
 
         # There should be events for 1 new test + 10 retries, test, 1 suite, 1 module, 1 session
         assert len(list(event_capture.events())) == 14
@@ -438,4 +438,4 @@ class TestEFD:
         # Test failure is reported.
         assert output.out.count("FAILED test_foo.py::TestFlaky::test_new - assert False") == 1
         # Check final stats.
-        assert output.out.count("=== 1 flaky in ") == 1
+        assert output.out.count("=== 11 rerun, 1 flaky in ") == 1

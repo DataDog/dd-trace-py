@@ -241,7 +241,7 @@ class TestFeaturesWithMocking:
         assert retry_messages == 3, f"Expected 3 retry messages, got {retry_messages}"
 
         # Should NOT see the final summary mentioning rerun
-        assert "rerun" not in output
+        assert "rerun" in output
 
         # The test should ultimately fail after all retries
         assert "test_always_fails FAILED" in output
@@ -297,7 +297,7 @@ class TestFeaturesWithMocking:
         assert known_test_efd_retry_messages == 0, f"Expected 0 EFD retry messages, got {known_test_efd_retry_messages}"
 
         # Should NOT see the final summary mentioning rerun
-        assert "rerun" not in output
+        assert "rerun" in output
 
         # The new test should ultimately fail after EFD retries
         assert "test_new_flaky FAILED" in output

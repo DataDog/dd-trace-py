@@ -732,9 +732,6 @@ class TestOptPlugin:
         the failed reports. After they have been shown by pytest, we undo the change so that the final count of failed
         tests is not affected.
         """
-        # Do not show rerun in final stats.
-        terminalreporter.stats.pop("rerun", None)
-
         original_failed_reports = terminalreporter.stats.get("failed", [])
 
         # Make extra failed reports look like normal failed reports.
