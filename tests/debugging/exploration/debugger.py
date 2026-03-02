@@ -108,6 +108,9 @@ class NoopProbeStatusLogger:
     def __init__(self, *args, **kwargs):
         pass
 
+    def flush(self, *args, **kwargs):
+        pass
+
     def received(self, *args, **kwargs):
         pass
 
