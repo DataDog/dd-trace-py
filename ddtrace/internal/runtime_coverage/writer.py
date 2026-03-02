@@ -4,6 +4,8 @@ Fault-tolerant disk writer for runtime coverage reports.
 All I/O errors are silently absorbed — a failing write must never crash the service.
 """
 
+import base64
+import gzip
 import json
 import os
 from pathlib import Path
@@ -16,7 +18,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 log = get_logger(__name__)
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 def _dead_lines(all_lines: CoverageLines, covered: CoverageLines) -> list[int]:
@@ -40,7 +42,7 @@ def write_coverage_report(
     output_dir: Path,
     workspace_path: Path,
 ) -> None:
-    """Write a dead-code JSON report to disk; swallows all I/O errors."""
+    """Write a dead-code coverage report to disk; swallows all I/O errors."""
     try:
         _do_write(executable_lines, covered_lines, output_dir, workspace_path)
     except Exception:
@@ -68,11 +70,15 @@ def _do_write(
         except ValueError:
             rel_path = path_str
 
-        files[rel_path] = {
-            "executable_lines": executable,
-            "covered_lines": hit,
-            "dead_lines": dead,
-        }
+        # Only store whichever is smaller: covered_lines or dead_lines.
+        # The other can be derived from executable_lines.
+        file_entry: dict[str, t.Any] = {"executable_lines": executable}
+        if len(hit) <= len(dead):
+            file_entry["covered_lines"] = hit
+        else:
+            file_entry["dead_lines"] = dead
+
+        files[rel_path] = file_entry
 
     report: dict[str, t.Any] = {
         "schema_version": _SCHEMA_VERSION,
@@ -82,11 +88,16 @@ def _do_write(
     }
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"dd-runtime-coverage-{os.getpid()}.json"
+    output_path = output_dir / f"dd-runtime-coverage-{os.getpid()}.json.b64"
+
+    # Compress JSON with gzip and encode as base64
+    json_bytes = json.dumps(report, separators=(",", ":")).encode("utf-8")
+    compressed = gzip.compress(json_bytes)
+    b64_data = base64.b64encode(compressed)
 
     # Write via a temp file and atomic rename to avoid partial reads on POSIX
     tmp_path = output_path.with_suffix(".tmp")
-    tmp_path.write_text(json.dumps(report, indent=2))
+    tmp_path.write_bytes(b64_data)
     tmp_path.replace(output_path)
 
-    log.debug("Runtime coverage report written to %s", output_path)
+    log.debug("Runtime coverage report written to %s (%d bytes)", output_path, len(b64_data))
