@@ -247,6 +247,9 @@ class RemoteConfigClient:
         # Product callbacks for single subscriber architecture
         self._product_callbacks: dict[str, RCCallback] = {}
 
+        # Track which products are enabled
+        self._enabled_products: set[str] = set()
+
         # Single global connector and subscriber for all products
         self._global_connector = PublisherSubscriberConnector()
         self._global_subscriber = RemoteConfigSubscriber(
@@ -359,7 +362,7 @@ class RemoteConfigClient:
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
         self._applied_configs.clear()
 
-    def register_product(
+    def register_callback(
         self,
         product_name: str,
         callback: RCCallback,
@@ -373,6 +376,34 @@ class RemoteConfigClient:
         """
         self._product_callbacks[product_name] = callback
         log.debug("[%s][P: %s] Registered callback for product %s", os.getpid(), os.getppid(), product_name)
+
+    def enable_product(self, product_name: str) -> None:
+        """
+        Enable a product to be included in client payloads sent to the agent.
+
+        Enabling a product means it will be added to the 'products' list in the
+        payload, signaling to the agent that this client wants to receive
+        configurations for this product.
+
+        Args:
+            product_name: Name of the product to enable
+        """
+        self._enabled_products.add(product_name)
+        log.debug("[%s][P: %s] Enabled product %s", os.getpid(), os.getppid(), product_name)
+
+    def disable_product(self, product_name: str) -> None:
+        """
+        Disable a product, removing it from client payloads sent to the agent.
+
+        The product's callback will remain registered and can still receive
+        configurations if the agent sends them, but the client will not
+        request configurations for this product.
+
+        Args:
+            product_name: Name of the product to disable
+        """
+        self._enabled_products.discard(product_name)
+        log.debug("[%s][P: %s] Disabled product %s", os.getpid(), os.getppid(), product_name)
 
     def add_capabilities(self, capabilities: Iterable[enum.IntFlag]) -> None:
         for capability in capabilities:
@@ -413,8 +444,9 @@ class RemoteConfigClient:
         log.debug("[%s][P: %s] Restarted global subscriber", os.getpid(), os.getppid())
 
     def reset_products(self) -> None:
-        """Clear all registered products."""
+        """Clear all registered products and enabled products."""
         self._product_callbacks = dict()
+        self._enabled_products = set()
 
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
         conn = None
@@ -480,7 +512,7 @@ class RemoteConfigClient:
         return dict(
             client=dict(
                 id=self.id,
-                products=list(self._product_callbacks.keys()),
+                products=list(self._enabled_products),
                 is_tracer=True,
                 client_tracer=self._client_tracer,
                 state=state,
