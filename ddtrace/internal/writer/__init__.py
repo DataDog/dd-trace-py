@@ -1,4 +1,5 @@
 from .writer import DEFAULT_SMA_WINDOW
+from .writer import AgentlessTraceWriter
 from .writer import AgentResponse
 from .writer import AgentWriter
 from .writer import AgentWriterInterface
@@ -15,6 +16,7 @@ from .writer_client import WriterClientBase
 
 __all__ = [
     "AgentResponse",
+    "AgentlessTraceWriter",
     "AgentWriter",
     "AgentWriterInterface",
     "DEFAULT_SMA_WINDOW",
