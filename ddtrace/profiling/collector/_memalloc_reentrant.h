@@ -12,41 +12,78 @@
 // sees we're building a shared library. But we've been bit by issues related
 // to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
-extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
-/* Counter tracking how many times the reentry guard blocked a reentrant
- * allocation. This is incremented when an allocation fires our hook while
- * already inside the hook (e.g., from CPython API calls during frame walking
- * that trigger PyObject_Malloc). Used for testing that the zero-DECREF frame
- * walking path does not trigger any reentrant allocations. */
-extern MEMALLOC_TLS uint64_t _MEMALLOC_REENTRY_BAILOUT_COUNT;
+/* Tracks which allocator hook operation is currently in progress on this thread.
+ * Used to prevent reentrant heap tracking (which would corrupt the heap tracker's
+ * data structures) and to detect reentrant calls in assert builds. */
+enum memalloc_op_t : uint8_t
+{
+    MEMALLOC_OP_NONE = 0,
+    MEMALLOC_OP_MALLOC = 1,
+    MEMALLOC_OP_FREE = 2,
+};
 
-/* RAII guard for reentrancy protection. Automatically acquires the guard in the
- * constructor and releases it in the destructor.
+extern MEMALLOC_TLS memalloc_op_t _MEMALLOC_CURRENT_OP;
+
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+#include <stdio.h>
+#include <stdlib.h>
+
+/* Print a diagnostic to stderr and abort. We're about to abort() anyway,
+ * so even if fprintf triggers another reentrant call, the worst case is
+ * a double-abort — not a hang or data corruption. */
+static inline void
+_memalloc_abort_reentry(const char* inner_op)
+{
+    const char* outer_op = "unknown";
+    switch (_MEMALLOC_CURRENT_OP) {
+        case MEMALLOC_OP_MALLOC:
+            outer_op = "malloc";
+            break;
+        case MEMALLOC_OP_FREE:
+            outer_op = "free";
+            break;
+        default:
+            outer_op = "none";
+            break;
+    }
+
+    fprintf(stderr, "[memalloc] FATAL: reentrant allocator hook detected: %s -> %s\n", outer_op, inner_op);
+    abort();
+}
+#endif /* MEMALLOC_ASSERT_ON_REENTRY */
+
+/* RAII guard for reentrancy protection. Sets _MEMALLOC_CURRENT_OP in the
+ * constructor and clears it in the destructor.
  *
- * Ordinarily, a process-wide semaphore would require a CAS, but since this is
- * thread-local we can just set it.  */
+ * If the TLS is already set (reentrant call), the guard does not acquire:
+ *  - In assert builds, it aborts immediately for early detection.
+ *  - In production builds, callers check acquired() / operator bool() to
+ *    skip heap tracking and avoid data structure corruption.
+ *
+ * Since this is thread-local, no CAS or atomic is needed.  */
 class memalloc_reentrant_guard_t
 {
   public:
-    memalloc_reentrant_guard_t()
+    explicit memalloc_reentrant_guard_t(memalloc_op_t op)
       : acquired_(false)
+      , op_(op)
     {
-        if (!_MEMALLOC_ON_THREAD) {
-            _MEMALLOC_ON_THREAD = true;
+        if (_MEMALLOC_CURRENT_OP == MEMALLOC_OP_NONE) {
+            _MEMALLOC_CURRENT_OP = op;
             acquired_ = true;
         } else {
-            _MEMALLOC_REENTRY_BAILOUT_COUNT++;
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+            const char* inner = (op == MEMALLOC_OP_MALLOC) ? "malloc" : "free";
+            _memalloc_abort_reentry(inner);
+#endif
         }
     }
 
     ~memalloc_reentrant_guard_t()
     {
-        /* We only release _MEMALLOC_ON_THREAD if this guard object successfully
-         * acquired it (acquired_ == true). This is important because if acquisition failed
-         * (we're already in a reentrant call), we don't own the lock and shouldn't release it. */
         if (acquired_) {
-            _MEMALLOC_ON_THREAD = false;
+            _MEMALLOC_CURRENT_OP = MEMALLOC_OP_NONE;
         }
     }
 
@@ -64,4 +101,5 @@ class memalloc_reentrant_guard_t
 
   private:
     bool acquired_;
+    memalloc_op_t op_;
 };

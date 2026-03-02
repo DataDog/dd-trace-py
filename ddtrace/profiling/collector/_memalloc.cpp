@@ -42,8 +42,18 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
-    memalloc_heap_untrack_no_cpython(ptr);
+    /* Mark that a free is in progress on this thread. This serves two purposes:
+     * 1. Prevents the malloc hook from running heap tracking if free->malloc
+     *    reentry occurs (e.g., untrack triggers an internal allocation),
+     *    avoiding data structure corruption while the heap tracker is being
+     *    modified by untrack.
+     * 2. In assert builds (MEMALLOC_ASSERT_ON_REENTRY), aborts immediately
+     *    on any reentrant call for early detection in CI.
+     * Note: untrack + free below always run regardless of reentry state,
+     * since skipping them would leak memory or leave stale tracker entries. */
+    memalloc_reentrant_guard_t guard(MEMALLOC_OP_FREE);
 
+    memalloc_heap_untrack_no_cpython(ptr);
     alloc->free(alloc->ctx, ptr);
 }
 
@@ -227,28 +237,11 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     Py_RETURN_NONE;
 }
 
-static PyObject*
-memalloc_get_reentry_bailout_count(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
-{
-    return PyLong_FromUnsignedLongLong(_MEMALLOC_REENTRY_BAILOUT_COUNT);
-}
-
-static PyObject*
-memalloc_reset_reentry_bailout_count(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
-{
-    _MEMALLOC_REENTRY_BAILOUT_COUNT = 0;
-    Py_RETURN_NONE;
-}
-
-static PyMethodDef module_methods[] = {
-    { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
-    { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
-    { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
-    { "_get_reentry_bailout_count", (PyCFunction)memalloc_get_reentry_bailout_count, METH_NOARGS, NULL },
-    { "_reset_reentry_bailout_count", (PyCFunction)memalloc_reset_reentry_bailout_count, METH_NOARGS, NULL },
-    /* sentinel */
-    { NULL, NULL, 0, NULL }
-};
+static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
+                                        { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
+                                        { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
+                                        /* sentinel */
+                                        { NULL, NULL, 0, NULL } };
 
 PyDoc_STRVAR(module_doc, "Module to trace memory blocks allocated by Python.");
 
