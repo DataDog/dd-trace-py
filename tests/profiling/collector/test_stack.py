@@ -1018,6 +1018,7 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     N_IDLE_HIGH = 2000
     STACK_DEPTH = 50
     MAX_SCALING_RATIO = 3.0
+    MEASURE_TIMEOUT = 30  # generous timeout to prevent CI hangs
 
     def active_worker() -> None:
         for _ in range(SWITCHES):
@@ -1038,10 +1039,14 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
 
         actives = [gevent.spawn(active_worker) for _ in range(N_ACTIVE)]
         t0 = time.monotonic()
-        gevent.joinall(actives)
-        elapsed = time.monotonic() - t0
-
-        gevent.killall(idles)
+        try:
+            gevent.joinall(actives, timeout=MEASURE_TIMEOUT)
+            elapsed = time.monotonic() - t0
+            assert all(g.dead for g in actives), "active workers did not finish within timeout"
+        finally:
+            gevent.killall(actives, timeout=5)
+            gevent.killall(idles, timeout=5)
+            gevent.sleep(0)  # let the hub process kills before next measurement
         return elapsed
 
     p = profiler.Profiler()
