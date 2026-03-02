@@ -15,6 +15,6 @@
     - python${{PYTHON_VERSION}} -m pip install -e . -r tests/appsec/iast_aggregated_memcheck/requirements.txt
   script:
     - uname -a
-    - pip freeze
+    - python${{PYTHON_VERSION}} -m pip freeze
     # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
-    - python -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py
+    - python${{PYTHON_VERSION}} -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py
