@@ -3299,10 +3299,6 @@ venv = Venv(
             # we only need to run this on one version of Python
             pys=["3.13"],
         ),
-        # Python 3.9: llmobs without deepeval (deepeval requires 3.10+ for X|None type hints)
-        Venv(
-            name="llmobs",
-            command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
         Venv(
             name="llmobs",
             pkgs={
