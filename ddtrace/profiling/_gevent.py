@@ -112,9 +112,24 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
             pass
 
         # For greenlets tracked via the tracer (without rawlink), detect
-        # completion using the C-level greenlet.dead property.  This bypasses
-        # gevent's augmented dead property whose __started_but_aborted() check
-        # returns an incorrect True during switch transitions.
+        # completion using the C-level greenlet.dead descriptor directly
+        # (greenlet.dead.__get__) instead of the gevent Greenlet.dead property.
+        #
+        # Why this is necessary:
+        #   gevent.Greenlet overrides the C-level ``dead`` property and adds an
+        #   ``__started_but_aborted()`` check. That check looks at whether
+        #   ``_start_event.pending`` is False and ``_start_event`` has not yet
+        #   been set to ``_start_completed_event``. During the greenlet bootstrap
+        #   phase -- after the event loop consumes the start callback (setting
+        #   pending=False) but before ``run()`` sets ``_start_event =
+        #   _start_completed_event`` -- this returns a false True, making
+        #   gevent's ``Greenlet.dead`` incorrectly report the greenlet as dead.
+        #
+        #   The C-level ``greenlet.dead`` (``started and not active``) has no
+        #   such window: the ``active`` flag is managed by the C stack-switching
+        #   machinery and is only cleared when the greenlet truly finishes.
+        #
+        # See also: https://github.com/gevent/gevent/pull/2166 (upstream fix)
         if origin_id in _tracked_greenlets and greenlet.dead.__get__(origin):
             _untrack_greenlet_by_id(origin_id)
 
