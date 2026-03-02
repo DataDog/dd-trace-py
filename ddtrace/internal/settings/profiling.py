@@ -398,10 +398,10 @@ if not ddup_is_available:
 stack_failure_msg, stack_is_available = _check_for_stack_available()
 if config.stack.enabled and not stack_is_available:  # pyright: ignore[reportAttributeAccessIssue]
     msg = stack_failure_msg or "stack not available"
-    logger.warning("Failed to load stack module (%s), falling back to v1 stack sampler", msg)
+    logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load stack module (%s), disabling profiling" % msg,
+        "Failed to load stack module (%s), disabling stack profiling" % msg,
     )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 

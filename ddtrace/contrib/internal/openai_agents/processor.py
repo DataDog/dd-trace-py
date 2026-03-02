@@ -5,7 +5,6 @@ from agents.tracing.processor_interface import TracingProcessor
 from agents.tracing.spans import Span as OaiSpan
 from agents.tracing.traces import Trace as OaiTrace
 
-from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
@@ -32,7 +31,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         oai_span = OaiSpanAdapter(span)
         if not oai_span.llmobs_span_kind:
             return
-        self._integration.trace(Pin.get_from(agents), oai_span=oai_span, submit_to_llmobs=True)
+        self._integration.trace(oai_span=oai_span, submit_to_llmobs=True)
 
     def on_trace_start(self, trace: OaiTrace) -> None:
         """Called when a trace starts.
@@ -43,7 +42,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         if not getattr(agents, "_datadog_patch", False):
             return
 
-        self._integration.trace(Pin.get_from(agents), oai_trace=OaiTraceAdapter(trace), submit_to_llmobs=True)
+        self._integration.trace(oai_trace=OaiTraceAdapter(trace), submit_to_llmobs=True)
 
     def on_trace_end(self, trace: OaiTrace) -> None:
         """Called when a trace is finished.

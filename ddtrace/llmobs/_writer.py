@@ -35,6 +35,7 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
@@ -58,6 +59,7 @@ class _LLMObsSpanEventOptional(TypedDict, total=False):
     status_message: str
     collection_errors: list[str]
     span_links: list[_SpanLink]
+    config: ConfigType
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
@@ -482,11 +484,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
+            raise ValueError(
+                f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}"  # nosec B608
+            )
         response_data = resp.get_json()
         data = response_data["data"]
 
-        # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
         new_canonical_ids: list[Optional[str]] = [r["attributes"].get("canonical_id") for r in data] if data else []

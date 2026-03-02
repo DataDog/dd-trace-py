@@ -159,7 +159,7 @@ class BackendConnectorAgentlessSetup(BackendConnectorSetup):
         self.api_key = api_key
 
     def get_connector_for_subdomain(self, subdomain: Subdomain) -> BackendConnector:
-        if subdomain == Subdomain.CITESTCYCLE and (agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL")):
+        if agentless_url := os.environ.get("DD_CIVISIBILITY_AGENTLESS_URL"):
             url = agentless_url
         else:
             url = f"https://{subdomain.value}.{self.site}"
