@@ -314,11 +314,6 @@ class TracerFlareTests(unittest.TestCase):
         if self.prepare_called:
             assert self._get_handler() is None, "File handler was not removed"
 
-    @pytest.mark.xfail(
-        reason="The case of case_id being empty is not handled in the v27.0.0 of libdatadog, but is handled \
-            in the v28.0.0+ versions. We should remove this xfail once we update to v28.0.0+ in dd-trace-py.",
-        strict=True,
-    )
     def test_case_id_must_be_numeric(self):
         """
         Validate that case_id must be numeric (contain only digits)
