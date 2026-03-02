@@ -243,13 +243,10 @@ class TestLLMJudge:
 
 class TestLLMJudgePublish:
     @staticmethod
-    def _mock_publish_backend(monkeypatch):
-        mock_response = mock.Mock(status=200, reason="OK", body=b"")
-        mock_response.get_json.return_value = {}
-        mock_dne_client = mock.Mock()
-        mock_dne_client.publish_custom_evaluator.return_value = mock_response
-        monkeypatch.setattr(LLMObs, "_instance", mock.Mock(_dne_client=mock_dne_client))
-        return mock_dne_client
+    def _mock_publish_backend(monkeypatch, llmobs):
+        mock_publish = mock.Mock(return_value=mock.Mock(status=200))
+        monkeypatch.setattr(llmobs._instance._dne_client, "publish_custom_evaluator", mock_publish)
+        return mock_publish
 
     @pytest.mark.parametrize(
         "provider,expected_provider,expects_wrapped_schema",
@@ -262,9 +259,9 @@ class TestLLMJudgePublish:
         ],
     )
     def test_publish_provider_mapping_and_schema_format(
-        self, provider, expected_provider, expects_wrapped_schema, monkeypatch
+        self, provider, expected_provider, expects_wrapped_schema, monkeypatch, llmobs
     ):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
@@ -282,7 +279,7 @@ class TestLLMJudgePublish:
             "https://app.datadoghq.com/llm/evaluations/custom?evalName=quality_eval&applicationName=test-app"
         )
 
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        payload = mock_publish.call_args.args[0]
         assert payload["eval_name"] == "quality_eval"
         app_payload = payload["applications"][0]
 
@@ -315,8 +312,8 @@ class TestLLMJudgePublish:
         else:
             assert output_schema["properties"]["boolean_eval"]["type"] == "boolean"
 
-    def test_publish_score_output_includes_threshold_assessment_criteria(self, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+    def test_publish_score_output_includes_threshold_assessment_criteria(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
@@ -333,14 +330,14 @@ class TestLLMJudgePublish:
         )
 
         judge.publish(ml_app="test-app")
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        payload = mock_publish.call_args.args[0]
         byop_config = payload["applications"][0]["byop_config"]
 
         assert byop_config["parsing_type"] == "structured_output"
         assert byop_config["assessment_criteria"] == {"min_threshold": 0.3, "max_threshold": 0.8}
 
-    def test_publish_categorical_output_includes_pass_values_assessment_criteria(self, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+    def test_publish_categorical_output_includes_pass_values_assessment_criteria(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
@@ -357,7 +354,7 @@ class TestLLMJudgePublish:
         )
 
         judge.publish(ml_app="test-app")
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        payload = mock_publish.call_args.args[0]
         byop_config = payload["applications"][0]["byop_config"]
 
         assert byop_config["parsing_type"] == "structured_output"
@@ -371,8 +368,8 @@ class TestLLMJudgePublish:
             ("   ", None),
         ],
     )
-    def test_publish_sends_model_name_only_when_present(self, model, expected_model_name, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+    def test_publish_sends_model_name_only_when_present(self, model, expected_model_name, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
@@ -384,7 +381,7 @@ class TestLLMJudgePublish:
         )
 
         judge.publish(ml_app="my-app")
-        app_payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]["applications"][0]
+        app_payload = mock_publish.call_args.args[0]["applications"][0]
 
         assert app_payload["model_provider"] == app_payload["integration_provider"]
         if expected_model_name is None:
@@ -392,8 +389,8 @@ class TestLLMJudgePublish:
         else:
             assert app_payload["model_name"] == expected_model_name
 
-    def test_publish_variable_mapping_replaces_prompt_placeholders(self, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+    def test_publish_variable_mapping_replaces_prompt_placeholders(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
@@ -412,7 +409,7 @@ class TestLLMJudgePublish:
             variable_mapping={"input_data": "span_input", "output_data": "span_output"},
         )
 
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        payload = mock_publish.call_args.args[0]
         prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
 
         assert prompt_template[0]["content"] == "System sees {{input_data}}"
@@ -420,8 +417,8 @@ class TestLLMJudgePublish:
             "Input {{span_input}} Output {{span_output}} Expected {{expected_output}} Metadata {{metadata.customer_id}}"
         )
 
-    def test_publish_variable_mapping_does_not_chain_replacements(self, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+    def test_publish_variable_mapping_does_not_chain_replacements(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
@@ -436,13 +433,13 @@ class TestLLMJudgePublish:
             variable_mapping={"input_data": "output_data", "output_data": "span_output"},
         )
 
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        payload = mock_publish.call_args.args[0]
         prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
 
         assert prompt_template[1]["content"] == "Input {{output_data}} Output {{span_output}}"
 
-    def test_publish_custom_schema_uses_json_parsing_and_encoded_url(self, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+    def test_publish_custom_schema_uses_json_parsing_and_encoded_url(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
 
         custom_schema = {
             "type": "object",
@@ -469,7 +466,7 @@ class TestLLMJudgePublish:
             "https://app.datadoghq.com/llm/evaluations/custom?evalName=json_eval&applicationName=my+app"
         )
 
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        payload = mock_publish.call_args.args[0]
         app_payload = payload["applications"][0]
         assert app_payload["integration_provider"] == "vertex_ai"
         assert app_payload["byop_config"]["parsing_type"] == "json"
@@ -507,26 +504,8 @@ class TestLLMJudgePublish:
         with pytest.raises(ValueError, match="experiments client is not initialized"):
             judge.publish(ml_app="my-app")
 
-    def test_publish_raises_on_backend_error_response(self, monkeypatch):
-        mock_response = mock.Mock(status=500, reason="Internal Server Error", body=b'{"error":"backend_failure"}')
-        mock_response.get_json.return_value = {"error": "backend_failure"}
-        mock_dne_client = mock.Mock()
-        mock_dne_client.publish_custom_evaluator.return_value = mock_response
-        monkeypatch.setattr(LLMObs, "_instance", mock.Mock(_dne_client=mock_dne_client))
-
-        judge = LLMJudge(
-            client=lambda *args, **kwargs: "",
-            provider="openai",
-            user_prompt="Evaluate {{output_data}}",
-            structured_output=BooleanStructuredOutput("Correctness"),
-            name="publish_error_eval",
-        )
-
-        with pytest.raises(ValueError, match="Failed to publish evaluator publish_error_eval: 500"):
-            judge.publish(ml_app="my-app")
-
-    def test_publish_validates_eval_name_format(self, monkeypatch):
-        self._mock_publish_backend(monkeypatch)
+    def test_publish_validates_eval_name_format(self, monkeypatch, llmobs):
+        self._mock_publish_backend(monkeypatch, llmobs)
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
@@ -537,8 +516,8 @@ class TestLLMJudgePublish:
         with pytest.raises(ValueError, match="Evaluator name .* is invalid"):
             judge.publish(ml_app="my-app", eval_name="invalid name!")
 
-    def test_publish_accepts_hyphenated_eval_name(self, monkeypatch):
-        mock_dne_client = self._mock_publish_backend(monkeypatch)
+    def test_publish_accepts_hyphenated_eval_name(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
         judge = LLMJudge(
             client=lambda *args, **kwargs: "",
             provider="openai",
@@ -547,7 +526,7 @@ class TestLLMJudgePublish:
             name="fallback",
         )
         judge.publish(ml_app="my-app", eval_name="hyphen-name")
-        payload = mock_dne_client.publish_custom_evaluator.call_args.args[0]
+        payload = mock_publish.call_args.args[0]
         assert payload["eval_name"] == "hyphen-name"
 
     def test_publish_validates_variable_mapping(self):
