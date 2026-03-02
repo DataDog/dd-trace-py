@@ -129,8 +129,8 @@ if(DEFINED NATIVE_EXTENSION_LOCATION)
     endif()
 endif()
 
-# Enable reentry assertions for testing (abort on reentrant allocator hook calls)
-# Passed from setup.py via -DMEMALLOC_ASSERT_ON_REENTRY=ON when DD_PROFILING_ENABLE_ASSERTS env var is set.
+# Enable reentry assertions for testing (abort on reentrant allocator hook calls) Passed from setup.py via
+# -DMEMALLOC_ASSERT_ON_REENTRY=ON when DD_PROFILING_ENABLE_ASSERTS env var is set.
 if(MEMALLOC_ASSERT_ON_REENTRY)
     message(STATUS "MEMALLOC_ASSERT_ON_REENTRY enabled: will abort on reentrant allocator hook calls")
     target_compile_definitions(${FULL_EXTENSION_NAME} PRIVATE MEMALLOC_ASSERT_ON_REENTRY)
