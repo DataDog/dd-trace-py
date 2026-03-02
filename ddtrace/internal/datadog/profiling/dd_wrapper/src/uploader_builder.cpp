@@ -177,12 +177,12 @@ Datadog::UploaderBuilder::build()
     }
 
     // If we're here, the tags are good, so we can initialize the exporter
-    ddog_prof_ProfileExporter_Result res =
-      ddog_prof_Exporter_new(to_slice("dd-trace-py"),
-                             to_slice(state.profiler_version),
-                             to_slice(family),
-                             &tags,
-                             ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms));
+    ddog_prof_ProfileExporter_Result res = ddog_prof_Exporter_new(
+      to_slice("dd-trace-py"),
+      to_slice(state.profiler_version),
+      to_slice(family),
+      &tags,
+      ddog_prof_Endpoint_agent(to_slice(state.url), state.max_timeout_ms, /*use_system_resolver=*/false));
     ddog_Vec_Tag_drop(tags);
 
     if (res.tag == DDOG_PROF_PROFILE_EXPORTER_RESULT_ERR_HANDLE_PROFILE_EXPORTER) {
