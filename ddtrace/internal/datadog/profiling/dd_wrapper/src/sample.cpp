@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <datadog/common.h>
 #include <datadog/profiling.h>
 #include <string_view>
 
@@ -209,7 +208,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
 
         if (code != nullptr) {
             // Extract function name (use co_qualname for Python 3.11+ for better context)
-#if defined(_PY311_AND_LATER)
+#if defined(PY311_AND_LATER)
             PyObject* name_obj = code->co_qualname ? code->co_qualname : code->co_name;
 #else
             PyObject* name_obj = code->co_name;

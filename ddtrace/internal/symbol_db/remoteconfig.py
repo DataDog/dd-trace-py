@@ -47,7 +47,8 @@ class SymbolDatabaseCallback(RCCallback):
                 # processes. Therefore, we avoid uploading the same symbols from each
                 # child process. We restrict the enablement of Symbol DB to just the
                 # parent process and the first fork child.
-                remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
+                remoteconfig_poller.unregister_callback("LIVE_DEBUGGING_SYMBOL_DB")
+                remoteconfig_poller.disable_product("LIVE_DEBUGGING_SYMBOL_DB")
 
                 if SymbolDatabaseUploader.is_installed():
                     SymbolDatabaseUploader.uninstall()
@@ -74,7 +75,8 @@ class SymbolDatabaseCallback(RCCallback):
                         log.debug("[PID %d] SymDB: Symbol DB uploader installed", os.getpid())
                     except Exception:
                         log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)
-                        remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
+                        remoteconfig_poller.unregister_callback("LIVE_DEBUGGING_SYMBOL_DB")
+                        remoteconfig_poller.disable_product("LIVE_DEBUGGING_SYMBOL_DB")
                 else:
                     SymbolDatabaseUploader.update()
             else:
@@ -85,7 +87,8 @@ class SymbolDatabaseCallback(RCCallback):
                         log.debug("[PID %d] SymDB: Symbol DB uploader uninstalled", os.getpid())
                     except Exception:
                         log.error("[PID %d] SymDB: Failed to uninstall Symbol DB uploader", os.getpid(), exc_info=True)
-                        remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
+                        remoteconfig_poller.unregister_callback("LIVE_DEBUGGING_SYMBOL_DB")
+                        remoteconfig_poller.disable_product("LIVE_DEBUGGING_SYMBOL_DB")
             break
 
 

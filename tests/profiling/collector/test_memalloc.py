@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import inspect
 import os
 from pathlib import Path
@@ -596,6 +597,20 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
 
         del first_batch
 
+        # Force a full GC collection to clear CPython's internal free lists
+        # (tuple, float, list, dict, etc.).  On Python < 3.13, calling
+        # bytearray(256) inside one() goes through _PyObject_MakeTpCall,
+        # which creates a temporary 1-element args tuple (256,).  When that
+        # tuple's refcount drops to zero, tupledealloc caches it in the
+        # tuple free list WITHOUT calling PyObject_Free, so the profiler's
+        # memalloc_free hook is never triggered and the allocation stays
+        # tracked as "live" in allocs_m even though the Python object is
+        # logically dead.  gc.collect(generation=2) calls clear_freelists()
+        # -> _PyTuple_ClearFreeList() -> PyObject_GC_Del() -> PyObject_Free(),
+        # which properly fires memalloc_free -> untrack and removes these
+        # ghost entries.
+        gc.collect()
+
         final_profile = mc.snapshot_and_parse_pprof(output_filename)
 
         assert len(final_profile.sample) > 0, "Final snapshot should have samples"
@@ -623,9 +638,19 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         # Get live samples (heap-space > 0)
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
-        # Check that we have no live samples with 'one' in traceback (they were freed)
+        # Check that we have no significant live samples with 'one' in traceback (they were freed).
+        # Small residual allocations (< min_alloc_size) may remain due to CPython internal
+        # caching (type caches, inline bytecode caches, descriptor objects, etc.) that are
+        # allocated while one() is on the call stack and not freed by del + gc.collect().
+        # With aggressive sampling (heap_sample_size=32), these are occasionally sampled.
+        # We only assert on allocations large enough to be the actual one() result object
+        # (bytearray(256) on < 3.13 or (None,)*256 ~= 2096 bytes on 3.13+).
+        min_alloc_size = 256
         one_samples_in_final = [
-            sample for sample in live_samples if has_function_in_profile_sample(final_profile, sample, one)
+            sample
+            for sample in live_samples
+            if has_function_in_profile_sample(final_profile, sample, one)
+            and sample.value[heap_space_idx] >= min_alloc_size
         ]
 
         assert len(one_samples_in_final) == 0, (
