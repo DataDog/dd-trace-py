@@ -114,8 +114,7 @@ class OTLPHttpTraceExporter:
                     time.sleep(delay)
                 else:
                     log.error(
-                        "Failed to send OTLP traces to %s after %d attempts: %s. "
-                        "See docs.datadoghq.com/tracing/troubleshooting/connection_errors/",
+                        "Failed to send OTLP traces to %s after %d attempts: %s. ",
                         self._endpoint_url,
                         OTLP_RETRY_ATTEMPTS,
                         e,
@@ -126,8 +125,7 @@ class OTLPHttpTraceExporter:
 
         if last_response is not None and last_response.status >= 400:
             log.error(
-                "Failed to send OTLP traces to %s: HTTP %s %s after %d attempts. "
-                "See docs.datadoghq.com/tracing/troubleshooting/connection_errors/",
+                "Failed to send OTLP traces to %s: HTTP %s %s after %d attempts. ",
                 self._endpoint_url,
                 last_response.status,
                 last_response.reason,

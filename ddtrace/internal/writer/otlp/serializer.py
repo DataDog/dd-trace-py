@@ -31,9 +31,6 @@ def otlp_request_to_json_bytes(request: dict[str, Any]) -> bytes:
 
     OTLP JSON encoding: object keys in lowerCamelCase (per OpenTelemetry
     protocol specification). Attribute keys inside KeyValue remain as-is.
-
-    :param request: Dict with resource_spans (from dd_trace_to_otlp_request).
-    :returns: UTF-8 encoded JSON bytes for HTTP body.
     """
     prepared = _to_otlp_json_structure(request)
     return json.dumps(prepared, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
