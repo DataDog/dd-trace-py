@@ -12,9 +12,9 @@ live in the canonical file: **`AGENTS.md`** (repository root).
 When unsure about implementation details, ALWAYS ask the developer.
 
 Read and follow `AGENTS.md` for:
-- Project context and architecture decisions
 - Project rules (testing, linting, formatting)
-- Code style and AIDEV anchor comments
+- Key architecture
+- AIDEV anchor comments
 - PR guidelines
 - Skills reference
-- Domain glossary
+- Domain guides
