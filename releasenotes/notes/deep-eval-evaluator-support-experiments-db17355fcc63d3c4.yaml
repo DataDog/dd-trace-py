@@ -17,7 +17,7 @@ features:
                 "Vague language, or contradicting OPINIONS, are OK"
             ],
             evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.EXPECTED_OUTPUT],
-            async_mode=True,
+            async_mode=True
         )
 
         dataset = LLMObs.create_dataset(
