@@ -64,6 +64,19 @@ if profiling_config.enabled:
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
+if config._runtime_coverage_enabled:
+    try:
+        from pathlib import Path
+
+        from ddtrace.internal.runtime_coverage.collector import RuntimeCoverageCollector
+
+        RuntimeCoverageCollector.enable(
+            output_dir=Path(config._runtime_coverage_output_dir),
+            flush_interval=config._runtime_coverage_flush_interval,
+        )
+    except Exception:
+        log.error("failed to enable runtime coverage collector", exc_info=True)
+
 
 @ModuleWatchdog.after_module_imported("opentelemetry")
 def _otel_signals(_):
