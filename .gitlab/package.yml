@@ -151,7 +151,7 @@ variables:
             IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_aarch64"
+            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
     - job: "package version"
   script:
     - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" serverless
