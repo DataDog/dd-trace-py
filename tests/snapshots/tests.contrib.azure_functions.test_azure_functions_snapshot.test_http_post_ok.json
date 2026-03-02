@@ -9,7 +9,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6750ad8e00000000",
+      "_dd.p.tid": "69a5ee3000000000",
       "aas.function.name": "http_post_ok",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,15 +19,15 @@
       "http.url": "http://0.0.0.0:7071/api/httppostok",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "891babf5be3d4b86bd44163cd50c74b0",
+      "runtime-id": "6b5c06e9fe9e43ea922ad77eec9b4316",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1,
+      "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1,
-      "process_id": 99631
+      "_sampling_priority_v1": 1.0,
+      "process_id": 34452.0
     },
-    "duration": 293958,
-    "start": 1733340558198232376
+    "duration": 989459,
+    "start": 1772482096330236417
   }]]
