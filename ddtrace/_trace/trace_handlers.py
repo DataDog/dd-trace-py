@@ -1354,7 +1354,7 @@ def _on_pubsub_send_start(
     if config.google_cloud_pubsub.distributed_tracing_enabled:
         headers = {}
         HTTPPropagator.inject(span.context, headers)
-        kwargs.update(headers)
+        kwargs.update({k: str(v) for k, v in headers.items()})
 
 
 def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
