@@ -76,7 +76,9 @@ Replace Python API calls with C-level APIs that don't enter the eval loop. Retur
 ## 3. Memory Safety in Native Code
 
 ### What goes wrong
-(a) Collecting tracebacks during memory allocation hooks triggers further allocations, which trigger GC, which visits objects whose underlying memory was just reallocated (use-after-free). (b) Integer types too small for array sizes cause overflow, resulting in smaller allocation than needed, leading to out-of-bounds writes. (c) Objects returned to pools without clearing state leak stale data to the next user.
+- Collecting tracebacks during memory allocation hooks triggers further allocations, which trigger GC, which visits objects whose underlying memory was just reallocated (use-after-free).
+-  Integer types too small for array sizes cause overflow, resulting in smaller allocation than needed, leading to out-of-bounds writes. 
+- Objects returned to pools without clearing state leak stale data to the next user.
 
 ### How it was fixed
 Disable GC during allocation hooks (and **verify** it is actually disabled in compiled output). Use `size_t` for sizes. Always clear state when returning objects to pools. Add overflow assertions.
