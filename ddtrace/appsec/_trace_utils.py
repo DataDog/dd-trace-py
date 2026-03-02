@@ -37,6 +37,15 @@ def _asm_manual_keep(span: Span) -> None:
     span.context._meta[APPSEC.PROPAGATION_HEADER] = "02"
 
 
+def _aiguard_manual_keep(span: Span) -> None:
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import SamplingMechanism
+
+    span.set_tag(constants.MANUAL_KEEP_KEY)
+    # set decision maker to ASM = -13
+    span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.AI_GUARD)
+
+
 def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
     MAX_DEPTH = 6
     if metadata is None:
