@@ -1009,7 +1009,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
-            response_body = self._exporter.send(payload, count)
+            response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"

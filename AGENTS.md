@@ -45,7 +45,6 @@ To make it easy to configure the tracer in various environments (local developme
 3. Assume business logic (always ask)
 4. Remove AIDEV- comments without instruction
 5. Skip linting before committing
-6. Check and remove unexpected prints
 
 **Always:**
 1. Use the run-tests skill for test execution
@@ -54,6 +53,9 @@ To make it easy to configure the tracer in various environments (local developme
 4. Update AIDEV- anchors when modifying related code
 5. Consider performance impact (this runs in production)
 6. Consider architecture (try to use well-established patterns for the problem at hand)
+7. Run the relevant tests to validate changes before committing
+8. Add/update documentation when making changes to internal or public APIs
+9. Check for and remove unexpected prints
 
 ## Code Style and Patterns
 
@@ -157,6 +159,18 @@ This project has custom skills that provide specialized workflows. **Always chec
 - Assesses impact on our codebase
 
 **Usage:** Use the Skill tool with command "compare-cpython-versions"
+
+### releasenote
+
+**Use whenever:** Creating or updating release notes for changes in the current branch.
+
+**Purpose:** Creates or updates release notes using Reno, following dd-trace-py's conventions:
+- Generates Reno release note files for the current branch changes
+- Generates properly formatted release note files
+- Follows the guidelines in `docs/releasenotes.rst`
+- Places notes in the `releasenotes/` directory
+
+**Usage:** Use the Skill tool with command "releasenote"
 
 ---
 

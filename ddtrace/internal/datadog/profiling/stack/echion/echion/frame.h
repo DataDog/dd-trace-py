@@ -50,13 +50,7 @@ class Frame
     StringTable::Key filename = 0;
     StringTable::Key name = 0;
 
-    struct _location
-    {
-        unsigned line = 0;
-        unsigned line_end = 0;
-        unsigned column = 0;
-        unsigned column_end = 0;
-    } location;
+    unsigned line = 0;
 
 #if PY_VERSION_HEX >= 0x030b0000
     bool is_entry = false;
@@ -89,7 +83,10 @@ class Frame
 
   private:
     [[nodiscard]] Result<void> inline infer_location(PyCodeObject* code, int lasti);
-    static inline Key key(PyCodeObject* code, int lasti);
+    // co_firstlineno is included in the key to prevent stale cache hits when Python
+    // reuses a freed PyCodeObject's memory address for a new code object. Without it,
+    // the profiler can return a cached <module> frame for a function frame.
+    static inline Key key(PyCodeObject* code, int lasti, int firstlineno);
 };
 
 inline auto INVALID_FRAME = Frame(StringTable::INVALID);
