@@ -15,7 +15,8 @@ def bootstrap():
         # Start the RCM subscriber to determine if and when to upload symbols.
         from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
 
-        remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", _rc_callback)
+        remoteconfig_poller.register_callback("LIVE_DEBUGGING_SYMBOL_DB", _rc_callback)
+        remoteconfig_poller.enable_product("LIVE_DEBUGGING_SYMBOL_DB")
 
     @partial(core.on, "dynamic-instrumentation.enabled")
     def _():
@@ -36,5 +37,7 @@ def bootstrap():
 def restart():
     from ddtrace.internal.symbol_db.remoteconfig import _rc_callback
 
-    remoteconfig_poller.unregister("LIVE_DEBUGGING_SYMBOL_DB")
-    remoteconfig_poller.register("LIVE_DEBUGGING_SYMBOL_DB", _rc_callback)
+    remoteconfig_poller.unregister_callback("LIVE_DEBUGGING_SYMBOL_DB")
+    remoteconfig_poller.disable_product("LIVE_DEBUGGING_SYMBOL_DB")
+    remoteconfig_poller.register_callback("LIVE_DEBUGGING_SYMBOL_DB", _rc_callback)
+    remoteconfig_poller.enable_product("LIVE_DEBUGGING_SYMBOL_DB")

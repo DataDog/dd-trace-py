@@ -78,8 +78,10 @@ class PathwayStats(object):
         self.payload_size = DDSketch()
 
 
-PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int)])
-ConsumerPartitionKey = NamedTuple("ConsumerPartitionKey", [("group", str), ("topic", str), ("partition", int)])
+PartitionKey = NamedTuple("PartitionKey", [("topic", str), ("partition", int), ("cluster_id", str)])
+ConsumerPartitionKey = NamedTuple(
+    "ConsumerPartitionKey", [("group", str), ("topic", str), ("partition", int), ("cluster_id", str)]
+)
 Bucket = NamedTuple(
     "Bucket",
     [
@@ -174,18 +176,18 @@ class DataStreamsProcessor(PeriodicService):
             stats.payload_size.add(payload_size)
             self._buckets[bucket_time_ns].pathway_stats[aggr_key] = stats
 
-    def track_kafka_produce(self, topic, partition, offset, now_sec):
+    def track_kafka_produce(self, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
-        key = PartitionKey(topic, partition)
+        key = PartitionKey(topic, partition, cluster_id)
         with self._lock:
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
             self._buckets[bucket_time_ns].latest_produce_offsets[key] = max(
                 offset, self._buckets[bucket_time_ns].latest_produce_offsets[key]
             )
 
-    def track_kafka_commit(self, group, topic, partition, offset, now_sec):
+    def track_kafka_commit(self, group, topic, partition, offset, now_sec, cluster_id=""):
         now_ns = int(now_sec * 1e9)
-        key = ConsumerPartitionKey(group, topic, partition)
+        key = ConsumerPartitionKey(group, topic, partition, cluster_id)
         with self._lock:
             bucket_time_ns = now_ns - (now_ns % self._bucket_size_ns)
             self._buckets[bucket_time_ns].latest_commit_offsets[key] = max(
@@ -213,28 +215,24 @@ class DataStreamsProcessor(PeriodicService):
                 }
                 bucket_aggr_stats.append(serialized_bucket)
             for consumer_key, offset in bucket.latest_commit_offsets.items():
-                backlogs.append(
-                    {
-                        "Tags": [
-                            "type:kafka_commit",
-                            "consumer_group:" + consumer_key.group,
-                            "topic:" + consumer_key.topic,
-                            "partition:" + str(consumer_key.partition),
-                        ],
-                        "Value": offset,
-                    }
-                )
+                commit_tags = [
+                    "type:kafka_commit",
+                    "consumer_group:" + consumer_key.group,
+                    "topic:" + consumer_key.topic,
+                    "partition:" + str(consumer_key.partition),
+                ]
+                if consumer_key.cluster_id:
+                    commit_tags.append("kafka_cluster_id:" + consumer_key.cluster_id)
+                backlogs.append({"Tags": commit_tags, "Value": offset})
             for producer_key, offset in bucket.latest_produce_offsets.items():
-                backlogs.append(
-                    {
-                        "Tags": [
-                            "type:kafka_produce",
-                            "topic:" + producer_key.topic,
-                            "partition:" + str(producer_key.partition),
-                        ],
-                        "Value": offset,
-                    }
-                )
+                produce_tags = [
+                    "type:kafka_produce",
+                    "topic:" + producer_key.topic,
+                    "partition:" + str(producer_key.partition),
+                ]
+                if producer_key.cluster_id:
+                    produce_tags.append("kafka_cluster_id:" + producer_key.cluster_id)
+                backlogs.append({"Tags": produce_tags, "Value": offset})
             serialized_buckets.append(
                 {
                     "Start": bucket_time_ns,
