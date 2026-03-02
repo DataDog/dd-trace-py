@@ -925,8 +925,8 @@ class OTLPWriterExportTests(BaseTestCase):
         finally:
             server.shutdown()
             server.server_close()
-           
- 
+
+
 def test_agentless_trace_writer_uses_post():
     """AgentlessTraceWriter uses POST and has expected intake URL and encoder."""
     writer = AgentlessTraceWriter(
