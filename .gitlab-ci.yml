@@ -427,8 +427,12 @@ publish-lib-init-pinned-tags:
       artifacts: true
 
 configure_system_tests:
+  needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+
+system_tests:
+  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
 
 deploy_to_reliability_env:
   needs: []
