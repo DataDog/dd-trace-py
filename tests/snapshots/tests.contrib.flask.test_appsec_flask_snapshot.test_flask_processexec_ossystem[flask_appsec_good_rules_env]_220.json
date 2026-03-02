@@ -13,7 +13,7 @@
       "_dd.appsec.waf.version": "1.30.1",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "699dbb0f00000000",
+      "_dd.p.tid": "69a5f8a100000000",
       "_dd.runtime_family": "python",
       "_dd.svc.src": "true",
       "component": "flask",
@@ -34,23 +34,23 @@
       "http.useragent": "python-requests/2.32.5",
       "language": "python",
       "network.client.ip": "127.0.0.1",
-      "runtime-id": "3fd6d5bafdf14d718719a809326c7b60",
+      "runtime-id": "e84e2cfcd7854389b75524f2cf158d6c",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0.0,
       "_dd.appsec.event_rules.loaded": 8.0,
-      "_dd.appsec.waf.duration": 17.917,
-      "_dd.appsec.waf.duration_ext": 456.66799996979535,
+      "_dd.appsec.waf.duration": 13.0,
+      "_dd.appsec.waf.duration_ext": 357.2490004444262,
       "_dd.measured": 1.0,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 14145.0
+      "process_id": 70861.0
     },
-    "duration": 48738417,
-    "start": 1771944719691777882
+    "duration": 42450250,
+    "start": 1772484769299857209
   },
      {
        "name": "flask.application",
@@ -65,8 +65,8 @@
          "flask.endpoint": "run_ossystem",
          "flask.url_rule": "/executions/ossystem"
        },
-       "duration": 46482500,
-       "start": 1771944719692697924
+       "duration": 40830333,
+       "start": 1772484769300664334
      },
         {
           "name": "flask.preprocess_request",
@@ -79,8 +79,8 @@
             "_dd.base_service": "",
             "component": "flask"
           },
-          "duration": 48958,
-          "start": 1771944719692967674
+          "duration": 47625,
+          "start": 1772484769300843125
         },
         {
           "name": "flask.dispatch_request",
@@ -93,8 +93,8 @@
             "_dd.base_service": "",
             "component": "flask"
           },
-          "duration": 43758959,
-          "start": 1771944719693079007
+          "duration": 39430416,
+          "start": 1772484769300944459
         },
            {
              "name": "tests.contrib.flask.app.run_ossystem",
@@ -107,8 +107,8 @@
                "_dd.base_service": "",
                "component": "flask"
              },
-             "duration": 43426208,
-             "start": 1771944719693248216
+             "duration": 39308209,
+             "start": 1772484769301012125
            },
               {
                 "name": "command_execution",
@@ -124,8 +124,8 @@
                   "cmd.shell": "dir -li /",
                   "component": "os"
                 },
-                "duration": 41430958,
-                "start": 1771944719694875924
+                "duration": 37689834,
+                "start": 1772484769302491375
               },
         {
           "name": "flask.process_response",
@@ -138,8 +138,8 @@
             "_dd.base_service": "",
             "component": "flask"
           },
-          "duration": 271959,
-          "start": 1771944719737602882
+          "duration": 119000,
+          "start": 1772484769340647500
         },
         {
           "name": "flask.do_teardown_request",
@@ -152,8 +152,8 @@
             "_dd.base_service": "",
             "component": "flask"
           },
-          "duration": 103791,
-          "start": 1771944719738855716
+          "duration": 53292,
+          "start": 1772484769341297500
         },
         {
           "name": "flask.do_teardown_appcontext",
@@ -166,8 +166,8 @@
             "_dd.base_service": "",
             "component": "flask"
           },
-          "duration": 41792,
-          "start": 1771944719739049382
+          "duration": 27875,
+          "start": 1772484769341410875
         },
      {
        "name": "flask.response",
@@ -180,6 +180,6 @@
          "_dd.base_service": "",
          "component": "flask"
        },
-       "duration": 1249958,
-       "start": 1771944719739200591
+       "duration": 779292,
+       "start": 1772484769341509750
      }]]

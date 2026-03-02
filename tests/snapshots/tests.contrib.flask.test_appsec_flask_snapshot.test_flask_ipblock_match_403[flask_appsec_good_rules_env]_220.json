@@ -14,7 +14,7 @@
       "_dd.base_service": "",
       "_dd.origin": "appsec",
       "_dd.p.dm": "-5",
-      "_dd.p.tid": "699dbb0a00000000",
+      "_dd.p.tid": "69a5f8a300000000",
       "_dd.p.ts": "02",
       "_dd.runtime_family": "python",
       "_dd.svc.src": "true",
@@ -34,20 +34,20 @@
       "http.url": "http://0.0.0.0:8000/",
       "http.useragent": "python-requests/2.32.5",
       "language": "python",
-      "runtime-id": "7e2e7ddfa2cf48c8b47b7bdbd280b70d"
+      "runtime-id": "f0506beeb3dc45cd91f725b8d2cbb706"
     },
     "metrics": {
       "_dd.appsec.enabled": 1.0,
       "_dd.appsec.event_rules.error_count": 0.0,
       "_dd.appsec.event_rules.loaded": 8.0,
-      "_dd.appsec.waf.duration": 3217.916,
-      "_dd.appsec.waf.duration_ext": 3451.8749998824205,
+      "_dd.appsec.waf.duration": 3613.209,
+      "_dd.appsec.waf.duration_ext": 3940.041999157984,
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 2.0,
-      "process_id": 14080.0
+      "process_id": 70884.0
     },
-    "duration": 4882292,
+    "duration": 5696417,
     "meta_struct": {
       "appsec": {
         "triggers": [
@@ -79,13 +79,13 @@
                 ]
               }
             ],
-            "security_response_id": "ce00033f-2bb0-4b7f-1bed-c9df5fc886c1",
-            "span_id": 7054940667791694073
+            "security_response_id": "5abf1189-f81a-48fb-1b22-15bafd125a24",
+            "span_id": 14910220015910981753
           }
         ]
       }
     },
-    "start": 1771944714029590046
+    "start": 1772484771147098626
   },
      {
        "name": "flask.response",
@@ -98,6 +98,6 @@
          "_dd.base_service": "",
          "component": "flask"
        },
-       "duration": 454625,
-       "start": 1771944714033992546
+       "duration": 491125,
+       "start": 1772484771152279418
      }]]
