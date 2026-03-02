@@ -1,6 +1,9 @@
 import contextlib
 import http.client as httplib
 import http.server
+from http.server import BaseHTTPRequestHandler
+from http.server import HTTPServer
+import json
 import os
 import socket
 import socketserver
@@ -21,12 +24,17 @@ from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.settings._otel_exporter import config as otel_config
 from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
+from ddtrace.internal.writer import OTLPWriter
 from ddtrace.internal.writer import Response
 from ddtrace.internal.writer import _human_size
+from ddtrace.internal.writer import create_trace_writer
+from ddtrace.internal.writer.otlp import dd_trace_to_otlp_request
+from ddtrace.internal.writer.otlp import otlp_request_to_json_bytes
 from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
@@ -742,6 +750,180 @@ class LogWriterTests(BaseTestCase):
     def test_log_writer(self):
         self.create_writer()
         self.assertEqual(len(self.output.entries), self.N_TRACES)
+
+
+class OTLPExporterConfigTests(BaseTestCase):
+    """OTLP exporter config: env vars, precedence, default URL, enablement."""
+
+    def test_otlp_disabled_when_no_endpoint(self):
+        with override_env(
+            {
+                "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "",
+            }
+        ):
+            assert otel_config.otlp_traces_enabled is False
+
+    def test_otlp_enabled_when_traces_endpoint_set(self):
+        with override_env(
+            {"OTEL_TRACES_EXPORTER": "otlp", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://collector:4318"}
+        ):
+            assert otel_config.otlp_traces_enabled is True
+            assert otel_config.otlp_traces_endpoint == "http://collector:4318/v1/traces"
+
+    def test_otlp_enabled_when_generic_endpoint_set(self):
+        with override_env({"OTEL_TRACES_EXPORTER": "otlp", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318"}):
+            assert otel_config.otlp_traces_enabled is True
+            assert "4318" in otel_config.otlp_traces_endpoint and "/v1/traces" in otel_config.otlp_traces_endpoint
+
+    def test_traces_endpoint_overrides_generic(self):
+        with override_env(
+            {
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://generic:4318",
+                "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://traces-only:4319",
+            }
+        ):
+            assert otel_config.otlp_traces_endpoint == "http://traces-only:4319/v1/traces"
+
+    def test_default_url_http_json(self):
+        with override_env({"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318"}):
+            url = otel_config.otlp_traces_endpoint
+            assert url == "http://localhost:4318/v1/traces"
+
+    def test_headers_parsed(self):
+        with override_env(
+            {
+                "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318",
+                "OTEL_EXPORTER_OTLP_TRACES_HEADERS": "a=1,b=2",
+            }
+        ):
+            assert otel_config.otlp_traces_headers.get("a") == "1"
+            assert otel_config.otlp_traces_headers.get("b") == "2"
+
+
+class OTLPMapperTests(BaseTestCase):
+    """DD trace -> OTLP ExportTraceServiceRequest structure."""
+
+    def test_empty_trace(self):
+        out = dd_trace_to_otlp_request([], service_name="svc", env="env", version="1.0")
+        assert "resource_spans" in out
+        assert out["resource_spans"] == []
+
+    def test_single_span_trace(self):
+        span = Span(name="op", service="svc", resource="/", trace_id=1, span_id=2, parent_id=None)
+        span.start_ns = 1000000000
+        span.duration_ns = 50000000
+        span.finish()
+        spans = [span]
+        out = dd_trace_to_otlp_request(spans, service_name="svc", env="prod", version="1.0")
+        assert len(out["resource_spans"]) == 1
+        rs = out["resource_spans"][0]
+        assert "resource" in rs
+        assert "scope_spans" in rs
+        assert len(rs["scope_spans"]) == 1
+        scopes = rs["scope_spans"][0]
+        assert "spans" in scopes
+        assert len(scopes["spans"]) == 1
+        otlp_span = scopes["spans"][0]
+        assert otlp_span["name"] == "op"
+        assert otlp_span["trace_id"] == "00000000000000000000000000000001"
+        assert otlp_span["span_id"] == "0000000000000002"
+        assert otlp_span["parent_span_id"] in (None, "")
+        assert "start_time_unix_nano" in otlp_span
+        assert "end_time_unix_nano" in otlp_span
+        attrs = rs["resource"]["attributes"]
+        keys = [a["key"] for a in attrs]
+        assert "service.name" in keys
+        assert "telemetry.sdk.name" in keys
+        assert "deployment.environment" in keys
+        assert "service.version" in keys
+
+
+class OTLPSerializerTests(BaseTestCase):
+    """ExportTraceServiceRequest -> JSON bytes."""
+
+    def test_serialize_roundtrip(self):
+        request = {"resource_spans": []}
+        raw = otlp_request_to_json_bytes(request)
+        assert isinstance(raw, bytes)
+        decoded = json.loads(raw.decode("utf-8"))
+        assert "resourceSpans" in decoded
+        assert decoded["resourceSpans"] == []
+
+
+class CreateTraceWriterOTLPTests(BaseTestCase):
+    """create_trace_writer returns OTLPWriter when OTLP is enabled."""
+
+    def test_returns_otlp_writer_when_endpoint_set(self):
+        with override_env(
+            {"OTEL_TRACES_EXPORTER": "otlp", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:4318"}
+        ):
+            writer = create_trace_writer()
+            assert isinstance(writer, OTLPWriter)
+            assert "4318" in writer.intake_url
+
+    def test_returns_agent_writer_when_otlp_not_set(self):
+        with override_env(
+            {
+                "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "",
+                "OTEL_EXPORTER_OTLP_ENDPOINT": "",
+                "DD_TRACE_AGENT_URL": "http://localhost:8126",
+            }
+        ):
+            writer = create_trace_writer()
+            assert not isinstance(writer, OTLPWriter)
+
+
+class OTLPWriterExportTests(BaseTestCase):
+    """OTLPWriter write/flush and HTTP export."""
+
+    def test_otlp_writer_write_flush_success(self):
+        received = []
+        lock = threading.Lock()
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                with lock:
+                    length = int(self.headers.get("Content-Length", 0))
+                    body = self.rfile.read(length)
+                    received.append((self.path, json.loads(body.decode("utf-8"))))
+                self.send_response(200)
+                self.end_headers()
+
+            def log_message(self, fmt, *args):
+                pass
+
+        server = HTTPServer(("127.0.0.1", 0), Handler)
+        port = server.server_address[1]
+        url = "http://127.0.0.1:%d/v1/traces" % port
+
+        t = threading.Thread(target=server.serve_forever)
+        t.daemon = True
+        t.start()
+        try:
+            writer = OTLPWriter(
+                endpoint_url=url,
+                headers={},
+                timeout_seconds=1.0,
+                processing_interval=0.1,
+                sync_mode=True,
+            )
+            span = Span(name="test", service="svc", resource="/", trace_id=1, span_id=2, parent_id=None)
+            span.start_ns = 1000000000
+            span.duration_ns = 1000000
+            span.finish()
+            writer.write([span])
+            writer.flush_queue()
+            # With sync_mode we never start() the writer; skip stop() to avoid ServiceStatusError
+            with lock:
+                assert len(received) == 1
+                path, body = received[0]
+                assert "traces" in path or body.get("resourceSpans")
+                assert len(body["resourceSpans"]) == 1
+                assert len(body["resourceSpans"][0]["scopeSpans"][0]["spans"]) == 1
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 def test_humansize():
