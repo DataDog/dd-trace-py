@@ -48,6 +48,7 @@ from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
+from .writer_client import AgentlessWriterClient
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
@@ -360,7 +361,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict[str, str]:
         headers = self._headers.copy()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        headers.update({"Content-Type": client.encoder.content_type})
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
@@ -644,7 +645,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         if headers:
             _headers.update(headers)
 
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        _headers.update({"Content-Type": client.encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
@@ -752,6 +753,72 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         self._headers["X-Datadog-Test-Session-Token"] = token or ""
+
+
+class AgentlessTraceWriter(HTTPWriter):
+    """
+    HTTP writer for agentless JSON span intake. Used when _DD_APM_TRACING_AGENTLESS_ENABLED is true.
+    """
+
+    HTTP_METHOD = "POST"
+    # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
+    INTAKE_HOST = "public-trace-http-intake.logs"
+
+    def __init__(
+        self,
+        intake_url: str,
+        api_key: str,
+        processing_interval: Optional[float] = None,
+        buffer_size: Optional[int] = None,
+        max_payload_size: Optional[int] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional["DogStatsd"] = None,
+        report_metrics: bool = True,
+        sync_mode: bool = False,
+        reuse_connections: Optional[bool] = None,
+    ) -> None:
+        buffer_size = buffer_size or config._trace_writer_buffer_size
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
+        client = AgentlessWriterClient(buffer_size, max_payload_size)
+        headers = {
+            "Content-Type": client.encoder.content_type,
+            "dd-api-key": api_key,
+            "Datadog-Meta-Lang": "python",
+            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
+            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
+            "Datadog-Meta-Tracer-Version": __version__,
+        }
+        super(AgentlessTraceWriter, self).__init__(
+            intake_url=intake_url,
+            clients=[client],
+            processing_interval=processing_interval,
+            buffer_size=buffer_size,
+            max_payload_size=max_payload_size,
+            timeout=timeout,
+            dogstatsd=dogstatsd,
+            sync_mode=sync_mode,
+            reuse_connections=reuse_connections,
+            headers=headers,
+            report_metrics=report_metrics,
+        )
+
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
+        try:
+            self.stop()
+        except ServiceStatusError:
+            pass
+        return self.__class__(
+            intake_url=self.intake_url,
+            api_key=self._headers["dd-api-key"],
+            processing_interval=self._interval,
+            buffer_size=self._buffer_size,
+            max_payload_size=self._max_payload_size,
+            timeout=self._timeout,
+            dogstatsd=self.dogstatsd,
+            sync_mode=self._sync_mode,
+            reuse_connections=self._reuse_connections,
+            report_metrics=self._report_metrics,
+        )
 
 
 class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
@@ -1219,6 +1286,19 @@ def _use_sync_mode() -> bool:
 def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
     if _use_log_writer():
         return LogWriter()
+
+    if config._trace_agentless_enabled:
+        if config._dd_api_key:
+            intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+            verify_url(intake_url)
+            return AgentlessTraceWriter(
+                intake_url=intake_url,
+                api_key=config._dd_api_key,
+                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+                sync_mode=_use_sync_mode(),
+                report_metrics=not asm_config._apm_opt_out,
+            )
+        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
 
     verify_url(agent_config.trace_agent_url)
 
