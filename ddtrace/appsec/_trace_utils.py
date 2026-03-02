@@ -42,7 +42,7 @@ def _aiguard_manual_keep(span: Span) -> None:
     from ddtrace.internal.sampling import SamplingMechanism
 
     span.set_tag(constants.MANUAL_KEEP_KEY)
-    # set decision maker to ASM = -13
+    # set decision maker to AI_GUARD = -13
     span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.AI_GUARD)
 
 
