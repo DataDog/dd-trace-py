@@ -5,6 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+    branch: r1viollet/ci-docker-layer-caching
     strategy: depend
   needs:
     - job: "upload all"
