@@ -37,7 +37,3 @@ def restart(join=False):
 
 def stop(join=False):
     pass
-
-
-def at_exit(join=False):
-    pass
