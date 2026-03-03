@@ -570,7 +570,7 @@ def gen_debugger_exploration() -> None:
 def gen_appsec_iast_aggregated_leak_testing() -> None:
     """Generate the cached testrunner job.
 
-    We need to generate this dynamically from a template because it depends
+    We need to generate this dynamically from a template because
     we don't use riot to execute the tests
     """
     from needs_testrun import pr_matches_patterns
