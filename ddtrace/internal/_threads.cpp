@@ -710,14 +710,9 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_stopped->clear();
     self->_served->clear();
 
-    // Best-effort restart after fork. Failure is non-fatal: the periodic
-    // task simply won't run in the child, which is acceptable.
-    PyObject* result = PeriodicThread_start(self, NULL);
-    if (result == NULL)
-        PyErr_Clear();
-    Py_XDECREF(result);
-
-    Py_RETURN_NONE;
+    // Propagate start failures — fork-based frameworks (gunicorn, uWSGI,
+    // Celery) depend on periodic threads restarting in every worker.
+    return PeriodicThread_start(self, NULL);
 }
 
 // ----------------------------------------------------------------------------
