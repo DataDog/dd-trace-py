@@ -1,4 +1,0 @@
----
-other:
-  - |
-    ASM: Remove redundant ``ddwaf_object_free(diagnostics)`` calls in ``DDWaf.update_rules()``.
