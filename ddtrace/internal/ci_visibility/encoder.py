@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
