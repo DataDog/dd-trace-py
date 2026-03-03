@@ -98,13 +98,9 @@ class WAF(ABC):
         pass
 
     @abstractmethod
-    def _at_request_end(self):
-        pass
-
-    @abstractmethod
     def run(
         self,
-        ctx: ddwaf_context_capsule,
+        ctx: Optional[ddwaf_context_capsule],
         data: DDWafRulesType,
         ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,

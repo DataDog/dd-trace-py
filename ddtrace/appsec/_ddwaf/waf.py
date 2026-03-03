@@ -164,12 +164,9 @@ class DDWaf(WAF):
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
 
-    def _at_request_end(self) -> None:
-        pass
-
     def run(
         self,
-        ctx: ddwaf_context_capsule,
+        ctx: Optional[ddwaf_context_capsule],
         data: DDWafRulesType,
         ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
