@@ -1380,7 +1380,7 @@ class Experiment:
                             )
                             await asyncio.sleep(retry_delay(attempt))
                 if attempt > 0:
-                    span.set_tag("retries", str(attempt))
+                    tags["retries"] = str(attempt)
                 span.set_exc_info(*(last_exc_info or retry_exc_info or (None, None, None)))
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
