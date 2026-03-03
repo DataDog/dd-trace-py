@@ -1,6 +1,6 @@
-import os
-from os import environ
 from os import path
+
+from ddtrace.internal.settings import _env
 
 
 def in_aws_lambda():
@@ -9,7 +9,7 @@ def in_aws_lambda():
     This is accomplished by checking if the AWS_LAMBDA_FUNCTION_NAME environment
     variable is defined.
     """
-    return bool(environ.get("AWS_LAMBDA_FUNCTION_NAME", False))
+    return bool(_env.getenv("AWS_LAMBDA_FUNCTION_NAME", False))
 
 
 def has_aws_lambda_agent_extension():
@@ -26,8 +26,8 @@ def in_gcp_function():
     This is accomplished by checking for the presence of one of two pairs of environment variables,
     with one pair being set by deprecated GCP Function runtimes, and the other set by newer runtimes.
     """
-    is_deprecated_gcp_function = environ.get("FUNCTION_NAME", "") != "" and environ.get("GCP_PROJECT", "") != ""
-    is_newer_gcp_function = environ.get("K_SERVICE", "") != "" and environ.get("FUNCTION_TARGET", "") != ""
+    is_deprecated_gcp_function = _env.getenv("FUNCTION_NAME", "") != "" and _env.getenv("GCP_PROJECT", "") != ""
+    is_newer_gcp_function = _env.getenv("K_SERVICE", "") != "" and _env.getenv("FUNCTION_TARGET", "") != ""
     return is_deprecated_gcp_function or is_newer_gcp_function
 
 
@@ -35,5 +35,5 @@ def in_azure_function():
     # type: () -> bool
     """Returns whether the environment is an Azure Function."""
     return (
-        os.environ.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and os.environ.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
+        _env.getenv("FUNCTIONS_WORKER_RUNTIME", "") != "" and _env.getenv("FUNCTIONS_EXTENSION_VERSION", "") != ""
     )

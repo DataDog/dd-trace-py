@@ -65,6 +65,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_VALU
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
@@ -165,21 +166,21 @@ class CIVisibility(Service):
         if tracer:
             self.tracer = tracer
         else:
-            if asbool(os.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
+            if asbool(_env.getenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
                 log.debug("Using DD CI context provider: test traces may be incomplete, telemetry may be inaccurate")
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
                 self.tracer = CIVisibilityTracer()
 
-                if ci_dd_tags := os.getenv("_CI_DD_TAGS"):
+                if ci_dd_tags := _env.getenv("_CI_DD_TAGS"):
                     log.debug("Using _CI_DD_TAGS for CI Visibility tracer: %s", ci_dd_tags)
                     self.tracer._tags.update(parse_tags_str(ci_dd_tags))
 
-                env_agent_url = os.getenv("_CI_DD_AGENT_URL")
+                env_agent_url = _env.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     self.tracer._span_aggregator.writer.intake_url = env_agent_url  # type: ignore[attr-defined]
                 self.tracer.context_provider = CIContextProvider()
-            elif asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
+            elif asbool(_env.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
                 self.tracer = CIVisibilityTracer()
                 self.tracer.context_provider = CIContextProvider()
             else:
