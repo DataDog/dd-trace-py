@@ -1241,12 +1241,9 @@ class Experiment:
             self._interrupted = True
             self._update_status("interrupted")
             raise
-        except BaseException as e:
-            self._interrupted = True
-            self._update_status("failed", error=str(e))
-            raise
         except BaseException:
             self._interrupted = True
+            self._update_status("interrupted")
             raise
         finally:
             result = self._build_result(self._run_results)
