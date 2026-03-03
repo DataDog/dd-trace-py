@@ -84,7 +84,8 @@ def dispatch_event(event) -> None:
         try:
             local_hook(event)
         except Exception:
-            raise
+            if config._raise:
+                raise
 
 
 def dispatch(event_id: str, args: tuple[Any, ...] = ()) -> None:
