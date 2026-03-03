@@ -5,7 +5,6 @@ from dataclasses import field
 import inspect
 import json
 import math
-import os
 import sys
 import time
 from typing import Any
@@ -32,6 +31,7 @@ from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import _env
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
@@ -333,8 +333,8 @@ class LLMObsSpan:
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = os.getenv("DD_APP_KEY", "")
-    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    _app_key: str = _env.getenv("DD_APP_KEY", "")
+    _project_name: str = _env.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
     def __init__(
         self,
