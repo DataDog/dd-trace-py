@@ -468,6 +468,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
             // we could not acquire the GIL. Bail out immediately — calling any
             // Python API without the GIL would crash.
             if (!_gil.acquired()) {
+                self->_served->set();
                 self->_started->set();
                 self->_stopped->set();
                 return;
@@ -559,6 +560,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
             // a forced unwind is swallowed. The re-throw propagates through
             // libstdc++'s std::thread wrapper which has its own
             // catch(__forced_unwind&){throw;} and lets the unwind complete.
+            self->_served->set();
             self->_started->set();
             self->_stopped->set();
             throw;
@@ -566,6 +568,7 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 #endif
         catch (...) {
             // Safety net for any other unexpected exceptions during shutdown.
+            self->_served->set();
             self->_started->set();
             self->_stopped->set();
         }
