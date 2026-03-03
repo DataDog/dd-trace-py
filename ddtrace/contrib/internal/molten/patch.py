@@ -1,4 +1,4 @@
-import os
+from ddtrace.internal.settings import _env
 from urllib.parse import urlencode
 
 import molten
@@ -27,7 +27,7 @@ config._add(
     "molten",
     dict(
         _default_service=schematize_service_name("molten"),
-        distributed_tracing=asbool(os.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_env.getenv("DD_MOLTEN_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

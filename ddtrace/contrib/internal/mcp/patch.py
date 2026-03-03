@@ -1,4 +1,4 @@
-import os
+from ddtrace.internal.settings import _env
 import sys
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -32,8 +32,8 @@ log = get_logger(__name__)
 config._add(
     "mcp",
     {
-        "distributed_tracing": asbool(os.getenv("DD_MCP_DISTRIBUTED_TRACING", default=True)),
-        "capture_intent": asbool(os.getenv("DD_MCP_CAPTURE_INTENT", default=False)),
+        "distributed_tracing": asbool(_env.getenv("DD_MCP_DISTRIBUTED_TRACING", default=True)),
+        "capture_intent": asbool(_env.getenv("DD_MCP_CAPTURE_INTENT", default=False)),
     },
 )
 

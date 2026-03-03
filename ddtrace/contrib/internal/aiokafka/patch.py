@@ -1,4 +1,4 @@
-import os
+from ddtrace.internal.settings import _env
 from time import time_ns
 
 import aiokafka
@@ -33,7 +33,7 @@ config._add(
     "aiokafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        distributed_tracing_enabled=asbool(_env.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
     ),
 )
 

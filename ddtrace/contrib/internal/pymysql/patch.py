@@ -1,5 +1,4 @@
-import os
-
+from ddtrace.internal.settings import _env
 import pymysql
 import wrapt
 
@@ -22,7 +21,7 @@ config._add(
         _default_service=schematize_service_name("pymysql"),
         _dbapi_span_name_prefix="pymysql",
         _dbapi_span_operation_name=schematize_database_operation("pymysql.query", database_provider="mysql"),
-        trace_fetch_methods=asbool(os.getenv("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(_env.getenv("DD_PYMYSQL_TRACE_FETCH_METHODS", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )

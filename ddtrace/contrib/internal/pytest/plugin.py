@@ -12,8 +12,7 @@ to be run at specific points during pytest execution. The most important hooks u
 
 """
 
-import os
-
+from ddtrace.internal.settings import _env
 import pytest
 
 from ddtrace import config
@@ -44,7 +43,7 @@ config._add(
     "pytest",
     dict(
         _default_service="pytest",
-        operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
+        operation_name=_env.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
     ),
 )
 

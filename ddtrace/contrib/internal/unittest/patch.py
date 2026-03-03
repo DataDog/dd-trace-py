@@ -1,5 +1,6 @@
 import inspect
 import os
+from ddtrace.internal.settings import _env
 from typing import Optional
 from typing import Union
 import unittest
@@ -61,8 +62,8 @@ config._add(
     "unittest",
     dict(
         _default_service="unittest",
-        operation_name=os.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
-        strict_naming=asbool(os.getenv("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
+        operation_name=_env.getenv("DD_UNITTEST_OPERATION_NAME", default="unittest.test"),
+        strict_naming=asbool(_env.getenv("DD_CIVISIBILITY_UNITTEST_STRICT_NAMING", default=True)),
     ),
 )
 
