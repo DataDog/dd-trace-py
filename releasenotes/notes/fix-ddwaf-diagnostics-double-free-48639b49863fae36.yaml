@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    ASM: Fix double-free of ``diagnostics`` object in ``DDWaf.update_rules()``. The ``_set_info()`` method already frees ``diagnostics`` internally, so the subsequent free calls were redundant and could cause heap corruption if memory is reused between calls.
+    ASM: Fix double-free of ``diagnostics`` object in ``DDWaf.update_rules()``.
