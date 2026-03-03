@@ -579,7 +579,7 @@ def gen_appsec_iast_aggregated_leak_testing() -> None:
         {
             ".gitlab/templates/appsec/iast_aggregated_leak_testing.yml",
             "tests/appsec/iast_aggregated_memcheck/*",
-            "ddtrace/appsec/iast/*",
+            "ddtrace/appsec/_iast/**",
         }
     ):
         return
