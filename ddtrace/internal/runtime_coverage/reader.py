@@ -1,5 +1,5 @@
 """
-Reader for runtime coverage reports produced by writer.py (schema_version 3).
+Reader for runtime coverage reports produced by writer.py (schema_version 3-4).
 
 Decodes the gzip+base64 on-disk format back into per-file line sets.
 """
@@ -23,6 +23,15 @@ class FileCoverage:
 
 
 @dataclasses.dataclass(frozen=True)
+class ImportEdge:
+    """A single directed edge in the import graph."""
+
+    imported: str
+    importer: str
+    line: t.Optional[int]
+
+
+@dataclasses.dataclass(frozen=True)
 class CoverageReport:
     """Full decoded coverage report."""
 
@@ -30,6 +39,7 @@ class CoverageReport:
     timestamp: str
     pid: int
     files: dict[str, FileCoverage]
+    import_graph: list[ImportEdge] = dataclasses.field(default_factory=list)
 
 
 def _bitmap_to_lines(b64: str) -> frozenset[int]:
@@ -52,7 +62,7 @@ def read_coverage_report(path: Path) -> CoverageReport:
     data: dict[str, t.Any] = json.loads(gzip.decompress(compressed))
 
     version = data["schema_version"]
-    if version != 3:
+    if version not in (3, 4):
         raise ValueError(f"Unsupported schema version: {version}")
 
     files: dict[str, FileCoverage] = {}
@@ -66,11 +76,17 @@ def read_coverage_report(path: Path) -> CoverageReport:
             uncovered_lines=executable - covered,
         )
 
+    import_graph = [
+        ImportEdge(imported=e["imported"], importer=e["importer"], line=e.get("line"))
+        for e in data.get("import_graph", [])
+    ]
+
     return CoverageReport(
         schema_version=version,
         timestamp=data["timestamp"],
         pid=data["pid"],
         files=files,
+        import_graph=import_graph,
     )
 
 

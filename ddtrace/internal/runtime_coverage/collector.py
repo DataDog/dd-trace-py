@@ -47,6 +47,7 @@ class RuntimeCoverageCollector:
         self._workspace_path = workspace_path
         self._stop_event = threading.Event()
         self._flush_thread: t.Optional[threading.Thread] = None
+        self._import_tracker: t.Optional["ImportGraphTracker"] = None  # noqa: F821
 
     @classmethod
     def enable(
@@ -85,9 +86,13 @@ class RuntimeCoverageCollector:
         # subsequent import of a matching path is instrumented before execution. Modules
         # already loaded at this point are NOT re-instrumented — start as early as possible.
         from ddtrace.internal.coverage.code import ModuleCodeCollector
+        from ddtrace.internal.runtime_coverage.import_tracker import ImportGraphTracker
 
         ModuleCodeCollector.install(include_paths=self._include_paths)
         ModuleCodeCollector.start_coverage()
+
+        self._import_tracker = ImportGraphTracker(self._include_paths, self._workspace_path)
+        self._import_tracker.install(ModuleCodeCollector._instance)
 
         atexit.register(self._flush)
 
@@ -117,11 +122,14 @@ class RuntimeCoverageCollector:
         if mcc is None:
             return
 
+        import_graph = self._import_tracker.get_import_graph() if self._import_tracker is not None else None
+
         write_coverage_report(
             executable_lines=dict(mcc.lines),
             covered_lines=dict(mcc.covered),
             output_dir=self._output_dir,
             workspace_path=self._workspace_path,
+            import_graph=import_graph,
         )
 
     @classmethod
