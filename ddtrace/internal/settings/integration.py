@@ -68,7 +68,7 @@ class IntegrationConfig(AttrDict):
 
     def get_http_tag_query_string(self, value):
         if self.global_config._http_tag_query_string:
-            dd_http_server_tag_query_string = value if value else os.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
+            dd_http_server_tag_query_string = value if value else _env.getenv("DD_HTTP_SERVER_TAG_QUERY_STRING", "true")
             # If invalid value, will default to True
             return dd_http_server_tag_query_string.lower() not in ("false", "0")
         return False
