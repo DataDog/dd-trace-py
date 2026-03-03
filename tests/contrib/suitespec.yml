@@ -49,6 +49,7 @@ components:
     # Shared package infrastructure (not covered by any specific component)
     - ddtrace/contrib/__init__.py
     - ddtrace/contrib/trace_utils.py
+    - ddtrace/contrib/internal/__init__.py
     - ddtrace/contrib/internal/trace_utils.py
     - ddtrace/contrib/internal/trace_utils_async.py
     - ddtrace/contrib/internal/trace_utils_base.py
