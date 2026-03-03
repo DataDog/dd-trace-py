@@ -1,6 +1,11 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+from unittest.mock import patch
 
 import pytest
+from strands.hooks import AfterModelCallEvent
+from strands.hooks import BeforeModelCallEvent
+from strands.hooks import BeforeToolCallEvent
+from strands.hooks import HookRegistry
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import Function
@@ -9,16 +14,13 @@ from ddtrace.appsec.ai_guard import ToolCall
 from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard.integrations.strands import _convert_strands_messages
 from ddtrace.appsec.ai_guard.integrations.strands import _tool_result_text
-from strands.hooks import AfterModelCallEvent
-from strands.hooks import BeforeModelCallEvent
-from strands.hooks import BeforeToolCallEvent
-from strands.hooks import HookRegistry
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 
 
 # ---------------------------------------------------------------------------
 # Helpers to build mock Strands event objects
 # ---------------------------------------------------------------------------
+
 
 def _mock_agent(messages=None, system_prompt=None):
     """Build a mock Agent with .messages and .system_prompt."""
@@ -61,6 +63,7 @@ def _before_tool_event(tool_use, messages=None):
 # _tool_result_text
 # ---------------------------------------------------------------------------
 
+
 class TestToolResultText:
     def test_text_content(self):
         tr = {"content": [{"text": "result 1"}, {"text": "result 2"}]}
@@ -84,6 +87,7 @@ class TestToolResultText:
 # ---------------------------------------------------------------------------
 # _convert_strands_messages
 # ---------------------------------------------------------------------------
+
 
 class TestConvertStrandsMessages:
     def test_user_text_message(self):
@@ -224,6 +228,7 @@ class TestConvertStrandsMessages:
 # _on_before_model_call (via BeforeModelCallEvent)
 # ---------------------------------------------------------------------------
 
+
 class TestBeforeModelCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_allow(self, mock_execute_request, ai_guard_strands_hook):
@@ -289,6 +294,7 @@ class TestBeforeModelCall:
 # _on_after_model_call (via AfterModelCallEvent)
 # ---------------------------------------------------------------------------
 
+
 class TestAfterModelCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_allow(self, mock_execute_request, ai_guard_strands_hook):
@@ -326,6 +332,7 @@ class TestAfterModelCall:
 # ---------------------------------------------------------------------------
 # _on_before_tool_call (via BeforeToolCallEvent)
 # ---------------------------------------------------------------------------
+
 
 class TestBeforeToolCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
@@ -379,6 +386,7 @@ class TestBeforeToolCall:
 # register_hooks
 # ---------------------------------------------------------------------------
 
+
 class TestRegisterHooks:
     def test_registers_all_callbacks(self, ai_guard_strands_hook):
         registry = HookRegistry()
@@ -407,6 +415,7 @@ class TestRegisterHooks:
 # ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
+
 
 class TestErrorHandling:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
