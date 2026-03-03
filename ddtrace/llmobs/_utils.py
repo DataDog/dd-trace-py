@@ -354,13 +354,13 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
             attributes={"from": from_io, "to": to_io},
         )
     )
-    _annotate_llmobs_span_data(span, span_links=current_span_links)
+    span._set_ctx_item(SPAN_LINKS, current_span_links)
 
 
 def get_span_links(span: Span) -> list[_SpanLink]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     current_span_links: list[_SpanLink] = (
-        llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or span._get_ctx_item(SPAN_LINKS) or []
+        span._get_ctx_item(SPAN_LINKS) or llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
     )
     return current_span_links
 
