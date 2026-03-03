@@ -1362,7 +1362,6 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
-                retry_exc_info = None
                 for attempt in range(1 + max_retries):
                     try:
                         if asyncio.iscoroutinefunction(self._task):
@@ -1374,14 +1373,14 @@ class Experiment:
                     except Exception as e:
                         last_exc_info = sys.exc_info()
                         if attempt < max_retries:
-                            retry_exc_info = last_exc_info
                             self._retries.append(
                                 "task row {}: attempt {}/{} failed: {}".format(idx, attempt + 1, max_retries + 1, e)
                             )
                             await asyncio.sleep(retry_delay(attempt))
                 if attempt > 0:
                     tags["retries"] = str(attempt)
-                span.set_exc_info(*(last_exc_info or retry_exc_info or (None, None, None)))
+                if last_exc_info:
+                    span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
                 span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])

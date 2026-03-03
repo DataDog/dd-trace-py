@@ -2021,7 +2021,7 @@ def test_experiment_task_retry_succeeds_after_failure(llmobs, test_dataset_one_r
     )
     assert len(task_results) == 1
     assert task_results[0]["output"] is not None
-    assert task_results[0]["error"]["message"] == "transient error"
+    assert task_results[0]["error"]["message"] is None
     assert len(exp._experiment._retries) == 1
     assert "attempt 1/3" in exp._experiment._retries[0]
 
