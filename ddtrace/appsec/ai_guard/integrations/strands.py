@@ -18,6 +18,12 @@ The hook provider evaluates messages at key lifecycle points:
 import json
 from typing import Any
 
+from strands.hooks import AfterModelCallEvent as _AfterModelCallEvent
+from strands.hooks import BeforeModelCallEvent as _BeforeModelCallEvent
+from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
+from strands.hooks import HookProvider as _StrandsHookProvider
+from strands.hooks import HookRegistry as _StrandsHookRegistry
+
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Function
@@ -29,12 +35,6 @@ import ddtrace.internal.logger as ddlogger
 
 
 logger = ddlogger.get_logger(__name__)
-
-from strands.hooks import AfterModelCallEvent as _AfterModelCallEvent
-from strands.hooks import BeforeModelCallEvent as _BeforeModelCallEvent
-from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
-from strands.hooks import HookProvider as _StrandsHookProvider
-from strands.hooks import HookRegistry as _StrandsHookRegistry
 
 
 class AIGuardStrandsHookProvider(_StrandsHookProvider):
