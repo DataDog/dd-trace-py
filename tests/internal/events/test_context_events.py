@@ -102,7 +102,7 @@ def test_context_event_event_field():
 
     core.on(f"context.started.{TestContextEvent.event_name}", on_context_started)
 
-    with core.context_with_event(TestContextEvent(foo="str", not_in_context=0)):
+    with core.context_with_event(TestContextEvent(foo="toto", not_in_context=0)):
         pass
 
     assert called == [0, "toto", "test"], (
