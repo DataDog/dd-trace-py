@@ -1,10 +1,9 @@
-from dataclasses import dataclass
-
 import pytest
 
 from ddtrace.internal import core
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
+from ddtrace.internal.core.events import event
 
 
 @pytest.fixture(autouse=True)
@@ -14,12 +13,12 @@ def reset_event_hub():
     event_hub.reset()
 
 
-@dataclass
+@event
 class TestEvent(Event):
     event_name = "test.event"
 
 
-@dataclass
+@event
 class TestEventWithAttributes(Event):
     event_name = "test.event"
     foo: str
