@@ -191,6 +191,9 @@ services:
         # Set DD_TEST_CPUS (e.g., "4") and DD_TEST_MEMORY (e.g., "8g") to apply limits
         cpus: "${DD_TEST_CPUS:-0}"
         mem_limit: "${DD_TEST_MEMORY:-0}"
+        cap_add:
+          - SYS_PTRACE
+          - SYS_ADMIN
         environment:
           DD_FAST_BUILD: "1"
           CMAKE_BUILD_PARALLEL_LEVEL: "12"

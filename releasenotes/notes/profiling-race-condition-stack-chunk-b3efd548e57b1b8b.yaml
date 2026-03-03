@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: A race condition that could lead to out-of-bounds access in the Profiler was fixed.

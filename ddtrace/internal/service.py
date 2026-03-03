@@ -2,7 +2,7 @@ import abc
 import enum
 import typing  # noqa:F401
 
-from . import forksafe
+from ddtrace.internal.threads import Lock
 
 
 class ServiceStatus(enum.Enum):
@@ -15,10 +15,9 @@ class ServiceStatus(enum.Enum):
 class ServiceStatusError(RuntimeError):
     def __init__(
         self,
-        service_cls,  # type: typing.Type[Service]
-        current_status,  # type: ServiceStatus
-    ):
-        # type: (...) -> None
+        service_cls: "type[Service]",
+        current_status: ServiceStatus,
+    ) -> None:
         self.current_status = current_status
         super(ServiceStatusError, self).__init__(
             "%s is already in status %s" % (service_cls.__name__, current_status.value)
@@ -30,7 +29,7 @@ class Service(metaclass=abc.ABCMeta):
 
     def __init__(self) -> None:
         self.status: ServiceStatus = ServiceStatus.STOPPED
-        self._service_lock: typing.ContextManager = forksafe.Lock()
+        self._service_lock: typing.ContextManager = Lock()
 
     def __repr__(self):
         class_name = self.__class__.__name__

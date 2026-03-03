@@ -1,9 +1,18 @@
+import sys
+
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_global_config
+
+
+# Skip collection of template string tests on Python < 3.14
+# Template strings (t"") require Python 3.14+ and will cause syntax errors on earlier versions
+collect_ignore = []
+if sys.version_info < (3, 14):
+    collect_ignore.append("test_template_string_aspect.py")
 
 
 @pytest.fixture(autouse=True)

@@ -14,7 +14,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
     def test_cache_get_without_arguments(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
@@ -37,7 +37,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
     def test_cache_set_without_arguments(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
@@ -60,7 +60,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
     def test_cache_add_without_arguments(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
@@ -83,7 +83,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
     def test_cache_delete_without_arguments(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
@@ -106,7 +106,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
     def test_cache_set_many_without_arguments(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
@@ -129,7 +129,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
     def test_redis_cache_tracing_with_a_wrong_connection(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {"CACHE_TYPE": "redis", "CACHE_REDIS_PORT": 2230, "CACHE_REDIS_HOST": "127.0.0.1"}
         cache = Cache(app, config=config)
@@ -156,7 +156,7 @@ class FlaskCacheWrapperTest(TracerTestCase):
 
     def test_memcached_cache_tracing_with_a_wrong_connection(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
             "CACHE_TYPE": "memcached",

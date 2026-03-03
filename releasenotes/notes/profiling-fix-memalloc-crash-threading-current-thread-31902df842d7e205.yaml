@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes crashes in the memory profiler caused by re-entering the
+    Python interpreter from inside CPython's allocator hook.

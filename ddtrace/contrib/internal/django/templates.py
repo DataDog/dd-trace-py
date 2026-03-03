@@ -2,9 +2,6 @@ from types import FunctionType
 from types import ModuleType
 import typing
 from typing import Any
-from typing import Dict
-from typing import Tuple
-from typing import Type
 from typing import TypeVar
 
 from ddtrace import config
@@ -54,13 +51,13 @@ def uninstrument_module(django_template_base: ModuleType) -> None:
     unwrap(Template.render, traced_render)
 
 
-def traced_render(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+def traced_render(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     if not config_django.instrument_templates:
         return func(*args, **kwargs)
 
     # Get the template instance (self parameter of the render method)
     # Note: instance is a django.template.base.Template
-    instance: Type[Any] = args[0]
+    instance: type[Any] = args[0]
 
     # Extract template name
     template_name = maybe_stringify(getattr(instance, "name", None))
@@ -84,7 +81,5 @@ def traced_render(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) 
         resource=resource,
         span_type=http.TEMPLATE,
         tags=tags,
-        # TODO: Migrate all tests to snapshot tests and remove this
-        tracer=config_django._tracer,
     ):
         return func(*args, **kwargs)

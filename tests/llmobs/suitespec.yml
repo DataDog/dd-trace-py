@@ -2,6 +2,8 @@
 components:
   anthropic:
     - ddtrace/contrib/internal/anthropic/*
+  claude_agent_sdk:
+    - ddtrace/contrib/internal/claude_agent_sdk/*
   google_adk:
     - ddtrace/contrib/internal/google_adk/*
   google_genai:
@@ -41,6 +43,19 @@ suites:
       - '@llmobs'
       - tests/contrib/anthropic/*
       - tests/snapshots/tests.contrib.anthropic.*
+    runner: riot
+    snapshot: true
+  claude_agent_sdk:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@claude_agent_sdk'
+      - '@llmobs'
+      - tests/contrib/claude_agent_sdk/*
+      - tests/snapshots/tests.contrib.claude_agent_sdk.*
     runner: riot
     snapshot: true
   google_adk:
@@ -119,7 +134,6 @@ suites:
     snapshot: true
     venvs_per_job: 1
   mcp:
-    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -131,6 +145,7 @@ suites:
       - tests/snapshots/tests.contrib.mcp.*
     runner: riot
     snapshot: true
+    venvs_per_job: 5
   openai:
     venvs_per_job: 1
     paths:
@@ -147,7 +162,6 @@ suites:
     runner: riot
     snapshot: true
   langgraph:
-    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -159,6 +173,7 @@ suites:
       - tests/contrib/langgraph/*
     runner: riot
     snapshot: true
+    venvs_per_job: 4
   crewai:
     parallelism: 3
     paths:

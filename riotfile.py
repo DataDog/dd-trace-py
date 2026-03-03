@@ -1,7 +1,6 @@
 # type: ignore
 import logging
-from typing import List  # noqa
-from typing import Tuple  # noqa
+import os
 
 from riot import Venv
 
@@ -9,7 +8,7 @@ from riot import Venv
 logger = logging.getLogger(__name__)
 latest = ""
 
-SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
+SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 9),
     (3, 10),
     (3, 11),
@@ -19,7 +18,7 @@ SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
 ]
 
 
-def version_to_str(version: Tuple[int, int]) -> str:
+def version_to_str(version: tuple[int, int]) -> str:
     """Convert a Python version tuple to a string
 
     >>> version_to_str((3, 9))
@@ -40,7 +39,7 @@ def version_to_str(version: Tuple[int, int]) -> str:
     return ".".join(str(p) for p in version)
 
 
-def str_to_version(version: str) -> Tuple[int, int]:
+def str_to_version(version: str) -> tuple[int, int]:
     """Convert a Python version string to a tuple
 
     >>> str_to_version("3.9")
@@ -65,7 +64,7 @@ MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
 MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
-def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> List[str]:
+def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
@@ -81,6 +80,24 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     max_version = str_to_version(max_version)
 
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
+
+
+# NOTE: When NIGHTLY_BUILD is "true" (e.g. in GitLab CI), sets
+# DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED for the venv env.
+_nightly_build = os.environ.get("NIGHTLY_BUILD") == "true"
+_base_env = {
+    "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
+    "DD_TESTING_RAISE": "1",
+    "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+    "DD_INJECTION_ENABLED": "1",
+    "DD_INJECT_FORCE": "1",
+    "DD_PATCH_MODULES": "unittest:false",
+    "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+    "CARGO_BUILD_JOBS": "12",
+    "DD_PYTEST_USE_NEW_PLUGIN": "true",
+}
+if _nightly_build:
+    _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
 
 
 # Common venv configurations for appsec threats testing
@@ -110,17 +127,7 @@ venv = Venv(
         "opentracing": latest,
         "hypothesis": "<6.45.1",
     },
-    env={
-        "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
-        "DD_TESTING_RAISE": "1",
-        "DD_REMOTE_CONFIGURATION_ENABLED": "false",
-        "DD_INJECTION_ENABLED": "1",
-        "DD_INJECT_FORCE": "1",
-        "DD_PATCH_MODULES": "unittest:false",
-        "CMAKE_BUILD_PARALLEL_LEVEL": "12",
-        "CARGO_BUILD_JOBS": "12",
-        "DD_PYTEST_USE_NEW_PLUGIN": "true",
-    },
+    env=_base_env,
     venvs=[
         Venv(
             name="meta-testing",
@@ -727,6 +734,7 @@ venv = Venv(
                 "kombu": ">=4.2.0,<4.3.0",
                 "pymssql": latest,
                 "pytest-randomly": latest,
+                "redis": latest,
                 "requests": latest,
             },
             env={
@@ -1057,7 +1065,12 @@ venv = Venv(
             venvs=[
                 Venv(
                     pys=["3.9"],
-                    pkgs={"dramatiq": "~=1.10.0", "pytest": latest, "redis": latest, "pika": latest},
+                    pkgs={
+                        "dramatiq": "~=1.10.0",
+                        "pytest": latest,
+                        "redis": latest,
+                        "pika": latest,
+                    },
                 ),
                 Venv(
                     pys=select_pys(max_version="3.13"),
@@ -1275,7 +1288,10 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
-                        Venv(pys=select_pys(min_version="3.12", max_version="3.13"), pkgs={"redis": latest}),
+                        Venv(
+                            pys=select_pys(min_version="3.12", max_version="3.13"),
+                            pkgs={"redis": latest},
+                        ),
                     ],
                 ),
             ],
@@ -1468,12 +1484,18 @@ venv = Venv(
                 Venv(
                     # starlette added support for Python 3.9 in 0.14
                     pys="3.9",
-                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"], "httpx": "~=0.22.0"},
+                    pkgs={
+                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"],
+                        "httpx": "~=0.22.0",
+                    },
                 ),
                 Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
-                    pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest], "httpx": "~=0.27.0"},
+                    pkgs={
+                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest],
+                        "httpx": "~=0.27.0",
+                    },
                 ),
                 Venv(
                     # starlette added support for Python 3.11 in 0.21
@@ -1618,7 +1640,11 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
+                    pkgs={
+                        "vcrpy": "==7.0.0",
+                        "botocore": "==1.38.26",
+                        "boto3": "==1.38.26",
+                    },
                     venvs=[
                         Venv(
                             pys=select_pys(),
@@ -1655,7 +1681,10 @@ venv = Venv(
                         ],
                     },
                 ),
-                Venv(pys=select_pys(min_version="3.11"), pkgs={"mariadb": ["~=1.1.2", latest]}),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={"mariadb": ["~=1.1.2", latest]},
+                ),
             ],
         ),
         Venv(
@@ -2336,7 +2365,10 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/rediscluster",
             pkgs={"pytest-randomly": latest},
             venvs=[
-                Venv(pys=select_pys(max_version="3.11"), pkgs={"redis-py-cluster": [">=2.0,<2.1", latest]}),
+                Venv(
+                    pys=select_pys(max_version="3.11"),
+                    pkgs={"redis-py-cluster": [">=2.0,<2.1", latest]},
+                ),
             ],
         ),
         Venv(
@@ -2528,6 +2560,8 @@ venv = Venv(
             name="reno",
             pkgs={
                 "reno": latest,
+                # PyYAML>=6.0.1 has wheels / builds on Python 3.13; 6.0 fails with modern setuptools
+                "PyYAML": ">=6.0.1",
             },
             command="reno {cmdargs}",
         ),
@@ -2579,7 +2613,10 @@ venv = Venv(
                 # sqlite3 is tied to the Python version and is not installable via pip
                 # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
                 # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
-                Venv(pys=select_pys(min_version="3.9", max_version="3.12"), pkgs={"pysqlite3-binary": [latest]}),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={"pysqlite3-binary": [latest]},
+                ),
             ],
         ),
         Venv(
@@ -3165,7 +3202,10 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys=select_pys(min_version="3.11", max_version="3.13"), pkgs={"confluent-kafka": latest}),
+                        Venv(
+                            pys=select_pys(min_version="3.11", max_version="3.13"),
+                            pkgs={"confluent-kafka": latest},
+                        ),
                     ],
                 ),
             ],
@@ -3189,7 +3229,11 @@ venv = Venv(
             },
             command="pytest {cmdargs} tests/contrib/aiokafka/",
             pys=select_pys(),
-            pkgs={"pytest-asyncio": [latest], "pytest-randomly": latest, "aiokafka": ["~=0.9.0", latest]},
+            pkgs={
+                "pytest-asyncio": [latest],
+                "pytest-randomly": latest,
+                "aiokafka": ["~=0.9.0", latest],
+            },
         ),
         Venv(
             name="azure_eventhubs",
@@ -3288,7 +3332,7 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
-                "riot": "==0.20.1",
+                "riot": "==0.21.0",
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",
                 "PyYAML": latest,
@@ -3299,15 +3343,31 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
-            command="pytest {cmdargs} tests/llmobs",
             pkgs={
                 "vcrpy": latest,
+                "openai": latest,
+                "google-cloud-aiplatform": latest,
+                "boto3": latest,
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
                 "pandas": latest,
             },
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            venvs=[
+                # Python 3.9: llmobs without deepeval (deepeval requires 3.10+ for X|None type hints)
+                Venv(
+                    pys=["3.9"],
+                    command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
+                ),
+                # Python 3.10+: llmobs with deepeval (runs all tests including test_deep_eval_evaluators.py)
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    command="pytest {cmdargs} tests/llmobs",
+                    pkgs={
+                        "deepeval": latest,
+                    },
+                ),
+            ],
         ),
         Venv(
             name="vllm",
@@ -3333,7 +3393,7 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' {cmdargs} tests/profiling",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "CPUCOUNT": "12",
@@ -3379,6 +3439,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
@@ -3428,6 +3498,16 @@ venv = Venv(
                                 ),
                             ],
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3457,6 +3537,16 @@ venv = Venv(
                             pkgs={
                                 "gunicorn[gevent]": latest,
                                 "gevent": latest,
+                                "protobuf": latest,
+                            },
+                        ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
                                 "protobuf": latest,
                             },
                         ),
@@ -3493,6 +3583,16 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
+                        # uvloop
+                        Venv(
+                            env={
+                                "USE_UVLOOP": "1",
+                            },
+                            pkgs={
+                                "uvloop": latest,
+                                "protobuf": latest,
+                            },
+                        ),
                         # memcpy-based sampler
                         Venv(
                             env={
@@ -3506,7 +3606,7 @@ venv = Venv(
                 ),
                 Venv(
                     name="profile-memalloc",
-                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py",  # noqa: E501
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py",  # noqa: E501
                     pys=select_pys(),
                     pkgs={
                         "protobuf": latest,
@@ -3893,6 +3993,15 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="claude_agent_sdk",
+            command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
+            pys=select_pys(min_version="3.10"),
+            pkgs={
+                "claude-agent-sdk": ["==0.0.23", "==0.1.29", latest],
+                "pytest-asyncio": latest,
+            },
         ),
     ],
 )

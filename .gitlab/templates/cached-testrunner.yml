@@ -22,6 +22,7 @@
     source $EXT_CACHE_VENV/bin/activate
     python scripts/ext_cache.py save
     deactivate
+    bash .gitlab/scripts/generate-core-backtraces.sh
   cache:
     # Share pip between jobs of the same Python version
     - key: v5-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}

@@ -22,7 +22,7 @@ class FlaskCacheTest(TracerTestCase):
         super(FlaskCacheTest, self).setUp()
 
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         self.cache = Cache(app, config={"CACHE_TYPE": "simple"})
 
@@ -284,7 +284,7 @@ class FlaskCacheTest(TracerTestCase):
 
     def test_default_span_tags_for_redis(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
             "CACHE_TYPE": "redis",
@@ -301,7 +301,7 @@ class FlaskCacheTest(TracerTestCase):
 
     def test_default_span_tags_memcached(self):
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer, service=self.SERVICE)
+        Cache = get_traced_cache(service=self.SERVICE)
         app = Flask(__name__)
         config = {
             "CACHE_TYPE": "memcached",
@@ -325,7 +325,7 @@ class TestFlaskCacheSchematization(TracerTestCase):
         super(TestFlaskCacheSchematization, self).setUp()
 
         # create the TracedCache instance for a Flask app
-        Cache = get_traced_cache(self.tracer)
+        Cache = get_traced_cache()
         app = Flask(__name__)
         self.cache = Cache(app, config={"CACHE_TYPE": "simple"})
 

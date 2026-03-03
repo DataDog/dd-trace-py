@@ -1,5 +1,4 @@
 import sys
-import typing as t
 
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.internal import runtime
@@ -12,7 +11,7 @@ class DummyProbeStatusLogger(ProbeStatusLogger):
         super(DummyProbeStatusLogger, self).__init__(*args, **kwargs)
         self._flush_queue = []
 
-    def _write_payload(self, data: t.Tuple[bytes, dict]):
+    def _write_payload(self, data: tuple[bytes, dict]):
         body, headers = data
         self._flush_queue.extend(parse_form_multipart(body.decode("utf-8"), headers)["event"])
 

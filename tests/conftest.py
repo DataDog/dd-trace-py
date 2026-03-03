@@ -11,6 +11,7 @@ import logging
 import os
 from os.path import split
 from os.path import splitext
+from pathlib import Path
 import platform
 import random
 import shutil
@@ -20,10 +21,7 @@ from tempfile import NamedTemporaryFile
 from tempfile import gettempdir
 import time
 from typing import Any  # noqa:F401
-from typing import Dict
 from typing import Generator  # noqa:F401
-from typing import List
-from typing import Tuple  # noqa:F401
 from unittest import TestCase
 from unittest import mock
 from urllib import parse
@@ -35,6 +33,7 @@ import ddtrace
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
@@ -349,11 +348,14 @@ class FunctionDefFinder(ast.NodeVisitor):
             self._body = node.body
 
     def find(self, file):
-        with open(file) as f:
-            t = ast.parse(f.read())
-            self.visit(t)
-            t.body = self._body
-            return t
+        if not (path := Path(file)).exists():
+            if path.is_absolute() or not (path := Path(__file__).parents[1] / file).exists():
+                raise FileNotFoundError(f"File {file} does not exist")
+
+        t = ast.parse(path.read_text())
+        self.visit(t)
+        t.body = self._body or []
+        return t
 
 
 def is_stream_ok(stream, expected):
@@ -372,7 +374,7 @@ def is_stream_ok(stream, expected):
 
 
 def run_function_from_file(item, params=None):
-    file = item.location[0]
+    file = Path(item.location[0])
     func = item.originalname
     marker = item.get_closest_marker("subprocess")
     run_module = marker.kwargs.get("run_module", False)
@@ -622,6 +624,35 @@ def remote_config_worker():
     # assert threading.active_count() == 2
 
 
+class SyncRemoteConfigPoller(RemoteConfigPoller):
+    """RemoteConfigPoller subclass with testing utilities.
+
+    This subclass adds a `poll()` method that forces the client's
+    subscriber to poll new data, allowing synchronous testing without
+    waiting for the periodic thread.
+    """
+
+    def poll(self) -> None:
+        """Force client subscriber to poll new data for testing."""
+        self._client._global_subscriber.periodic()
+
+
+@pytest.fixture
+def rc_poller():
+    """Provide a SyncRemoteConfigPoller instance for testing.
+
+    This creates an isolated poller instance that can be used synchronously
+    in tests without relying on the global singleton.
+    """
+    poller = SyncRemoteConfigPoller()
+    try:
+        yield poller
+    finally:
+        # Clean up: stop any running services and reset state
+        if poller.status == ServiceStatus.RUNNING:
+            poller.disable(join=True)
+
+
 @pytest.fixture
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
@@ -650,8 +681,7 @@ class TelemetryTestSession(object):
         parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
-    def _request(self, method, url):
-        # type: (str, str) -> Tuple[int, bytes]
+    def _request(self, method: str, url: str) -> tuple[int, bytes]:
         conn = self.create_connection()
         MAX_RETRY = 9
         exp_time = 1.618034
@@ -711,7 +741,7 @@ class TelemetryTestSession(object):
                     events.append(req_body)
         return events
 
-    def _get_request_bodies(self, req: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _get_request_bodies(self, req: dict[str, Any]) -> list[dict[str, Any]]:
         if req["body"]["request_type"] == "message-batch":
             payloads = req["body"]["payload"]
         else:
@@ -767,8 +797,7 @@ class TelemetryTestSession(object):
 
 
 @pytest.fixture
-def test_agent_session(telemetry_writer, request):
-    # type: (TelemetryWriter, Any) -> Generator[TelemetryTestSession, None, None]
+def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Generator[TelemetryTestSession, None, None]:
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
     telemetry_writer._restart_sequence()
     telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token

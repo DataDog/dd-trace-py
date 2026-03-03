@@ -5,7 +5,6 @@ import platform
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
@@ -20,10 +19,6 @@ from ddtrace.version import __version__
 from .logger import get_logger
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Tracer  # noqa:F401
-
-
 logger = get_logger(__name__)
 
 # The architecture function spawns the file subprocess on the interpreter
@@ -31,8 +26,7 @@ logger = get_logger(__name__)
 architecture = callonce(lambda: platform.architecture())
 
 
-def in_venv():
-    # type: () -> bool
+def in_venv() -> bool:
     # Works with both venv and virtualenv
     # https://stackoverflow.com/a/42580137
     return (
@@ -42,20 +36,19 @@ def in_venv():
     )
 
 
-def tags_to_str(tags):
-    # type: (Dict[str, Any]) -> str
+def tags_to_str(tags: dict[str, Any]) -> str:
     # Turn a dict of tags to a string "k1:v1,k2:v2,..."
     return ",".join(["%s:%s" % (k, v) for k, v in tags.items()])
 
 
-def collect(tracer):
-    # type: (Tracer) -> Dict[str, Any]
+def collect() -> dict[str, Any]:
     """Collect system and library information into a serializable dict."""
 
     # Inline expensive imports to avoid unnecessary overhead on startup.
     from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
     from ddtrace.internal.settings.crashtracker import config as crashtracker_config
+    from ddtrace.trace import tracer
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
@@ -79,7 +72,7 @@ def collect(tracer):
     is_venv = in_venv()
 
     packages_available = {name: version for (name, version) in get_distributions().items()}
-    integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
+    integration_configs: dict[str, Union[dict[str, Any], str]] = {}
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
         #       between the module and the library name.
@@ -157,7 +150,7 @@ def collect(tracer):
     )
 
 
-def pretty_collect(tracer, color=True):
+def pretty_collect(color=True):
     class bcolors:
         HEADER = "\033[95m"
         OKBLUE = "\033[94m"
@@ -178,7 +171,7 @@ def pretty_collect(tracer, color=True):
         bcolors.ENDC = ""
         bcolors.BOLD = ""
 
-    info = collect(tracer)
+    info = collect()
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
     Tracer enabled: {tracer_enabled}

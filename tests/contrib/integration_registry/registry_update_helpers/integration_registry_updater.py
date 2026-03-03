@@ -2,7 +2,6 @@ import json
 import os
 import pathlib
 import sys
-from typing import Tuple
 from typing import Union
 
 from filelock import FileLock
@@ -90,7 +89,7 @@ class IntegrationRegistryUpdater:
                 return False
         return True
 
-    def merge_data(self, new_dependency_versions: dict) -> Tuple[int, int]:
+    def merge_data(self, new_dependency_versions: dict) -> tuple[int, int]:
         """Merges dependency info from new_dependency_versions into registry_data. Assumes check already done."""
         # loop through the new integration data and add the updates to the registry
         added_integrations = 0

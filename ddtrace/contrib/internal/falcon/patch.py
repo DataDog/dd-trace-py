@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import falcon
 import wrapt
@@ -7,7 +6,6 @@ import wrapt
 from ddtrace import config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import tracer
 
 from .middleware import TraceMiddleware
 
@@ -23,12 +21,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(falcon, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"falcon": ">=3.0"}
 
 
@@ -49,7 +46,7 @@ def patch():
 
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
-    mw.insert(0, TraceMiddleware(tracer))
+    mw.insert(0, TraceMiddleware())
     kwargs["middleware"] = mw
 
     wrapped(*args, **kwargs)

@@ -7,6 +7,7 @@ from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
+from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
 from ddtrace.trace import Tracer
 
@@ -39,6 +40,8 @@ class StackCollector(collector.Collector):
         return f"{class_name}({attrs_str}, {slot_attrs_str})"
 
     def _init(self) -> None:
+        _task.initialize_gevent_support()
+
         if self.tracer is not None:
             core.on("ddtrace.context_provider.activate", stack.link_span)
 

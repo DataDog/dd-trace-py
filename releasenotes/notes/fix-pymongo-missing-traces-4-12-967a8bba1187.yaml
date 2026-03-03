@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    pymongo: Adds support for tracing pymongo 4.12+ AsyncMongoClient operations. The integration now automatically
+    instruments both synchronous and asynchronous clients when using pymongo >= 4.12.
+

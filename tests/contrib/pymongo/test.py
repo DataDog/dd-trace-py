@@ -3,11 +3,12 @@ import time
 
 import pymongo
 
-# project
-from ddtrace.contrib.internal.pymongo.client import normalize_filter
-from ddtrace.contrib.internal.pymongo.patch import _CHECKOUT_FN_NAME
 from ddtrace.contrib.internal.pymongo.patch import patch
 from ddtrace.contrib.internal.pymongo.patch import unpatch
+from ddtrace.contrib.internal.pymongo.utils import _CHECKOUT_FN_NAME
+
+# project
+from ddtrace.contrib.internal.pymongo.utils import normalize_filter
 from ddtrace.ext import SpanTypes
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured

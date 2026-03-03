@@ -1,18 +1,13 @@
 from enum import Enum
-from itertools import count
 import os
 import time
+import typing as t
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterable
-from typing import List
 from typing import Optional
-from typing import Type
-from typing import cast
 
 from ddtrace import config as tracer_config
-from ddtrace.debugging._config import di_config
 from ddtrace.debugging._probe.model import DEFAULT_CAPTURE_LIMITS
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_CONDITION_ERROR_RATE
 from ddtrace.debugging._probe.model import DEFAULT_PROBE_RATE
@@ -41,19 +36,18 @@ from ddtrace.debugging._probe.model import TemplateSegment
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._probe.model import TriggerFunctionProbe
 from ddtrace.debugging._probe.model import TriggerLineProbe
+from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._redaction import DDRedactedExpression
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-from ddtrace.internal.remoteconfig._pubsub import PubSub
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+from ddtrace.internal.remoteconfig import Payload
+from ddtrace.internal.remoteconfig import RCCallback
 
 
 log = get_logger(__name__)
 
 
-def xlate_keys(d: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
+def xlate_keys(d: dict[str, Any], mapping: dict[str, str]) -> dict[str, Any]:
     return {mapping.get(k, k): v for k, v in d.items()}
 
 
@@ -85,15 +79,15 @@ def _filter_by_env_and_version(f: Callable[..., Iterable[Probe]]) -> Callable[..
 
 
 class ProbeFactory(object):
-    __line_class__: Optional[Type[LineProbe]] = None
-    __function_class__: Optional[Type[FunctionProbe]] = None
+    __line_class__: Optional[type[LineProbe]] = None
+    __function_class__: Optional[type[FunctionProbe]] = None
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         raise NotImplementedError()
 
     @classmethod
-    def build(cls, args: Dict[str, Any], attribs: Dict[str, Any]) -> Any:
+    def build(cls, args: dict[str, Any], attribs: dict[str, Any]) -> Any:
         cls.update_args(args, attribs)
 
         where = attribs["where"]
@@ -122,7 +116,7 @@ class LogProbeFactory(ProbeFactory):
     __function_class__ = LogFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         take_snapshot = attribs.get("captureSnapshot", False)
 
         rate = DEFAULT_SNAPSHOT_PROBE_RATE if take_snapshot else DEFAULT_PROBE_RATE
@@ -159,7 +153,7 @@ class MetricProbeFactory(ProbeFactory):
     __function_class__ = MetricFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         # adding probe_id to probe-tags so it would be recorded as a metric tag
         args["tags"]["debugger.probeid"] = args["probe_id"]
 
@@ -176,7 +170,7 @@ class SpanProbeFactory(ProbeFactory):
     __function_class__ = SpanFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         args.update(
             condition=DDRedactedExpression.compile(attribs["when"]) if "when" in attribs else None,
             condition_error_rate=DEFAULT_PROBE_CONDITION_ERROR_RATE,  # TODO: should we take rate limit out of Probe?
@@ -188,7 +182,7 @@ class SpanDecorationProbeFactory(ProbeFactory):
     __function_class__ = SpanDecorationFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         args.update(
             target_span=attribs["targetSpan"],
             decorations=[
@@ -215,7 +209,7 @@ class TriggerProbeFactory(ProbeFactory):
     __function_class__ = TriggerFunctionProbe
 
     @classmethod
-    def update_args(cls, args, attribs):
+    def update_args(cls, args: dict[str, Any], attribs: dict[str, Any]) -> None:
         args.update(
             rate=attribs.get("sampling", {}).get("cooldownInSeconds", DEFAULT_TRIGGER_PROBE_RATE),
             session_id=attribs["session_id"],
@@ -238,7 +232,7 @@ PROBE_FACTORY = {
 }
 
 
-def build_probe(attribs: Dict[str, Any]) -> Probe:
+def build_probe(attribs: dict[str, Any]) -> Probe:
     """
     Create a new Probe instance.
     """
@@ -282,79 +276,52 @@ class ProbePollerEvent(int, Enum):
     STATUS_UPDATE = 3
 
 
-ProbePollerEventType = int
+class DebuggerRCCallback(RCCallback):
+    """Remote config callback for dynamic instrumentation probes.
 
-
-class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
-    """Probe configuration adapter for the RCM client.
-
-    This adapter turns configuration events from the RCM client into probe
-    events that can be handled easily by the debugger.
+    The periodic() method emits probe status at every polling operation (with time-based throttling).
+    The __call__() method processes dynamic instrumentation probe payloads when present.
     """
 
     def __init__(
         self,
-        data_connector: PublisherSubscriberConnector,
-        callback: Callable[[ProbePollerEvent, List[Probe]], None],
-        name: str,
+        callback: Callable[[ProbePollerEvent, list[Probe]], None],
         status_logger: ProbeStatusLogger,
+        registry: "ProbeRegistry",
+        diagnostics_interval: float,
     ) -> None:
-        super().__init__(data_connector, lambda _: None, name)
-        self._configs: Dict[str, Dict[str, Probe]] = {}
-        self._status_timestamp_sequence = count(
-            time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval
-        )
-        self._status_timestamp = next(self._status_timestamp_sequence)
+        """Initialize the debugger callback.
+
+        Args:
+            callback: Function to call when probe events occur
+            status_logger: Logger for probe status messages
+            registry: Probe registry for emitting status messages
+            diagnostics_interval: Interval in seconds between status emissions
+        """
+        self._callback = callback
         self._status_logger = status_logger
-        self._debugger_callback = callback
+        self._registry = registry
+        self._diagnostics_interval = diagnostics_interval
+        self._last_status_emission = 0.0
+        self._configs: dict[str, dict[str, Probe]] = {}
 
-    def _exec_callback(self, data, test_tracer=None):
-        # Check if it is time to re-emit probe status messages.
-        # DEV: We use the periodic signal from the remote config client worker
-        # thread to avoid having to spawn a separate thread for this.
-        if time.time() > self._status_timestamp:
-            self._send_status_update()
-            self._status_timestamp = next(self._status_timestamp_sequence)
-
-        if data:
-            log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-            for payload in data:
-                if payload.metadata is None:
-                    log.debug(
-                        "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
-                        os.getpid(),
-                        os.getppid(),
-                    )
-                    continue
-                self._update_probes_for_config(payload.metadata.id, payload.content)
-
-        # Flush any probe status messages that might have been generated
-        self._status_logger.flush()
-
-    def _send_status_update(self):
-        log.debug(
-            "[%s][P: %s] Dynamic Instrumentation: emitting probe status log messages",
-            os.getpid(),
-            os.getppid(),
-        )
-
-        self._debugger_callback(ProbePollerEvent.STATUS_UPDATE, [])
-
-    def _dispatch_probe_events(self, prev_probes: Dict[str, Probe], next_probes: Dict[str, Probe]) -> None:
+    def _dispatch_probe_events(self, prev_probes: dict[str, Probe], next_probes: dict[str, Probe]) -> None:
+        """Dispatch events for new, deleted, and modified probes."""
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
         deleted_probes = [p for _, p in prev_probes.items() if _ not in next_probes]
         modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and p != prev_probes[_]]
 
         if deleted_probes:
-            self._debugger_callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
+            self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
         if modified_probes:
-            self._debugger_callback(ProbePollerEvent.MODIFIED_PROBES, modified_probes)
+            self._callback(ProbePollerEvent.MODIFIED_PROBES, modified_probes)
         if new_probes:
-            self._debugger_callback(ProbePollerEvent.NEW_PROBES, new_probes)
+            self._callback(ProbePollerEvent.NEW_PROBES, new_probes)
 
     def _update_probes_for_config(self, config_id: str, config: Any) -> None:
-        prev_probes: Dict[str, Probe] = self._configs.get(config_id, {})
-        next_probes: Dict[str, Probe] = (
+        """Update probes for a specific configuration."""
+        prev_probes: dict[str, Probe] = self._configs.get(config_id, {})
+        next_probes: dict[str, Probe] = (
             {probe.probe_id: probe for probe in get_probes(config, self._status_logger)}
             if config not in (None, False)
             else {}
@@ -367,21 +334,46 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         else:
             self._configs.pop(config_id, None)
 
-    def _send_delete_all_probes(self) -> None:
+    def delete_all_probes(self) -> None:
+        """Delete all registered probes."""
         for prev_probes in self._configs.values():
             self._dispatch_probe_events(prev_probes, {})
-
         self._configs.clear()
 
+    def periodic(self) -> None:
+        """Periodic method called at every polling operation.
 
-class ProbeRCAdapter(PubSub):
-    __publisher_class__ = RemoteConfigPublisher
-    __subscriber_class__ = DebuggerRemoteConfigSubscriber
-    __shared_data__ = PublisherSubscriberConnector()
+        Checks if it's time to emit probe status messages based on the diagnostics interval.
+        """
+        current_time = time.time()
+        if current_time - self._last_status_emission >= self._diagnostics_interval:
+            log.debug(
+                "[%s][P: %s] Dynamic Instrumentation: emitting probe status log messages",
+                os.getpid(),
+                os.getppid(),
+            )
+            self._registry.log_probes_status()
+            self._last_status_emission = current_time
 
-    def __init__(self, _preprocess_results, callback, status_logger):
-        self._publisher = self.__publisher_class__(self.__shared_data__, _preprocess_results)
-        self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, "DEBUGGER", status_logger)
+        # Flush the status logger
+        self._status_logger.flush()
 
-    def delete_all_probes(self):
-        cast(DebuggerRemoteConfigSubscriber, self._subscriber)._send_delete_all_probes()
+    def __call__(self, payloads: t.Sequence[Payload]) -> None:
+        """Process dynamic instrumentation probe configuration payloads.
+
+        Args:
+            payloads: Sequence of configuration payloads to process
+        """
+        log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
+        for payload in payloads:
+            if payload.metadata is None:
+                log.debug(
+                    "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
+                    os.getpid(),
+                    os.getppid(),
+                )
+                continue
+            self._update_probes_for_config(payload.metadata.id, payload.content)
+
+        # Flush any probe status messages that might have been generated
+        self._status_logger.flush()

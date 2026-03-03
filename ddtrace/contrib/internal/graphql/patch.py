@@ -1,23 +1,12 @@
+from collections.abc import Callable
+from collections.abc import Iterable
 from io import StringIO
 import os
 import re
 import sys
 import traceback
-from typing import TYPE_CHECKING
-from typing import Dict
-from typing import List
 from typing import Optional
-
-from ddtrace.internal import core
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.trace import Span
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Callable  # noqa:F401
-    from typing import Iterable  # noqa:F401
-    from typing import Union  # noqa:F401
-
+from typing import Union
 
 import graphql
 from graphql import MiddlewareManager
@@ -33,9 +22,11 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -43,6 +34,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
+from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
 
@@ -55,12 +47,11 @@ else:
     from graphql.language.ast import DocumentNode as Document
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return _graphql_version_str
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"graphql": ">=3.1"}
 
 
@@ -189,7 +180,7 @@ def _traced_execute(func, args, kwargs):
 
     with tracer.trace(
         name="graphql.execute",
-        resource=source_str,
+        resource=source_str or None,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
@@ -219,7 +210,7 @@ def _traced_query(func, args, kwargs):
 
     with tracer.trace(
         name=schematize_url_operation("graphql.request", protocol="graphql", direction=SpanDirection.INBOUND),
-        resource=resource,
+        resource=resource or None,
         service=trace_utils.int_service(pin, config.graphql),
         span_type=SpanTypes.GRAPHQL,
     ) as span:
@@ -257,8 +248,7 @@ def _resolver_middleware(next_middleware, root, info, **args):
         return next_middleware(root, info, **args)
 
 
-def _inject_trace_middleware_to_args(trace_middleware, args, kwargs):
-    # type: (Callable, Tuple, Dict) -> Tuple[Tuple, Dict]
+def _inject_trace_middleware_to_args(trace_middleware: Callable, args: tuple, kwargs: dict) -> tuple[tuple, dict]:
     """
     Adds a trace middleware to graphql.execute(..., middleware, ...)
     """
@@ -275,7 +265,7 @@ def _inject_trace_middleware_to_args(trace_middleware, args, kwargs):
             # trace_middleware. For the trace_middleware to be called a new MiddlewareManager will
             # need to initialized. This is handled in graphql.execute():
             # https://github.com/graphql-python/graphql-core/blob/v3.2.1/src/graphql/execution/execute.py#L254
-            middlewares = middlewares.middlewares  # type: Iterable
+            middlewares: Iterable = middlewares.middlewares
     except ArgumentError:
         middlewares = []
 
@@ -288,10 +278,9 @@ def _inject_trace_middleware_to_args(trace_middleware, args, kwargs):
     return args, kwargs
 
 
-def _get_source_str(obj):
-    # type: (Union[str, Source, Document]) -> str
+def _get_source_str(obj: Union[str, Source, Document]) -> str:
     """
-    Parses graphql Documents and Source objects to retrieve
+    Parses graphql Documents and "Source" objects to retrieve
     the graphql source input for a request.
     """
     if isinstance(obj, str):
@@ -306,7 +295,7 @@ def _get_source_str(obj):
     return re.sub(r"\s+", " ", source_str).strip()
 
 
-def _validate_error_extensions(error: GraphQLError, error_extension_fields: List) -> Dict:
+def _validate_error_extensions(error: GraphQLError, error_extension_fields: list) -> dict:
     """Validate user-provided extensions format and return the formatted extensions.
     All extensions values MUST be stringified, EXCEPT for numeric values and
     boolean values, which remain in their original type.
@@ -322,7 +311,7 @@ def _validate_error_extensions(error: GraphQLError, error_extension_fields: List
     return error_extensions
 
 
-def _set_span_errors(errors: List[GraphQLError], span: Span) -> None:
+def _set_span_errors(errors: list[GraphQLError], span: Span) -> None:
     """
     Set tags on error span and set span events on each error.
     """

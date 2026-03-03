@@ -27,15 +27,16 @@ from ddtrace import config
 from ddtrace.internal import packages
 from ddtrace.internal.compat import singledispatchmethod
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.periodic import Timer
+from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.symbol_db import config as symdb_config
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import connector
@@ -84,7 +85,7 @@ def func_origin(f: FunctionType) -> t.Optional[str]:
     return filename if Path(filename).exists() else None
 
 
-def get_fields(cls: type) -> t.Set[str]:
+def get_fields(cls: type) -> set[str]:
     # If the class has a __slots__ attribute, return it.
     try:
         return set(object.__getattribute__(cls, "__slots__"))
@@ -122,7 +123,7 @@ class Symbol:
     type: t.Optional[str] = None
 
     @classmethod
-    def from_code(cls, code: CodeType) -> t.List["Symbol"]:
+    def from_code(cls, code: CodeType) -> list["Symbol"]:
         nargs = code.co_argcount + bool(code.co_flags & CO_VARARGS) + bool(code.co_flags & CO_VARKEYWORDS)
         arg_names = code.co_varnames[:nargs]
         locals_names = code.co_varnames[nargs:]
@@ -147,7 +148,7 @@ class ScopeType(str, Enum):
 @dataclass
 class ScopeData:
     origin: Path
-    seen: t.Set[t.Any]
+    seen: set[t.Any]
 
 
 @dataclass
@@ -159,8 +160,8 @@ class Scope:
     source_file: str
     start_line: int
     end_line: int
-    symbols: t.List[Symbol]
-    scopes: t.List["Scope"]
+    symbols: list[Symbol]
+    scopes: list["Scope"]
 
     language_specifics: dict = field(default_factory=dict)
 
@@ -172,9 +173,15 @@ class Scope:
     def _get_from(cls, _: t.Any, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         return None
 
-    @_get_from.register
+    # DEV: We pass the type explicitly to all @_get_from.register() calls below
+    # rather than relying on annotation inference. When the type is omitted,
+    # singledispatch calls get_type_hints() to determine the dispatch type, which
+    # evaluates forward references (e.g. Optional["Scope"]) at class-definition
+    # time — before Scope is fully defined — causing a NameError on Python 3.13+.
+    # See https://github.com/python/cpython/issues/86153
+    @_get_from.register(ModuleType)
     @classmethod
-    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True):
+    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if module in data.seen:
             return None
         data.seen.add(module)
@@ -226,9 +233,9 @@ class Scope:
             language_specifics={"file_hash": source_git_hash.hexdigest()},
         )
 
-    @_get_from.register
+    @_get_from.register(type)
     @classmethod
-    def _(cls, obj: type, data: ScopeData, recursive: bool = True):
+    def _(cls, obj: type, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if obj in data.seen:
             return None
         data.seen.add(obj)
@@ -316,9 +323,9 @@ class Scope:
             language_specifics={"super_classes": super_classes},
         )
 
-    @_get_from.register
+    @_get_from.register(CodeType)
     @classmethod
-    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True):
+    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         # DEV: A code object with a mutable probe is currently not hashable, so
         # we cannot put it directly into the set.
         code_id = f"code-{id(code)}"
@@ -349,9 +356,9 @@ class Scope:
             ],
         )
 
-    @_get_from.register
+    @_get_from.register(FunctionType)
     @classmethod
-    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True):
+    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if f in data.seen:
             return None
         data.seen.add(f)
@@ -397,9 +404,9 @@ class Scope:
 
         return code_scope
 
-    @_get_from.register
+    @_get_from.register(classmethod)
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -407,9 +414,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(staticmethod)
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -417,9 +424,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(property)
     @classmethod
-    def _(cls, pr: property, data: ScopeData, recursive: bool = True):
+    def _(cls, pr: property, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if pr.fget in data.seen:
             return None
         data.seen.add(pr.fget)
@@ -466,14 +473,15 @@ class Scope:
 class ScopeContext:
     __scope_limit__: int = 400
 
-    def __init__(self, scopes: t.Optional[t.List[Scope]] = None) -> None:
-        self._scopes: t.List[Scope] = scopes if scopes is not None else []
+    def __init__(self, scopes: t.Optional[list[Scope]] = None) -> None:
+        self._scopes: list[Scope] = scopes if scopes is not None else []
         self._scopes_lock = RLock()
 
         self._event_data = {
             "ddsource": "python",
             "service": config.service or DEFAULT_SERVICE_NAME,
             "runtimeId": get_runtime_id(),
+            "parentId": get_ancestor_runtime_id(),
             "type": "symdb",
         }
 
@@ -608,7 +616,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     def __init__(self) -> None:
         super().__init__()
 
-        self._seen_modules: t.Set[str] = set()
+        self._seen_modules: set[str] = set()
         self._update_called = False
         self._processed_files_count = 0
 
@@ -667,7 +675,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             self._processed_files_count += 1
 
     @classmethod
-    def update(cls):
+    def update(cls) -> None:
         instance = t.cast(SymbolDatabaseUploader, cls._instance)
         if instance is None:
             return
@@ -682,6 +690,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         instance._update_called = True
 
     @classmethod
-    def install(cls, shallow=True):
+    def install(cls, shallow: bool = True) -> None:
         cls.shallow = shallow
         return super().install()

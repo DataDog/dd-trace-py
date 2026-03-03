@@ -6,7 +6,7 @@ FROM debian:trixie-slim
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.14.2
-ARG RIOT_VERSION=0.20.1
+ARG RIOT_VERSION=0.21.0
 ARG UV_VERSION=0.9.0
 
 # http://bugs.python.org/issue19846

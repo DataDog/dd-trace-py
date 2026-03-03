@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for ``json`` metric type in evaluation metrics. 
+    Users can now submit ``dict`` values as evaluation metrics using ``LLMObs.submit_evaluation()`` 
+    with ``metric_type="json"``. Additionally, experiment evaluators that return ``dict`` values 
+    are automatically detected as ``json`` metric type.

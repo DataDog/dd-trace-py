@@ -37,7 +37,16 @@ def get_platform_details():
     python_version = platform.python_version()
     py_major_minor = ".".join(python_version.split(".")[:2])
 
-    return py_major_minor, "manylinux2014"
+    # Determine architecture
+    current_arch = platform.machine()
+    if current_arch == "x86_64":
+        current_arch = "x86_64"
+    elif current_arch in ["aarch64", "arm64"]:
+        current_arch = "aarch64"
+    else:
+        current_arch = "x86_64"  # Default fallback
+
+    return py_major_minor, "manylinux2014", current_arch
 
 
 @pytest.fixture(scope="session")
@@ -61,8 +70,8 @@ def ddtrace_injection_artifact():
         )
 
         # 2. Create the target site-packages directory structure
-        py_major_minor, platform_tag = get_platform_details()
-        target_site_packages_name = f"site-packages-ddtrace-py{py_major_minor}-{platform_tag}"
+        py_major_minor, platform_tag, arch = get_platform_details()
+        target_site_packages_name = f"site-packages-ddtrace-py{py_major_minor}-{platform_tag}-{arch}"
         target_site_packages_path = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs", target_site_packages_name)
         os.makedirs(target_site_packages_path, exist_ok=True)
 

@@ -1,6 +1,4 @@
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -13,10 +11,10 @@ from ddtrace.llmobs.types import ToolResult
 
 log = get_logger(__name__)
 
-DocumentType = Dict[str, Union[str, int, float]]
+DocumentType = dict[str, Union[str, int, float]]
 
 
-def _extract_tool_call(tool_call: Dict[str, Any]) -> "ToolCall":
+def _extract_tool_call(tool_call: dict[str, Any]) -> "ToolCall":
     """Extract and validate a tool call dictionary."""
     if not isinstance(tool_call, dict):
         raise TypeError("Each tool_call must be a dictionary.")
@@ -44,7 +42,7 @@ def _extract_tool_call(tool_call: Dict[str, Any]) -> "ToolCall":
     return formatted_tool_call
 
 
-def _extract_tool_result(tool_result: Dict[str, Any]) -> "ToolResult":
+def _extract_tool_result(tool_result: dict[str, Any]) -> "ToolResult":
     """Extract and validate a tool result dictionary."""
     if not isinstance(tool_result, dict):
         raise TypeError("Each tool_result must be a dictionary.")
@@ -72,7 +70,7 @@ def _extract_tool_result(tool_result: Dict[str, Any]) -> "ToolResult":
     return formatted_tool_result
 
 
-def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[ToolDefinition]:
+def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[ToolDefinition]:
     """Return a list of validated tool definitions."""
     if not isinstance(tool_definitions, list):
         log.warning("tool_definitions must be a list of dictionaries.")
@@ -116,7 +114,7 @@ def extract_tool_definitions(tool_definitions: List[Dict[str, Any]]) -> List[Too
 
 
 class Messages:
-    def __init__(self, messages: Union[List[Dict[str, Any]], Dict[str, Any], str]):
+    def __init__(self, messages: Union[list[dict[str, Any]], dict[str, Any], str]):
         self.messages = []
         if not isinstance(messages, list):
             messages = [messages]  # type: ignore[list-item]
@@ -156,7 +154,7 @@ class Messages:
 
 
 class Documents:
-    def __init__(self, documents: Union[List[DocumentType], DocumentType, str]):
+    def __init__(self, documents: Union[list[DocumentType], DocumentType, str]):
         self.documents = []
         if not isinstance(documents, list):
             documents = [documents]  # type: ignore[list-item]

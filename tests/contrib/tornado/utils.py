@@ -29,7 +29,6 @@ class TornadoTestCase(TracerTestCase, AsyncHTTPTestCase):
         settings = self.get_settings()
         trace_settings = settings.get("datadog_trace", {})
         settings["datadog_trace"] = trace_settings
-        trace_settings["tracer"] = self.tracer
         self.app = app.make_app(settings=settings)
         return self.app
 

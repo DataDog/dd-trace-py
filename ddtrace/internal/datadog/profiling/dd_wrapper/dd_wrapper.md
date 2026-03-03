@@ -100,12 +100,11 @@ In order to minimize overhead, strings are cached (and de-duplicated) in a cache
 
 A Profile wraps the collection of samples.
 A Profile is periodically flushed to the Datadog backend during an upload operation.
-A profile actually manages its own internal cache of strings, which makes it slightly unfortunate that we de-duplicate strings _twice_.
-This is a little bit of a wart, but in practice we're still way under the memory overhead of the pure-Python collection system in mainline dd-trace-py.
+The strings used in a Profiles (e.g. function and file names) are interned/stored by the Sampler in the
+`ProfilesDictionary`, which is reused across Samples and Profiles to reduce memory overhead and copies.
 
-For simplicity, the Profile object maintains two `ddog_prof_Profile`s using a red-black swap mechanism.
-When one Profile is consumed by the uploader, it gets swapped with the other profile.
-This probably isn't actually necessary anymore.
+The Profile is locked during serialization and reset after encoding completes.
+The actual HTTP upload happens without holding the profile lock.
 
 
 ### Uploader

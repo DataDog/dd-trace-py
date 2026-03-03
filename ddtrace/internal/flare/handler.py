@@ -1,6 +1,4 @@
 from typing import Any
-from typing import Callable
-from typing import List
 
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
@@ -8,24 +6,6 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-
-def _tracerFlarePubSub():
-    from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
-    from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
-    from ddtrace.internal.remoteconfig._pubsub import PubSub
-
-    class _TracerFlarePubSub(PubSub):
-        __publisher_class__ = RemoteConfigPublisher
-        __subscriber_class__ = TracerFlareSubscriber
-        __shared_data__ = PublisherSubscriberConnector()
-
-        def __init__(self, callback: Callable, flare: Flare):
-            self._publisher = self.__publisher_class__(self.__shared_data__, None)
-            self._subscriber = self.__subscriber_class__(self.__shared_data__, callback, flare)
-
-    return _TracerFlarePubSub
 
 
 def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
@@ -52,7 +32,7 @@ def _handle_tracer_flare(flare: Flare, data: dict, cleanup: bool = False):
         log.warning("Received unexpected tracer flare product type: %s", product_type)
 
 
-def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
+def _prepare_tracer_flare(flare: Flare, configs: list[Any]) -> bool:
     """
     Update configurations to start sending tracer logs to a file
     to be sent in a flare later.
@@ -82,7 +62,7 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
     return False
 
 
-def _generate_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
+def _generate_tracer_flare(flare: Flare, configs: list[Any]) -> bool:
     """
     Revert tracer flare configurations back to original state
     before sending the flare.

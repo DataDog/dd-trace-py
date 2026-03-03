@@ -43,7 +43,7 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
     return new_ddconfig
 
 
-def _fetch_known_tests_side_effect(known_test_ids: t.Optional[t.Set[TestId]] = None):
+def _fetch_known_tests_side_effect(known_test_ids: t.Optional[set[TestId]] = None):
     if known_test_ids is None:
         known_test_ids = set()
 
@@ -72,7 +72,7 @@ def set_up_mock_civisibility(
     require_git: bool = False,
     suite_skipping_mode: bool = False,
     skippable_items=None,
-    known_test_ids: t.Optional[t.Set[TestId]] = None,
+    known_test_ids: t.Optional[set[TestId]] = None,
     efd_settings: t.Optional[EarlyFlakeDetectionSettings] = None,
 ):
     """This is a one-stop-shop that patches all parts of CI Visibility for testing.
@@ -191,8 +191,8 @@ def _get_default_os_env_vars():
 
 
 def _get_default_ci_env_vars(
-    new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=None, full_clear=False
-) -> t.Dict[str, str]:
+    new_vars: t.Optional[dict[str, str]] = None, mock_ci_env=None, full_clear=False
+) -> dict[str, str]:
     _env = {}
 
     if not full_clear:
@@ -215,7 +215,7 @@ def _get_default_ci_env_vars(
 
 @contextmanager
 def _ci_override_env(
-    new_vars: t.Optional[t.Dict[str, str]] = None, mock_ci_env=False, replace_os_env=True, full_clear=False
+    new_vars: t.Optional[dict[str, str]] = None, mock_ci_env=False, replace_os_env=True, full_clear=False
 ):
     env_vars = _get_default_ci_env_vars(new_vars, mock_ci_env, full_clear)
     with override_env(env_vars, replace_os_env=replace_os_env), mock.patch("ddtrace.tracer", CIVisibilityTracer()):

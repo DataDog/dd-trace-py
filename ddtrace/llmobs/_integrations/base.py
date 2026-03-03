@@ -1,11 +1,8 @@
 import abc
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
@@ -45,7 +42,7 @@ class BaseLLMIntegration:
         """Set default LLM span attributes when possible."""
         pass
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
+    def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
         """
         Start a LLM request span.
         Reuse the service of the application since we'll tag downstream request spans with the LLM name.
@@ -58,7 +55,7 @@ class BaseLLMIntegration:
         span = tracer.start_span(
             span_name,
             child_of=parent_context,
-            service=int_service(pin, self.integration_config),
+            service=int_service(None, self.integration_config),
             resource=operation_id,
             span_type=span_type,
             activate=True,
@@ -80,8 +77,8 @@ class BaseLLMIntegration:
     def llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
@@ -97,14 +94,14 @@ class BaseLLMIntegration:
     def _llmobs_set_tags(
         self,
         span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
+        args: list[Any],
+        kwargs: dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
         raise NotImplementedError()
 
-    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+    def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:
         return None
 
     def _is_instrumented_proxy_url(self, base_url: Optional[str] = None) -> bool:

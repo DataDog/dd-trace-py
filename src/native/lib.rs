@@ -2,12 +2,14 @@
 mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
+mod config;
 mod data_pipeline;
 mod ddsketch;
 mod ffe;
 mod library_config;
 mod log;
 mod py_string;
+mod rand;
 mod span;
 
 use pyo3::prelude::*;
@@ -38,6 +40,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
     data_pipeline::register_data_pipeline(m)?;
     span::register_native_span(m)?;
+    rand::register_rand(m)?;
+    m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
 
     // Add FFE submodule
     m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;

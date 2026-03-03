@@ -5,11 +5,8 @@ import os
 from os.path import isabs
 from os.path import relpath
 import sys
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TextIO
-from typing import Tuple
 
 from austin.stats import Frame  # type: ignore[import]
 from austin.stats import InvalidSample
@@ -20,7 +17,7 @@ from rich.console import Console  # type: ignore[import]
 from rich.progress import track  # type: ignore[import]
 
 
-FoldedStack = List[Frame]
+FoldedStack = list[Frame]
 
 CONSOLE = Console(file=sys.stderr)
 CWD = os.getcwd()
@@ -35,7 +32,7 @@ else:
 
 # -- MODEL --
 
-CACHED_NORMALIZED_STACKS: Dict[int, FoldedStack] = {}
+CACHED_NORMALIZED_STACKS: dict[int, FoldedStack] = {}
 DEFAULT_THRESHOLD = 1e-3
 
 
@@ -48,11 +45,11 @@ def _normalized_stack(stack: FoldedStack) -> FoldedStack:
 
 
 def score_stacks(
-    x: List[Tuple[FoldedStack, Metric]], y: List[Tuple[FoldedStack, Metric]]
-) -> List[Tuple[Tuple[int, int], float]]:
+    x: list[tuple[FoldedStack, Metric]], y: list[tuple[FoldedStack, Metric]]
+) -> list[tuple[tuple[int, int], float]]:
     """O(n * log(n)), n = len(x) * len(y)."""
 
-    def score_stack(a: Tuple[FoldedStack, Metric], b: Tuple[FoldedStack, Metric]) -> float:
+    def score_stack(a: tuple[FoldedStack, Metric], b: tuple[FoldedStack, Metric]) -> float:
         """Score two folded stacks (modulo frames contributed by ddtrace).
 
         For multiple matches, prioritise those with similar Metric.
@@ -88,11 +85,11 @@ def score_stacks(
 
 
 def match_folded_stacks(
-    x: List[Tuple[FoldedStack, Metric]],
-    y: List[Tuple[FoldedStack, Metric]],
+    x: list[tuple[FoldedStack, Metric]],
+    y: list[tuple[FoldedStack, Metric]],
     scale: float,
     threshold: float = DEFAULT_THRESHOLD,
-) -> List[Tuple[int, int]]:
+) -> list[tuple[int, int]]:
     """O(len(x) * len(y))."""
     ss = score_stacks(x, y)
     mx, my = set(), set()
@@ -165,9 +162,9 @@ def match_folded_stacks(
     return matched_stacks_plus, matched_stacks_minus, new_stacks, old_stacks
 
 
-def compressed(source: TextIO) -> Tuple[str, int]:
+def compressed(source: TextIO) -> tuple[str, int]:
     """Compress the source."""
-    stats: Dict[str, int] = {}
+    stats: dict[str, int] = {}
     total_time = 0
     for line in track(
         source.read().splitlines(keepends=False),
@@ -189,7 +186,7 @@ def compressed(source: TextIO) -> Tuple[str, int]:
     return "\n".join([stack + " " + str(t) for stack, t in stats.items()]), total_time
 
 
-def get_folded_stacks(text: str, threshold: float = DEFAULT_THRESHOLD) -> List[Tuple[FoldedStack, Metric]]:
+def get_folded_stacks(text: str, threshold: float = DEFAULT_THRESHOLD) -> list[tuple[FoldedStack, Metric]]:
     """Get the folded stacks and Metric from a string of samples."""
     x = []
     max_time = 1

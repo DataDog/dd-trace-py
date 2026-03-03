@@ -12,7 +12,7 @@ To install the middleware, add::
 
 and create a `TraceMiddleware` object::
 
-    traced_app = TraceMiddleware(cherrypy, tracer, service="my-cherrypy-app")
+    traced_app = TraceMiddleware(cherrypy, service="my-cherrypy-app")
 
 
 Configuration
@@ -40,9 +40,8 @@ Here is the end result, in a sample app::
 
     import cherrypy
 
-    from ddtrace.trace import tracer
     from ddtrace.contrib.cherrypy import TraceMiddleware
-    TraceMiddleware(cherrypy, tracer, service="my-cherrypy-app")
+    TraceMiddleware(cherrypy, service="my-cherrypy-app")
 
     @cherrypy.tools.tracer()
     class HelloWorld(object):

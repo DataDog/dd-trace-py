@@ -31,7 +31,7 @@ log = get_logger(__name__)
 
 
 class TracedClient(ObjectProxy):
-    """TracedClient is a proxy for a pylibmc.Client that times it's network operations."""
+    """TracedClient is a proxy for a pylibmc.Client that times its network operations."""
 
     def __init__(self, client=None, service=memcached.SERVICE, tracer=None, *args, **kwargs):
         """Create a traced client that wraps the given memcached client."""

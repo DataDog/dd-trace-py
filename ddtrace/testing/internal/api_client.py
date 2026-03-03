@@ -3,12 +3,11 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import os
 from pathlib import Path
-import time
 import typing as t
 import uuid
 
-from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import EMPTY_NAME
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendConnectorSetup
@@ -26,15 +25,37 @@ from ddtrace.testing.internal.test_data import TestRef
 
 log = logging.getLogger(__name__)
 
+_DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+
+
+def _get_known_tests_max_pages() -> int:
+    """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
+    try:
+        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+    except ValueError:
+        log.warning(
+            "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    if value <= 0:
+        log.warning(
+            "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive (%s), using default: %s",
+            value,
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    return value
+
 
 class APIClient:
     def __init__(
         self,
         service: str,
         env: str,
-        env_tags: t.Dict[str, str],
+        env_tags: dict[str, str],
         itr_skipping_level: ITRSkippingLevel,
-        configurations: t.Dict[str, str],
+        configurations: dict[str, str],
         connector_setup: BackendConnectorSetup,
         telemetry_api: TelemetryAPI,
     ) -> None:
@@ -77,7 +98,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot fetch settings (missing key: %s)", e)
+            log.warning("Git info not available, cannot fetch settings (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return Settings()
 
@@ -88,7 +109,7 @@ class APIClient:
             result.on_error_raise_exception()
 
         except Exception as e:
-            log.error("Error getting settings from API: %s", e)
+            log.warning("Error getting settings from API: %s", e)
             return Settings()
 
         try:
@@ -96,14 +117,14 @@ class APIClient:
             settings = Settings.from_attributes(attributes)
 
         except Exception as e:
-            log.exception("Error getting settings from API: %s", e)
+            log.warning("Error getting settings from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
             return Settings()
 
         self.telemetry_api.record_settings(settings)
         return settings
 
-    def get_known_tests(self) -> t.Set[TestRef]:
+    def get_known_tests(self) -> set[TestRef]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -111,53 +132,85 @@ class APIClient:
             error="known_tests.request_errors",
         )
 
-        try:
-            request_data: t.Dict[str, t.Any] = {
-                "data": {
-                    "id": str(uuid.uuid4()),
-                    "type": "ci_app_libraries_tests_request",
-                    "attributes": {
-                        "service": self.service,
-                        "env": self.env,
-                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                        "configurations": self.configurations,
-                    },
+        page_state: t.Optional[str] = None
+        known_test_ids: set[TestRef] = set()
+        max_pages = _get_known_tests_max_pages()
+
+        for page_number in range(max_pages):
+            # First page: empty page_info lets backend use its default max (10k).
+            # Subsequent pages: only send page_state.
+            page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+
+            try:
+                request_data: dict[str, t.Any] = {
+                    "data": {
+                        "id": str(uuid.uuid4()),
+                        "type": "ci_app_libraries_tests_request",
+                        "attributes": {
+                            "service": self.service,
+                            "env": self.env,
+                            "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                            "configurations": self.configurations,
+                            "page_info": page_info,
+                        },
+                    }
                 }
-            }
 
-        except KeyError as e:
-            log.error("Git info not available, cannot fetch known tests (missing key: %s)", e)
-            telemetry.record_error(ErrorType.UNKNOWN)
-            return set()
+            except KeyError as e:
+                log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
+                telemetry.record_error(ErrorType.UNKNOWN)
+                return set()
 
-        try:
-            result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
-            result.on_error_raise_exception()
+            try:
+                result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+                result.on_error_raise_exception()
 
-        except Exception as e:
-            log.exception("Error getting known tests from API: %s", e)
-            return set()
+            except Exception as e:
+                log.warning("Error getting known tests from API: %s", e)
+                return set()
 
-        try:
-            tests_data = result.parsed_response["data"]["attributes"]["tests"]
-            known_test_ids = set()
+            try:
+                attributes = result.parsed_response["data"]["attributes"]
+                tests_data = attributes["tests"]
 
-            for module, suites in tests_data.items():
-                module_ref = ModuleRef(module)
-                for suite, tests in suites.items():
-                    suite_ref = SuiteRef(module_ref, suite)
-                    for test in tests:
-                        known_test_ids.add(TestRef(suite_ref, test))
+                for module, suites in tests_data.items():
+                    module_ref = ModuleRef(module)
+                    for suite, tests in suites.items():
+                        suite_ref = SuiteRef(module_ref, suite)
+                        for test in tests:
+                            known_test_ids.add(TestRef(suite_ref, test))
 
-        except Exception:
-            log.exception("Error getting known tests from API")
+                page_info = attributes.get("page_info")
+                if not page_info:
+                    break
+                if not isinstance(page_info, dict):
+                    log.warning("Known tests response page_info is not a dict")
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
+
+                has_next = page_info.get("has_next")
+                if not has_next:
+                    break
+
+                page_state = page_info.get("cursor")
+                if not page_state:
+                    log.warning("Known tests response missing pagination cursor on page %d", page_number + 1)
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
+
+            except Exception:
+                log.warning("Error getting known tests from API")
+                telemetry.record_error(ErrorType.BAD_JSON)
+                return set()
+        else:
+            log.warning("Known tests pagination exceeded max pages: %d", max_pages)
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
         return known_test_ids
 
-    def get_test_management_properties(self) -> t.Dict[TestRef, TestProperties]:
+    def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="test_management_tests.request",
             duration="test_management_tests.request_ms",
@@ -182,7 +235,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot fetch Test Management properties (missing key: %s)", e)
+            log.warning("Git info not available, cannot fetch Test Management properties (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return {}
 
@@ -193,11 +246,11 @@ class APIClient:
             result.on_error_raise_exception()
 
         except Exception as e:
-            log.error("Error getting Test Management properties from API: %s", e)
+            log.warning("Error getting Test Management properties from API: %s", e)
             return {}
 
         try:
-            test_properties: t.Dict[TestRef, TestProperties] = {}
+            test_properties: dict[TestRef, TestProperties] = {}
             modules = result.parsed_response["data"]["attributes"]["modules"]
 
             for module_name, module_data in modules.items():
@@ -215,15 +268,15 @@ class APIClient:
                             attempt_to_fix=properties.get("attempt_to_fix", False),
                         )
 
-        except Exception:
-            log.exception("Failed to parse Test Management tests data from API")
+        except Exception as e:
+            log.warning("Failed to parse Test Management tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
             return {}
 
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
         return test_properties
 
-    def get_known_commits(self, latest_commits: t.List[str]) -> t.List[str]:
+    def get_known_commits(self, latest_commits: list[str]) -> list[str]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="git_requests.search_commits",
             duration="git_requests.search_commits_ms",
@@ -240,7 +293,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot fetch known commits (missing key: %s)", e)
+            log.warning("Git info not available, cannot fetch known commits (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return []
 
@@ -251,14 +304,14 @@ class APIClient:
             result.on_error_raise_exception()
 
         except Exception as e:
-            log.error("Error getting known commits from API: %s", e)
+            log.warning("Error getting known commits from API: %s", e)
             return []
 
         try:
             known_commits = [item["id"] for item in result.parsed_response["data"] if item["type"] == "commit"]
 
-        except Exception:
-            log.exception("Failed to parse search_commits data")
+        except Exception as e:
+            log.warning("Failed to parse search_commits data: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
             return []
 
@@ -279,7 +332,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot send git packfile (missing key: %s)", e)
+            log.warning("Git info not available, cannot send git packfile (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return None
 
@@ -298,8 +351,8 @@ class APIClient:
                 ),
             ]
 
-        except Exception:
-            log.exception("Error sending Git pack data")
+        except Exception as e:
+            log.warning("Error sending Git pack data: %s", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return None
 
@@ -309,13 +362,13 @@ class APIClient:
             )
             result.on_error_raise_exception()
 
-        except Exception:
-            log.warning("Failed to upload Git pack data")
+        except Exception as e:
+            log.warning("Failed to upload Git pack data: %s", e)
             return None
 
         return len(content)
 
-    def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+    def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
@@ -340,7 +393,7 @@ class APIClient:
             }
 
         except KeyError as e:
-            log.error("Git info not available, cannot get skippable items (missing key: %s)", e)
+            log.warning("Git info not available, cannot get skippable items (missing key: %s)", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return set(), None
 
@@ -349,11 +402,11 @@ class APIClient:
             result.on_error_raise_exception()
 
         except Exception as e:
-            log.error("Error getting skippable tests from API: %s", e)
+            log.warning("Error getting skippable tests from API: %s", e)
             return set(), None
 
         try:
-            skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
+            skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
 
             for item in result.parsed_response["data"]:
                 if item["type"] in ("test", "suite"):
@@ -367,8 +420,8 @@ class APIClient:
 
             correlation_id = result.parsed_response["meta"]["correlation_id"]
 
-        except Exception:
-            log.exception("Failed to parse skippable tests data from API")
+        except Exception as e:
+            log.warning("Failed to parse skippable tests data from API: %s", e)
             telemetry.record_error(ErrorType.BAD_JSON)
             return set(), None
 
@@ -376,79 +429,8 @@ class APIClient:
 
         return skippable_items, correlation_id
 
-    def _create_coverage_report_event(
-        self, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
-    ) -> t.Dict[str, t.Any]:
-        """
-        Create the event JSON for the coverage report upload with git and CI tags.
-
-        Args:
-            coverage_format: The format of the coverage report
-            tags: Optional additional tags to include
-
-        Returns:
-            Event dictionary with type, format, and all available git/CI tags
-        """
-        event: t.Dict[str, t.Any] = {
-            "type": "coverage_report",
-            "format": coverage_format,
-            "timestamp": int(time.time() * 1000),  # FIXME: Is this needed?
-        }
-
-        # Add any custom tags provided
-        if tags:
-            event.update(tags)
-
-        # Add git tags from env_tags
-        git_tags = [
-            GitTag.REPOSITORY_URL,
-            GitTag.COMMIT_SHA,
-            GitTag.BRANCH,
-            GitTag.TAG,
-            GitTag.COMMIT_MESSAGE,
-            GitTag.COMMIT_AUTHOR_NAME,
-            GitTag.COMMIT_AUTHOR_EMAIL,
-            GitTag.COMMIT_AUTHOR_DATE,
-            GitTag.COMMIT_COMMITTER_NAME,
-            GitTag.COMMIT_COMMITTER_EMAIL,
-            GitTag.COMMIT_COMMITTER_DATE,
-        ]
-
-        for git_tag in git_tags:
-            if git_tag in self.env_tags:
-                event[git_tag] = self.env_tags[git_tag]
-
-        # Warn if Git repository URL is missing
-        if GitTag.REPOSITORY_URL not in self.env_tags:
-            log.warning("Git repository URL not available for coverage report upload")
-
-        # Add CI tags from env_tags
-        ci_tags = [
-            CITag.PROVIDER_NAME,
-            CITag.PIPELINE_ID,
-            CITag.PIPELINE_NAME,
-            CITag.PIPELINE_NUMBER,
-            CITag.PIPELINE_URL,
-            CITag.JOB_NAME,
-            CITag.JOB_URL,
-            CITag.STAGE_NAME,
-            CITag.WORKSPACE_PATH,
-            CITag.NODE_NAME,
-            CITag.NODE_LABELS,
-        ]
-
-        for ci_tag in ci_tags:
-            if ci_tag in self.env_tags:
-                event[ci_tag] = self.env_tags[ci_tag]
-
-        # Add PR number if available
-        if "git.pull_request.number" in self.env_tags:
-            event["pr.number"] = self.env_tags["git.pull_request.number"]
-
-        return event
-
     def upload_coverage_report(
-        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
     ) -> bool:
         """
         Upload a coverage report to Datadog CI Intake.
@@ -480,8 +462,21 @@ class APIClient:
                 "Compressed coverage report: %d bytes -> %d bytes", len(coverage_report_bytes), len(compressed_report)
             )
 
+            # Warn if Git repository URL is missing
+            if GitTag.REPOSITORY_URL not in self.env_tags:
+                log.warning("Git repository URL not available for coverage report upload")
+
             # Create the event payload with git and CI tags
-            event_data = self._create_coverage_report_event(coverage_format, tags)
+            from ddtrace.internal.test_visibility.coverage_report_utils import create_coverage_report_event
+
+            all_tags = dict(self.env_tags)
+            if tags:
+                all_tags.update(tags)
+
+            event_data = create_coverage_report_event(
+                coverage_format=coverage_format,
+                tags=all_tags,
+            )
 
             # Debug log the event payload to diagnose 400 errors
             log.debug("Coverage report event payload: %s", json.dumps(event_data, indent=2))
@@ -506,7 +501,7 @@ class APIClient:
             log.debug("Uploading coverage report: format=%s, size=%d bytes", coverage_format, len(compressed_report))
 
         except Exception as e:
-            log.exception("Error preparing coverage report upload: %s", e)
+            log.warning("Error preparing coverage report upload: %s", e)
             telemetry.record_error(ErrorType.UNKNOWN)
             return False
 
@@ -517,7 +512,7 @@ class APIClient:
 
             # Log response details for debugging
             if result.error_type:
-                log.error(
+                log.warning(
                     "Coverage report upload failed: error=%s, description=%s, response_body=%s",
                     result.error_type,
                     result.error_description,
@@ -525,9 +520,9 @@ class APIClient:
                 )
 
             result.on_error_raise_exception()
-            log.info("Successfully uploaded coverage report")
+            log.debug("Successfully uploaded coverage report")
             return True
 
         except Exception as e:
-            log.error("Failed to upload coverage report: %s", e)
+            log.warning("Failed to upload coverage report: %s", e)
             return False

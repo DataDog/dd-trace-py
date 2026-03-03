@@ -8,8 +8,6 @@ import socket
 import sys
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 
 import ray
@@ -60,7 +58,7 @@ def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     return old_sig.replace(parameters=sorted_params)
 
 
-def _inject_context_in_kwargs(context: Context, kwargs: Dict[str, Any]) -> None:
+def _inject_context_in_kwargs(context: Context, kwargs: dict[str, Any]) -> None:
     headers = {}
     _TraceContext._inject(context, headers)
     if "kwargs" not in kwargs or kwargs["kwargs"] is None:
@@ -187,7 +185,7 @@ def redact_paths(s: str) -> str:
     return "".join(part if part.strip() == "" else _redact_token(part) for part in parts)
 
 
-def flatten_metadata_dict(data: dict) -> Dict[str, Any]:
+def flatten_metadata_dict(data: dict) -> dict[str, Any]:
     """
     Converts a JSON (or Python dictionary) structure into a dict mapping
     dot-notation paths to leaf values, with keys prefixed once by RAY_METADATA_PREFIX.
@@ -237,7 +235,7 @@ def get_signature(func: Any) -> inspect.Signature:
     it is relatively stable. Future versions of Python may allow overloading
     the inspect 'isfunction' and 'ismethod' functions / create ABC for Python
     functions. Until then, it appears that Cython won't do anything about
-    compatability with the inspect module.
+    compatibility with the inspect module.
 
     Args:
         func: The function whose signature should be checked.
@@ -268,7 +266,7 @@ def get_signature(func: Any) -> inspect.Signature:
     return inspect.signature(func)
 
 
-def extract_signature(func: Any, ignore_first: bool = False) -> List[Parameter]:
+def extract_signature(func: Any, ignore_first: bool = False) -> list[Parameter]:
     """Extract the function signature from the function.
 
     Args:
@@ -277,7 +275,7 @@ def extract_signature(func: Any, ignore_first: bool = False) -> List[Parameter]:
             be used when func is a method of a class.
 
     Returns:
-        List of Parameter objects representing the function signature.
+        list of Parameter objects representing the function signature.
     """
     signature_parameters = list(get_signature(func).parameters.values())
 

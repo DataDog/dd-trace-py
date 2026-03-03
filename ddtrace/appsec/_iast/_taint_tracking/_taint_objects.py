@@ -1,7 +1,6 @@
 import itertools
 from typing import Any
 from typing import Sequence
-from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -69,8 +68,7 @@ def copy_ranges_to_string(pyobject: str, ranges: Sequence[TaintRange]) -> str:
     return pyobject
 
 
-def copy_ranges_to_iterable_with_strings(iterable, ranges):
-    # type: (Sequence[str], Sequence[TaintRange]) -> Sequence[str]
+def copy_ranges_to_iterable_with_strings(iterable: Sequence[str], ranges: Sequence[TaintRange]) -> Sequence[str]:
     # NB this function uses comment-based type annotation because TaintRange is conditionally imported
     iterable_type = type(iterable)
 
@@ -84,7 +82,7 @@ def copy_ranges_to_iterable_with_strings(iterable, ranges):
     return iterable_type(new_result)  # type: ignore[call-arg]
 
 
-def taint_pyobject_with_ranges(pyobject: Any, ranges: Tuple) -> bool:
+def taint_pyobject_with_ranges(pyobject: Any, ranges: tuple) -> bool:
     if (contextid := _get_iast_context_id()) is None:
         return False
     if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):

@@ -4,10 +4,7 @@ import json
 import os
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Iterable
-from typing import List
-from typing import Tuple
 from typing import Union
 
 from wrapt import FunctionWrapper
@@ -29,7 +26,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
-_DD_ORIGINAL_ATTRIBUTES: Dict[Any, Any] = {}
+_DD_ORIGINAL_ATTRIBUTES: dict[Any, Any] = {}
 
 _is_patched = False
 
@@ -197,8 +194,8 @@ def wrapped_path_open_rasp_lfi(original_method_callable, instance, args, kwargs)
         )
 
 
-def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[str]]]:
-    res: Dict[str, Union[str, List[str]]] = {}
+def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[str]]]:
+    res: dict[str, Union[str, list[str]]] = {}
     for a, b in lst:
         if a in res:
             v = res[a]
@@ -450,7 +447,7 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
             _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SHI, False)
 
 
-def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
+def popen_FD233052260D8B4D(arg_list: Union[list[str], str]) -> None:
     """
     listener for subprocess.Popen class
     """

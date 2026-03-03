@@ -2,10 +2,7 @@ import logging
 from types import FunctionType
 from types import ModuleType
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
-from typing import Type
 from typing import cast
 
 from ddtrace import config
@@ -42,7 +39,7 @@ DB_CONN_ATTR_BY_TAG = {
 
 
 @cached()
-def get_traced_cursor_cls(cursor_type: Type[Any]) -> Type[dbapi.TracedCursor]:
+def get_traced_cursor_cls(cursor_type: type[Any]) -> type[dbapi.TracedCursor]:
     traced_cursor_cls = dbapi.TracedCursor
     try:
         if cursor_type.__module__.startswith("psycopg2.") or cursor_type.__name__ == "Psycopg2TracedCursor":
@@ -60,7 +57,7 @@ def get_traced_cursor_cls(cursor_type: Type[Any]) -> Type[dbapi.TracedCursor]:
     return traced_cursor_cls
 
 
-def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+def cursor(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     cursor = func(*args, **kwargs)
 
     # Don't double wrap Django database cursors:
@@ -164,7 +161,7 @@ def patch_conn(conn: Any) -> Any:
         wrap(conn.__class__.cursor, cursor)
 
 
-def get_connection(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+def get_connection(func: FunctionType, args: tuple[Any], kwargs: dict[str, Any]) -> Any:
     conn = func(*args, **kwargs)
     try:
         patch_conn(conn)
