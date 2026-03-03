@@ -139,13 +139,11 @@ class DDWaf(WAF):
             ok &= py_add_or_update_config(self._builder, path, ruleset_object, diagnostics)
             self._set_info(diagnostics, "update")
             ddwaf_object_free(ruleset_object)
-            ddwaf_object_free(diagnostics)
         if not self._asm_dd_cache:
             # we need to add the default ruleset back
             diagnostics = ddwaf_object()
             ok &= py_add_or_update_config(self._builder, ASM_DD_DEFAULT, self._default_ruleset, diagnostics)
             self._set_info(diagnostics, "update")
-            ddwaf_object_free(diagnostics)
             self._asm_dd_cache.add(ASM_DD_DEFAULT)
         new_handle = py_ddwaf_builder_build_instance(self._builder)
         self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in sorted(self._rc_products.items()) if v)
