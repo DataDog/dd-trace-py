@@ -627,55 +627,62 @@ class LLMObs(Service):
 
         input_type: Literal["value", "messages", ""] = ""
         output_type: Literal["value", "messages", ""] = ""
-
-        input_value = span._get_ctx_item(INPUT_VALUE)
-        if input_value is not None:
+        if span._get_ctx_item(INPUT_VALUE) is not None:
             input_type = "value"
-            llmobs_span.input = [Message(content=safe_json(input_value, ensure_ascii=False) or "", role="")]
+            llmobs_span.input = [
+                Message(
+                    content=safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False) or "",
+                    role="",
+                )
+            ]
 
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
             if span_kind == "experiment":
                 expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+                if expected_output:
+                    meta["expected_output"] = expected_output
+
                 input_data = span._get_ctx_item(EXPERIMENTS_INPUT)
                 if input_data:
                     meta["input"] = input_data
+
                 output_data = span._get_ctx_item(EXPERIMENTS_OUTPUT)
                 if output_data:
                     meta["output"] = output_data
-                if expected_output:
-                    meta["expected_output"] = expected_output
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
             input_type = "messages"
             llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
 
-        output_value = span._get_ctx_item(OUTPUT_VALUE)
-        if output_value is not None:
+        if span._get_ctx_item(OUTPUT_VALUE) is not None:
             output_type = "value"
-            llmobs_span.output = [Message(content=safe_json(output_value, ensure_ascii=False) or "", role="")]
+            llmobs_span.output = [
+                Message(
+                    content=safe_json(span._get_ctx_item(OUTPUT_VALUE), ensure_ascii=False) or "",
+                    role="",
+                )
+            ]
 
         output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
         if span_kind == "llm" and output_messages is not None:
             output_type = "messages"
             llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
 
-        input_documents = span._get_ctx_item(INPUT_DOCUMENTS)
-        output_documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
-        if span_kind == "embedding" and input_documents is not None:
-            meta["input"]["documents"] = input_documents or []
-        if span_kind == "retrieval" and output_documents is not None:
-            meta["output"]["documents"] = output_documents or []
+        if span_kind == "embedding" and span._get_ctx_item(INPUT_DOCUMENTS) is not None:
+            meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS) or []
+        if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
+            meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS) or []
 
-        input_prompt = span._get_ctx_item(INPUT_PROMPT)
-        if input_prompt is not None:
+        if span._get_ctx_item(INPUT_PROMPT) is not None:
+            prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
             if span_kind != "llm":
                 log.warning(
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                prompt_dict = cast(Prompt, input_prompt)
+                prompt_dict = cast(Prompt, prompt_json_str)
                 meta["input"]["prompt"] = prompt_dict
         elif span_kind == "llm":
             parent_span = _get_nearest_llmobs_ancestor(span)
@@ -691,13 +698,11 @@ class LLMObs(Service):
                 if parent_prompt is not None:
                     meta["input"]["prompt"] = parent_prompt
 
-        tool_definitions = span._get_ctx_item(TOOL_DEFINITIONS)
+        if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
+            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS) or []
         intent = span._get_ctx_item(MCP_TOOL_CALL_INTENT)
-        if tool_definitions is not None:
-            meta["tool_definitions"] = tool_definitions or []
         if intent is not None:
             meta["intent"] = str(intent)
-
         if span.error:
             meta["error"] = _ErrorField(
                 message=span.get_tag(ERROR_MSG) or "",
@@ -718,7 +723,11 @@ class LLMObs(Service):
                     )
                 llmobs_span = user_llmobs_span
             except Exception as e:
-                log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
+                log.error(
+                    "Error in LLMObs span processor (%r): %r",
+                    self._user_span_processor,
+                    e,
+                )
                 error = True
             finally:
                 telemetry.record_llmobs_user_processor_called(error)
@@ -738,17 +747,18 @@ class LLMObs(Service):
             meta.pop("input")
         if not meta["output"]:
             meta.pop("output")
-
         metrics = span._get_ctx_item(METRICS) or {}
         ml_app = _get_ml_app(span)
+
         if ml_app is None:
             raise ValueError(
                 "ML app is required for sending LLM Observability data. "
                 "Ensure this configuration is set before running your application."
             )
-        span._set_ctx_item(ML_APP, ml_app)
 
+        span._set_ctx_item(ML_APP, ml_app)
         parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
+
         llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
@@ -766,7 +776,6 @@ class LLMObs(Service):
             "tags": [],
             "_dd": _dd_attrs,
         }
-
         session_id = _get_session_id(span)
         if session_id is not None:
             span._set_ctx_item(SESSION_ID, session_id)
