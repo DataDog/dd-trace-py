@@ -952,6 +952,7 @@ class Experiment:
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
         self._is_distributed = is_distributed
+        self._retries: list[str] = []
 
         if not project_name:
             raise ValueError(
@@ -1215,6 +1216,8 @@ class Experiment:
             retry_delay = _default_retry_delay
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
+        if max_retries < 0:
+            raise ValueError("max_retries must be >= 0")
 
         self._setup_experiment(
             "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -1222,7 +1225,7 @@ class Experiment:
         )
 
         self._run_results = []
-        self._retries: list[str] = []
+        self._retries.clear()
         self._interrupted = False
         try:
             for run_iteration in range(self._runs):
