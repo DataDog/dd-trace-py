@@ -1,10 +1,18 @@
+import threading
+
 import pytest
 
 from ddtrace import config
 from ddtrace.trace import tracer
 
 
-SNAPSHOT_IGNORES = ["meta.runtime-id", "meta._dd.p.tid", "meta._dd.p.dm", "metrics.process_id"]
+SNAPSHOT_IGNORES = [
+    "meta.runtime-id",
+    "meta._dd.p.tid",
+    "meta._dd.p.dm",
+    "metrics.process_id",
+    "meta.messaging.message_id",
+]
 
 TRACE_CONTEXT_KEYS = [
     "x-datadog-trace-id",
@@ -35,6 +43,18 @@ def test_batch_publish(batch_publisher, topic_path):
         for future in futures:
             message_id = future.result(timeout=10)
             assert message_id is not None
+
+
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES + ["meta.error.stack", "meta.error.message"])
+def test_publish_future_error(publisher):
+    """Test that the span records error info when the publish future fails."""
+    nonexistent_topic = "projects/test-project/topics/nonexistent-topic"
+    callbacks_done = threading.Event()
+    with tracer.trace("parent.span"):
+        future = publisher.publish(nonexistent_topic, b"Hello World")
+        future.add_done_callback(lambda _: callbacks_done.set())
+        callbacks_done.wait(timeout=10)
+        assert future.exception() is not None
 
 
 def test_propagation_enabled(publisher, topic_path, subscriber, subscription_path):

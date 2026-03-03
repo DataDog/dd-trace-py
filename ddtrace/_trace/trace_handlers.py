@@ -1357,6 +1357,16 @@ def _on_pubsub_send_start(
         kwargs.update({k: str(v) for k, v in headers.items()})
 
 
+def _on_pubsub_send_complete(
+    ctx: core.ExecutionContext,
+    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    message_id: Optional[str],
+) -> None:
+    if message_id is not None:
+        ctx.span._set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+    _finish_span(ctx, exc_info)
+
+
 def _on_httpx_request_start(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
     span = _start_span(ctx, call_trace, **kwargs)
     span._metrics[_SPAN_MEASURED_KEY] = 1
@@ -1474,6 +1484,7 @@ def listen():
     core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
     core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
     core.on("google_cloud_pubsub.send.start", _on_pubsub_send_start)
+    core.on("google_cloud_pubsub.send.completed", _on_pubsub_send_complete)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1588,7 +1599,6 @@ def listen():
         "azure.eventhubs.patched_producer_send_batch",
         "aiokafka.getone",
         "aiokafka.getmany",
-        "google_cloud_pubsub.send",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 

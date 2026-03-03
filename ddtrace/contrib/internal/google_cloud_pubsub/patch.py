@@ -78,4 +78,19 @@ def _traced_publish(func, instance, args, kwargs):
         resource=topic_id,
     ) as ctx:
         core.dispatch("google_cloud_pubsub.send.start", (ctx, project_id, topic_id, kwargs))
-        return func(*args, **kwargs)
+
+        try:
+            result = func(*args, **kwargs)
+        except BaseException as e:
+            core.dispatch("google_cloud_pubsub.send.completed", (ctx, (type(e), e, e.__traceback__), None))
+            raise
+
+        def sent_callback(future):
+            try:
+                message_id = future.result()
+                core.dispatch("google_cloud_pubsub.send.completed", (ctx, (None, None, None), message_id))
+            except Exception as e:
+                core.dispatch("google_cloud_pubsub.send.completed", (ctx, (type(e), e, e.__traceback__), None))
+
+        result.add_done_callback(sent_callback)
+        return result
