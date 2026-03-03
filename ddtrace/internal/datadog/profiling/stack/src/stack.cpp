@@ -603,10 +603,7 @@ static PyMethodDef stack_methods[] = {
       start_native_monitoring,
       METH_NOARGS,
       "Start sys.monitoring-based native call tracking" },
-    { "stop_native_monitoring",
-      stop_native_monitoring,
-      METH_NOARGS,
-      "Stop sys.monitoring-based native call tracking" },
+    { "stop_native_monitoring", stop_native_monitoring, METH_NOARGS, "Stop sys.monitoring-based native call tracking" },
     { NULL, NULL, 0, NULL }
 };
 

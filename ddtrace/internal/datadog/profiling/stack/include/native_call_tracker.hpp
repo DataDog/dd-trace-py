@@ -14,8 +14,7 @@ struct CallSiteKey
     int first_lineno; // Guards against code object address reuse after GC
     bool operator==(const CallSiteKey& other) const
     {
-        return code_ptr == other.code_ptr && offset_bytes == other.offset_bytes &&
-               first_lineno == other.first_lineno;
+        return code_ptr == other.code_ptr && offset_bytes == other.offset_bytes && first_lineno == other.first_lineno;
     }
 };
 
@@ -49,7 +48,10 @@ class NativeCallRegistry
     NativeCallRegistry(NativeCallRegistry const&) = delete;
     NativeCallRegistry& operator=(NativeCallRegistry const&) = delete;
 
-    void register_call_site(uintptr_t code_ptr, int offset_bytes, int first_lineno, std::string name,
+    void register_call_site(uintptr_t code_ptr,
+                            int offset_bytes,
+                            int first_lineno,
+                            std::string name,
                             std::string module);
     const NativeCallEntry* lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno);
     void reset();

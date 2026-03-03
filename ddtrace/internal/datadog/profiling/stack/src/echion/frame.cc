@@ -281,9 +281,8 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
     // In Python 3.13+, instr_ptr points to the current instruction (not past it),
     // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
     const int lasti =
-      (static_cast<int>(
-        (frame_addr->instr_ptr -
-         reinterpret_cast<_Py_CODEUNIT*>((reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
+      (static_cast<int>((frame_addr->instr_ptr - reinterpret_cast<_Py_CODEUNIT*>(
+                                                   (reinterpret_cast<PyCodeObject*>(frame_addr->f_executable)))))) -
       offsetof(PyCodeObject, co_code_adaptive) / sizeof(_Py_CODEUNIT);
     auto maybe_frame = Frame::get(echion, reinterpret_cast<PyCodeObject*>(frame_addr->f_executable), lasti);
     if (!maybe_frame) {

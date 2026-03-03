@@ -6,7 +6,10 @@
 namespace Datadog {
 
 void
-NativeCallRegistry::register_call_site(uintptr_t code_ptr, int offset_bytes, int first_lineno, std::string name,
+NativeCallRegistry::register_call_site(uintptr_t code_ptr,
+                                       int offset_bytes,
+                                       int first_lineno,
+                                       std::string name,
                                        std::string module)
 {
     CallSiteKey key{ code_ptr, offset_bytes, first_lineno };
