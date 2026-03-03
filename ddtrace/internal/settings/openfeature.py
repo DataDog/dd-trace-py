@@ -30,10 +30,20 @@ class OpenFeatureConfig(DDConfig):
         default=1.0,
     )
 
+    # Provider initialization timeout in milliseconds.
+    # Controls how long initialize() blocks waiting for the first Remote Config payload.
+    # Default is 30000ms (30 seconds), matching Java, Go, and Node.js SDKs.
+    initialization_timeout_ms = DDConfig.var(
+        int,
+        "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS",
+        default=30000,
+    )
+
     _openfeature_config_keys = [
         "experimental_flagging_provider_enabled",
         "ffe_intake_enabled",
         "ffe_intake_heartbeat_interval",
+        "initialization_timeout_ms",
     ]
 
 
