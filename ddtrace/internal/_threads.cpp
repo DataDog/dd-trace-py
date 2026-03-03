@@ -3,7 +3,6 @@
 
 #include "structmember.h"
 
-#include <cstdio>
 #include <cstring>
 #include <stddef.h>
 
@@ -560,7 +559,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
             // a forced unwind is swallowed. The re-throw propagates through
             // libstdc++'s std::thread wrapper which has its own
             // catch(__forced_unwind&){throw;} and lets the unwind complete.
-            fprintf(stderr, "ddtrace: periodic thread force-unwound during finalization\n");
             self->_started->set();
             self->_stopped->set();
             throw;
@@ -568,7 +566,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
 #endif
         catch (...) {
             // Safety net for any other unexpected exceptions during shutdown.
-            fprintf(stderr, "ddtrace: periodic thread caught unexpected exception\n");
             self->_started->set();
             self->_stopped->set();
         }
