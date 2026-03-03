@@ -105,6 +105,7 @@ PATCH_MODULES = {
     "crewai": True,
     "pydantic_ai": True,
     "vllm": True,
+    "mlflow": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,

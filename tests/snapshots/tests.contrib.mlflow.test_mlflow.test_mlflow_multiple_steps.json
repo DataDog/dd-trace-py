@@ -1,0 +1,81 @@
+[[
+  {
+    "name": "mflow.run",
+    "service": "tests.contrib.mlflow",
+    "resource": "mflow.run",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69a84e1500000000",
+      "language": "python",
+      "mlflow.run_id": "1f82df153a264916ad87a649ee9ce045",
+      "runtime-id": "0651947d9d2449d4989786c658012dbd"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 604.0
+    },
+    "duration": 83989208,
+    "start": 1772637717868373211
+  },
+     {
+       "name": "mlflow.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "mlflow.step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "mlflow.params.my_param": "value",
+         "mlflow.run_id": "1f82df153a264916ad87a649ee9ce045",
+         "mlflow.step": "0"
+       },
+       "metrics": {
+         "mlflow.metrics.loss": 0.0
+       },
+       "duration": 10362250,
+       "start": 1772637717898998419
+     },
+     {
+       "name": "mlflow.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "mlflow.step",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "mlflow.params.my_param": "value",
+         "mlflow.run_id": "1f82df153a264916ad87a649ee9ce045",
+         "mlflow.step": "1"
+       },
+       "metrics": {
+         "mlflow.metrics.loss": 1.0
+       },
+       "duration": 20645000,
+       "start": 1772637717909480752
+     },
+     {
+       "name": "mlflow.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "mflow.tail",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "mlflow.run_id": "1f82df153a264916ad87a649ee9ce045"
+       },
+       "duration": 22057917,
+       "start": 1772637717930235252
+     }]]
