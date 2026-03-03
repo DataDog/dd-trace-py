@@ -9,6 +9,7 @@ class ProductManagerTest(ProductManager):
         self._products = None
         self.__products__ = products
         self._failed = failed
+        self._started = set()
 
 
 class BaseProduct(Product):
@@ -19,6 +20,9 @@ class BaseProduct(Product):
 
     def post_preload(self) -> None:
         self.post_preloaded = True
+
+    def enabled(self) -> bool:
+        return True
 
     def start(self) -> None:
         self.started = True
@@ -116,25 +120,20 @@ def test_product_manager_restart():
 
 
 def test_product_manager_is_enabled():
-    class ProductWithConfig:
-        def __init__(self, enabled):
-            self.config = type("Config", (), {"enabled": enabled})()
+    class DisabledProduct(BaseProduct):
+        def enabled(self) -> bool:
+            return False
 
     # Test when product doesn't exist
     manager = ProductManagerTest({})
     assert not manager.is_enabled("nonexistent")
 
-    # Test when product exists but has no config
-    product_no_config = BaseProduct()
-    manager = ProductManagerTest({"no_config": product_no_config})
-    assert not manager.is_enabled("no_config")
-
     # Test when product exists and is enabled
-    enabled_product = ProductWithConfig(True)
+    enabled_product = BaseProduct()
     manager = ProductManagerTest({"enabled": enabled_product})
     assert manager.is_enabled("enabled")
 
     # Test when product exists but is disabled
-    disabled_product = ProductWithConfig(False)
+    disabled_product = DisabledProduct()
     manager = ProductManagerTest({"disabled": disabled_product})
     assert not manager.is_enabled("disabled")

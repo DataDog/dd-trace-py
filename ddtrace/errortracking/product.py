@@ -12,11 +12,14 @@ def post_preload():
     pass
 
 
-def start() -> None:
-    if config.enabled:
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+def enabled() -> bool:
+    return config.enabled
 
-        HandledExceptionCollector.enable()
+
+def start() -> None:
+    from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+
+    HandledExceptionCollector.enable()
 
 
 def restart(join: bool = False) -> None:
@@ -24,10 +27,9 @@ def restart(join: bool = False) -> None:
 
 
 def stop(join: bool = False):
-    if config.enabled:
-        from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+    from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
 
-        HandledExceptionCollector.disable()
+    HandledExceptionCollector.disable()
 
 
 def at_exit(join: bool = False):

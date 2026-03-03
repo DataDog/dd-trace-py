@@ -15,11 +15,12 @@ object that implements the product protocol. This consists of a Python object
 
 | Attribute | Description |
 |-----------|-------------|
-| `start() -> None` | A function with the logic required to start the product |
+| `post_preload() -> None` | A function with the logic required to finish initialization after the library  preload stage |
+| `enabled() -> bool` | A function that returns whether the product should be started; called before `start()` by the product manager |
+| `start() -> None` | A function with the logic required to enable the product (called only when `enabled()` returns `True`) |
 | `restart(join: bool = False) -> None` | A function with the logic required to restart the product after a fork |
 | `stop(join: bool = False) -> None` | A function with the logic required to stop the product |
 | `at_exit(join: bool = False) -> None` | A function with the logic required to stop the product at exit |
-| `post_preload() -> None` | A function with the logic required to finish initialization after the library  preload stage |
 
 The product object needs to be made available to the Python plugin system by
 defining an entry point in the `project.entry-points.'ddtrace.products'` section
