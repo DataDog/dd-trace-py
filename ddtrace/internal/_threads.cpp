@@ -560,12 +560,16 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
             // a forced unwind is swallowed. The re-throw propagates through
             // libstdc++'s std::thread wrapper which has its own
             // catch(__forced_unwind&){throw;} and lets the unwind complete.
+            fprintf(stderr, "ddtrace: periodic thread force-unwound during finalization\n");
+            self->_started->set();
             self->_stopped->set();
             throw;
         }
 #endif
         catch (...) {
             // Safety net for any other unexpected exceptions during shutdown.
+            fprintf(stderr, "ddtrace: periodic thread caught unexpected exception\n");
+            self->_started->set();
             self->_stopped->set();
         }
     });
@@ -674,8 +678,8 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     self->_atexit = true;
 
-    // The thread may have already been force-unwound during finalization,
-    // leaving _thread as nullptr. Tolerate this gracefully.
+    // The thread may not have been started, or _after_fork may have already
+    // cleared _thread. Tolerate this gracefully.
     if (self->_thread == nullptr)
         Py_RETURN_NONE;
 
@@ -706,6 +710,8 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_stopped->clear();
     self->_served->clear();
 
+    // Best-effort restart after fork. Failure is non-fatal: the periodic
+    // task simply won't run in the child, which is acceptable.
     PyObject* result = PeriodicThread_start(self, NULL);
     if (result == NULL)
         PyErr_Clear();
