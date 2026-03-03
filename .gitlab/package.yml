@@ -34,6 +34,8 @@ variables:
     CMAKE_ARGS: "-DNATIVE_TESTING=OFF"
     # DEV: Hack to make ASM CMake able to find the Python3 library
     CIBW_BUILD: "1"
+    # Enable sccache for Rust/C/C++ compilation caching
+    DD_USE_SCCACHE: "1"
     # job resource requests
     KUBERNETES_CPU_REQUEST: "6"
     KUBERNETES_MEMORY_REQUEST: "10Gi"
@@ -67,6 +69,10 @@ variables:
     PYTHON_TAG: "cp314-cp314"
     UV_PYTHON: "/opt/python/cp314-cp314/bin/python"
     IMAGE_TAG: "${MANYLINUX_AMD64_IMAGE_TAG}"
+    # S3-backed sccache
+    SCCACHE_BUCKET: "dd-trace-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
   script:
     - .gitlab/scripts/build-sdist.sh
 
@@ -74,6 +80,11 @@ variables:
   extends: .build_base
   image: ${IMAGE_BASE_URL}:${IMAGE_TAG}
   tags: [ "arch:$ARCH_TAG" ]
+  variables:
+    # S3-backed sccache for Linux builds
+    SCCACHE_BUCKET: "dd-trace-py-builds"
+    SCCACHE_S3_KEY_PREFIX: "sccache"
+    SCCACHE_REGION: "us-east-1"
   parallel:
     matrix:
       - ARCH_TAG: "amd64"
