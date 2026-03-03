@@ -189,12 +189,18 @@ impl TracerFlareManagerPy {
     /// Raises:
     ///     ZipError: If zipping fails or directory doesn't exist
     ///     SendError: If sending fails
-    fn zip_and_send(&self, directory: &str, send_action: FlareActionPy) -> PyResult<()> {
-        let manager = &self.manager;
-
-        manager
-            .zip_and_send_sync(vec![directory.to_string()], send_action.inner)
-            .map_err(|e| FlareErrorPy::from(e).into())
+    fn zip_and_send(
+        &self,
+        py: Python<'_>,
+        directory: &str,
+        send_action: FlareActionPy,
+    ) -> PyResult<()> {
+        py.detach(move || {
+            let manager = &self.manager;
+            manager
+                .zip_and_send_sync(vec![directory.to_string()], send_action.inner)
+                .map_err(|e| FlareErrorPy::from(e).into())
+        })
     }
 
     /// Sets the current log level for the tracer flare manager.
