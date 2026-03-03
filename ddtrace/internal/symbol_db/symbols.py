@@ -173,9 +173,15 @@ class Scope:
     def _get_from(cls, _: t.Any, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         return None
 
-    @_get_from.register
+    # DEV: We pass the type explicitly to all @_get_from.register() calls below
+    # rather than relying on annotation inference. When the type is omitted,
+    # singledispatch calls get_type_hints() to determine the dispatch type, which
+    # evaluates forward references (e.g. Optional["Scope"]) at class-definition
+    # time — before Scope is fully defined — causing a NameError on Python 3.13+.
+    # See https://github.com/python/cpython/issues/86153
+    @_get_from.register(ModuleType)
     @classmethod
-    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True):
+    def _(cls, module: ModuleType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if module in data.seen:
             return None
         data.seen.add(module)
@@ -227,9 +233,9 @@ class Scope:
             language_specifics={"file_hash": source_git_hash.hexdigest()},
         )
 
-    @_get_from.register
+    @_get_from.register(type)
     @classmethod
-    def _(cls, obj: type, data: ScopeData, recursive: bool = True):
+    def _(cls, obj: type, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if obj in data.seen:
             return None
         data.seen.add(obj)
@@ -317,9 +323,9 @@ class Scope:
             language_specifics={"super_classes": super_classes},
         )
 
-    @_get_from.register
+    @_get_from.register(CodeType)
     @classmethod
-    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True):
+    def _(cls, code: CodeType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         # DEV: A code object with a mutable probe is currently not hashable, so
         # we cannot put it directly into the set.
         code_id = f"code-{id(code)}"
@@ -350,9 +356,9 @@ class Scope:
             ],
         )
 
-    @_get_from.register
+    @_get_from.register(FunctionType)
     @classmethod
-    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True):
+    def _(cls, f: FunctionType, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if f in data.seen:
             return None
         data.seen.add(f)
@@ -398,9 +404,9 @@ class Scope:
 
         return code_scope
 
-    @_get_from.register
+    @_get_from.register(classmethod)
     @classmethod
-    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: classmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -408,9 +414,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(staticmethod)
     @classmethod
-    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True):
+    def _(cls, method: staticmethod, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         scope = cls._get_from(method.__func__, data)
 
         if scope is not None:
@@ -418,9 +424,9 @@ class Scope:
 
         return scope
 
-    @_get_from.register
+    @_get_from.register(property)
     @classmethod
-    def _(cls, pr: property, data: ScopeData, recursive: bool = True):
+    def _(cls, pr: property, data: ScopeData, recursive: bool = True) -> t.Optional["Scope"]:
         if pr.fget in data.seen:
             return None
         data.seen.add(pr.fget)
@@ -669,7 +675,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             self._processed_files_count += 1
 
     @classmethod
-    def update(cls):
+    def update(cls) -> None:
         instance = t.cast(SymbolDatabaseUploader, cls._instance)
         if instance is None:
             return
@@ -684,6 +690,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         instance._update_called = True
 
     @classmethod
-    def install(cls, shallow=True):
+    def install(cls, shallow: bool = True) -> None:
         cls.shallow = shallow
         return super().install()
