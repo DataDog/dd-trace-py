@@ -40,12 +40,14 @@ variables:
     KUBERNETES_MEMORY_REQUEST: "10Gi"
     KUBERNETES_MEMORY_LIMIT: "10Gi"
     DD_DISABLE_VPA: true
+    DD_CARGO_ARGS: "--timings"
   artifacts:
     paths:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
       - "debugwheelhouse/*.log"
       - "debugwheelhouse/*.zip"
+      - "src/native/target*"
   cache:
     - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
       paths:
