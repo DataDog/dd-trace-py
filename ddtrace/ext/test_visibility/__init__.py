@@ -2,7 +2,6 @@
 NOTE: BETA - this API is currently in development and is subject to change.
 """
 
-import os
 import typing as t
 
 from ddtrace import config

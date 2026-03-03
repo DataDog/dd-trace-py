@@ -4,7 +4,6 @@ import copy
 from dataclasses import asdict
 from dataclasses import dataclass
 import json
-import os
 import re
 from typing import Any
 from typing import Literal
@@ -12,6 +11,7 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
+from ddtrace.internal.settings import _env
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
@@ -140,7 +140,7 @@ StructuredOutput = Union[
 
 def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
-    api_key = client_options.get("api_key") or os.environ.get("OPENAI_API_KEY")
+    api_key = client_options.get("api_key") or _env.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError(
             "OpenAI API key not provided. Pass 'api_key' in client_options or set OPENAI_API_KEY environment variable"
@@ -179,9 +179,9 @@ def _create_openai_client(client_options: Optional[dict[str, Any]] = None) -> LL
 
 def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
-    api_key = client_options.get("api_key") or os.environ.get("AZURE_OPENAI_API_KEY")
-    azure_endpoint = client_options.get("azure_endpoint") or os.environ.get("AZURE_OPENAI_ENDPOINT")
-    api_version = client_options.get("api_version") or os.environ.get("AZURE_OPENAI_API_VERSION") or "2024-10-21"
+    api_key = client_options.get("api_key") or _env.getenv("AZURE_OPENAI_API_KEY")
+    azure_endpoint = client_options.get("azure_endpoint") or _env.getenv("AZURE_OPENAI_ENDPOINT")
+    api_version = client_options.get("api_version") or _env.getenv("AZURE_OPENAI_API_VERSION") or "2024-10-21"
 
     if not api_key:
         raise ValueError(
@@ -200,7 +200,7 @@ def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None)
         raise ImportError("openai package required: pip install openai")
 
     client = AzureOpenAI(api_key=api_key, azure_endpoint=azure_endpoint, api_version=api_version)
-    deployment_name = client_options.get("azure_deployment") or os.environ.get("AZURE_OPENAI_DEPLOYMENT")
+    deployment_name = client_options.get("azure_deployment") or _env.getenv("AZURE_OPENAI_DEPLOYMENT")
 
     def call(
         provider: Optional[str],
@@ -229,7 +229,7 @@ def _create_azure_openai_client(client_options: Optional[dict[str, Any]] = None)
 
 def _create_anthropic_client(client_options: Optional[dict[str, Any]] = None) -> LLMClient:
     client_options = client_options or {}
-    api_key = client_options.get("api_key") or os.environ.get("ANTHROPIC_API_KEY")
+    api_key = client_options.get("api_key") or _env.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError(
             "Anthropic API key not provided. "
@@ -310,7 +310,7 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
 
     credentials = client_options.get("credentials")
     project = (
-        client_options.get("project") or os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCLOUD_PROJECT")
+        client_options.get("project") or _env.getenv("GOOGLE_CLOUD_PROJECT") or _env.getenv("GCLOUD_PROJECT")
     )
 
     if credentials is None:
@@ -335,8 +335,8 @@ def _create_vertexai_client(client_options: Optional[dict[str, Any]] = None) -> 
 
     location = (
         client_options.get("location")
-        or os.environ.get("GOOGLE_CLOUD_REGION")
-        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+        or _env.getenv("GOOGLE_CLOUD_REGION")
+        or _env.getenv("GOOGLE_CLOUD_LOCATION")
         or "us-central1"
     )
 
@@ -394,8 +394,8 @@ def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> L
     client_options = client_options or {}
     region_name = (
         client_options.get("region_name")
-        or os.environ.get("AWS_REGION")
-        or os.environ.get("AWS_DEFAULT_REGION")
+        or _env.getenv("AWS_REGION")
+        or _env.getenv("AWS_DEFAULT_REGION")
         or "us-east-1"
     )
 
@@ -405,16 +405,16 @@ def _create_bedrock_client(client_options: Optional[dict[str, Any]] = None) -> L
         raise ImportError("boto3 package required: pip install boto3")
 
     session_kwargs: dict[str, Any] = {"region_name": region_name}
-    profile_name = client_options.get("profile_name") or os.environ.get("AWS_PROFILE")
+    profile_name = client_options.get("profile_name") or _env.getenv("AWS_PROFILE")
     if profile_name:
         session_kwargs["profile_name"] = profile_name
-    aws_access_key_id = client_options.get("aws_access_key_id") or os.environ.get("AWS_ACCESS_KEY_ID")
+    aws_access_key_id = client_options.get("aws_access_key_id") or _env.getenv("AWS_ACCESS_KEY_ID")
     if aws_access_key_id:
         session_kwargs["aws_access_key_id"] = aws_access_key_id
-    aws_secret_access_key = client_options.get("aws_secret_access_key") or os.environ.get("AWS_SECRET_ACCESS_KEY")
+    aws_secret_access_key = client_options.get("aws_secret_access_key") or _env.getenv("AWS_SECRET_ACCESS_KEY")
     if aws_secret_access_key:
         session_kwargs["aws_secret_access_key"] = aws_secret_access_key
-    aws_session_token = client_options.get("aws_session_token") or os.environ.get("AWS_SESSION_TOKEN")
+    aws_session_token = client_options.get("aws_session_token") or _env.getenv("AWS_SESSION_TOKEN")
     if aws_session_token:
         session_kwargs["aws_session_token"] = aws_session_token
 

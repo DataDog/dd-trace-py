@@ -1,5 +1,4 @@
 from concurrent import futures
-import os
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
@@ -10,6 +9,7 @@ from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._evaluators.ragas.answer_relevancy import RagasAnswerRelevancyEvaluator
 from ddtrace.llmobs._evaluators.ragas.context_precision import RagasContextPrecisionEvaluator
 from ddtrace.llmobs._evaluators.ragas.faithfulness import RagasFaithfulnessEvaluator
+from ddtrace.internal.settings import _env
 from ddtrace.llmobs._evaluators.sampler import EvaluatorRunnerSampler
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
@@ -48,7 +48,7 @@ class EvaluatorRunner(PeriodicService):
         if len(self.evaluators) > 0:
             return
 
-        evaluator_str = os.getenv(self.EVALUATORS_ENV_VAR)
+        evaluator_str = _env.getenv(self.EVALUATORS_ENV_VAR)
         if evaluator_str is None:
             return
 
