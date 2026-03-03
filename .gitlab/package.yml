@@ -1,6 +1,7 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
   MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  ALPINE_BUILD_IMAGE_TAG: "v99952233-e6a3deb-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
   - "3.9"
@@ -45,6 +46,10 @@ variables:
       - "pywheels/*.tar.gz"
       - "debugwheelhouse/*.log"
       - "debugwheelhouse/*.zip"
+  cache:
+    - key: v1-download-cache-${CURRENT_YEAR}-${CURRENT_BIWEEK}
+      paths:
+        - .download_cache
 
 .upload_wheels_base:
   tags: ["arch:amd64"]
@@ -138,8 +143,27 @@ variables:
     - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" manylinux2014_x86_64
     - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" manylinux2014_x86_64
 
+# Only the limited artifacts needed by downstream serverless jobs
+"upload serverless":
+  extends: .upload_wheels_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: "cp311-cp311"
+            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+          - ARCH_TAG: "arm64"
+            PYTHON_TAG: "cp311-cp311"
+            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+    - job: "package version"
+  script:
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_SHA}" serverless
+    - .gitlab/scripts/upload-wheels-to-s3.sh "${CI_PIPELINE_ID}" serverless
+
 "test sdist":
-  image: registry.ddbuild.io/images/mirror/python:3.9.6-alpine3.14
+  image: "${IMAGE_BASE_URL}:${ALPINE_BUILD_IMAGE_TAG}"
   tags: [ "arch:arm64" ]
   stage: package
   variables:
@@ -155,11 +179,6 @@ variables:
   script:
     - SDIST_FILE=$(ls ${CI_PROJECT_DIR}/pywheels/*.tar.gz | head -n 1)
     - TMP_DIR=$(mktemp -d) && cd $TMP_DIR
-    - |
-      apk add curl git gcc g++ musl-dev libffi-dev openssl-dev bash cargo make cmake patchelf
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      export PATH="$HOME/.cargo/bin:$PATH"
-      pip install 'twine>=5.0,<7' 'readme-renderer[md]>=44.0,<45' 'cmarkgfm>=2024,<2025.10.20'  # ci-deps: allow
     - twine check ${SDIST_FILE}
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
