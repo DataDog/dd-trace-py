@@ -1,0 +1,90 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/queuesendmessagesingle",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69a6f91400000000",
+      "aas.function.name": "queue_send_single_message",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/queuesendmessagesingle",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/queuesendmessagesingle",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "cc5a25049ef444129b0f62e6825c9982",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4239.0
+    },
+    "duration": 1028217500,
+    "start": 1772550420788609548
+  },
+     {
+       "name": "azure.servicebus.send",
+       "service": "azure_servicebus",
+       "resource": "queue.1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_servicebus",
+         "messaging.destination.name": "queue.1",
+         "messaging.message_id": "bf1a6182-9715-46bf-bad9-553345edbc80",
+         "messaging.operation": "send",
+         "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1.0
+       },
+       "duration": 7923500,
+       "start": 1772550421299852631
+     }],
+[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "ServiceBus servicebusqueue",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69a6f91500000000",
+      "aas.function.name": "servicebusqueue",
+      "aas.function.trigger": "ServiceBus",
+      "component": "azure_functions",
+      "language": "python",
+      "messaging.destination.name": "queue.1",
+      "messaging.message_id": "bf1a6182-9715-46bf-bad9-553345edbc80",
+      "messaging.operation": "receive",
+      "messaging.system": "servicebus",
+      "network.destination.name": "localhost",
+      "runtime-id": "cc5a25049ef444129b0f62e6825c9982",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 4239.0
+    },
+    "duration": 295625,
+    "start": 1772550421420013423
+  }]]
