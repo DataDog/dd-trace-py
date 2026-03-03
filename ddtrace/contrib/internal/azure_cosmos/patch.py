@@ -95,6 +95,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
             resource_link = request.url
         #resource name
         span.resource = request_params.operation_type +  " " + resource_link
+        log.debug("resource: " + span.resource)
         if resource_link:
             if resource_link.startswith("/") and len(resource_link) > 1:
                 resource_link = resource_link[1:]
@@ -112,20 +113,40 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
                         #container id
                         span._set_tag_str("cosmosdb.container", parts[3])
         
-        result = wrapped(*args, **kwargs)
-        (res, headers) = result
+        log.debug("calling the function")
+        try:
+            result = wrapped(*args, **kwargs)
+            (res, headers) = result
+            log.debug("RESULT")
+            log.debug(str(result))
+            log.debug(str(res))
+            log.debug(str(headers))
+            log.debug("HERE")
 
-        log.debug("RESULT")
-        log.debug(str(result))
-        log.debug(str(res))
-        log.debug(str(headers))
-        log.debug("HERE")
-        #equivalent of db.response.status_code
-        #span._set_tag_str(http.STATUS_CODE, res["statusCode"])
-        #self-explanatory
-        #span._set_tag_str("cosmosdb.response.sub_status_code", headers[azure_cosmos.http_constants.HttpHeaders.SubStatus])
+            sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
+            if sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", sub_status)
 
-        return result
+            return result
+        except azure_cosmos.exceptions.CosmosResourceExistsError as e:
+            log.debug("exists")
+            if e.sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
+            span.set_tag(http.STATUS_CODE, 409)
+            raise e
+        except azure_cosmos.exceptions.CosmosResourceNotFoundError as e:
+            log.debug("not found")
+            if e.sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
+            span.set_tag(http.STATUS_CODE, 404)
+            raise e
+        except azure_cosmos.exceptions.CosmosAccessConditionFailedError as e:
+            log.debug("access failed")
+            if e.sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
+            span.set_tag(http.STATUS_CODE, 412)
+            raise e
+            
 
 
 async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
@@ -169,6 +190,7 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
             resource_link = request.url
         #resource name
         span.resource = request_params.operation_type +  " " + resource_link
+        log.debug("resource: " + span.resource)
         if resource_link:
             if resource_link.startswith("/") and len(resource_link) > 1:
                 resource_link = resource_link[1:]
@@ -186,20 +208,38 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
                         #container id
                         span._set_tag_str("cosmosdb.container", parts[3])
         
-        result = await wrapped(*args, **kwargs)
-        (res, headers) = result
+        try:
+            result = wrapped(*args, **kwargs)
+            (res, headers) = result
+            log.debug("RESULT")
+            log.debug(str(result))
+            log.debug(str(res))
+            log.debug(str(headers))
+            log.debug("HERE")
 
-        log.debug("RESULT")
-        log.debug(str(result))
-        log.debug(str(res))
-        log.debug(str(headers))
-        log.debug("HERE")
-        #equivalent of db.response.status_code
-        #span._set_tag_str(http.STATUS_CODE, res["statusCode"])
-        #self-explanatory
-        #span._set_tag_str("cosmosdb.response.sub_status_code", headers[azure_cosmos.http_constants.HttpHeaders.SubStatus])
-        
-        return result
+            sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
+            if sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", sub_status)
+
+            return result
+        except azure_cosmos.exceptions.CosmosResourceExistsError as e:
+            log.debug("exists")
+            if e.sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
+            span.set_tag(http.STATUS_CODE, 409)
+            raise e
+        except azure_cosmos.exceptions.CosmosResourceNotFoundError as e:
+            log.debug("not found")
+            if e.sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
+            span.set_tag(http.STATUS_CODE, 404)
+            raise e
+        except azure_cosmos.exceptions.CosmosAccessConditionFailedError as e:
+            log.debug("access failed")
+            if e.sub_status:
+                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
+            span.set_tag(http.STATUS_CODE, 412)
+            raise e
 
 
 def unpatch():
