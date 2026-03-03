@@ -53,7 +53,6 @@ suites:
       - '@pytest'
       - '@ci_visibility'
       - '@coverage'
-      - '@coverage_utils'
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
@@ -90,7 +89,6 @@ suites:
       - '@pytest'
       - '@ci_visibility'
       - '@coverage'
-      - '@coverage_utils'
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
@@ -109,7 +107,6 @@ suites:
       - '@pytest'
       - '@ci_visibility'
       - '@coverage'
-      - '@coverage_utils'
       - '@codeowners'
       - '@testing'
       - tests/contrib/pytest/*
