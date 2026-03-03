@@ -41,6 +41,7 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 - Use **imperative mood** for titles (e.g., "Add support for X").
 - Link relevant issues or JIRA tickets; include a testing plan.
 - When reviewing/generating PRs, check for: missing sections, missing changelog, missing tests, backward-compatibility risks.
+- **Release notes are required** before opening a PR. Use the `releasenote` skill to generate one (see `docs/releasenotes.rst` for style guidelines). If the change is not user-impacting (e.g., CI chores, internal refactors, test-only changes), add the `changelog/no-changelog` label to the PR instead.
 
 ## Skills
 
