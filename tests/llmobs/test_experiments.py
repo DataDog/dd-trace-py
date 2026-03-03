@@ -20,6 +20,17 @@ from typing import Optional
 from unittest.mock import MagicMock
 from uuid import UUID
 
+
+try:
+    from deepeval.metrics import BaseMetric
+    from deepeval.test_case import LLMTestCase
+
+    DEEPEVAL_AVAILABLE = True
+except ImportError:
+    BaseMetric = None  # type: ignore[misc, assignment]
+    LLMTestCase = None  # type: ignore[misc, assignment]
+    DEEPEVAL_AVAILABLE = False
+
 import mock
 import pytest
 
@@ -217,7 +228,9 @@ def test_dataset_one_record_with_tags(llmobs):
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-with-tags", description="A test dataset with tags", records=records
+        dataset_name="test-dataset-with-tags",
+        description="A test dataset with tags",
+        records=records,
     )
     wait_for_backend()
 
@@ -237,7 +250,9 @@ def test_dataset_one_record_with_single_tag(llmobs):
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-single-tag", description="A test dataset with single tag", records=records
+        dataset_name="test-dataset-single-tag",
+        description="A test dataset with single tag",
+        records=records,
     )
     wait_for_backend()
     yield ds
@@ -680,7 +695,9 @@ def test_dataset_pull_with_nonexistent_tags(llmobs):
         )
     ]
     ds = llmobs.create_dataset(
-        dataset_name="test-dataset-pull-non-exist-tags", description="A test dataset with tags", records=records
+        dataset_name="test-dataset-pull-non-exist-tags",
+        description="A test dataset with tags",
+        records=records,
     )
     wait_for_backend(4)
 
@@ -1556,9 +1573,15 @@ def test_experiment_invalid_dataset_raises(llmobs):
 
 
 def test_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_record):
-    with pytest.raises(TypeError, match="Evaluators must be a list of callable functions or BaseEvaluator instances."):
+    with pytest.raises(
+        TypeError,
+        match="Evaluators must be a list of callable functions or BaseEvaluator instances.",
+    ):
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [])
-    with pytest.raises(TypeError, match="Evaluator 123 must be callable or an instance of BaseEvaluator."):
+    with pytest.raises(
+        TypeError,
+        match="Evaluator 123 must be callable or an instance of BaseEvaluator.",
+    ):
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [123])
 
 
@@ -1810,7 +1833,10 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
 
 def test_experiment_run_evaluators_with_extra_return_values(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator_with_extra_return_values]
+        "test_experiment",
+        dummy_task,
+        test_dataset_one_record,
+        [dummy_evaluator_with_extra_return_values],
     )
     task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
     assert len(task_results) == 1
@@ -2641,13 +2667,55 @@ async def async_faulty_summary_evaluator(inputs, outputs, expected_outputs, eval
     raise ValueError("This is an async test error in a summary evaluator")
 
 
+async def deep_eval_async_task_pass(input_data, config):
+    return input_data.get("value", "")
+
+
+async def deep_eval_async_task_fail(input_data, config):
+    return {"answer": "London"}
+
+
+if DEEPEVAL_AVAILABLE:
+
+    class SimpleDeepEvalMetricForTest(BaseMetric):
+        """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
+
+        def __init__(self, name="SimpleDeepEvalMetricForTest", async_mode=False, **kwargs):
+            super().__init__(**kwargs)
+            self._name = name
+            self.async_mode = async_mode
+
+        @property
+        def name(self):
+            return self._name
+
+        def measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = passed
+            return self.score
+
+        async def a_measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = passed
+            return self.score
+
+
 # --- Factory method validation tests ---
 
 
 def test_async_experiment_invalid_task_not_async_raises(llmobs, test_dataset_one_record):
     """Test that async_experiment raises TypeError if task is not async."""
     with pytest.raises(TypeError, match="task must be an async function"):
-        llmobs.async_experiment("test_experiment", dummy_task, test_dataset_one_record, [async_dummy_evaluator])
+        llmobs.async_experiment(
+            "test_experiment",
+            dummy_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator],
+        )
 
 
 def test_async_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
@@ -2663,7 +2731,12 @@ def test_async_experiment_invalid_task_signature_raises(llmobs, test_dataset_one
         async def my_async_task(not_input):
             pass
 
-        llmobs.async_experiment("test_experiment", my_async_task, test_dataset_one_record, [async_dummy_evaluator])
+        llmobs.async_experiment(
+            "test_experiment",
+            my_async_task,
+            test_dataset_one_record,
+            [async_dummy_evaluator],
+        )
 
 
 def test_async_experiment_invalid_dataset_raises(llmobs):
@@ -2675,10 +2748,14 @@ def test_async_experiment_invalid_dataset_raises(llmobs):
 def test_async_experiment_invalid_evaluators_type_raises(llmobs, test_dataset_one_record):
     """Test that async_experiment raises TypeError if evaluators is empty or invalid."""
     with pytest.raises(
-        TypeError, match="Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator"
+        TypeError,
+        match="Evaluators must be a list of callable functions, BaseEvaluator, or BaseAsyncEvaluator",
     ):
         llmobs.async_experiment("test_experiment", async_dummy_task, test_dataset_one_record, [])
-    with pytest.raises(TypeError, match="Evaluator 123 must be callable or an instance of BaseEvaluator"):
+    with pytest.raises(
+        TypeError,
+        match="Evaluator 123 must be callable or an instance of BaseEvaluator",
+    ):
         llmobs.async_experiment("test_experiment", async_dummy_task, test_dataset_one_record, [123])
 
 
@@ -2786,7 +2863,10 @@ async def test_async_experiment_run_task(llmobs, test_dataset, test_dataset_reco
 async def test_async_experiment_run_task_error(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_task with async task that raises."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_faulty_task, test_dataset_one_record, [async_dummy_evaluator]
+        "test_async_experiment",
+        async_faulty_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -2800,7 +2880,10 @@ async def test_async_experiment_run_task_error(llmobs, test_dataset_one_record):
 async def test_async_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_task with raise_errors=True."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_faulty_task, test_dataset_one_record, [async_dummy_evaluator]
+        "test_async_experiment",
+        async_faulty_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
     )
     with pytest.raises(
         RuntimeError,
@@ -2819,7 +2902,10 @@ async def test_async_experiment_run_task_error_raises(llmobs, test_dataset_one_r
 async def test_async_experiment_run_evaluators_async(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with async evaluator."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_dummy_task, test_dataset_one_record, [async_dummy_evaluator]
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_dummy_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -2850,6 +2936,29 @@ async def test_async_experiment_run_evaluators_sync(llmobs, test_dataset_one_rec
     }
 
 
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
+@pytest.mark.asyncio
+async def test_async_experiment_run_evaluators_deep_eval(llmobs, test_dataset_one_record):
+    """Test AsyncExperiment._run_evaluators with a DeepEval (BaseMetric) evaluator."""
+    deep_eval_metric = SimpleDeepEvalMetricForTest(name="simple_deep_eval", async_mode=True)
+    exp = llmobs.async_experiment(
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [deep_eval_metric],
+    )
+    task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert "simple_deep_eval" in eval_results[0]["evaluations"]
+    result = eval_results[0]["evaluations"]["simple_deep_eval"]
+    assert result["error"] is None
+    assert result["value"] == 0.0  # async_dummy_task returns input_data != expected_output
+    assert result["reasoning"] == "Mismatch"
+    assert result["assessment"] == "fail"
+
+
 @pytest.mark.asyncio
 async def test_async_experiment_run_evaluators_mixed(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with mixed sync and async evaluators."""
@@ -2873,7 +2982,10 @@ async def test_async_experiment_run_evaluators_mixed(llmobs, test_dataset_one_re
 async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with async faulty evaluator."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_dummy_task, test_dataset_one_record, [async_faulty_evaluator]
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_faulty_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -2893,7 +3005,10 @@ async def test_async_experiment_run_evaluators_error(llmobs, test_dataset_one_re
 async def test_async_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
     """Test AsyncExperiment._run_evaluators with raise_errors=True."""
     exp = llmobs.async_experiment(
-        "test_async_experiment", async_dummy_task, test_dataset_one_record, [async_faulty_evaluator]
+        "test_async_experiment",
+        async_dummy_task,
+        test_dataset_one_record,
+        [async_faulty_evaluator],
     )
     task_results = await exp._run_task(10, run=run_info_with_stable_id(0), raise_errors=False)
     assert len(task_results) == 1
@@ -3052,7 +3167,10 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
             async_dummy_task,
             test_dataset_one_record,
             [dummy_evaluator, async_dummy_evaluator],  # mixed
-            summary_evaluators=[dummy_summary_evaluator, async_dummy_summary_evaluator],  # mixed
+            summary_evaluators=[
+                dummy_summary_evaluator,
+                async_dummy_summary_evaluator,
+            ],  # mixed
         )
         exp._tags = {"ddtrace.version": "1.2.3"}
         exp_results = await exp.run()
@@ -3065,3 +3183,117 @@ async def test_async_experiment_run_with_mixed_evaluators(llmobs, test_dataset_o
     # Both sync and async summary evaluators should have run
     assert "dummy_summary_evaluator" in exp_results["summary_evaluations"]
     assert "async_dummy_summary_evaluator" in exp_results["summary_evaluations"]
+
+
+if DEEPEVAL_AVAILABLE:
+
+    class SimpleDeepEvalMetric(BaseMetric):
+        """Minimal DeepEval metric for tests: scores 1.0 when actual equals expected, else 0.0."""
+
+        def __init__(self, name="SimpleDeepEvalMetric", **kwargs):
+            super().__init__(**kwargs)
+            self._name = name
+
+        @property
+        def name(self):
+            return self._name
+
+        def measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = bool(self.score)
+            return self.score
+
+        async def a_measure(self, test_case: LLMTestCase) -> float:
+            passed = test_case.actual_output == test_case.expected_output
+            self.score = 1.0 if passed else 0.0
+            self.reason = "Match" if passed else "Mismatch"
+            self.success = bool(self.score)
+            return self.score
+
+
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
+@pytest.mark.asyncio
+async def test_experiment_run_with_deep_eval_evaluator(llmobs):
+    """Run an async experiment with a DeepEval evaluator and assert it completes with correct results."""
+    dataset = Dataset(
+        name="test_dataset",
+        project={"name": "test_project", "_id": "proj_123"},
+        dataset_id="ds_123",
+        records=[
+            {
+                "record_id": "rec_1",
+                "input_data": {"value": {"prompt": "What is the capital of France?"}},
+                "expected_output": {"prompt": "What is the capital of France?"},
+                "metadata": {},
+            }
+        ],
+        description="Test dataset",
+        latest_version=1,
+        version=1,
+        _dne_client=None,
+    )
+
+    deep_eval_metric = SimpleDeepEvalMetric(name="simple_deep_eval")
+
+    with mock_async_process_record():
+        exp = llmobs.async_experiment(
+            "test_experiment",
+            deep_eval_async_task_pass,
+            dataset,
+            [deep_eval_metric],
+        )
+        run_info = run_info_with_stable_id(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        assert len(task_results) == 1
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+        assert len(eval_results) == 1
+        assert "simple_deep_eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["simple_deep_eval"]
+        assert result["error"] is None
+        assert result["value"] == 1.0
+        assert result["reasoning"] == "Match"
+        assert result["assessment"] == "pass"
+
+
+@pytest.mark.skipif(not DEEPEVAL_AVAILABLE, reason="deepeval requires Python 3.10+")
+@pytest.mark.asyncio
+async def test_experiment_run_with_deep_eval_evaluator_fail(llmobs):
+    """DeepEval evaluator scores 0 when actual_output != expected_output in async experiment."""
+    dataset = Dataset(
+        name="test_dataset",
+        project={"name": "test_project", "_id": "proj_123"},
+        dataset_id="ds_123",
+        records=[
+            {
+                "record_id": "rec_1",
+                "input_data": {"value": {"prompt": "What is the capital of France?"}},
+                "expected_output": "test",
+                "metadata": {},
+            }
+        ],
+        description="Test dataset",
+        latest_version=1,
+        version=1,
+        _dne_client=None,
+    )
+
+    deep_eval_metric = SimpleDeepEvalMetric(name="simple_deep_eval")
+    with mock_async_process_record():
+        exp = llmobs.async_experiment(
+            "test_experiment",
+            deep_eval_async_task_fail,
+            dataset,
+            [deep_eval_metric],
+        )
+        run_info = run_info_with_stable_id(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        assert len(task_results) == 1
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+        assert len(eval_results) == 1
+        assert "simple_deep_eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["simple_deep_eval"]
+        assert result["value"] == 0.0
+        assert result["reasoning"] == "Mismatch"
+        assert result["assessment"] == "fail"
