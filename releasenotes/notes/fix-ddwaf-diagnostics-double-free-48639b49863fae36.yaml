@@ -1,4 +1,4 @@
 ---
-fixes:
+other:
   - |
-    ASM: Fix double-free of ``diagnostics`` object in ``DDWaf.update_rules()``.
+    ASM: Remove redundant ``ddwaf_object_free(diagnostics)`` calls in ``DDWaf.update_rules()``.
