@@ -18,22 +18,13 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 log = get_logger(__name__)
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 
-def _dead_lines(all_lines: CoverageLines, covered: CoverageLines) -> list[int]:
-    """Return line numbers present in all_lines but absent from covered."""
-    result: list[int] = []
-    all_bytes = all_lines._lines
-    cov_bytes = covered._lines
-    for idx in range(len(all_bytes)):
-        cov_byte = cov_bytes[idx] if idx < len(cov_bytes) else 0
-        # Bits set in all_bytes but not in cov_bytes
-        dead_byte = all_bytes[idx] & (~cov_byte & 0xFF)
-        for bit in range(8):
-            if dead_byte & (0b1000_0000 >> bit):
-                result.append(idx * 8 + bit)
-    return result
+def _encode_bitmap(cl: CoverageLines) -> str:
+    """Encode a CoverageLines bitmap as base64, stripping trailing zero bytes."""
+    raw = cl.to_bytes().rstrip(b"\x00")
+    return base64.b64encode(raw).decode("ascii")
 
 
 def write_coverage_report(
@@ -61,24 +52,15 @@ def _do_write(
         path = Path(path_str)
         covered = covered_lines.get(path_str, CoverageLines())
 
-        executable = all_lines.to_sorted_list()
-        hit = covered.to_sorted_list()
-        dead = _dead_lines(all_lines, covered)
-
         try:
             rel_path = str(path.relative_to(workspace_path))
         except ValueError:
             rel_path = path_str
 
-        # Only store whichever is smaller: covered_lines or dead_lines.
-        # The other can be derived from executable_lines.
-        file_entry: dict[str, t.Any] = {"executable_lines": executable}
-        if len(hit) <= len(dead):
-            file_entry["covered_lines"] = hit
-        else:
-            file_entry["dead_lines"] = dead
-
-        files[rel_path] = file_entry
+        files[rel_path] = {
+            "executable": _encode_bitmap(all_lines),
+            "covered": _encode_bitmap(covered),
+        }
 
     report: dict[str, t.Any] = {
         "schema_version": _SCHEMA_VERSION,
