@@ -15,7 +15,9 @@ if TYPE_CHECKING:
 @dataclass
 class TracingEvent(Event):
     """TracingEvent is a specialization of Event. It enforces minimal tracing attributes
-    on any TracingEvent. Its purpose is to be used with core.context_with_event
+    on any TracingEvent. Its purpose is to be used with core.context_with_event.
+
+    Except ClassVar annotated attributes, all attributes should be set in __init__ or in __post_init__
     """
 
     span_type: ClassVar[str]

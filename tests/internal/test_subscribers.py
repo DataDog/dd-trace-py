@@ -167,9 +167,11 @@ def test_base_tracing_subscriber(test_spans):
     @event
     class TestTracingEvent(TracingEvent):
         event_name = "test.subscriber.tracing"
-        span_name = "test.subscriber.span"
         span_type = "custom"
         span_kind = "internal"
+
+        def __post_init__(self):
+            self.span_name = "test.subscriber.span"
 
     class TestTracingSubscriber(TracingSubscriber):
         event_names = (TestTracingEvent.event_name,)
@@ -195,9 +197,11 @@ def test_span_context_event_missing_required_field(test_spans):
     @event
     class TestTracingEvent(TracingEvent):
         event_name = "test.span"
-        span_name = "test.operation"
         # Missing service_type
         span_kind = "client"
+
+        def __post_init__(self):
+            self.span_name = "test.operation"
 
     class TestTracingSubscriber(TracingSubscriber):
         event_names = (TestTracingEvent.event_name,)
@@ -248,11 +252,13 @@ def test_span_context_event_inheritance(test_spans):
     @event
     class BaseHTTPEvent(TracingEvent):
         event_name = "http.base"
-        span_name = "http.request"
         span_type = "http"
         span_kind = "client"
 
         url: str = event_field()
+
+        def __post_init__(self):
+            self.span_name = "http.request"
 
     class BaseHTTPSubscriber(TracingSubscriber):
         event_names = (BaseHTTPEvent.event_name,)
@@ -292,9 +298,11 @@ def test_span_context_event_with_exception(test_spans):
     @event
     class TestSpanEvent(TracingEvent):
         event_name = "test.span"
-        span_name = "test.operation"
         span_type = "test"
         span_kind = "client"
+
+        def __post_init__(self):
+            self.span_name = "test.operation"
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
@@ -316,9 +324,11 @@ def test_span_context_event_no_active_context_with_distributed_context(test_span
     @event
     class TestSpanEvent(TracingEvent):
         event_name = "test.distributed"
-        span_name = "remote.operation"
         span_type = "worker"
         span_kind = "consumer"
+
+        def __post_init__(self):
+            self.span_name = "remote.operation"
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
@@ -347,11 +357,12 @@ def test_span_context_event_end_span_false(test_spans):
     @event
     class TestSpanEvent(TracingEvent):
         event_name = "test.span"
-        span_name = "test.operation"
         span_type = "test"
         span_kind = "client"
 
-        _end_span = False
+        def __post_init__(self):
+            self.span_name = "test.operation"
+            self._end_span = False
 
     class TestSpanSubscriber(TracingSubscriber):
         event_names = (TestSpanEvent.event_name,)
