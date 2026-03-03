@@ -92,7 +92,7 @@ class ASM_Environment:
 
     def __init__(
         self,
-        waf_callable: WafCallable,
+        waf_callable: Optional[WafCallable],
         span: Optional[Span] = None,
         rc_products: str = "",
     ):
@@ -594,7 +594,7 @@ def store_waf_results_data(data) -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(waf_callable: WafCallable, span: Span, rc_products: str) -> None:
+def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
         # it should only be called at start of a core context, when ASM_Env is not set yet
         core.set_item(

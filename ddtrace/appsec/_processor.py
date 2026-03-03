@@ -222,13 +222,18 @@ class AppSecSpanProcessor(SpanProcessor):
             span.set_metric(APPSEC.ENABLED, 1.0)
             return
 
-        ctx = self._ddwaf._at_request_start()
         entry_span = span._service_entry_span
         entry_span.set_metric(APPSEC.ENABLED, 1.0)
         entry_span._set_tag_str(_RUNTIME_FAMILY, "python")
 
-        waf_callable = functools.partial(self._waf_action, entry_span, ctx)
-        _asm_request_context.start_context(waf_callable, span, ctx.rc_products if ctx is not None else "")
+        ctx = self._ddwaf._at_request_start()
+        if ctx is not None:
+            waf_callable = functools.partial(self._waf_action, entry_span, ctx)
+            rc_products = ctx.rc_products
+        else:
+            waf_callable = None
+            rc_products = ""
+        _asm_request_context.start_context(waf_callable, span, rc_products)
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
@@ -252,7 +257,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def _waf_action(
         self,
         entry_span: Span,
-        ctx: Optional[ddwaf_context_capsule],
+        ctx: ddwaf_context_capsule,
         custom_data: Optional[dict[str, Any]] = None,
         crop_trace: Optional[str] = None,
         rule_type: Optional[str] = None,

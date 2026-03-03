@@ -100,7 +100,7 @@ class WAF(ABC):
     @abstractmethod
     def run(
         self,
-        ctx: Optional[ddwaf_context_capsule],
+        ctx: ddwaf_context_capsule,
         data: DDWafRulesType,
         ephemeral_data: Optional[DDWafRulesType] = None,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
