@@ -23,8 +23,8 @@ FrameStack::render(EchionSampler& echion)
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
         // frame.lasti in _Py_CODEUNIT units. Convert to bytes for the registry lookup.
         if (frame.code_object != 0 && frame.lasti >= 0) {
-            int lasti_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
-            auto* entry = registry.lookup(frame.code_object, lasti_bytes);
+            int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
+            auto* entry = registry.lookup(frame.code_object, offset_bytes, frame.first_lineno);
             if (entry) {
                 renderer.render_native_frame(entry->name, entry->module);
             }

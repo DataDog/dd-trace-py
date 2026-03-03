@@ -375,6 +375,7 @@ Frame::get(EchionSampler& echion, PyCodeObject* code_addr, int lasti)
     new_frame->cache_key = frame_key;
     new_frame->code_object = reinterpret_cast<uintptr_t>(code_addr);
     new_frame->lasti = lasti;
+    new_frame->first_lineno = firstlineno;
     auto& f = *new_frame;
     echion.frame_cache().store(frame_key, std::move(new_frame));
     return std::ref(f);

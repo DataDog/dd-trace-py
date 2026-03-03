@@ -8,6 +8,8 @@ overhead drops to zero. The sampler looks up (code_object, lasti) when
 reading frames to inject native call information.
 """
 
+# Protected by the GIL -- start() and stop() are only called from Python code
+# holding the GIL, so concurrent access is not possible.
 _started = False
 
 

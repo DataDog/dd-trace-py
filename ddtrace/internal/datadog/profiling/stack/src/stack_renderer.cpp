@@ -227,12 +227,21 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
     }
     auto filename_id = *maybe_filename_id;
 
-    auto maybe_function_id = Datadog::intern_function(name_id, filename_id);
-    if (!maybe_function_id) {
-        return;
+    // Reuse the same function_id_cache as render_frame to avoid redundant intern_function calls
+    function_id fid;
+    auto cached = function_id_cache.find({ name_id, filename_id });
+    if (cached == function_id_cache.end()) {
+        auto maybe_fid = Datadog::intern_function(name_id, filename_id);
+        if (!maybe_fid) {
+            return;
+        }
+        fid = *maybe_fid;
+        function_id_cache.insert({ { static_cast<void*>(name_id), static_cast<void*>(filename_id) }, fid });
+    } else {
+        fid = cached->second;
     }
 
-    sample->push_frame(*maybe_function_id, 1, 0);
+    sample->push_frame(fid, 1, 0);
 }
 
 void

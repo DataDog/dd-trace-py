@@ -311,8 +311,9 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
 
 // ---- Native call monitoring (C callback for sys.monitoring CALL events) ----
 
-// Cached sys.monitoring.DISABLE sentinel
+// Cached sys.monitoring.DISABLE sentinel and tool ID (looked up at runtime)
 static PyObject* g_disable_sentinel = nullptr;
+static int g_tool_id = -1;
 
 // C callback for sys.monitoring CALL events.
 // On every CALL, extracts callable info, registers C callables in the registry,
@@ -322,7 +323,7 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
 {
     // args: [code, instruction_offset, callable, arg0]
     if (nargs < 3) {
-        Py_RETURN_NONE;
+        return Py_NewRef(g_disable_sentinel);
     }
 
     PyObject* callable = args[2];
@@ -335,13 +336,16 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
     // C callable -> extract name+module, register call site, DISABLE
     PyObject* code = args[0];
     PyObject* offset_obj = args[1];
-    int offset = static_cast<int>(PyLong_AsLong(offset_obj));
-    if (offset == -1 && PyErr_Occurred()) {
+    int offset_bytes = static_cast<int>(PyLong_AsLong(offset_obj));
+    if (offset_bytes == -1 && PyErr_Occurred()) {
         PyErr_Clear();
         return Py_NewRef(g_disable_sentinel);
     }
 
     uintptr_t code_ptr = reinterpret_cast<uintptr_t>(code);
+
+    // Extract co_firstlineno to guard against code object address reuse after GC
+    int first_lineno = reinterpret_cast<PyCodeObject*>(code)->co_firstlineno;
 
     // Get name: try __qualname__, fall back to __name__, then type name
     std::string name;
@@ -383,17 +387,33 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
         PyErr_Clear();
     }
 
-    NativeCallRegistry::get_instance().register_call_site(code_ptr, offset, std::move(name), std::move(module));
+    NativeCallRegistry::get_instance().register_call_site(
+      code_ptr, offset_bytes, first_lineno, std::move(name), std::move(module));
 
     return Py_NewRef(g_disable_sentinel);
 }
 
 static PyMethodDef native_call_handler_def = {
     "native_call_handler",
+    // Double cast: METH_FASTCALL signature (PyObject*, PyObject*const*, Py_ssize_t) differs from
+    // PyCFunction (PyObject*, PyObject*), but CPython dispatches correctly based on ml_flags.
     reinterpret_cast<PyCFunction>(reinterpret_cast<void*>(native_call_handler)),
     METH_FASTCALL,
     "C callback for sys.monitoring CALL events"
 };
+
+// Helper to clean up sys.monitoring state on error during start_native_monitoring.
+// Unregisters events and frees the tool ID so a subsequent start attempt can succeed.
+static void
+cleanup_native_monitoring(PyObject* monitoring, bool events_set)
+{
+    if (events_set) {
+        PyObject* r = PyObject_CallMethod(monitoring, "set_events", "ii", g_tool_id, 0);
+        Py_XDECREF(r);
+    }
+    PyObject* r = PyObject_CallMethod(monitoring, "free_tool_id", "i", g_tool_id);
+    Py_XDECREF(r);
+}
 
 static PyObject*
 start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
@@ -419,9 +439,23 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         }
     }
 
-    // use_tool_id(5, "dd-profiling")
-    // We use tool_id=5 which is sys.monitoring.PROFILER_ID
-    PyObject* result = PyObject_CallMethod(monitoring, "use_tool_id", "is", 5, "dd-profiling");
+    // Look up PROFILER_ID at runtime instead of hardcoding
+    if (g_tool_id < 0) {
+        PyObject* id_obj = PyObject_GetAttrString(monitoring, "PROFILER_ID");
+        if (!id_obj) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+        g_tool_id = static_cast<int>(PyLong_AsLong(id_obj));
+        Py_DECREF(id_obj);
+        if (g_tool_id == -1 && PyErr_Occurred()) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+    }
+
+    // use_tool_id(g_tool_id, "dd-profiling")
+    PyObject* result = PyObject_CallMethod(monitoring, "use_tool_id", "is", g_tool_id, "dd-profiling");
     if (!result) {
         Py_DECREF(monitoring);
         return NULL;
@@ -431,6 +465,7 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     // Get events.CALL
     PyObject* events = PyObject_GetAttrString(monitoring, "events");
     if (!events) {
+        cleanup_native_monitoring(monitoring, false);
         Py_DECREF(monitoring);
         return NULL;
     }
@@ -438,13 +473,15 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     PyObject* call_event = PyObject_GetAttrString(events, "CALL");
     Py_DECREF(events);
     if (!call_event) {
+        cleanup_native_monitoring(monitoring, false);
         Py_DECREF(monitoring);
         return NULL;
     }
 
-    // set_events(5, CALL)
-    result = PyObject_CallMethod(monitoring, "set_events", "iO", 5, call_event);
+    // set_events(g_tool_id, CALL)
+    result = PyObject_CallMethod(monitoring, "set_events", "iO", g_tool_id, call_event);
     if (!result) {
+        cleanup_native_monitoring(monitoring, false);
         Py_DECREF(call_event);
         Py_DECREF(monitoring);
         return NULL;
@@ -454,22 +491,24 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     // Create the handler function object
     PyObject* handler = PyCFunction_New(&native_call_handler_def, NULL);
     if (!handler) {
+        cleanup_native_monitoring(monitoring, true);
         Py_DECREF(call_event);
         Py_DECREF(monitoring);
         return NULL;
     }
 
-    // register_callback(5, CALL, handler)
-    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", 5, call_event, handler);
+    // register_callback(g_tool_id, CALL, handler)
+    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", g_tool_id, call_event, handler);
     Py_DECREF(handler);
     Py_DECREF(call_event);
-    Py_DECREF(monitoring);
 
     if (!result) {
-        PyErr_Print();
+        cleanup_native_monitoring(monitoring, true);
+        Py_DECREF(monitoring);
         return NULL;
     }
     Py_DECREF(result);
+    Py_DECREF(monitoring);
 
     Py_RETURN_NONE;
 }
@@ -477,6 +516,10 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 static PyObject*
 stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
+    if (g_tool_id < 0) {
+        Py_RETURN_NONE;
+    }
+
     PyObject* sys_mod = PyImport_ImportModule("sys");
     if (!sys_mod) {
         return NULL;
@@ -488,8 +531,8 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    // set_events(5, 0) - disable all events
-    PyObject* result = PyObject_CallMethod(monitoring, "set_events", "ii", 5, 0);
+    // set_events(g_tool_id, 0) - disable all events
+    PyObject* result = PyObject_CallMethod(monitoring, "set_events", "ii", g_tool_id, 0);
     if (!result) {
         Py_DECREF(monitoring);
         return NULL;
@@ -510,8 +553,8 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         return NULL;
     }
 
-    // register_callback(5, CALL, None)
-    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", 5, call_event, Py_None);
+    // register_callback(g_tool_id, CALL, None)
+    result = PyObject_CallMethod(monitoring, "register_callback", "iOO", g_tool_id, call_event, Py_None);
     Py_DECREF(call_event);
     if (!result) {
         Py_DECREF(monitoring);
@@ -519,13 +562,15 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     }
     Py_DECREF(result);
 
-    // free_tool_id(5)
-    result = PyObject_CallMethod(monitoring, "free_tool_id", "i", 5);
+    // free_tool_id(g_tool_id)
+    result = PyObject_CallMethod(monitoring, "free_tool_id", "i", g_tool_id);
     Py_DECREF(monitoring);
     if (!result) {
         return NULL;
     }
     Py_DECREF(result);
+
+    Py_CLEAR(g_disable_sentinel);
 
     Py_RETURN_NONE;
 }

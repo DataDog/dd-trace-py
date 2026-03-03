@@ -6,9 +6,10 @@
 namespace Datadog {
 
 void
-NativeCallRegistry::register_call_site(uintptr_t code_ptr, int lasti, std::string name, std::string module)
+NativeCallRegistry::register_call_site(uintptr_t code_ptr, int offset_bytes, int first_lineno, std::string name,
+                                       std::string module)
 {
-    CallSiteKey key{ code_ptr, lasti };
+    CallSiteKey key{ code_ptr, offset_bytes, first_lineno };
     std::unique_lock lock(mtx);
     auto it = call_sites.find(key);
     if (it == call_sites.end()) {
@@ -17,9 +18,9 @@ NativeCallRegistry::register_call_site(uintptr_t code_ptr, int lasti, std::strin
 }
 
 const NativeCallEntry*
-NativeCallRegistry::lookup(uintptr_t code_ptr, int lasti)
+NativeCallRegistry::lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno)
 {
-    CallSiteKey key{ code_ptr, lasti };
+    CallSiteKey key{ code_ptr, offset_bytes, first_lineno };
     std::shared_lock lock(mtx);
     auto it = call_sites.find(key);
     if (it != call_sites.end()) {
