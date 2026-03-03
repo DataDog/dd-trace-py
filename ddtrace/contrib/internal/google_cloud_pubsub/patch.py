@@ -4,6 +4,7 @@ import os
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace import tracer
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -76,6 +77,8 @@ def _traced_publish(func, instance, args, kwargs):
         span_type=SpanTypes.WORKER,
         service=trace_utils.ext_service(None, config.google_cloud_pubsub),
         resource=topic_id,
+        call_trace=False,
+        child_of=tracer.context_provider.active(),
     ) as ctx:
         core.dispatch("google_cloud_pubsub.send.start", (ctx, project_id, topic_id, kwargs))
 
