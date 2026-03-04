@@ -64,9 +64,21 @@ def test_truncating_oversized_events(mock_writer_logs):
     llmobs_span_writer.enqueue(_oversized_workflow_event())
     mock_writer_logs.warning.assert_has_calls(
         [
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200729),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200469),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200450),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200729,
+                5000000,
+            ),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200469,
+                5000000,
+            ),
+            mock.call(
+                "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+                5200450,
+                5000000,
+            ),
         ]
     )
 
@@ -206,3 +218,27 @@ llmobs_span_writer.enqueue(_completion_event())
     assert status == 0, err
     assert out == b""
     assert len(requests_received) == 1
+
+
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_configurable_payload_size_limit(mock_send_payload, mock_writer_logs):
+    """DD_EVP_PROXY_PAYLOAD_SIZE_BYTES overrides the flush threshold."""
+    with override_global_config(dict(_evp_proxy_payload_size_limit=100)):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+        llmobs_span_writer.enqueue(_completion_event())
+        llmobs_span_writer.enqueue(_completion_event())
+    mock_writer_logs.debug.assert_any_call(
+        "manually flushing buffer because queueing next event will exceed EVP payload limit"
+    )
+
+
+def test_configurable_event_size_limit(mock_writer_logs):
+    """DD_EVP_PROXY_EVENT_SIZE_BYTES overrides the truncation threshold."""
+    with override_global_config(dict(_evp_proxy_event_size_limit=100)):
+        llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+        llmobs_span_writer.enqueue(_completion_event())
+    mock_writer_logs.warning.assert_called_once_with(
+        "dropping event input/output because its size (%d) exceeds the event size limit (%d bytes)",
+        mock.ANY,
+        100,
+    )
