@@ -3,9 +3,11 @@ from unittest.mock import patch
 
 import pytest
 from strands.hooks import AfterModelCallEvent
+from strands.hooks import AfterToolCallEvent
 from strands.hooks import BeforeModelCallEvent
 from strands.hooks import BeforeToolCallEvent
 from strands.hooks import HookRegistry
+from strands.interrupt import _InterruptState
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import Function
@@ -27,6 +29,8 @@ def _mock_agent(messages=None, system_prompt=None):
     agent = Mock()
     agent.messages = messages if messages is not None else []
     agent.system_prompt = system_prompt
+    # Required by BeforeToolCallEvent which inherits from _Interruptible
+    agent._interrupt_state = _InterruptState()
     return agent
 
 
@@ -56,6 +60,18 @@ def _before_tool_event(tool_use, messages=None):
         selected_tool=None,
         tool_use=tool_use,
         invocation_state={},
+    )
+
+
+def _after_tool_event(tool_use, tool_result, messages=None):
+    """Build an AfterToolCallEvent with a mock agent."""
+    agent = _mock_agent(messages)
+    return AfterToolCallEvent(
+        agent=agent,
+        selected_tool=None,
+        tool_use=tool_use,
+        invocation_state={},
+        result=tool_result,
     )
 
 
@@ -356,9 +372,11 @@ class TestBeforeToolCall:
             messages=[{"role": "user", "content": [{"text": "Delete everything"}]}],
         )
 
-        with pytest.raises(AIGuardAbortError):
-            ai_guard_strands_hook._on_before_tool_call(event)
+        # BeforeToolCallEvent cancels the tool via event.cancel_tool
+        # instead of raising AIGuardAbortError
+        ai_guard_strands_hook._on_before_tool_call(event)
 
+        assert event.cancel_tool
         mock_execute_request.assert_called_once()
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
@@ -383,6 +401,67 @@ class TestBeforeToolCall:
 
 
 # ---------------------------------------------------------------------------
+# _on_after_tool_call (via AfterToolCallEvent)
+# ---------------------------------------------------------------------------
+
+
+class TestAfterToolCall:
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_allow(self, mock_execute_request, ai_guard_strands_hook):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = _after_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "calculator", "input": {"expr": "2+2"}},
+            tool_result={"toolUseId": "tc1", "content": [{"text": "4"}], "status": "success"},
+            messages=[{"role": "user", "content": [{"text": "Calculate 2+2"}]}],
+        )
+
+        ai_guard_strands_hook._on_after_tool_call(event)
+
+        mock_execute_request.assert_called_once()
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_tool_result_included_in_payload(self, mock_execute_request, ai_guard_strands_hook):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = _after_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "search", "input": {"query": "foo"}},
+            tool_result={"toolUseId": "tc1", "content": [{"text": "result data"}], "status": "success"},
+            messages=[{"role": "user", "content": [{"text": "Search for foo"}]}],
+        )
+
+        ai_guard_strands_hook._on_after_tool_call(event)
+
+        payload = mock_execute_request.call_args[0][1]
+        sent_messages = payload["data"]["attributes"]["messages"]
+        # user msg + tool call (assistant) + tool result
+        assert len(sent_messages) == 3
+        assert sent_messages[0] == Message(role="user", content="Search for foo")
+        assert sent_messages[1]["role"] == "assistant"
+        assert sent_messages[1]["tool_calls"][0]["id"] == "tc1"
+        assert sent_messages[1]["tool_calls"][0]["function"]["name"] == "search"
+        assert sent_messages[2]["role"] == "tool"
+        assert sent_messages[2]["tool_call_id"] == "tc1"
+        assert sent_messages[2]["content"] == "result data"
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_error_status_result(self, mock_execute_request, ai_guard_strands_hook):
+        """Tool results with error status are still evaluated."""
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+        event = _after_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "api_call", "input": {}},
+            tool_result={
+                "toolUseId": "tc1",
+                "content": [{"text": "Error: connection refused"}],
+                "status": "error",
+            },
+            messages=[],
+        )
+
+        ai_guard_strands_hook._on_after_tool_call(event)
+
+        mock_execute_request.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # register_hooks
 # ---------------------------------------------------------------------------
 
@@ -394,16 +473,31 @@ class TestRegisterHooks:
         ai_guard_strands_hook.register_hooks(registry)
 
         assert registry.has_callbacks()
+        mock_agent = Mock()
+        mock_agent._interrupt_state = _InterruptState()
+        tool_use = {"toolUseId": "x", "name": "x", "input": {}}
+        tool_result = {"toolUseId": "x", "content": [], "status": "success"}
         # Verify each event type has a registered callback
-        assert list(registry.get_callbacks_for(BeforeModelCallEvent(agent=Mock(), invocation_state={})))
-        assert list(registry.get_callbacks_for(AfterModelCallEvent(agent=Mock())))
+        assert list(registry.get_callbacks_for(BeforeModelCallEvent(agent=mock_agent, invocation_state={})))
+        assert list(registry.get_callbacks_for(AfterModelCallEvent(agent=mock_agent)))
         assert list(
             registry.get_callbacks_for(
                 BeforeToolCallEvent(
-                    agent=Mock(),
+                    agent=mock_agent,
                     selected_tool=None,
-                    tool_use={"toolUseId": "x", "name": "x", "input": {}},
+                    tool_use=tool_use,
                     invocation_state={},
+                )
+            )
+        )
+        assert list(
+            registry.get_callbacks_for(
+                AfterToolCallEvent(
+                    agent=mock_agent,
+                    selected_tool=None,
+                    tool_use=tool_use,
+                    invocation_state={},
+                    result=tool_result,
                 )
             )
         )
@@ -448,3 +542,15 @@ class TestErrorHandling:
 
         # Should not raise
         ai_guard_strands_hook._on_before_tool_call(event)
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_after_tool_call_swallows_non_abort_errors(self, mock_execute_request, ai_guard_strands_hook):
+        mock_execute_request.side_effect = ConnectionError("network error")
+        event = _after_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
+            tool_result={"toolUseId": "tc1", "content": [{"text": "4"}], "status": "success"},
+            messages=[],
+        )
+
+        # Should not raise
+        ai_guard_strands_hook._on_after_tool_call(event)
