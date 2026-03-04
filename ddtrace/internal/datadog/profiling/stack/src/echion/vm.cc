@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <iostream>
 #include <string>
 
 #include <cstdint>
@@ -158,6 +157,7 @@ init_safe_copy()
     if (use_alternative_copy_memory()) {
         if (init_segv_catcher() == 0) {
             safe_copy = safe_memcpy_wrapper;
+            fast_copy_active = true;
             return;
         }
 
@@ -232,12 +232,18 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf)
                                  reinterpret_cast<mach_vm_address_t>(buf),
                                  reinterpret_cast<mach_vm_size_t*>(&result));
 
-    if (kr != KERN_SUCCESS)
+    if (kr != KERN_SUCCESS) {
+        g_copy_memory_error_count.fetch_add(1, std::memory_order_relaxed);
         return -1;
+    }
 
 #endif
 
-    return len != result;
+    int ret = len != result;
+    if (ret) {
+        g_copy_memory_error_count.fetch_add(1, std::memory_order_relaxed);
+    }
+    return ret;
 }
 
 void
