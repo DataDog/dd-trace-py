@@ -2,35 +2,169 @@
   {
     "name": "azure.functions.invoke",
     "service": "test-func",
-    "resource": "POST /api/sendeventbatch",
+    "resource": "EventHubs eventhub",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
     "type": "serverless",
-    "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5f07300000000",
+      "_dd.p.tid": "68cc71dc00000000",
+      "aas.function.name": "eventhub",
+      "aas.function.trigger": "EventHubs",
+      "component": "azure_functions",
+      "language": "python",
+      "messaging.batch_count": "2",
+      "messaging.destination.name": "eh1",
+      "messaging.operation": "receive",
+      "messaging.system": "eventhubs",
+      "network.destination.name": "localhost",
+      "runtime-id": "9c4bc93f54b84f159875e6c7a17ca757",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 33630
+    },
+    "span_links": [
+      {
+        "trace_id": 1,
+        "span_id": 2,
+        "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71db00000000",
+        "flags": 2147483649,
+        "trace_id_high": 7551535860605255680
+      },
+      {
+        "trace_id": 1,
+        "span_id": 3,
+        "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71db00000000",
+        "flags": 2147483649,
+        "trace_id_high": 7551535860605255680
+      }
+    ],
+    "duration": 399833,
+    "start": 1758228956042088674
+  }],
+[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/sendeventbatch",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68cc71db00000000",
       "aas.function.name": "send_batch",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
-      "error.message": "Failed to initiate the connection due to exception: [Errno 111] Connection refused\nError condition: ErrorCondition.SocketError\n Error Description: Failed to initiate the connection due to exception: [Errno 111] Connection refused",
-      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_functions/utils.py\", line 68, in wrapper\n    res = func(*args, **kwargs)\n  File \"/home/bits/project/tests/contrib/azure_functions_eventhubs/azure_function_app/function_app.py\", line 31, in send_batch\n    batch = eventhub_producer_client.create_batch()\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_eventhubs/patch.py\", line 85, in _patched_create_batch\n    batch = wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurefunctions~1101_azureeventhub_azurestorageblob/lib/python3.9/site-packages/azure/eventhub/_producer_client.py\", line 799, in create_batch\n    self._get_max_message_size()\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurefunctions~1101_azureeventhub_azurestorageblob/lib/python3.9/site-packages/azure/eventhub/_producer_client.py\", line 355, in _get_max_message_size\n    cast(EventHubProducer, self._producers[ALL_PARTITIONS])._open_with_retry()\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurefunctions~1101_azureeventhub_azurestorageblob/lib/python3.9/site-packages/azure/eventhub/_producer.py\", line 147, in _open_with_retry\n    return self._do_retryable_operation(self._open, operation_need_param=False)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurefunctions~1101_azureeventhub_azurestorageblob/lib/python3.9/site-packages/azure/eventhub/_client_base.py\", line 608, in _do_retryable_operation\n    raise last_exception from None\nazure.eventhub.exceptions.ConnectError: Failed to initiate the connection due to exception: [Errno 111] Connection refused\nError condition: ErrorCondition.SocketError\n Error Description: Failed to initiate the connection due to exception: [Errno 111] Connection refused\n",
-      "error.type": "azure.eventhub.exceptions.ConnectError",
       "http.method": "POST",
       "http.route": "/api/sendeventbatch",
+      "http.status_code": "200",
       "http.url": "http://0.0.0.0:7071/api/sendeventbatch",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "1c533555d6c94226969882ec2afd44ef",
+      "runtime-id": "9c4bc93f54b84f159875e6c7a17ca757",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 52549.0
+      "_sampling_priority_v1": 1,
+      "process_id": 33630
     },
-    "duration": 12090091173,
-    "start": 1772482675787270088
-  }]]
+    "duration": 518065167,
+    "start": 1758228955378548090
+  },
+     {
+       "name": "azure.eventhubs.create",
+       "service": "azure_eventhubs",
+       "resource": "eh1",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_eventhubs",
+         "messaging.destination.name": "eh1",
+         "messaging.operation": "create",
+         "messaging.system": "eventhubs",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 1425875,
+       "start": 1758228955886461590
+     },
+     {
+       "name": "azure.eventhubs.create",
+       "service": "azure_eventhubs",
+       "resource": "eh1",
+       "trace_id": 1,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "68cc71db00000000",
+         "component": "azure_eventhubs",
+         "messaging.destination.name": "eh1",
+         "messaging.operation": "create",
+         "messaging.system": "eventhubs",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 246250,
+       "start": 1758228955888524132
+     },
+     {
+       "name": "azure.eventhubs.send",
+       "service": "azure_eventhubs",
+       "resource": "eh1",
+       "trace_id": 1,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "68cc71db00000000",
+         "component": "azure_eventhubs",
+         "messaging.batch_count": "2",
+         "messaging.destination.name": "eh1",
+         "messaging.operation": "send",
+         "messaging.system": "eventhubs",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "span_links": [
+         {
+           "trace_id": 1,
+           "span_id": 2,
+           "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71db00000000",
+           "flags": 2147483649,
+           "trace_id_high": 7551535860605255680
+         },
+         {
+           "trace_id": 1,
+           "span_id": 3,
+           "tracestate": "dd=s:1;t.dm:-0;t.tid:68cc71db00000000",
+           "flags": 2147483649,
+           "trace_id_high": 7551535860605255680
+         }
+       ],
+       "duration": 5803334,
+       "start": 1758228955888866840
+     }]]

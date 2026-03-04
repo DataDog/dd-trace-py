@@ -9,7 +9,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ee0100000000",
+      "_dd.p.tid": "680bbffe00000000",
       "aas.function.name": "http_get_ok_async",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,15 +19,15 @@
       "http.url": "http://0.0.0.0:7071/api/httpgetokasync?key=val",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "5d3274dece0946738518c8b06a0e4f4f",
+      "runtime-id": "dc1bd0201db346a887fac16721f3b0e5",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 32007.0
+      "_sampling_priority_v1": 1,
+      "process_id": 17518
     },
-    "duration": 1755417,
-    "start": 1772482049716581007
+    "duration": 794292,
+    "start": 1745600510630485377
   }]]

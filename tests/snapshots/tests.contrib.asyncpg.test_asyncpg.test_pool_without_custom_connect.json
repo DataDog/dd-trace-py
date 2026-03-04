@@ -11,22 +11,22 @@
     "meta": {
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6700000000",
+      "_dd.p.tid": "68b05c4c00000000",
       "component": "asyncpg",
       "db.system": "postgresql",
       "language": "python",
-      "runtime-id": "de75a97ec88f4b8fabe0ac2b0caaa682",
+      "runtime-id": "affe257e588347a08dc9aba7c5237c9f",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 28476.0
+      "_sampling_priority_v1": 1,
+      "process_id": 5029
     },
-    "duration": 393125,
-    "start": 1772481639486517512
+    "duration": 225917,
+    "start": 1756388428735309501
   }],
 [
   {
@@ -41,20 +41,20 @@
     "meta": {
       "_dd.base_service": "tests.contrib.asyncpg",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6700000000",
+      "_dd.p.tid": "68b05c4c00000000",
       "component": "asyncpg",
       "db.system": "postgresql",
       "language": "python",
-      "runtime-id": "de75a97ec88f4b8fabe0ac2b0caaa682",
+      "runtime-id": "affe257e588347a08dc9aba7c5237c9f",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 28476.0
+      "_sampling_priority_v1": 1,
+      "process_id": 5029
     },
-    "duration": 349792,
-    "start": 1772481639487307803
+    "duration": 152500,
+    "start": 1756388428735899668
   }]]

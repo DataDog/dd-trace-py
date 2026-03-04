@@ -9,7 +9,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a6f92c00000000",
+      "_dd.p.tid": "68c4448800000000",
       "aas.function.name": "queue_send_message_batch",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +19,17 @@
       "http.url": "http://0.0.0.0:7071/api/queuesendmessagebatch",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "365ed16a73bc413695a420a63c4ae3a6",
+      "runtime-id": "c9093bcc39cf49438447885b9e88eeb6",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 5071.0
+      "_sampling_priority_v1": 1,
+      "process_id": 24547
     },
-    "duration": 1028216543,
-    "start": 1772550444941790003
+    "duration": 1027379959,
+    "start": 1757693064664656877
   },
      {
        "name": "azure.servicebus.create",
@@ -43,17 +43,17 @@
          "_dd.base_service": "test-func",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
-         "messaging.message_id": "72371c1a-0b4e-4c9a-91cc-a6b4b1cdf032",
+         "messaging.message_id": "4fe806b4-a7e8-4784-856c-8d51361ebcdb",
          "messaging.operation": "create",
          "messaging.system": "servicebus",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1.0
+         "_dd.top_level": 1
        },
-       "duration": 729334,
-       "start": 1772550445439651795
+       "duration": 1471333,
+       "start": 1757693065176034377
      },
      {
        "name": "azure.servicebus.create",
@@ -65,19 +65,20 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.p.tid": "68c4448800000000",
          "component": "azure_servicebus",
          "messaging.destination.name": "queue.1",
-         "messaging.message_id": "597ba71d-3161-4c7b-ba69-0b4e30e3af23",
+         "messaging.message_id": "f83ae125-a10a-437e-bab7-55d62d1ad48b",
          "messaging.operation": "create",
          "messaging.system": "servicebus",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1.0
+         "_dd.top_level": 1
        },
-       "duration": 143250,
-       "start": 1772550445440831337
+       "duration": 259208,
+       "start": 1757693065178186252
      },
      {
        "name": "azure.servicebus.send",
@@ -89,6 +90,7 @@
        "type": "worker",
        "meta": {
          "_dd.base_service": "test-func",
+         "_dd.p.tid": "68c4448800000000",
          "component": "azure_servicebus",
          "messaging.batch_count": "2",
          "messaging.destination.name": "queue.1",
@@ -98,10 +100,10 @@
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1.0
+         "_dd.top_level": 1
        },
-       "duration": 7452916,
-       "start": 1772550445441022379
+       "duration": 7187625,
+       "start": 1757693065178551794
      }],
 [
   {
@@ -114,7 +116,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a6f92d00000000",
+      "_dd.p.tid": "68c4448900000000",
       "aas.function.name": "servicebusqueue",
       "aas.function.trigger": "ServiceBus",
       "component": "azure_functions",
@@ -124,15 +126,15 @@
       "messaging.operation": "receive",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "365ed16a73bc413695a420a63c4ae3a6",
+      "runtime-id": "c9093bcc39cf49438447885b9e88eeb6",
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 5071.0
+      "_sampling_priority_v1": 1,
+      "process_id": 24547
     },
-    "duration": 280708,
-    "start": 1772550445593727379
+    "duration": 159750,
+    "start": 1757693065323525502
   }]]

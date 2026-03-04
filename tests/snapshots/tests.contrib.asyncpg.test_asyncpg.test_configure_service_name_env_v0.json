@@ -11,26 +11,26 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6c00000000",
+      "_dd.p.tid": "654a694400000000",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "a27c2455fb834aaf8965e36763e02af9",
+      "runtime-id": "2f566abf1ac54ac0a0e4820e1393eaef",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.top_level": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "network.destination.port": 5432.0,
-      "process_id": 28586.0
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 5432,
+      "process_id": 25718
     },
-    "duration": 45571666,
-    "start": 1772481644137687625
+    "duration": 4898333,
+    "start": 1692706987184353256
   }],
 [
   {
@@ -45,25 +45,25 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a5ec6c00000000",
+      "_dd.p.tid": "654a694400000000",
       "component": "asyncpg",
       "db.name": "postgres",
       "db.system": "postgresql",
       "db.user": "postgres",
       "language": "python",
       "out.host": "127.0.0.1",
-      "runtime-id": "a27c2455fb834aaf8965e36763e02af9",
+      "runtime-id": "2f566abf1ac54ac0a0e4820e1393eaef",
       "server.address": "127.0.0.1",
       "span.kind": "client"
     },
     "metrics": {
-      "_dd.measured": 1.0,
-      "_dd.top_level": 1.0,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "network.destination.port": 5432.0,
-      "process_id": 28586.0
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 5432,
+      "process_id": 25718
     },
-    "duration": 2147542,
-    "start": 1772481644187452416
+    "duration": 652334,
+    "start": 1692706987221936214
   }]]

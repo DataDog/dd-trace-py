@@ -9,7 +9,7 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a6f97600000000",
+      "_dd.p.tid": "68c444c900000000",
       "aas.function.name": "topic_send_single_message",
       "aas.function.trigger": "Http",
       "component": "azure_functions",
@@ -19,17 +19,17 @@
       "http.url": "http://0.0.0.0:7071/api/topicsendmessagesingle",
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
-      "runtime-id": "ffab6c25fc7f4963a1d6dc6c986432a8",
+      "runtime-id": "90837f88efbd42c5aa2ca764e6310309",
       "span.kind": "server"
     },
     "metrics": {
-      "_dd.top_level": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 7569.0
+      "_sampling_priority_v1": 1,
+      "process_id": 26923
     },
-    "duration": 1029210001,
-    "start": 1772550518789850843
+    "duration": 1024802251,
+    "start": 1757693129641820087
   },
      {
        "name": "azure.servicebus.send",
@@ -43,17 +43,17 @@
          "_dd.base_service": "test-func",
          "component": "azure_servicebus",
          "messaging.destination.name": "topic.1",
-         "messaging.message_id": "5a493a0a-3ac4-46c7-ab41-69023a362d27",
+         "messaging.message_id": "93b1001f-b855-4ea6-8b00-d59bf8ac4255",
          "messaging.operation": "send",
          "messaging.system": "servicebus",
          "network.destination.name": "localhost",
          "span.kind": "producer"
        },
        "metrics": {
-         "_dd.top_level": 1.0
+         "_dd.top_level": 1
        },
-       "duration": 7911042,
-       "start": 1772550519309381677
+       "duration": 8823500,
+       "start": 1757693130160480213
      }],
 [
   {
@@ -66,25 +66,25 @@
     "type": "serverless",
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a6f97700000000",
+      "_dd.p.tid": "68c444ca00000000",
       "aas.function.name": "servicebustopic",
       "aas.function.trigger": "ServiceBus",
       "component": "azure_functions",
       "language": "python",
       "messaging.destination.name": "topic.1",
-      "messaging.message_id": "5a493a0a-3ac4-46c7-ab41-69023a362d27",
+      "messaging.message_id": "93b1001f-b855-4ea6-8b00-d59bf8ac4255",
       "messaging.operation": "receive",
       "messaging.system": "servicebus",
       "network.destination.name": "localhost",
-      "runtime-id": "ffab6c25fc7f4963a1d6dc6c986432a8",
+      "runtime-id": "90837f88efbd42c5aa2ca764e6310309",
       "span.kind": "consumer"
     },
     "metrics": {
-      "_dd.top_level": 1.0,
+      "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 1.0,
-      "process_id": 7569.0
+      "_sampling_priority_v1": 1,
+      "process_id": 26923
     },
-    "duration": 294625,
-    "start": 1772550519434422719
+    "duration": 150292,
+    "start": 1757693130271051421
   }]]
