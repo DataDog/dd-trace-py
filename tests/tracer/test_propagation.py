@@ -2768,6 +2768,8 @@ def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, f
     assert response.json() == {"Homepage Read": "Success"}
 
     spans = fastapi_test_spans.pop_traces()
+    assert len(spans) == 1
+    assert len(spans[0]) == 1
     root_span = spans[0][0]
     assert root_span.name == "fastapi.request", (
         f"Expected root span 'fastapi.request', got '{root_span.name}'. "
