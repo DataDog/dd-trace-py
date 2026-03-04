@@ -10,6 +10,8 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.internal import core
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
@@ -236,7 +238,7 @@ class AIGuardClient:
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
-                    result = response.get_json()
+                    result = response.get_json() or {}
                 except Exception as e:
                     raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
 
@@ -246,6 +248,7 @@ class AIGuardClient:
                         action = attributes["action"]
                         reason = attributes.get("reason", None)
                         tags = attributes.get("tags", [])
+                        sds_findings = attributes.get("sds_findings", [])
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                     except Exception as e:
                         value = json.dumps(result, indent=2)[:500]
@@ -265,6 +268,8 @@ class AIGuardClient:
                         meta_struct.update({"attack_categories": tags})
                     if reason:
                         span.set_tag(AI_GUARD.REASON_TAG, reason)
+                    if sds_findings:
+                        meta_struct.update({"sds": sds_findings})
                 else:
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
@@ -280,7 +285,9 @@ class AIGuardClient:
                         ("error", "false"),
                     )
                 )
-
+                root_span = core.get_root_span()
+                if root_span:
+                    _aiguard_manual_keep(root_span)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason, tags=tags)

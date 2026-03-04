@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 import time
 from unittest import mock
@@ -13,6 +14,9 @@ from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+
+
+TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 
 
 def test_status():
@@ -232,7 +236,7 @@ def test_libdd_failure_telemetry_logging_with_auto():
 
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
-    err="Failed to load stack module (mock failure message), falling back to v1 stack sampler\n",
+    err="Failed to load stack module (mock failure message), disabling stack profiling\n",
 )
 def test_stack_failure_telemetry_logging():
     # Test that stack initialization failures log to telemetry. This is
@@ -326,3 +330,105 @@ def test_user_threads_have_native_id():
     t.join()
 
     p.stop()
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_ENABLED="false",
+    )
+)
+def test_gevent_not_patched_when_profiling_disabled():
+    import gevent
+
+    # Import these modules to ensure that they don't have a side effect enabling
+    # gevent support when profiling is disabled.
+    from ddtrace.profiling import Profiler  # noqa: F401
+    from ddtrace.profiling import _gevent  # noqa: F401
+    from ddtrace.profiling.collector import _task  # noqa: F401
+
+    assert gevent.spawn.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.spawn_later.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.joinall.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.wait.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.iwait.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.hub.spawn_raw.__module__ != "ddtrace.profiling._gevent"
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_ENABLED="true",
+    ),
+    ddtrace_run=True,
+    err=None,
+)
+def test_gevent_patched_when_ddtrace_run_is_used():
+    import gevent
+
+    # NOTE: In this test (and the test_gevent_patched* tests below), we do not
+    # assert on `gevent.Greenlet.__module__`. That check is brittle across gevent
+    # internals/import aliasing and can fail even when gevent patching is active.
+    # We instead assert on patched function entry points (e.g., `gevent.spawn`,
+    # `gevent.wait`, `gevent.iwait`), and behavior is already covered by profiling
+    # tests that validate gevent tasks are sampled.
+    assert gevent.spawn.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.spawn_later.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.joinall.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.wait.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.iwait.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.hub.spawn_raw.__module__ == "ddtrace.profiling._gevent"
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(err=None)
+def test_gevent_patched_when_profiling_auto():
+    import gevent
+
+    assert gevent.spawn.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.spawn_later.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.joinall.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.wait.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.iwait.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.hub.spawn_raw.__module__ != "ddtrace.profiling._gevent"
+
+    import ddtrace.profiling.auto  # noqa: F401
+
+    assert gevent.spawn.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.spawn_later.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.joinall.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.wait.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.iwait.__module__ == "ddtrace.profiling._gevent"
+    assert gevent.hub.spawn_raw.__module__ == "ddtrace.profiling._gevent"
+
+
+@pytest.mark.skipif(not TESTING_GEVENT, reason="gevent is not available")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_ENABLED="false",
+    ),
+    err=None,
+)
+def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled():
+    import gevent
+
+    from ddtrace.profiling import profiler
+
+    assert gevent.spawn.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.spawn_later.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.joinall.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.wait.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.iwait.__module__ != "ddtrace.profiling._gevent"
+    assert gevent.hub.spawn_raw.__module__ != "ddtrace.profiling._gevent"
+
+    p = profiler.Profiler()
+    p.start()
+    try:
+        assert gevent.spawn.__module__ == "ddtrace.profiling._gevent"
+        assert gevent.spawn_later.__module__ == "ddtrace.profiling._gevent"
+        assert gevent.joinall.__module__ == "ddtrace.profiling._gevent"
+        assert gevent.wait.__module__ == "ddtrace.profiling._gevent"
+        assert gevent.iwait.__module__ == "ddtrace.profiling._gevent"
+        assert gevent.hub.spawn_raw.__module__ == "ddtrace.profiling._gevent"
+    finally:
+        p.stop(flush=False)

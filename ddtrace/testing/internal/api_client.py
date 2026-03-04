@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import os
 from pathlib import Path
 import typing as t
 import uuid
@@ -23,6 +24,28 @@ from ddtrace.testing.internal.test_data import TestRef
 
 
 log = logging.getLogger(__name__)
+
+_DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+
+
+def _get_known_tests_max_pages() -> int:
+    """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
+    try:
+        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+    except ValueError:
+        log.warning(
+            "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    if value <= 0:
+        log.warning(
+            "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive (%s), using default: %s",
+            value,
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    return value
 
 
 class APIClient:
@@ -109,46 +132,78 @@ class APIClient:
             error="known_tests.request_errors",
         )
 
-        try:
-            request_data: dict[str, t.Any] = {
-                "data": {
-                    "id": str(uuid.uuid4()),
-                    "type": "ci_app_libraries_tests_request",
-                    "attributes": {
-                        "service": self.service,
-                        "env": self.env,
-                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                        "configurations": self.configurations,
-                    },
+        page_state: t.Optional[str] = None
+        known_test_ids: set[TestRef] = set()
+        max_pages = _get_known_tests_max_pages()
+
+        for page_number in range(max_pages):
+            # First page: empty page_info lets backend use its default max (10k).
+            # Subsequent pages: only send page_state.
+            page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+
+            try:
+                request_data: dict[str, t.Any] = {
+                    "data": {
+                        "id": str(uuid.uuid4()),
+                        "type": "ci_app_libraries_tests_request",
+                        "attributes": {
+                            "service": self.service,
+                            "env": self.env,
+                            "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                            "configurations": self.configurations,
+                            "page_info": page_info,
+                        },
+                    }
                 }
-            }
 
-        except KeyError as e:
-            log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
-            telemetry.record_error(ErrorType.UNKNOWN)
-            return set()
+            except KeyError as e:
+                log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
+                telemetry.record_error(ErrorType.UNKNOWN)
+                return set()
 
-        try:
-            result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
-            result.on_error_raise_exception()
+            try:
+                result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+                result.on_error_raise_exception()
 
-        except Exception as e:
-            log.warning("Error getting known tests from API: %s", e)
-            return set()
+            except Exception as e:
+                log.warning("Error getting known tests from API: %s", e)
+                return set()
 
-        try:
-            tests_data = result.parsed_response["data"]["attributes"]["tests"]
-            known_test_ids = set()
+            try:
+                attributes = result.parsed_response["data"]["attributes"]
+                tests_data = attributes["tests"]
 
-            for module, suites in tests_data.items():
-                module_ref = ModuleRef(module)
-                for suite, tests in suites.items():
-                    suite_ref = SuiteRef(module_ref, suite)
-                    for test in tests:
-                        known_test_ids.add(TestRef(suite_ref, test))
+                for module, suites in tests_data.items():
+                    module_ref = ModuleRef(module)
+                    for suite, tests in suites.items():
+                        suite_ref = SuiteRef(module_ref, suite)
+                        for test in tests:
+                            known_test_ids.add(TestRef(suite_ref, test))
 
-        except Exception:
-            log.warning("Error getting known tests from API")
+                page_info = attributes.get("page_info")
+                if not page_info:
+                    break
+                if not isinstance(page_info, dict):
+                    log.warning("Known tests response page_info is not a dict")
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
+
+                has_next = page_info.get("has_next")
+                if not has_next:
+                    break
+
+                page_state = page_info.get("cursor")
+                if not page_state:
+                    log.warning("Known tests response missing pagination cursor on page %d", page_number + 1)
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
+
+            except Exception:
+                log.warning("Error getting known tests from API")
+                telemetry.record_error(ErrorType.BAD_JSON)
+                return set()
+        else:
+            log.warning("Known tests pagination exceeded max pages: %d", max_pages)
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 

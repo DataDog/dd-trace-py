@@ -1,5 +1,4 @@
 import os
-import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -59,11 +58,6 @@ def openai(openai_api_key, openai_organization, api_key_in_env):
     os.environ["OPENAI_API_KEY"] = "<not-a-real-key>"
     openai.organization = openai_organization
     yield openai
-    # Since unpatching doesn't work (see the unpatch() function),
-    # wipe out all the OpenAI modules so that state is reset for each test case.
-    mods = list(k for k in sys.modules.keys() if k.startswith("openai"))
-    for m in mods:
-        del sys.modules[m]
 
 
 @pytest.fixture
@@ -116,7 +110,9 @@ def default_global_config():
 
 
 @pytest.fixture
-def patch_openai(ddtrace_global_config, ddtrace_config_openai, openai_api_key, openai_organization, api_key_in_env):
+def patch_openai(
+    ddtrace_global_config, ddtrace_config_openai, openai, openai_api_key, openai_organization, api_key_in_env
+):
     global_config = default_global_config()
     global_config.update(ddtrace_global_config)
     with override_global_config(global_config):
