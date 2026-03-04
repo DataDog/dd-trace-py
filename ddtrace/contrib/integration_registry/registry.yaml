@@ -592,7 +592,7 @@ integrations:
   - mlflow-tracing
   tested_versions_by_dependency:
     mlflow:
-      min: 3.10.0
+      min: 2.11.4
       max: 3.10.0
     mlflow-skinny:
       min: 3.10.0

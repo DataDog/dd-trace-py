@@ -1313,12 +1313,18 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
-                    pkgs={"mlflow": ["~=2.11.0", "~=2.21.0", latest]},
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pkgs={
+                        "mlflow": ["~=2.11.0"],
+                        "setuptools": latest,
+                    },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.13", max_version="3.13"),
-                    pkgs={"mlflow": latest},
+                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pkgs={
+                        "mlflow": [latest],
+                        "setuptools": latest,
+                    },
                 ),
             ],
         ),

@@ -59,9 +59,16 @@ def test_mlflow_error_in_run(test_spans):
     _assert_run_id_on_all_spans(test_spans)
 
 
-@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.subprocess(
+    ddtrace_run=True, err=lambda stderr: not stderr or "FutureWarning: The filesystem tracking backend" in stderr
+)
 def test_mlflow_log_correlation_context_includes_run_id():
+    import logging
+
     import mlflow
+
+    # mlflow logs to error database initialisation
+    logging.getLogger("mlflow.store.db.utils").setLevel(logging.WARNING)
 
     from ddtrace import tracer
     from ddtrace.contrib.internal.mlflow.patch import LOG_ATTR_MLFLOW_RUN_ID

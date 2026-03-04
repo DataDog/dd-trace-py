@@ -880,6 +880,7 @@ suites:
       - '@tracing'
       - '@mlflow'
       - tests/contrib/mlflow/*
+      - tests/snapshots/tests.contrib.mlflow.*
     runner: riot
     snapshot: true
   mariadb:
