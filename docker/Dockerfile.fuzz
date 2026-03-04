@@ -1,13 +1,23 @@
 # Minimal fuzzing image for the stack_v2/echion harness (libFuzzer + ASAN/UBSAN).
 #
 # Build:
-#   $ docker build -f docker/Dockerfile.fuzz -t ddtrace-py-stackv2-fuzz .
-# Run:
-#   $ docker run --rm -it -v "$PWD/.fuzz:/fuzz" ddtrace-py-stackv2-fuzz
+#   $ docker build -f docker/Dockerfile.fuzz --build-arg PYTHON_IMAGE_TAG=3.12.0 -t ddtrace-py-stackv2-fuzz .
+#
+# Run with fuzzydog (requires FUZZYDOG_AUTH_TOKEN):
+#   $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz
+#
+# Run a specific target via fuzzydog:
+#   $ docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz \
+#       fuzzydog fuzzer run dd-trace-py-local fuzz_echion_strings \
+#       --type libfuzzer --team profiling-python \
+#       --build-path /fuzzer/builds/ \
+#       --skip-dl-build --skip-dl-inputs \
+#       --slack-channel fuzzing-ops \
+#       --repository-url https://github.com/DataDog/dd-trace-py
 
-# TODO(taegyunkim): Add this image to Datadog/images, and update
-# .gitlab/fuzz.yml to use the same images.
-FROM debian:trixie-slim
+# ── Stage 1: deps — all build dependencies ───────────────────────────
+ARG PYTHON_IMAGE_TAG=3.12.0
+FROM registry.ddbuild.io/images/mirror/python:${PYTHON_IMAGE_TAG} AS deps
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -21,23 +31,48 @@ RUN apt-get update \
     lld \
     make \
     ninja-build \
-    python3 \
-    python3-dev \
-    python3-pip \
     curl \
-    unzip \
   && rm -rf /var/lib/apt/lists/* \
-  && python3 -m pip install requests --break-system-packages
+  && python3 -m pip install setuptools_rust cython requests --break-system-packages
 
-RUN VAULT_VERSION=1.21.1 && curl -fsSL "https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip" -o vault.zip && unzip vault.zip && mv vault /usr/local/bin/vault && rm vault.zip && chmod +x /usr/local/bin/vault
+# Install Rust toolchain (needed to build _native / libdatadog)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
+# Install fuzzydog
+RUN FUZZYDOG_VERSION=0.26.2 \
+  && curl -L "https://binaries.ddbuild.io/fuzzing/fuzzydog/${FUZZYDOG_VERSION}/fuzzydog-tar.tar.gz" -o /tmp/fuzzydog-tar.tar.gz \
+  && tar -C /usr/local/bin -zxf /tmp/fuzzydog-tar.tar.gz fuzzydog-linux-$(dpkg --print-architecture) \
+  && mv /usr/local/bin/fuzzydog-linux-$(dpkg --print-architecture) /usr/local/bin/fuzzydog \
+  && rm /tmp/fuzzydog-tar.tar.gz
+
+# Standard fuzzer directory layout
+RUN mkdir -p /fuzzer/inputs /fuzzer/crashes /fuzzer/builds
+
+# ── Stage 2: build — discover, build, and package all fuzz targets ───
+FROM deps AS build
 WORKDIR /src
 COPY . /src
 
-RUN /src/ddtrace/internal/datadog/profiling/stack/fuzz/build.sh
+# Discover and build all fuzz targets (0-click onboarding)
+RUN find /src -path '*/fuzz/build.sh' -type f | while IFS= read -r script; do \
+      echo "=== Building: $script ===" && \
+      (cd "$(dirname "$script")" && bash "$script"); \
+    done
 
-# RUN mkdir -p /fuzz/corpus /fuzz/out
+# Copy built binaries to /fuzzer/builds/
+RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /tmp/fuzz/build/fuzz_binaries.txt \
+  && ls -la /fuzzer/builds/
 
-CMD ["/tmp/fuzz/build/fuzz/fuzz_echion_remote_read", "/tmp/fuzz/", "-artifact_prefix=/tmp/fuzz/"]
+CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read", \
+     "--type", "libfuzzer", \
+     "--team", "profiling-python", \
+     "--build-path", "/fuzzer/builds/", \
+     "--skip-dl-build", \
+     "--skip-dl-inputs", \
+     "--slack-channel", "fuzzing-ops", \
+     "--repository-url", "https://github.com/DataDog/dd-trace-py"]
 
-
+# ── Manifest — export the fuzz binary list for CI ─────────────────────
+FROM scratch AS manifest
+COPY --from=build /tmp/fuzz/build/fuzz_binaries.txt /fuzz_binaries.txt

@@ -4,8 +4,9 @@ cmake_minimum_required(VERSION 3.19)
 # compiler/linker flags for libFuzzer (e.g. -fsanitize=fuzzer,address,undefined).
 option(STACK_USE_LIBFUZZER "Link fuzz targets with libFuzzer (-fsanitize=fuzzer)" OFF)
 
-add_executable(
-    fuzz_echion_remote_read
+# Echion + profiling sources shared by all fuzz targets (everything except vm.cc, which conflicts with the fuzz
+# copy_memory hook in vm.h).
+set(FUZZ_ECHION_SOURCES
     ../src/echion/danger.cc
     ../src/echion/frame.cc
     ../src/echion/greenlets.cc
@@ -17,32 +18,57 @@ add_executable(
     ../src/echion/strings.cc
     ../src/echion/tasks.cc
     ../src/echion/threads.cc
-    fuzz_echion_remote_read.cpp)
+    ../src/stack_renderer.cpp
+    ../src/sampler.cpp
+    ../src/thread_span_links.cpp)
 
-target_include_directories(fuzz_echion_remote_read PRIVATE ../include)
-target_include_directories(fuzz_echion_remote_read SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored
-                                                                  ../include/util)
+# Helper function: register a single fuzz target with all shared build settings.
+function(add_fuzz_target TARGET_NAME)
+    add_executable(${TARGET_NAME} ${FUZZ_ECHION_SOURCES} ${TARGET_NAME}.cpp)
 
-# Ensure echion headers take the fuzz hook in vm.h
-target_compile_definitions(fuzz_echion_remote_read PRIVATE ECHION_FUZZING)
+    # Include paths: ../.. is the profiling root (for "dd_wrapper/include/..." paths), ../include is for stack headers.
+    target_include_directories(${TARGET_NAME} PRIVATE ../.. ../include)
+    target_include_directories(
+        ${TARGET_NAME} SYSTEM
+        PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/)
 
-# When building with libFuzzer, add the fuzzer runtime only for this target.
-if(STACK_USE_LIBFUZZER)
-    target_compile_definitions(fuzz_echion_remote_read PRIVATE FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
-    target_compile_options(fuzz_echion_remote_read PRIVATE -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
-    target_link_options(fuzz_echion_remote_read PRIVATE -fsanitize=fuzzer,address,undefined)
-endif()
+    # Ensure echion headers take the fuzz hook in vm.h
+    target_compile_definitions(${TARGET_NAME} PRIVATE ECHION_FUZZING)
 
-# Echion sources need to be given the current platform
-if(APPLE)
-    target_compile_definitions(fuzz_echion_remote_read PRIVATE PL_DARWIN)
-elseif(UNIX)
-    target_compile_definitions(fuzz_echion_remote_read PRIVATE PL_LINUX)
-endif()
+    # When building with libFuzzer, add the fuzzer runtime only for this target.
+    if(STACK_USE_LIBFUZZER)
+        target_compile_definitions(${TARGET_NAME} PRIVATE FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
+        target_compile_options(${TARGET_NAME} PRIVATE -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer)
+        target_link_options(${TARGET_NAME} PRIVATE -fsanitize=fuzzer,address,undefined)
+    endif()
 
-# Use the same ddup config helper for sanitizer/rpath defaults.
-add_ddup_config(fuzz_echion_remote_read)
+    # Echion sources need to be given the current platform
+    if(APPLE)
+        target_compile_definitions(${TARGET_NAME} PRIVATE PL_DARWIN)
+    elseif(UNIX)
+        target_compile_definitions(${TARGET_NAME} PRIVATE PL_LINUX)
+    endif()
 
-if(Python3_LIBRARIES)
-    target_link_libraries(fuzz_echion_remote_read PRIVATE ${Python3_LIBRARIES})
-endif()
+    # Use the same ddup config helper for sanitizer/rpath defaults.
+    add_ddup_config(${TARGET_NAME})
+
+    # Link against dd_wrapper (imported target defined by the parent stack/CMakeLists.txt)
+    target_link_libraries(${TARGET_NAME} PRIVATE dd_wrapper)
+
+    if(Python3_LIBRARIES)
+        target_link_libraries(${TARGET_NAME} PRIVATE ${Python3_LIBRARIES})
+    endif()
+
+    # Set RPATH so the fuzz binary can find dd_wrapper and _native at runtime.
+    if(LIB_INSTALL_DIR)
+        set_target_properties(${TARGET_NAME} PROPERTIES BUILD_RPATH "${LIB_INSTALL_DIR}" INSTALL_RPATH
+                                                                                         "${LIB_INSTALL_DIR}")
+    endif()
+endfunction()
+
+# Register all fuzz targets
+add_fuzz_target(fuzz_echion_remote_read)
+add_fuzz_target(fuzz_echion_strings)
+add_fuzz_target(fuzz_echion_mirrors)
+add_fuzz_target(fuzz_echion_stacks)
