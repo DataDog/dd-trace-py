@@ -40,7 +40,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.rq",
-         "_dd.svc.src": "rq",
+         "_dd.svc.src": "rq_worker",
          "component": "rq",
          "job.id": "9254ef76-cfae-493a-a802-38de589c9bb1"
        },
