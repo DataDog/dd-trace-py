@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import logging
-import os
 from typing import Any
 from typing import Callable
 from typing import Mapping
@@ -10,6 +9,7 @@ from typing import cast
 
 import ddtrace
 from ddtrace import config
+from ddtrace.internal.settings import _env
 from ddtrace.internal import atexit
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
@@ -133,7 +133,7 @@ class _ProfilerInstance(service.Service):
         self._collectors: list[collector.Collector | memalloc.MemoryCollector] = []
         self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
-        self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self._lambda_function_name: Optional[str] = _env.environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.process_tags: Optional[str] = process_tags.process_tags or None
 
