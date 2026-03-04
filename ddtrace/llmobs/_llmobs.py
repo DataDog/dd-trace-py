@@ -151,6 +151,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
+from ddtrace.llmobs._writer import LLMObsSpanData
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -415,10 +416,10 @@ class LLMObs(Service):
             return self._build_span_event_from_meta_struct(span, llmobs_data)
         return self._build_span_event_from_ctx_items(span)
 
-    def _build_span_event_from_meta_struct(self, span: Span, llmobs_data: dict[str, Any]) -> Optional[LLMObsSpanEvent]:
-        llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
-        llmobs_input: _MetaIO = llmobs_meta.get(LLMOBS_STRUCT.INPUT, {}) or {}
-        llmobs_output: _MetaIO = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT, {}) or {}
+    def _build_span_event_from_meta_struct(self, span: Span, llmobs_data: LLMObsSpanData) -> Optional[LLMObsSpanEvent]:
+        llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
+        llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
+        llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
 
         span_kind = _get_span_kind(span)
         if not span_kind:
@@ -437,11 +438,11 @@ class LLMObs(Service):
             span=_SpanField(kind=span_kind),
             input=_MetaIO(),
             output=_MetaIO(),
-            model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME, ""),
-            model_provider=llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER, "custom").lower(),
-            metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA, {}),
-            tool_definitions=llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS, []),
-            intent=str(llmobs_meta.get(LLMOBS_STRUCT.INTENT, "")),
+            model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or "",
+            model_provider=(llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower(),
+            metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
+            tool_definitions=llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS) or [],
+            intent=str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or ""),
             error=_ErrorField(
                 message=span.get_tag(ERROR_MSG) or "",
                 stack=span.get_tag(ERROR_STACK) or "",
@@ -461,7 +462,7 @@ class LLMObs(Service):
         input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES)
         if span_kind == "llm" and input_messages is not None:
             input_type = "messages"
-            llmobs_span.input = cast(list[Message], enforce_message_role(input_messages))
+            llmobs_span.input = enforce_message_role(input_messages)
 
         output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE)
         if output_value is not None:
@@ -471,7 +472,7 @@ class LLMObs(Service):
         output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES)
         if span_kind == "llm" and output_messages is not None:
             output_type = "messages"
-            llmobs_span.output = cast(list[Message], enforce_message_role(output_messages))
+            llmobs_span.output = enforce_message_role(output_messages)
 
         input_documents = llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS)
         output_documents = llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS)
@@ -487,7 +488,7 @@ class LLMObs(Service):
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
-                meta["input"]["prompt"] = cast(Prompt, input_prompt)
+                meta["input"]["prompt"] = input_prompt
         elif span_kind == "llm":
             parent_prompt = _get_parent_prompt(span)
             if parent_prompt is not None:
@@ -552,7 +553,7 @@ class LLMObs(Service):
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
         llmobs_span_event: LLMObsSpanEvent = {
-            "trace_id": format_trace_id(llmobs_trace_id),
+            "trace_id": llmobs_trace_id,
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -783,7 +784,7 @@ class LLMObs(Service):
         ml_app: str,
         session_id: Optional[str] = None,
         use_meta_struct: bool = False,
-        llmobs_data: Optional[dict[str, Any]] = None,
+        llmobs_data: Optional[LLMObsSpanData] = None,
     ) -> list[str]:
         dd_tags = config.tags
         tags = {
@@ -803,6 +804,7 @@ class LLMObs(Service):
         if session_id:
             tags["session_id"] = session_id
 
+        existing_tags: Optional[dict[str, str]] = None
         if use_meta_struct and llmobs_data:
             llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS, {})
             if llmobs_tags.get("integration"):
