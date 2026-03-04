@@ -609,9 +609,6 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
         self->_stopped->set();
     });
 
-    // Detach the thread. We will make our own joinable mechanism.
-    self->_thread->detach();
-
     // Wait for the thread to start
     {
         AllowThreads _(self->_state);
@@ -685,6 +682,12 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
         AllowThreads _(self->_state);
 
         self->_stopped->wait();
+        // Join after the stopped signal so we wait for the OS thread to fully
+        // terminate, including the RAII destructors (Py_DECREF + GILState
+        // release) that run after _stopped->set().  GIL is released here, so
+        // those destructors can complete without contention.
+        if (self->_thread->joinable())
+            self->_thread->join();
     } else {
         double timeout_value = 0.0;
 
@@ -701,7 +704,10 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
         auto interval = std::chrono::milliseconds((long long)(timeout_value * 1000));
 
-        self->_stopped->wait(interval);
+        // Only join if the thread actually stopped within the timeout.
+        bool stopped = self->_stopped->wait(interval);
+        if (stopped && self->_thread->joinable())
+            self->_thread->join();
     }
 
     Py_RETURN_NONE;
@@ -724,6 +730,11 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static PyObject*
 PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
+    // In the child process the parent's thread no longer exists.  Detach
+    // before destroying the std::thread object so its destructor does not call
+    // std::terminate() on a still-joinable handle.
+    if (self->_thread != nullptr && self->_thread->joinable())
+        self->_thread->detach();
     self->_thread = nullptr;
 
     self->_stopping = false;
@@ -794,6 +805,13 @@ PeriodicThread_dealloc(PeriodicThread* self)
     Py_XDECREF(self->ident);
     Py_XDECREF(self->_ddtrace_profiling_ignore);
 
+    // If join() was never called, the std::thread is still joinable.  The
+    // GILGuard destructor has already released the GIL (that release is what
+    // allowed this thread to acquire it and reach dealloc), so join() will
+    // not block on GIL contention — it just waits for the OS thread to finish
+    // its final stack unwind.
+    if (self->_thread != nullptr && self->_thread->joinable())
+        self->_thread->join();
     self->_thread = nullptr;
 
     self->_started = nullptr;
