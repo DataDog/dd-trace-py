@@ -37,6 +37,7 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
+from ddtrace.llmobs._writer import LLMObsSpanData
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -383,13 +384,13 @@ def mark_as_evaluation_span(span: Span) -> None:
     """Mark a span as an evaluation span in span._meta_struct."""
     llmobs_data = _get_llmobs_data_metastruct(span)
     llmobs_data[LLMOBS_STRUCT.IS_EVALUATION_SPAN] = True
-    span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_data)
+    span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict, llmobs_data))
 
 
-def _get_llmobs_data_metastruct(span: Span) -> dict[str, Any]:
+def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
-    llmobs_span_data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
-    return llmobs_span_data or {}
+    llmobs_span_data = cast(LLMObsSpanData, span._get_struct_tag(LLMOBS_STRUCT.KEY))
+    return llmobs_span_data or LLMObsSpanData()
 
 
 def _get_span_kind(span: Span) -> Optional[str]:
@@ -457,10 +458,10 @@ def _annotate_llmobs_span_data(
     llmobs_span_data = _get_llmobs_data_metastruct(span)
     try:
         # Initialize nested dict structure upfront
-        meta = llmobs_span_data.setdefault(LLMOBS_STRUCT.META, {})
-        meta.setdefault(LLMOBS_STRUCT.INPUT, {})
-        meta.setdefault(LLMOBS_STRUCT.OUTPUT, {})
-        meta.setdefault(LLMOBS_STRUCT.SPAN, {})
+        meta = llmobs_span_data.setdefault(LLMOBS_STRUCT.META, _Meta())
+        meta.setdefault(LLMOBS_STRUCT.INPUT, _MetaIO())
+        meta.setdefault(LLMOBS_STRUCT.OUTPUT, _MetaIO())
+        meta.setdefault(LLMOBS_STRUCT.SPAN, _SpanField(kind=kind or ""))
         meta.setdefault(LLMOBS_STRUCT.METADATA, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.TAGS, {})
         llmobs_span_data.setdefault(LLMOBS_STRUCT.METRICS, {})
@@ -512,15 +513,15 @@ def _annotate_llmobs_span_data(
         if expected_output is not None:
             meta[LLMOBS_STRUCT.EXPECTED_OUTPUT] = expected_output
         if experiment_input is not None:
-            meta[LLMOBS_STRUCT.INPUT] = experiment_input
+            meta[LLMOBS_STRUCT.INPUT] = experiment_input  # type: ignore[typeddict-item]
         if experiment_output is not None:
-            meta[LLMOBS_STRUCT.OUTPUT] = experiment_output
+            meta[LLMOBS_STRUCT.OUTPUT] = experiment_output  # type: ignore[typeddict-item]
         if intent is not None:
             meta[LLMOBS_STRUCT.INTENT] = intent
     except Exception:
         log.warning("Error auto-annotating llmobs data")
     finally:
-        span._set_struct_tag(LLMOBS_STRUCT.KEY, llmobs_span_data)
+        span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_span_data))
 
 
 def get_span_links(span: Span) -> list[_SpanLink]:
