@@ -4,6 +4,8 @@ from typing import Any  # noqa:F401
 
 from .http import HTTPConnectionMixin
 
+_GLOBAL_DEFAULT_TIMEOUT = getattr(socket, "_GLOBAL_DEFAULT_TIMEOUT", None)
+
 
 class UDSHTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
     """An HTTP connection established over a Unix Domain Socket."""
@@ -24,7 +26,7 @@ class UDSHTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
         # type: () -> None
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         # Match socket.create_connection behavior for timeout handling.
-        if self.timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+        if self.timeout is not _GLOBAL_DEFAULT_TIMEOUT:
             sock.settimeout(self.timeout)
         sock.connect(self.path)
         self.sock = sock
