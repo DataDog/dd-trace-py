@@ -380,6 +380,24 @@ Traces
      version_added:
         v3.11.0:
 
+   DD_EVP_PROXY_PAYLOAD_SIZE_BYTES:
+     type: Int
+     default: 5242880
+
+     description: |
+         The max size in bytes of a payload sent through the EVP proxy. When the buffer reaches this
+         limit it is flushed immediately before the next event is enqueued. Defaults to 5 MiB.
+
+         In agent mode, this shouldn't exceed the max payload size EVP proxy configuration in Datadog agent.
+
+   DD_EVP_PROXY_EVENT_SIZE_BYTES:
+     type: Int
+     default: 5000000
+
+     description: |
+         The max size in bytes of a single event sent through the EVP proxy. Events that exceed this
+         limit have their input/output fields truncated before submission. Defaults to 5 MB.
+
 Trace Context propagation
 -------------------------
 
