@@ -4,6 +4,7 @@ from typing import Any  # noqa:F401
 
 from .http import HTTPConnectionMixin
 
+
 _GLOBAL_DEFAULT_TIMEOUT = getattr(socket, "_GLOBAL_DEFAULT_TIMEOUT", None)
 
 
