@@ -279,7 +279,7 @@ download_dependency_wheels:
   extends: .upload_wheels_base
   needs: [ "ddtrace package", "package version" ]
   script:
-    - !reference[.upload_wheels_base, script]
+    - !reference [.upload_wheels_base, script]
     - |
       set -euo pipefail
 
