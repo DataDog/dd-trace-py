@@ -112,7 +112,10 @@ impl SpanData {
         if self.data.meta.remove(&*key).is_some() {
             let _ = self._meta.bind(py).del_item(key.as_py(py));
         }
-        let _ = self._metrics.bind(py).set_item(key.as_py(py), PyFloat::new(py, value));
+        let _ = self
+            ._metrics
+            .bind(py)
+            .set_item(key.as_py(py), PyFloat::new(py, value));
         self.data.metrics.insert(key, value);
     }
 
