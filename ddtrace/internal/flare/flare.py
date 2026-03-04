@@ -195,6 +195,11 @@ class Flare:
         except FileExistsError:
             return
 
+        # If the lock is the only file in the flare directory, don't send the flare
+        if len(os.listdir(self.flare_dir)) == 1:
+            log.info("Flare directory is empty, not sending flare")
+            return
+
         log.debug("Sending tracer flare")
         # Use native zip_and_send
         self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
