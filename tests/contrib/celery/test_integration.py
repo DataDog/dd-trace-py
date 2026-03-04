@@ -825,6 +825,7 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
             assert b"panic" not in output.lower(), f"Found panic in celery beat output:\n{output}"
 
 
+@pytest.mark.parametrize("distributed_tracing_enabled", [True, False])
 @pytest.mark.snapshot(
     ignores=[
         "meta.tracestate",
@@ -834,9 +835,11 @@ class CeleryDistributedTracingIntegrationTask(CeleryBaseTestCase):
         "meta.celery.reply_to",
     ]
 )
-def test_distributed_tracing_propagation_no_producer_span(ddtrace_run_python_code_in_subprocess):
+def test_distributed_tracing_propagation_no_producer_span(
+    ddtrace_run_python_code_in_subprocess, distributed_tracing_enabled
+):
     """Snapshot: one trace across producer and worker when send_task is used without registering the task locally."""
-    producer_code = """
+    producer_code = f"""
 import os
 import sys
 from celery import Celery
@@ -845,9 +848,12 @@ from ddtrace import tracer
 celery_app = Celery()
 
 with tracer.trace("mock.request") as span:
-    result = celery_app.send_task("consumer.compare_trace_id", args=(span.trace_id,))
-    value = result.get(timeout=5)
-assert value, "expected True, got %r" % (value,)
+    result = celery_app.send_task("consumer.is_single_trace", args=(span.trace_id,))
+    is_single_trace = result.get(timeout=5)
+    if {distributed_tracing_enabled}:
+        assert is_single_trace
+    else:
+        assert not is_single_trace
 sys.exit(0)
 """
 
@@ -859,7 +865,7 @@ from ddtrace import tracer
 celery_app = Celery("consumer")
 
 @celery_app.task
-def compare_trace_id(trace_id):
+def is_single_trace(trace_id):
     span = tracer.current_span()
     assert span is not None
     return span.trace_id == trace_id
@@ -870,7 +876,7 @@ celery_app.worker_main(["worker", "--loglevel=info"])
     env = os.environ.copy()
     env["CELERY_BROKER_URL"] = BROKER_URL
     env["CELERY_RESULT_BACKEND"] = BACKEND_URL
-    env["DD_CELERY_DISTRIBUTED_TRACING"] = "true"
+    env["DD_CELERY_DISTRIBUTED_TRACING"] = str(distributed_tracing_enabled)
     # Disable Redis to reduce noise in the snapshot file
     env["DD_TRACE_REDIS_ENABLED"] = "false"
 
