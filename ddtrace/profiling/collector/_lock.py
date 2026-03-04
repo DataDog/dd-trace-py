@@ -9,10 +9,13 @@ from types import CodeType
 from types import FrameType
 from types import ModuleType
 from types import TracebackType
-from types import UnionType
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import UnionType
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config

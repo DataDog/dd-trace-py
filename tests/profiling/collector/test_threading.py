@@ -736,13 +736,14 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         assert not isinstance(unpickled, wrapped_type)
         return unpickled
 
+    @pytest.mark.skipif(sys.version_info < (3, 10), reason="PEP 604 type union syntax requires Python 3.10+")
     def test_pep604_type_union_syntax(self) -> None:
         """Test that PEP 604 type union syntax works with wrapped lock classes.
 
         Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
         """
         with self.collector_class(capture_pct=100):
-            assert_pep604_type_union_syntax(self.lock_class)
+            assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
 
     def test_lock_class_pickle(self) -> None:
         """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""

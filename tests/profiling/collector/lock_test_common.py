@@ -6,9 +6,13 @@ For test data helpers (line numbers, etc.), see lock_utils.py.
 
 from __future__ import annotations
 
-from types import UnionType
+import types
+from typing import TYPE_CHECKING
 
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
+
+if TYPE_CHECKING:
+    from types import UnionType
 
 
 def assert_pep604_type_union_syntax(lock_class: _LockAllocatorWrapper) -> None:
@@ -17,11 +21,13 @@ def assert_pep604_type_union_syntax(lock_class: _LockAllocatorWrapper) -> None:
     Reproduces https://github.com/DataDog/dd-trace-py/issues/16375 where
     `asyncio.Condition | None` raised TypeError because _LockAllocatorWrapper
     didn't support the `|` operator used for type unions.
+
+    Requires Python 3.10+ (PEP 604). Callers must skip on older versions.
     """
     assert isinstance(lock_class, _LockAllocatorWrapper)
 
     union: UnionType = lock_class | None  # type: ignore[operator]
-    assert isinstance(union, UnionType)
+    assert isinstance(union, types.UnionType)
 
     union_rev: UnionType = None | lock_class  # type: ignore[operator]
-    assert isinstance(union_rev, UnionType)
+    assert isinstance(union_rev, types.UnionType)
