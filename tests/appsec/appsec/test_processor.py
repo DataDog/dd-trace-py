@@ -11,7 +11,7 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf import waf_module
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
@@ -35,6 +35,7 @@ except ImportError:
     # handling python 2.X import error
     JSONDecodeError = ValueError  # type: ignore
 
+DDWaf = waf_module()
 
 APPSEC_JSON_TAG = f"meta.{APPSEC.JSON}"
 config_asm = {"_asm_enabled": True}
@@ -783,7 +784,7 @@ def test_required_addresses():
     "persistent", [key for key, value in WAF_DATA_NAMES if value in WAF_DATA_NAMES.PERSISTENT_ADDRESSES]
 )
 @pytest.mark.parametrize("ephemeral", ["LFI_ADDRESS", "PROCESSOR_SETTINGS"])
-@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
     from ddtrace.appsec._utils import _observator
@@ -796,18 +797,24 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
         assert processor
         # first call must send all data to the waf
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
+        assert mock_run.call_args
+        assert mock_run.call_args[0]
         assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
+        assert mock_run.call_args[1]
         assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES[ephemeral]: {"key_2": "value_2"}}
         # second call must only send ephemeral data to the waf, not persistent data again
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_3"}})
+        assert mock_run.call_args
+        assert mock_run.call_args[0]
         assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]
         assert mock_run.call_args[1]["ephemeral_data"] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
-@mock.patch("ddtrace.appsec._ddwaf.DDWaf.run")
+@mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
 def test_waf_action_null_ephemeral_addresses(mock_run):
     from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
     from ddtrace.appsec._utils import _observator
@@ -820,7 +827,10 @@ def test_waf_action_null_ephemeral_addresses(mock_run):
         assert processor
         # None value for ephemeral addresses should not be discarded
         processor._waf_action(span, None, {"LOGIN_FAILURE": None})
+        assert mock_run.call_args
+        assert mock_run.call_args[0]
         assert mock_run.call_args[0][1] == {}
+        assert mock_run.call_args[1]
         assert mock_run.call_args[1]["ephemeral_data"] == {WAF_DATA_NAMES.LOGIN_FAILURE: None}
 
 
