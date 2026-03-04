@@ -1,7 +1,6 @@
 from importlib import import_module
 import inspect
-import os
-
+from ddtrace.internal.settings import _env
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -61,12 +60,12 @@ config._add(
         _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         _patched_modules=set(),
         trace_fetch_methods=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
+            _env.getenv("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)
+            or _env.getenv("DD_PSYCOPG2_TRACE_FETCH_METHODS", default=False)
         ),
         trace_connect=asbool(
-            os.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
-            or os.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
+            _env.getenv("DD_PSYCOPG_TRACE_CONNECT", default=False)
+            or _env.getenv("DD_PSYCOPG2_TRACE_CONNECT", default=False)
         ),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
         dbms_name="postgresql",

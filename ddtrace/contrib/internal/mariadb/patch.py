@@ -1,5 +1,4 @@
-import os
-
+from ddtrace.internal.settings import _env
 import mariadb
 import wrapt
 
@@ -16,7 +15,7 @@ from ddtrace.internal.utils.wrappers import unwrap
 config._add(
     "mariadb",
     dict(
-        trace_fetch_methods=asbool(os.getenv("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(_env.getenv("DD_MARIADB_TRACE_FETCH_METHODS", default=False)),
         _default_service=schematize_service_name("mariadb"),
         _dbapi_span_name_prefix="mariadb",
     ),

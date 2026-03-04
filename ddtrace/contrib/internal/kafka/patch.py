@@ -1,4 +1,4 @@
-import os
+from ddtrace.internal.settings import _env
 import sys
 from time import time
 from time import time_ns
@@ -45,8 +45,8 @@ config._add(
     "kafka",
     dict(
         _default_service=schematize_service_name("kafka"),
-        distributed_tracing_enabled=asbool(os.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
-        trace_empty_poll_enabled=asbool(os.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        distributed_tracing_enabled=asbool(_env.getenv("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
+        trace_empty_poll_enabled=asbool(_env.getenv("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
     ),
 )
 

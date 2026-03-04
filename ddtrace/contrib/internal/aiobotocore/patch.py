@@ -1,5 +1,4 @@
-import os
-
+from ddtrace.internal.settings import _env
 import aiobotocore.client
 import wrapt
 
@@ -43,7 +42,7 @@ TRACED_ARGS = {"params", "path", "verb"}
 config._add(
     "aiobotocore",
     {
-        "tag_no_params": asbool(os.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
+        "tag_no_params": asbool(_env.getenv("DD_AWS_TAG_NO_PARAMS", default=False)),
     },
 )
 

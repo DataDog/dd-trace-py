@@ -1,5 +1,4 @@
-import os
-
+from ddtrace.internal.settings import _env
 import wrapt
 
 from ddtrace import config
@@ -23,7 +22,7 @@ config._add(
         # `sql.query` whereas other dbapi-compliant integrations are set to
         # `<integration>.query`.
         _dbapi_span_name_prefix="sql",
-        trace_fetch_methods=asbool(os.getenv("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
+        trace_fetch_methods=asbool(_env.getenv("DD_SNOWFLAKE_TRACE_FETCH_METHODS", default=False)),
     ),
 )
 

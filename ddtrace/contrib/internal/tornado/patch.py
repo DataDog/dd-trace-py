@@ -1,5 +1,4 @@
-import os
-
+from ddtrace.internal.settings import _env
 import tornado
 from wrapt import wrap_function_wrapper as _w
 
@@ -20,7 +19,7 @@ from . import template
 config._add(
     "tornado",
     dict(
-        distributed_tracing=asbool(os.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
+        distributed_tracing=asbool(_env.getenv("DD_TORNADO_DISTRIBUTED_TRACING", default=True)),
     ),
 )
 

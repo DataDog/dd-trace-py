@@ -49,8 +49,7 @@ Configuration
    Default: ``True``
 """
 
-import os
-
+from ddtrace.internal.settings import _env
 import valkey
 import wrapt
 
@@ -72,8 +71,8 @@ config._add(
     "valkey",
     {
         "_default_service": schematize_service_name("valkey"),
-        "cmd_max_length": int(os.getenv("DD_VALKEY_CMD_MAX_LENGTH", CMD_MAX_LEN)),
-        "resource_only_command": asbool(os.getenv("DD_VALKEY_RESOURCE_ONLY_COMMAND", True)),
+        "cmd_max_length": int(_env.getenv("DD_VALKEY_CMD_MAX_LENGTH", CMD_MAX_LEN)),
+        "resource_only_command": asbool(_env.getenv("DD_VALKEY_RESOURCE_ONLY_COMMAND", True)),
     },
 )
 

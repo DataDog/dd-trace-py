@@ -2,6 +2,7 @@ import collections
 from dataclasses import dataclass
 from fnmatch import fnmatch
 import os
+from ddtrace.internal.settings import _env
 import re
 import shlex
 from shlex import join
@@ -26,7 +27,7 @@ log = get_logger(__name__)
 
 config._add(
     "subprocess",
-    dict(sensitive_wildcards=os.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
+    dict(sensitive_wildcards=_env.getenv("DD_SUBPROCESS_SENSITIVE_WILDCARDS", default="").split(",")),
 )
 
 

@@ -1,5 +1,4 @@
-import os
-
+from ddtrace.internal.settings import _env
 import jinja2
 from wrapt import wrap_function_wrapper as _w
 
@@ -20,7 +19,7 @@ from .constants import DEFAULT_TEMPLATE_NAME
 config._add(
     "jinja2",
     {
-        "service_name": os.getenv("DD_JINJA2_SERVICE_NAME"),
+        "service_name": _env.getenv("DD_JINJA2_SERVICE_NAME"),
     },
 )
 
