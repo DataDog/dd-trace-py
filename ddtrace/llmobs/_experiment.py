@@ -1228,6 +1228,9 @@ class Experiment:
                     convert_tags_dict_to_list(self._tags),
                 )
                 self._run_results.append(run_result)
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            self._interrupted = True
+            raise
         except BaseException:
             self._interrupted = True
             raise

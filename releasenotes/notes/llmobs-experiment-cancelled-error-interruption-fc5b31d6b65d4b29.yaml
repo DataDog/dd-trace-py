@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes experiment interruption detection to handle ``asyncio.CancelledError``
+    in addition to ``KeyboardInterrupt``. Previously, a SIGINT during async experiment execution
+    was converted to ``CancelledError`` by the event loop and not recognized as an interruption.
