@@ -2,6 +2,7 @@
 
 #include <shared_mutex>
 #include <string>
+#include <mutex>
 
 namespace Datadog {
 
