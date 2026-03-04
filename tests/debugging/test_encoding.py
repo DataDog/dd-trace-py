@@ -250,31 +250,7 @@ def test_batch_json_encoder():
     assert queue.count == 0
 
 
-def test_process_tags_are_not_included_by_default():
-    s = Snapshot(
-        probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
-        frame=inspect.currentframe(),
-        thread=threading.current_thread(),
-    )
-    buffer_size = 30 * (1 << 20)
-    queue = SignalQueue(encoder=LogSignalJsonEncoder(None), buffer_size=buffer_size)
-
-    s.line({})
-
-    queue = SignalQueue(encoder=LogSignalJsonEncoder("test-service"))
-    queue.put(s)
-    data = queue.flush()
-    assert data is not None
-    payload, _ = data
-    decoded = json.loads(payload.decode())
-    assert "process_tags" not in decoded[0]
-
-
-@pytest.mark.subprocess(
-    env=dict(
-        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
-    )
-)
+@pytest.mark.subprocess()
 def test_process_tags_are_included():
     import inspect
     import json

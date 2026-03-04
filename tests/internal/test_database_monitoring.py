@@ -127,7 +127,6 @@ def test_dbm_propagation_full_mode():
         DD_SERVICE="orders-app",
         DD_ENV="staging",
         DD_VERSION="v7343437-d7ac743",
-        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
     )
 )
 def test_dbm_not_propagating_base_hash_when_deactivated():
@@ -160,7 +159,6 @@ def test_dbm_not_propagating_base_hash_when_deactivated():
         DD_SERVICE="orders-app",
         DD_ENV="staging",
         DD_VERSION="v7343437-d7ac743",
-        DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED="true",
     )
 )
 def test_dbm_propagating_base_hash_when_activated():

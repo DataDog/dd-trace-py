@@ -106,13 +106,7 @@ def test_tracer_tags_service_from_code():
     ], values
 
 
-def test_process_tags_disabled_by_default():
-    ptc = tag_collectors.ProcessTagCollector()
-    tags = list(ptc.collect())
-    assert len(tags) == 0, "Process tags should be empty when not enabled"
-
-
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true"})
+@pytest.mark.subprocess()
 def test_process_tags_enabled():
     from unittest.mock import patch
 
@@ -142,9 +136,10 @@ def test_process_tags_enabled():
         assert tags_dict[ENTRYPOINT_TYPE_TAG] == "script"
 
 
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "true"})
+@pytest.mark.subprocess()
 def test_process_tag_class():
     from ddtrace.internal.runtime.runtime_metrics import ProcessTags
 
     process_tags: list[str] = list(ProcessTags())
-    assert len(process_tags) >= 4
+    # one process tags value can be /bin in value, which will remove the process_tags
+    assert len(process_tags) >= 3

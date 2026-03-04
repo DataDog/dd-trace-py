@@ -5,6 +5,7 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace.internal import process_tags
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.runtime.container import CGroupInfo
 from ddtrace.internal.telemetry.data import _format_version_info
@@ -30,6 +31,8 @@ def test_get_application():
         "runtime_name": platform.python_implementation(),
         "runtime_version": runtime_v,
     }
+    if process_tags.process_tags:
+        expected_application["process_tags"] = process_tags.process_tags
 
     assert get_application("", "", "") == expected_application
 
@@ -41,14 +44,6 @@ def test_get_application_with_values():
     assert application["service_name"] == "munirs-service"
     assert application["service_version"] == "1.1.1"
     assert application["env"] == "staging"
-
-
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
-def test_get_application_with_process_tags():
-    from ddtrace.internal.telemetry.data import get_application
-
-    application = get_application("", "", "")
-    assert "process_tags" in application
 
 
 def test_application_with_setenv(run_python_code_in_subprocess, monkeypatch):

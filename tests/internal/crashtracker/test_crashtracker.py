@@ -466,50 +466,6 @@ def test_crashtracker_auto_disabled(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess()
-def test_crashtracker_tags_required():
-    # Tests tag ingestion in the core API
-    import ctypes
-    import os
-    import warnings
-
-    # Suppress fork() deprecation warning in multi-threaded process (Python 3.12+)
-    warnings.filterwarnings("ignore", category=DeprecationWarning)
-
-    import tests.internal.crashtracker.utils as utils
-
-    with utils.with_test_agent() as client:
-        pid = os.fork()
-        if pid == 0:
-            ct = utils.CrashtrackerWrapper(base_name="tags_required")
-            assert ct.start()
-            stdout_msg, stderr_msg = ct.logs()
-            assert not stdout_msg
-            assert not stderr_msg
-
-            ctypes.string_at(0)
-            sys.exit(-1)
-
-        # Check for crash ping
-        _ping = utils.get_crash_ping(client)
-
-        # Check for crash report
-        report = utils.get_crash_report(client)
-        assert b"string_at" in report["body"]
-
-        # Now check for the tags
-        tags = {
-            "is_crash": "true",
-            "severity": "crash",
-        }
-        for k, v in tags.items():
-            assert k.encode() in report["body"], k
-            assert v.encode() in report["body"], v
-
-        assert "process_tags".encode() not in report["body"]
-
-
-@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Runtime stacks are only supported on CPython >= 3.10")
 def test_crashtracker_runtime_stacktrace_required(run_python_code_in_subprocess):
     import json
@@ -684,7 +640,7 @@ def test_crashtracker_user_tags_core():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+@pytest.mark.subprocess()
 def test_crashtracker_process_tags():
     # Tests process_tag ingestion in the core API
     import ctypes

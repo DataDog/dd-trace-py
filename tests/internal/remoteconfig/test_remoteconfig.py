@@ -608,14 +608,7 @@ def test_apm_tracing_sampling_rules_none_override(remote_config_worker):
         config.env = original_env
 
 
-def test_remote_config_payload_not_includes_process_tags():
-    client = RemoteConfigClient()
-    payload = client._build_payload({})
-
-    assert "process_tags" not in payload["client"]["client_tracer"]
-
-
-@pytest.mark.subprocess(env={"DD_EXPERIMENTAL_PROPAGATE_PROCESS_TAGS_ENABLED": "True"})
+@pytest.mark.subprocess()
 def test_remote_config_payload_includes_process_tags():
     import os
     import sys
