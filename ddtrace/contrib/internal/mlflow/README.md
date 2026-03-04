@@ -5,6 +5,7 @@
    ```bash
    export DD_API_KEY="your_api_key_here"
    export DD_APP_KEY="your_app_key_here"
+   export DD_MODEL_LAB_ENABLED="true"
    ```
 
 2. You will now be able to submit authenticated requests to Datadog's MLFlow tracking server:

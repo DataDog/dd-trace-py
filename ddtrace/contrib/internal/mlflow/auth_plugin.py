@@ -18,7 +18,8 @@ class DatadogHeaderProvider(RequestHeaderProvider):
     MLFlow request header provider that injects Datadog API keys.
 
     This plugin reads the DD_API_KEY and DD_APP_KEY environment variables and injects them
-    as a 'DD-API-KEY' and 'DD-APPLICATION-KEY' headers into all MLFlow HTTP requests.
+    as 'DD-API-KEY' and 'DD-APPLICATION-KEY' headers into all MLFlow HTTP requests,
+    as long as the DD_MODEL_LAB_ENABLED environment variable is set.
     """
 
     def in_context(self):
@@ -26,9 +27,9 @@ class DatadogHeaderProvider(RequestHeaderProvider):
         Check if the Datadog API and application keys are configured.
 
         Returns:
-            bool: True if DD_API_KEY and DD_APP_KEY environment variables are set, False otherwise.
+            bool: True if DD_API_KEY, DD_APP_KEY and DD_MODEL_LAB_ENABLED env variables are set, else False
         """
-        return "DD_API_KEY" in os.environ and "DD_APP_KEY" in os.environ
+        return "DD_API_KEY" in os.environ and "DD_APP_KEY" in os.environ and "DD_MODEL_LAB_ENABLED" in os.environ
 
     def request_headers(self):
         """
@@ -36,10 +37,10 @@ class DatadogHeaderProvider(RequestHeaderProvider):
 
         Returns:
             dict: Dictionary containing the DD-API-KEY and DD-APPLICATION-KEY headers
-                  if DD_API_KEY and DD_APP_KEY are set, empty dictionary otherwise.
+                  if DD_API_KEY, DD_APP_KEY and DD_MODEL_LAB_ENABLED are set, empty dictionary otherwise.
         """
         api_key = os.environ.get("DD_API_KEY")
         app_key = os.environ.get("DD_APP_KEY")
-        if api_key and app_key:
+        if api_key and app_key and "DD_MODEL_LAB_ENABLED" in os.environ:
             return {"DD-API-KEY": api_key, "DD-APPLICATION-KEY": app_key}
         return {}
