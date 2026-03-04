@@ -174,8 +174,11 @@ benchmarks-pr-comment:
     fi
     git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
     export PATH="$PATH:/platform/steps"
+    git clone --branch "brettlangdon/parallel.artifact.upload" https://github.com/DataDog/benchmarking-platform-tools /benchmarking-platform-tools
 
-    (for i in {1..2}; do upload-results-to-benchmarking-api.sh && break; done) || :
+    export PROJECT="${UPSTREAM_PROJECT_NAME}"
+    UPLOAD_SCRIPT="/benchmarking-platform-tools/bp-runner/src/src/templates/scripts/upload-artifacts-to-benchmarking-api.sh"
+    (for i in {1..2}; do bash "${UPLOAD_SCRIPT}" && break; done) || :
     if [ "$CI_COMMIT_REF_NAME" != "main" ];
     then
       post-pr-comment.sh || :
