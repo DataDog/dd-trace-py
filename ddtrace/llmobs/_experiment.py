@@ -1378,7 +1378,11 @@ class Experiment:
                             self._retries.append(
                                 "task row {}: attempt {}/{} failed: {}".format(idx, attempt + 1, max_retries + 1, e)
                             )
-                            await asyncio.sleep(retry_delay(attempt))
+                            semaphore.release()
+                            try:
+                                await asyncio.sleep(retry_delay(attempt))
+                            finally:
+                                await semaphore.acquire()
                 if attempt > 0:
                     tags["retries"] = str(attempt)
                 if last_exc_info:
@@ -1557,7 +1561,11 @@ class Experiment:
                                         evaluator_name, idx, attempt + 1, max_retries + 1, e
                                     )
                                 )
-                                await asyncio.sleep(retry_delay(attempt))
+                                semaphore.release()
+                                try:
+                                    await asyncio.sleep(retry_delay(attempt))
+                                finally:
+                                    await semaphore.acquire()
                                 continue
                             if raise_errors:
                                 raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
