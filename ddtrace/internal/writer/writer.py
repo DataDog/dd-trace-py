@@ -3,7 +3,6 @@ import binascii
 from collections import defaultdict
 import functools
 import gzip
-import os
 import sys
 import threading
 from typing import TYPE_CHECKING
@@ -15,6 +14,7 @@ import weakref
 
 from ddtrace import config
 from ddtrace.internal import forksafe
+from ddtrace.internal.settings import _env
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
@@ -646,7 +646,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             _headers.update(headers)
 
         _headers.update({"Content-Type": client.encoder.content_type})
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        additional_header_str = _env.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
         self._response_cb = response_callback
@@ -893,7 +893,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = sorted(WRITER_CLIENTS.keys())[-1]
         client = WRITER_CLIENTS[self._api_version](buffer_size, max_payload_size)
 
-        additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+        additional_header_str = _env.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if test_session_token is None and additional_header_str is not None:
             additional_header = parse_tags_str(additional_header_str)
             if "X-Datadog-Test-Session-Token" in additional_header:
@@ -964,7 +964,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         if self._stats_opt_out:
             builder.set_client_computed_stats()
         elif self._compute_stats_enabled:
-            stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            stats_interval = float(_env.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
             bucket_size_ns: int = int(stats_interval * 1e9)
             builder.enable_stats(bucket_size_ns)
 
@@ -1246,9 +1246,9 @@ def _use_log_writer() -> bool:
     is not available in the Lambda.
     """
     if (
-        os.environ.get("DD_AGENT_HOST")
-        or os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
-        or os.environ.get("DD_TRACE_AGENT_URL")
+        _env.environ.get("DD_AGENT_HOST")
+        or _env.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+        or _env.environ.get("DD_TRACE_AGENT_URL")
     ):
         # If one of these variables are set, we definitely have an agent
         return False

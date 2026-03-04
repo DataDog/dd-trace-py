@@ -10,6 +10,7 @@ import tempfile
 import typing as t
 
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.settings import _env
 from ddtrace.internal.packages import Distribution
 from ddtrace.internal.packages import _package_for_root_module_mapping
 
@@ -122,7 +123,7 @@ def _safe_mtime_ns(path: t.Optional[str]) -> str:
 
 def _cache_basename() -> str:
     purelib = sysconfig.get_path("purelib")
-    main_package = os.getenv("DD_MAIN_PACKAGE", "")
+    main_package = _env.getenv("DD_MAIN_PACKAGE", "")
     data = "\x00".join(
         (
             _CODE_PROVENANCE_CACHE_VERSION,
