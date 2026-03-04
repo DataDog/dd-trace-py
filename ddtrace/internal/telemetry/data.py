@@ -63,8 +63,6 @@ def _get_application(key: tuple[str, str, str]) -> dict:
         "runtime_version": _format_version_info(sys.implementation.version),
     }
 
-    process_tags._set_globals()
-
     if p_tags := process_tags.process_tags:
         application["process_tags"] = p_tags
 

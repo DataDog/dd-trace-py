@@ -42,8 +42,6 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
         "severity": "crash",
     }
 
-    process_tags._set_globals()
-
     # Here we check for the presence of each tags, as the underlying Metadata
     # object expects std::collections::HashMap<String, String> which doesn't
     # support None values.

@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import struct
 import sys
+from typing import Any
 from typing import Callable
 from typing import Optional
 
@@ -90,7 +91,7 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
 
 def compute_base_hash(container_tags_hash):
     global base_hash, base_hash_bytes
-    if not process_tags:
+    if "process_tags" not in globals():
         return
 
     b = bytes(process_tags, encoding="utf-8") + bytes(container_tags_hash, encoding="utf-8")
@@ -99,11 +100,15 @@ def compute_base_hash(container_tags_hash):
 
 
 base_hash, base_hash_bytes = None, b""
-process_tags = None
 
 
-def _set_globals():
-    global process_tags
-    global process_tags_list
-    if not process_tags:
+def __getattr__(name: str) -> Any:
+    if "process_tags" in name:
+        global process_tags
+        global process_tags_list
         process_tags, process_tags_list = generate_process_tags()
+        if name == "process_tags":
+            return process_tags
+        elif name == "process_tags_list":
+            return process_tags_list
+    return globals()[name]
