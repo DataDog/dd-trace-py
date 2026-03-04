@@ -90,9 +90,12 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
 
 
 def compute_base_hash(container_tags_hash):
-    global base_hash, base_hash_bytes
-    if "process_tags" not in globals():
+    if not config.enabled:
         return
+
+    global base_hash, base_hash_bytes, process_tags
+    if "process_tags" not in globals():
+        process_tags, process_tags_list = generate_process_tags()  # type: ignore
 
     b = bytes(process_tags, encoding="utf-8") + bytes(container_tags_hash, encoding="utf-8")
     base_hash = fnv1_64(b)
