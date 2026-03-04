@@ -2003,6 +2003,57 @@ def test_experiment_summary_eval_missing_results_raises(llmobs, test_dataset_one
         asyncio.run(exp._experiment._run_summary_evaluators(task_results, eval_results, raise_errors=True))
 
 
+def test_experiment_task_retry_succeeds_after_failure(llmobs, test_dataset_one_record):
+    call_count = 0
+
+    def flaky_task(input_data, config):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ValueError("transient error")
+        return input_data
+
+    exp = llmobs.experiment("test_experiment", flaky_task, test_dataset_one_record, [dummy_evaluator])
+    task_results = asyncio.run(
+        exp._experiment._run_task(
+            1, run=run_info_with_stable_id(0), raise_errors=False, max_retries=2, retry_delay=lambda _: 0
+        )
+    )
+    assert len(task_results) == 1
+    assert task_results[0]["output"] is not None
+    assert task_results[0]["error"]["message"] is None
+    assert len(exp._experiment._retries) == 1
+    assert "attempt 1/3" in exp._experiment._retries[0]
+
+
+def test_experiment_evaluator_retry_succeeds_after_failure(llmobs, test_dataset_one_record):
+    call_count = 0
+
+    def flaky_evaluator(input_data, output_data, expected_output):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ValueError("transient eval error")
+        return 1
+
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [flaky_evaluator])
+    task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
+    eval_results = asyncio.run(
+        exp._experiment._run_evaluators(task_results, raise_errors=False, max_retries=2, retry_delay=lambda _: 0)
+    )
+    assert len(eval_results) == 1
+    assert eval_results[0]["evaluations"]["flaky_evaluator"]["value"] == 1
+    assert eval_results[0]["evaluations"]["flaky_evaluator"]["error"] is None
+    assert len(exp._experiment._retries) == 1
+    assert "attempt 1/3" in exp._experiment._retries[0]
+
+
+def test_experiment_max_retries_negative_raises(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(ValueError, match="max_retries must be >= 0"):
+        exp.run(max_retries=-1)
+
+
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = asyncio.run(exp._experiment._run_task(1, run=run_info_with_stable_id(0), raise_errors=False))
