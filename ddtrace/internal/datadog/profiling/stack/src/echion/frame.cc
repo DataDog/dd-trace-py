@@ -261,7 +261,7 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
         return ErrorKind::FrameError;
     }
 
-    // In Python 3.14+, instr_ptr points to the current instruction (not past it),
+    // In Python 3.13+, instr_ptr points to the current instruction (not past it),
     // so _PyInterpreterFrame_LASTI = instr_ptr - _PyCode_CODE(code) with no -1.
     _Py_CODEUNIT* code_units = reinterpret_cast<_Py_CODEUNIT*>(code_obj);
     int instr_offset = static_cast<int>(frame_addr->instr_ptr - code_units);

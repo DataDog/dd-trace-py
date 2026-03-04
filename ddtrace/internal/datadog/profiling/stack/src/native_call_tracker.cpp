@@ -1,8 +1,8 @@
 #include "native_call_tracker.hpp"
 
+#include <mutex>
 #include <shared_mutex>
 #include <string>
-#include <mutex>
 
 namespace Datadog {
 
