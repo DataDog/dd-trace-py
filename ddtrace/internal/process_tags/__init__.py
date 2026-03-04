@@ -106,9 +106,9 @@ def __getattr__(name: str) -> Any:
     if "process_tags" in name:
         global process_tags
         global process_tags_list
-        process_tags, process_tags_list = generate_process_tags()
+        process_tags, process_tags_list = generate_process_tags()  # type: ignore
         if name == "process_tags":
-            return process_tags
+            return process_tags  # type: ignore
         elif name == "process_tags_list":
-            return process_tags_list
+            return process_tags_list  # type: ignore
     return globals()[name]
