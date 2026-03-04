@@ -151,7 +151,7 @@ def trace_before_publish(*args, **kwargs):
     _inject_distributed_headers(span.context, kwargs)
 
 
-def _inject_distributed_headers(context, kwargs):
+def _inject_distributed_headers(context: Context, kwargs: dict):
     if config.celery["distributed_tracing"]:
         trace_headers = {}
         propagator.inject(context, trace_headers)
