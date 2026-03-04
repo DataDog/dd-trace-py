@@ -391,7 +391,7 @@ class LazyWrappedFunction(Protocol):
 
     __dd_lazy_contexts__: list[WrappingContext]
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
 
 
@@ -421,11 +421,11 @@ class LazyWrappingContext(WrappingContext):
                 super().wrap()
                 return
 
-            def trampoline(_, args, kwargs):
+            def trampoline(_: t.Any, args: tuple, kwargs: dict) -> t.Any:
                 with tl:
                     f = t.cast(WrappedFunction, self.__wrapped__)
                     if is_wrapped_with(self.__wrapped__, trampoline):
-                        f = unwrap(f, trampoline)
+                        f = t.cast(WrappedFunction, unwrap(f, trampoline))
 
                         self._trampoline = None
 
@@ -469,7 +469,7 @@ class ContextWrappedFunction(Protocol):
 
     __dd_context_wrapped__ = None  # type: t.Optional[_UniversalWrappingContext]
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
 
 
@@ -521,14 +521,19 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def _exit(self) -> None:
         self.__exit__(*sys.exc_info())
 
-    def __exit__(self, *exc) -> None:
-        if exc == (None, None, None):
+    def __exit__(
+        self,
+        exc_type: t.Optional[type[BaseException]],
+        exc_value: t.Optional[BaseException],
+        traceback: t.Optional[TracebackType],
+    ) -> None:
+        if exc_value is None:
             return
 
         for context in self._contexts[::-1]:
-            context.__exit__(*exc)
+            context.__exit__(exc_type, exc_value, traceback)
 
-        super().__exit__(*exc)
+        super().__exit__(exc_type, exc_value, traceback)
 
     def __return__(self, value: T) -> T:
         for context in self._contexts[::-1]:

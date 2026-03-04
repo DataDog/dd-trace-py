@@ -229,6 +229,29 @@ def _parse_skippable_tests(
     return tests_to_skip
 
 
+_DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+
+
+def _get_known_tests_max_pages() -> int:
+    """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
+    try:
+        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+    except ValueError:
+        log.warning(
+            "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    if value <= 0:
+        log.warning(
+            "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive (%s), using default: %s",
+            value,
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    return value
+
+
 class _TestVisibilityAPIClientBase(abc.ABC):
     """Client for fetching test visibility settings from the CI Visibility API
 
@@ -554,48 +577,79 @@ class _TestVisibilityAPIClientBase(abc.ABC):
         )
 
         known_test_ids: set[TestId] = set()
+        page_state: t.Optional[str] = None
+        max_pages = _get_known_tests_max_pages()
 
-        payload = {
-            "data": {
-                "id": str(uuid4()),
-                "type": "ci_app_libraries_tests_request",
-                "attributes": {
-                    "service": self._service,
-                    "env": self._dd_env,
-                    "repository_url": self._git_data.repository_url,
-                    "configurations": self._configurations,
-                },
+        for page_number in range(max_pages):
+            # First page: empty page_info lets backend use its default max (10k).
+            # Subsequent pages: only send page_state.
+            request_page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+
+            payload = {
+                "data": {
+                    "id": str(uuid4()),
+                    "type": "ci_app_libraries_tests_request",
+                    "attributes": {
+                        "service": self._service,
+                        "env": self._dd_env,
+                        "repository_url": self._git_data.repository_url,
+                        "configurations": self._configurations,
+                        "page_info": request_page_info,
+                    },
+                }
             }
-        }
 
-        try:
-            parsed_response = self._do_request_with_telemetry(
-                "POST", KNOWN_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
-            )
-        except Exception:  # noqa: E722
-            return None
+            try:
+                parsed_response = self._do_request_with_telemetry(
+                    "POST", KNOWN_TESTS_ENDPOINT, payload, metric_names, read_from_cache=read_from_cache
+                )
+            except Exception:  # noqa: E722
+                return None
 
-        if "errors" in parsed_response:
-            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
-            log.debug("Unique tests response contained an error")
-            return None
+            if "errors" in parsed_response:
+                record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+                log.debug("Unique tests response contained an error")
+                return None
 
-        try:
-            tests_data = parsed_response["data"]["attributes"]["tests"]
-        except KeyError:
-            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
-            return None
+            try:
+                attributes = parsed_response["data"]["attributes"]
+                tests_data = attributes["tests"]
+            except KeyError:
+                record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+                return None
 
-        try:
-            for module, suites in tests_data.items():
-                module_id = TestModuleId(module)
-                for suite, tests in suites.items():
-                    suite_id = TestSuiteId(module_id, suite)
-                    for test in tests:
-                        known_test_ids.add(TestId(suite_id, test))
-        except Exception:  # noqa: E722
-            log.debug("Failed to parse unique tests data", exc_info=True)
-            record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+            try:
+                for module, suites in tests_data.items():
+                    module_id = TestModuleId(module)
+                    for suite, tests in suites.items():
+                        suite_id = TestSuiteId(module_id, suite)
+                        for test in tests:
+                            known_test_ids.add(TestId(suite_id, test))
+            except Exception:  # noqa: E722
+                log.debug("Failed to parse unique tests data", exc_info=True)
+                record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
+                return None
+
+            response_page_info = attributes.get("page_info")
+            if not response_page_info:
+                break
+            if not isinstance(response_page_info, dict):
+                log.debug("Known tests response page_info is not a dict")
+                record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
+                return None
+
+            has_next = response_page_info.get("has_next")
+            if not has_next:
+                break
+
+            page_state = response_page_info.get("cursor")
+            if not page_state:
+                log.debug("Known tests response missing pagination cursor on page %d", page_number + 1)
+                record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
+                return None
+        else:
+            log.debug("Known tests pagination exceeded max pages: %d", max_pages)
+            record_api_request_error(metric_names.error, ERROR_TYPES.BAD_JSON)
             return None
 
         record_early_flake_detection_tests_count(len(known_test_ids))

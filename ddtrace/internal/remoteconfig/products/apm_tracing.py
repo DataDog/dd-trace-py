@@ -124,13 +124,14 @@ def start():
         from ddtrace.internal.products import manager
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.register(
+        remoteconfig_poller.register_callback(
             "APM_TRACING",
             APMTracingCallback(),
             capabilities=[
                 cap for product in manager.__products__.values() for cap in getattr(product, "APMCapabilities", [])
             ],
         )
+        remoteconfig_poller.enable_product("APM_TRACING")
 
         # Register remote config handlers
         for name, product in manager.__products__.items():
@@ -146,7 +147,8 @@ def stop(join=False):
     if config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-        remoteconfig_poller.unregister("APM_TRACING")
+        remoteconfig_poller.unregister_callback("APM_TRACING")
+        remoteconfig_poller.disable_product("APM_TRACING")
 
 
 def at_exit(join=False):

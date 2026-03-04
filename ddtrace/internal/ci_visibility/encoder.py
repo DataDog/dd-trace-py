@@ -87,7 +87,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _get_parent_session(self, traces: list[list["Span"]]) -> int:
         for trace in traces:
             for span in trace:
-                if span.get_tag(EVENT_TYPE) == SESSION_TYPE and span.parent_id is not None and span.parent_id != 0:
+                if span.get_tag(EVENT_TYPE) == SESSION_TYPE and span.parent_id is not None:
                     return span.parent_id
         return 0
 

@@ -8,7 +8,7 @@
 using namespace Datadog;
 
 static PyObject*
-_stack_start(PyObject* self, PyObject* args, PyObject* kwargs)
+stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
     static const char* const_kwlist[] = { "min_interval", NULL };
@@ -27,7 +27,7 @@ _stack_start(PyObject* self, PyObject* args, PyObject* kwargs)
 }
 
 // Bypasses the old-style cast warning with an unchecked helper function
-PyCFunction stack_start = cast_to_pycfunction(_stack_start);
+PyCFunction stack_start = cast_to_pycfunction(stack_start_impl);
 
 static PyObject*
 stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
@@ -100,7 +100,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 }
 
 static PyObject*
-_stack_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
+stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
 {
     (void)self;
     uint64_t thread_id;
@@ -136,7 +136,7 @@ _stack_link_span(PyObject* self, PyObject* args, PyObject* kwargs)
     Py_RETURN_NONE;
 }
 
-PyCFunction stack_link_span = cast_to_pycfunction(_stack_link_span);
+PyCFunction stack_link_span = cast_to_pycfunction(stack_link_span_impl);
 
 static PyObject*
 stack_track_asyncio_loop(PyObject* self, PyObject* args)
@@ -307,7 +307,7 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
     Py_RETURN_NONE;
 }
 
-static PyMethodDef _stack_methods[] = {
+static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
     { "register_thread", stack_thread_register, METH_VARARGS, "Register a thread" },
@@ -334,11 +334,11 @@ static PyMethodDef _stack_methods[] = {
 };
 
 PyMODINIT_FUNC
-PyInit__stack(void)
+PyInit__stack(void) // NOLINT(bugprone-reserved-identifier)
 {
     PyObject* m;
     static struct PyModuleDef moduledef = {
-        PyModuleDef_HEAD_INIT, "_stack", NULL, -1, _stack_methods, NULL, NULL, NULL, NULL
+        PyModuleDef_HEAD_INIT, "_stack", NULL, -1, stack_methods, NULL, NULL, NULL, NULL
     };
 
     m = PyModule_Create(&moduledef);
