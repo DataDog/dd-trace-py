@@ -50,13 +50,7 @@ class Frame
     StringTable::Key filename = 0;
     StringTable::Key name = 0;
 
-    struct _location
-    {
-        unsigned line = 0;
-        unsigned line_end = 0;
-        unsigned column = 0;
-        unsigned column_end = 0;
-    } location;
+    unsigned line = 0;
 
 #if PY_VERSION_HEX >= 0x030b0000
     bool is_entry = false;
