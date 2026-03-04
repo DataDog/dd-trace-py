@@ -764,7 +764,7 @@ class LLMJudge(BaseEvaluator):
         dne_client = getattr(getattr(self._llmobs_service, "_instance", None), "_dne_client", None)
         if dne_client is None:
             raise ValueError(
-                "LLMObs experiments client is not initialized. Ensure Datadog API and application keys are configured."
+                "LLMObs experiments client is not initialized."
             )
 
         response = dne_client.publish_custom_evaluator(evaluation_payload)
