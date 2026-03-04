@@ -169,6 +169,8 @@ def override_global_config(values):
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
         "_llmobs_instrumented_proxy_urls",
+        "_evp_proxy_payload_size_limit",
+        "_evp_proxy_event_size_limit",
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
         "_lib_was_injected",
