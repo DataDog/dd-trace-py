@@ -492,7 +492,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         expected_meta.pop(b"test_module_id")
         expected_meta.pop(b"itr_correlation_id")
         expected_metrics = {
-            "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_span._get_numeric_attributes().items())
+            "{}".format(key).encode("utf-8"): value
+            for key, value in sorted(given_test_span._get_numeric_attributes().items())
         }
         expected_test_event = {
             b"content": {
@@ -556,7 +557,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         expected_meta.pop(b"test_module_id")
         expected_meta.pop(b"itr_correlation_id")
         expected_metrics = {
-            "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_suite_span._get_numeric_attributes().items())
+            "{}".format(key).encode("utf-8"): value
+            for key, value in sorted(given_test_suite_span._get_numeric_attributes().items())
         }
         expected_test_suite_event = {
             b"content": {
@@ -611,7 +613,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         expected_meta.pop(b"test_session_id")
         expected_meta.pop(b"test_module_id")
         expected_metrics = {
-            "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_module_span._get_numeric_attributes().items())
+            "{}".format(key).encode("utf-8"): value
+            for key, value in sorted(given_test_module_span._get_numeric_attributes().items())
         }
         expected_test_module_event = {
             b"content": {
@@ -663,7 +666,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         expected_meta.update({b"_dd.origin": b"ciapp-test"})
         expected_meta.pop(b"test_session_id")
         expected_metrics = {
-            "{}".format(key).encode("utf-8"): value for key, value in sorted(given_test_session_span._get_numeric_attributes().items())
+            "{}".format(key).encode("utf-8"): value
+            for key, value in sorted(given_test_session_span._get_numeric_attributes().items())
         }
         expected_test_session_event = {
             b"content": {

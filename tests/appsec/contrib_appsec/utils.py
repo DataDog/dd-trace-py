@@ -2062,13 +2062,15 @@ class Contrib_TestClass_For_Threats:
 
             # metadata
             success = "success" if status_code == 200 else "failure"
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", entry_span()._get_str_attributes()
-            assert (
-                get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true"
-            ), entry_span()._get_str_attributes()
-            assert (
-                get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3"
-            ), entry_span()._get_str_attributes()
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", (
+                entry_span()._get_str_attributes()
+            )
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", (
+                entry_span()._get_str_attributes()
+            )
+            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", (
+                entry_span()._get_str_attributes()
+            )
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32", (
                 entry_span()._get_str_attributes()
             )

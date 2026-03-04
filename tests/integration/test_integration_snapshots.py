@@ -230,8 +230,6 @@ def test_wrong_service_type_not_sent():
         assert span.service is None
 
 
-
-
 @pytest.mark.subprocess()
 @pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
