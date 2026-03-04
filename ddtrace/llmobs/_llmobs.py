@@ -139,9 +139,9 @@ from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_kind
-from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
