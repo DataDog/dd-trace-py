@@ -36,7 +36,7 @@ def write_coverage_report(
 ) -> None:
     """Write a dead-code coverage report to disk; swallows all I/O errors."""
     try:
-        _do_write(executable_lines, covered_lines, output_dir, workspace_path, import_graph=import_graph)
+        _do_write(executable_lines, covered_lines, output_dir, workspace_path, import_graph=import_graph or [])
     except Exception:
         log.debug("Failed to write runtime coverage report", exc_info=True)
 
