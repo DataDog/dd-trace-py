@@ -390,7 +390,6 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(
             input_data={"query": "test"},
@@ -425,7 +424,6 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -444,7 +442,6 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=bad_transform,
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -459,7 +456,6 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -483,7 +479,6 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={}, output_data="")
 
@@ -497,19 +492,6 @@ class TestRemoteEvaluator:
 
         assert "Failed to call evaluator 'test-eval': HTTP 500" in str(exc_info.value)
 
-    def test_evaluate_llmobs_not_enabled(self):
-        """Test that AttributeError is raised if _llmobs_instance is not set."""
-        evaluator = RemoteEvaluator(
-            eval_name="test-eval",
-            transform_fn=lambda ctx: {},
-        )
-        ctx = EvaluatorContext(input_data={}, output_data="")
-
-        with pytest.raises(AttributeError) as exc_info:
-            evaluator.evaluate(ctx)
-
-        assert "'NoneType' object has no attribute '_dne_client'" in str(exc_info.value)
-
     def test_is_remote_evaluator_marker(self):
         """Test that RemoteEvaluator has _is_remote_evaluator marker."""
         evaluator = RemoteEvaluator(eval_name="test")
@@ -521,7 +503,6 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
@@ -552,7 +533,6 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
@@ -583,7 +563,6 @@ class TestRemoteEvaluator:
             eval_name="missing-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
@@ -603,14 +582,15 @@ class TestRemoteEvaluator:
             eval_name="test-eval",
             transform_fn=lambda ctx: {"input": ctx.input_data},
         )
-        evaluator._llmobs_instance = llmobs._instance
 
         ctx = EvaluatorContext(input_data={"query": "test"}, output_data="response")
 
         with mock.patch.object(
             llmobs._instance._dne_client,
             "evaluator_infer",
-            side_effect=RuntimeError("Failed to call evaluator 'test-eval': Internal server error processing evaluation"),
+            side_effect=RuntimeError(
+                "Failed to call evaluator 'test-eval': Internal server error processing evaluation"
+            ),
         ):
             with pytest.raises(RuntimeError) as exc_info:
                 evaluator.evaluate(ctx)

@@ -409,7 +409,10 @@ class RemoteEvaluator(BaseEvaluator):
         self.name = eval_name.strip()
         self._eval_name = eval_name.strip()
         self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
-        self._llmobs_instance: Optional["LLMObs"] = None
+
+        from ddtrace.llmobs import LLMObs
+
+        self._llmobs_service = LLMObs
 
     def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
         """Evaluate using the remote LLM-as-Judge evaluator.
@@ -417,9 +420,11 @@ class RemoteEvaluator(BaseEvaluator):
         :param context: The evaluation context containing input, output, and metadata
         :return: RemoteEvaluatorResult or raw value if no reasoning or assessment is provided
         """
-        client = self._llmobs_instance._dne_client  # type: ignore[union-attr]
+        dne_client = getattr(getattr(self._llmobs_service, "_instance", None), "_dne_client", None)
+        if dne_client is None:
+            raise ValueError("LLMObs experiments client is not initialized.")
 
-        result = client.evaluator_infer(
+        result = dne_client.evaluator_infer(
             eval_name=self._eval_name,
             context=self._transform_fn(context),
         )
@@ -1086,10 +1091,6 @@ class Experiment:
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
         self._is_distributed = is_distributed
-
-        for evaluator in self._evaluators:
-            if hasattr(evaluator, "_is_remote_evaluator"):
-                evaluator._llmobs_instance = self._llmobs_instance  # type: ignore[union-attr]
 
         if not project_name:
             raise ValueError(
