@@ -1,0 +1,15 @@
+id: os-environ-usage
+valid:
+  # These should NOT trigger the rule (valid code)
+  - from ddtrace.internal.settings import _env; _env.environ["HOME"]
+  - from ddtrace.internal.settings import _env; _env.getenv("DEBUG")
+  - import sys; sys.path
+
+invalid:
+  # These should trigger the rule (errors)
+  - os.environ["HOME"]
+  - os.environ.get("DEBUG", "false")
+  - os.getenv("DEBUG")
+  - from os import environ
+  - from os import getenv
+  - value = os.environ.get("KEY", "default")
