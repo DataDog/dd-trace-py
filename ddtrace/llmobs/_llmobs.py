@@ -417,8 +417,8 @@ class LLMObs(Service):
 
     def _build_span_event_from_meta_struct(self, span: Span, llmobs_data: dict[str, Any]) -> Optional[LLMObsSpanEvent]:
         llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
-        llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT, {}) or {}
-        llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT, {}) or {}
+        llmobs_input: _MetaIO = llmobs_meta.get(LLMOBS_STRUCT.INPUT, {}) or {}
+        llmobs_output: _MetaIO = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT, {}) or {}
 
         span_kind = _get_span_kind(span)
         if not span_kind:
