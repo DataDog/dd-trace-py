@@ -6,7 +6,6 @@ If a validator approves an input, we mark that input as secure for specific vuln
 
 from typing import Any
 from typing import Callable
-from typing import List
 from typing import Optional
 from typing import Sequence
 
@@ -15,8 +14,8 @@ from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 
 
 def create_validator(
-    vulnerability_types: List[VulnerabilityType],
-    parameter_positions: Optional[List[int]],
+    vulnerability_types: list[VulnerabilityType],
+    parameter_positions: Optional[list[int]],
     wrapped: Callable,
     instance: Any,
     args: Sequence,

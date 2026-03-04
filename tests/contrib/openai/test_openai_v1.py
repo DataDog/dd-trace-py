@@ -1353,8 +1353,6 @@ async def test_empty_streamed_response_resp_returns_async(openai, snapshot_trace
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
 def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1362,7 +1360,7 @@ def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("chat_completion_parse.yaml"):
@@ -1382,8 +1380,6 @@ def test_chat_completion_parse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_chat_completion_parse")
 async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1391,7 +1387,7 @@ async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("chat_completion_parse.yaml"):
@@ -1411,8 +1407,6 @@ async def test_achat_completion_parse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
 def test_response_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1420,7 +1414,7 @@ def test_response_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("response_parse.yaml"):
@@ -1437,8 +1431,6 @@ def test_response_parse(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_response_parse")
 async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
-    from typing import List
-
     from pydantic import BaseModel
 
     class Step(BaseModel):
@@ -1446,7 +1438,7 @@ async def test_aresponse_parse(openai, openai_vcr, snapshot_tracer):
         output: str
 
     class MathResponse(BaseModel):
-        steps: List[Step]
+        steps: list[Step]
         final_answer: str
 
     with openai_vcr.use_cassette("response_parse.yaml"):

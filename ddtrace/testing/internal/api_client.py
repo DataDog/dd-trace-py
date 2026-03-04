@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import os
 from pathlib import Path
 import typing as t
 import uuid
@@ -24,15 +25,37 @@ from ddtrace.testing.internal.test_data import TestRef
 
 log = logging.getLogger(__name__)
 
+_DEFAULT_KNOWN_TESTS_MAX_PAGES = 10000
+
+
+def _get_known_tests_max_pages() -> int:
+    """Max pages for known tests pagination; configurable via _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES."""
+    try:
+        value = int(os.environ.get("_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES", str(_DEFAULT_KNOWN_TESTS_MAX_PAGES)))
+    except ValueError:
+        log.warning(
+            "Failed to parse _DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES, using default: %s",
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    if value <= 0:
+        log.warning(
+            "_DD_CIVISIBILITY_KNOWN_TESTS_MAX_PAGES must be positive (%s), using default: %s",
+            value,
+            _DEFAULT_KNOWN_TESTS_MAX_PAGES,
+        )
+        return _DEFAULT_KNOWN_TESTS_MAX_PAGES
+    return value
+
 
 class APIClient:
     def __init__(
         self,
         service: str,
         env: str,
-        env_tags: t.Dict[str, str],
+        env_tags: dict[str, str],
         itr_skipping_level: ITRSkippingLevel,
-        configurations: t.Dict[str, str],
+        configurations: dict[str, str],
         connector_setup: BackendConnectorSetup,
         telemetry_api: TelemetryAPI,
     ) -> None:
@@ -101,7 +124,7 @@ class APIClient:
         self.telemetry_api.record_settings(settings)
         return settings
 
-    def get_known_tests(self) -> t.Set[TestRef]:
+    def get_known_tests(self) -> set[TestRef]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="known_tests.request",
             duration="known_tests.request_ms",
@@ -109,53 +132,85 @@ class APIClient:
             error="known_tests.request_errors",
         )
 
-        try:
-            request_data: t.Dict[str, t.Any] = {
-                "data": {
-                    "id": str(uuid.uuid4()),
-                    "type": "ci_app_libraries_tests_request",
-                    "attributes": {
-                        "service": self.service,
-                        "env": self.env,
-                        "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
-                        "configurations": self.configurations,
-                    },
+        page_state: t.Optional[str] = None
+        known_test_ids: set[TestRef] = set()
+        max_pages = _get_known_tests_max_pages()
+
+        for page_number in range(max_pages):
+            # First page: empty page_info lets backend use its default max (10k).
+            # Subsequent pages: only send page_state.
+            page_info: dict[str, t.Any] = {} if page_state is None else {"page_state": page_state}
+
+            try:
+                request_data: dict[str, t.Any] = {
+                    "data": {
+                        "id": str(uuid.uuid4()),
+                        "type": "ci_app_libraries_tests_request",
+                        "attributes": {
+                            "service": self.service,
+                            "env": self.env,
+                            "repository_url": self.env_tags[GitTag.REPOSITORY_URL],
+                            "configurations": self.configurations,
+                            "page_info": page_info,
+                        },
+                    }
                 }
-            }
 
-        except KeyError as e:
-            log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
-            telemetry.record_error(ErrorType.UNKNOWN)
-            return set()
+            except KeyError as e:
+                log.warning("Git info not available, cannot fetch known tests (missing key: %s)", e)
+                telemetry.record_error(ErrorType.UNKNOWN)
+                return set()
 
-        try:
-            result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
-            result.on_error_raise_exception()
+            try:
+                result = self.connector.post_json("/api/v2/ci/libraries/tests", request_data, telemetry=telemetry)
+                result.on_error_raise_exception()
 
-        except Exception as e:
-            log.warning("Error getting known tests from API: %s", e)
-            return set()
+            except Exception as e:
+                log.warning("Error getting known tests from API: %s", e)
+                return set()
 
-        try:
-            tests_data = result.parsed_response["data"]["attributes"]["tests"]
-            known_test_ids = set()
+            try:
+                attributes = result.parsed_response["data"]["attributes"]
+                tests_data = attributes["tests"]
 
-            for module, suites in tests_data.items():
-                module_ref = ModuleRef(module)
-                for suite, tests in suites.items():
-                    suite_ref = SuiteRef(module_ref, suite)
-                    for test in tests:
-                        known_test_ids.add(TestRef(suite_ref, test))
+                for module, suites in tests_data.items():
+                    module_ref = ModuleRef(module)
+                    for suite, tests in suites.items():
+                        suite_ref = SuiteRef(module_ref, suite)
+                        for test in tests:
+                            known_test_ids.add(TestRef(suite_ref, test))
 
-        except Exception:
-            log.warning("Error getting known tests from API")
+                page_info = attributes.get("page_info")
+                if not page_info:
+                    break
+                if not isinstance(page_info, dict):
+                    log.warning("Known tests response page_info is not a dict")
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
+
+                has_next = page_info.get("has_next")
+                if not has_next:
+                    break
+
+                page_state = page_info.get("cursor")
+                if not page_state:
+                    log.warning("Known tests response missing pagination cursor on page %d", page_number + 1)
+                    telemetry.record_error(ErrorType.BAD_JSON)
+                    return set()
+
+            except Exception:
+                log.warning("Error getting known tests from API")
+                telemetry.record_error(ErrorType.BAD_JSON)
+                return set()
+        else:
+            log.warning("Known tests pagination exceeded max pages: %d", max_pages)
             telemetry.record_error(ErrorType.BAD_JSON)
             return set()
 
         self.telemetry_api.record_known_tests_count(len(known_test_ids))
         return known_test_ids
 
-    def get_test_management_properties(self) -> t.Dict[TestRef, TestProperties]:
+    def get_test_management_properties(self) -> dict[TestRef, TestProperties]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="test_management_tests.request",
             duration="test_management_tests.request_ms",
@@ -195,7 +250,7 @@ class APIClient:
             return {}
 
         try:
-            test_properties: t.Dict[TestRef, TestProperties] = {}
+            test_properties: dict[TestRef, TestProperties] = {}
             modules = result.parsed_response["data"]["attributes"]["modules"]
 
             for module_name, module_data in modules.items():
@@ -221,7 +276,7 @@ class APIClient:
         self.telemetry_api.record_test_management_tests_count(len(test_properties))
         return test_properties
 
-    def get_known_commits(self, latest_commits: t.List[str]) -> t.List[str]:
+    def get_known_commits(self, latest_commits: list[str]) -> list[str]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="git_requests.search_commits",
             duration="git_requests.search_commits_ms",
@@ -313,7 +368,7 @@ class APIClient:
 
         return len(content)
 
-    def get_skippable_tests(self) -> t.Tuple[t.Set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
+    def get_skippable_tests(self) -> tuple[set[t.Union[SuiteRef, TestRef]], t.Optional[str]]:
         telemetry = self.telemetry_api.with_request_metric_names(
             count="itr_skippable_tests.request",
             duration="itr_skippable_tests.request_ms",
@@ -351,7 +406,7 @@ class APIClient:
             return set(), None
 
         try:
-            skippable_items: t.Set[t.Union[SuiteRef, TestRef]] = set()
+            skippable_items: set[t.Union[SuiteRef, TestRef]] = set()
 
             for item in result.parsed_response["data"]:
                 if item["type"] in ("test", "suite"):
@@ -375,7 +430,7 @@ class APIClient:
         return skippable_items, correlation_id
 
     def upload_coverage_report(
-        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[t.Dict[str, str]] = None
+        self, coverage_report_bytes: bytes, coverage_format: str, tags: t.Optional[dict[str, str]] = None
     ) -> bool:
         """
         Upload a coverage report to Datadog CI Intake.

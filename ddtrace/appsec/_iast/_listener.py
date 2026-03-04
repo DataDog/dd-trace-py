@@ -1,6 +1,5 @@
 from types import TracebackType
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.appsec._iast._handlers import _iast_on_wrapped_view
 from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
@@ -26,7 +25,7 @@ from ddtrace.internal import core
 def iast_listen():
     def _iast_context_end(
         ctx: core.ExecutionContext,
-        _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+        _exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ):
         _iast_end_request(ctx)
 

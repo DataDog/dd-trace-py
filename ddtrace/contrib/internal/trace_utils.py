@@ -8,13 +8,10 @@ import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import Iterator  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Mapping  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 from urllib import parse
@@ -79,8 +76,9 @@ IP_PATTERNS = (
 )
 
 
-def _store_headers(headers, span, integration_config, request_or_response):
-    # type: (Dict[str, str], Span, IntegrationConfig, str) -> None
+def _store_headers(
+    headers: dict[str, str], span: Span, integration_config: "IntegrationConfig", request_or_response: str
+) -> None:
     """
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -109,8 +107,7 @@ def _store_headers(headers, span, integration_config, request_or_response):
         span._set_tag_str(tag_name or _normalize_tag_name(request_or_response, header_name), header_value)
 
 
-def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False):
-    # type: (Mapping[str, str], bool) -> str
+def _get_request_header_referrer_host(headers: Mapping[str, str], headers_are_case_sensitive: bool = False) -> str:
     """Get referrer host from request headers
     :param headers: A dict of http headers to be stored in the span
     :type headers: dict or list
@@ -150,10 +147,10 @@ def _parse_ip_header(ip_header_value: str) -> str:
     return ""
 
 
-def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
-    # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
-
-    def get_header_value(key):  # type: (str) -> Optional[str]
+def _get_request_header_client_ip(
+    headers: Optional[Mapping[str, str]], peer_ip: Optional[str] = None, headers_are_case_sensitive: bool = False
+) -> str:
+    def get_header_value(key: str) -> Optional[str]:
         if not headers_are_case_sensitive:
             return headers.get(key)
 
@@ -229,8 +226,7 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
     return private_ip_from_headers
 
 
-def _store_request_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+def _store_request_headers(headers: dict[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
     """
     Store request headers as a span's tags
     :param headers: All the request's http headers, will be filtered through the whitelist
@@ -243,8 +239,7 @@ def _store_request_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, REQUEST)
 
 
-def _store_response_headers(headers, span, integration_config):
-    # type: (Dict[str, str], Span, IntegrationConfig) -> None
+def _store_response_headers(headers: dict[str, str], span: Span, integration_config: "IntegrationConfig") -> None:
     """
     Store response headers as a span's tags
     :param headers: All the response's http headers, will be filtered through the whitelist
@@ -257,8 +252,7 @@ def _store_response_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, RESPONSE)
 
 
-def _sanitized_url(url):
-    # type: (str) -> str
+def _sanitized_url(url: str) -> str:
     """
     Sanitize url by removing parts with potential auth info
     """
@@ -319,8 +313,7 @@ def with_traced_module(func):
     return with_mod
 
 
-def distributed_tracing_enabled(int_config, default=False):
-    # type: (IntegrationConfig, bool) -> bool
+def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
         return int_config.distributed_tracing_enabled
@@ -329,8 +322,7 @@ def distributed_tracing_enabled(int_config, default=False):
     return default
 
 
-def int_service(pin, int_config, default=None):
-    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
+def int_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is internal
     to the application. Internal meaning that the work belongs to the
     user's application. Eg. Web framework, sqlalchemy, web servers.
@@ -367,8 +359,7 @@ def int_service(pin, int_config, default=None):
     return default
 
 
-def ext_service(pin, int_config, default=None):
-    # type: (Optional[Pin], IntegrationConfig, Optional[str]) -> Optional[str]
+def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Optional[str] = None) -> Optional[str]:
     """Returns the service name for an integration which is external
     to the application. External meaning that the integration generates
     spans wrapping code that is outside the scope of the user's application. Eg. A database, RPC, cache, etc.
@@ -389,29 +380,28 @@ def ext_service(pin, int_config, default=None):
 
 
 def set_http_meta(
-    span,  # type: Span
-    integration_config,  # type: IntegrationConfig
-    method=None,  # type: Optional[str]
-    url=None,  # type: Optional[str]
-    target_host=None,  # type: Optional[str]
-    server_address=None,  # type: Optional[str]
-    status_code=None,  # type: Optional[Union[int, str]]
-    status_msg=None,  # type: Optional[str]
-    query=None,  # type: Optional[str]
-    parsed_query=None,  # type: Optional[Mapping[str, str]]
-    request_headers=None,  # type: Optional[Mapping[str, str]]
-    response_headers=None,  # type: Optional[Mapping[str, str]]
-    retries_remain=None,  # type: Optional[Union[int, str]]
-    raw_uri=None,  # type: Optional[str]
-    request_cookies=None,  # type: Optional[Dict[str, str]]
-    request_path_params=None,  # type: Optional[Dict[str, str]]
-    request_body=None,  # type: Optional[Union[str, Dict[str, List[str]]]]
-    peer_ip=None,  # type: Optional[str]
-    headers_are_case_sensitive=False,  # type: bool
-    route=None,  # type: Optional[str]
-    response_cookies=None,  # type: Optional[Dict[str, str]]
-):
-    # type: (...) -> None
+    span: Span,
+    integration_config: "IntegrationConfig",
+    method: Optional[str] = None,
+    url: Optional[str] = None,
+    target_host: Optional[str] = None,
+    server_address: Optional[str] = None,
+    status_code: Optional[Union[int, str]] = None,
+    status_msg: Optional[str] = None,
+    query: Optional[str] = None,
+    parsed_query: Optional[Mapping[str, str]] = None,
+    request_headers: Optional[Mapping[str, str]] = None,
+    response_headers: Optional[Mapping[str, str]] = None,
+    retries_remain: Optional[Union[int, str]] = None,
+    raw_uri: Optional[str] = None,
+    request_cookies: Optional[dict[str, str]] = None,
+    request_path_params: Optional[dict[str, str]] = None,
+    request_body: Optional[Union[str, dict[str, list[str]]]] = None,
+    peer_ip: Optional[str] = None,
+    headers_are_case_sensitive: bool = False,
+    route: Optional[str] = None,
+    response_cookies: Optional[dict[str, str]] = None,
+) -> None:
     """
     Set HTTP metas on the span
 
@@ -519,8 +509,12 @@ def set_http_meta(
         span._set_tag_str(http.ROUTE, route)
 
 
-def activate_distributed_headers(tracer, int_config=None, request_headers=None, override=None):
-    # type: (Tracer, Optional[IntegrationConfig], Optional[Dict[str, str]], Optional[bool]) -> None
+def activate_distributed_headers(
+    tracer: "Tracer",
+    int_config: Optional["IntegrationConfig"] = None,
+    request_headers: Optional[dict[str, str]] = None,
+    override: Optional[bool] = None,
+) -> None:
     """
     Helper for activating a distributed trace headers' context if enabled in integration config.
     int_config will be used to check if distributed trace headers context will be activated, but
@@ -589,12 +583,11 @@ def _copy_trace_level_tags(target_span: Span, parent: Span):
 
 
 def _flatten(
-    obj,  # type: Any
-    sep=".",  # type: str
-    prefix="",  # type: str
-    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
-):
-    # type: (...) -> Generator[Tuple[str, Any], None, None]
+    obj: Any,
+    sep: str = ".",
+    prefix: str = "",
+    exclude_policy: Optional[Callable[[str], bool]] = None,
+) -> Generator[tuple[str, Any], None, None]:
     s = deque()  # type: ignore
     s.append((prefix, obj))
     while s:
@@ -608,20 +601,18 @@ def _flatten(
 
 
 def set_flattened_tags(
-    span,  # type: Span
-    items,  # type: Iterator[Tuple[str, Any]]
-    sep=".",  # type: str
-    exclude_policy=None,  # type: Optional[Callable[[str], bool]]
-    processor=None,  # type: Optional[Callable[[Any], Any]]
-):
-    # type: (...) -> None
+    span: Span,
+    items: Iterator[tuple[str, Any]],
+    sep: str = ".",
+    exclude_policy: Optional[Callable[[str], bool]] = None,
+    processor: Optional[Callable[[Any], Any]] = None,
+) -> None:
     for prefix, value in items:
         for tag, v in _flatten(value, sep, prefix, exclude_policy):
             span.set_tag(tag, processor(v) if processor is not None else v)
 
 
-def extract_netloc_and_query_info_from_url(url):
-    # type: (str) -> Tuple[str, str]
+def extract_netloc_and_query_info_from_url(url: str) -> tuple[str, str]:
     parse_result = parse.urlparse(url)
     query = parse_result.query
 

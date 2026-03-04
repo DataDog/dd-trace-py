@@ -5,8 +5,7 @@ import ddtrace.vendor.packaging.version as packaging_version
 from ddtrace.version import __version__
 
 
-def parse_version(version):
-    # type: (str) -> typing.Tuple[int, int, int]
+def parse_version(version: str) -> tuple[int, int, int]:
     """Convert a version string to a tuple of (major, minor, micro)
 
     Examples::
@@ -51,8 +50,7 @@ def parse_version(version):
     )
 
 
-def _pep440_to_semver(version=None):
-    # type: (Optional[str]) -> str
+def _pep440_to_semver(version: Optional[str] = None) -> str:
     # The library uses a PEP 440-compliant (https://peps.python.org/pep-0440/) versioning
     # scheme, but the Agent spec requires that we use a SemVer-compliant version.
     #

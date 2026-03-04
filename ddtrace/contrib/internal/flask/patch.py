@@ -1,5 +1,4 @@
 from inspect import unwrap
-from typing import Dict
 
 import flask
 import werkzeug
@@ -74,17 +73,15 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return get_version_for_package("flask")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"flask": ">=1.1.4"}
 
 
-def get_werkzeug_version():
-    # type: () -> str
+def get_werkzeug_version() -> str:
     return get_version_for_package("werkzeug")
 
 

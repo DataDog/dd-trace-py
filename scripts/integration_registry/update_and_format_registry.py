@@ -11,7 +11,6 @@ and the integration registry.
 import pathlib
 import subprocess
 import sys
-from typing import List
 
 
 SCRIPT_DIR = pathlib.Path(__file__).parent.parent.resolve()
@@ -26,7 +25,7 @@ PATH_FORMAT_REGISTRY_SCRIPT = PROJECT_ROOT / "scripts" / "integration_registry" 
 
 def _run_script(script_path: pathlib.Path, *args: str) -> bool:
     """Executes a given Python script using the current interpreter and handles output/errors."""
-    command: List[str] = [sys.executable, str(script_path)] + list(args)
+    command: list[str] = [sys.executable, str(script_path)] + list(args)
     script_name: str = script_path.name
     print(f" -> Running {script_path.relative_to(PROJECT_ROOT)} {' '.join(args)}...")
 

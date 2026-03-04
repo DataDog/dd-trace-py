@@ -15,11 +15,9 @@ import threading
 from typing import Callable
 from typing import Generator
 from typing import Iterable
-from typing import List
 from typing import Optional
 from typing import Sequence
 from typing import Text
-from typing import Tuple
 import urllib.parse
 
 
@@ -28,7 +26,7 @@ def methodcaller(*args, **kwargs):
 
 
 class WebServerHandler(SimpleHTTPRequestHandler):
-    def do_GET(self):  # type: () -> None
+    def do_GET(self) -> None:
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
@@ -37,7 +35,7 @@ class WebServerHandler(SimpleHTTPRequestHandler):
 
 
 class StoppableHTTPServer(HTTPServer):
-    def run(self):  # type: () -> None
+    def run(self) -> None:
         try:
             self.serve_forever()
         finally:
@@ -146,69 +144,69 @@ def get_full_path_methods(path, META, force_append_slash=False):
     )
 
 
-def do_upper_not_str(s):  # type: (str) -> str
+def do_upper_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def upper(string):  # type: (str) -> str
+        def upper(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.upper(s)
 
 
-def do_lower_not_str(s):  # type: (str) -> str
+def do_lower_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def lower(string):  # type: (str) -> str
+        def lower(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.lower(s)
 
 
-def do_swapcase(s):  # type: (str) -> str
+def do_swapcase(s: str) -> str:
     return s.swapcase()
 
 
-def do_swapcase_not_str(s):  # type: (str) -> str
+def do_swapcase_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def swapcase(string):  # type: (str) -> str
+        def swapcase(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.swapcase(s)
 
 
-def do_title(s):  # type: (str) -> str
+def do_title(s: str) -> str:
     return s.title()
 
 
-def do_title_not_str(s):  # type: (str) -> str
+def do_title_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def title(string):  # type: (str) -> str
+        def title(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.title(s)
 
 
-def do_capitalize(s):  # type: (str) -> str
+def do_capitalize(s: str) -> str:
     return s.capitalize()
 
 
-def do_capitalize_not_str(s):  # type: (str) -> str
+def do_capitalize_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def capitalize(string):  # type: (str) -> str
+        def capitalize(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.capitalize(s)
 
 
-def do_decode(s, encoding="utf-8", errors="strict"):  # type: (bytes, str, str) -> str
+def do_decode(s: bytes, encoding: str = "utf-8", errors: str = "strict") -> str:
     return s.decode(encoding, errors)
 
 
@@ -246,11 +244,11 @@ def do_str_to_bytes_to_bytearray_to_str(s: str) -> str:
     return str(bytearray(bytes(s, encoding="utf-8")), encoding="utf-8")
 
 
-def do_bytearray_to_bytes(s):  # type: (bytearray) -> bytes
+def do_bytearray_to_bytes(s: bytearray) -> bytes:
     return bytes(s)
 
 
-def do_bytearray_append(ba):  # type: (bytearray) -> bytes
+def do_bytearray_append(ba: bytearray) -> bytes:
     ba.append(37)
     return ba
 
@@ -272,172 +270,172 @@ def do_bytes(b) -> bytes:
     return bytes(b)
 
 
-def do_bytes_to_str(b):  # type: (bytes) -> str
+def do_bytes_to_str(b: bytes) -> str:
     return str(b, encoding="utf-8")
 
 
-def do_bytearray_to_str(b):  # type: (bytearray) -> str
+def do_bytearray_to_str(b: bytearray) -> str:
     return str(b, encoding="utf-8")
 
 
-def do_bytes_to_bytearray(s):  # type: (bytes) -> bytearray
+def do_bytes_to_bytearray(s: bytes) -> bytearray:
     return bytearray(s)
 
 
-def do_bytes_to_iter_bytearray(b):  # type: (bytes) -> bytearray
+def do_bytes_to_iter_bytearray(b: bytes) -> bytearray:
     groups = iter(b.split(b"%"))
     result = bytearray(next(groups, b""))
     return result
 
 
-def do_encode_not_str(s):  # type: (str) -> str
+def do_encode_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def encode(string):  # type: (str) -> str
+        def encode(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.encode(s)
 
 
-def do_expandtabs(s):  # type: (str) -> str
+def do_expandtabs(s: str) -> str:
     return s.expandtabs()
 
 
-def do_expandtabs_not_str(s):  # type: (str) -> str
+def do_expandtabs_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def expandtabs(string):  # type: (str) -> str
+        def expandtabs(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.expandtabs(s)
 
 
-def do_casefold(s):  # type: (str) -> str
+def do_casefold(s: str) -> str:
     return s.casefold()
 
 
-def do_casefold_not_str(s):  # type: (str) -> str
+def do_casefold_not_str(s: str) -> str:
     class MyStr(object):
         @staticmethod
-        def casefold(string):  # type: (str) -> str
+        def casefold(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.casefold(s)
 
 
-def do_center(c, i):  # type: (str, int) -> str
+def do_center(c: str, i: int) -> str:
     return c.center(i)
 
 
-def do_center_not_str(c):  # type: (str) -> str
+def do_center_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def center(string):  # type: (str) -> str
+        def center(string: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.center(c)
 
 
-def do_ljust_not_str(c):  # type: (str) -> str
+def do_ljust_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def ljust(string1, string2):  # type: (str, str) -> str
+        def ljust(string1: str, string2: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.ljust(c, c)
 
 
-def do_ljust(s, width):  # type: (str, int) -> str
+def do_ljust(s: str, width: int) -> str:
     return s.ljust(width)
 
 
-def do_ljust_2(s, width, fill_char):  # type: (str, int, str) -> str
+def do_ljust_2(s: str, width: int, fill_char: str) -> str:
     return s.ljust(width, fill_char)
 
 
-def do_lstrip_not_str(c):  # type: (str) -> str
+def do_lstrip_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def lstrip(string1, string2):  # type: (str, str) -> str
+        def lstrip(string1: str, string2: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.lstrip(c, c)
 
 
-def do_lstrip(s):  # type: (str) -> str
+def do_lstrip(s: str) -> str:
     return s.lstrip()
 
 
-def do_rstrip_not_str(c):  # type: (str) -> str
+def do_rstrip_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def rstrip(string1, string2):  # type: (str, str) -> str
+        def rstrip(string1: str, string2: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.rstrip(c, c)
 
 
-def do_split_not_str(c):  # type: (str) -> str
+def do_split_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def split(string1, string2, string3):  # type: (str, str, str) -> str
+        def split(string1: str, string2: str, string3: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.split(c, c, c)
 
 
-def do_rsplit_not_str(c):  # type: (str) -> str
+def do_rsplit_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def rsplit(string1, string2, string3):  # type: (str, str, str) -> str
+        def rsplit(string1: str, string2: str, string3: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.rsplit(c, c, c)
 
 
-def do_splitlines_not_str(c):  # type: (str) -> str
+def do_splitlines_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def splitlines(string1, string2, string3):  # type: (str, str, str) -> str
+        def splitlines(string1: str, string2: str, string3: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.splitlines(c, c, c)
 
 
-def do_partition_not_str(c):  # type: (str) -> str
+def do_partition_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def partition(string1, string2, string3):  # type: (str, str, str) -> str
+        def partition(string1: str, string2: str, string3: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.partition(c, c, c)
 
 
-def do_rpartition_not_str(c):  # type: (str) -> str
+def do_rpartition_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def rpartition(string1, string2, string3):  # type: (str, str, str) -> str
+        def rpartition(string1: str, string2: str, string3: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.rpartition(c, c, c)
 
 
-def do_replace_not_str(c):  # type: (str) -> str
+def do_replace_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def replace(string1):  # type: (str) -> str
+        def replace(string1: str) -> str:
             return "output"
 
     my_str = MyStr()
@@ -448,10 +446,10 @@ def do_format(a: Text, *args: Text) -> Text:
     return a.format(*args)
 
 
-def do_format_not_str(c):  # type: (str) -> str
+def do_format_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def format(string1):  # type: (str) -> str
+        def format(string1: str) -> str:
             return "output"
 
     my_str = MyStr()
@@ -462,20 +460,20 @@ def do_format_map(a: Text, *args: Text) -> Text:
     return a.format_map(*args)
 
 
-def do_format_map_not_str(c):  # type: (str) -> str
+def do_format_map_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def format_map(string1):  # type: (str) -> str
+        def format_map(string1: str) -> str:
             return "output"
 
     my_str = MyStr()
     return my_str.format_map(c)
 
 
-def do_zfill_not_str(c):  # type: (str) -> str
+def do_zfill_not_str(c: str) -> str:
     class MyStr(object):
         @staticmethod
-        def zfill(string1):  # type: (str) -> str
+        def zfill(string1: str) -> str:
             return "output"
 
     my_str = MyStr()
@@ -648,7 +646,7 @@ class AutoIncrementWithSubSubclassClass:
         self.dummy.dummy.creation_counter += 1
 
 
-def someother_function():  # type: () -> None
+def someother_function() -> None:
     print("Im some other function that should not be replaced")
 
 
@@ -714,11 +712,11 @@ def do_decorated_function():
     return "decorated function"
 
 
-def do_join_tuple_unpack_with_call_for_mock():  # type: () -> Text
+def do_join_tuple_unpack_with_call_for_mock() -> Text:
     return os.path.join("UTC", *("A", "B"))
 
 
-def do_join_tuple_unpack_with_call():  # type: () -> Text
+def do_join_tuple_unpack_with_call() -> Text:
     return os.path.join("UTC", *("A", "B"))
 
 
@@ -726,7 +724,7 @@ class SampleClass(object):
     TIME_ZONE = "UTC/UTM"
 
     @staticmethod
-    def commonprefix(first: Text, *args: List) -> Sequence:
+    def commonprefix(first: Text, *args: list) -> Sequence:
         return os.path.commonprefix(list([first]) + list(args))
 
 
@@ -741,11 +739,11 @@ def do_join_tuple_unpack_with_call_with_methods(zoneinfo_root: str) -> bool:
 
 class MapJoin(object):
     @staticmethod
-    def join(arg0, foo="a", baz="x"):  # type: (Text, Text, Text) -> Text
+    def join(arg0: Text, foo: Text = "a", baz: Text = "x") -> Text:
         return os.path.join(arg0, foo, baz)
 
 
-def do_join_map_unpack_with_call():  # type: () -> Text
+def do_join_map_unpack_with_call() -> Text:
     return MapJoin.join(arg0="/", **{"foo": "bar", "baz": "qux"})
 
 
@@ -764,32 +762,32 @@ def no_effect_using_wraps(func):
     return wrapper
 
 
-def do_upper(sss):  # type: (str) -> str
+def do_upper(sss: str) -> str:
     return sss.upper()
 
 
-def do_lower(s):  # type: (str) -> str
+def do_lower(s: str) -> str:
     return s.lower()
 
 
 class MockIssue:
-    def __init__(self, value):  # type: (str) -> None
+    def __init__(self, value: str) -> None:
         self.value = value
 
-    def __repr__(self):  # type: () -> str
+    def __repr__(self) -> str:
         return self.value
 
-    def __str__(self):  # type: () -> str
+    def __str__(self) -> str:
         return self.value
 
     @property
-    def level(self):  # type: () -> int
+    def level(self) -> int:
         return 1
 
-    def is_silenced(self):  # type: () -> bool
+    def is_silenced(self) -> bool:
         return False
 
-    def is_serious(self):  # type: () -> bool
+    def is_serious(self) -> bool:
         return False
 
 
@@ -798,7 +796,7 @@ class MyIter:
     _leftover = "my_string"
     _producer = (i for i in ["a", "b", "c"])
 
-    def function_next(self):  # type: () -> str
+    def function_next(self) -> str:
         """
         Used when the exact number of bytes to read is unimportant.
 
@@ -815,13 +813,13 @@ class MyIter:
         return output
 
 
-def func_iter_sum(a: str) -> List[str]:
-    out: List[str] = []  # type
+def func_iter_sum(a: str) -> list[str]:
+    out: list[str] = []  # type
     out += a, a
     return out
 
 
-def get_random_string_module_encode(allowed_chars: str) -> List[str]:
+def get_random_string_module_encode(allowed_chars: str) -> list[str]:
     result = ("%s%s%s" % ("a", "b", "c")).encode("utf-8")
     return [allowed_chars for i in result]
 
@@ -831,9 +829,9 @@ def get_random_string_join(mystring: str) -> Text:
 
 
 def get_random_string_seed(
-    length=12,
-    allowed_chars="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-):  # type: (int, str) -> str
+    length: int = 12,
+    allowed_chars: str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+) -> str:
     """
     Returns a securely generated random string.
 
@@ -852,11 +850,11 @@ def conditional_escape(a: str) -> Text:
     return a
 
 
-def format_html(a: str, args: Tuple) -> str:
+def format_html(a: str, args: tuple) -> str:
     return a.join(args)
 
 
-def format_html_join(attrs: str, args_generator: List[str] = None) -> str:
+def format_html_join(attrs: str, args_generator: list[str] = None) -> str:
     if args_generator is None:
         args_generator = ["a", "b", "c"]
 
@@ -866,7 +864,7 @@ def format_html_join(attrs: str, args_generator: List[str] = None) -> str:
 
 def get_wrapped_repeat_text_with_join(wrapper: Callable) -> Callable:
     @wrapper
-    def repeat_text_with_join(text, times=2):  # type: (str, int) -> str
+    def repeat_text_with_join(text: str, times: int = 2) -> str:
         # Use the join to confirm that we use a string-propagation method
         return "_".join([text for i in range(0, times)])
 
@@ -1027,10 +1025,10 @@ def do_slice_negative(s: str):
 
 
 class MyObject(object):
-    def __init__(self, str_param):  # type: (str) -> None
+    def __init__(self, str_param: str) -> None:
         self.str_param = str_param
 
-    def __repr__(self):  # type: () -> str
+    def __repr__(self) -> str:
         return self.str_param + " a"
 
 
@@ -1058,39 +1056,39 @@ def do_namedtuple(s: Text):
     return my_string
 
 
-def do_split_no_args(s: str) -> List[str]:
+def do_split_no_args(s: str) -> list[str]:
     return s.split()
 
 
-def do_rsplit_no_args(s: str) -> List[str]:
+def do_rsplit_no_args(s: str) -> list[str]:
     return s.rsplit()
 
 
-def do_split_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
+def do_split_maxsplit(s: str, maxsplit: int = -1) -> list[str]:
     return s.split(maxsplit=maxsplit)
 
 
-def do_rsplit_maxsplit(s: str, maxsplit: int = -1) -> List[str]:
+def do_rsplit_maxsplit(s: str, maxsplit: int = -1) -> list[str]:
     return s.rsplit(maxsplit=maxsplit)
 
 
-def do_split_separator(s: str, separator: str) -> List[str]:
+def do_split_separator(s: str, separator: str) -> list[str]:
     return s.split(separator)
 
 
-def do_rsplit_separator(s: str, separator: str) -> List[str]:
+def do_rsplit_separator(s: str, separator: str) -> list[str]:
     return s.rsplit(separator)
 
 
-def do_split_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
+def do_split_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> list[str]:
     return s.split(separator, maxsplit)
 
 
-def do_rsplit_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> List[str]:
+def do_rsplit_separator_and_maxsplit(s: str, separator: str, maxsplit: int) -> list[str]:
     return s.rsplit(separator, maxsplit)
 
 
-def do_splitlines_no_arg(s: str) -> List[str]:
+def do_splitlines_no_arg(s: str) -> list[str]:
     return s.splitlines()
 
 
@@ -1140,18 +1138,18 @@ def get_http_headers(header_key: str) -> bytes:
     return conn._buffer[2]
 
 
-def urlunsplit_1(data):  # type: (List[str]) -> str
+def urlunsplit_1(data: list[str]) -> str:
     scheme, netloc, url, query, fragment = data
     return scheme + "://" + netloc + url + "?" + query + "#" + fragment
 
 
-def urlunsplit_2(data):  # type: (List[str]) -> str
+def urlunsplit_2(data: list[str]) -> str:
     netloc, url = data
     url = "//" + (netloc or "")
     return url
 
 
-def urljoin(bpath, path):  # type: (str, str) -> List[str]
+def urljoin(bpath: str, path: str) -> list[str]:
     return bpath.split("/")[:-1] + path.split("/")
 
 

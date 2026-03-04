@@ -24,10 +24,6 @@ from __future__ import annotations
 
 import threading
 from typing import Callable
-from typing import List
-from typing import Set
-from typing import Tuple
-from typing import Type
 
 import pytest
 
@@ -44,9 +40,9 @@ from tests.profiling.collector.test_utils import init_ddup
 # Test Data
 # =============================================================================
 
-LockConfig = Tuple[Type[object], Type[object], str]
+LockConfig = tuple[type[object], type[object], str]
 
-THREADING_LOCK_CONFIGS: List[LockConfig] = [
+THREADING_LOCK_CONFIGS: list[LockConfig] = [
     (threading.Lock, ThreadingLockCollector, "Lock"),
     (threading.RLock, ThreadingRLockCollector, "RLock"),
     (threading.Semaphore, ThreadingSemaphoreCollector, "Semaphore"),
@@ -55,7 +51,7 @@ THREADING_LOCK_CONFIGS: List[LockConfig] = [
 ]
 
 # Dunders to exclude - universal Python internals we don't need to implement
-EXCLUDED_DUNDERS: Set[str] = {
+EXCLUDED_DUNDERS: set[str] = {
     "__class__",
     "__delattr__",
     "__dir__",
@@ -79,7 +75,7 @@ EXCLUDED_DUNDERS: Set[str] = {
 
 # Dunders the original has but we intentionally don't support (yet).
 # When fixing a gap, remove it from here and add proper support.
-KNOWN_COVERAGE_GAPS: Set[str] = {
+KNOWN_COVERAGE_GAPS: set[str] = {
     "__weakref__",
 }
 
@@ -91,12 +87,12 @@ MAX_ALLOWED_GAPS: int = 1
 # =============================================================================
 
 
-def get_public_methods(obj: object) -> Set[str]:
+def get_public_methods(obj: object) -> set[str]:
     """Get all public (non-underscore) callable methods from an object."""
     return {name for name in dir(obj) if not name.startswith("_") and callable(getattr(obj, name))}
 
 
-def get_dunders(obj: object) -> Set[str]:
+def get_dunders(obj: object) -> set[str]:
     """Get all dunder attributes from an object, excluding universal internals."""
     return {name for name in dir(obj) if name.startswith("__") and name.endswith("__") and name not in EXCLUDED_DUNDERS}
 
@@ -115,15 +111,15 @@ def is_accessible(obj: object, method_name: str) -> bool:
 
 
 @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-def test_public_methods_accessible(lock_class: Type[object], collector_class: Type[object], name: str) -> None:
+def test_public_methods_accessible(lock_class: type[object], collector_class: type[object], name: str) -> None:
     """Verify wrapped lock exposes all public methods of the original."""
     original: object = lock_class()  # type: ignore[operator]
-    original_methods: Set[str] = get_public_methods(original)
+    original_methods: set[str] = get_public_methods(original)
 
     with collector_class(capture_pct=100):  # type: ignore[attr-defined]
         wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
         wrapped: _ProfiledLock = wrapped_class()
-        missing: Set[str] = {m for m in original_methods if not is_accessible(wrapped, m)}
+        missing: set[str] = {m for m in original_methods if not is_accessible(wrapped, m)}
 
         assert not missing, (
             f"Wrapped {name} missing public methods: {missing}. Original has: {sorted(original_methods)}"
@@ -131,18 +127,18 @@ def test_public_methods_accessible(lock_class: Type[object], collector_class: Ty
 
 
 @pytest.mark.parametrize("lock_class,collector_class,name", THREADING_LOCK_CONFIGS)
-def test_dunders_accessible(lock_class: Type[object], collector_class: Type[object], name: str) -> None:
+def test_dunders_accessible(lock_class: type[object], collector_class: type[object], name: str) -> None:
     """Verify wrapped lock exposes all dunders of the original."""
     init_ddup(f"test_dunders_{name}")
 
     original: object = lock_class()  # type: ignore[operator]
-    original_dunders: Set[str] = get_dunders(original)
+    original_dunders: set[str] = get_dunders(original)
 
     with collector_class(capture_pct=100):  # type: ignore[attr-defined]
         wrapped_class: Callable[[], _ProfiledLock] = getattr(threading, name)
         wrapped: _ProfiledLock = wrapped_class()
-        wrapped_dunders: Set[str] = get_dunders(wrapped)
-        missing: Set[str] = original_dunders - wrapped_dunders - KNOWN_COVERAGE_GAPS
+        wrapped_dunders: set[str] = get_dunders(wrapped)
+        missing: set[str] = original_dunders - wrapped_dunders - KNOWN_COVERAGE_GAPS
 
         assert not missing, (
             f"Wrapped {name} missing dunders: {missing}. Either add support in _lock.py, or add to KNOWN_COVERAGE_GAPS."
@@ -174,7 +170,7 @@ def test_reflection_detects_broken_delegation() -> None:
 
     # Verify normal delegation works (sanity check)
     # 'acquire_lock' is delegated via __getattr__ (not explicitly defined on _ProfiledLock)
-    original_methods: Set[str] = get_public_methods(original_lock)
+    original_methods: set[str] = get_public_methods(original_lock)
     assert "acquire_lock" in original_methods, "Original lock should have acquire_lock"
     assert is_accessible(profiled_lock, "acquire_lock"), "Profiled lock should delegate acquire_lock"
 
@@ -193,7 +189,7 @@ def test_reflection_detects_broken_delegation() -> None:
         assert not is_accessible(profiled_lock, "acquire_lock"), "acquire_lock should NOT be accessible after patch"
 
         # Verify detection catches the gap
-        missing: Set[str] = {m for m in original_methods if not is_accessible(profiled_lock, m)}
+        missing: set[str] = {m for m in original_methods if not is_accessible(profiled_lock, m)}
         assert "acquire_lock" in missing, f"Detection should find 'acquire_lock' missing, got: {missing}"
         assert "locked" not in missing, f"Detection should NOT report 'locked' as missing, got: {missing}"
     finally:

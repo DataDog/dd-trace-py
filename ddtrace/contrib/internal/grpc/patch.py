@@ -1,5 +1,3 @@
-from typing import Dict
-
 import grpc
 from wrapt import wrap_function_wrapper as _w
 
@@ -20,8 +18,7 @@ from ddtrace.internal.utils import set_argument_value
 log = get_logger(__name__)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(grpc, "__version__", "")
 
 
@@ -90,7 +87,7 @@ if HAS_GRPC_AIO:
     )
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"grpc": ">=1.34"}
 
 

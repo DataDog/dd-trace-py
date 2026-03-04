@@ -2,15 +2,11 @@ import mock
 import opentelemetry
 from opentelemetry.trace import set_span_in_context
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
-import opentelemetry.version
 import pytest
 
-from ddtrace.internal.utils.version import parse_version
+from ddtrace.internal.opentelemetry.trace import OTEL_VERSION
 from tests.contrib.flask.test_flask_snapshot import flask_client  # noqa:F401
 from tests.contrib.flask.test_flask_snapshot import flask_default_env  # noqa:F401
-
-
-OTEL_VERSION = parse_version(opentelemetry.version.__version__)
 
 
 def test_otel_compatible_tracer_is_returned_by_tracer_provider():

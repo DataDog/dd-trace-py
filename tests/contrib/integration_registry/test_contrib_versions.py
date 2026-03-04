@@ -1,11 +1,7 @@
 import ast
 from pathlib import Path
 import re
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Set
-from typing import Tuple
 from typing import Union
 
 from packaging.version import Version
@@ -25,7 +21,7 @@ SPECIAL_CASES_ALLOWLIST = {
 }
 
 
-def _get_major_minor(version_str: Union[str, Version]) -> Tuple[int, int]:
+def _get_major_minor(version_str: Union[str, Version]) -> tuple[int, int]:
     """Extract major.minor as integers from a version string."""
     if isinstance(version_str, Version):
         version_str = str(version_str)
@@ -34,7 +30,7 @@ def _get_major_minor(version_str: Union[str, Version]) -> Tuple[int, int]:
     return (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
 
 
-def _get_integration_supported_versions(internal_contrib_dir: Path, integration_name: str) -> Dict[str, str]:
+def _get_integration_supported_versions(internal_contrib_dir: Path, integration_name: str) -> dict[str, str]:
     """Extract _supported_versions from an integration's directory using text parsing. We
     use regex to find the supported versions instead of importing due to not having the patched
     module installed within the test environment. This function searches all .py files in an
@@ -104,7 +100,7 @@ def _get_registry_min_version(registry_entry: dict) -> Optional[Version]:
 
 
 def test_supported_versions_align_with_registry(
-    internal_contrib_dir: Path, registry_data: List[dict], integration_dir_names: Set[str]
+    internal_contrib_dir: Path, registry_data: list[dict], integration_dir_names: set[str]
 ):
     """Test that minimum tested versions correspond to supported version constraints."""
     errors = []
@@ -161,7 +157,7 @@ def test_supported_versions_align_with_registry(
     assert not errors, "\n".join(errors)
 
 
-def test_docs_versions_align_with_tested_versions(documented_versions: Dict[str, str], registry_data: List[dict]):
+def test_docs_versions_align_with_tested_versions(documented_versions: dict[str, str], registry_data: list[dict]):
     """Test that minimum documented versions align with minimum tested versions."""
     registry_by_name = {entry["integration_name"]: entry for entry in registry_data}
 
@@ -199,7 +195,7 @@ def test_docs_versions_align_with_tested_versions(documented_versions: Dict[str,
         pytest.fail("Version misalignments:\n" + "\n".join(f"  {m}" for m in misalignments))
 
 
-def test_tested_integrations_have_version_info(registry_data: List[dict]):
+def test_tested_integrations_have_version_info(registry_data: list[dict]):
     """Test that all tested external integrations have version information."""
     missing = [
         entry["integration_name"]
@@ -215,7 +211,7 @@ def test_tested_integrations_have_version_info(registry_data: List[dict]):
         pytest.fail(f"Missing version info: {', '.join(sorted(missing))}")
 
 
-def test_documented_integrations_are_tested(documented_versions: Dict[str, str], registry_data: List[dict]):
+def test_documented_integrations_are_tested(documented_versions: dict[str, str], registry_data: list[dict]):
     """Test that documented external integrations are tested."""
     registry_by_name = {entry["integration_name"]: entry for entry in registry_data}
 

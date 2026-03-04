@@ -7,7 +7,6 @@ import os
 from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Optional
-from typing import Type
 from typing import cast
 
 from typing_extensions import Self
@@ -67,7 +66,7 @@ class MemoryCollector:
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
+        exc_type: Optional[type[BaseException]],
         exc_value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> None:

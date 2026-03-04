@@ -12,9 +12,9 @@ def test_public_api():
 
     set_produce_checkpoint("kinesis", "stream-123", headers.setdefault)
     got = set_consume_checkpoint("kinesis", "stream-123", headers.get)
-    proccesors = data_streams_processor()
-    assert proccesors is not None, "Datastream Monitoring is not enabled"
-    ctx = DataStreamsCtx(proccesors, 0, 0, 0)
+    processors = data_streams_processor()
+    assert processors is not None, "Datastream Monitoring is not enabled"
+    ctx = DataStreamsCtx(processors, 0, 0, 0)
     parent_hash = ctx._compute_hash(
         sorted(["direction:out", "manual_checkpoint:true", "type:kinesis", "topic:stream-123"]), 0
     )
@@ -32,8 +32,8 @@ def test_manual_checkpoint_behavior():
     from ddtrace.internal.datastreams import data_streams_processor
 
     headers = {}
-    proccesor = data_streams_processor()
-    with mock.patch.object(proccesor, "set_checkpoint") as mock_set_checkpoint:
+    processor = data_streams_processor()
+    with mock.patch.object(processor, "set_checkpoint") as mock_set_checkpoint:
         set_consume_checkpoint("kinesis", "stream-123", headers.get)
         called_tags = mock_set_checkpoint.call_args[0][0]
         assert "manual_checkpoint:true" in called_tags

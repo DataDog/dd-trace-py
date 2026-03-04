@@ -29,17 +29,17 @@ is_python_3_11 = sys.version_info[:2] == (3, 11)
 class InjectionContext:
     original_code: CodeType
     hook: CallbackType
-    offsets_callback: t.Callable[["InjectionContext"], t.List[int]]
+    offsets_callback: t.Callable[["InjectionContext"], list[int]]
 
     def transfer(self, code: CodeType) -> "InjectionContext":
         return InjectionContext(code, self.hook, self.offsets_callback)
 
     @property
-    def injection_offsets(self) -> t.List[int]:
+    def injection_offsets(self) -> list[int]:
         return self.offsets_callback(self)
 
 
-def inject_invocation(injection_context: InjectionContext, path: str, package: str) -> t.Tuple[CodeType, t.List[int]]:
+def inject_invocation(injection_context: InjectionContext, path: str, package: str) -> tuple[CodeType, list[int]]:
     """
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets,
     in the given code object. Injection is recursive, in case of nested code objects (e.g. inline functions).
@@ -154,7 +154,7 @@ def inject_invocation(injection_context: InjectionContext, path: str, package: s
 
 def _inject_invocation_nonrecursive(
     injection_context: InjectionContext, path: str, package: str
-) -> t.Tuple[bytes, t.List[t.Any], bytes, bytes, t.List[int]]:
+) -> tuple[bytes, list[t.Any], bytes, bytes, list[int]]:
     """
     Inject invocation of the hook function at the specified source code lines, or more specifically offsets, in the
     given code object. Injection is non-recursive, i.e. it does not instrument nested code objects.
@@ -180,14 +180,14 @@ def _inject_invocation_nonrecursive(
     previous_previous_arg = 0
     extended_arg = 0
     original_extended_arg_count = 0
-    extended_arg_offsets: t.List[t.Tuple[int, int]] = []
+    extended_arg_offsets: list[tuple[int, int]] = []
 
     current_import_name: t.Optional[str] = None
     current_import_package: t.Optional[str] = None
 
-    new_offsets: t.Dict[int, int] = {}
-    new_ends: t.Dict[int, int] = {}
-    old_targets: t.Dict[int, int] = {}
+    new_offsets: dict[int, int] = {}
+    new_ends: dict[int, int] = {}
+    old_targets: dict[int, int] = {}
 
     line_starts = dict(dis.findlinestarts(code))
     line_injection_offsets = injection_context.injection_offsets
@@ -199,7 +199,7 @@ def _inject_invocation_nonrecursive(
     instrumented_lines: list[int] = []
     is_first_instrumented_module_line = code.co_name == "<module>"
 
-    def append_instruction(opcode: int, extended_arg: int):
+    def append_instruction(opcode: int, extended_arg: int) -> None:
         """
         Append an operation and its argument to the new bytecode.
 
@@ -218,7 +218,7 @@ def _inject_invocation_nonrecursive(
         new_code.append(extended_arg & 0xFF)
 
     # key: old offset, value: how many instructions have been injected at that spot
-    offsets_map: t.Dict[int, int] = {}
+    offsets_map: dict[int, int] = {}
 
     injection_occurred = False
     for old_offset in range(0, len(old_code), 2):
@@ -380,7 +380,7 @@ def _inject_invocation_nonrecursive(
 
 
 def _generate_adjusted_location_data(
-    code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
+    code: CodeType, offsets_map: dict[int, int], extended_arg_offsets: list[tuple[int, int]]
 ) -> bytes:
     """
     Generate python version's specific adjusted location data. This is needed to adjust the line number information
@@ -396,7 +396,7 @@ def _generate_adjusted_location_data(
 
 
 def _generate_adjusted_location_data_3_10(
-    code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
+    code: CodeType, offsets_map: dict[int, int], extended_arg_offsets: list[tuple[int, int]]
 ) -> bytes:
     """
     The format of the linetable in python3.10 is detailed here:
@@ -482,7 +482,7 @@ def _generate_adjusted_location_data_3_10(
 
 
 def _generate_adjusted_location_data_3_11(
-    code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
+    code: CodeType, offsets_map: dict[int, int], extended_arg_offsets: list[tuple[int, int]]
 ) -> bytes:
     """
     The format of the linetable in python3.11 is detailed here:
@@ -587,7 +587,7 @@ _consume_signed_varint = _consume_varint
 
 
 def _generate_exception_table(
-    code: CodeType, offsets_map: t.Dict[int, int], extended_arg_offsets: t.List[t.Tuple[int, int]]
+    code: CodeType, offsets_map: dict[int, int], extended_arg_offsets: list[tuple[int, int]]
 ) -> bytes:
     """
     For format see:

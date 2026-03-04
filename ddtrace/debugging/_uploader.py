@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from typing import Optional
-from typing import Set
 from urllib.parse import quote
 
 from ddtrace.debugging._config import di_config
@@ -57,8 +56,8 @@ class SignalUploader(agent.AgentCheckPeriodicService):
     """
 
     _instance: Optional["SignalUploader"] = None
-    _products: Set[UploaderProduct] = set()
-    _agent_endpoints: Set[str] = set()
+    _products: set[UploaderProduct] = set()
+    _agent_endpoints: set[str] = set()
 
     __queue__ = SignalQueue
     __collector__ = SignalCollector

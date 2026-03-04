@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -36,6 +35,15 @@ def _asm_manual_keep(span: Span) -> None:
     # set Security propagation tag
     span._set_tag_str(APPSEC.PROPAGATION_HEADER, "02")
     span.context._meta[APPSEC.PROPAGATION_HEADER] = "02"
+
+
+def _aiguard_manual_keep(span: Span) -> None:
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import SamplingMechanism
+
+    span.set_tag(constants.MANUAL_KEEP_KEY)
+    # set decision maker to AI_GUARD = -13
+    span._set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-%d" % SamplingMechanism.AI_GUARD)
 
 
 def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
@@ -272,7 +280,7 @@ def track_user_signup_event(
         )
 
 
-def track_custom_event(tracer: Any, event_name: str, metadata: Dict[str, Any]) -> None:
+def track_custom_event(tracer: Any, event_name: str, metadata: dict[str, Any]) -> None:
     """
     Add a new custom tracking event.
 
@@ -323,7 +331,7 @@ def should_block_user(tracer: Any, userid: str, session_id: Optional[str] = None
     # Early check to avoid calling the WAF if the request is already blockedxw
     if get_blocked():
         return True
-    custom_data: Dict[str, Any] = {}
+    custom_data: dict[str, Any] = {}
     if userid is not None:
         custom_data["REQUEST_USER_ID"] = str(userid)
     if session_id is not None:

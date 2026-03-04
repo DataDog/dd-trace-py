@@ -1,7 +1,5 @@
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import Tuple
 
 import dramatiq
 
@@ -18,7 +16,7 @@ def get_version() -> str:
     return str(dramatiq.__version__)
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"dramatiq": ">=1.10.0"}
 
 
@@ -56,7 +54,7 @@ def _traced_send_with_options_function(integration_config: Config) -> Callable[[
     """
 
     def _traced_send_with_options(
-        func: Callable[[Any], Any], instance: dramatiq.Actor, args: Tuple[Any], kwargs: Dict[Any, Any]
+        func: Callable[[Any], Any], instance: dramatiq.Actor, args: tuple[Any], kwargs: dict[Any, Any]
     ) -> Callable[[Any], Any]:
         with tracer.trace(
             "dramatiq.Actor.send_with_options",

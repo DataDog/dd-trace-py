@@ -1,0 +1,53 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
+      "metrics": [{"metric_source": "custom", "span_id": "123", "trace_id": "456",
+      "timestamp_ms": 1771570676000, "metric_type": "score", "label": "async_dummy_evaluator",
+      "score_value": 0, "error": null, "tags": [], "experiment_id": "739fc1b6-2193-4530-bba5-84443c295de9"},
+      {"metric_source": "summary", "span_id": "", "trace_id": "", "timestamp_ms":
+      1771570676000, "metric_type": "score", "label": "async_dummy_summary_evaluator",
+      "score_value": 4, "error": null, "tags": [], "experiment_id": "739fc1b6-2193-4530-bba5-84443c295de9"}],
+      "tags": ["ddtrace.version:1.2.3", "project_id:569aa33c-7acf-4061-abd0-4f2078e61ee8",
+      "experiment_id:739fc1b6-2193-4530-bba5-84443c295de9", "run_id:12345678-abcd-abcd-abcd-123456789012",
+      "run_iteration:1"]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '809'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/739fc1b6-2193-4530-bba5-84443c295de9/events
+  response:
+    body:
+      string: ''
+    headers:
+      content-length:
+      - '0'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 06:57:56 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1

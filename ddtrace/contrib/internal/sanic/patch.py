@@ -1,5 +1,4 @@
 import asyncio
-from typing import Dict
 
 import sanic
 import wrapt
@@ -25,12 +24,11 @@ config._add("sanic", dict(_default_service=schematize_service_name("sanic"), dis
 SANIC_VERSION = (0, 0, 0)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(sanic, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"sanic": ">=20.12.0"}
 
 

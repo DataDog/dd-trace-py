@@ -37,7 +37,7 @@ def gunicorn_flask_server(
     use_gevent: bool = False,
     assert_debug: bool = False,
     env: dict = {},
-) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
+) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
     if use_ddtrace_cmd:
         cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
@@ -78,7 +78,7 @@ def flask_server(
     assert_debug: bool = False,
     manual_propagation_debug: bool = False,
     use_ddtrace_cmd: bool = True,
-) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
+) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     cmd = [python_cmd, app, "--no-reload"]
     if use_ddtrace_cmd:
         cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run"] + cmd
@@ -115,7 +115,7 @@ def gunicorn_django_server(
     use_gevent: bool = False,
     assert_debug: bool = False,
     env: dict = {},
-) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
+) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """Run the Django test application under Gunicorn.
 
     Uses the WSGI application at
@@ -173,7 +173,7 @@ def django_server(
     manual_propagation_debug: bool = False,
     *args: _t.Any,
     **kwargs: _t.Any,
-) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
+) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """
     Context manager that runs a Django test server in a subprocess.
 
@@ -221,7 +221,7 @@ def uvicorn_server(
     assert_debug: bool = False,
     manual_propagation_debug: bool = False,
     use_multiprocess: bool = False,
-) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
+) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """
     Context manager that runs a FastAPI test server in a subprocess using Uvicorn.
 
@@ -269,7 +269,7 @@ def appsec_application_server(
     assert_debug: bool = False,
     manual_propagation_debug: bool = False,
     use_multiprocess: bool = False,
-) -> _t.Iterator[_t.Tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
+) -> _t.Iterator[tuple[_t.Union[subprocess.Popen, multiprocessing.Process], Client, _t.Optional[int]]]:
     """Start an application server subprocess for AppSec/IAST tests.
 
     This helper optionally applies CPU/memory limits to the spawned subprocess when the following
@@ -438,7 +438,7 @@ def appsec_application_server(
             pass
 
 
-def _mp_target(_cmd: _t.List[str], _env: dict) -> None:
+def _mp_target(_cmd: list[str], _env: dict) -> None:
     """Child process entrypoint that prepares the session and execs the server command.
 
     This makes the child PID equal to the server PID, so signals from the parent terminate the server cleanly.

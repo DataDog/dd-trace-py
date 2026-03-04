@@ -9,7 +9,6 @@ import csv
 import os
 import pathlib
 import sys
-from typing import Dict
 from typing import Optional
 
 from packaging.version import InvalidVersion
@@ -53,12 +52,12 @@ def _normalize_version_string(v_str: str) -> str:
         return v_str
 
 
-def _read_supported_versions(filepath: pathlib.Path) -> Optional[Dict[str, Dict[str, Dict[str, str]]]]:
+def _read_supported_versions(filepath: pathlib.Path) -> Optional[dict[str, dict[str, dict[str, str]]]]:
     """
     Reads the supported versions CSV (potentially multiple rows per integration),
     returning {integration: {dependency: {'min': str, 'max': str}}} or None on error.
     """
-    supported_data: Dict[str, Dict[str, Dict[str, str]]] = defaultdict(dict)
+    supported_data: dict[str, dict[str, dict[str, str]]] = defaultdict(dict)
 
     print(f"Reading NEW dependency-specific supported versions from: {filepath.relative_to(PROJECT_ROOT)}")
     try:

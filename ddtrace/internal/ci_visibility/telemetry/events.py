@@ -1,7 +1,5 @@
 from enum import Enum
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
@@ -58,7 +56,7 @@ def _record_event(
             "early_flake_detection_abort_reason tag can only be set for tests and session finish events",
         )
 
-    _tags: List[Tuple[str, str]] = [("event_type", event_type.value)]
+    _tags: list[tuple[str, str]] = [("event_type", event_type.value)]
     if test_framework and test_framework != TEST_FRAMEWORKS.MANUAL:
         _tags.append(("test_framework", str(test_framework.value)))
     if event_type == EVENT_TYPES.SESSION:
@@ -134,7 +132,7 @@ def record_event_created_test(
     is_benchmark: bool = False,
 ):
     log.debug("Recording test event created: test_framework=%s, is_benchmark=%s", test_framework, is_benchmark)
-    tags: List[Tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
+    tags: list[tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
 
     if test_framework and test_framework != TEST_FRAMEWORKS.MANUAL:
         tags.append(("test_framework", str(test_framework.value)))
@@ -191,7 +189,7 @@ def record_event_finished_test(
         is_auto_injected,
     )
 
-    tags: List[Tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
+    tags: list[tuple[str, str]] = [("event_type", EVENT_TYPES.TEST)]
 
     if test_framework is not None:
         tags.append(("test_framework", test_framework))

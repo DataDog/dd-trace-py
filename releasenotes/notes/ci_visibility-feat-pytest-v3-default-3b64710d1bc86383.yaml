@@ -1,0 +1,10 @@
+---
+upgrade:
+  - |
+    CI Visibility: Official release of the new version of the pytest plugin, with architectural improvements.
+    This new version uses an independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER``
+    option), and also contains performance and memory usage improvements.
+
+    A beta version of the plugin had been available since v4.2.0, and could be enabled via the
+    ``DD_PYTEST_USE_NEW_PLUGIN`` environment variable. This new version is now the default, and the environment
+    variable can be used to revert to the previous plugin if used with false or 0 values.

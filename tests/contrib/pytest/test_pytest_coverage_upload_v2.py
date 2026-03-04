@@ -4,12 +4,22 @@ import os
 from unittest.mock import Mock
 from unittest.mock import patch
 
+import pytest
+
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 
 
+COVERAGE_UPLOAD_ENABLED_ENV = "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"
+
+
 class TestPytestV2CoverageUpload:
     """Integration tests for pytest plugin V2 coverage report upload."""
+
+    @pytest.fixture(autouse=True)
+    def isolate_coverage_upload_env(self, monkeypatch):
+        """Unset coverage upload env var so tests are not affected by external environment."""
+        monkeypatch.delenv(COVERAGE_UPLOAD_ENABLED_ENV, raising=False)
 
     def test_is_coverage_report_upload_enabled_api_settings(self):
         """Test _is_coverage_report_upload_enabled reads from API settings."""
@@ -50,11 +60,11 @@ class TestPytestV2CoverageUpload:
             return_value=mock_service,
         ):
             # Test env var enabled (should override)
-            with patch.dict(os.environ, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}):
+            with patch.dict(os.environ, {COVERAGE_UPLOAD_ENABLED_ENV: "1"}):
                 assert _is_coverage_report_upload_enabled() is True
 
             # Test env var disabled (should respect API setting)
-            with patch.dict(os.environ, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "0"}):
+            with patch.dict(os.environ, {COVERAGE_UPLOAD_ENABLED_ENV: "0"}):
                 assert _is_coverage_report_upload_enabled() is False
 
     def test_is_coverage_report_upload_enabled_exception_handling(self):
@@ -69,7 +79,7 @@ class TestPytestV2CoverageUpload:
             assert _is_coverage_report_upload_enabled() is False
 
             # But env var should still work
-            with patch.dict(os.environ, {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}):
+            with patch.dict(os.environ, {COVERAGE_UPLOAD_ENABLED_ENV: "1"}):
                 assert _is_coverage_report_upload_enabled() is True
 
     @patch("ddtrace.contrib.internal.pytest._plugin_v2.log")

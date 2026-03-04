@@ -1,7 +1,6 @@
 import typing as t
 
 class PeriodicThread:
-    _is_after_fork: bool
     name: str
     ident: int
     interval: float
@@ -20,5 +19,6 @@ class PeriodicThread:
     def awake(self) -> None: ...
     def _atexit(self) -> None: ...
     def _after_fork(self) -> None: ...
+    def _before_fork(self) -> None: ...
 
-periodic_threads: t.Dict[int, PeriodicThread]
+periodic_threads: dict[int, PeriodicThread]

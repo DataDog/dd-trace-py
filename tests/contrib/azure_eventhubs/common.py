@@ -3,7 +3,6 @@ import os
 from threading import Event
 from threading import Lock
 from threading import Thread
-from typing import List
 from typing import Optional
 from typing import Union
 from uuid import uuid4
@@ -45,14 +44,14 @@ def normalize_properties(event_data: Union[EventData, AmqpAnnotatedMessage]):
     return {k.decode() if isinstance(k, bytes) else k: v for k, v in props.items()}
 
 
-def make_events() -> List[Union[EventData, AmqpAnnotatedMessage]]:
+def make_events() -> list[Union[EventData, AmqpAnnotatedMessage]]:
     event_with_properties = EventData(body='{"body":"EventData with properties and custom message_id"}')
     event_with_properties.properties = DEFAULT_APPLICATION_PROPERTIES
     event_with_properties.message_id = str(uuid4())
     return [EventData(body='{"body":"EventData without properties"}'), event_with_properties]
 
 
-def make_amqp_annotated_messages() -> List[Union[EventData, AmqpAnnotatedMessage]]:
+def make_amqp_annotated_messages() -> list[Union[EventData, AmqpAnnotatedMessage]]:
     return [
         AmqpAnnotatedMessage(data_body='{"body":"AmqpAnnotatedMessage without properties"}'),
         AmqpAnnotatedMessage(
@@ -63,20 +62,20 @@ def make_amqp_annotated_messages() -> List[Union[EventData, AmqpAnnotatedMessage
     ]
 
 
-def on_success(events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str]):
+def on_success(events: list[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str]):
     pass
 
 
-def on_error(events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str], error: Exception):
+def on_error(events: list[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str], error: Exception):
     raise error
 
 
-async def on_success_async(events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str]):
+async def on_success_async(events: list[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str]):
     pass
 
 
 async def on_error_async(
-    events: List[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str], error: Exception
+    events: list[Union[EventData, AmqpAnnotatedMessage]], partition_id: Optional[str], error: Exception
 ):
     raise error
 

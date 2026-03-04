@@ -14,7 +14,7 @@ from tests.appsec.iast.iast_utils import iast_hypothesis_test
 
 def generate_callers_from_callees(callees_module, callers_file="", callees_module_str=""):
     """
-    Generate a callers module from a callees module, calling all it's functions.
+    Generate a callers module from a callees module, calling all its functions.
     """
     module_functions = [x for x in dir(callees_module) if not x.startswith(("_", "@"))]
 

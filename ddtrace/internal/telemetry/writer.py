@@ -6,11 +6,7 @@ import sys
 import time
 import traceback
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Set
-from typing import Tuple
 from typing import Union
 import urllib.parse as parse
 
@@ -83,7 +79,7 @@ class _TelemetryClient:
     def url(self) -> str:
         return parse.urljoin(self._telemetry_url, self._endpoint)
 
-    def send_event(self, request: Dict, payload_type: str) -> Optional[httplib.HTTPResponse]:
+    def send_event(self, request: dict, payload_type: str) -> Optional[httplib.HTTPResponse]:
         """Sends a telemetry request to the trace agent"""
         resp = None
         conn = None
@@ -112,7 +108,7 @@ class _TelemetryClient:
                 conn.close()
         return resp
 
-    def get_headers(self, request: Dict) -> Dict:
+    def get_headers(self, request: dict) -> dict:
         """Get all telemetry api v2 request headers"""
         headers = self._headers.copy()
         headers["DD-Telemetry-Debug-Enabled"] = request["debug"]
@@ -156,16 +152,15 @@ class TelemetryWriter(PeriodicService):
         self._periodic_threshold = int(config.HEARTBEAT_INTERVAL // self.interval) - 1
         self._periodic_count = 0
         self._is_periodic = is_periodic
-        self._integrations_queue: Dict[str, Dict] = dict()
+        self._integrations_queue: dict[str, dict] = dict()
         self._namespace = MetricNamespace()
-        self._logs: Set[Dict[str, Any]] = set()
-        self._forked: bool = False
-        self._events_queue: List[Dict[str, Any]] = []
-        self._configuration_queue: List[Dict] = []
-        self._imported_dependencies: Dict[str, str] = dict()
-        self._modules_already_imported: Set[str] = set()
-        self._product_enablement: Dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
-        self._previous_product_enablement: Dict[str, bool] = {}
+        self._logs: set[dict[str, Any]] = set()
+        self._events_queue: list[dict[str, Any]] = []
+        self._configuration_queue: list[dict] = []
+        self._imported_dependencies: dict[str, str] = dict()
+        self._modules_already_imported: set[str] = set()
+        self._product_enablement: dict[str, bool] = {product.value: False for product in TELEMETRY_APM_PRODUCT}
+        self._previous_product_enablement: dict[str, bool] = {}
         self._extended_time = time.monotonic()
         # The extended heartbeat interval is set to 24 hours
         self._extended_heartbeat_interval = 3600 * 24
@@ -190,7 +185,6 @@ class TelemetryWriter(PeriodicService):
             forksafe.register(self._fork_writer)
             # shutdown the telemetry writer when the application exits
             atexit.register(self.app_shutdown)
-            atexit.register_on_exit_signal(self.app_shutdown)
             # Captures unhandled exceptions during application start up
             self.install_excepthook()
             # In order to support 3.12, we start the writer upon initialization.
@@ -223,8 +217,8 @@ class TelemetryWriter(PeriodicService):
         return True
 
     def _get_event(
-        self, payload: Union[Dict[str, Any], List[Any]], payload_type: TELEMETRY_EVENT_TYPE
-    ) -> Dict[str, Any]:
+        self, payload: Union[dict[str, Any], list[Any]], payload_type: TELEMETRY_EVENT_TYPE
+    ) -> dict[str, Any]:
         return {"payload": payload, "request_type": payload_type.value}
 
     def disable(self) -> None:
@@ -233,7 +227,6 @@ class TelemetryWriter(PeriodicService):
         Once disabled, telemetry collection can not be re-enabled.
         """
         self._enabled = False
-        self.started = False
         self.reset_queues()
 
     def enable_agentless_client(self, enabled: bool = True) -> None:
@@ -278,12 +271,12 @@ class TelemetryWriter(PeriodicService):
                 self._integrations_queue[integration_name]["compatible"] = error_msg == ""
                 self._integrations_queue[integration_name]["error"] = error_msg
 
-    def _report_app_started(self, register_app_shutdown: bool = True) -> Optional[Dict[str, Any]]:
+    def _report_app_started(self, register_app_shutdown: bool = True) -> Optional[dict[str, Any]]:
         """Sent when TelemetryWriter is enabled or forks"""
-        if self._forked or self.started:
+        if forksafe.is_fork_child() or self.started:
             # app-started events should only be sent by the main process
             return None
-        #  List of configurations to be collected
+        #  list of configurations to be collected
 
         self.started = True
 
@@ -303,7 +296,7 @@ class TelemetryWriter(PeriodicService):
             }
         return payload
 
-    def _report_heartbeat(self) -> Optional[Dict[str, Any]]:
+    def _report_heartbeat(self) -> Optional[dict[str, Any]]:
         if config.DEPENDENCY_COLLECTION and time.monotonic() - self._extended_time > self._extended_heartbeat_interval:
             self._extended_time += self._extended_heartbeat_interval
             return {
@@ -313,21 +306,21 @@ class TelemetryWriter(PeriodicService):
             }
         return None
 
-    def _report_integrations(self) -> List[Dict]:
+    def _report_integrations(self) -> list[dict]:
         """Flushes and returns a list of all queued integrations"""
         with self._service_lock:
             integrations = list(self._integrations_queue.values())
             self._integrations_queue = dict()
         return integrations
 
-    def _report_configurations(self) -> List[Dict]:
+    def _report_configurations(self) -> list[dict]:
         """Flushes and returns a list of all queued configurations"""
         with self._service_lock:
             configurations = self._configuration_queue
             self._configuration_queue = []
         return configurations
 
-    def _report_dependencies(self) -> Optional[List[Dict[str, Any]]]:
+    def _report_dependencies(self) -> Optional[list[dict[str, Any]]]:
         """Adds events to report imports done since the last periodic run"""
         if not config.DEPENDENCY_COLLECTION or not self._enabled:
             return None
@@ -338,7 +331,7 @@ class TelemetryWriter(PeriodicService):
                 return None
             return update_imported_dependencies(self._imported_dependencies, newly_imported_deps)
 
-    def _report_endpoints(self) -> Optional[Dict[str, Any]]:
+    def _report_endpoints(self) -> Optional[dict[str, Any]]:
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
         import ddtrace.internal.settings.asm as asm_config_module
 
@@ -351,7 +344,7 @@ class TelemetryWriter(PeriodicService):
         with self._service_lock:
             return endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
 
-    def _report_products(self) -> Dict[str, Any]:
+    def _report_products(self) -> dict[str, Any]:
         """Adds a Telemetry event which reports the enablement of an APM product"""
         with self._service_lock:
             products = self._product_enablement.items()
@@ -395,7 +388,7 @@ class TelemetryWriter(PeriodicService):
             config["seq_id"] = next(self._sequence_configurations)
             self._configuration_queue.append(config)
 
-    def add_configurations(self, configuration_list: List[Tuple[str, str, str]]) -> None:
+    def add_configurations(self, configuration_list: list[tuple[str, str, str]]) -> None:
         """Creates and queues a list of configurations"""
         with self._service_lock:
             for name, value, origin in configuration_list:
@@ -408,7 +401,7 @@ class TelemetryWriter(PeriodicService):
                     }
                 )
 
-    def add_log(self, level, message: str, stack_trace: str = "", tags: Optional[Dict] = None) -> None:
+    def add_log(self, level, message: str, stack_trace: str = "", tags: Optional[dict] = None) -> None:
         """
         Queues log. This event is meant to send library logs to Datadog's backend through the Telemetry intake.
         This will make support cycles easier and ensure we know about potentially silent issues in libraries.
@@ -552,7 +545,7 @@ class TelemetryWriter(PeriodicService):
                 tags,
             )
 
-    def _report_logs(self) -> Set[Dict[str, Any]]:
+    def _report_logs(self) -> set[dict[str, Any]]:
         with self._service_lock:
             logs = self._logs
             self._logs = set()
@@ -635,7 +628,7 @@ class TelemetryWriter(PeriodicService):
         if deps := self._report_dependencies():
             events.append(self._get_event({"dependencies": deps}, TELEMETRY_EVENT_TYPE.DEPENDENCIES_LOADED))
 
-        if shutting_down and not self._forked:
+        if shutting_down and not forksafe.is_fork_child():
             events.append(self._get_event({}, TELEMETRY_EVENT_TYPE.SHUTDOWN))
 
         # Always include a heartbeat to keep RC connections alive
@@ -669,8 +662,6 @@ class TelemetryWriter(PeriodicService):
         self._client.send_event(batch_event, payload_types)
 
     def app_shutdown(self) -> None:
-        # Guard against multiple calls to prevent duplicate app-closing events
-        # This can happen when both signal handlers and atexit handlers are registered
         if self.started:
             self.periodic(force_flush=True, shutting_down=True)
         self.disable()
@@ -683,7 +674,7 @@ class TelemetryWriter(PeriodicService):
         self._imported_dependencies = {}
         self._configuration_queue = []
 
-    def _report_events(self) -> List[Dict]:
+    def _report_events(self) -> list[dict]:
         """Flushes and returns a list of all telemtery event"""
         with self._service_lock:
             events = self._events_queue
@@ -691,18 +682,7 @@ class TelemetryWriter(PeriodicService):
         return events
 
     def _fork_writer(self) -> None:
-        self._forked = True
-        # Avoid sending duplicate events.
-        # Queued events should be sent in the main process.
-        self.reset_queues()
-        if self.status == ServiceStatus.STOPPED:
-            return
-
-        if self._is_running():
-            self.stop(join=False)
-        # Enable writer service in child process to avoid interpreter shutdown
-        # error in Python 3.12
-        self.enable()
+        self.reset_queues()  # TODO: Handle in product protocol
 
     def _restart_sequence(self) -> None:
         self._sequence_payloads = itertools.count(1)

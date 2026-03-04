@@ -4,7 +4,6 @@ Datadog trace code for cherrypy.
 
 import logging
 import os
-from typing import Dict
 
 import cherrypy
 from cherrypy.lib.httputil import valid_status
@@ -36,12 +35,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(cherrypy, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"cherrypy": ">=17.0.0"}
 
 

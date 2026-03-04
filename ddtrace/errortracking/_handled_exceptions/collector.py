@@ -38,7 +38,7 @@ def _on_span_exception(span, _exc_msg, exc_val, _exc_tb):
 
 class HandledExceptionCollector(Service):
     _instance: t.Optional["HandledExceptionCollector"] = None
-    _span_exception_events: t.Dict[int, t.Dict[int, t.Tuple[Exception, SpanEvent]]] = {}
+    _span_exception_events: dict[int, dict[int, tuple[Exception, SpanEvent]]] = {}
 
     def __init__(self) -> None:
         super(HandledExceptionCollector, self).__init__()

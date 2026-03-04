@@ -1,5 +1,4 @@
 import re
-from typing import List
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -50,7 +49,7 @@ class SimplifiedEndpointComputer:
         if not path or path == "/":
             return "/"
 
-        elements: List[str] = []
+        elements: list[str] = []
         for part in path.split("/"):
             if part:
                 elements.append(part)

@@ -32,10 +32,7 @@ def start():
 
 
 def restart(join=False):
-    if config._asm_rc_enabled:
-        from ddtrace.appsec._remoteconfiguration import _forksafe_appsec_rc
-
-        _forksafe_appsec_rc()
+    pass
 
 
 def stop(join=False):

@@ -1,7 +1,6 @@
 # Python 3 only functions (syntax errors on Python 2)
 import re
 from typing import Any
-from typing import List
 from typing import Optional
 
 
@@ -79,7 +78,7 @@ class Resolver404(Exception):
 
 
 class ResolverMatch:
-    def __init__(self, *args: List[Any], **kwargs: List[Any]) -> None:
+    def __init__(self, *args: list[Any], **kwargs: list[Any]) -> None:
         pass
 
 
