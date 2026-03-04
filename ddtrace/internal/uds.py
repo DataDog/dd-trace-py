@@ -23,5 +23,8 @@ class UDSHTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
     def connect(self):
         # type: () -> None
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        # Match socket.create_connection behavior for timeout handling.
+        if self.timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+            sock.settimeout(self.timeout)
         sock.connect(self.path)
         self.sock = sock
