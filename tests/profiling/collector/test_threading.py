@@ -29,6 +29,7 @@ from ddtrace.profiling.collector.threading import ThreadingRLockCollector
 from ddtrace.profiling.collector.threading import ThreadingSemaphoreCollector
 from tests.profiling.collector import pprof_utils
 from tests.profiling.collector import test_collector
+from tests.profiling.collector.lock_test_common import assert_pep604_type_union_syntax
 from tests.profiling.collector.lock_utils import LineNo
 from tests.profiling.collector.lock_utils import get_lock_linenos
 from tests.profiling.collector.lock_utils import init_linenos
@@ -734,6 +735,14 @@ class TestGenericLockProfiling(LockCollectorTestBase):
         unpickled = pickle.loads(pickle.dumps(obj))
         assert not isinstance(unpickled, wrapped_type)
         return unpickled
+
+    def test_pep604_type_union_syntax(self) -> None:
+        """Test that PEP 604 type union syntax works with wrapped lock classes.
+
+        Reproduces https://github.com/DataDog/dd-trace-py/issues/16375
+        """
+        with self.collector_class(capture_pct=100):
+            assert_pep604_type_union_syntax(self.lock_class)
 
     def test_lock_class_pickle(self) -> None:
         """Test that the wrapped lock class can be pickled (Python 3.14+ forkserver compat)."""
