@@ -1,28 +1,28 @@
+from typing import Optional
+
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.asm import config as asm_config
 
 
-__all__ = ["DDWaf", "DDWaf_info", "DDWaf_result", "version", "DDWafRulesType"]
+__all__ = ["WAF", "DDWaf_info", "DDWaf_result", "version", "DDWafRulesType"]
 
 LOGGER = get_logger(__name__)
 
 _DDWAF_LOADED: bool = False
+version: str = "unloaded"
 
-if asm_config._asm_libddwaf_available:
+
+def waf_module() -> Optional[type[WAF]]:
     try:
         import ddtrace.appsec._ddwaf.waf as waf_module
 
+        global _DDWAF_LOADED, version
         _DDWAF_LOADED = True
+        version = waf_module.version()
+        return waf_module.DDWaf
     except Exception:
-        import ddtrace.appsec._ddwaf.waf_mock as waf_module  # type: ignore[no-redef]
-
         LOGGER.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded", exc_info=True)
-else:
-    import ddtrace.appsec._ddwaf.waf_mock as waf_module  # type: ignore[no-redef]
-
-DDWaf: type[WAF] = waf_module.DDWaf
-version = waf_module.version
+        return None
