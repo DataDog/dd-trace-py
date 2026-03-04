@@ -323,14 +323,16 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
 {
     // args: [code, instruction_offset, callable, arg0]
     if (nargs < 3) {
-        return Py_NewRef(g_disable_sentinel);
+        Py_INCREF(g_disable_sentinel);
+        return g_disable_sentinel;
     }
 
     PyObject* callable = args[2];
 
     // Python callable -> just DISABLE, don't register
     if (PyFunction_Check(callable)) {
-        return Py_NewRef(g_disable_sentinel);
+        Py_INCREF(g_disable_sentinel);
+        return g_disable_sentinel;
     }
 
     // C callable -> extract name+module, register call site, DISABLE
@@ -339,7 +341,8 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
     int offset_bytes = static_cast<int>(PyLong_AsLong(offset_obj));
     if (offset_bytes == -1 && PyErr_Occurred()) {
         PyErr_Clear();
-        return Py_NewRef(g_disable_sentinel);
+        Py_INCREF(g_disable_sentinel);
+        return g_disable_sentinel;
     }
 
     uintptr_t code_ptr = reinterpret_cast<uintptr_t>(code);
@@ -390,7 +393,8 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
     NativeCallRegistry::get_instance().register_call_site(
       code_ptr, offset_bytes, first_lineno, std::move(name), std::move(module));
 
-    return Py_NewRef(g_disable_sentinel);
+    Py_INCREF(g_disable_sentinel);
+    return g_disable_sentinel;
 }
 
 static PyMethodDef native_call_handler_def = {
