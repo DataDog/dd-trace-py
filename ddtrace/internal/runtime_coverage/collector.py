@@ -1,20 +1,14 @@
 """
 Runtime code coverage collector for dead code detection in staging environments.
 
-Instruments application code at import time using sys.monitoring (Python 3.12+).
-Each line's callback fires at most once — after process warmup the marginal
-overhead is near-zero. Reports are written to disk periodically and on exit.
+Instruments application code at import time using ModuleCodeCollector (sys.monitoring
+on Python 3.12+). Each line's callback fires at most once — after process warmup the
+marginal overhead is near-zero. Reports are written to disk periodically and on exit.
 
-AIDEV-NOTE: This uses a standalone sys.monitoring instrumentation module
-(runtime_coverage.instrumentation) instead of the shared ModuleCodeCollector.
-sys.monitoring.DISABLE is permanent per line — once a line is hit, it's free
-forever. No import dependency tracking, no hook indirection.
-
-AIDEV-NOTE: We use ModuleWatchdog.register_pre_exec_module_hook (NOT transform())
-because SourceFileLoader.exec_module compiles its own code object internally and
-never calls the Python-level get_code() wrapper that transform() relies on.
-The pre-exec hook replaces exec_module entirely: we call get_code() ourselves,
-instrument the code, then exec() it into the module's namespace.
+AIDEV-NOTE: This intentionally reuses ModuleCodeCollector WITHOUT CollectInContext /
+restart_events(), so sys.monitoring.DISABLE is permanent per line. That's exactly
+what we want: once a line is hit, it's free forever. This differs from the test-
+coverage use-case where traps are re-armed between tests.
 """
 
 import atexit
@@ -22,15 +16,9 @@ import os
 from pathlib import Path
 import sys
 import threading
-from types import ModuleType
 import typing as t
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.module import ModuleWatchdog
-from ddtrace.internal.packages import platlib_path
-from ddtrace.internal.packages import platstdlib_path
-from ddtrace.internal.packages import purelib_path
-from ddtrace.internal.packages import stdlib_path
 
 
 log = get_logger(__name__)
@@ -38,57 +26,6 @@ log = get_logger(__name__)
 # AIDEV-NOTE: sys.monitoring is required — bytecode rewriting on 3.10/3.11 fires
 # the hook on every hit (not just the first), making it unsuitable for production.
 _REQUIRED_PYTHON = (3, 12)
-
-_exclude_paths: list[Path] = [
-    stdlib_path,
-    platstdlib_path,
-    platlib_path,
-    purelib_path,
-    Path(__file__).resolve().parent,
-]
-
-_include_paths: list[Path] = []
-
-
-def _should_instrument(module_name: str) -> bool:
-    """Condition for the pre-exec hook. Receives the module name, resolves
-    its origin via the import system, and checks include/exclude paths."""
-    module = sys.modules.get(module_name)
-    if module is None:
-        return False
-    origin = getattr(getattr(module, "__spec__", None), "origin", None)
-    if origin is None:
-        return False
-    path = Path(origin).resolve()
-    if not any(path.is_relative_to(p) for p in _include_paths):
-        return False
-    if any(path.is_relative_to(p) for p in _exclude_paths):
-        return False
-    return True
-
-
-def _pre_exec_hook(loader, module: ModuleType) -> None:
-    """Pre-exec hook: load code via get_code(), instrument it, then exec().
-
-    AIDEV-NOTE: This replaces exec_module entirely. We must call get_code()
-    ourselves because SourceFileLoader.exec_module uses an internal C-level
-    get_code that bypasses Python-level monkey-patches (and transform()).
-    """
-    from ddtrace.internal.runtime_coverage.instrumentation import instrument
-
-    get_code = getattr(loader.loader, "get_code", None)
-    if get_code is not None:
-        try:
-            code = get_code(module.__name__)
-            if code is not None:
-                instrument(code)
-                exec(code, module.__dict__)
-                return
-        except Exception:
-            log.debug("Failed to instrument %s", module.__name__, exc_info=True)
-
-    # Fallback: run the original exec_module
-    loader.loader.exec_module(module)
 
 
 class RuntimeCoverageCollector:
@@ -147,18 +84,13 @@ class RuntimeCoverageCollector:
         instance._start()
 
     def _start(self) -> None:
-        global _include_paths
+        # AIDEV-NOTE: ModuleCodeCollector.install() hooks sys.meta_path so that every
+        # subsequent import of a matching path is instrumented before execution. Modules
+        # already loaded at this point are NOT re-instrumented — start as early as possible.
+        from ddtrace.internal.coverage.code import ModuleCodeCollector
 
-        _include_paths = [p.resolve() for p in self._include_paths]
-
-        # AIDEV-NOTE: register_pre_exec_module_hook installs ModuleWatchdog if
-        # not already installed, then registers our hook. The hook replaces
-        # exec_module for matching modules so we can instrument the code object
-        # that actually gets executed (not a throwaway copy).
-        ModuleWatchdog.register_pre_exec_module_hook(
-            _should_instrument,
-            _pre_exec_hook,
-        )
+        ModuleCodeCollector.install(include_paths=self._include_paths)
+        ModuleCodeCollector.start_coverage()
 
         atexit.register(self._flush)
 
@@ -181,13 +113,16 @@ class RuntimeCoverageCollector:
             self._flush()
 
     def _flush(self) -> None:
-        from ddtrace.internal.runtime_coverage.instrumentation import get_covered_lines
-        from ddtrace.internal.runtime_coverage.instrumentation import get_executable_lines
+        from ddtrace.internal.coverage.code import ModuleCodeCollector
         from ddtrace.internal.runtime_coverage.writer import write_coverage_report
 
+        mcc = ModuleCodeCollector._instance
+        if mcc is None:
+            return
+
         write_coverage_report(
-            executable_lines=dict(get_executable_lines()),
-            covered_lines=dict(get_covered_lines()),
+            executable_lines=dict(mcc.lines),
+            covered_lines=dict(mcc.covered),
             output_dir=self._output_dir,
             workspace_path=self._workspace_path,
             commit_sha=self._commit_sha,
@@ -205,7 +140,6 @@ class RuntimeCoverageCollector:
         instance._stop_event.set()
         instance._flush()
 
-        from ddtrace.internal.runtime_coverage.instrumentation import reset
+        from ddtrace.internal.coverage.code import ModuleCodeCollector
 
-        reset()
-        ModuleWatchdog.remove_pre_exec_module_hook(_should_instrument, _pre_exec_hook)
+        ModuleCodeCollector.stop_coverage()
