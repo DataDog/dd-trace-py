@@ -95,7 +95,7 @@ def compute_base_hash(container_tags_hash):
 
     global base_hash, base_hash_bytes, process_tags
     if "process_tags" not in globals():
-        process_tags, process_tags_list = generate_process_tags()  # type: ignore
+        process_tags, process_tags_list = generate_process_tags()
 
     b = bytes(process_tags, encoding="utf-8") + bytes(container_tags_hash, encoding="utf-8")
     base_hash = fnv1_64(b)
