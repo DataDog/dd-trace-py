@@ -9,6 +9,12 @@ AIDEV-NOTE: This uses a standalone sys.monitoring instrumentation module
 (runtime_coverage.instrumentation) instead of the shared ModuleCodeCollector.
 sys.monitoring.DISABLE is permanent per line — once a line is hit, it's free
 forever. No import dependency tracking, no hook indirection.
+
+AIDEV-NOTE: We use ModuleWatchdog.register_pre_exec_module_hook (NOT transform())
+because SourceFileLoader.exec_module compiles its own code object internally and
+never calls the Python-level get_code() wrapper that transform() relies on.
+The pre-exec hook replaces exec_module entirely: we call get_code() ourselves,
+instrument the code, then exec() it into the module's namespace.
 """
 
 import atexit
@@ -16,9 +22,15 @@ import os
 from pathlib import Path
 import sys
 import threading
+from types import ModuleType
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.packages import platlib_path
+from ddtrace.internal.packages import platstdlib_path
+from ddtrace.internal.packages import purelib_path
+from ddtrace.internal.packages import stdlib_path
 
 
 log = get_logger(__name__)
@@ -26,6 +38,57 @@ log = get_logger(__name__)
 # AIDEV-NOTE: sys.monitoring is required — bytecode rewriting on 3.10/3.11 fires
 # the hook on every hit (not just the first), making it unsuitable for production.
 _REQUIRED_PYTHON = (3, 12)
+
+_exclude_paths: list[Path] = [
+    stdlib_path,
+    platstdlib_path,
+    platlib_path,
+    purelib_path,
+    Path(__file__).resolve().parent,
+]
+
+_include_paths: list[Path] = []
+
+
+def _should_instrument(module_name: str) -> bool:
+    """Condition for the pre-exec hook. Receives the module name, resolves
+    its origin via the import system, and checks include/exclude paths."""
+    module = sys.modules.get(module_name)
+    if module is None:
+        return False
+    origin = getattr(getattr(module, "__spec__", None), "origin", None)
+    if origin is None:
+        return False
+    path = Path(origin).resolve()
+    if not any(path.is_relative_to(p) for p in _include_paths):
+        return False
+    if any(path.is_relative_to(p) for p in _exclude_paths):
+        return False
+    return True
+
+
+def _pre_exec_hook(loader, module: ModuleType) -> None:
+    """Pre-exec hook: load code via get_code(), instrument it, then exec().
+
+    AIDEV-NOTE: This replaces exec_module entirely. We must call get_code()
+    ourselves because SourceFileLoader.exec_module uses an internal C-level
+    get_code that bypasses Python-level monkey-patches (and transform()).
+    """
+    from ddtrace.internal.runtime_coverage.instrumentation import instrument
+
+    get_code = getattr(loader.loader, "get_code", None)
+    if get_code is not None:
+        try:
+            code = get_code(module.__name__)
+            if code is not None:
+                instrument(code)
+                exec(code, module.__dict__)
+                return
+        except Exception:
+            log.debug("Failed to instrument %s", module.__name__, exc_info=True)
+
+    # Fallback: run the original exec_module
+    loader.loader.exec_module(module)
 
 
 class RuntimeCoverageCollector:
@@ -84,12 +147,17 @@ class RuntimeCoverageCollector:
         instance._start()
 
     def _start(self) -> None:
-        # AIDEV-NOTE: _RuntimeCoverageWatchdog hooks sys.meta_path so that every
-        # subsequent import of a matching path is instrumented before execution.
-        # Modules already loaded at this point are NOT re-instrumented — start as
-        # early as possible.
-        _RuntimeCoverageWatchdog.install(
-            include_paths=self._include_paths,
+        global _include_paths
+
+        _include_paths = [p.resolve() for p in self._include_paths]
+
+        # AIDEV-NOTE: register_pre_exec_module_hook installs ModuleWatchdog if
+        # not already installed, then registers our hook. The hook replaces
+        # exec_module for matching modules so we can instrument the code object
+        # that actually gets executed (not a throwaway copy).
+        ModuleWatchdog.register_pre_exec_module_hook(
+            _should_instrument,
+            _pre_exec_hook,
         )
 
         atexit.register(self._flush)
@@ -140,145 +208,4 @@ class RuntimeCoverageCollector:
         from ddtrace.internal.runtime_coverage.instrumentation import reset
 
         reset()
-        _RuntimeCoverageWatchdog.uninstall()
-
-
-# ── Import hook ─────────────────────────────────────────────────────────────
-
-
-class _RuntimeCoverageWatchdog:
-    """Minimal sys.meta_path hook that instruments code objects on import via
-    the standalone sys.monitoring instrumentation module.
-
-    AIDEV-NOTE: This intentionally does NOT subclass ModuleWatchdog/BaseModuleWatchdog
-    to avoid pulling in the full ModuleCodeCollector machinery. It's a thin
-    MetaPathFinder that delegates to instrumentation.instrument().
-    """
-
-    _instance: t.Optional["_RuntimeCoverageWatchdog"] = None
-    _include_paths: list[Path] = []
-    _exclude_paths: list[Path] = []
-
-    @classmethod
-    def install(cls, include_paths: list[Path]) -> None:
-        if cls._instance is not None:
-            return
-
-        from ddtrace.internal.packages import platlib_path
-        from ddtrace.internal.packages import platstdlib_path
-        from ddtrace.internal.packages import purelib_path
-        from ddtrace.internal.packages import stdlib_path
-
-        instance = cls()
-        instance._include_paths = include_paths
-        instance._exclude_paths = [
-            stdlib_path,
-            platstdlib_path,
-            platlib_path,
-            purelib_path,
-            Path(__file__).resolve().parent,  # don't instrument ourselves
-        ]
-        cls._instance = instance
-
-        # Register as a meta_path finder — must be first to intercept before
-        # the default finders.
-        sys.meta_path.insert(0, instance)  # type: ignore[arg-type]
-        log.debug("_RuntimeCoverageWatchdog installed")
-
-    @classmethod
-    def uninstall(cls) -> None:
-        instance = cls._instance
-        if instance is None:
-            return
-        try:
-            sys.meta_path.remove(instance)  # type: ignore[arg-type]
-        except ValueError:
-            pass
-        cls._instance = None
-        log.debug("_RuntimeCoverageWatchdog uninstalled")
-
-    def _should_instrument(self, path: Path) -> bool:
-        if not any(path.is_relative_to(p) for p in self._include_paths):
-            return False
-        if any(path.is_relative_to(p) for p in self._exclude_paths):
-            return False
-        return True
-
-    # ── MetaPathFinder protocol ─────────────────────────────────────────
-
-    def find_module(self, fullname, path=None):
-        # Python 3.12+ prefers find_spec; this is a fallback.
-        return None
-
-    def find_spec(self, fullname, path=None, target=None):
-        """Intercept module loading to wrap the loader with our instrumenting loader."""
-        if fullname in self._finding:
-            return None
-
-        self._finding.add(fullname)
-        try:
-            from importlib.util import find_spec
-
-            try:
-                spec = find_spec(fullname)
-            except Exception:
-                return None
-
-            if spec is None or spec.loader is None:
-                return None
-
-            origin = getattr(spec, "origin", None)
-            if origin is None:
-                return None
-
-            origin_path = Path(origin).resolve()
-            if not self._should_instrument(origin_path):
-                return None
-
-            # Wrap the loader so we can instrument the code before execution.
-            if not isinstance(spec.loader, _InstrumentingLoader):
-                spec.loader = _InstrumentingLoader(spec.loader)  # type: ignore[assignment]
-
-            return spec
-
-        finally:
-            self._finding.remove(fullname)
-
-    def __init__(self):
-        self._finding: set[str] = set()
-
-
-class _InstrumentingLoader:
-    """Wraps an existing loader to instrument code objects before execution."""
-
-    def __init__(self, original_loader):
-        self._original = original_loader
-        # Proxy attributes that importlib expects.
-        for attr in ("path", "archive", "submodule_search_locations"):
-            if hasattr(original_loader, attr):
-                setattr(self, attr, getattr(original_loader, attr))
-
-    def create_module(self, spec):
-        if hasattr(self._original, "create_module"):
-            return self._original.create_module(spec)
-        return None
-
-    def exec_module(self, module):
-        from ddtrace.internal.runtime_coverage.instrumentation import instrument
-
-        # Try to get the code object to instrument it before execution.
-        get_code = getattr(self._original, "get_code", None)
-        if get_code is not None:
-            try:
-                code = get_code(module.__name__)
-                if code is not None:
-                    instrument(code)
-            except Exception:
-                log.debug("Failed to instrument %s", module.__name__, exc_info=True)
-
-        # Always delegate execution to the original loader.
-        return self._original.exec_module(module)
-
-    def __getattr__(self, name):
-        # Proxy everything else to the original loader.
-        return getattr(self._original, name)
+        ModuleWatchdog.remove_pre_exec_module_hook(_should_instrument, _pre_exec_hook)
