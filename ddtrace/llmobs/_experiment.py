@@ -1214,6 +1214,8 @@ class Experiment:
 
         if retry_delay is None:
             retry_delay = _default_retry_delay
+        elif not callable(retry_delay):
+            raise TypeError("retry_delay must be a callable, got {}".format(type(retry_delay).__name__))
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
         if max_retries < 0:
