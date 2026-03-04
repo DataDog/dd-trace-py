@@ -21,6 +21,7 @@ from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
 from ddtrace.internal.constants import AI_GUARD_MAX_MESSAGES_LENGTH
 from ddtrace.internal.constants import AI_GUARD_TIMEOUT
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.settings import _env
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
 
@@ -302,7 +303,7 @@ class ASMConfig(DDConfig):
 
     @property
     def asm_enabled_origin(self):
-        if APPSEC_ENV in os.environ:
+        if APPSEC_ENV in _env.environ:
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
@@ -311,10 +312,10 @@ class ASMConfig(DDConfig):
         self.__init__()
 
     def _eval_asm_can_be_enabled(self) -> None:
-        self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
+        self._asm_can_be_enabled = APPSEC_ENV not in _env.environ and tracer_config._remote_config_enabled
         self._load_modules = bool(self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
         self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
-        if APPSEC_ENV in os.environ and self._asm_enabled:
+        if APPSEC_ENV in _env.environ and self._asm_enabled:
             tracer_config._trace_resource_renaming_enabled = True
 
     @property

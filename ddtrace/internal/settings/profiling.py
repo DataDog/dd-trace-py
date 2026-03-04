@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import os
 import typing as t
 
 from envier import Env
@@ -18,6 +17,7 @@ from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+from ddtrace.internal.settings import _env
 from ddtrace.internal.utils.formats import parse_tags_str
 
 
@@ -73,7 +73,7 @@ def _check_for_stack_available():
 
 def _injection_enabled_has_profiler() -> bool:
     """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
-    injection_enabled = os.environ.get("DD_INJECTION_ENABLED")
+    injection_enabled = _env.getenv("DD_INJECTION_ENABLED")
     if injection_enabled is None:
         return False
 
@@ -109,7 +109,7 @@ def _enrich_tags(tags) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
-            _update_git_metadata_tags(parse_tags_str(os.environ.get("DD_TAGS"))).items(),
+            _update_git_metadata_tags(parse_tags_str(_env.getenv("DD_TAGS"))).items(),
             tags.items(),
         )
     }
