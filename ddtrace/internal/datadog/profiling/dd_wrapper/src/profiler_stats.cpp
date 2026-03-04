@@ -47,6 +47,7 @@ Datadog::ProfilerStats::reset_state()
     string_table_count = std::nullopt;
     string_table_ephemeral_count = std::nullopt;
     copy_memory_error_count = 0;
+    heap_tracker_size = std::nullopt;
     // fast_copy_memory_enabled is intentionally not reset: it reflects a static configuration
 }
 
@@ -110,6 +111,18 @@ Datadog::ProfilerStats::get_string_table_ephemeral_count() const
     return string_table_ephemeral_count;
 }
 
+void
+Datadog::ProfilerStats::set_heap_tracker_size(size_t count)
+{
+    heap_tracker_size = count;
+}
+
+std::optional<size_t>
+Datadog::ProfilerStats::get_heap_tracker_size() const
+{
+    return heap_tracker_size;
+}
+
 std::string
 Datadog::ProfilerStats::get_internal_metadata_json()
 {
@@ -147,15 +160,22 @@ Datadog::ProfilerStats::get_internal_metadata_json()
     append_to_string(internal_metadata_json, sampling_event_count);
     internal_metadata_json += ",";
 
-    internal_metadata_json += R"("copy_memory_error_count": )";
-    append_to_string(internal_metadata_json, copy_memory_error_count);
-
     auto maybe_fast_copy_enabled = get_fast_copy_memory_enabled();
     if (maybe_fast_copy_enabled) {
-        internal_metadata_json += ",";
         internal_metadata_json += R"("fast_copy_memory_enabled": )";
         internal_metadata_json += *maybe_fast_copy_enabled ? "true" : "false";
+        internal_metadata_json += ",";
     }
+
+    auto maybe_heap_tracker_count = get_heap_tracker_size();
+    if (maybe_heap_tracker_count) {
+        internal_metadata_json += R"("heap_tracker_count": )";
+        append_to_string(internal_metadata_json, *maybe_heap_tracker_count);
+        internal_metadata_json += ",";
+    }
+
+    internal_metadata_json += R"("copy_memory_error_count": )";
+    append_to_string(internal_metadata_json, copy_memory_error_count);
 
     internal_metadata_json += "}";
 

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: adds ``max_retries`` and ``retry_delay`` parameters to
+    ``experiment.run()`` for retrying failed tasks and evaluators.
+    Example: ``experiment.run(max_retries=3, retry_delay=lambda attempt: 2 ** attempt)``.
