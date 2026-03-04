@@ -9,10 +9,11 @@ from types import CodeType
 from types import FrameType
 from types import ModuleType
 from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
-from typing import TYPE_CHECKING
+
 
 if TYPE_CHECKING:
     from types import UnionType
@@ -394,11 +395,7 @@ class _LockAllocatorWrapper:
 
     def __or__(self, other: type[Any] | None) -> UnionType:
         """Support PEP 604 type union syntax (e.g., asyncio.Condition | None)."""
-        return (
-            self._original_class | other
-            if self._original_class
-            else NotImplemented  # type: ignore[return-value]
-        )
+        return (self._original_class | other) if self._original_class else NotImplemented
 
     def __ror__(self, other: type[Any] | None) -> UnionType:
         """Support PEP 604 type union syntax (e.g., None | asyncio.Condition)."""

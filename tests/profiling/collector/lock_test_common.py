@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
 
+
 if TYPE_CHECKING:
     from types import UnionType
 
