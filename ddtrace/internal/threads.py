@@ -1,4 +1,3 @@
-import atexit
 from time import monotonic_ns
 import typing as t
 
@@ -70,18 +69,6 @@ class PeriodicThread(_PeriodicThread):
 
 # Set of running periodic threads that need to be restarted after a fork.
 _threads_to_restart_after_fork: set[_PeriodicThread] = set()
-
-
-@atexit.register
-def _():
-    # If the interpreter is shutting down we need to make sure that the threads
-    # are stopped before the runtime is marked as finalising. This is because
-    # any attempt to acquire the GIL while the runtime is finalising will cause
-    # the acquiring thread to be terminated with pthread_exit (on Linux). This
-    # causes a SIGABRT with GCC that cannot be caught, so we need to avoid
-    # getting to that stage.
-    for thread in list(periodic_threads.values()):
-        thread._atexit()
 
 
 # A typical scenario is that of forking worker threads in a loop. For the
