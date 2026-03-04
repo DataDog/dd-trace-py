@@ -40,6 +40,7 @@ class CoverageReport:
     pid: int
     files: dict[str, FileCoverage]
     import_graph: list[ImportEdge] = dataclasses.field(default_factory=list)
+    commit_sha: t.Optional[str] = None
 
 
 def _bitmap_to_lines(b64: str) -> frozenset[int]:
@@ -62,7 +63,7 @@ def read_coverage_report(path: Path) -> CoverageReport:
     data: dict[str, t.Any] = json.loads(gzip.decompress(compressed))
 
     version = data["schema_version"]
-    if version not in (3, 4):
+    if version not in (3, 4, 5):
         raise ValueError(f"Unsupported schema version: {version}")
 
     files: dict[str, FileCoverage] = {}
@@ -87,6 +88,7 @@ def read_coverage_report(path: Path) -> CoverageReport:
         pid=data["pid"],
         files=files,
         import_graph=import_graph,
+        commit_sha=data.get("commit_sha"),
     )
 
 

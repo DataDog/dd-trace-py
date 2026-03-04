@@ -40,11 +40,13 @@ class RuntimeCoverageCollector:
         output_dir: Path,
         flush_interval: float,
         workspace_path: Path,
+        commit_sha: t.Optional[str] = None,
     ) -> None:
         self._include_paths = include_paths
         self._output_dir = output_dir
         self._flush_interval = flush_interval
         self._workspace_path = workspace_path
+        self._commit_sha = commit_sha
         self._stop_event = threading.Event()
         self._flush_thread: t.Optional[threading.Thread] = None
 
@@ -75,6 +77,7 @@ class RuntimeCoverageCollector:
                 output_dir=output_dir if output_dir is not None else Path("/tmp"),
                 flush_interval=flush_interval,
                 workspace_path=workspace_path if workspace_path is not None else cwd,
+                commit_sha=os.environ.get("DD_GIT_COMMIT_SHA"),
             )
             cls._instance = instance
 
@@ -119,6 +122,7 @@ class RuntimeCoverageCollector:
             covered_lines=dict(get_covered_lines()),
             output_dir=self._output_dir,
             workspace_path=self._workspace_path,
+            commit_sha=self._commit_sha,
         )
 
     @classmethod

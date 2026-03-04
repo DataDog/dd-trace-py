@@ -18,7 +18,7 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 log = get_logger(__name__)
 
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 
 def _encode_bitmap(cl: CoverageLines) -> str:
@@ -33,10 +33,18 @@ def write_coverage_report(
     output_dir: Path,
     workspace_path: Path,
     import_graph: t.Optional[list[dict[str, t.Any]]] = None,
+    commit_sha: t.Optional[str] = None,
 ) -> None:
     """Write a dead-code coverage report to disk; swallows all I/O errors."""
     try:
-        _do_write(executable_lines, covered_lines, output_dir, workspace_path, import_graph=import_graph or [])
+        _do_write(
+            executable_lines,
+            covered_lines,
+            output_dir,
+            workspace_path,
+            import_graph=import_graph or [],
+            commit_sha=commit_sha,
+        )
     except Exception:
         log.debug("Failed to write runtime coverage report", exc_info=True)
 
@@ -47,6 +55,7 @@ def _do_write(
     output_dir: Path,
     workspace_path: Path,
     import_graph: t.Optional[list[dict[str, t.Any]]] = None,
+    commit_sha: t.Optional[str] = None,
 ) -> None:
     files: dict[str, t.Any] = {}
 
@@ -71,8 +80,8 @@ def _do_write(
         "files": files,
         "import_graph": import_graph or [],
     }
-
-    print("writing report", report)
+    if commit_sha is not None:
+        report["commit_sha"] = commit_sha
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"dd-runtime-coverage-{os.getpid()}.json.b64"
