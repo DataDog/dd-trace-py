@@ -3,4 +3,4 @@ fixes:
   - |
     profiling: Fixes an issue where enabling the profiler with gevent workers
     caused gunicorn to skip graceful shutdown, killing in-flight requests
-    immediately on ``SIGTERM`` instead of honoring ``--graceful-timeout``.
+    immediately on ``SIGTERM`` instead of honoring ``--graceful-timeout``. #16424
