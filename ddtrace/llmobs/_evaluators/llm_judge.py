@@ -651,6 +651,10 @@ class LLMJudge(BaseEvaluator):
         self._provider = provider
         self._model = model
 
+        from ddtrace.llmobs import LLMObs
+
+        self._llmobs_service = LLMObs
+
         if client:
             self._client = client
         elif provider == "openai":
@@ -757,9 +761,7 @@ class LLMJudge(BaseEvaluator):
             "applications": [app_payload],
         }
 
-        from ddtrace.llmobs import LLMObs
-
-        dne_client = getattr(getattr(LLMObs, "_instance", None), "_dne_client", None)
+        dne_client = getattr(getattr(self._llmobs_service, "_instance", None), "_dne_client", None)
         if dne_client is None:
             raise ValueError(
                 "LLMObs experiments client is not initialized. Ensure Datadog API and application keys are configured."
