@@ -38,7 +38,7 @@ fi
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
 
 COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
-if command -v nvidia-smi >/dev/null 2>&1; then
+if command -v nvidia-smi >/dev/null 2>&1 && docker info 2>/dev/null | grep -q "nvidia"; then
     COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.gpu.yml")
 fi
 
