@@ -1163,6 +1163,14 @@ class Experiment:
 
         return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
 
+    def _update_status(self, status: str, error: Optional[str] = None) -> None:
+        if not self._llmobs_instance or not self._id:
+            return
+        try:
+            self._llmobs_instance._dne_client.experiment_update(cast(str, self._id), status=status, error=error)
+        except Exception:
+            logger.debug("Failed to update experiment status to %s", status, exc_info=True)
+
     def _setup_experiment(self, llmobs_not_enabled_error: str, ensure_unique: bool = True) -> None:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
@@ -1229,6 +1237,8 @@ class Experiment:
         self._run_results = []
         self._retries.clear()
         self._interrupted = False
+        self._has_errors = False
+        self._update_status("running")
         try:
             for run_iteration in range(self._runs):
                 run = _ExperimentRunInfo(run_iteration)
@@ -1251,10 +1261,12 @@ class Experiment:
                 self._run_results.append(run_result)
         except BaseException:
             self._interrupted = True
+            self._update_status("interrupted")
             raise
         finally:
             result = self._build_result(self._run_results)
             self._log_experiment_summary(result)
+        self._update_status("failed" if self._has_errors else "completed")
         return result
 
     @staticmethod
@@ -1386,6 +1398,7 @@ class Experiment:
                 if attempt > 0:
                     tags["retries"] = str(attempt)
                 if last_exc_info:
+                    self._has_errors = True
                     span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
@@ -1567,6 +1580,7 @@ class Experiment:
                                 finally:
                                     await semaphore.acquire()
                                 continue
+                            self._has_errors = True
                             if raise_errors:
                                 raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
@@ -1647,6 +1661,7 @@ class Experiment:
                         )
                     eval_result_value = eval_result
                 except Exception as e:
+                    self._has_errors = True
                     eval_err = self._build_evaluator_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
