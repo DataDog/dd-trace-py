@@ -24,11 +24,14 @@
 #include <pthread_np.h>
 #endif
 
-// Module state — holds the at_exit flag as a proper atomic so all threads see
-// a synchronized view of Python shutdown without racing against py_is_finalizing.
 struct module_state
 {
+    // At-exit barrier to avoid making Python VM calls during or after shutdown.
+    // We use this flag instead of Py_IsFinalizing because we don't have a way
+    // to lock while we check it.
     std::atomic<bool> at_exit{ false };
+
+    // Mapping of active periodic thread IDs to their PeriodicThread objects.
     PyObject* periodic_threads{ nullptr };
 
     inline bool is_finalizing() const noexcept { return at_exit.load(std::memory_order_acquire); }
@@ -142,9 +145,7 @@ set_native_thread_name(PyObject* name_obj)
 
 // ----------------------------------------------------------------------------
 /**
- * Ensure that the GIL is held for the lifetime of this guard.  Skipped if
- * the module has signalled exit: once at_exit is true no thread should
- * perform any further Python VM operations.
+ * Ensure that the GIL is held.
  */
 class GILGuard
 {
@@ -168,9 +169,7 @@ class GILGuard
 
 // ----------------------------------------------------------------------------
 /**
- * Release the GIL to allow other threads to run.  Skipped if the module has
- * signalled exit: once at_exit is true all threads have already released the
- * GIL (via a prior AllowThreads) and no further GIL operations are needed.
+ * Release the GIL to allow other threads to run.
  */
 class AllowThreads
 {
@@ -297,19 +296,17 @@ class Event
 
 // ----------------------------------------------------------------------------
 /**
- * Module-level atexit handler: sets the at_exit flag so all threads stop
- * making Python VM calls.  Registered with the Python atexit module during
- * PyInit__threads and is the single writer of module_state::at_exit.
+ * Module-level atexit handler: sets the at_exit flag so all threads stop making
+ * Python VM calls.
  */
 static PyObject*
 _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
 {
     module_state* state = (module_state*)PyModule_GetState(module);
 
-    // Stop and join all running periodic threads.  This mirrors the Python
-    // atexit hook that was removed from threads.py.  We snapshot the values
-    // first to avoid mutation of the dict during iteration (threads remove
-    // themselves from periodic_threads when they stop).
+    // Stop and join all running periodic threads. We snapshot the values first
+    // to avoid mutation of the dict during iteration (threads remove themselves
+    // from periodic_threads when they stop).
     if (state != nullptr && state->periodic_threads != NULL) {
         PyObject* threads = PyDict_Values(state->periodic_threads);
         if (threads != NULL) {
@@ -326,9 +323,10 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
         }
     }
 
-    // Set the at_exit flag first so that threads stop making Python VM calls
-    // (GILGuard, PyRef, and the loop body all consult this flag) and break
-    // out of their loops on the next check.
+    // Set the at_exit flag so that threads stop making Python VM calls. We do
+    // this after we have stopped all threads to avoid potential deadlocks where
+    // a thread has acquired the GIL but not released it because the VM shuts
+    // down in the middle of its work.
     if (state != nullptr)
         state->at_exit.store(true, std::memory_order_release);
 
@@ -345,6 +343,7 @@ _threads_traverse(PyObject* module, visitproc visit, void* arg)
     return 0;
 }
 
+// ----------------------------------------------------------------------------
 static int
 _threads_clear(PyObject* module)
 {
@@ -354,6 +353,7 @@ _threads_clear(PyObject* module)
     return 0;
 }
 
+// ----------------------------------------------------------------------------
 static void
 _threads_free(void* module)
 {
@@ -683,8 +683,7 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
         self->_stopped->wait();
         // Join after the stopped signal so we wait for the OS thread to fully
-        // terminate, including the RAII destructors (Py_DECREF + GILState
-        // release) that run after _stopped->set().  GIL is released here, so
+        // terminate, including the final RAII. The GIL is released here, so
         // those destructors can complete without contention.
         if (self->_thread->joinable())
             self->_thread->join();
@@ -730,8 +729,8 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 static PyObject*
 PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
-    // In the child process the parent's thread no longer exists.  Detach
-    // before destroying the std::thread object so its destructor does not call
+    // In the child process the parent's thread no longer exists. Detach before
+    // destroying the std::thread object so its destructor does not call
     // std::terminate() on a still-joinable handle.
     if (self->_thread != nullptr && self->_thread->joinable())
         self->_thread->detach();
@@ -805,11 +804,11 @@ PeriodicThread_dealloc(PeriodicThread* self)
     Py_XDECREF(self->ident);
     Py_XDECREF(self->_ddtrace_profiling_ignore);
 
-    // If join() was never called, the std::thread is still joinable.  The
+    // If join() was never called, the std::thread is still joinable. The
     // GILGuard destructor has already released the GIL (that release is what
-    // allowed this thread to acquire it and reach dealloc), so join() will
-    // not block on GIL contention — it just waits for the OS thread to finish
-    // its final stack unwind.
+    // allowed this thread to acquire it and reach dealloc), so join() will not
+    // block on GIL contention — it just waits for the OS thread to finish its
+    // final stack unwind.
     if (self->_thread != nullptr && self->_thread->joinable())
         self->_thread->join();
     self->_thread = nullptr;
