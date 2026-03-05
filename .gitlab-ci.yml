@@ -177,7 +177,7 @@ microbenchmarks:
 
 "apm-sdk-benchmarks":
   stage: benchmarks
-  manual: true
+  when: manual
   needs:
     - job: "upload manylinux2014_x86_64"
   trigger:
