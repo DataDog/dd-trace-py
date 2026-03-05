@@ -74,8 +74,6 @@ class ThreadingConditionCollector(_lock.LockCollector):
 # Also patch threading.Thread so echion can track thread lifetimes
 def init_stack() -> None:
     if config.stack.enabled and stack.is_available:
-        from ddtrace.profiling._threading import get_thread_native_id
-
         _thread_set_native_id = typing.cast(
             typing.Callable[[threading.Thread], None],
             ddtrace_threading.Thread._set_native_id,  # type: ignore[attr-defined]
@@ -100,7 +98,11 @@ def init_stack() -> None:
 
         # Instrument any living threads
         for thread_id, thread in ddtrace_threading._active.items():  # type: ignore[attr-defined]
-            stack.register_thread(thread_id, get_thread_native_id(thread_id), thread.name)
+            try:
+                native_id = thread.native_id
+            except AttributeError:
+                native_id = thread_id  # _DummyThread (gevent) lacks _native_id
+            stack.register_thread(thread_id, native_id, thread.name)
 
         # Import _asyncio to ensure asyncio post-import wrappers are initialised
         from ddtrace.profiling import _asyncio  # noqa: F401
