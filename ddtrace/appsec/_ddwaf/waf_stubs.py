@@ -105,6 +105,10 @@ class WAF(ABC):
         pass
 
     @abstractmethod
+    def _at_request_end(self):
+        pass
+
+    @abstractmethod
     def run(
         self,
         ctx: ddwaf_context_capsule,
