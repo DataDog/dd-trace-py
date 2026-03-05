@@ -1,4 +1,5 @@
 from dataclasses import InitVar
+from dataclasses import dataclass
 
 import pytest
 
@@ -9,7 +10,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import event
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.internal.core.subscriber import Subscriber
@@ -27,7 +27,7 @@ def reset_event_hub():
     called.clear()
 
 
-@event
+@dataclass
 class TestEvent(Event):
     event_name = "test.subscriber.event"
 
@@ -70,11 +70,11 @@ def test_base_subscriber_inheritance():
 def test_base_subscriber_multiple_event_names():
     """Test that a Subscriber can register for and handle multiple events."""
 
-    @event
+    @dataclass
     class TestEventOne(Event):
         event_name = "test.subscriber.event.one"
 
-    @event
+    @dataclass
     class TestEventTwo(Event):
         event_name = "test.subscriber.event.two"
 
@@ -96,7 +96,7 @@ def test_base_subscriber_multiple_event_names():
 def test_base_context_subscriber():
     """Test that context start/end callbacks run for a direct BaseContextSubscriber."""
 
-    @event
+    @dataclass
     class TestContextEventWithAttributes(Event):
         event_name = "test.subscriber.context.attribute"
 
@@ -129,7 +129,7 @@ def test_base_context_subscriber():
 def test_base_context_subscriber_inheritance():
     """Test that inherited BaseContextSubscriber callbacks run parent then child."""
 
-    @event
+    @dataclass
     class TestContextEvent(Event):
         event_name = "test.subscriber.context"
 
@@ -164,7 +164,7 @@ def test_base_context_subscriber_inheritance():
 def test_base_tracing_subscriber(test_spans):
     """Test that TracingSubscriber creates a span with expected core attributes."""
 
-    @event
+    @dataclass
     class TestTracingEvent(TracingEvent):
         event_name = "test.subscriber.tracing"
         span_type = "custom"
@@ -194,7 +194,7 @@ def test_base_tracing_subscriber(test_spans):
 def test_span_context_event_missing_required_field(test_spans):
     """Test that missing required tracing attributes raises an AttributeError."""
 
-    @event
+    @dataclass
     class TestTracingEvent(TracingEvent):
         event_name = "test.span"
         # Missing service_type
@@ -216,7 +216,7 @@ def test_span_context_event_missing_required_field(test_spans):
 def test_span_context_event_with_custom_fields(test_spans):
     """Test that custom fields can be added and accessed in handlers"""
 
-    @event
+    @dataclass
     class TestTracingEvent(TracingEvent):
         event_name = "test.span"
         span_type = "test"
@@ -249,7 +249,7 @@ def test_span_context_event_with_custom_fields(test_spans):
 def test_span_context_event_inheritance(test_spans):
     """Test that tracing events and subscribers can be inherited and extended."""
 
-    @event
+    @dataclass
     class BaseHTTPEvent(TracingEvent):
         event_name = "http.base"
         span_type = "http"
@@ -268,7 +268,7 @@ def test_span_context_event_inheritance(test_spans):
             span = ctx.span
             span._set_tag_str("http.url", ctx.event.url)
 
-    @event
+    @dataclass
     class HTTPClientEvent(BaseHTTPEvent):
         event_name = "http.client"
 
@@ -295,7 +295,7 @@ def test_span_context_event_inheritance(test_spans):
 def test_span_context_event_with_exception(test_spans):
     """Test that raised exceptions are recorded on the created span."""
 
-    @event
+    @dataclass
     class TestSpanEvent(TracingEvent):
         event_name = "test.span"
         span_type = "test"
@@ -318,10 +318,39 @@ def test_span_context_event_with_exception(test_spans):
     assert span._meta["error.message"] == "test error"
 
 
+def test_span_parent_child_default(test_spans):
+    """Test use_active_context and active default values"""
+
+    @dataclass
+    class TestSpanEvent(TracingEvent):
+        event_name = "test.active.parent"
+        span_type = "worker"
+        span_kind = "consumer"
+
+        def __post_init__(self):
+            self.span_name = "child.operation"
+
+    class TestSpanSubscriber(TracingSubscriber):
+        event_names = (TestSpanEvent.event_name,)
+
+    with tracer.trace("local.processing"):
+        with core.context_with_event(
+            TestSpanEvent(
+                component="test_component",
+            )
+        ):
+            current_span = tracer.current_span()
+            assert current_span is not None
+            assert current_span.name == "child.operation"
+
+    test_spans.assert_span_count(2)
+    assert test_spans.spans[1].parent_id == test_spans.spans[0].span_id
+
+
 def test_span_context_event_no_active_context_with_distributed_context(test_spans):
     """Test that use_active_context=False keeps active span and links parent from distributed context."""
 
-    @event
+    @dataclass
     class TestSpanEvent(TracingEvent):
         event_name = "test.distributed"
         span_type = "worker"
@@ -351,40 +380,10 @@ def test_span_context_event_no_active_context_with_distributed_context(test_span
     assert test_spans.spans[1].parent_id == test_spans.spans[0].span_id
 
 
-def test_span_context_event_active_parent(test_spans):
-    """Test that use_active_context=True uses active parent without forcing activation."""
-
-    @event
-    class TestSpanEvent(TracingEvent):
-        event_name = "test.active.parent"
-        span_type = "worker"
-        span_kind = "consumer"
-
-        def __post_init__(self):
-            self.span_name = "child.operation"
-
-    class TestSpanSubscriber(TracingSubscriber):
-        event_names = (TestSpanEvent.event_name,)
-
-    with tracer.trace("local.processing"):
-        with core.context_with_event(
-            TestSpanEvent(
-                component="test_component",
-            )
-        ):
-            # The current active span should still be "local.processing"
-            current_span = tracer.current_span()
-            assert current_span is not None
-            assert current_span.name == "local.processing"
-
-    test_spans.assert_span_count(2)
-    assert test_spans.spans[1].parent_id == test_spans.spans[0].span_id
-
-
 def test_span_context_event_end_span_false(test_spans):
     """Test that setting _end_span=False prevents automatic span finishing."""
 
-    @event
+    @dataclass
     class TestSpanEvent(TracingEvent):
         event_name = "test.span"
         span_type = "test"

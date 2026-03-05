@@ -1,4 +1,5 @@
 from dataclasses import InitVar
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Optional
 
@@ -8,14 +9,13 @@ from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core import event_hub
-from ddtrace.internal.core.events import event
 from ddtrace.internal.core.events import event_field
 
 
 ExcInfoType = tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
 
 
-@event
+@dataclass
 class TestTracingEvent(TracingEvent):
     event_name = "test.span.event"
     span_type = "custom"

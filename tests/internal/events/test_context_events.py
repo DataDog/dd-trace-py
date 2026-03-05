@@ -1,4 +1,5 @@
 from dataclasses import InitVar
+from dataclasses import dataclass
 import sys
 from typing import Any
 
@@ -7,7 +8,6 @@ import pytest
 from ddtrace.internal import core
 from ddtrace.internal.core import event_hub
 from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import event
 from ddtrace.internal.core.events import event_field
 
 
@@ -23,7 +23,7 @@ def test_basic_context_event():
 
     called = []
 
-    @event
+    @dataclass
     class TestContextEvent(Event):
         event_name = "test.event"
 
@@ -52,7 +52,7 @@ def test_context_event_enforce_kwargs_error():
     """
     called = []
 
-    @event
+    @dataclass
     class TestContextEvent(Event):
         event_name = "test.event"
         foo: str = event_field()
@@ -81,7 +81,7 @@ def test_context_event_event_field():
     """Test that event_field with in_context=True stores data in context."""
     called = []
 
-    @event
+    @dataclass
     class TestContextEvent(Event):
         event_name = "test.event"
         foo: str = event_field()

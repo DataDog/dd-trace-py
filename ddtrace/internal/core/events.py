@@ -57,7 +57,6 @@ from dataclasses import MISSING
 from dataclasses import dataclass
 from dataclasses import field
 import sys
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import ClassVar
 from typing import TypeVar
@@ -66,7 +65,6 @@ from typing import TypeVar
 EventType = TypeVar("EventType", bound="Event")
 
 _PY3_9 = sys.version_info < (3, 10)
-_PY3_13_PLUS = sys.version_info > (3, 13)
 
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:
@@ -91,30 +89,14 @@ def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:
     return field(**kwargs)
 
 
-if TYPE_CHECKING:
-    # trick to allow typing while allowing linter to recognize annotated class as dataclass
-    from dataclasses import dataclass as event
-else:
-
-    def event(cls: type[EventType]) -> type[EventType]:
-        """Decorator that converts a class to a dataclass with slots for performance.
-        After benchmarking, started from python3.13, slotted dataclasses are less performant
-        than non slotted dataclass.
-
-        slots=True has been added in python 3.10
-        """
-        if _PY3_13_PLUS or _PY3_9:
-            return dataclass(cls)
-        return dataclass(slots=True)(cls)
-
-
+@dataclass
 class Event:
     """BaseEvent is an abstraction created to constrain the arguments that can be passed
     during a call to core.dispatch() or core.context_with_data()
 
     It can be used with core.dispatch_event(Event()).
 
-    Every child class should be annotated with @event
+    Every child class should be annotated with @dataclass
     """
 
     event_name: ClassVar[str]
