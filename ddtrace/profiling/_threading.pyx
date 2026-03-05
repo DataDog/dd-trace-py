@@ -7,18 +7,16 @@ from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
 
 cpdef get_thread_by_id(thread_id):
-    # Look for all threads, including the ones we create
-    # We don't want to bother to lock anything here, especially with
-    # eventlet involved (sad-sweat-emoji). We make a best effort to get the thread name; if
-    # we fail, it'll just be an anonymous thread because it's either
-    # starting or dying.
-    try:
-        return ddtrace_threading._active[thread_id]
-    except (KeyError, AttributeError):
-        try:
-            return ddtrace_threading._limbo[thread_id]
-        except (KeyError, AttributeError):
-            pass
+    # Look for all threads, including the ones we create.
+    # Geting the thread name is best-effort;
+    # failing means missing an anonymous thread that's either starting or dying.
+    active_thread = getattr(ddtrace_threading, '_active', {}).get(thread_id)
+    if active_thread:
+        return active_thread
+
+    limbo_thread = getattr(ddtrace_threading, '_limbo', {}).get(thread_id)
+    if limbo_thread:
+        return limbo_thread
 
     return None
 
