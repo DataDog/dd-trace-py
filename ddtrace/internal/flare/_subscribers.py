@@ -55,7 +55,7 @@ class TracerFlareCallback(RCCallback):
         if not self._has_stale_flare():
             return
         log.debug(
-            "Tracer flare stale (started %s), reverting configs and cleaning up",
+            "Remote config: flare collection timed out (started %s), stopping collection and cleaning up",
             self._state.current_request_start,
         )
         self._state.current_request_start = None
@@ -67,7 +67,7 @@ class TracerFlareCallback(RCCallback):
             return
         for payload in payloads:
             if payload.metadata is None:
-                log.debug("Tracer flare payload missing metadata, path=%r", payload.path)
+                log.debug("Remote config: flare payload missing metadata, path=%r", payload.path)
                 continue
             product_type = payload.metadata.product_name
             data = _content_as_list(payload.content)
@@ -75,7 +75,8 @@ class TracerFlareCallback(RCCallback):
             if product_type == "AGENT_CONFIG":
                 if self._state.current_request_start is not None:
                     log.debug(
-                        "Tracer flare already in progress (started %s), skipping path=%r",
+                        "Remote config: flare collection already in progress (started %s), "
+                        "ignoring preparation request path=%r",
                         self._state.current_request_start,
                         payload.path,
                     )
@@ -85,12 +86,8 @@ class TracerFlareCallback(RCCallback):
 
             elif product_type == "AGENT_TASK":
                 if self._state.current_request_start is None:
-                    log.debug(
-                        "Tracer flare AGENT_TASK without prior AGENT_CONFIG, path=%r; preparing with DEBUG",
-                        payload.path,
-                    )
                     if not self._flare.prepare("DEBUG"):
-                        log.warning("Tracer flare prepare(DEBUG) failed, skipping path=%r", payload.path)
+                        # flare.prepare() already logs the reason
                         continue
                     self._state.current_request_start = datetime.now()
                 if generate_tracer_flare(self._flare, data):
@@ -98,7 +95,7 @@ class TracerFlareCallback(RCCallback):
 
             else:
                 log.warning(
-                    "Tracer flare unexpected product_type=%s, path=%r",
+                    "Remote config: unknown flare request type %s, path=%r",
                     product_type,
                     payload.path,
                 )

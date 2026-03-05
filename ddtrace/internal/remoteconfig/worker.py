@@ -67,7 +67,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return
 
         elapsed = sw.elapsed()
-        log.debug("Datadog Remote Config Poller processed request in %.5fs to %s", elapsed, self._client.agent_url)
+        log.debug("Datadog Remote Config Poller sent request to %s in %.5fs", self._client.agent_url, elapsed)
 
     def periodic(self) -> None:
         return self._state()

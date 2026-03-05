@@ -32,9 +32,9 @@ def prepare_tracer_flare(flare: Flare, configs: list[PayloadType]) -> bool:
             flare.prepare(flare_log_level)
             return True
         except Exception as e:
-            log.warning("Tracer flare prepare failed: %s; config=%r", e, c)
+            log.warning("Remote config: flare preparation failed: %s; config=%r", e, c)
             continue
-    log.debug("Tracer flare no log_level in configs, skipping configs=%r", configs)
+    log.debug("Remote config: preparation config has no log level, skipping configs=%r", configs)
     return False
 
 
@@ -54,7 +54,7 @@ def generate_tracer_flare(flare: Flare, configs: list[PayloadType]) -> bool:
             args = c.get("args", {})
             uuid = c.get("uuid")
             if not uuid:
-                log.warning("Tracer flare AGENT_TASK missing uuid, skipping config=%r", c)
+                log.warning("Remote config: flare upload request missing required uuid, skipping config=%r", c)
                 continue
 
             flare_request = FlareSendRequest(
@@ -65,8 +65,8 @@ def generate_tracer_flare(flare: Flare, configs: list[PayloadType]) -> bool:
 
             flare.send(flare_request)
             return True
-        except Exception as e:
-            log.warning("Tracer flare generate failed: %s; config=%r", e, c)
+        except Exception:
+            # flare.send() already logs on failure; avoid duplicate
             continue
-    log.debug("Tracer flare no valid AGENT_TASK in configs, skipping configs=%r", configs)
+    log.debug("Remote config: no valid flare upload request in configs, skipping configs=%r", configs)
     return False

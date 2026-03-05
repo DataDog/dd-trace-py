@@ -69,12 +69,12 @@ class Flare:
         try:
             self.flare_dir.mkdir(exist_ok=True)
         except Exception as e:
-            log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
+            log.warning("Flare: failed to create collection directory path=%s: %s", self.flare_dir, e)
             return False
 
         flare_log_level_int = getattr(logging, log_level.upper(), None)
         if flare_log_level_int is None or not isinstance(flare_log_level_int, int):
-            log.error("Flare prepare: Invalid log level provided: %s", log_level)
+            log.warning("Flare: invalid log level %r for collection", log_level)
             return False
 
         # Setup logging and create config file
@@ -118,7 +118,7 @@ class Flare:
                 )
             return True
         except Exception as e:
-            log.warning("Failed to generate %s: %s", config_file, e)
+            log.warning("Flare: failed to write config file path=%s: %s", config_file, e)
             if os.path.exists(config_file):
                 os.remove(config_file)
         return False
@@ -127,9 +127,6 @@ class Flare:
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
-            log.debug(
-                "Flare Collection has ended. ddtrace logs will not be routed to %s", TRACER_FLARE_FILE_HANDLER_NAME
-            )
         ddlogger.setLevel(self.original_log_level)
 
         # Restore native logger configuration from env vars
@@ -137,7 +134,7 @@ class Flare:
             try:
                 native_logger.disable("file")
             except ValueError:
-                log.debug("Native file logger is not enabled")
+                pass
             _configure_ddtrace_native_logger()
 
     def _validate_case_id(self, case_id: str) -> bool:
@@ -146,7 +143,7 @@ class Flare:
         Returns True if valid, False otherwise. Cleans up files if invalid.
         """
         if case_id in ("0", 0):
-            log.warning("Case ID cannot be 0, skipping flare send")
+            log.warning("Flare: support case ID 0 is invalid, skipping upload")
             return False
 
         # Allow pure numeric strings (unit tests)
@@ -159,7 +156,9 @@ class Flare:
         if re.match(r"^\d+-(with-debug|with-content)$", case_id):
             return True
 
-        log.warning("Case ID string must be numeric or start with a digit, skipping flare send")
+        log.warning(
+            "Flare: support case ID %r invalid (must be numeric or start with a digit), skipping upload", case_id
+        )
         return False
 
     def _setup_flare_logging(self, flare_log_level_int: int) -> int:
@@ -272,17 +271,15 @@ class Flare:
                 headers, body = self._generate_payload(flare_send_req)
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
-                if response.status == 200:
-                    log.info("Successfully sent the flare to Zendesk ticket %s", flare_send_req.case_id)
-                else:
-                    msg = "Tracer flare upload responded with status code %s:(%s) %s" % (
+                if response.status != 200:
+                    msg = "Flare upload responded with status code %s:(%s) %s" % (
                         response.status,
                         response.reason,
                         response.read().decode(),
                     )
                     raise TracerFlareSendError(msg)
             except Exception as e:
-                log.error("Failed to send tracer flare to Zendesk ticket %s: %s", flare_send_req.case_id, e)
+                log.warning("Flare: upload to support failed case_id=%s: %s", flare_send_req.case_id, e)
                 raise e
             finally:
                 if client is not None:
@@ -292,4 +289,4 @@ class Flare:
         try:
             shutil.rmtree(self.flare_dir)
         except Exception as e:
-            log.warning("Failed to clean up tracer flare files: %s", e)
+            log.warning("Flare: failed to remove collection files path=%s: %s", self.flare_dir, e)
