@@ -17,9 +17,9 @@ class FileCoverage:
     """Decoded coverage data for a single source file."""
 
     path: str
-    executable_lines: frozenset[int]
-    covered_lines: frozenset[int]
-    uncovered_lines: frozenset[int]
+    executable_lines: list[int]
+    covered_lines: list[int]
+    uncovered_lines: list[int]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -72,9 +72,9 @@ def read_coverage_report(path: Path) -> CoverageReport:
         covered = _bitmap_to_lines(entry["covered"])
         files[rel_path] = FileCoverage(
             path=rel_path,
-            executable_lines=executable,
-            covered_lines=covered & executable,
-            uncovered_lines=executable - covered,
+            executable_lines=sorted(executable),
+            covered_lines=sorted(covered & executable),
+            uncovered_lines=sorted(executable - covered),
         )
 
     import_graph = [

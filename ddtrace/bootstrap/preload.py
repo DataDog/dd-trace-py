@@ -70,11 +70,7 @@ if config._runtime_coverage_enabled:
 
         from ddtrace.internal.runtime_coverage.collector import RuntimeCoverageCollector
 
-        workspace = (
-            Path(config._runtime_coverage_workspace_path)
-            if config._runtime_coverage_workspace_path
-            else None
-        )
+        workspace = Path(config._runtime_coverage_workspace_path) if config._runtime_coverage_workspace_path else None
         RuntimeCoverageCollector.enable(
             output_dir=Path(config._runtime_coverage_output_dir),
             flush_interval=config._runtime_coverage_flush_interval,

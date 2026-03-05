@@ -20,6 +20,7 @@ instrument the code, then exec() it into the module's namespace.
 import atexit
 import os
 from pathlib import Path
+import re
 import sys
 import threading
 from types import ModuleType
@@ -52,6 +53,19 @@ _exclude_paths: list[Path] = [
 ]
 
 _include_paths: list[Path] = []
+
+# Matches DD_VERSION values like "v100612292-865382c3-integration-data-science-watchdog-platform"
+# where the second segment is a hex commit SHA.
+_DD_VERSION_SHA_RE = re.compile(r"^v\d+-([0-9a-f]+)-")
+
+
+def _extract_commit_sha_from_dd_version() -> t.Optional[str]:
+    """Extract commit SHA from DD_VERSION if it follows the expected format."""
+    dd_version = os.environ.get("DD_VERSION")
+    if dd_version is None:
+        return None
+    m = _DD_VERSION_SHA_RE.match(dd_version)
+    return m.group(1) if m else None
 
 
 def _should_instrument(module_name: str) -> bool:
@@ -145,7 +159,7 @@ class RuntimeCoverageCollector:
                 output_dir=output_dir if output_dir is not None else Path("/tmp"),
                 flush_interval=flush_interval,
                 workspace_path=workspace_path if workspace_path is not None else cwd,
-                commit_sha=os.environ.get("DD_GIT_COMMIT_SHA"),
+                commit_sha=os.environ.get("DD_GIT_COMMIT_SHA") or _extract_commit_sha_from_dd_version(),
             )
             cls._instance = instance
 
