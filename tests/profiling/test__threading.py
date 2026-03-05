@@ -13,8 +13,8 @@ def test_get_thread_native_id_current_thread() -> None:
     tid: Optional[int] = threading.current_thread().ident
     if tid:
         native_id: int = get_thread_native_id(tid)
-        expected: Optional[int] = getattr(threading.current_thread(), "native_id", None)
-        assert native_id == expected or tid  # Current thread is a _DummyThread
+        expected: Optional[int] = getattr(threading.current_thread(), "native_id", tid) # tid if current thread is a _DummyThread
+        assert native_id == expected
 
 
 def test_get_thread_native_id_unknown_thread() -> None:
