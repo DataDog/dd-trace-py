@@ -500,6 +500,7 @@ class TracerFlareTests(unittest.TestCase):
             email="user.name@datadoghq.com",
             uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
         )
+        self.flare.prepare("DEBUG")
 
         with mock.patch("ddtrace.internal.flare.flare.log") as mock_log:
             self.flare.send(valid_request)
