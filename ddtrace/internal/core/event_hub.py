@@ -74,6 +74,10 @@ def reset(event_id: Optional[str] = None, callback: Optional[Callable[..., Any]]
 
 
 def dispatch_event(event) -> None:
+    """Call all hooks for the provided event.
+
+    PERF: Avoid calling  `dispatch` to reduce function calls/overhead of this function.
+    """
     global _listeners
 
     event_id = event.event_name
