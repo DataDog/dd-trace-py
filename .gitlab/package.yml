@@ -229,7 +229,7 @@ variables:
     CMAKE_BUILD_PARALLEL_LEVEL: "6"
     CARGO_BUILD_JOBS: "6"
   script:
-    - powershell -File .gitlab/scripts/build-wheel.ps1
+    - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:
     paths:
       - "pywheels/*.whl"
