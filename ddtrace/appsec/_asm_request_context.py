@@ -7,6 +7,7 @@ from typing import Any
 from typing import Callable
 from typing import Literal
 from typing import Optional
+from typing import Protocol
 from typing import Union
 from urllib import parse
 
@@ -31,6 +32,16 @@ if TYPE_CHECKING:
     from ddtrace.appsec._utils import DDWaf_result
 
 logger = ddlogger.get_logger(__name__)
+
+
+class WafCallable(Protocol):
+    def __call__(
+        self,
+        custom_data: Optional[dict[str, Any]] = None,
+        crop_trace: Optional[str] = None,
+        rule_type: Optional[str] = None,
+        force_sent: bool = False,
+    ) -> Optional["DDWaf_result"]: ...
 
 
 class WARNING_TAGS(metaclass=Constant_Class):
@@ -58,7 +69,6 @@ _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
 _CALLBACKS: Literal["callbacks"] = "callbacks"
 _TELEMETRY: Literal["telemetry"] = "telemetry"
 _CONTEXT_CALL: Literal["context"] = "context"
-_WAF_CALL: Literal["waf_run"] = "waf_run"
 _BLOCK_CALL: Literal["block"] = "block"
 
 
@@ -80,7 +90,12 @@ class ASM_Environment:
     It is contained into a ContextVar.
     """
 
-    def __init__(self, span: Optional[Span] = None, rc_products: str = ""):
+    def __init__(
+        self,
+        waf_callable: Optional[WafCallable],
+        span: Optional[Span] = None,
+        rc_products: str = "",
+    ):
         self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
@@ -98,6 +113,7 @@ class ASM_Environment:
         self.framework = self.framework.lower().replace(" ", "_")
         self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: dict[str, Any] = {}
+        self.waf_callable: Optional[WafCallable] = waf_callable
         self.callbacks: dict[str, Any] = {_CONTEXT_CALL: []}
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
@@ -111,6 +127,15 @@ class ASM_Environment:
 
 def _get_asm_context() -> Optional[ASM_Environment]:
     return core.find_item(_ASM_CONTEXT)
+
+
+def get_active_asm_context() -> Optional[ASM_Environment]:
+    env = _get_asm_context()
+    if env is None or env.finalized:
+        extra = {"product": "appsec", "stack_limit": 4}
+        logger.debug("asm_context::get_value::no_active_context", extra=extra, stack_info=True)
+        return None
+    return env
 
 
 def in_asm_context() -> bool:
@@ -309,6 +334,9 @@ def finalize_asm_env(env: ASM_Environment) -> None:
         if env.rc_products:
             entry_span._set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
 
+    # Manually clear reference cycles to simplify the work for the GC
+    env.callbacks.clear()
+    env.waf_callable = None
     core.discard_local_item(_ASM_CONTEXT)
 
 
@@ -332,11 +360,17 @@ def set_body_response(body_response):
     # local import to avoid circular import
     from ddtrace.appsec._utils import parse_response_body
 
+    env = _get_asm_context()
+    if env is None:
+        extra = {"product": "appsec", "more_info": "::set_body_response", "stack_limit": 4}
+        logger.debug("asm_context::set_body_response::no_active_context", extra=extra, stack_info=True)
+        return
+
     set_waf_address(
         SPAN_DATA_NAMES.RESPONSE_BODY,
         lambda: parse_response_body(
             body_response,
-            get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES),
+            env.waf_addresses.get(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, None),
         ),
     )
 
@@ -354,10 +388,8 @@ def set_waf_address(address: str, value: Any) -> None:
 
 
 def get_value(category: str, address: str, default: Any = None) -> Any:
-    env = _get_asm_context()
+    env = get_active_asm_context()
     if env is None:
-        extra = {"product": "appsec", "more_info": f"::{category}::{address}", "stack_limit": 4}
-        logger.debug("asm_context::get_value::no_active_context", extra=extra, stack_info=True)
         return default
     asm_context_attr = getattr(env, category, None)
     if asm_context_attr is not None:
@@ -387,10 +419,6 @@ def remove_context_callback(function, global_callback: bool = False) -> None:
         callbacks[:] = list([cb for cb in callbacks if cb != function])
 
 
-def set_waf_callback(value) -> None:
-    set_value(_CALLBACKS, _WAF_CALL, value)
-
-
 def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
     env = _get_asm_context()
     if env is None:
@@ -399,12 +427,17 @@ def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
     env.waf_info = info
 
 
-def call_waf_callback(custom_data: Optional[dict[str, Any]] = None, **kwargs) -> Optional["DDWaf_result"]:
+def call_waf_callback(
+    custom_data: Optional[dict[str, Any]] = None,
+    crop_trace: Optional[str] = None,
+    rule_type: Optional[str] = None,
+    force_sent: bool = False,
+) -> Optional["DDWaf_result"]:
     if not asm_config._asm_enabled:
         return None
-    callback = get_value(_CALLBACKS, _WAF_CALL)
-    if callback:
-        return callback(custom_data, **kwargs)
+    env = get_active_asm_context()
+    if env is not None and env.waf_callable is not None:
+        return env.waf_callable(custom_data, crop_trace, rule_type, force_sent)
     else:
         logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
         report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
@@ -416,9 +449,9 @@ def call_waf_callback_no_instrumentation() -> None:
     if asm_config._asm_enabled:
         env = _get_asm_context()
         if env and not env.telemetry.triggered:
-            callback = env.callbacks.get(_WAF_CALL)
-            if callback:
-                callback()
+            waf_callable = env.waf_callable
+            if waf_callable:
+                waf_callable()
 
 
 def set_ip(ip: Optional[str]) -> None:
@@ -561,10 +594,17 @@ def store_waf_results_data(data) -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(span: Span, rc_products: str) -> None:
+def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
     if asm_config._asm_enabled:
         # it should only be called at start of a core context, when ASM_Env is not set yet
-        core.set_item(_ASM_CONTEXT, ASM_Environment(span=span, rc_products=rc_products))
+        core.set_item(
+            _ASM_CONTEXT,
+            ASM_Environment(
+                waf_callable=waf_callable,
+                span=span,
+                rc_products=rc_products,
+            ),
+        )
         asm_request_context_set(
             core.get_item("remote_addr"),
             core.get_item("headers"),

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from dataclasses import field
 import re
 import sys
+import time
 import traceback
 from typing import TYPE_CHECKING
 from typing import Any
@@ -18,7 +19,22 @@ from typing import TypedDict
 from typing import Union
 from typing import cast
 from typing import overload
+
+
+try:
+    from typing import TypeAlias
+except ImportError:
+    from typing_extensions import TypeAlias  # Python < 3.10
+
 import uuid
+
+
+try:
+    from deepeval.metrics import BaseConversationalMetric
+    from deepeval.metrics import BaseMetric
+except ImportError:
+    BaseMetric = None
+    BaseConversationalMetric = None
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
@@ -26,6 +42,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
@@ -37,6 +54,7 @@ if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
+    from ddtrace.llmobs.types import ExportedLLMObsSpan
 
 
 logger = get_logger(__name__)
@@ -331,26 +349,61 @@ class BaseAsyncSummaryEvaluator(ABC):
 
 
 # Evaluator types (defined after base classes)
-EvaluatorType = Union[
-    Callable[[DatasetRecordInputType, JSONType, JSONType], Union[JSONType, "EvaluatorResult"]],
-    BaseEvaluator,
-]
-AsyncEvaluatorType = Union[
-    Callable[[DatasetRecordInputType, JSONType, JSONType], Awaitable[Union[JSONType, "EvaluatorResult"]]],
-    BaseAsyncEvaluator,
-]
+if BaseMetric is not None and BaseConversationalMetric is not None:
+    _DeepEvalListType: TypeAlias = Union[list[BaseMetric], list[BaseConversationalMetric]]
+    EvaluatorType: TypeAlias = Union[
+        Callable[
+            [DatasetRecordInputType, JSONType, JSONType],
+            Union[JSONType, "EvaluatorResult"],
+        ],
+        BaseEvaluator,
+        _DeepEvalListType,
+    ]
+    AsyncEvaluatorType: TypeAlias = Union[
+        Callable[
+            [DatasetRecordInputType, JSONType, JSONType],
+            Awaitable[Union[JSONType, "EvaluatorResult"]],
+        ],
+        BaseAsyncEvaluator,
+        _DeepEvalListType,
+    ]
+else:
+    EvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
+        Callable[
+            [DatasetRecordInputType, JSONType, JSONType],
+            Union[JSONType, "EvaluatorResult"],
+        ],
+        BaseEvaluator,
+    ]
+    AsyncEvaluatorType: TypeAlias = Union[  # type: ignore[no-redef,misc]
+        Callable[
+            [DatasetRecordInputType, JSONType, JSONType],
+            Awaitable[Union[JSONType, "EvaluatorResult"]],
+        ],
+        BaseAsyncEvaluator,
+    ]
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[
     Callable[
-        [Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], dict[str, Sequence[JSONType]]],
+        [
+            Sequence[DatasetRecordInputType],
+            Sequence[JSONType],
+            Sequence[JSONType],
+            dict[str, Sequence[JSONType]],
+        ],
         JSONType,
     ],
     BaseSummaryEvaluator,
 ]
 AsyncSummaryEvaluatorType = Union[
     Callable[
-        [Sequence[DatasetRecordInputType], Sequence[JSONType], Sequence[JSONType], dict[str, Sequence[JSONType]]],
+        [
+            Sequence[DatasetRecordInputType],
+            Sequence[JSONType],
+            Sequence[JSONType],
+            dict[str, Sequence[JSONType]],
+        ],
         Awaitable[JSONType],
     ],
     BaseAsyncSummaryEvaluator,
@@ -364,6 +417,17 @@ def _is_class_evaluator(evaluator: Any) -> bool:
     :return: True if it's a class-based evaluator, False otherwise
     """
     return isinstance(evaluator, BaseEvaluator)
+
+
+def _is_deep_eval_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a deep eval evaluator (inherits from BaseMetric or BaseConversationalMetric).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a class-based deepeval evaluator, False otherwise
+    """
+    if BaseMetric is None or BaseConversationalMetric is None:
+        return False
+    return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
 
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
@@ -381,7 +445,99 @@ def _is_function_evaluator(evaluator: Any) -> bool:
     :param evaluator: The evaluator to check
     :return: True if it's a function evaluator, False otherwise
     """
-    return not isinstance(evaluator, BaseEvaluator) and not isinstance(evaluator, BaseSummaryEvaluator)
+    return (
+        not isinstance(evaluator, BaseEvaluator)
+        and not isinstance(evaluator, BaseSummaryEvaluator)
+        and not _is_deep_eval_evaluator(evaluator)
+    )
+
+
+if BaseMetric is not None and BaseConversationalMetric is not None:
+
+    def _deep_eval_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+        """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
+
+        :param evaluator: The deep eval evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+        from deepeval.test_case import LLMTestCase
+
+        def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+        ) -> EvaluatorResult:
+            """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
+
+            :param input_data: The input data
+            :param output_data: The output data
+            :param expected_output: The expected output
+            :return: An EvaluatorResult containing the score, reasoning, and assessment
+            """
+            deepEvalTestCase = LLMTestCase(
+                input=str(input_data),
+                actual_output=str(output_data),
+                expected_output=str(expected_output),
+            )
+            evaluator.measure(deepEvalTestCase)
+            score = evaluator.score
+            reasoning = evaluator.reason
+            assessment = "pass" if evaluator.success else "fail"
+            metadata = evaluator.score_breakdown
+            eval_result = EvaluatorResult(
+                value=score,
+                reasoning=reasoning,
+                assessment=assessment,
+                metadata=metadata,
+            )
+            return eval_result
+
+        wrapped_evaluator.__name__ = getattr(evaluator, "name", "deep_eval_evaluator")
+        return wrapped_evaluator
+
+    def _deep_eval_async_evaluator_wrapper(evaluator: Any) -> Any:
+        """Sync factory that returns an async callable for use with await in async experiments."""
+        from deepeval.test_case import LLMTestCase
+
+        async def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+        ) -> EvaluatorResult:
+            deepEvalTestCase = LLMTestCase(
+                input=str(input_data),
+                actual_output=str(output_data),
+                expected_output=str(expected_output),
+            )
+            await evaluator.a_measure(deepEvalTestCase)
+            score = evaluator.score
+            reasoning = evaluator.reason
+            assessment = "pass" if evaluator.success else "fail"
+            metadata = evaluator.score_breakdown
+            eval_result = EvaluatorResult(
+                value=score,
+                reasoning=reasoning,
+                assessment=assessment,
+                metadata=metadata,
+            )
+            return eval_result
+
+        wrapped_evaluator.__name__ = getattr(evaluator, "name", "deep_eval_evaluator")
+        return wrapped_evaluator
+
+else:
+
+    def _deep_eval_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking.
+
+        :param evaluator: The deep eval evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+        return evaluator
+
+    def _deep_eval_async_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
 
 
 class Project(TypedDict):
@@ -389,7 +545,11 @@ class Project(TypedDict):
     _id: str
 
 
-class DatasetRecordRaw(TypedDict):
+class _DatasetRecordRawOptional(TypedDict, total=False):
+    tags: list[str]
+
+
+class DatasetRecordRaw(_DatasetRecordRawOptional):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
@@ -399,15 +559,19 @@ class _UpdatableDatasetRecordOptional(TypedDict, total=False):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: dict[str, Any]
+    tags: list[str]
 
 
 class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 
-class DatasetRecord(DatasetRecordRaw):
-    record_id: str
+class _DatasetRecordOptional(TypedDict, total=False):
     canonical_id: Optional[str]
+
+
+class DatasetRecord(DatasetRecordRaw, _DatasetRecordOptional):
+    record_id: str
 
 
 class TaskResult(TypedDict):
@@ -469,6 +633,7 @@ class ExperimentResult(TypedDict):
 class Dataset:
     name: str
     description: str
+    filter_tags: Optional[list[str]]
     _id: str
     _records: list[DatasetRecord]
     _version: int
@@ -490,10 +655,12 @@ class Dataset:
         latest_version: int,
         version: int,
         _dne_client: "LLMObsExperimentsClient",
+        filter_tags: Optional[list[str]] = None,
     ) -> None:
         self.name = name
         self.project = project
         self.description = description
+        self.filter_tags = filter_tags or []
         self._id = dataset_id
         self._latest_version = latest_version
         self._version = version
@@ -503,7 +670,12 @@ class Dataset:
         self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
-    def push(self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None):
+    def push(
+        self,
+        deduplicate: bool = True,
+        create_new_version: bool = True,
+        bulk_upload: Optional[bool] = None,
+    ):
         """Pushes any local changes in this dataset since the last push.
 
         :param deduplicate:
@@ -526,7 +698,10 @@ class Dataset:
         self._push(deduplicate, create_new_version, bulk_upload)
 
     def _push(
-        self, deduplicate: bool = True, create_new_version: bool = True, bulk_upload: Optional[bool] = None
+        self,
+        deduplicate: bool = True,
+        create_new_version: bool = True,
+        bulk_upload: Optional[bool] = None,
     ) -> bool:
         if not self._id:
             raise ValueError(
@@ -552,8 +727,13 @@ class Dataset:
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
-            new_version, new_record_ids, new_canonical_ids = self._dne_client.dataset_batch_update(
+            (
+                new_version,
+                new_record_ids,
+                new_canonical_ids,
+            ) = self._dne_client.dataset_batch_update(
                 dataset_id=self._id,
+                project_id=self.project["_id"],
                 insert_records=list(self._new_records_by_record_id.values()),
                 update_records=updated_records,
                 delete_record_ids=self._deleted_record_ids,
@@ -575,12 +755,9 @@ class Dataset:
                     self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
                 del self._new_records_by_record_id[key]
 
-            data_changed = len(new_record_ids) > 0
+            data_changed = len(new_record_ids) > 0 or len(self._deleted_record_ids) > 0
             if new_version != -1:
                 self._latest_version = new_version
-            else:
-                # FIXME: we don't get version numbers in responses to deletion requests
-                self._latest_version = self._latest_version + 1
             logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
             # no matter what the version was before the push, pushing will result in the dataset being on the current
             # version tracked by the backend
@@ -737,6 +914,11 @@ class Experiment:
     _evaluators: Sequence[Union[EvaluatorType, AsyncEvaluatorType]]
     _summary_evaluators: Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]
 
+    @classmethod
+    def _NO_OP_TASK(cls, input_data, config):
+        """No-op task used when initializing distributed experiment objects on remote hosts."""
+        return None
+
     def __init__(
         self,
         name: str,
@@ -750,6 +932,7 @@ class Experiment:
         _llmobs_instance: Optional["LLMObs"] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
+        is_distributed: Optional[bool] = False,
     ) -> None:
         self.name = name
         self._task = task
@@ -763,8 +946,13 @@ class Experiment:
         self._tags["dataset_name"] = dataset.name
         self._tags["experiment_name"] = name
         self._config: dict[str, JSONType] = config or {}
+        # Write dataset tags to experiment config
+        if dataset.filter_tags:
+            self._config["filtered_record_tags"] = cast(JSONType, dataset.filter_tags)
         self._runs: int = runs or 1
         self._llmobs_instance = _llmobs_instance
+        self._is_distributed = is_distributed
+        self._retries: list[str] = []
 
         if not project_name:
             raise ValueError(
@@ -776,6 +964,7 @@ class Experiment:
         self._project_id: Optional[str] = None
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
+        self.experiment_span: Optional["ExportedLLMObsSpan"] = None
 
     @property
     def url(self) -> str:
@@ -974,7 +1163,7 @@ class Experiment:
 
         return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
 
-    def _setup_experiment(self, llmobs_not_enabled_error: str) -> None:
+    def _setup_experiment(self, llmobs_not_enabled_error: str, ensure_unique: bool = True) -> None:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
 
@@ -982,7 +1171,10 @@ class Experiment:
         self._project_id = project.get("_id", "")
         self._tags["project_id"] = self._project_id
 
-        experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
+        (
+            experiment_id,
+            experiment_run_name,
+        ) = self._llmobs_instance._dne_client.experiment_create(
             self.name,
             self._dataset._id,
             self._project_id,
@@ -991,6 +1183,7 @@ class Experiment:
             convert_tags_dict_to_list(self._tags),
             self._description,
             self._runs,
+            ensure_unique,
         )
         self._id = experiment_id
         self._tags["experiment_id"] = str(experiment_id)
@@ -1001,6 +1194,8 @@ class Experiment:
         jobs: int = 10,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
+        max_retries: int = 0,
+        retry_delay: Optional[Callable[[int], float]] = None,
     ) -> ExperimentResult:
         """Run the experiment by executing the task on all dataset records and evaluating the results.
 
@@ -1008,42 +1203,124 @@ class Experiment:
         :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
         :param sample_size: Optional number of dataset records to sample for testing
                             (default: None, uses full dataset)
+        :param max_retries: Maximum number of retries for failed tasks and evaluators (default: 0)
+        :param retry_delay: Callable that takes the attempt number (0-based) and returns the delay
+                            in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
         :return: ExperimentResult containing evaluation results and metadata
         """
+
+        def _default_retry_delay(attempt: int) -> float:
+            return 0.1 * (attempt + 1)
+
+        if retry_delay is None:
+            retry_delay = _default_retry_delay
+        elif not callable(retry_delay):
+            raise TypeError("retry_delay must be a callable, got {}".format(type(retry_delay).__name__))
         if jobs < 1:
             raise ValueError("jobs must be at least 1")
+        if max_retries < 0:
+            raise ValueError("max_retries must be >= 0")
 
         self._setup_experiment(
             "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
             "and create the experiment via `LLMObs.async_experiment(...)` before running the experiment."
         )
 
-        run_results = []
-        for run_iteration in range(self._runs):
-            run = _ExperimentRunInfo(run_iteration)
-            self._tags["run_id"] = str(run._id)
-            self._tags["run_iteration"] = str(run._run_iteration)
-            task_results = await self._run_task(jobs, run, raise_errors, sample_size)
-            evaluations = await self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
-            summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
-            run_result = self._merge_results(run, task_results, evaluations, summary_evals)
-            experiment_evals = self._generate_metrics_from_exp_results(run_result)
-            self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
-                cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
-            )
-            run_results.append(run_result)
+        self._run_results = []
+        self._retries.clear()
+        self._interrupted = False
+        try:
+            for run_iteration in range(self._runs):
+                run = _ExperimentRunInfo(run_iteration)
+                self._tags["run_id"] = str(run._id)
+                self._tags["run_iteration"] = str(run._run_iteration)
+                task_results = await self._run_task(
+                    jobs, run, raise_errors, sample_size, max_retries=max_retries, retry_delay=retry_delay
+                )
+                evaluations = await self._run_evaluators(
+                    task_results, raise_errors=raise_errors, jobs=jobs, max_retries=max_retries, retry_delay=retry_delay
+                )
+                summary_evals = await self._run_summary_evaluators(task_results, evaluations, raise_errors, jobs=jobs)
+                run_result = self._merge_results(run, task_results, evaluations, summary_evals)
+                experiment_evals = self._generate_metrics_from_exp_results(run_result)
+                self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+                    cast(str, self._id),
+                    experiment_evals,
+                    convert_tags_dict_to_list(self._tags),
+                )
+                self._run_results.append(run_result)
+        except BaseException:
+            self._interrupted = True
+            raise
+        finally:
+            result = self._build_result(self._run_results)
+            self._log_experiment_summary(result)
+        return result
 
+    @staticmethod
+    def _build_result(run_results: list) -> ExperimentResult:
         return {
             "summary_evaluations": run_results[0].summary_evaluations if run_results else {},
             "rows": run_results[0].rows if run_results else [],
             "runs": run_results,
         }
 
+    def _format_experiment_summary(self, result: ExperimentResult) -> str:
+        runs = result.get("runs", [])
+        parts: list[str] = []
+
+        if self._interrupted:
+            parts.append("Experiment '{}' was interrupted after {}/{} runs.".format(self.name, len(runs), self._runs))
+
+        for run_idx, run in enumerate(runs):
+            rows = run.rows
+            run_label = "Run {}/{}".format(run_idx + 1, self._runs) if self._runs > 1 else ""
+            task_error_count = sum(
+                1 for row in rows if isinstance(row.get("error"), dict) and row["error"].get("message")
+            )
+            eval_stats: dict[str, dict[str, int]] = {}
+            for row in rows:
+                for name, data in (row.get("evaluations") or {}).items():
+                    stats = eval_stats.setdefault(name, {"total": 0, "errors": 0})
+                    stats["total"] += 1
+                    if isinstance(data, dict) and data.get("error"):
+                        stats["errors"] += 1
+
+            header = "Experiment '{}'".format(self.name)
+            if run_label:
+                header += " - {}".format(run_label)
+            parts.append("{}: {} rows, {} evaluator(s).".format(header, len(rows), len(eval_stats)))
+            if task_error_count:
+                parts.append("  Task errors: {}/{}".format(task_error_count, len(rows)))
+            for eval_name, stats in eval_stats.items():
+                if stats["errors"]:
+                    parts.append(
+                        "  {}: {}/{} evaluated, {} error(s)".format(
+                            eval_name, stats["total"], len(rows), stats["errors"]
+                        )
+                    )
+                else:
+                    parts.append("  {}: {}/{} evaluated".format(eval_name, stats["total"], len(rows)))
+
+        if self._retries:
+            parts.append("Retries ({}):\n  {}".format(len(self._retries), "\n  ".join(self._retries)))
+
+        return "\n".join(parts)
+
+    def _log_experiment_summary(self, result: ExperimentResult) -> None:
+        msg = self._format_experiment_summary(result)
+        if not msg:
+            return
+        log_fn = logger.warning if self._interrupted else logger.info
+        log_fn(msg, extra={"product": "llmobs"})
+
     async def _process_record(
         self,
         idx_record: tuple[int, DatasetRecord],
         run: _ExperimentRunInfo,
         semaphore: asyncio.Semaphore,
+        max_retries: int = 0,
+        retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> Optional[TaskResult]:
         """Process single record asynchronously."""
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -1061,6 +1338,8 @@ class Experiment:
                 experiment_name=self.name,
             ) as span:
                 span_context = self._llmobs_instance.export_span(span=span)
+                if self._is_distributed:
+                    self.experiment_span = span_context
                 if span_context:
                     span_id = span_context.get("span_id", "")
                     trace_id = span_context.get("trace_id", "")
@@ -1075,21 +1354,46 @@ class Experiment:
                     "dataset_record_id": str(record_id),
                     "experiment_id": str(self._id),
                 }
+                # Propagate dataset record tags to the experiment span
+                record_tags = record.get("tags", [])
+                for tag in record_tags:
+                    if ":" in tag:
+                        key, value = tag.split(":", 1)
+                        tags[key] = value
                 if canonical_id:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
-                try:
-                    if asyncio.iscoroutinefunction(self._task):
-                        output_data = await self._task(input_data, self._config)
-                    else:
-                        output_data = await asyncio.to_thread(self._task, input_data, self._config)
-                except Exception:
-                    span.set_exc_info(*sys.exc_info())
+                last_exc_info = None
+                for attempt in range(1 + max_retries):
+                    try:
+                        if asyncio.iscoroutinefunction(self._task):
+                            output_data = await self._task(input_data, self._config)
+                        else:
+                            output_data = await asyncio.to_thread(self._task, input_data, self._config)
+                        last_exc_info = None
+                        break
+                    except Exception as e:
+                        last_exc_info = sys.exc_info()
+                        if attempt < max_retries:
+                            self._retries.append(
+                                "task row {}: attempt {}/{} failed: {}".format(idx, attempt + 1, max_retries + 1, e)
+                            )
+                            semaphore.release()
+                            try:
+                                await asyncio.sleep(retry_delay(attempt))
+                            finally:
+                                await semaphore.acquire()
+                if attempt > 0:
+                    tags["retries"] = str(attempt)
+                if last_exc_info:
+                    span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
                 span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
                 if "metadata" in record:
                     span._set_ctx_item(EXPERIMENT_RECORD_METADATA, record["metadata"])
+                if self._config:
+                    span._set_ctx_item(EXPERIMENT_CONFIG, self._config)
 
                 return {
                     "idx": idx,
@@ -1115,13 +1419,18 @@ class Experiment:
         run: _ExperimentRunInfo,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
+        max_retries: int = 0,
+        retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
 
         semaphore = asyncio.Semaphore(jobs)
-        coros = [self._process_record(idx_record, run, semaphore) for idx_record in enumerate(subset_dataset)]
+        coros = [
+            self._process_record(idx_record, run, semaphore, max_retries=max_retries, retry_delay=retry_delay)
+            for idx_record in enumerate(subset_dataset)
+        ]
         results = await asyncio.gather(*coros, return_exceptions=True)
 
         task_results: list[TaskResult] = []
@@ -1148,7 +1457,12 @@ class Experiment:
         return task_results
 
     async def _run_evaluators(
-        self, task_results: list[TaskResult], raise_errors: bool = False, jobs: int = 10
+        self,
+        task_results: list[TaskResult],
+        raise_errors: bool = False,
+        jobs: int = 10,
+        max_retries: int = 0,
+        retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
         semaphore = asyncio.Semaphore(jobs)
 
@@ -1167,71 +1481,94 @@ class Experiment:
                     eval_err: JSONType = None
                     evaluator_name = ""
 
-                    try:
-                        if isinstance(evaluator, BaseAsyncEvaluator):
-                            evaluator_name = evaluator.name
-                            combined_metadata = {**metadata, "experiment_config": self._config}
-                            context = EvaluatorContext(
-                                input_data=input_data,
-                                output_data=output_data,
-                                expected_output=expected_output,
-                                metadata=combined_metadata,
-                                span_id=task_result.get("span_id"),
-                                trace_id=task_result.get("trace_id"),
-                            )
-                            eval_result = await evaluator.evaluate(context)
-                        elif asyncio.iscoroutinefunction(evaluator):
-                            evaluator_name = evaluator.__name__
-                            eval_result = await evaluator(input_data, output_data, expected_output)
-                        elif _is_class_evaluator(evaluator):
-                            evaluator_name = evaluator.name  # type: ignore[union-attr]
-                            combined_metadata = {**metadata, "experiment_config": self._config}
-                            context = EvaluatorContext(
-                                input_data=input_data,
-                                output_data=output_data,
-                                expected_output=expected_output,
-                                metadata=combined_metadata,
-                                span_id=task_result.get("span_id"),
-                                trace_id=task_result.get("trace_id"),
-                            )
-                            eval_result = await asyncio.to_thread(
-                                evaluator.evaluate,  # type: ignore[union-attr]
-                                context,
-                            )
-                        elif _is_function_evaluator(evaluator):
-                            evaluator_name = evaluator.__name__  # type: ignore[union-attr]
-                            eval_result = await asyncio.to_thread(
-                                evaluator,  # type: ignore[arg-type]
-                                input_data,
-                                output_data,
-                                expected_output,
-                            )
-                        else:
-                            logger.warning(
-                                "Evaluator %s is neither a BaseEvaluator instance nor a callable function", evaluator
-                            )
-                            evaluator_name = str(evaluator)
-                            eval_result = None
+                    for attempt in range(1 + max_retries):
+                        eval_result_value = None
+                        eval_err = None
+                        try:
+                            if isinstance(evaluator, BaseAsyncEvaluator):
+                                evaluator_name = evaluator.name
+                                combined_metadata = {
+                                    **metadata,
+                                    "experiment_config": self._config,
+                                }
+                                context = EvaluatorContext(
+                                    input_data=input_data,
+                                    output_data=output_data,
+                                    expected_output=expected_output,
+                                    metadata=combined_metadata,
+                                    span_id=task_result.get("span_id"),
+                                    trace_id=task_result.get("trace_id"),
+                                )
+                                eval_result = await evaluator.evaluate(context)
+                            elif asyncio.iscoroutinefunction(evaluator):
+                                evaluator_name = evaluator.__name__
+                                eval_result = await evaluator(input_data, output_data, expected_output)
+                            elif _is_class_evaluator(evaluator):
+                                evaluator_name = evaluator.name  # type: ignore[union-attr]
+                                combined_metadata = {
+                                    **metadata,
+                                    "experiment_config": self._config,
+                                }
+                                context = EvaluatorContext(
+                                    input_data=input_data,
+                                    output_data=output_data,
+                                    expected_output=expected_output,
+                                    metadata=combined_metadata,
+                                    span_id=task_result.get("span_id"),
+                                    trace_id=task_result.get("trace_id"),
+                                )
+                                eval_result = await asyncio.to_thread(
+                                    evaluator.evaluate,  # type: ignore[union-attr]
+                                    context,
+                                )
+                            elif _is_function_evaluator(evaluator):
+                                evaluator_name = evaluator.__name__  # type: ignore[union-attr]
+                                eval_result = await asyncio.to_thread(
+                                    evaluator,  # type: ignore[arg-type]
+                                    input_data,
+                                    output_data,
+                                    expected_output,
+                                )
+                            else:
+                                logger.warning(
+                                    "Evaluator %s is neither a BaseEvaluator instance nor a callable function",
+                                    evaluator,
+                                )
+                                evaluator_name = str(evaluator)
+                                eval_result = None
 
-                        extra_return_values: dict[str, JSONType] = {}
-                        if isinstance(eval_result, EvaluatorResult):
-                            if eval_result.reasoning:
-                                extra_return_values["reasoning"] = eval_result.reasoning
-                            if eval_result.assessment:
-                                extra_return_values["assessment"] = eval_result.assessment
-                            if eval_result.metadata:
-                                extra_return_values["metadata"] = eval_result.metadata
-                            if eval_result.tags:
-                                extra_return_values["tags"] = eval_result.tags
-                            eval_result_value = eval_result.value
-                        else:
-                            eval_result_value = eval_result
+                            extra_return_values: dict[str, JSONType] = {}
+                            if isinstance(eval_result, EvaluatorResult):
+                                if eval_result.reasoning:
+                                    extra_return_values["reasoning"] = eval_result.reasoning
+                                if eval_result.assessment:
+                                    extra_return_values["assessment"] = eval_result.assessment
+                                if eval_result.metadata:
+                                    extra_return_values["metadata"] = eval_result.metadata
+                                if eval_result.tags:
+                                    extra_return_values["tags"] = eval_result.tags
+                                eval_result_value = eval_result.value
+                            else:
+                                eval_result_value = eval_result
+                            break
 
-                    except Exception as e:
-                        extra_return_values = {}
-                        eval_err = self._build_evaluator_error(e)
-                        if raise_errors:
-                            raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
+                        except Exception as e:
+                            extra_return_values = {}
+                            eval_err = self._build_evaluator_error(e)
+                            if attempt < max_retries:
+                                self._retries.append(
+                                    "evaluator '{}' row {}: attempt {}/{} failed: {}".format(
+                                        evaluator_name, idx, attempt + 1, max_retries + 1, e
+                                    )
+                                )
+                                semaphore.release()
+                                try:
+                                    await asyncio.sleep(retry_delay(attempt))
+                                finally:
+                                    await semaphore.acquire()
+                                continue
+                            if raise_errors:
+                                raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
                     row_results[evaluator_name] = {
                         "value": eval_result_value,
@@ -1257,13 +1594,19 @@ class Experiment:
         raise_errors: bool = False,
         jobs: int = 10,
     ) -> list[EvaluationResult]:
-        inputs, outputs, expected_outputs, metadata_list, eval_results_by_name = self._prepare_summary_evaluator_data(
-            task_results, eval_results
-        )
+        (
+            inputs,
+            outputs,
+            expected_outputs,
+            metadata_list,
+            eval_results_by_name,
+        ) = self._prepare_summary_evaluator_data(task_results, eval_results)
 
         semaphore = asyncio.Semaphore(jobs)
 
-        async def _evaluate_summary_single(summary_evaluator: Any) -> tuple[str, dict[str, JSONType]]:
+        async def _evaluate_summary_single(
+            summary_evaluator: Any,
+        ) -> tuple[str, dict[str, JSONType]]:
             async with semaphore:
                 eval_result_value: JSONType = None
                 eval_err: JSONType = None
@@ -1296,7 +1639,11 @@ class Experiment:
                     else:
                         evaluator_name = summary_evaluator.__name__
                         eval_result = await asyncio.to_thread(
-                            summary_evaluator, inputs, outputs, expected_outputs, eval_results_by_name
+                            summary_evaluator,
+                            inputs,
+                            outputs,
+                            expected_outputs,
+                            eval_results_by_name,
                         )
                     eval_result_value = eval_result
                 except Exception as e:
@@ -1326,6 +1673,92 @@ class Experiment:
             evaluations.append({"idx": idx, "evaluations": evals_dict})
 
         return evaluations
+
+    async def _run_task_single_iteration(
+        self,
+        jobs: int = 1,
+        raise_errors: bool = False,
+        run_iteration: Optional[int] = 0,
+    ) -> ExperimentResult:
+        run = _ExperimentRunInfo(run_iteration or 0)
+        self._tags["run_id"] = str(run._id)
+        self._tags["run_iteration"] = str(run._run_iteration)
+        task_results = await self._run_task(jobs, run, raise_errors, None)
+        evaluations = await self._run_evaluators(task_results, raise_errors=raise_errors, jobs=jobs)
+        run_result = self._merge_results(run, task_results, evaluations, [])
+        experiment_evals = self._generate_metrics_from_exp_results(run_result)
+        self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+            cast(str, self._id), experiment_evals, convert_tags_dict_to_list(self._tags)
+        )
+        return {
+            "summary_evaluations": {},
+            "rows": [],
+            "runs": [run_result],
+        }
+
+    def _submit_eval_metric(
+        self,
+        eval_name: str,
+        eval_value: JSONType,
+        span: Optional["ExportedLLMObsSpan"] = None,
+        timestamp_ms: Optional[int] = None,
+        is_summary_eval: Optional[bool] = None,
+        reasoning: Optional[str] = None,
+        assessment: Optional[str] = None,
+        metadata: Optional[dict[str, JSONType]] = None,
+        tags: Optional[dict[str, str]] = None,
+    ) -> None:
+        """Submit an evaluation metric for a distributed experiment.
+
+        :param eval_name: Name of the evaluation metric
+        :param eval_value: Value of the evaluation metric
+        :param span: Optional span context dict with span_id and trace_id. If None and not a
+                     summary eval, uses the last span from _run_task_single_iteration.
+        :param timestamp_ms: Optional timestamp in milliseconds
+        :param is_summary_eval: Whether this is a summary-level evaluation
+        :param reasoning: Optional reasoning string
+        :param assessment: Optional assessment string
+        :param metadata: Optional metadata dict
+        :param tags: Optional tags dict
+        """
+        if not self._is_distributed:
+            raise ValueError("this method is only used for distributed experiments")
+
+        if span is not None and (
+            not isinstance(span, dict)
+            or not isinstance(span.get("span_id"), str)
+            or not isinstance(span.get("trace_id"), str)
+        ):
+            raise TypeError(
+                "`span` must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
+
+        if span is None and not is_summary_eval and self.experiment_span is None:
+            raise TypeError("unexpected state, must supply span or must run the experiment first")
+
+        if span is None and not is_summary_eval:
+            span = self.experiment_span
+
+        timestamp_ns = int(timestamp_ms * 1e6) if timestamp_ms is not None else int(time.time() * 1e9)
+
+        eval_metric = self._generate_metric_from_evaluation(
+            eval_name,
+            eval_value,
+            None,
+            span.get("span_id", "") if span else "",
+            span.get("trace_id", "") if span else "",
+            timestamp_ns,
+            "summary" if is_summary_eval else "custom",
+            reasoning,
+            assessment,
+            metadata,
+            tags,
+        )
+
+        self._llmobs_instance._dne_client.experiment_eval_post(  # type: ignore[union-attr]
+            cast(str, self._id), [eval_metric], convert_tags_dict_to_list(self._tags)
+        )
 
 
 class SyncExperiment:
@@ -1367,6 +1800,8 @@ class SyncExperiment:
         jobs: int = 1,
         raise_errors: bool = False,
         sample_size: Optional[int] = None,
+        max_retries: int = 0,
+        retry_delay: Optional[Callable[[int], float]] = None,
     ) -> ExperimentResult:
         """Run the experiment synchronously.
 
@@ -1374,17 +1809,23 @@ class SyncExperiment:
         :param raise_errors: Whether to raise exceptions on task or evaluator errors (default: False)
         :param sample_size: Optional number of dataset records to sample for testing
                             (default: None, uses full dataset)
+        :param max_retries: Maximum number of retries for failed tasks and evaluators (default: 0)
+        :param retry_delay: Callable that takes the attempt number (0-based) and returns the delay
+                            in seconds before the next retry. Default: ``0.1 * (attempt + 1)``
         :return: ExperimentResult containing evaluation results and metadata
         """
-        coro = self._experiment.run(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
+        coro = self._experiment.run(
+            jobs=jobs,
+            raise_errors=raise_errors,
+            sample_size=sample_size,
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+        )
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            # No running loop, so go ahead and run in a new event loop.
             return asyncio.run(coro)
         else:
-            # A loop is already running (e.g. Jupyter notebook).
-            # Run the coroutine in a background thread with its own event loop.
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:

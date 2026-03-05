@@ -13,8 +13,10 @@ class Sample;
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
+// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct name
 struct _frame;
 typedef struct _frame PyFrameObject;
+// NOLINTEND(bugprone-reserved-identifier)
 
 #ifdef __cplusplus
 extern "C"
