@@ -1,8 +1,8 @@
 #!/bin/sh
-staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.(py|pyx|pxd)$' | tr '\n' ' ')
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.py$' | tr '\n' ' ')
 if [ -n "$staged_files" ]; then
     file_count=$(echo "$staged_files" | wc -w | tr -d ' ')
-    echo "Checking $file_count staged Python/Cython file(s) with ruff (--fix)..."
+    echo "Checking $file_count staged Python file(s) with ruff (--fix)..."
     hatch -v run lint:ruff-fix -- $staged_files
     ruff_exit=$?
     if [ $ruff_exit -eq 0 ]; then
@@ -13,5 +13,5 @@ if [ -n "$staged_files" ]; then
     fi
     exit $ruff_exit
 else
-    echo 'ruff check skipped: No Python/Cython files were found in `git diff --staged`'
+    echo 'ruff check skipped: No Python files were found in `git diff --staged`'
 fi
