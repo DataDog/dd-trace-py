@@ -272,15 +272,13 @@ class Flare:
                 client.request("POST", TRACER_FLARE_ENDPOINT, body, headers)
                 response = client.getresponse()
                 if response.status != 200:
-                    msg = "Flare upload responded with status code %s:(%s) %s" % (
+                    msg = "Flare upload (case_id=%s) responded with status code %s:(%s) %s." % (
+                        flare_send_req.case_id,
                         response.status,
                         response.reason,
                         response.read().decode(),
                     )
                     raise TracerFlareSendError(msg)
-            except Exception as e:
-                log.warning("Flare: upload to support failed case_id=%s: %s", flare_send_req.case_id, e)
-                raise e
             finally:
                 if client is not None:
                     client.close()

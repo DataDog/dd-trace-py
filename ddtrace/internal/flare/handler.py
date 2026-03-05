@@ -32,9 +32,8 @@ def prepare_tracer_flare(flare: Flare, configs: list[PayloadType]) -> bool:
             flare.prepare(flare_log_level)
             return True
         except Exception as e:
-            log.warning("Remote config: flare preparation failed: %s; config=%r", e, c)
-            continue
-    log.debug("Remote config: preparation config has no log level, skipping configs=%r", configs)
+            log.warning("Remote config flare preparation failed: %s; config=%r", e, c)
+    log.debug("Remote config flare preparation: config has no log level, skipping configs=%r", configs)
     return False
 
 
@@ -65,8 +64,7 @@ def generate_tracer_flare(flare: Flare, configs: list[PayloadType]) -> bool:
 
             flare.send(flare_request)
             return True
-        except Exception:
-            # flare.send() already logs on failure; avoid duplicate
-            continue
-    log.debug("Remote config: no valid flare upload request in configs, skipping configs=%r", configs)
+        except Exception as e:
+            log.warning("Remote config flare generation failed %s; config=%r", e, c)
+    log.debug("Remote config flare generation: no valid flare upload request in configs, skipping configs=%r", configs)
     return False
