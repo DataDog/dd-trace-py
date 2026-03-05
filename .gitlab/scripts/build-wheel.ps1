@@ -76,7 +76,7 @@ if ($WINDOWS_ARCH -eq "x86") {
     $vcRedist = Join-Path $env:TEMP "vc_redist.x86.exe"
     Invoke-WebRequest "https://aka.ms/vs/17/release/vc_redist.x86.exe" -OutFile $vcRedist
     & $vcRedist /install /quiet /norestart
-    Remove-Item $vcRedist -Force
+    Remove-Item $vcRedist -Force -ErrorAction SilentlyContinue
     section_end "install_vcredist_x86"
 }
 
@@ -88,6 +88,59 @@ $PYTHON_EXE = (uv python find $env:UV_PYTHON).Trim()
 Write-Host "Python executable: $PYTHON_EXE"
 & $PYTHON_EXE --version
 section_end "install_python"
+
+# ── Setup MSVC ────────────────────────────────────────────────────────────────
+# The runner has MSVC installed but the tools directory is not on PATH by
+# default.  Use vswhere + vcvarsall to configure the build environment.
+# For x86 we use the x64_x86 cross-compilation toolset (64-bit host → 32-bit target).
+section_start "setup_msvc" "Setting up MSVC build environment"
+
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+if (-not (Test-Path $vswhere)) {
+    Write-Error "vswhere.exe not found — Visual Studio or Build Tools must be installed"
+    exit 1
+}
+
+$vsPath = & $vswhere -latest -products * `
+    -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+    -property installationPath 2>$null
+if (-not $vsPath) {
+    $vsPath = & $vswhere -latest -products * -property installationPath 2>$null
+}
+if (-not $vsPath) {
+    Write-Error "No Visual Studio installation found"
+    exit 1
+}
+
+$vcvarsall = Join-Path $vsPath "VC\Auxiliary\Build\vcvarsall.bat"
+if (-not (Test-Path $vcvarsall)) {
+    Write-Error "vcvarsall.bat not found at: $vcvarsall"
+    exit 1
+}
+
+$vcArch = if ($WINDOWS_ARCH -eq "x86") { "x64_x86" } else { "amd64" }
+Write-Host "Initializing MSVC: vcvarsall.bat $vcArch"
+
+# Write a temp batch file that calls vcvarsall then dumps the environment.
+# Using Set-Content avoids PowerShell 5.x here-string and shell-chain quoting issues.
+$batchFile = Join-Path $env:TEMP ('setup_vcvars_' + $PID + '.bat')
+Set-Content -Path $batchFile -Encoding ASCII -Value ('@call "' + $vcvarsall + '" ' + $vcArch + ' > NUL 2>&1')
+Add-Content -Path $batchFile -Encoding ASCII -Value 'set'
+
+& cmd.exe /c $batchFile | ForEach-Object {
+    if ($_ -match '^([^=]+)=(.*)$') {
+        Set-Item -Path "env:$($matches[1])" -Value $matches[2]
+    }
+}
+Remove-Item $batchFile -Force -ErrorAction SilentlyContinue
+
+$linkExe = Get-Command link.exe -ErrorAction SilentlyContinue
+if (-not $linkExe) {
+    Write-Error "link.exe not found after MSVC setup — check that Build Tools are installed"
+    exit 1
+}
+Write-Host "link.exe: $($linkExe.Source)"
+section_end "setup_msvc"
 
 # ── Setup Rust ────────────────────────────────────────────────────────────────
 section_start "setup_rust" "Setting up Rust"
