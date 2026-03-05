@@ -19,8 +19,8 @@ if [[ $(gh run view $RUN_ID --exit-status --json status --jq .status) != "comple
 fi
 
 echo "Github workflow finished. Downloading wheels"
-# download all wheels
-gh run download $RUN_ID --repo DataDog/dd-trace-py --pattern "wheels-*" --pattern "source-dist*"
+# Download only win_arm64 wheels; amd64 and x86 wheels are built directly in GitLab.
+gh run download $RUN_ID --repo DataDog/dd-trace-py --pattern "wheels-*-win_arm64"
 
 cd ..
 

@@ -1,0 +1,145 @@
+# Build a Windows wheel for dd-trace-py using uv.
+#
+# Required environment variables:
+#   PYTHON_VERSION   Python version to build for (e.g., "3.12")
+#   WINDOWS_ARCH     Target architecture: "amd64" or "x86" (default: "amd64")
+#
+# Optional environment variables:
+#   CI_PROJECT_DIR   Project root (defaults to two levels above this script)
+
+$ErrorActionPreference = "Stop"
+
+function section_start($id, $title) {
+    $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    Write-Host "`e[0Ksection_start:${ts}:${id}`r`e[0K${title}"
+}
+function section_end($id) {
+    $ts = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    Write-Host "`e[0Ksection_end:${ts}:${id}`r`e[0K"
+}
+
+# ── Resolve config ─────────────────────────────────────────────────────────────
+$PYTHON_VERSION = $env:PYTHON_VERSION
+$WINDOWS_ARCH   = if ($env:WINDOWS_ARCH) { $env:WINDOWS_ARCH } else { "amd64" }
+$CI_PROJECT_DIR = if ($env:CI_PROJECT_DIR) {
+    [System.IO.Path]::GetFullPath($env:CI_PROJECT_DIR)
+} else {
+    (Resolve-Path "$PSScriptRoot\..\..")
+}
+
+if (-not $PYTHON_VERSION) { Write-Error "PYTHON_VERSION is required"; exit 1 }
+
+# Map our arch name to uv's Python platform identifier
+$UV_PYTHON_PLATFORM = if ($WINDOWS_ARCH -eq "x86") { "windows-x86" } else { "windows-x86_64" }
+$env:UV_PYTHON = "cpython-${PYTHON_VERSION}-${UV_PYTHON_PLATFORM}"
+
+# ── Setup directories ──────────────────────────────────────────────────────────
+section_start "setup_env" "Setup environment"
+
+$WORK_DIR = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+$BUILT_WHEEL_DIR = Join-Path $WORK_DIR "built_wheel"
+$FINAL_WHEEL_DIR = Join-Path $CI_PROJECT_DIR "pywheels"
+$DEBUG_WHEEL_DIR = Join-Path $CI_PROJECT_DIR "debugwheelhouse"
+
+New-Item -ItemType Directory -Path $WORK_DIR, $BUILT_WHEEL_DIR, $FINAL_WHEEL_DIR, $DEBUG_WHEEL_DIR -Force | Out-Null
+
+# Build performance — match .build_base in package.yml but lighter for Windows runners
+$env:CMAKE_BUILD_PARALLEL_LEVEL = if ($env:CMAKE_BUILD_PARALLEL_LEVEL) { $env:CMAKE_BUILD_PARALLEL_LEVEL } else { "6" }
+$env:CARGO_BUILD_JOBS           = if ($env:CARGO_BUILD_JOBS)           { $env:CARGO_BUILD_JOBS }           else { "6" }
+$env:CMAKE_ARGS  = "-DNATIVE_TESTING=OFF"
+# Required by ASM CMake to locate the Python3 library (mirrors Linux/macOS builds)
+$env:CIBW_BUILD  = "1"
+
+Write-Host "PYTHON_VERSION:    $PYTHON_VERSION"
+Write-Host "WINDOWS_ARCH:      $WINDOWS_ARCH"
+Write-Host "UV_PYTHON:         $env:UV_PYTHON"
+Write-Host "CI_PROJECT_DIR:    $CI_PROJECT_DIR"
+
+section_end "setup_env"
+
+# ── Install uv ────────────────────────────────────────────────────────────────
+section_start "install_uv" "Installing uv"
+$env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    powershell -Command "irm https://astral.sh/uv/install.ps1 | iex"
+    $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+}
+Write-Host "uv: $(uv --version)"
+section_end "install_uv"
+
+# ── Install Python ─────────────────────────────────────────────────────────────
+section_start "install_python" "Installing Python $PYTHON_VERSION ($WINDOWS_ARCH)"
+uv python install $env:UV_PYTHON
+$PYTHON_EXE = (uv python find $env:UV_PYTHON).Trim()
+Write-Host "Python executable: $PYTHON_EXE"
+& $PYTHON_EXE --version
+section_end "install_python"
+
+# ── Setup Rust ────────────────────────────────────────────────────────────────
+section_start "setup_rust" "Setting up Rust"
+$env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+if (-not (Get-Command rustc -ErrorAction SilentlyContinue)) {
+    $rustupInit = Join-Path $env:TEMP "rustup-init.exe"
+    Invoke-WebRequest "https://win.rustup.rs/x86_64" -OutFile $rustupInit
+    & $rustupInit -y --default-toolchain stable --no-modify-path
+    $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+    Remove-Item $rustupInit -Force
+}
+rustup default stable
+if ($WINDOWS_ARCH -eq "x86") {
+    # Required for Rust to cross-compile to i686-pc-windows-msvc
+    rustup target add i686-pc-windows-msvc
+}
+Write-Host "rustc: $(rustc --version)"
+section_end "setup_rust"
+
+# ── Build wheel ───────────────────────────────────────────────────────────────
+section_start "build_wheel" "Building wheel (Python $PYTHON_VERSION, $WINDOWS_ARCH)"
+Set-Location $CI_PROJECT_DIR
+
+$PY_VER_NODOT = $PYTHON_VERSION -replace '\.', ''
+$BUILD_LOG = Join-Path $DEBUG_WHEEL_DIR "build_cp${PY_VER_NODOT}_${WINDOWS_ARCH}.log"
+
+# Tee output so we see it live and also capture it for the artifact
+uv build --wheel --out-dir $BUILT_WHEEL_DIR . 2>&1 | Tee-Object -FilePath $BUILD_LOG
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Build failed! Log: $BUILD_LOG"
+    exit 1
+}
+
+$BUILT_WHEEL = (Get-ChildItem -Path $BUILT_WHEEL_DIR -Filter "*.whl" | Select-Object -First 1).FullName
+if (-not $BUILT_WHEEL) { Write-Error "No .whl produced"; exit 1 }
+Write-Host "Built: $BUILT_WHEEL"
+section_end "build_wheel"
+
+# ── Strip source files ────────────────────────────────────────────────────────
+section_start "strip_wheel" "Stripping source files"
+& $PYTHON_EXE "$CI_PROJECT_DIR\scripts\zip_filter.py" $BUILT_WHEEL "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md"
+section_end "strip_wheel"
+
+# ── Finalize ──────────────────────────────────────────────────────────────────
+section_start "finalize_wheel" "Finalizing wheel"
+$WHEEL_NAME  = [System.IO.Path]::GetFileName($BUILT_WHEEL)
+$FINAL_WHEEL = Join-Path $FINAL_WHEEL_DIR $WHEEL_NAME
+Copy-Item $BUILT_WHEEL -Destination $FINAL_WHEEL_DIR -Force
+Write-Host "Final: $FINAL_WHEEL"
+section_end "finalize_wheel"
+
+# ── Validate RECORD ───────────────────────────────────────────────────────────
+section_start "validate_wheel" "Validating wheel RECORD"
+& $PYTHON_EXE "$CI_PROJECT_DIR\scripts\validate_wheel.py" $FINAL_WHEEL
+section_end "validate_wheel"
+
+# ── Smoke test ────────────────────────────────────────────────────────────────
+section_start "smoke_test" "Running smoke test"
+$TEST_DIR   = Join-Path $WORK_DIR "test_install"
+$VENV_DIR   = Join-Path $TEST_DIR ".venv"
+New-Item -ItemType Directory -Path $TEST_DIR | Out-Null
+
+uv venv --python $PYTHON_EXE $VENV_DIR
+$VENV_PYTHON = Join-Path $VENV_DIR "Scripts\python.exe"
+uv pip install --python $VENV_PYTHON $FINAL_WHEEL
+& $VENV_PYTHON "$CI_PROJECT_DIR\tests\smoke_test.py"
+section_end "smoke_test"
+
+Write-Host "Done: $FINAL_WHEEL"

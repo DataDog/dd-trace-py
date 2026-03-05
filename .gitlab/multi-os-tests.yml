@@ -51,7 +51,13 @@ os tests macos:
 os tests windows:
   extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
-  needs: ["download windows wheels"]
+  needs:
+    - job: "build windows"
+      artifacts: true
+      parallel:
+        matrix:
+          - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
+            WINDOWS_ARCH: "amd64"
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
