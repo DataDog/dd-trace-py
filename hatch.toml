@@ -46,6 +46,9 @@ fmt = [
     "ruff check --fix --no-cache {args:.}",
     "style",
 ]
+ruff-fix = [
+    "ruff check --fix --show-fixes --no-cache {args:.}",
+]
 # checks should encapsulate all rules used in pre-check
 checks = [
     "style",
