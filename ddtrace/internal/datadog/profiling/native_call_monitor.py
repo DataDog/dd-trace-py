@@ -33,5 +33,7 @@ def stop():
 
     from ddtrace.internal.datadog.profiling.stack._stack import stop_native_monitoring
 
-    stop_native_monitoring()
-    _started = False
+    try:
+        stop_native_monitoring()
+    finally:
+        _started = False

@@ -583,6 +583,7 @@ stop_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         return NULL;
     }
     Py_DECREF(result);
+    g_tool_id = -1;
 
     Py_CLEAR(g_disable_sentinel);
 
