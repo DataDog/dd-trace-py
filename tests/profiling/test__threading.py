@@ -1,4 +1,5 @@
 """Tests for ddtrace.profiling._threading utilities."""
+
 from __future__ import annotations
 
 import threading
@@ -10,7 +11,12 @@ def test_get_thread_native_id_current_thread():
     """get_thread_native_id returns the native id for a normal thread."""
     tid = threading.current_thread().ident
     native_id = _threading.get_thread_native_id(tid)
-    assert native_id == threading.current_thread().native_id
+    expected = getattr(threading.current_thread(), "native_id", None)
+    if expected is not None:
+        assert native_id == expected
+    else:
+        # Current thread is a _DummyThread (e.g. inside profiling test runner)
+        assert native_id == tid
 
 
 def test_get_thread_native_id_unknown_thread():
