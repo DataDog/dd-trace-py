@@ -360,7 +360,7 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
 def get_span_links(span: Span) -> list[_SpanLink]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     current_span_links: list[_SpanLink] = (
-        span._get_ctx_item(SPAN_LINKS) or llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
+        llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or span._get_ctx_item(SPAN_LINKS) or []
     )
     return current_span_links
 
@@ -517,8 +517,8 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.OUTPUT] = experiment_output  # type: ignore[typeddict-item]
         if intent is not None:
             meta[LLMOBS_STRUCT.INTENT] = intent
-    except Exception:
-        log.warning("Error auto-annotating llmobs data")
+    except Exception as e:
+        log.warning("Error auto-annotating llmobs data: %s", e)
     finally:
         span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict[str, Any], llmobs_span_data))
 
