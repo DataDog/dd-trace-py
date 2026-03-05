@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    LLM Observability: Exports ``LLMJudge``, ``BooleanStructuredOutput``, ``ScoreStructuredOutput``, and
+    ``CategoricalStructuredOutput`` from the public ``ddtrace.llmobs`` namespace.
