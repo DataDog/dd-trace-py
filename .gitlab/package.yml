@@ -103,7 +103,7 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
       - ARCH_TAG: "amd64"
         PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: *AARCH64_IMAGES
+        IMAGE_TAG: *X86_64_IMAGES
         DD_SLIM_BUILD: "1"
   script:
     - manylinux-interpreters ensure "${PYTHON_TAG}"
