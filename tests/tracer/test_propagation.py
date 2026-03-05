@@ -681,7 +681,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 assert next_headers["x-datadog-tags"].startswith("_dd.p.ts=02,")
 
             # Ensure span set to user keep regardless received priority (appsec event upstream)
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP  # user keep always
+            assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP  # user keep always
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):

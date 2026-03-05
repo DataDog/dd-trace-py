@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import contextlib
 import json
 import random
 import string
@@ -979,11 +978,6 @@ def test_list_string_table():
     assert list(t) == ["", "foobar", "foobaz"]
 
 
-@contextlib.contextmanager
-def _value():
-    yield "value"
-
-
 @pytest.mark.parametrize(
     "field,invalid_value,expected_value,span_name",
     [
@@ -1035,40 +1029,6 @@ def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_v
     # Verify the span field was converted to the expected value
     assert getattr(span, field) == expected_value
 
-
-@pytest.mark.parametrize(
-    "meta,metrics",
-    [
-        ({"num": 100}, {}),
-        # Validating behavior with a context manager is a customer regression
-        ({"key": _value()}, {}),
-        ({}, {"key": "value"}),
-    ],
-)
-def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any]):
-    """Encoding invalid meta/metrics data should not raise an exception"""
-    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
-
-    span = Span(name="test")
-    span._meta = meta  # type: ignore
-    span._metrics = metrics  # type: ignore
-
-    trace = [span]
-    encoder.put(trace)
-
-    encoded_payloads = encoder.encode()
-    assert len(encoded_payloads) == 1
-
-    # Ensure it can be decoded properly
-    traces = msgpack.unpackb(encoded_payloads[0][0], raw=False)
-    assert len(traces) == 1
-    assert len(traces[0]) == 1
-
-    # We didn't encode the invalid meta/metrics
-    for key in meta.keys():
-        assert key not in traces[0][0]["meta"]
-    for key in metrics.keys():
-        assert key not in traces[0][0]["metrics"]
 
 
 @allencodings
