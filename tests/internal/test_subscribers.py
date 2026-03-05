@@ -351,6 +351,36 @@ def test_span_context_event_no_active_context_with_distributed_context(test_span
     assert test_spans.spans[1].parent_id == test_spans.spans[0].span_id
 
 
+def test_span_context_event_active_parent(test_spans):
+    """Test that use_active_context=True uses active parent without forcing activation."""
+
+    @event
+    class TestSpanEvent(TracingEvent):
+        event_name = "test.active.parent"
+        span_type = "worker"
+        span_kind = "consumer"
+
+        def __post_init__(self):
+            self.span_name = "child.operation"
+
+    class TestSpanSubscriber(TracingSubscriber):
+        event_names = (TestSpanEvent.event_name,)
+
+    with tracer.trace("local.processing"):
+        with core.context_with_event(
+            TestSpanEvent(
+                component="test_component",
+            )
+        ):
+            # The current active span should still be "local.processing"
+            current_span = tracer.current_span()
+            assert current_span is not None
+            assert current_span.name == "local.processing"
+
+    test_spans.assert_span_count(2)
+    assert test_spans.spans[1].parent_id == test_spans.spans[0].span_id
+
+
 def test_span_context_event_end_span_false(test_spans):
     """Test that setting _end_span=False prevents automatic span finishing."""
 

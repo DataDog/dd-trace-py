@@ -6,3 +6,5 @@ dispatch:
   api: dispatch
 dispatch_event:
   api: dispatch_event
+trace_api:
+  api: trace_api

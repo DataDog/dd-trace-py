@@ -59,6 +59,10 @@ class Subscriber:
     _event_handlers: tuple = ()
 
     def __init_subclass__(cls, **kwargs):
+        """Automatically register listeners at subclass definition.
+        Handlers are registered from Base class to Children classes to allow
+        behavior composition (a child class benefit from the parent class hook)
+        """
         super().__init_subclass__(**kwargs)
 
         cls._event_handlers = tuple(
@@ -67,8 +71,10 @@ class Subscriber:
             if issubclass(base_cls, Subscriber) and "on_event" in base_cls.__dict__ and base_cls is not Subscriber
         )
 
+        # Register only classes that define their own event_names.
+        # This avoids auto-registering abstract/shared base subscribers that inherit event_names.
         if "event_names" not in cls.__dict__:
-            log.warning("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
+            log.debug("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
             return
 
         for event_name in cls.event_names:
@@ -130,6 +136,11 @@ class ContextSubscriber(Generic[EventType]):
     _ended_handlers: tuple = ()
 
     def __init_subclass__(cls, **kwargs):
+        """Automatically register listeners at subclass definition.
+        Handlers are registered from Base class to Children classes to allow
+        behavior composition (a child class benefit from the parent class hook)
+        """
+
         super().__init_subclass__(**kwargs)
 
         cls._started_handlers = tuple(
@@ -150,6 +161,7 @@ class ContextSubscriber(Generic[EventType]):
         # Register only classes that define their own event_names.
         # This avoids auto-registering abstract/shared base subscribers that inherit event_names.
         if "event_names" not in cls.__dict__:
+            log.debug("Subscriber class %s does not define 'event_names' and will not be registered. ", cls.__name__)
             return
 
         for event_name in cls.event_names:

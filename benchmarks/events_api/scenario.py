@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import bm
 import bm.utils as utils
 
+from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
@@ -10,8 +11,8 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.events import Event
-from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.events import event_field
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.trace import tracer
 
 
@@ -38,46 +39,6 @@ class BenchmarkDispatchEvent(Event):
     status_code: int
 
 
-class SpanContextSubscriber(TracingSubscriber):
-    event_names = (BenchmarkTracingEvent.event_name,)
-
-    @classmethod
-    def on_started(cls, ctx: core.ExecutionContext) -> None:
-        span = ctx.span
-        event: BenchmarkTracingEvent = ctx.event
-        span._set_tag_str("http.url", event.url)
-        span._set_tag_str("http.method", event.method)
-        span.set_metric("http.status_code", event.status_code)
-
-
-def _context_started_handler(ctx: core.ExecutionContext) -> None:
-    _start_span(ctx, call_trace=True)
-    span = ctx.span
-    span._set_tag_str("http.url", ctx.get_item("url"))
-    span._set_tag_str("http.method", ctx.get_item("method"))
-    span.set_metric("http.status_code", ctx.get_item("status_code"))
-
-
-def _context_ended_handler(ctx: core.ExecutionContext, exc_info) -> None:
-    _finish_span(ctx, exc_info)
-
-
-core.on("context.started.core.api.event", _context_started_handler)
-core.on("context.ended.core.api.event", _context_ended_handler)
-
-
-def _dispatch_listener(*_args) -> None:
-    pass
-
-
-def _dispatch_event_listener(_event: BenchmarkDispatchEvent) -> None:
-    pass
-
-
-core.on("core.api.dispatch.event", _dispatch_listener)
-core.on(BenchmarkDispatchEvent.event_name, _dispatch_event_listener)
-
-
 class EventsAPIScenario(bm.Scenario):
     api: str
 
@@ -86,6 +47,20 @@ class EventsAPIScenario(bm.Scenario):
         utils.drop_telemetry_events()
 
         def benchmark_core_api(loops):
+            # Register benchmark specific handlers
+            def _context_started_handler(ctx: core.ExecutionContext) -> None:
+                _start_span(ctx, call_trace=True)
+                span = ctx.span
+                span._set_tag_str("http.url", ctx.get_item("url"))
+                span._set_tag_str("http.method", ctx.get_item("method"))
+                span.set_metric("http.status_code", ctx.get_item("status_code"))
+
+            def _context_ended_handler(ctx: core.ExecutionContext, exc_info) -> None:
+                _finish_span(ctx, exc_info)
+
+            core.on("context.started.core.api.event", _context_started_handler)
+            core.on("context.ended.core.api.event", _context_ended_handler)
+
             for _ in range(loops):
                 with core.context_with_data(
                     "core.api.event",
@@ -101,6 +76,18 @@ class EventsAPIScenario(bm.Scenario):
                     pass
 
         def benchmark_events_api(loops):
+            # Register benchmark specific subscriber
+            class SpanContextSubscriber(TracingSubscriber):
+                event_names = (BenchmarkTracingEvent.event_name,)
+
+                @classmethod
+                def on_started(cls, ctx: core.ExecutionContext) -> None:
+                    span = ctx.span
+                    event: BenchmarkTracingEvent = ctx.event
+                    span._set_tag_str("http.url", event.url)
+                    span._set_tag_str("http.method", event.method)
+                    span.set_metric("http.status_code", event.status_code)
+
             for _ in range(loops):
                 with core.context_with_event(
                     BenchmarkTracingEvent(
@@ -115,12 +102,40 @@ class EventsAPIScenario(bm.Scenario):
                     pass
 
         def benchmark_dispatch(loops):
+            # Register benchmark specific listener
+            def _dispatch_listener(*_args) -> None:
+                pass
+
+            core.on("core.api.dispatch.event", _dispatch_listener)
+
             for _ in range(loops):
                 core.dispatch("core.api.dispatch.event", ("myurl.com", "GET", 200))
 
         def benchmark_dispatch_event(loops):
+            class DispatchEventSubscriber(Subscriber):
+                event_names = (BenchmarkDispatchEvent.event_name,)
+
+                @classmethod
+                def on_event(cls, event_instance: BenchmarkDispatchEvent) -> None:
+                    pass
+
             for _ in range(loops):
                 core.dispatch_event(BenchmarkDispatchEvent(url="myurl.com", method="GET", status_code=200))
+
+        def benchmark_trace_api(loops):
+            for _ in range(loops):
+                span = tracer.trace(
+                    "benchmarking",
+                    service="base",
+                    resource="test",
+                    span_type="base",
+                )
+                span._set_tag_str(COMPONENT, "test")
+                span._set_tag_str(SPAN_KIND, "client")
+                span._set_tag_str("http.url", "myurl.com")
+                span._set_tag_str("http.method", "GET")
+                span.set_metric("http.status_code", 200)
+                span.finish()
 
         if self.api == "core":
             yield benchmark_core_api
@@ -130,5 +145,7 @@ class EventsAPIScenario(bm.Scenario):
             yield benchmark_dispatch
         elif self.api == "dispatch_event":
             yield benchmark_dispatch_event
+        elif self.api == "trace_api":
+            yield benchmark_trace_api
         else:
             raise RuntimeError("Unknown benchmark api {!r}".format(self.api))

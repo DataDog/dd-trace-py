@@ -22,6 +22,8 @@ TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
 
 def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     """Adaptation of _start_span from trace_handlers to use the event directly
+    Once every integration adopted events API, trace_handlers _start_span
+    should be completly removed.
 
     Args:
         ctx: ExecutionContext containing the event
@@ -44,12 +46,8 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         "span_type": event.span_type,
         "resource": event.resource,
         "service": event.service,
+        "activate": event.activate,
     }
-
-    if not event.use_active_context:
-        span_kwargs["activate"] = event.activate
-        if event.distributed_context:
-            span_kwargs["child_of"] = event.distributed_context
 
     if config._inferred_proxy_services_enabled:
         # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
@@ -58,7 +56,11 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
-    span = (tracer.trace if event.use_active_context else tracer.start_span)(event.span_name, **span_kwargs)
+    default_child_of = tracer.context_provider.active() if event.use_active_context else event.distributed_context
+    if default_child_of is not None:
+        span_kwargs.setdefault("child_of", default_child_of)
+
+    span = tracer.start_span(event.span_name, **span_kwargs)
 
     span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
 
