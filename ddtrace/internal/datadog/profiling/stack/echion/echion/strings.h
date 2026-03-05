@@ -67,7 +67,13 @@ class StringTable
 
     static constexpr bool is_ephemeral(StringTag tag)
     {
-        return tag == StringTag::TaskName || tag == StringTag::GreenletName;
+        // GreenletName is NOT ephemeral because greenlet names are cached in
+        // GreenletInfo::name as StringTable keys.  If clear_ephemeral() ran
+        // while a GreenletInfo still held the key, subsequent lookups would
+        // fail and sampling would be lost for that greenlet.  Greenlet strings
+        // are cleaned up naturally when the GreenletInfo is removed via
+        // untrack_greenlet().
+        return tag == StringTag::TaskName;
     }
 
     static constexpr Key INVALID = 1;
