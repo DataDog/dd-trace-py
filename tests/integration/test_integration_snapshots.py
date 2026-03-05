@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-import logging
 import os
 import signal
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO

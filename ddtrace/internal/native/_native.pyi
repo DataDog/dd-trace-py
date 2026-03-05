@@ -557,7 +557,7 @@ class SpanData:
     def _has_attribute(self, key: str) -> bool: ...
 
     # Bulk read methods — encoder helpers only, do not use elsewhere
-    def _get_str_attributes(self) -> Mapping[str, str]:
+    def _get_str_attributes(self) -> dict[str, str]:
         """Return all string attributes as the live internal dict cache (no copy).
 
         **Encoder helper — do not use in general code.** Prefer ``_get_str_attribute`` for
@@ -565,12 +565,11 @@ class SpanData:
 
         **Do not mutate the returned mapping.**  It is the internal cache kept in sync with the
         Rust HashMap.  Mutating it directly bypasses that sync and corrupts internal state.
-        The return type is ``Mapping`` (not ``dict``) to surface mutation attempts as type errors.
         The underlying object is a ``PyDict`` — a deliberate performance optimisation so that
         encoders can use ``PyDict_Next`` for zero-copy iteration.
         """
         ...
-    def _get_numeric_attributes(self) -> Mapping[str, float]:
+    def _get_numeric_attributes(self) -> dict[str, float]:
         """Return all numeric attributes as the live internal dict cache (no copy).
 
         **Encoder helper — do not use in general code.** Prefer ``_get_numeric_attribute`` for
@@ -578,7 +577,6 @@ class SpanData:
 
         **Do not mutate the returned mapping.**  It is the internal cache kept in sync with the
         Rust HashMap.  Mutating it directly bypasses that sync and corrupts internal state.
-        The return type is ``Mapping`` (not ``dict``) to surface mutation attempts as type errors.
         The underlying object is a ``PyDict`` — a deliberate performance optimisation so that
         encoders can use ``PyDict_Next`` for zero-copy iteration.
         """
