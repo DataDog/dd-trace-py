@@ -1,11 +1,11 @@
 from datetime import datetime
 import typing as t
-from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.flare.flare import Flare
-from ddtrace.internal.flare.handler import _generate_tracer_flare
-from ddtrace.internal.flare.handler import _prepare_tracer_flare
+from ddtrace.internal.flare.handler import cleanup_tracer_flare
+from ddtrace.internal.flare.handler import generate_tracer_flare
+from ddtrace.internal.flare.handler import prepare_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import RCCallback
@@ -32,7 +32,6 @@ class TracerFlareCallback(RCCallback):
 
     def __init__(
         self,
-        callback: Callable[[Flare, dict, bool], None],
         flare: Flare,
         state: TracerFlareState,
         stale_duration_mins: int = DEFAULT_STALE_FLARE_DURATION_MINS,
@@ -45,7 +44,6 @@ class TracerFlareCallback(RCCallback):
             state: Shared state for tracking flare requests
             stale_duration_mins: Minutes before a flare request is considered stale
         """
-        self._callback = callback
         self._flare = flare
         self._state = state
         self._stale_duration_secs = stale_duration_mins * 60
@@ -70,7 +68,7 @@ class TracerFlareCallback(RCCallback):
                 self._state.current_request_start,
             )
             self._state.current_request_start = None
-            self._callback(self._flare, {}, True)
+            cleanup_tracer_flare(self._flare)
 
     def __call__(self, payloads: t.Sequence[Payload]) -> None:
         """Process tracer flare configuration payloads.
@@ -81,9 +79,11 @@ class TracerFlareCallback(RCCallback):
         if not payloads:
             return
 
+        log.debug("Tracer Flare Callback called with payloads: %r", payloads)
+
         for payload in payloads:
             if payload.metadata is None:
-                log.debug("No metadata for tracer flare payload")
+                log.debug("No metadata for tracer flare payload. Path: %r", payload.path)
                 continue
 
             product_type = payload.metadata.product_name
@@ -91,14 +91,14 @@ class TracerFlareCallback(RCCallback):
                 # We will only process one tracer flare request at a time
                 if self._state.current_request_start is not None:
                     log.warning(
-                        "There is already a tracer flare job started at %s. Skipping new request.",
+                        "%r: There is already a tracer flare job started at %s. Skipping new request.",
+                        payload.metadata,
                         str(self._state.current_request_start),
                     )
                     continue
-                log.info("Preparing tracer flare")
                 # Handle both list (unit tests) and dict (system tests) data structures
                 config_data = payload.content if isinstance(payload.content, list) else [payload.content]
-                if _prepare_tracer_flare(self._flare, config_data):
+                if prepare_tracer_flare(self._flare, config_data):
                     self._state.current_request_start = datetime.now()
 
             elif product_type == "AGENT_TASK":
@@ -106,18 +106,18 @@ class TracerFlareCallback(RCCallback):
                 # In this case we won't have anything to send, so we log and do nothing
                 if self._state.current_request_start is None:
                     # If no AGENT_CONFIG was received, start the flare job now with default settings
-                    log.info("Starting tracer flare job for AGENT_TASK without prior AGENT_CONFIG")
+                    log.info(
+                        "%r: Starting tracer flare job for AGENT_TASK without prior AGENT_CONFIG.", payload.metadata
+                    )
                     # Prepare with default log level (similar to how .NET handles this)
                     if self._flare.prepare("DEBUG"):
                         self._state.current_request_start = datetime.now()
                     else:
-                        log.warning("Failed to prepare tracer flare. Skipping new request.")
+                        log.warning("%r: Failed to prepare tracer flare. Skipping new request.", payload.metadata)
                         continue
-
-                log.info("Generating and sending tracer flare")
                 # Handle both list (unit tests) and dict (system tests) data structures
                 task_data = payload.content if isinstance(payload.content, list) else [payload.content]
-                if _generate_tracer_flare(self._flare, task_data):
+                if generate_tracer_flare(self._flare, task_data):
                     self._state.current_request_start = None
             else:
-                log.warning("Received unexpected product type for tracer flare: %s", product_type)
+                log.warning("%r: Received unexpected product type for tracer flare: %s", payload.metadata, product_type)

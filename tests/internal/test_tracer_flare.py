@@ -20,7 +20,6 @@ from ddtrace.internal.flare._subscribers import TracerFlareState
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
-from ddtrace.internal.flare.handler import _handle_tracer_flare
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import remote_config_build_payload as build_payload
@@ -768,7 +767,6 @@ class TracerFlareCallbackTests(TestCase):
         )
         self.state = TracerFlareState()
         self.callback = TracerFlareCallback(
-            callback=_handle_tracer_flare,
             flare=self.flare,
             state=self.state,
             stale_duration_mins=20,
