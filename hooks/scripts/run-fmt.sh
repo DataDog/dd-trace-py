@@ -1,7 +1,7 @@
 #!/bin/sh
-staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.py$')
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.(py|pyx|pxd)$' | tr '\n' ' ')
 if [ -n "$staged_files" ]; then
-    hatch -v run lint:fmt $staged_files
+    hatch -v run lint:fmt -- $staged_files
 else
-    echo 'hatch style check skipped: No Python files were found in `git diff --staged`'
+    echo 'hatch lint:fmt skipped: No Python/Cython files were found in `git diff --staged`'
 fi
