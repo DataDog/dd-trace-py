@@ -643,7 +643,7 @@ class Dataset:
     _updated_record_ids_to_new_fields: dict[str, UpdatableDatasetRecord]
     _deleted_record_ids: list[str]
 
-    BATCH_UPDATE_THRESHOLD = 5 * 1024 * 1024  # 5MB
+    BATCH_UPDATE_THRESHOLD = 500 * 1024  # 500kb
 
     def __init__(
         self,
