@@ -1055,7 +1055,7 @@ suites:
     runner: riot
     snapshot: true
   ray:
-    parallelism: 1
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
