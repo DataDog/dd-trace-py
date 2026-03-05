@@ -24,7 +24,7 @@ FrameStack::render(EchionSampler& echion)
         // frame.lasti in _Py_CODEUNIT units. Convert to bytes for the registry lookup.
         if (frame.code_object != 0 && frame.lasti >= 0) {
             int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
-            auto* entry = registry.lookup(frame.code_object, offset_bytes, frame.first_lineno);
+            auto entry = registry.lookup(frame.code_object, offset_bytes, frame.first_lineno);
             if (entry) {
                 renderer.render_native_frame(entry->name, entry->module);
             }

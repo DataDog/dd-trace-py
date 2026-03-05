@@ -21,16 +21,18 @@ NativeCallRegistry::register_call_site(uintptr_t code_ptr,
     }
 }
 
-const NativeCallEntry*
+std::optional<NativeCallEntry>
 NativeCallRegistry::lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno)
 {
     CallSiteKey key{ code_ptr, offset_bytes, first_lineno };
     std::shared_lock lock(mtx);
+
     auto it = call_sites.find(key);
     if (it != call_sites.end()) {
-        return &it->second;
+        return it->second;
     }
-    return nullptr;
+
+    return std::nullopt;
 }
 
 void

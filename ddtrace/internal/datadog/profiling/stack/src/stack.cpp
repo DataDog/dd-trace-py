@@ -329,13 +329,23 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
 
     PyObject* callable = args[2];
 
-    // Python callable -> just DISABLE, don't register
-    if (PyFunction_Check(callable)) {
+    // Exclude non-C callables: these are Python-level constructs whose
+    // actual work (if any) will fire separate CALL events for the underlying
+    // C functions they delegate to.
+    if (PyFunction_Check(callable)         // def / lambda / async def
+        || PyMethod_Check(callable)        // bound method wrapping a PyFunction
+        || PyType_Check(callable)          // class instantiation (__init__/__new__ fire separately)
+        || PyGen_Check(callable)           // generator object (not a C call)
+        || PyCoro_CheckExact(callable)     // coroutine object
+        || PyAsyncGen_CheckExact(callable) // async generator object
+    ) {
         Py_INCREF(g_disable_sentinel);
         return g_disable_sentinel;
     }
 
-    // C callable -> extract name+module, register call site, DISABLE
+    // Remaining callables are assumed to be C-level: builtin_function_or_method,
+    // method_descriptor, slot_wrapper, classmethod_descriptor, etc.
+    // Extract name+module, register call site, then return DISABLE.
     PyObject* code = args[0];
     PyObject* offset_obj = args[1];
     int offset_bytes = static_cast<int>(PyLong_AsLong(offset_obj));

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <unordered_map>
@@ -53,7 +54,7 @@ class NativeCallRegistry
                             int first_lineno,
                             std::string name,
                             std::string module);
-    const NativeCallEntry* lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno);
+    std::optional<NativeCallEntry> lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno);
     void reset();
 
     static void postfork_child();
