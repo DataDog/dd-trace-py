@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix for potential crashes at process shutdown due to incorrect detection of
+    the VM finalization state when stopping periodic worker threads.
