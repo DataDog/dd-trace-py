@@ -147,6 +147,7 @@ from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
+from ddtrace.llmobs._utils import get_span_links
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
@@ -412,12 +413,14 @@ def _build_span_meta(
     if span.context.get_baggage_item(EXPERIMENT_ID_KEY) and span_kind == "experiment" and expected_output is not None:
         meta["expected_output"] = expected_output
 
-    input_value = llmobs_span.input if input_type == "messages" else llmobs_span.input[0].get("content", "")
-    if input_value is not None and input_type != "":
-        meta["input"][input_type] = input_value
-    output_value = llmobs_span.output if output_type == "messages" else llmobs_span.output[0].get("content", "")
-    if llmobs_span.output is not None and output_type != "":
-        meta["output"][output_type] = output_value
+    if input_type == "messages":
+        meta["input"]["messages"] = llmobs_span.input
+    elif input_type == "value" and llmobs_span.input:
+        meta["input"]["value"] = llmobs_span.input[0].get("content", "")
+    if output_type == "messages":
+        meta["output"]["messages"] = llmobs_span.output
+    elif output_type == "value" and llmobs_span.output:
+        meta["output"]["value"] = llmobs_span.output[0].get("content", "")
 
     return meta
 
@@ -563,9 +566,7 @@ class LLMObs(Service):
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         session_id = _get_session_id(span)
         tags = self._llmobs_tags(span, ml_app, session_id, True, llmobs_data)
-        span_links = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS)
-        if span_links and not isinstance(span_links, list):
-            log.warning("Dropping invalid span_links (expected list): %s", str(span_links))
+        span_links = get_span_links(span)
         _dd_attrs = {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
@@ -586,7 +587,7 @@ class LLMObs(Service):
             "metrics": metrics,
             "session_id": session_id or "",
             "tags": tags,
-            "span_links": span_links or [],
+            "span_links": span_links,
             "_dd": _dd_attrs,
         }
 
