@@ -50,7 +50,11 @@ PROMPT = [
             ContentPart(
                 type="input_image",
                 image_url=ImageURL(
-                    url="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+                    url=(
+                        "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/"
+                        "Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-"
+                        "Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+                    )
                 ),
             ),
         ],
@@ -151,6 +155,28 @@ def test_evaluate_method(
     assert_mock_execute_request_call(
         mock_execute_request, ai_guard_client, messages, endpoint="https://api.example.com/ai-guard"
     )
+
+
+@pytest.mark.parametrize(
+    "options,should_block",
+    [
+        pytest.param(None, True, id="options omitted follows remote blocking"),
+        pytest.param(Options(), True, id="block omitted follows remote blocking"),
+        pytest.param(Options(block=False), False, id="explicit block false disables blocking"),
+    ],
+)
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_evaluate_block_defaults_to_remote_is_blocking_enabled(
+    mock_execute_request, ai_guard_client, options, should_block
+):
+    mock_execute_request.return_value = mock_evaluate_response("DENY", "Nope", ["deny_everything"], True)
+
+    if should_block:
+        with pytest.raises(AIGuardAbortError):
+            ai_guard_client.evaluate(TOOL_CALL, options)
+    else:
+        result = ai_guard_client.evaluate(TOOL_CALL, options)
+        assert result["action"] == "DENY"
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
