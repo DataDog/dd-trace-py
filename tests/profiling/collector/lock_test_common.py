@@ -29,6 +29,7 @@ def assert_pep604_type_union_syntax(lock_class: _LockAllocatorWrapper) -> None:
 
     union: UnionType = lock_class | None  # type: ignore[operator]
     assert isinstance(union, types.UnionType)
+    assert union == original | None
 
     union_rev: UnionType = None | lock_class  # type: ignore[operator]
     assert isinstance(union_rev, types.UnionType)
