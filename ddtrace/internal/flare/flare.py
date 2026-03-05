@@ -201,12 +201,21 @@ class Flare:
             return
 
         log.debug("Sending tracer flare")
-        # Use native zip_and_send
-        self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
+        try:
+            # Use native zip_and_send
+            self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
+        except Exception as e:
+            raise
+        finally:
+            os.remove(self.flare_dir / TRACER_FLARE_LOCK)
         log.info("Successfully sent the flare to Zendesk ticket %s", flare_action.case_id)
 
     def clean_up_files(self):
         """Clean up the flare directory using Python's shutil."""
+        # If lock file exists, it means the flare is still being sent, so we should not clean up yet
+        if (self.flare_dir / TRACER_FLARE_LOCK).exists():
+            log.debug("Flare lock file exists, skipping cleanup")
+            return
         try:
             shutil.rmtree(self.flare_dir)
         except Exception as e:
