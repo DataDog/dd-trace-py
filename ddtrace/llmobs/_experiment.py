@@ -1266,7 +1266,10 @@ class Experiment:
         finally:
             result = self._build_result(self._run_results)
             self._log_experiment_summary(result)
-        self._update_status("failed" if self._has_errors else "completed")
+        if self._has_errors:
+            self._update_status("failed", error=self._build_error_summary(result))
+        else:
+            self._update_status("completed")
         return result
 
     @staticmethod
@@ -1318,6 +1321,24 @@ class Experiment:
             parts.append("Retries ({}):\n  {}".format(len(self._retries), "\n  ".join(self._retries)))
 
         return "\n".join(parts)
+
+    @staticmethod
+    def _build_error_summary(result: ExperimentResult) -> str:
+        errors = []
+        for run in result.get("runs", []):
+            for row in run.rows:
+                err = row.get("error")
+                if isinstance(err, dict) and err.get("message"):
+                    errors.append("{}: {}".format(err.get("type", "Error"), err["message"]))
+                for name, data in (row.get("evaluations") or {}).items():
+                    if isinstance(data, dict) and isinstance(data.get("error"), dict) and data["error"].get("message"):
+                        errors.append(
+                            "{} ({}): {}".format(name, data["error"].get("type", "Error"), data["error"]["message"])
+                        )
+        if not errors:
+            return "unknown error"
+        unique = list(dict.fromkeys(errors))
+        return "; ".join(unique[:5])
 
     def _log_experiment_summary(self, result: ExperimentResult) -> None:
         msg = self._format_experiment_summary(result)
