@@ -15,18 +15,15 @@ class UDSHTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
     # mechanism, they are actually used as HTTP headers such as `Host`.
     def __init__(
         self,
-        path,  # type: str
-        *args,  # type: Any
-        **kwargs,  # type: Any
-    ):
-        # type: (...) -> None
+        path: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         super(UDSHTTPConnection, self).__init__(*args, **kwargs)
         self.path = path
 
-    def connect(self):
-        # type: () -> None
+    def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        # Match socket.create_connection behavior for timeout handling.
         if isinstance(self.timeout, (int, float)):
             sock.settimeout(self.timeout)
         sock.connect(self.path)
