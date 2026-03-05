@@ -102,10 +102,10 @@ class TestBaseEvaluator:
         result = evaluator.evaluate(ctx)
         assert result == {"passed": True, "score": 1.0}
 
-    def test_evaluator_publish_not_implemented(self):
+    def test_evaluator_build_publish_payload_not_implemented(self):
         evaluator = SimpleEvaluator()
-        with pytest.raises(NotImplementedError, match="publish"):
-            evaluator.publish(ml_app="my-app")
+        with pytest.raises(NotImplementedError, match="publishing"):
+            evaluator._build_publish_payload(ml_app="my-app")
 
     def test_evaluator_name_validation_invalid_characters(self):
         """Test that names with invalid characters are rejected."""

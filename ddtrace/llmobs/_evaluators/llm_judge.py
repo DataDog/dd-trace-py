@@ -11,12 +11,10 @@ from typing import Literal
 from typing import Optional
 from typing import Protocol
 from typing import Union
-import urllib.parse
 
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
-from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _validate_evaluator_name
 from ddtrace.llmobs.types import JSONType
 
@@ -651,10 +649,6 @@ class LLMJudge(BaseEvaluator):
         self._provider = provider
         self._model = model
 
-        from ddtrace.llmobs import LLMObs
-
-        self._llmobs_service = LLMObs
-
         if client:
             self._client = client
         elif provider == "openai":
@@ -695,12 +689,12 @@ class LLMJudge(BaseEvaluator):
             return self._parse_response(response)
         return response
 
-    def publish(
+    def _build_publish_payload(
         self,
         ml_app: str,
         eval_name: Optional[str] = None,
         variable_mapping: Optional[dict[str, str]] = None,
-    ) -> dict[str, str]:
+    ) -> dict[str, Any]:
         if not isinstance(ml_app, str) or not ml_app.strip():
             raise ValueError("ml_app must be a non-empty string")
         ml_app = ml_app.strip()
@@ -756,27 +750,10 @@ class LLMJudge(BaseEvaluator):
         if model_name:
             app_payload["model_name"] = model_name
 
-        evaluation_payload: dict[str, Any] = {
+        return {
             "eval_name": resolved_eval_name,
             "applications": [app_payload],
         }
-
-        dne_client = getattr(getattr(self._llmobs_service, "_instance", None), "_dne_client", None)
-        if dne_client is None:
-            raise ValueError(
-                "LLMObs experiments client is not initialized."
-            )
-
-        response = dne_client.publish_custom_evaluator(evaluation_payload)
-        if response.status != 200:
-            raise ValueError(
-                "Failed to publish evaluator {}: {} {}".format(
-                    resolved_eval_name, response.status, response.get_json() or response.body
-                )
-            )
-
-        query = urllib.parse.urlencode({"evalName": resolved_eval_name, "applicationName": ml_app})
-        return {"ui_url": "{}{}?{}".format(_get_base_url(), "/llm/evaluations/custom", query)}
 
     @staticmethod
     def _validate_variable_mapping(variable_mapping: Optional[dict[str, str]]) -> dict[str, str]:

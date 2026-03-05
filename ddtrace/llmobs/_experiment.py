@@ -235,17 +235,13 @@ class BaseEvaluator(ABC):
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
 
-    def publish(
+    def _build_publish_payload(
         self,
         ml_app: str,
         eval_name: Optional[str] = None,
         variable_mapping: Optional[dict[str, str]] = None,
-    ) -> dict[str, str]:
-        """Publish evaluator configuration to Datadog custom evaluation drafts.
-
-        Subclasses can override this method when they support publishing.
-        """
-        raise NotImplementedError("This evaluator does not support publish()")
+    ) -> dict[str, Any]:
+        raise NotImplementedError("This evaluator does not support publishing.")
 
 
 class BaseSummaryEvaluator(ABC):
