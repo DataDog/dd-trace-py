@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
+      ["8597866a-fded-46dc-9a63-7e46ab1b71e5"]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '119'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
+  response:
+    body:
+      string: '{"data":[{"id":"8597866a-fded-46dc-9a63-7e46ab1b71e5","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2026-02-27T16:35:44.196462Z","current_version":1,"dataset_type":"user","deleted_at":"2026-02-27T16:35:49.948499Z","description":"A
+        test dataset","name":"test-dataset-test_dataset_push_new_record_with_tags_no_tag_operations","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","updated_at":"2026-02-27T16:35:46.60646Z"}}]}'
+    headers:
+      content-length:
+      - '476'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 27 Feb 2026 16:35:49 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
