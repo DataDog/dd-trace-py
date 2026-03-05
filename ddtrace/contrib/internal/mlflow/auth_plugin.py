@@ -2,7 +2,7 @@
 MLFlow authentication plugin for Datadog API key injection.
 """
 
-import os
+from ddtrace.internal.settings._config import config
 
 
 try:
@@ -29,7 +29,7 @@ class DatadogHeaderProvider(RequestHeaderProvider):
         Returns:
             bool: True if DD_API_KEY, DD_APP_KEY and DD_MODEL_LAB_ENABLED env variables are set, else False
         """
-        return "DD_API_KEY" in os.environ and "DD_APP_KEY" in os.environ and "DD_MODEL_LAB_ENABLED" in os.environ
+        return config._dd_api_key and config._dd_app_key and config._model_lab_enabled
 
     def request_headers(self):
         """
@@ -39,8 +39,6 @@ class DatadogHeaderProvider(RequestHeaderProvider):
             dict: Dictionary containing the DD-API-KEY and DD-APPLICATION-KEY headers
                   if DD_API_KEY, DD_APP_KEY and DD_MODEL_LAB_ENABLED are set, empty dictionary otherwise.
         """
-        api_key = os.environ.get("DD_API_KEY")
-        app_key = os.environ.get("DD_APP_KEY")
-        if api_key and app_key and "DD_MODEL_LAB_ENABLED" in os.environ:
-            return {"DD-API-KEY": api_key, "DD-APPLICATION-KEY": app_key}
+        if config._dd_api_key and config._dd_app_key and config._model_lab_enabled:
+            return {"DD-API-KEY": config._dd_api_key, "DD-APPLICATION-KEY": config._dd_app_key}
         return {}
