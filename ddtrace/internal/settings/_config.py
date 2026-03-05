@@ -20,6 +20,8 @@ from ddtrace.internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import PROPAGATION_STYLE_ALL
+from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
+from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.logger import get_log_injection_state
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import config as _native_config
@@ -665,6 +667,13 @@ class Config(object):
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
+        )
+
+        self._evp_proxy_payload_size_limit = _get_config(
+            "DD_EVP_PROXY_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
+        )
+        self._evp_proxy_event_size_limit = _get_config(
+            "DD_EVP_PROXY_EVENT_SIZE_BYTES", DEFAULT_EVP_EVENT_SIZE_LIMIT, int
         )
 
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
