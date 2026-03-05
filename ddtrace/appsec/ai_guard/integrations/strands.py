@@ -16,7 +16,6 @@ The hook provider evaluates messages at key lifecycle points:
 - ``AfterToolCallEvent``: Scans tool calls after execution
 """
 
-import json
 from typing import Any
 
 from strands.hooks import AfterModelCallEvent as _AfterModelCallEvent
@@ -26,6 +25,7 @@ from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
 from strands.hooks import HookProvider as _StrandsHookProvider
 from strands.hooks import HookRegistry as _StrandsHookRegistry
 
+from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
 from ddtrace.appsec.ai_guard._api_client import AIGuardClient
 from ddtrace.appsec.ai_guard._api_client import Function
@@ -136,7 +136,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
                             id=tool_use_id,
                             function=Function(
                                 name=tool_name,
-                                arguments=_try_format_json(tool_input),
+                                arguments=try_format_json(tool_input),
                             ),
                         )
                     ],
@@ -185,7 +185,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
                             id=tool_use_id,
                             function=Function(
                                 name=tool_name,
-                                arguments=_try_format_json(tool_input),
+                                arguments=try_format_json(tool_input),
                             ),
                         )
                     ],
@@ -199,15 +199,6 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             logger.debug("Failed to evaluate tool invocation", exc_info=True)
 
 
-def _try_format_json(value: Any) -> str:
-    if not value:
-        return ""
-    try:
-        return json.dumps(value)
-    except Exception:
-        return str(value)
-
-
 def _tool_result_text(tool_result: dict) -> str:
     """Extract text from a Bedrock Converse ToolResult.
 
@@ -218,7 +209,7 @@ def _tool_result_text(tool_result: dict) -> str:
         if "text" in entry:
             texts.append(entry["text"])
         elif "json" in entry:
-            texts.append(_try_format_json(entry["json"]))
+            texts.append(try_format_json(entry["json"]))
     return " ".join(texts)
 
 
@@ -280,7 +271,7 @@ def _convert_strands_messages(
                                     id=tu.get("toolUseId", ""),
                                     function=Function(
                                         name=tu.get("name", ""),
-                                        arguments=_try_format_json(tu.get("input", {})),
+                                        arguments=try_format_json(tu.get("input", {})),
                                     ),
                                 )
                                 for tu in tool_uses
