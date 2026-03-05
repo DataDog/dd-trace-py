@@ -1331,14 +1331,14 @@ class Experiment:
                 if isinstance(err, dict) and err.get("message"):
                     errors.append("{}: {}".format(err.get("type", "Error"), err["message"]))
                 for name, data in (row.get("evaluations") or {}).items():
-                    if isinstance(data, dict) and isinstance(data.get("error"), dict) and data["error"].get("message"):
-                        errors.append(
-                            "{} ({}): {}".format(name, data["error"].get("type", "Error"), data["error"]["message"])
-                        )
+                    if not isinstance(data, dict):
+                        continue
+                    eval_err = data.get("error")
+                    if isinstance(eval_err, dict) and eval_err.get("message"):
+                        errors.append("{} ({}): {}".format(name, eval_err.get("type", "Error"), eval_err["message"]))
         if not errors:
             return "unknown error"
-        unique = list(dict.fromkeys(errors))
-        return "; ".join(unique[:5])
+        return "; ".join(set(errors))
 
     def _log_experiment_summary(self, result: ExperimentResult) -> None:
         msg = self._format_experiment_summary(result)

@@ -774,7 +774,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         error: Optional[str] = None,
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}"
-        attributes: dict[str, str] = {}
+        attributes: dict[str, JSONType] = {}
         if status is not None:
             attributes["status"] = status
         if error is not None:
