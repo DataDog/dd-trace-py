@@ -1036,6 +1036,10 @@ class Dataset:
             else:
                 logger.warning("unexpected metadata format %s", type(metadata))
 
+            tags = record.get("tags", [])
+            flat_record[("tags", "")] = tags
+            column_tuples.add(("tags", ""))
+
             data_rows.append(flat_record)
 
         records_list = []

@@ -358,8 +358,15 @@ def test_dataset_url_diff_site_eu(llmobs, test_dataset_one_record):
 def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
     dataset = test_dataset_one_record
     df = dataset.as_dataframe()
-    assert len(df.columns) == 2
-    assert df.size == 2  # size is num elements in a series
+    assert len(df.columns) == 3
+    assert ("tags", "") in df.columns
+
+
+def test_dataset_as_dataframe_with_tags(llmobs, test_dataset_one_record_with_tags):
+    dataset = test_dataset_one_record_with_tags
+    df = dataset.as_dataframe()
+    assert ("tags", "") in df.columns
+    assert df[("tags", "")].iloc[0] == ["env:prod", "version:1.0"]
 
 
 def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
@@ -384,7 +391,7 @@ def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
             assert len(dataset) == 2
 
             df = dataset.as_dataframe()
-            assert len(df.columns) == 6
+            assert len(df.columns) == 7
             assert sorted(df.columns) == [
                 ("expected_output", "out0"),
                 ("expected_output", "out1"),
@@ -392,6 +399,7 @@ def test_csv_dataset_as_dataframe(llmobs, tmp_csv_file_for_upload):
                 ("input_data", "in1"),
                 ("input_data", "in2"),
                 ("metadata", "m0"),
+                ("tags", ""),
             ]
         finally:
             if dataset_id:
