@@ -395,11 +395,11 @@ class _LockAllocatorWrapper:
 
     def __or__(self, other: type[Any] | None) -> UnionType:
         """Support PEP 604 type union syntax (e.g., asyncio.Condition | None)."""
-        return (self._original_class | other) if self._original_class else NotImplemented
+        return (self._original_class | other) if isinstance(self._original_class, type) else NotImplemented
 
     def __ror__(self, other: type[Any] | None) -> UnionType:
         """Support PEP 604 type union syntax (e.g., None | asyncio.Condition)."""
-        return self.__or__(other)
+        return (other | self._original_class) if isinstance(self._original_class, type) else NotImplemented
 
     def __mro_entries__(self, bases: tuple[Any, ...]) -> tuple[type[Any], ...]:
         """Support subclassing the wrapped lock type (PEP 560).
