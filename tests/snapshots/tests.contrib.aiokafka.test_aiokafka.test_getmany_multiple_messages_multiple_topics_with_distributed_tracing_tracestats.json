@@ -1,0 +1,36 @@
+[
+  {
+    "Start": 0,
+    "Duration": 1000000000000000000,
+    "Stats": [
+      {
+        "Name": "kafka.consume",
+        "Resource": "kafka.consume",
+        "Service": "kafka",
+        "Type": "worker",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 4986601,
+        "Errors": 0,
+        "OkSummary": 37,
+        "ErrorSummary": 24
+      },
+      {
+        "Name": "kafka.produce",
+        "Resource": "kafka.produce",
+        "Service": "kafka",
+        "Type": "worker",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 3,
+        "TopLevelHits": 3,
+        "Duration": 8355154,
+        "Errors": 0,
+        "OkSummary": 855,
+        "ErrorSummary": 24
+      }
+    ]
+  }
+]

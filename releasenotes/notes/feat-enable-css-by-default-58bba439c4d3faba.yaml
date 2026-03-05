@@ -1,4 +1,0 @@
----
-features:
-  - |
-    Stats computation: Enable stats computation by default for python 3.14 and above.

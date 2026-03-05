@@ -1,0 +1,36 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "wsgi.request",
+        "Resource": "GET /",
+        "Service": "mysvc",
+        "Type": "web",
+        "HTTPStatusCode": 200,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 328960,
+        "Errors": 0,
+        "OkSummary": 37,
+        "ErrorSummary": 24
+      },
+      {
+        "Name": "wsgi.start_response",
+        "Resource": "wsgi.start_response",
+        "Service": "mysvc",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 0,
+        "Duration": 50625,
+        "Errors": 0,
+        "OkSummary": 37,
+        "ErrorSummary": 24
+      }
+    ]
+  }
+]
