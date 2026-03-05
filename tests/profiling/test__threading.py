@@ -13,7 +13,9 @@ def test_get_thread_native_id_current_thread() -> None:
     tid: Optional[int] = threading.current_thread().ident
     if tid:
         native_id: int = get_thread_native_id(tid)
-        expected: Optional[int] = getattr(threading.current_thread(), "native_id", tid) # tid if current thread is a _DummyThread
+        expected: Optional[int] = getattr(
+            threading.current_thread(), "native_id", tid
+        )  # tid if current thread is a _DummyThread
         assert native_id == expected
 
 
@@ -31,20 +33,10 @@ def test_get_thread_native_id_dummy_thread() -> None:
     Regression test for https://github.com/DataDog/dd-trace-py/issues/16745
     """
     dummy: threading.Thread = threading._DummyThread()
-    # Force _native_id to be missing so we reliably reproduce the gevent
-    # scenario regardless of Python version.
-    try:
+    if hasattr(dummy, "_native_id"):
         del dummy._native_id  # type: ignore[attr-defined]
-    except AttributeError:
-        pass
 
-    # Temporarily register the dummy under a synthetic thread ID so
-    # get_thread_by_id (a Cython cpdef) finds it via threading._active.
     fake_tid: int = 0xBADCAFE
     threading._active[fake_tid] = dummy  # type: ignore[attr-defined]
-    try:
-        result: int = get_thread_native_id(fake_tid)
-    finally:
-        del threading._active[fake_tid]  # type: ignore[attr-defined]
-
-    assert result == fake_tid
+    assert get_thread_native_id(fake_tid) == fake_tid
+    threading._active.pop(fake_tid, None)  # type: ignore[attr-defined]
