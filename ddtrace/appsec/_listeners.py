@@ -22,13 +22,19 @@ def load_appsec() -> None:
     """Lazily load the appsec module listeners."""
     from ddtrace.appsec._asm_request_context import asm_listen
     from ddtrace.appsec._handlers import listen
-    from ddtrace.appsec._trace_utils import listen as trace_listen
+    from ddtrace.appsec.contrib.django import listen as django_listen
+    from ddtrace.appsec.contrib.fastapi import listen as fastapi_listen
+    from ddtrace.appsec.contrib.flask import listen as flask_listen
+    from ddtrace.appsec.contrib.tornado import listen as tornado_listen
 
     global _APPSEC_TO_BE_LOADED
     if _APPSEC_TO_BE_LOADED:
         listen()
-        trace_listen()
         asm_listen()
+        flask_listen()
+        django_listen()
+        fastapi_listen()
+        tornado_listen()
         core.on("asm.switch_state", _asm_switch_state)
         _APPSEC_TO_BE_LOADED = False
     if asm_config._asm_enabled:
