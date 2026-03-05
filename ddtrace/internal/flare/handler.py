@@ -65,6 +65,6 @@ def generate_tracer_flare(flare: Flare, configs: list[PayloadType]) -> bool:
             flare.send(flare_request)
             return True
         except Exception as e:
-            log.warning("Remote config flare generation failed %s; config=%r", e, c)
+            log.warning("Remote config flare generation failed. %s; config=%r", e, c)
     log.debug("Remote config flare generation: no valid flare upload request in configs, skipping configs=%r", configs)
     return False
