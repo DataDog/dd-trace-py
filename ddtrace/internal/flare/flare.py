@@ -204,7 +204,7 @@ class Flare:
         try:
             # Use native zip_and_send
             self._native_manager.zip_and_send(str(self.flare_dir.absolute()), flare_action)
-        except Exception as e:
+        except Exception:
             raise
         finally:
             os.remove(self.flare_dir / TRACER_FLARE_LOCK)
