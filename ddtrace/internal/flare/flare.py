@@ -79,8 +79,7 @@ class Flare:
 
         # Setup logging and create config file
         pid = self._setup_flare_logging(flare_log_level_int)
-        self._generate_config_file(pid)
-        return True
+        return self._generate_config_file(pid)
 
     def send(self, flare_send_req: FlareSendRequest):
         """
@@ -99,7 +98,7 @@ class Flare:
         finally:
             self.clean_up_files()
 
-    def _generate_config_file(self, pid: int):
+    def _generate_config_file(self, pid: int) -> bool:
         config_file = self.flare_dir / f"tracer_config_{pid}.json"
         try:
             with open(config_file, "w") as f:
@@ -117,18 +116,20 @@ class Flare:
                     default=lambda obj: obj.__repr__() if hasattr(obj, "__repr__") else obj.__dict__,
                     indent=4,
                 )
+            return True
         except Exception as e:
             log.warning("Failed to generate %s: %s", config_file, e)
             if os.path.exists(config_file):
                 os.remove(config_file)
+        return False
 
     def revert_configs(self):
         ddlogger = get_logger("ddtrace")
         if self.file_handler:
             ddlogger.removeHandler(self.file_handler)
-            log.debug("ddtrace logs will not be routed to the %s file handler anymore", TRACER_FLARE_FILE_HANDLER_NAME)
-        else:
-            log.debug("Could not find %s to remove", TRACER_FLARE_FILE_HANDLER_NAME)
+            log.debug(
+                "Flare Collection has ended. ddtrace logs will not be routed to %s", TRACER_FLARE_FILE_HANDLER_NAME
+            )
         ddlogger.setLevel(self.original_log_level)
 
         # Restore native logger configuration from env vars
