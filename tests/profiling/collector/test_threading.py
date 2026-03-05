@@ -704,6 +704,7 @@ class LockCollectorTestBase:
         with self.collector_class(capture_pct=100):
             assert_pep604_type_union_syntax(self.lock_class)  # type: ignore[arg-type]
 
+
 class TestGenericLockProfiling(LockCollectorTestBase):
     """Generic lock profiling tests that run once with threading.Lock.
 

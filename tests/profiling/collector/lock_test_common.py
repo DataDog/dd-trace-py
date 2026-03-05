@@ -6,9 +6,12 @@ For test data helpers (line numbers, etc.), see lock_utils.py.
 
 from __future__ import annotations
 
-import pytest
 import types
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Optional
+
+import pytest
 
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
 
@@ -34,8 +37,8 @@ def assert_pep604_type_union_syntax(lock_class: _LockAllocatorWrapper) -> None:
 
     union: UnionType = lock_class | None  # type: ignore[operator]
     assert isinstance(union, types.UnionType)
-    assert union == original | None
+    assert union == (original | None)
 
     runion: UnionType = None | lock_class  # type: ignore[operator]
     assert isinstance(runion, types.UnionType)
-    assert runion == None | original
+    assert runion == (None | original)
