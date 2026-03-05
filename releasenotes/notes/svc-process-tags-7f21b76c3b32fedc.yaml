@@ -1,4 +1,0 @@
----
-features:
-  - |
-    tracing: conditionally adds process tags indicating the origin of the service name
