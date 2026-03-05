@@ -67,9 +67,23 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 Write-Host "uv: $(uv --version)"
 section_end "install_uv"
 
+# ── Install 32-bit VC++ runtime (x86 only) ────────────────────────────────────
+# 32-bit Python requires the x86 Visual C++ Redistributable.  The Windows
+# runner ships only the 64-bit version, so the 32-bit Python process exits
+# with 0xc0000135 (STATUS_DLL_NOT_FOUND) without this step.
+if ($WINDOWS_ARCH -eq "x86") {
+    section_start "install_vcredist_x86" "Installing 32-bit VC++ Redistributable"
+    $vcRedist = Join-Path $env:TEMP "vc_redist.x86.exe"
+    Invoke-WebRequest "https://aka.ms/vs/17/release/vc_redist.x86.exe" -OutFile $vcRedist
+    & $vcRedist /install /quiet /norestart
+    Remove-Item $vcRedist -Force
+    section_end "install_vcredist_x86"
+}
+
 # ── Install Python ─────────────────────────────────────────────────────────────
 section_start "install_python" "Installing Python $PYTHON_VERSION ($WINDOWS_ARCH)"
-uv python install $env:UV_PYTHON
+# --force replaces any pre-existing shim that is not managed by uv
+uv python install --force $env:UV_PYTHON
 $PYTHON_EXE = (uv python find $env:UV_PYTHON).Trim()
 Write-Host "Python executable: $PYTHON_EXE"
 & $PYTHON_EXE --version
@@ -100,9 +114,15 @@ Set-Location $CI_PROJECT_DIR
 $PY_VER_NODOT = $PYTHON_VERSION -replace '\.', ''
 $BUILD_LOG = Join-Path $DEBUG_WHEEL_DIR "build_cp${PY_VER_NODOT}_${WINDOWS_ARCH}.log"
 
-# Tee output so we see it live and also capture it for the artifact
+# Tee output so we see it live and also capture it for the artifact.
+# Temporarily relax $ErrorActionPreference: with "Stop" set, PowerShell treats
+# every stderr line from a native command as a fatal NativeCommandError when
+# piped through 2>&1.  We check $LASTEXITCODE explicitly instead.
+$ErrorActionPreference = 'Continue'
 uv build --wheel --out-dir $BUILT_WHEEL_DIR . 2>&1 | Tee-Object -FilePath $BUILD_LOG
-if ($LASTEXITCODE -ne 0) {
+$buildExitCode = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+if ($buildExitCode -ne 0) {
     Write-Error "Build failed! Log: $BUILD_LOG"
     exit 1
 }
