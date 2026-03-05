@@ -625,11 +625,18 @@ def _run_websocket_send_only_test():
         fastapi_unpatch()
 
 
+def _is_websocket_teardown_stderr(stderr):
+    """Allow stderr caused by BaseEventLoop.__del__ closing an invalid file descriptor during teardown."""
+    if not stderr:
+        return True
+    return "BaseEventLoop.__del__" in stderr and "Invalid file descriptor: -1" in stderr
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
     ),
-    err=None,
+    err=_is_websocket_teardown_stderr,
 )
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
@@ -642,7 +649,7 @@ def test_traced_websocket(test_spans, snapshot_app):
     env=dict(
         DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
     ),
-    err=None,
+    err=_is_websocket_teardown_stderr,
 )
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_only_sends(test_spans, snapshot_app):
@@ -656,7 +663,7 @@ def test_websocket_only_sends(test_spans, snapshot_app):
         DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
         DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING="false",
     ),
-    err=None,
+    err=_is_websocket_teardown_stderr,
 )
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length", "meta._dd.p.dm"])
 def test_websocket_tracing_sampling_not_inherited(test_spans, snapshot_app):
@@ -670,7 +677,7 @@ def test_websocket_tracing_sampling_not_inherited(test_spans, snapshot_app):
         DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
         DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false",
     ),
-    err=None,
+    err=_is_websocket_teardown_stderr,
 )
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
@@ -746,7 +753,7 @@ def _run_websocket_context_propagation_test():
         fastapi_unpatch()
 
 
-@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"), err=None)
+@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"), err=_is_websocket_teardown_stderr)
 @snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_websocket_context_propagation(snapshot_app):
     """Test trace context propagation."""
