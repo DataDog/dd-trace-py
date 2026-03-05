@@ -335,6 +335,93 @@ class LLMObsSpan:
         return self._tags.get(key)
 
 
+def _build_llmobs_span(
+    span_kind: str,
+    llmobs_input: _MetaIO,
+    llmobs_output: _MetaIO,
+) -> tuple[LLMObsSpan, Literal["value", "messages", ""], Literal["value", "messages", ""]]:
+    """Build an LLMObsSpan populated for the user span processor.
+
+    Routes input/output to messages or value depending on span kind.
+    Returns (llmobs_span, input_type, output_type).
+    """
+    llmobs_span = LLMObsSpan()
+    input_type: Literal["value", "messages", ""] = ""
+    output_type: Literal["value", "messages", ""] = ""
+
+    input_value = llmobs_input.get(LLMOBS_STRUCT.VALUE)
+    if input_value is not None:
+        input_type = "value"
+        llmobs_span.input = [Message(content=safe_json(input_value, ensure_ascii=False) or "", role="")]
+
+    input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES)
+    if span_kind == "llm" and input_messages is not None:
+        input_type = "messages"
+        llmobs_span.input = enforce_message_role(input_messages)
+
+    output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE)
+    if output_value is not None:
+        output_type = "value"
+        llmobs_span.output = [Message(content=safe_json(output_value, ensure_ascii=False) or "", role="")]
+
+    output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES)
+    if span_kind == "llm" and output_messages is not None:
+        output_type = "messages"
+        llmobs_span.output = enforce_message_role(output_messages)
+
+    return llmobs_span, input_type, output_type
+
+
+def _build_span_meta(
+    span: Span,
+    llmobs_span: LLMObsSpan,
+    llmobs_meta: _Meta,
+    span_kind: str,
+    input_type: Literal["value", "messages", ""],
+    output_type: Literal["value", "messages", ""],
+) -> _Meta:
+    """Build and return the full meta dict for a span event."""
+    llmobs_input: _MetaIO = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
+    llmobs_output: _MetaIO = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
+    meta = _Meta(
+        span=_SpanField(kind=span_kind),
+        input=llmobs_input,
+        output=llmobs_output,
+        model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or "",
+        model_provider=(llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower(),
+        metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
+        tool_definitions=llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS) or [],
+        intent=str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or ""),
+        error=_ErrorField(
+            message=span.get_tag(ERROR_MSG) or "",
+            stack=span.get_tag(ERROR_STACK) or "",
+            type=span.get_tag(ERROR_TYPE) or "",
+        ),
+    )
+
+    input_prompt = llmobs_input.get(LLMOBS_STRUCT.PROMPT)
+    if input_prompt is not None and span_kind != "llm":
+        log.warning("Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds.")
+        meta["input"].pop(LLMOBS_STRUCT.PROMPT, None)
+    elif input_prompt is None and span_kind == "llm":
+        parent_prompt = _get_parent_prompt(span)
+        if parent_prompt is not None:
+            meta["input"]["prompt"] = parent_prompt
+
+    expected_output = llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT)
+    if span.context.get_baggage_item(EXPERIMENT_ID_KEY) and span_kind == "experiment" and expected_output is not None:
+        meta["expected_output"] = expected_output
+
+    input_value = llmobs_span.input if input_type == "messages" else llmobs_span.input[0].get("content", "")
+    if input_value is not None and input_type != "":
+        meta["input"][input_type] = input_value
+    output_value = llmobs_span.output if output_type == "messages" else llmobs_span.output[0].get("content", "")
+    if llmobs_span.output is not None and output_type != "":
+        meta["output"][output_type] = output_value
+
+    return meta
+
+
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
@@ -416,6 +503,30 @@ class LLMObs(Service):
             return self._build_span_event_from_meta_struct(span, llmobs_data)
         return self._build_span_event_from_ctx_items(span)
 
+    def _apply_user_span_processor(self, llmobs_span: LLMObsSpan, llmobs_data: LLMObsSpanData) -> Optional[LLMObsSpan]:
+        """Run the user span processor.
+
+        Returns the possibly mutated span, or None if the span should be dropped.
+        On error, logs and returns the original span unchanged.
+        """
+        if self._user_span_processor is None:
+            return llmobs_span
+        error = False
+        try:
+            llmobs_span._tags = cast(dict[str, str], llmobs_data.get(LLMOBS_STRUCT.TAGS, {}))
+            result = self._user_span_processor(llmobs_span)
+            if result is None:
+                return None
+            if not isinstance(result, LLMObsSpan):
+                raise TypeError("User span processor must return an LLMObsSpan or None, got %r" % type(result))
+            return result
+        except Exception as e:
+            log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
+            error = True
+            return llmobs_span
+        finally:
+            telemetry.record_llmobs_user_processor_called(error)
+
     def _build_span_event_from_meta_struct(self, span: Span, llmobs_data: LLMObsSpanData) -> Optional[LLMObsSpanEvent]:
         llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
@@ -424,120 +535,6 @@ class LLMObs(Service):
         span_kind = _get_span_kind(span)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
-
-        if span_kind == "llm":
-            core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
-
-        _dd_attrs = {
-            "span_id": str(span.span_id),
-            "trace_id": format_trace_id(span.trace_id),
-            "apm_trace_id": format_trace_id(span.trace_id),
-        }
-
-        meta = _Meta(
-            span=_SpanField(kind=span_kind),
-            input=_MetaIO(),
-            output=_MetaIO(),
-            model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME) or "",
-            model_provider=(llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER) or "custom").lower(),
-            metadata=llmobs_meta.get(LLMOBS_STRUCT.METADATA) or {},
-            tool_definitions=llmobs_meta.get(LLMOBS_STRUCT.TOOL_DEFINITIONS) or [],
-            intent=str(llmobs_meta.get(LLMOBS_STRUCT.INTENT) or ""),
-            error=_ErrorField(
-                message=span.get_tag(ERROR_MSG) or "",
-                stack=span.get_tag(ERROR_STACK) or "",
-                type=span.get_tag(ERROR_TYPE) or "",
-            ),
-        )
-
-        llmobs_span = LLMObsSpan()
-        input_type: Literal["value", "messages", ""] = ""
-        output_type: Literal["value", "messages", ""] = ""
-
-        input_value = llmobs_input.get(LLMOBS_STRUCT.VALUE)
-        if input_value is not None:
-            input_type = "value"
-            llmobs_span.input = [Message(content=safe_json(input_value, ensure_ascii=False) or "", role="")]
-
-        input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES)
-        if span_kind == "llm" and input_messages is not None:
-            input_type = "messages"
-            llmobs_span.input = enforce_message_role(input_messages)
-
-        output_value = llmobs_output.get(LLMOBS_STRUCT.VALUE)
-        if output_value is not None:
-            output_type = "value"
-            llmobs_span.output = [Message(content=safe_json(output_value, ensure_ascii=False) or "", role="")]
-
-        output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES)
-        if span_kind == "llm" and output_messages is not None:
-            output_type = "messages"
-            llmobs_span.output = enforce_message_role(output_messages)
-
-        input_documents = llmobs_input.get(LLMOBS_STRUCT.DOCUMENTS)
-        output_documents = llmobs_output.get(LLMOBS_STRUCT.DOCUMENTS)
-        if span_kind == "embedding" and input_documents is not None:
-            meta["input"]["documents"] = input_documents or []
-        if span_kind == "retrieval" and output_documents is not None:
-            meta["output"]["documents"] = output_documents or []
-
-        input_prompt = llmobs_input.get(LLMOBS_STRUCT.PROMPT)
-        if input_prompt is not None:
-            if span_kind != "llm":
-                log.warning(
-                    "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
-                )
-            else:
-                meta["input"]["prompt"] = input_prompt
-        elif span_kind == "llm":
-            parent_prompt = _get_parent_prompt(span)
-            if parent_prompt is not None:
-                meta["input"]["prompt"] = parent_prompt
-
-        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
-            _dd_attrs["scope"] = "experiments"
-            if span_kind == "experiment":
-                expected_output = llmobs_meta.get(LLMOBS_STRUCT.EXPECTED_OUTPUT)
-                if llmobs_input:
-                    meta["input"] = llmobs_input
-                if llmobs_output:
-                    meta["output"] = llmobs_output
-                if expected_output:
-                    meta["expected_output"] = expected_output
-
-        if self._user_span_processor:
-            error = False
-            try:
-                llmobs_span._tags = cast(dict[str, str], llmobs_data.get(LLMOBS_STRUCT.TAGS, {}))
-                user_llmobs_span = self._user_span_processor(llmobs_span)
-                if user_llmobs_span is None:
-                    return None
-                if not isinstance(user_llmobs_span, LLMObsSpan):
-                    raise TypeError(
-                        "User span processor must return an LLMObsSpan or None, got %r" % type(user_llmobs_span)
-                    )
-                llmobs_span = user_llmobs_span
-            except Exception as e:
-                log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
-                error = True
-            finally:
-                telemetry.record_llmobs_user_processor_called(error)
-
-        if llmobs_span.input is not None:
-            if input_type == "messages":
-                meta["input"]["messages"] = llmobs_span.input
-            elif input_type == "value":
-                meta["input"]["value"] = llmobs_span.input[0].get("content", "")
-        if llmobs_span.output is not None:
-            if output_type == "messages":
-                meta["output"]["messages"] = llmobs_span.output
-            elif output_type == "value":
-                meta["output"]["value"] = llmobs_span.output[0].get("content", "")
-
-        if not meta["input"]:
-            meta.pop("input")
-        if not meta["output"]:
-            meta.pop("output")
 
         ml_app = _get_ml_app(span)
         if ml_app is None:
@@ -552,6 +549,31 @@ class LLMObs(Service):
         if llmobs_trace_id is None:
             raise ValueError("Failed to extract LLMObs trace ID from span context.")
 
+        if span_kind == "llm":
+            core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
+
+        llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
+        user_processed_span = self._apply_user_span_processor(llmobs_span, llmobs_data)
+        if user_processed_span is None:
+            return None
+        llmobs_span = user_processed_span
+
+        # Wait to build meta until after user processors apply and potentially mutate I/O
+        meta = _build_span_meta(span, llmobs_span, llmobs_meta, span_kind, input_type, output_type)
+        metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
+        session_id = _get_session_id(span)
+        tags = self._llmobs_tags(span, ml_app, session_id, True, llmobs_data)
+        span_links = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS)
+        if span_links and not isinstance(span_links, list):
+            log.warning("Dropping invalid span_links (expected list): %s", str(span_links))
+        _dd_attrs = {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        }
+        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+            _dd_attrs["scope"] = "experiments"
+
         llmobs_span_event: LLMObsSpanEvent = {
             "trace_id": llmobs_trace_id,
             "span_id": str(span.span_id),
@@ -561,21 +583,12 @@ class LLMObs(Service):
             "duration": cast(int, span.duration_ns),
             "status": "error" if span.error else "ok",
             "meta": meta,
-            "metrics": llmobs_data.get(LLMOBS_STRUCT.METRICS) or {},
-            "tags": [],
+            "metrics": metrics,
+            "session_id": session_id or "",
+            "tags": tags,
+            "span_links": span_links or [],
             "_dd": _dd_attrs,
         }
-
-        session_id = _get_session_id(span)
-        if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
-            llmobs_span_event["session_id"] = session_id
-
-        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id, True, llmobs_data)
-
-        span_links = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS)
-        if isinstance(span_links, list) and span_links:
-            llmobs_span_event["span_links"] = span_links
 
         experiment_config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if experiment_config:

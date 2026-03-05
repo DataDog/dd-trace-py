@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Iterator
 from typing import Optional
@@ -34,7 +37,6 @@ from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
-from ddtrace.llmobs._writer import LLMObsSpanData
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -44,6 +46,10 @@ from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.trace import Span
+
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs._writer import LLMObsSpanData
 
 
 log = get_logger(__name__)
@@ -382,8 +388,8 @@ def mark_as_evaluation_span(span: Span) -> None:
 
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
-    llmobs_span_data = cast(LLMObsSpanData, span._get_struct_tag(LLMOBS_STRUCT.KEY))
-    return llmobs_span_data or LLMObsSpanData()
+    llmobs_span_data = cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY))
+    return llmobs_span_data or {}
 
 
 def _get_span_kind(span: Span) -> Optional[str]:
