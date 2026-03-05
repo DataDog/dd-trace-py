@@ -585,6 +585,7 @@ def test_collect_gevent_thread_task() -> None:
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
@@ -674,6 +675,8 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     import time
 
     import gevent
+
+    from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
     should_stop = threading.Event()
 
