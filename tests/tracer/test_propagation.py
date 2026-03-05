@@ -2765,14 +2765,20 @@ def test_multiple_context_interactions(name, styles, headers, expected_context):
         assert context == expected_context
 
 
-def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, test_spans):  # noqa: F811
+def test_span_links_set_on_root_span_not_child(fastapi_client, fastapi_tracer, fastapi_test_spans):  # noqa: F811
     response = fastapi_client.get("/", headers={"sleep": "False", **ALL_HEADERS})
     assert response.status_code == 200
     assert response.json() == {"Homepage Read": "Success"}
 
-    spans = test_spans.pop_traces()
-    assert spans[0][0].name == "fastapi.request"
-    assert [link for link in spans[0][0]._links if link.span_id == 67667974448284343] == [
+    spans = fastapi_test_spans.pop_traces()
+    assert len(spans) > 0
+    assert len(spans[0]) > 0
+    root_span = spans[0][0]
+    assert root_span.name == "fastapi.request", (
+        f"Expected root span 'fastapi.request', got '{root_span.name}'. "
+        f"Trace has {len(spans[0])} spans: {[s.name for s in spans[0]]}"
+    )
+    assert [link for link in root_span._links if link.span_id == 67667974448284343] == [
         SpanLink(
             trace_id=171395628812617415352188477958425669623,
             span_id=67667974448284343,
