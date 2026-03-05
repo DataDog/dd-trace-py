@@ -178,10 +178,11 @@ microbenchmarks:
 "apm-sdk-benchmarks":
   stage: benchmarks
   when: manual
+  allow_failure: true
   needs:
-    - job: "upload manylinux2014_x86_64"
+    - job: "upload all"
   trigger:
-    project: DataDog/apm-sdk-benchmarks
+    project: DataDog/apm-reliability/apm-sdks-benchmarks
     branch: main
   variables:
     TARGET_REF: $CI_PIPELINE_ID
