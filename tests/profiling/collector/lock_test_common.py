@@ -6,8 +6,9 @@ For test data helpers (line numbers, etc.), see lock_utils.py.
 
 from __future__ import annotations
 
+import pytest
 import types
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from ddtrace.profiling.collector._lock import _LockAllocatorWrapper
 
@@ -25,12 +26,16 @@ def assert_pep604_type_union_syntax(lock_class: _LockAllocatorWrapper) -> None:
 
     Requires Python 3.10+ (PEP 604). Callers must skip on older versions.
     """
+    original: Optional[type[Any]] = lock_class._original_class
+    if not isinstance(original, type):
+        pytest.skip("Original lock is a factory function, not a type — PEP 604 union not supported natively")
+
     assert isinstance(lock_class, _LockAllocatorWrapper)
 
     union: UnionType = lock_class | None  # type: ignore[operator]
     assert isinstance(union, types.UnionType)
     assert union == original | None
 
-    union_rev: UnionType = None | lock_class  # type: ignore[operator]
-    assert isinstance(union_rev, types.UnionType)
-    assert union_rev == None | original
+    runion: UnionType = None | lock_class  # type: ignore[operator]
+    assert isinstance(runion, types.UnionType)
+    assert runion == None | original
