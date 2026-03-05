@@ -175,6 +175,17 @@ microbenchmarks:
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
 
+"apm-sdk-benchmarks":
+  stage: benchmarks
+  manual: true
+  needs:
+    - job: "upload manylinux2014_x86_64"
+  trigger:
+    project: DataDog/apm-sdk-benchmarks
+    branch: main
+  variables:
+    TARGET_REF: $CI_PIPELINE_ID
+
 macrobenchmarks:
   stage: benchmarks
   needs:
