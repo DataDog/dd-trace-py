@@ -44,7 +44,11 @@ _exclude_paths: list[Path] = [
     platstdlib_path,
     platlib_path,
     purelib_path,
-    Path(__file__).resolve().parent,
+    # Exclude the entire ddtrace package — the tracer must never instrument itself.
+    # Without this, importing instrumentation.py triggers a circular import because
+    # its top-level imports (e.g. CoverageLines) go through ModuleWatchdog and
+    # re-enter _pre_exec_hook before instrumentation.py has finished loading.
+    Path(__file__).resolve().parent.parent.parent,  # ddtrace/
 ]
 
 _include_paths: list[Path] = []
@@ -52,7 +56,8 @@ _include_paths: list[Path] = []
 
 def _should_instrument(module_name: str) -> bool:
     """Condition for the pre-exec hook. Receives the module name, resolves
-    its origin via the import system, and checks include/exclude paths."""
+    its origin via the import system, and checks include/exclude paths.
+    """
     module = sys.modules.get(module_name)
     if module is None:
         return False
@@ -158,6 +163,17 @@ class RuntimeCoverageCollector:
         ModuleWatchdog.register_pre_exec_module_hook(
             _should_instrument,
             _pre_exec_hook,
+        )
+
+        # AIDEV-NOTE: The import hook only catches modules loaded via exec_module.
+        # Code that bypasses the import system — most notably __main__ when running
+        # `python script.py` — is never seen by ModuleWatchdog. We use a global
+        # PY_START event to auto-instrument such code on first function entry.
+        from ddtrace.internal.runtime_coverage.instrumentation import enable_auto_instrumentation
+
+        enable_auto_instrumentation(
+            include_paths=_include_paths,
+            exclude_paths=[p.resolve() for p in _exclude_paths],
         )
 
         atexit.register(self._flush)
