@@ -1446,31 +1446,34 @@ def test_agentless_writer_enabled():
 
         writer.flush_queue()
 
-    assert mock_put.call_count == 1
-    payload1_json = json.loads(mock_put.call_args_list[0][0][0])
-    assert "spans" in payload1_json
-    spans = payload1_json["spans"]
-    assert len(spans) == 4
-    # root1
-    assert spans[0]["name"] == "root1"
-    assert spans[0]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
-    assert spans[0]["span_id"] == "{:016x}".format(root1.span_id)
-    assert spans[0]["parent_id"] == "0000000000000000"
-    # child1
-    assert spans[1]["name"] == "child1"
-    assert spans[1]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
-    assert spans[1]["span_id"] == "{:016x}".format(child1.span_id)
-    assert spans[1]["parent_id"] == "{:016x}".format(root1.span_id)
-    # child2
-    assert spans[2]["name"] == "child2"
-    assert spans[2]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
-    assert spans[2]["span_id"] == "{:016x}".format(child2.span_id)
-    assert spans[2]["parent_id"] == "{:016x}".format(root1.span_id)
-    # root2
-    assert spans[3]["name"] == "root2"
-    assert spans[3]["trace_id"] == "{:016x}".format(root2._trace_id_64bits)
-    assert spans[3]["span_id"] == "{:016x}".format(root2.span_id)
-    assert spans[3]["parent_id"] == "0000000000000000"
+    # Each trace is sent as a separate payload
+    assert mock_put.call_count == 2
+    all_payloads = [json.loads(call[0][0]) for call in mock_put.call_args_list]
+
+    # Find the payload for each trace by matching trace_id across all spans
+    trace1_id = "{:016x}".format(root1._trace_id_64bits)
+    trace2_id = "{:016x}".format(root2._trace_id_64bits)
+    trace1_payload = next(p for p in all_payloads if all(s["trace_id"] == trace1_id for s in p["spans"]))
+    trace2_payload = next(p for p in all_payloads if all(s["trace_id"] == trace2_id for s in p["spans"]))
+
+    # trace1: root1, child1, child2
+    assert "spans" in trace1_payload
+    assert len(trace1_payload["spans"]) == 3
+    trace1_spans = {s["name"]: s for s in trace1_payload["spans"]}
+    assert set(trace1_spans.keys()) == {"root1", "child1", "child2"}
+    assert trace1_spans["root1"]["span_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["root1"]["parent_id"] == "0000000000000000"
+    assert trace1_spans["child1"]["span_id"] == "{:016x}".format(child1.span_id)
+    assert trace1_spans["child1"]["parent_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["child2"]["span_id"] == "{:016x}".format(child2.span_id)
+    assert trace1_spans["child2"]["parent_id"] == "{:016x}".format(root1.span_id)
+
+    # trace2: root2 only
+    assert "spans" in trace2_payload
+    assert len(trace2_payload["spans"]) == 1
+    assert trace2_payload["spans"][0]["name"] == "root2"
+    assert trace2_payload["spans"][0]["span_id"] == "{:016x}".format(root2.span_id)
+    assert trace2_payload["spans"][0]["parent_id"] == "0000000000000000"
 
     headers = mock_put.call_args_list[0][0][1]
     assert headers["Content-Type"] == "application/json"
