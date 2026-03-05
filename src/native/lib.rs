@@ -5,6 +5,7 @@ pub use datadog_profiling_ffi::*;
 mod config;
 mod data_pipeline;
 mod ddsketch;
+#[cfg(feature = "ffe")]
 mod ffe;
 mod library_config;
 mod log;
@@ -44,7 +45,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
 
     // Add FFE submodule
-    m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
+    #[cfg(feature = "ffe")]
+    {
+        m.add_wrapped(pyo3::wrap_pymodule!(ffe::ffe))?;
+    }
 
     // Add logger submodule
     let logger_module = pyo3::wrap_pymodule!(log::logger);
