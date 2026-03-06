@@ -282,12 +282,6 @@ class RemoteConfigClient:
         # Call periodic method for all registered callbacks
         for product_name, callback in product_callbacks.items():
             try:
-                log.debug(
-                    "[%s][P: %s] Calling periodic method for product %s",
-                    os.getpid(),
-                    os.getppid(),
-                    product_name,
-                )
                 with StopWatch() as sw:
                     callback.periodic()
 
@@ -349,10 +343,11 @@ class RemoteConfigClient:
                         )
                 except Exception:
                     log.error(
-                        "[%s][P: %s] Error dispatching to product %s",
+                        "[%s][P: %s] Error dispatching to product %s. Payloads: %r",
                         os.getpid(),
                         os.getppid(),
                         product_name,
+                        product_payload_list,
                         exc_info=True,
                     )
 
@@ -655,7 +650,7 @@ class RemoteConfigClient:
                 client_configs and not client_configs.get(target.path)
             ):
                 raise RemoteConfigError(
-                    "target file %s not exists in client_config and signed targets" % (target.path,)
+                    "target file %s does not exist in client_config and signed targets" % (target.path,)
                 )
 
     def _publish_configuration(self, payload_list: list[Payload]) -> None:
@@ -710,13 +705,6 @@ class RemoteConfigClient:
             return
 
         client_configs = {k: v for k, v in targets.items() if k in payload.client_configs}
-        log.debug(
-            "[%s][P: %s] Retrieved client configs last version %s: %s",
-            os.getpid(),
-            os.getppid(),
-            last_targets_version,
-            client_configs,
-        )
 
         self._validate_signed_target_files(payload.target_files, payload.targets.signed, client_configs)
 
