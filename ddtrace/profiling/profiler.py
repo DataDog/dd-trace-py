@@ -220,8 +220,10 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_lock_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
+                    if any(type(c) is collector_class for c in self._collectors):
+                        return
                     col = collector_class(tracer=self.tracer)
 
                     if self.status == service.ServiceStatus.RUNNING:
@@ -255,8 +257,10 @@ class _ProfilerInstance(service.Service):
 
         if self._pytorch_collector_enabled:
 
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_pytorch_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
+                    if any(type(c) is collector_class for c in self._collectors):
+                        return
                     col = collector_class()
 
                     if self.status == service.ServiceStatus.RUNNING:
@@ -273,17 +277,16 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
+            if self._collectors_on_import is None:
+                self._collectors_on_import = []
+
             torch_hooks: list[tuple[str, Callable[[Any], None]]] = [
-                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
+                ("torch", lambda _: start_pytorch_collector(pytorch.TorchProfilerCollector)),
             ]
+            self._collectors_on_import.extend(torch_hooks)
 
             for module, hook in torch_hooks:
                 ModuleWatchdog.register_module_hook(module, hook)
-
-            if self._collectors_on_import is None:
-                self._collectors_on_import = torch_hooks
-            else:
-                self._collectors_on_import = self._collectors_on_import + torch_hooks
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
@@ -346,8 +349,9 @@ class _ProfilerInstance(service.Service):
             for module, hook in self._collectors_on_import:
                 try:
                     ModuleWatchdog.unregister_module_hook(module, hook)
-                except ValueError:
+                except (ValueError, Exception):
                     pass
+            self._collectors_on_import = None
 
         if self._scheduler is not None:
             self._scheduler.stop()
