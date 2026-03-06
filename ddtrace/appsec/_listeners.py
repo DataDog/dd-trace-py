@@ -21,7 +21,6 @@ def _asm_switch_state() -> None:
 def load_appsec() -> None:
     """Lazily load the appsec module listeners."""
     from ddtrace.appsec._asm_request_context import asm_listen
-    from ddtrace.appsec._handlers import listen
     from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
     from ddtrace.appsec._contrib.django import listen as django_listen
     from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
@@ -29,6 +28,7 @@ def load_appsec() -> None:
     from ddtrace.appsec._contrib.httpx import listen as httpx_listen
     from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
     from ddtrace.appsec._contrib.tornado import listen as tornado_listen
+    from ddtrace.appsec._handlers import listen
     # from ddtrace.appsec._contrib.grpc import listen as grpc_listen
 
     global _APPSEC_TO_BE_LOADED
