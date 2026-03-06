@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AAP: Fixes a memory corruption issue where concurrent calls to the WAF
+    on the same request context from multiple threads (e.g. an asyncio event loop
+    and a thread pool executor inheriting the same context via ``contextvars``)
+    could cause use-after-free or double-free crashes (SIGSEGV) inside
+    ``libddwaf``. A per-context lock now serializes WAF calls on the same context.

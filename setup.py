@@ -823,6 +823,16 @@ class CustomBuildExt(build_ext):
             f"-DRUST_GENERATED_HEADERS_DIR={CARGO_TARGET_DIR / 'include'}",
         ]
 
+        # Point FetchContent downloads at the persistent download cache so CMake
+        # doesn't re-fetch from GitHub (e.g. abseil) on every build invocation.
+        # The cache dir is shared with other downloaded build dependencies and is
+        # preserved between CI runs. FETCHCONTENT_BASE_DIR defaults to a path
+        # inside the ephemeral cmake build dir, so without this every build would
+        # re-download from GitHub.
+        cmake_args += [
+            f"-DFETCHCONTENT_BASE_DIR={LibraryDownload.CACHE_DIR / '_cmake_deps'}",
+        ]
+
         # Add sccache support if available
         sccache_path = os.getenv("DD_SCCACHE_PATH")
         if sccache_path:

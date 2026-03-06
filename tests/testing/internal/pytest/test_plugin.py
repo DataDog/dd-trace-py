@@ -403,7 +403,7 @@ class TestReportGeneration:
 
         result = plugin.pytest_report_teststatus(mock_report)
 
-        assert result == ("dd_retry", "R", "RETRY FAILED (Auto Test Retries)")
+        assert result == ("rerun", "R", "RETRY FAILED (Auto Test Retries)")
 
     def test_pytest_report_teststatus_quarantined(self) -> None:
         """Test report status for quarantined tests in call phase."""
@@ -1053,7 +1053,7 @@ class TestReportAndLoggingMethods:
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is True
-        assert mock_report.outcome == "dd_retry"
+        assert mock_report.outcome == "rerun"
         expected_properties = [("dd_retry_outcome", "failed"), ("dd_retry_reason", "Test Handler")]
         assert mock_report.user_properties == expected_properties
 
@@ -1086,7 +1086,7 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should only mark call report
-        assert mock_call_report.outcome == "dd_retry"
+        assert mock_call_report.outcome == "rerun"
 
     def test_mark_test_reports_as_retry_setup_fallback(self) -> None:
         """Test _mark_test_reports_as_retry falls back to setup when call missing."""
@@ -1105,7 +1105,7 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should mark setup report
-        assert mock_setup_report.outcome == "dd_retry"
+        assert mock_setup_report.outcome == "rerun"
 
 
 class TestQuarantineHandling:

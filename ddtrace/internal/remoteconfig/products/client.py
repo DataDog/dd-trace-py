@@ -26,8 +26,10 @@ def _register_rc_products() -> None:
     flare_callback = TracerFlareCallback(flare, _flare_state)
 
     # Register for both AGENT_CONFIG and AGENT_TASK products (they share the same callback)
-    remoteconfig_poller.register("AGENT_CONFIG", flare_callback)
-    remoteconfig_poller.register("AGENT_TASK", flare_callback)
+    remoteconfig_poller.register_callback("AGENT_CONFIG", flare_callback)
+    remoteconfig_poller.enable_product("AGENT_CONFIG")
+    remoteconfig_poller.register_callback("AGENT_TASK", flare_callback)
+    remoteconfig_poller.enable_product("AGENT_TASK")
 
 
 def post_preload():

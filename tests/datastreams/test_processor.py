@@ -127,16 +127,89 @@ def test_data_streams_loop_protection():
 
 
 def test_kafka_offset_monitoring():
+    # Use a standalone processor to avoid shared-state races with the module-level processor's
+    # background thread (which drains buckets every 10s) and cross-test contamination.
+    p = DataStreamsProcessor("http://localhost:8126")
     now = time.time()
-    processor.track_kafka_commit("group1", "topic1", 1, 10, now)
-    processor.track_kafka_commit("group1", "topic1", 1, 14, now)
-    processor.track_kafka_produce("topic1", 1, 34, now)
-    processor.track_kafka_produce("topic1", 2, 10, now)
+    p.track_kafka_commit("group1", "topic1", 1, 10, now)
+    p.track_kafka_commit("group1", "topic1", 1, 14, now)
+    p.track_kafka_produce("topic1", 1, 34, now)
+    p.track_kafka_produce("topic1", 2, 10, now)
     now_ns = int(now * 1e9)
     bucket_time_ns = int(now_ns - (now_ns % 1e10))
-    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1)] == 34
-    assert processor._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2)] == 10
-    assert processor._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1)] == 14
+    assert p._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1, "")] == 34
+    assert p._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2, "")] == 10
+    assert p._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1, "")] == 14
+
+
+def test_kafka_offset_monitoring_with_cluster_id():
+    # Use a standalone processor to avoid shared-state races and cross-test contamination.
+    p = DataStreamsProcessor("http://localhost:8126")
+    now = time.time()
+    cluster = "test-cluster-abc"
+    p.track_kafka_commit("group1", "topic1", 1, 10, now, cluster_id=cluster)
+    p.track_kafka_commit("group1", "topic1", 1, 14, now, cluster_id=cluster)
+    p.track_kafka_produce("topic1", 1, 34, now, cluster_id=cluster)
+    p.track_kafka_produce("topic1", 2, 10, now, cluster_id=cluster)
+    now_ns = int(now * 1e9)
+    bucket_time_ns = int(now_ns - (now_ns % 1e10))
+    assert p._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 1, cluster)] == 34
+    assert p._buckets[bucket_time_ns].latest_produce_offsets[PartitionKey("topic1", 2, cluster)] == 10
+    assert p._buckets[bucket_time_ns].latest_commit_offsets[ConsumerPartitionKey("group1", "topic1", 1, cluster)] == 14
+
+    # Verify cluster_id is present in bucket keys -- safe to iterate all keys since this
+    # standalone processor only contains entries from this test.
+    bucket = p._buckets[bucket_time_ns]
+    for key in bucket.latest_commit_offsets:
+        assert key.cluster_id == cluster
+    for key in bucket.latest_produce_offsets:
+        assert key.cluster_id == cluster
+
+
+def test_kafka_offset_monitoring_without_cluster_id_omits_tag():
+    """When cluster_id is empty, the kafka_cluster_id tag should not appear in bucket keys."""
+    # Use a standalone processor to avoid shared-state races and cross-test contamination.
+    p = DataStreamsProcessor("http://localhost:8126")
+    now = time.time()
+    p.track_kafka_commit("group1", "topic_no_cluster", 0, 5, now)
+    p.track_kafka_produce("topic_no_cluster", 0, 20, now)
+    now_ns = int(now * 1e9)
+    bucket_time_ns = int(now_ns - (now_ns % 1e10))
+    bucket = p._buckets[bucket_time_ns]
+    commit_key = ConsumerPartitionKey("group1", "topic_no_cluster", 0, "")
+    produce_key = PartitionKey("topic_no_cluster", 0, "")
+    assert bucket.latest_commit_offsets[commit_key] == 5
+    assert bucket.latest_produce_offsets[produce_key] == 20
+    assert commit_key.cluster_id == ""
+    assert produce_key.cluster_id == ""
+
+
+def test_kafka_offset_serialization_cluster_id_tag():
+    """Verify _serialize_buckets emits kafka_cluster_id tag when present and omits it when empty."""
+    # Use a standalone processor so _serialize_buckets() doesn't drain the shared one.
+    p = DataStreamsProcessor("http://localhost:8126")
+    now = time.time()
+    cluster = "serialize-test-cluster"
+    p.track_kafka_commit("grp", "topic_has_cluster", 0, 10, now, cluster_id=cluster)
+    p.track_kafka_produce("topic_has_cluster", 0, 20, now, cluster_id=cluster)
+    p.track_kafka_commit("grp", "topic_no_cluster", 0, 5, now)
+    p.track_kafka_produce("topic_no_cluster", 0, 15, now)
+
+    serialized = p._serialize_buckets()
+    all_backlogs = []
+    for s in serialized:
+        all_backlogs.extend(s.get("Backlogs", []))
+
+    with_cluster = [b for b in all_backlogs if any(t == "topic:topic_has_cluster" for t in b["Tags"])]
+    without_cluster = [b for b in all_backlogs if any(t == "topic:topic_no_cluster" for t in b["Tags"])]
+
+    assert len(with_cluster) >= 1
+    for b in with_cluster:
+        assert "kafka_cluster_id:" + cluster in b["Tags"]
+
+    assert len(without_cluster) >= 1
+    for b in without_cluster:
+        assert all(not t.startswith("kafka_cluster_id:") for t in b["Tags"])
 
 
 def test_processor_atexit(ddtrace_run_python_code_in_subprocess):

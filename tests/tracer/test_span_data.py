@@ -838,6 +838,8 @@ def test_span_id_overflow():
     # This behavior depends on how PyO3 handles overflow - may wrap or raise
     # For now, just verify it doesn't crash
     assert isinstance(span.span_id, int)
+    assert span.span_id != large_value
+    assert 0 < span.span_id <= (2**64) - 1
 
 
 def test_span_id_larger_than_u64_setter():
@@ -854,6 +856,141 @@ def test_span_id_larger_than_u64_setter():
     # Should be silently ignored, keeping the original value
     assert span.span_id == original_id
     assert span.span_id == 12345
+
+
+# =============================================================================
+# trace_id Tests
+# =============================================================================
+
+
+def test_trace_id_auto_generation():
+    """trace_id defaults to random 128-bit value when not provided."""
+    span = SpanData(name="test")
+    assert isinstance(span.trace_id, int)
+    assert span.trace_id > 0
+
+    # Verify randomness - creating multiple spans should give different IDs
+    span2 = SpanData(name="test")
+    assert span.trace_id != span2.trace_id
+
+
+def test_trace_id_explicit_value():
+    """trace_id can be explicitly provided and roundtrips correctly."""
+    span = SpanData(name="test", trace_id=12345)
+    assert span.trace_id == 12345
+
+
+def test_trace_id_invalid_type_generates_random():
+    """trace_id with invalid type generates random ID instead of raising."""
+    span = SpanData(name="test", trace_id="foo")
+    assert isinstance(span.trace_id, int)
+    assert span.trace_id != 0
+
+    span2 = SpanData(name="test", trace_id=[123])
+    assert isinstance(span2.trace_id, int)
+    assert span2.trace_id != 0
+
+
+def test_trace_id_128bit_roundtrip():
+    """128-bit trace_id values are stored and retrieved as-is."""
+    max_u64 = (2**64) - 1
+    trace_id_128 = max_u64 + 12345  # Value larger than 64 bits
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+
+    assert span.trace_id == trace_id_128
+    assert span.trace_id > max_u64
+
+
+def test_trace_id_64bit_roundtrip():
+    """64-bit trace_id values are stored and retrieved as-is (no masking)."""
+    trace_id_64 = 0x1234567890ABCDEF
+
+    span = SpanData(name="test", trace_id=trace_id_64)
+
+    assert span.trace_id == trace_id_64
+
+
+def test_trace_id_max_u128():
+    """trace_id can handle max u128 value."""
+    max_u128 = (2**128) - 1
+    span = SpanData(name="test", trace_id=max_u128)
+
+    assert span.trace_id == max_u128
+
+
+def test_trace_id_setter_invalid_ignored():
+    """Setting trace_id with invalid type is silently ignored."""
+    span = SpanData(name="test", trace_id=123)
+    original_id = span.trace_id
+    assert original_id == 123
+
+    # Invalid type should be silently ignored (no change)
+    span.trace_id = "invalid"
+    assert span.trace_id == original_id
+
+    # Valid type should work
+    span.trace_id = 456
+    assert span.trace_id == 456
+
+
+def test_trace_id_setter_128bit_roundtrip():
+    """Setting trace_id to a 128-bit value after construction is stored and returned as-is."""
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+
+    span = SpanData(name="test")
+    span.trace_id = trace_id_128
+
+    assert span.trace_id == trace_id_128
+
+
+def test_trace_id_64bits_property():
+    """_trace_id_64bits property always returns lower 64 bits."""
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+
+    span = SpanData(name="test", trace_id=trace_id_128)
+
+    assert span._trace_id_64bits == 0x1234567890ABCDEF
+
+
+@pytest.fixture()
+def native_128bit_config():
+    """Save and restore the native 128-bit trace ID config around a test."""
+    from ddtrace.internal.native._native import config as native_config
+
+    original = native_config.get_128_bit_trace_id_enabled()
+    yield native_config
+    native_config.set_128_bit_trace_id_enabled(original)
+
+
+def test_trace_id_auto_generation_128bit_enabled(native_128bit_config):
+    """With 128-bit mode enabled, auto-generated trace IDs exceed u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
+    span = SpanData(name="test")
+    assert span.trace_id > (2**64) - 1
+
+
+def test_trace_id_auto_generation_64bit_disabled(native_128bit_config):
+    """With 128-bit mode disabled, auto-generated trace IDs fit within u64."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    span = SpanData(name="test")
+    assert span.trace_id <= (2**64) - 1
+
+
+def test_trace_id_explicit_64bit_preserved_in_128bit_mode(native_128bit_config):
+    """Explicit 64-bit trace IDs are stored as-is even when 128-bit mode is enabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(True)
+    trace_id_64 = 0x1234567890ABCDEF
+    span = SpanData(name="test", trace_id=trace_id_64)
+    assert span.trace_id == trace_id_64
+
+
+def test_trace_id_explicit_128bit_preserved_in_64bit_mode(native_128bit_config):
+    """Explicit 128-bit trace IDs are stored as-is even when 128-bit mode is disabled."""
+    native_128bit_config.set_128_bit_trace_id_enabled(False)
+    trace_id_128 = (0xDEADBEEF << 64) | 0x1234567890ABCDEF
+    span = SpanData(name="test", trace_id=trace_id_128)
+    assert span.trace_id == trace_id_128
 
 
 # =============================================================================
