@@ -206,7 +206,7 @@ services:
         working_dir: /home/bits/project/
         volumes:
           - ddagent:/tmp/ddagent
-          - ./.cache:/home/bits/.cache
+          - ${DD_TEST_CACHE_DIR:-./.cache}:/home/bits/.cache
           - ./:/home/bits/project
 
     localstack:
