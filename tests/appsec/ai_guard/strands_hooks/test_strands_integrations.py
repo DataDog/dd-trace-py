@@ -685,6 +685,12 @@ class TestIndirectInjectionFullChain:
         # BeforeModelCallEvent #2 passes (tool results excluded from evaluation)
         ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=messages_after_tool))
 
+        # Verify BeforeModelCallEvent #2 excluded tool results from the payload
+        call_4_payload = mock_req.call_args_list[3][0][1]
+        call_4_messages = call_4_payload["data"]["attributes"]["messages"]
+        tool_role_msgs = [m for m in call_4_messages if m.get("role") == "tool"]
+        assert len(tool_role_msgs) == 0, "BeforeModel #2 should exclude tool results (already scanned by AfterToolCall)"
+
         # Model follows injection -> calls get_user_profile -> tool cancelled
         exfiltration_tool_use = {"toolUseId": "tc2", "name": "get_user_profile", "input": {"user_id": "current_user"}}
 
@@ -696,6 +702,98 @@ class TestIndirectInjectionFullChain:
 
         assert event.cancel_tool == "[DATADOG AI GUARD] 'get_user_profile' has been canceled for security reasons"
         assert mock_req.call_count == 5
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_every_ai_guard_call_payload_verified(self, mock_req, ai_guard_strands_hook):
+        """Verify the exact payload sent to AI Guard at every lifecycle stage.
+
+        Full lifecycle: BeforeModel #1 → BeforeTool → AfterTool → BeforeModel #2 → AfterModel.
+        Checks that:
+        - BeforeModel #1 sends only the user prompt (no tool results)
+        - BeforeTool sends user prompt + pending tool call
+        - AfterTool sends user prompt + tool call + tool result
+        - BeforeModel #2 sends user prompt + assistant tool_use but EXCLUDES tool result
+        - AfterModel sends only the assistant text (no tool calls)
+        """
+        mock_req.side_effect = [
+            mock_evaluate_response("ALLOW"),  # BeforeModelCallEvent #1
+            mock_evaluate_response("ALLOW"),  # BeforeToolCallEvent
+            mock_evaluate_response("ALLOW"),  # AfterToolCallEvent
+            mock_evaluate_response("ALLOW"),  # BeforeModelCallEvent #2
+            mock_evaluate_response("ALLOW"),  # AfterModelCallEvent
+        ]
+
+        user_msg = {"role": "user", "content": [{"text": "Get transactions"}]}
+        tool_use = {"toolUseId": "tc1", "name": "get_transactions", "input": {"id": "1"}}
+        tool_result = {"toolUseId": "tc1", "content": [{"text": "Transaction data"}], "status": "success"}
+
+        # Step 1: BeforeModelCallEvent #1
+        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
+
+        # Step 2: BeforeToolCallEvent
+        ai_guard_strands_hook._on_before_tool_call(_before_tool_event(tool_use=tool_use, messages=[user_msg]))
+
+        # Step 3: AfterToolCallEvent
+        ai_guard_strands_hook._on_after_tool_call(
+            _after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
+        )
+
+        # Step 4: BeforeModelCallEvent #2 (with tool result in conversation)
+        messages_after_tool = [
+            user_msg,
+            {"role": "assistant", "content": [{"toolUse": tool_use}]},
+            {"role": "user", "content": [{"toolResult": {"toolUseId": "tc1", "content": [{"text": "Transaction data"}]}}]},
+        ]
+        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=messages_after_tool))
+
+        # Step 5: AfterModelCallEvent
+        response_msg = {"role": "assistant", "content": [{"text": "Here are your transactions."}]}
+        ai_guard_strands_hook._on_after_model_call(_after_model_event(response_message=response_msg))
+
+        assert mock_req.call_count == 5
+
+        def _get_messages(call_index):
+            return mock_req.call_args_list[call_index][0][1]["data"]["attributes"]["messages"]
+
+        # Call 1: BeforeModel #1 — only user prompt
+        msgs_1 = _get_messages(0)
+        assert len(msgs_1) == 1
+        assert msgs_1[0]["role"] == "user"
+        assert msgs_1[0]["content"] == "Get transactions"
+
+        # Call 2: BeforeTool — user prompt + pending tool call (assistant)
+        msgs_2 = _get_messages(1)
+        assert len(msgs_2) == 2
+        assert msgs_2[0]["role"] == "user"
+        assert msgs_2[1]["role"] == "assistant"
+        assert msgs_2[1]["tool_calls"][0]["function"]["name"] == "get_transactions"
+
+        # Call 3: AfterTool — user prompt + tool call (assistant) + tool result
+        msgs_3 = _get_messages(2)
+        assert len(msgs_3) == 3
+        assert msgs_3[0]["role"] == "user"
+        assert msgs_3[1]["role"] == "assistant"
+        assert msgs_3[1]["tool_calls"][0]["function"]["name"] == "get_transactions"
+        assert msgs_3[2]["role"] == "tool"
+        assert msgs_3[2]["tool_call_id"] == "tc1"
+        assert msgs_3[2]["content"] == "Transaction data"
+
+        # Call 4: BeforeModel #2 — user prompt + assistant tool_use, but NO tool result
+        msgs_4 = _get_messages(3)
+        tool_role_msgs = [m for m in msgs_4 if m.get("role") == "tool"]
+        assert len(tool_role_msgs) == 0, "BeforeModel #2 must exclude tool results"
+        assert msgs_4[0]["role"] == "user"
+        # assistant tool_use should still be present
+        assistant_msgs = [m for m in msgs_4 if m.get("role") == "assistant"]
+        assert len(assistant_msgs) == 1
+        assert "tool_calls" in assistant_msgs[0]
+
+        # Call 5: AfterModel — only assistant text, no tool calls
+        msgs_5 = _get_messages(4)
+        assert len(msgs_5) == 1
+        assert msgs_5[0]["role"] == "assistant"
+        assert msgs_5[0]["content"] == "Here are your transactions."
+        assert "tool_calls" not in msgs_5[0]
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_caught_at_after_model_call_exfiltration_response(self, mock_req, ai_guard_strands_hook):
