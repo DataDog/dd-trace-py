@@ -64,7 +64,7 @@ push_threadinfo_to_sample(Datadog::Sample& sample)
  * By reading frame pointers directly (borrowed references, no refcount change)
  * we eliminate that risk and reduce per-frame overhead. */
 static void
-push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample)
+push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nframe)
 {
     PyThreadState* tstate = PyThreadState_Get();
     if (tstate == NULL) {
@@ -72,13 +72,21 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample)
         return;
     }
 
-    void* current_frame = memalloc_get_frame_from_thread_state(tstate);
+    memalloc_frame_t* current_frame = memalloc_get_frame_from_thread_state(tstate);
     if (current_frame == NULL) {
         sample.push_frame("<no Python frames>", "<unknown>", 0, 0);
         return;
     }
 
-    for (void* frame = current_frame; frame != NULL; frame = memalloc_get_previous_frame(frame)) {
+    uint16_t pushed_frames = 0;
+    for (memalloc_frame_t* frame = current_frame; frame != NULL; frame = memalloc_get_previous_frame(frame)) {
+        // Mirror Sample::push_pyframes(): once we're past the frame cap, record
+        // a dropped frame and stop walking before more line/filename work.
+        if (pushed_frames > max_nframe) {
+            sample.push_frame("", "", 0, 0);
+            break;
+        }
+
         if (memalloc_should_skip_frame(frame)) {
             continue;
         }
@@ -93,11 +101,12 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample)
         int line = memalloc_get_lineno(frame, code);
 
         sample.push_frame(name_sv, filename_sv, 0, line);
+        ++pushed_frames;
     }
 }
 
 void
-traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
+traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
@@ -109,7 +118,7 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size)
 
     sample.push_alloc(weighted_size, count);
     push_threadinfo_to_sample(sample);
-    push_stacktrace_to_sample_no_refcount(sample);
+    push_stacktrace_to_sample_no_refcount(sample, max_nframe);
 }
 
 // AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
@@ -120,5 +129,5 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
         return;
     }
 
-    init_sample_invokes_cpython(size, weighted_size);
+    init_sample_invokes_cpython(size, weighted_size, max_nframe);
 }

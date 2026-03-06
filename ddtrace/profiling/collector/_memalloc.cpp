@@ -48,9 +48,9 @@ memalloc_free(void* ctx, void* ptr)
      * heap tracker entries), so we just let it proceed — direct struct
      * access frame walking avoids calling CPython APIs that could free. */
     if (_MEMALLOC_ON_THREAD) {
-        _memalloc_abort_reentry("free");
+        _memalloc_abort_free_reentry();
     }
-#endif
+#endif // MEMALLOC_ASSERT_ON_REENTRY
 
     memalloc_heap_untrack_no_cpython(ptr);
     alloc->free(alloc->ctx, ptr);

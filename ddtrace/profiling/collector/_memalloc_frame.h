@@ -2,94 +2,110 @@
 
 /* Version-specific frame-walking helpers for the memalloc profiler.
  *
- * All helpers use direct struct field reads — no new Python references are
- * created, no Py_INCREF/Py_DECREF, no calls that can allocate or free.
- * This is critical because these are called from inside CPython's
+ * All helpers use direct struct field reads: no new Python references are
+ * created, no Py_INCREF/Py_DECREF, and no calls that can allocate or free
+ * Python objects.
+ * This is critical because these helpers run inside CPython's
  * PYMEM_DOMAIN_OBJ allocator hook.
  *
- * The GIL is held throughout the allocator hook, so reading internal
- * structures is safe.
- *
- * IMPORTANT: This header must be included AFTER Py_BUILD_CORE is defined
- * and Python.h is included, since the internal headers depend on both.
+ * This header must be the first Python header included by a translation unit.
+ * It defines Py_BUILD_CORE before including Python.h so the CPython internal
+ * headers below are declared consistently.
  */
 
-// Py_BUILD_CORE is required to access CPython internals for direct frame walking.
-// Must be defined before Python.h.
-#define Py_BUILD_CORE
+#ifdef Py_PYTHON_H
+#error "_memalloc_frame.h must be included before Python.h so Py_BUILD_CORE applies to CPython internals"
+#endif // Py_PYTHON_H
 
+#define Py_BUILD_CORE
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <frameobject.h>
 
 #include "_pymacro.h"
 
+#ifdef Py_GIL_DISABLED
+#error "_memalloc frame walking relies on the GIL-held allocator hook and is not yet supported on free-threaded CPython"
+#endif // Py_GIL_DISABLED
+
+// AIDEV-TODO: Revisit direct frame walking and heap-tracker synchronization if memalloc adds Py_GIL_DISABLED support.
+
 /* Include CPython internal frame headers for zero-refcount frame walking.
  * Python 3.11+: _PyInterpreterFrame is needed for direct frame chain walking.
  * Python 3.14+: definition moved to pycore_interpframe_structs.h
  * Python 3.11-3.13: definition is in pycore_frame.h */
 #ifdef _PY311_AND_LATER
-#if PY_VERSION_HEX >= 0x030e0000
+#ifdef _PY314_AND_LATER
 #include <internal/pycore_interpframe_structs.h>
 #else
 #include <internal/pycore_frame.h>
-#endif
+#endif // _PY314_AND_LATER
 #include <internal/pycore_code.h>
-#endif /* _PY311_AND_LATER */
+using memalloc_frame_t = _PyInterpreterFrame;
+#else
+using memalloc_frame_t = PyFrameObject;
+#endif // _PY311_AND_LATER
+
+#ifdef _PY314_AND_LATER
+// Expected on our supported 64-bit builds; assert the exact alignment
+// invariant that the _PyStackRef tag masking relies on.
+static_assert(alignof(PyObject) >= 8,
+              "PyObject must remain at least 8-byte aligned for _PyStackRef tag masking to be safe");
+#endif // _PY314_AND_LATER
 
 /* Return the innermost interpreter frame from the thread state without
- * incrementing any reference count. Returns a borrowed void* pointer
- * (either _PyInterpreterFrame* on 3.11+ or PyFrameObject* on <3.11). */
-static inline void*
+ * incrementing any reference count. Returns a borrowed frame pointer. */
+static inline memalloc_frame_t*
 memalloc_get_frame_from_thread_state(PyThreadState* tstate)
 {
-#if PY_VERSION_HEX >= 0x030d0000
+#ifdef _PY313_AND_LATER
     /* Python 3.13+: current_frame is directly on PyThreadState. */
-    return (void*)tstate->current_frame;
-#elif PY_VERSION_HEX >= 0x030b0000
-    /* Python 3.11-3.12: current_frame is on the _PyCFrame. */
-    return (void*)tstate->cframe->current_frame;
+    return tstate->current_frame;
+#elif defined(_PY311_AND_LATER)
+    /* Python 3.11-3.12: current_frame is on the _PyCFrame.
+     * cframe can be NULL while a thread is still being initialized or torn down. */
+    return tstate->cframe ? tstate->cframe->current_frame : NULL;
 #else
     /* Pre-3.11: tstate->frame is a public PyFrameObject*. */
-    return (void*)tstate->frame;
-#endif
+    return tstate->frame;
+#endif // _PY313_AND_LATER
 }
 
 /* Return the caller's frame (one level up the call stack) without creating
  * a new reference. */
-static inline void*
-memalloc_get_previous_frame(void* frame)
+static inline memalloc_frame_t*
+memalloc_get_previous_frame(memalloc_frame_t* frame)
 {
 #ifdef _PY311_AND_LATER
-    return (void*)((_PyInterpreterFrame*)frame)->previous;
+    return frame->previous;
 #else
-    return (void*)((PyFrameObject*)frame)->f_back;
-#endif
+    return frame->f_back;
+#endif // _PY311_AND_LATER
 }
 
 /* Return the code object for the frame as a borrowed reference (no INCREF).
  * For Python 3.14+, f_executable carries tagged pointer bits that must be
  * masked off before treating it as a PyObject*. */
 static inline PyCodeObject*
-memalloc_get_code_from_frame(void* frame)
+memalloc_get_code_from_frame(memalloc_frame_t* frame)
 {
-#if PY_VERSION_HEX >= 0x030e0000
+#ifdef _PY314_AND_LATER
     /* Python 3.14+: f_executable is a _PyStackRef (tagged pointer).
      * Clear the tag bits to recover the PyObject* pointer.
      * Masking with ~7 (clearing 3 lowest bits) safely covers all configs
      * (debug, free-threading, release), since PyObject* is always aligned
      * to at least 8 bytes. */
-    return (PyCodeObject*)((uintptr_t)((_PyInterpreterFrame*)frame)->f_executable.bits & ~(uintptr_t)7);
-#elif PY_VERSION_HEX >= 0x030d0000
+    return (PyCodeObject*)((uintptr_t)frame->f_executable.bits & ~(uintptr_t)7);
+#elif defined(_PY313_AND_LATER)
     /* Python 3.13: f_executable is an untagged PyObject*. */
-    return (PyCodeObject*)((_PyInterpreterFrame*)frame)->f_executable;
-#elif PY_VERSION_HEX >= 0x030b0000
+    return (PyCodeObject*)frame->f_executable;
+#elif defined(_PY311_AND_LATER)
     /* Python 3.11-3.12: f_code is a direct PyCodeObject*. */
-    return ((_PyInterpreterFrame*)frame)->f_code;
+    return frame->f_code;
 #else
     /* Pre-3.11: f_code is a public PyCodeObject*. */
-    return ((PyFrameObject*)frame)->f_code;
-#endif
+    return frame->f_code;
+#endif // _PY314_AND_LATER
 }
 
 /* Return true for frames that should be skipped during stack walking:
@@ -98,27 +114,26 @@ memalloc_get_code_from_frame(void* frame)
  *   - Python 3.14+ interpreter-owned shim frames
  *   - Python 3.11 incomplete frames (prev_instr < firsttraceable) */
 static inline bool
-memalloc_should_skip_frame(void* frame)
+memalloc_should_skip_frame(memalloc_frame_t* frame)
 {
     PyObject* code = (PyObject*)memalloc_get_code_from_frame(frame);
     if (code == NULL || !PyCode_Check(code)) {
         return true;
     }
 
-#if PY_VERSION_HEX >= 0x030c0000
-    _PyInterpreterFrame* iframe = (_PyInterpreterFrame*)frame;
-    return iframe->owner != FRAME_OWNED_BY_THREAD && iframe->owner != FRAME_OWNED_BY_GENERATOR;
-#elif PY_VERSION_HEX >= 0x030b0000
-    return _PyFrame_IsIncomplete((_PyInterpreterFrame*)frame);
+#ifdef _PY312_AND_LATER
+    return frame->owner != FRAME_OWNED_BY_THREAD && frame->owner != FRAME_OWNED_BY_GENERATOR;
+#elif defined(_PY311_AND_LATER)
+    return _PyFrame_IsIncomplete(frame);
 #else
     return false;
-#endif
+#endif // _PY312_AND_LATER
 }
 
 /* Varint helpers for parsing the 3.11+ location table (PEP 657).
  * These read from the co_linetable byte array — pure byte reads,
  * no allocations or frees. */
-#if PY_VERSION_HEX >= 0x030b0000
+#ifdef _PY311_AND_LATER
 static inline int
 memalloc_read_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
 {
@@ -140,7 +155,7 @@ memalloc_read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ssize
     int val = memalloc_read_varint(table, len, i);
     return (val & 1) ? -(val >> 1) : (val >> 1);
 }
-#endif /* PY_VERSION_HEX >= 0x030b0000 */
+#endif // _PY311_AND_LATER
 
 /* Return the current line number for the frame by parsing the line table
  * directly, without calling PyCode_Addr2Line().
@@ -156,26 +171,32 @@ memalloc_read_signed_varint(const unsigned char* table, Py_ssize_t len, Py_ssize
  *
  * The parsing logic is ported from the stack profiler's
  * Frame::infer_location() (ddtrace/internal/datadog/profiling/stack/
- * src/echion/frame.cc) which handles all supported CPython versions. */
+ * src/echion/frame.cc) which handles all supported CPython versions.
+ *
+ * AIDEV-TODO: Unify this version-specific line table parsing with the stack
+ * profiler's Frame::infer_location() implementation so both profilers share a
+ * single source of truth for CPython location decoding.
+ *
+ * Allocation safety: this function only performs pointer arithmetic and byte
+ * reads from already-owned objects. It does not allocate, decref, or touch
+ * Python exception state. */
 static inline int
-memalloc_get_lineno(void* frame, PyCodeObject* code)
+memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
 {
     int lasti;
 
-#if PY_VERSION_HEX >= 0x030d0000
+#ifdef _PY313_AND_LATER
     /* Python 3.13+: instr_ptr points to the NEXT instruction.
      * Result is in _Py_CODEUNIT units. */
-    _PyInterpreterFrame* iframe = (_PyInterpreterFrame*)frame;
-    lasti = (int)(iframe->instr_ptr - 1 - _PyCode_CODE(code));
-#elif PY_VERSION_HEX >= 0x030b0000
+    lasti = (int)(frame->instr_ptr - 1 - _PyCode_CODE(code));
+#elif defined(_PY311_AND_LATER)
     /* Python 3.11-3.12: prev_instr points to the last executed instruction.
      * Result is in _Py_CODEUNIT units. */
-    _PyInterpreterFrame* iframe = (_PyInterpreterFrame*)frame;
-    lasti = (int)(iframe->prev_instr - _PyCode_CODE(code));
+    lasti = (int)(frame->prev_instr - _PyCode_CODE(code));
 #else
     /* Pre-3.11: f_lasti is a byte offset (3.9) or codeunit index (3.10). */
-    lasti = ((PyFrameObject*)frame)->f_lasti;
-#endif
+    lasti = frame->f_lasti;
+#endif // _PY313_AND_LATER
 
     if (lasti < 0) {
         return code->co_firstlineno;
@@ -183,7 +204,7 @@ memalloc_get_lineno(void* frame, PyCodeObject* code)
 
     unsigned int lineno = code->co_firstlineno;
 
-#if PY_VERSION_HEX >= 0x030b0000
+#ifdef _PY311_AND_LATER
     /* Python 3.11+: PEP 657 location table in co_linetable.
      * Each entry byte: bits[2:0] = (codeunit_delta - 1), bits[6:3] = info code.
      * lasti is in _Py_CODEUNIT units, matching the table's bc counter. */
@@ -221,7 +242,7 @@ memalloc_get_lineno(void* frame, PyCodeObject* code)
             break;
     }
 
-#elif PY_VERSION_HEX >= 0x030a0000
+#elif defined(_PY310_AND_LATER)
     /* Python 3.10: PEP 626 line table in co_linetable.
      * Pairs of (sdelta, ldelta) bytes.  f_lasti is in codeunit units;
      * the table bytecode deltas are in byte units, so convert. */
@@ -259,7 +280,7 @@ memalloc_get_lineno(void* frame, PyCodeObject* code)
         lineno += table[i];
     }
 
-#endif
+#endif // _PY311_AND_LATER
 
     return lineno > 0 ? (int)lineno : 0;
 }
@@ -273,5 +294,5 @@ memalloc_get_code_name(PyCodeObject* code)
     return code->co_qualname ? code->co_qualname : code->co_name;
 #else
     return code->co_name;
-#endif
+#endif // _PY311_AND_LATER
 }

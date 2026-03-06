@@ -1,6 +1,7 @@
 #pragma once
 
-#include <stdbool.h>
+#include <cstdlib>
+#include <unistd.h>
 
 // Thread-local storage macro for Unix (GCC/Clang)
 // NB - we explicitly specify global-dynamic on Unix because the others are problematic.
@@ -19,16 +20,34 @@
 extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
-#include <stdio.h>
-#include <stdlib.h>
+static inline void
+_memalloc_abort_reentry(const char* message, size_t message_len)
+{
+    if (message_len > 0) {
+        (void)!write(STDERR_FILENO, message, message_len);
+    }
+    std::abort();
+}
+
+template<size_t N>
+static inline void
+_memalloc_abort_reentry(const char (&message)[N])
+{
+    _memalloc_abort_reentry(message, N - 1);
+}
 
 static inline void
-_memalloc_abort_reentry(const char* inner_op)
+_memalloc_abort_malloc_reentry(void)
 {
-    fprintf(stderr, "[memalloc] FATAL: reentrant allocator hook detected: malloc -> %s\n", inner_op);
-    abort();
+    _memalloc_abort_reentry("[memalloc] FATAL: reentrant allocator hook detected: malloc -> malloc\n");
 }
-#endif /* MEMALLOC_ASSERT_ON_REENTRY */
+
+static inline void
+_memalloc_abort_free_reentry(void)
+{
+    _memalloc_abort_reentry("[memalloc] FATAL: reentrant allocator hook detected: malloc -> free\n");
+}
+#endif // MEMALLOC_ASSERT_ON_REENTRY
 
 /* RAII guard for reentrancy protection. Sets _MEMALLOC_ON_THREAD in the
  * constructor and clears it in the destructor.
@@ -49,11 +68,12 @@ class memalloc_reentrant_guard_t
         if (!_MEMALLOC_ON_THREAD) {
             _MEMALLOC_ON_THREAD = true;
             acquired_ = true;
-        } else {
-#ifdef MEMALLOC_ASSERT_ON_REENTRY
-            _memalloc_abort_reentry("malloc");
-#endif
         }
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+        else {
+            _memalloc_abort_malloc_reentry();
+        }
+#endif // MEMALLOC_ASSERT_ON_REENTRY
     }
 
     ~memalloc_reentrant_guard_t()
