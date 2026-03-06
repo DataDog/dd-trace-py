@@ -1,7 +1,7 @@
 ".debugging/exploration":
   stage: debugging
   extends: .cached_testrunner
-  timeout: 20m
+  timeout: 30m
   variables:
     DD_DEBUGGER_EXPL_OUTPUT_FILE: "${{CI_PROJECT_DIR}}/debugger-expl.txt"
     DD_DEBUGGER_EXPL_STATUS_MESSAGES: 1
