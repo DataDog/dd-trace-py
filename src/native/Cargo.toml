@@ -11,7 +11,7 @@ opt-level = 's'
 codegen-units = 1
 
 [features]
-crashtracker = ["dep:anyhow", "dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
+crashtracker = ["dep:anyhow", "dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc", "dep:libdd-common"]
 profiling = ["dep:libdd-profiling-ffi"]
 ffe = ["dep:datadog-ffe"]
 
@@ -29,7 +29,7 @@ libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v2
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1", optional = true, features = [
     "cbindgen",
 ] }
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
+libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1", optional = true }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v28.0.1" }
 pyo3 = { version = "0.27", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }

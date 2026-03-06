@@ -277,8 +277,9 @@ def is_64_bit_python():
 
 rust_features = []
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-    rust_features.append("crashtracker")
     rust_features.append("profiling")
+    if not SLIM_BUILD:
+        rust_features.append("crashtracker")
 if not SLIM_BUILD:
     rust_features.append("ffe")
 
