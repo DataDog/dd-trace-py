@@ -4,6 +4,7 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod config;
 mod data_pipeline;
+#[cfg(feature = "stats")]
 mod ddsketch;
 #[cfg(feature = "ffe")]
 mod ffe;
@@ -21,7 +22,11 @@ pub extern "C" fn ddtrace_force_export_for_windows() {}
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ddsketch::DDSketchPy>()?;
+    #[cfg(feature = "stats")]
+    {
+        m.add_class::<ddsketch::DDSketchPy>()?;
+    }
+
     m.add_class::<library_config::PyConfigurator>()?;
 
     #[cfg(feature = "crashtracker")]
@@ -36,6 +41,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_receiver, m)?)?;
     }
+
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;

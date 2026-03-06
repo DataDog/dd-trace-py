@@ -15,7 +15,6 @@ from ddtrace.internal import compat
 from ddtrace.internal import process_tags
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -33,6 +32,12 @@ from .encoding import decode_var_int_64
 from .encoding import encode_var_int_64
 from .schemas.schema_builder import SchemaBuilder
 from .schemas.schema_sampler import SchemaSampler
+
+
+try:
+    from ddtrace.internal.native import DDSketch
+except ImportError:
+    DDSketch = None
 
 
 def gzip_compress(payload):
@@ -105,6 +110,10 @@ class DataStreamsProcessor(PeriodicService):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
+        # DDSketch is not included in slim builds
+        if DDSketch is None:
+            self._enabled = False
+            return
         self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)

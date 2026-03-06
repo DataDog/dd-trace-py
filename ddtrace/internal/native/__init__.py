@@ -3,7 +3,6 @@ from typing import Optional
 
 from ._native import AgentError  # noqa: F401
 from ._native import BuilderError  # noqa: F401
-from ._native import DDSketch  # noqa: F401
 from ._native import DeserializationError  # noqa: F401
 from ._native import IoError  # noqa: F401
 from ._native import NetworkError  # noqa: F401
@@ -22,6 +21,7 @@ from ._native import store_metadata  # noqa: F401
 
 
 try:
+    from ._native import DDSketch  # noqa: F401
     from ._native import ffe  # noqa: F401
 except ImportError:
     pass

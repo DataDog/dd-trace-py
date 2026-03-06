@@ -7,7 +7,6 @@ from typing import Union
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.internal import compat
-from ddtrace.internal.native import DDSketch
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -20,6 +19,12 @@ from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
 from ..writer import _human_size
+
+
+try:
+    from ddtrace.internal.native import DDSketch
+except ImportError:
+    DDSketch = None
 
 
 log = get_logger(__name__)
@@ -90,6 +95,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
+        # DDSketch is not included in slim builds
+        if DDSketch is None:
+            self._enabled = False
+            return
         self._agent_url = agent_url or agent.config.trace_agent_url
         self._endpoint = "/v0.6/stats"
         self._agent_endpoint = "%s%s" % (self._agent_url, self._endpoint)
