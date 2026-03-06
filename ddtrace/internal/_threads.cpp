@@ -857,7 +857,10 @@ static PyMethodDef PeriodicThread_methods[] = {
     /* Private */
     { "_atexit", (PyCFunction)PeriodicThread__atexit, METH_NOARGS, "Stop the thread at exit" },
     { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork (parent)" },
-    { "_after_fork_child", (PyCFunction)PeriodicThread__after_fork_child, METH_NOARGS, "Refresh the thread after fork (child)" },
+    { "_after_fork_child",
+      (PyCFunction)PeriodicThread__after_fork_child,
+      METH_NOARGS,
+      "Refresh the thread after fork (child)" },
     { "_before_fork", (PyCFunction)PeriodicThread__before_fork, METH_NOARGS, "Prepare the thread for fork" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
