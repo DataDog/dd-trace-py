@@ -332,9 +332,13 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
     // Exclude non-C callables: these are Python-level constructs whose
     // actual work (if any) will fire separate CALL events for the underlying
     // C functions they delegate to.
+    // For types: heap types (Python-defined classes) are excluded because their
+    // __init__/__new__ are Python functions visible as regular frames.
+    // Non-heap types (builtins like str, dict, list, set) are kept because their
+    // __init__/__new__ are C implementations that don't fire separate CALL events.
     if (PyFunction_Check(callable)         // def / lambda / async def
         || PyMethod_Check(callable)        // bound method wrapping a PyFunction
-        || PyType_Check(callable)          // class instantiation (__init__/__new__ fire separately)
+        || (PyType_Check(callable) && (reinterpret_cast<PyTypeObject*>(callable)->tp_flags & Py_TPFLAGS_HEAPTYPE))
         || PyGen_Check(callable)           // generator object (not a C call)
         || PyCoro_CheckExact(callable)     // coroutine object
         || PyAsyncGen_CheckExact(callable) // async generator object
