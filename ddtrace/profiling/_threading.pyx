@@ -6,24 +6,27 @@ from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 
 
-cpdef get_thread_by_id(thread_id):
-    # Look for all threads, including the ones we create
-    # We don't want to bother to lock anything here, especially with
-    # eventlet involved (sad-sweat-emoji). We make a best effort to get the thread name; if
-    # we fail, it'll just be an anonymous thread because it's either
-    # starting or dying.
-    try:
-        return ddtrace_threading._active[thread_id]
-    except (KeyError, AttributeError):
-        try:
-            return ddtrace_threading._limbo[thread_id]
-        except (KeyError, AttributeError):
-            pass
+cpdef object get_thread_by_id(int thread_id):
+    # Look for all threads, including the ones we create.
+    # Geting the thread name is best-effort;
+    # failing means missing an anonymous thread that's either starting or dying.
+
+    cdef object active_thread
+    cdef object limbo_thread
+
+    active_thread = getattr(ddtrace_threading, '_active', {}).get(thread_id)
+    if active_thread:
+        return active_thread
+
+    limbo_thread = getattr(ddtrace_threading, '_limbo', {}).get(thread_id)
+    if limbo_thread:
+        return limbo_thread
 
     return None
 
 
-cpdef get_thread_name(thread_id):
+cpdef object get_thread_name(int thread_id):
+    cdef object thread
     try:
         return periodic_threads[thread_id].name
     except KeyError:
@@ -31,8 +34,8 @@ cpdef get_thread_name(thread_id):
         return thread.name if thread is not None else None
 
 
-cpdef get_thread_native_id(thread_id):
-    thread = get_thread_by_id(thread_id)
+cpdef int get_thread_native_id(int thread_id):
+    cdef object thread = get_thread_by_id(thread_id)
 
     # _DummyThread (used by gevent greenlets) lacks _native_id, so
     # thread.native_id raises AttributeError.  Fall back to thread_id.

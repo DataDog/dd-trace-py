@@ -29,7 +29,7 @@ ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
 CALLER_FRAME_INDEX: int = 3
 
 
-def _current_thread() -> tuple[int, str]:
+def _current_thread() -> tuple[int, Optional[str]]:
     thread_id: int = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
@@ -246,7 +246,7 @@ class _ProfiledLock:
                 handle.push_release(duration_ns, 1)
 
             thread_id: int
-            thread_name: str
+            thread_name: Optional[str]
             thread_id, thread_name = _current_thread()
 
             task_id: Optional[int]
