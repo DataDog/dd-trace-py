@@ -4,6 +4,7 @@ from celery import current_app
 from celery import registry
 
 from ddtrace import config
+from ddtrace._trace.context import Context
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
