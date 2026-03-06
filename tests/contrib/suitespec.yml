@@ -39,6 +39,7 @@ components:
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
+    - tests/snapshots/tests.contrib.celery.*
   cherrypy:
     - ddtrace/contrib/cherrypy.py
     - ddtrace/contrib/internal/cherrypy/*
