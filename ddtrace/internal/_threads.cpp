@@ -717,32 +717,68 @@ PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
 }
 
 // ----------------------------------------------------------------------------
-static PyObject*
-PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
+// Common reset logic shared by _after_fork and _after_fork_child.
+static inline void
+PeriodicThread__reset_state(PeriodicThread* self)
 {
     self->_thread = nullptr;
-
     self->_stopping = false;
     self->_atexit = false;
     self->_skip_shutdown = false;
+}
 
-    // AIDEV-NOTE: After fork, the internal std::mutex and std::condition_variable
-    // of Event objects may be in an undefined state in the CHILD process (POSIX
-    // says mutexes held by threads that don't exist in the child are undefined).
-    // However, _after_fork is also called in the PARENT to restart threads.
-    // In the parent, other threads (e.g., awake() callers) may hold references
-    // to these Event objects, so we can't destroy them — we must use .clear().
-    //
-    // This is safe in the parent because _before_fork stops and joins all
-    // threads before fork(), ensuring no thread holds a mutex at this point.
-    // In the child, the mutexes SHOULD be in a valid state because the parent
-    // joined all threads before forking. If a thread was mid-mutex-operation
-    // despite the join (a bug in the stop/join logic), .clear() could still
-    // crash — but recreating Events would break parent-side callers.
+// ----------------------------------------------------------------------------
+// AIDEV-NOTE: _after_fork vs _after_fork_child
+//
+// After fork(), POSIX says mutexes held by threads that don't exist in the
+// child are in an undefined state. The _before_fork handler stops and joins
+// all threads before fork(), so mutexes SHOULD be released. But if a thread
+// was mid-mutex-operation despite the join (a bug in the stop/join logic),
+// the mutex state in the child is corrupted.
+//
+// _after_fork (parent path): Uses .clear() which locks the internal mutex.
+// This is safe because all threads were joined, and other threads in the
+// parent (e.g., awake() callers) may still hold references to these Event
+// objects — we can't destroy them.
+//
+// _after_fork_child (child path): Recreates all Events and mutexes from
+// scratch. This is safe because no other threads exist in the child after
+// fork — only the forking thread survives. Recreating avoids locking
+// potentially corrupted mutexes entirely.
+// ----------------------------------------------------------------------------
+
+static PyObject*
+PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
+{
+    PeriodicThread__reset_state(self);
+
+    // Parent path: clear existing Events (preserves references held by other threads).
     self->_request->clear(REQUEST_REASON_FORK_STOP);
     self->_started->clear();
     self->_stopped->clear();
     self->_served->clear();
+
+    // Propagate start failures — fork-based frameworks (gunicorn, uWSGI,
+    // Celery) depend on periodic threads restarting in every worker.
+    return PeriodicThread_start(self, NULL);
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+PeriodicThread__after_fork_child(PeriodicThread* self, PyObject* Py_UNUSED(args))
+{
+    PeriodicThread__reset_state(self);
+
+    // Child path: recreate all synchronization primitives from scratch.
+    // No other threads exist in the child after fork(), so no one holds
+    // references to the old Events. This avoids locking potentially
+    // corrupted mutexes entirely.
+    self->_started = std::make_unique<Event>();
+    self->_stopped = std::make_unique<Event>();
+    self->_request = std::make_unique<Event>();
+    self->_served = std::make_unique<Event>();
+
+    self->_awake_mutex = std::make_unique<std::mutex>();
 
     // Propagate start failures — fork-based frameworks (gunicorn, uWSGI,
     // Celery) depend on periodic threads restarting in every worker.
@@ -820,7 +856,8 @@ static PyMethodDef PeriodicThread_methods[] = {
     { "join", (PyCFunction)PeriodicThread_join, METH_VARARGS | METH_KEYWORDS, "Join the thread" },
     /* Private */
     { "_atexit", (PyCFunction)PeriodicThread__atexit, METH_NOARGS, "Stop the thread at exit" },
-    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork" },
+    { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork (parent)" },
+    { "_after_fork_child", (PyCFunction)PeriodicThread__after_fork_child, METH_NOARGS, "Refresh the thread after fork (child)" },
     { "_before_fork", (PyCFunction)PeriodicThread__before_fork, METH_NOARGS, "Prepare the thread for fork" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
