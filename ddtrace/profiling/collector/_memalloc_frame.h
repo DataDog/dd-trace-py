@@ -142,7 +142,7 @@ memalloc_read_varint(const unsigned char* table, Py_ssize_t len, Py_ssize_t* i)
         return 0;
     int val = table[++*i] & 63;
     int shift = 0;
-    while (table[*i] & 64 && *i < guard) {
+    while (*i < guard && table[*i] & 64) {
         shift += 6;
         val |= (table[++*i] & 63) << shift;
     }
