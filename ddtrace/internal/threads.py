@@ -156,12 +156,14 @@ def _after_fork_child():
     _forking = False
 
     # Restart the threads immediately. It is unlikely that there will be another
-    # call to fork here.
+    # call to fork here. Use _after_fork_child which recreates synchronization
+    # primitives from scratch — safe because no other threads exist in the child
+    # after fork(), and avoids locking potentially corrupted mutexes.
     for thread in _threads_to_restart_after_fork.copy():
         if isinstance(thread, PeriodicThread) and not thread.__autorestart__:
             continue
         log.debug("Restarting thread %s after fork in child", thread.name)
-        thread._after_fork()
+        thread._after_fork_child()
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
