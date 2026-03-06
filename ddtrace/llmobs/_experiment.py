@@ -733,32 +733,52 @@ class Dataset:
         update_records = list(self._updated_record_ids_to_new_fields.values())
         delete_record_ids = list(self._deleted_record_ids)
 
-        # Compute batching based on the total size of insert + update records.
         total_size = len(safe_json(insert_records)) + len(safe_json(update_records))
-        num_batches = max(1, math.ceil(total_size / self.BATCH_UPDATE_THRESHOLD))
-        insert_batch_size = math.ceil(len(insert_records) / num_batches)
-        update_batch_size = math.ceil(len(update_records) / num_batches)
-        logger.debug(
-            "batched upload num_batches: %d, insert_batch_size: %d, update_batch_size: %d",
-            num_batches,
-            insert_batch_size,
-            update_batch_size,
-        )
 
-        data_changed = False
-        for i in range(num_batches):
-            # Deletes are sent in the first batch only (just IDs, negligible size).
-            batch_changed = self._push_batch(
-                insert_records=insert_records[i * insert_batch_size : (i + 1) * insert_batch_size],
-                update_records=update_records[i * update_batch_size : (i + 1) * update_batch_size],
-                delete_record_ids=delete_record_ids if i == 0 else [],
+        if total_size <= self.BATCH_UPDATE_THRESHOLD:
+            # Small enough to send everything in a single call.
+            logger.debug("sending all changes in a single batch")
+            data_changed = self._push_batch(
+                insert_records=insert_records,
+                update_records=update_records,
+                delete_record_ids=delete_record_ids,
                 deduplicate=deduplicate,
                 create_new_version=create_new_version,
             )
-            if batch_changed:
-                data_changed = True
-                # Only bump the version at most once across batches.
-                create_new_version = False
+        else:
+            # Too large: send all inserts batched, then all updates batched, then all deletes.
+            data_changed = False
+            for records, key in ((insert_records, "insert"), (update_records, "update")):
+                if not records:
+                    continue
+                records_size = len(safe_json(records))
+                num_batches = max(1, math.ceil(records_size / self.BATCH_UPDATE_THRESHOLD))
+                batch_size = math.ceil(len(records) / num_batches)
+                logger.debug("batched %s: num_batches=%d, batch_size=%d", key, num_batches, batch_size)
+                for i in range(num_batches):
+                    batch = records[i * batch_size : (i + 1) * batch_size]
+                    batch_changed = self._push_batch(
+                        insert_records=batch if key == "insert" else [],
+                        update_records=batch if key == "update" else [],
+                        delete_record_ids=[],
+                        deduplicate=deduplicate,
+                        create_new_version=create_new_version,
+                    )
+                    if batch_changed:
+                        data_changed = True
+                        create_new_version = False
+
+            if delete_record_ids:
+                logger.debug("sending %d deletes", len(delete_record_ids))
+                batch_changed = self._push_batch(
+                    insert_records=[],
+                    update_records=[],
+                    delete_record_ids=delete_record_ids,
+                    deduplicate=deduplicate,
+                    create_new_version=create_new_version,
+                )
+                if batch_changed:
+                    data_changed = True
 
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
