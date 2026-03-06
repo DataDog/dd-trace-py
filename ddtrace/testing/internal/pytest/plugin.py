@@ -338,7 +338,9 @@ class TestOptPlugin:
             # Get test location information (path and line numbers)
             relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
-            test.tags[TestTag.TEST_FUNCTION_NAME] = _get_test_function_name(item)
+            # Set test original name if available
+            if test_original_name := _get_test_original_name(item):
+                test.tags[TestTag.TEST_ORIGINAL_NAME] = test_original_name
 
             # Set test location (use "unknown" path if none found, 0 is default for missing line info)
             test.set_location(path=relative_path or "unknown", start_line=start_line)
@@ -1089,16 +1091,8 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
         return None
 
 
-def _get_test_function_name(item: pytest.Item) -> str:
-    original_name = getattr(item, "originalname", None)
-    if original_name:
-        return str(original_name)
-
-    item_name = getattr(item, "name", None)
-    if item_name:
-        return str(item_name).split("[", 1)[0]
-
-    return item.nodeid.rsplit("::", 1)[-1].split("[", 1)[0]
+def _get_test_original_name(item: pytest.Item) -> str | None:
+    return getattr(item, "originalname", None)
 
 
 def _encode_test_parameter(parameter: t.Any) -> str:
