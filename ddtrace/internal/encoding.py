@@ -190,9 +190,16 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return self._size
 
     def put(self, item) -> None:
+        if not item:
+            return
+
         with self._lock:
             spans = []
             for span in item:
+                # First span in the list needs to set "_dd.compute_stats: 1" in
+                # order for the intake to compute stats on the backend
+                if not spans:
+                    span._metrics["_dd.compute_stats"] = 1
                 spans.append(self._item_to_dict(span))
 
             encoded = _json_dumps_bytes({"spans": spans})

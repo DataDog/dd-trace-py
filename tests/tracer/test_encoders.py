@@ -261,7 +261,7 @@ class TestEncoders(TestCase):
                     "start": 1771941568700091000,
                     "duration": 1000000000,
                     "meta": {"tag1": "value1"},
-                    "metrics": {"munir.metric": 1.0},
+                    "metrics": {"munir.metric": 1.0, "_dd.compute_stats": 1},
                     "type": "web",
                     "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
                     "meta_struct": {"payload": {"key": "value"}},
