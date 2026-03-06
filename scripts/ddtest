@@ -19,6 +19,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CACHE_DIR="${DD_TEST_CACHE_DIR:-$PROJECT_ROOT/.cache}"
+# Canonicalize to absolute path so Docker Compose doesn't treat relative names as named volumes
+mkdir -p "$CACHE_DIR" 2>/dev/null || true
+CACHE_DIR="$(cd "$CACHE_DIR" && pwd)"
 export DD_TEST_CACHE_DIR="$CACHE_DIR"
 
 # Create cache directories if they don't exist
