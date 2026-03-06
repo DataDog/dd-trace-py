@@ -742,7 +742,10 @@ class TestIndirectInjectionFullChain:
         messages_after_tool = [
             user_msg,
             {"role": "assistant", "content": [{"toolUse": tool_use}]},
-            {"role": "user", "content": [{"toolResult": {"toolUseId": "tc1", "content": [{"text": "Transaction data"}]}}]},
+            {
+                "role": "user",
+                "content": [{"toolResult": {"toolUseId": "tc1", "content": [{"text": "Transaction data"}]}}],
+            },
         ]
         ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=messages_after_tool))
 
