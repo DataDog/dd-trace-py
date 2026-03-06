@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import annotations
 
 import _thread
+import logging
 import os.path
 import sys
 import time
@@ -19,11 +20,15 @@ if TYPE_CHECKING:
     from types import UnionType
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import _threading
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.trace import Tracer
+
+
+LOG = logging.getLogger(__name__)
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -446,6 +451,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         super().__init__(*args, **kwargs)
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Any = None
+        self._reimport_hook: Optional[Callable[[ModuleType], None]] = None
 
     def _get_patch_target(self) -> Callable[..., Any]:
         return getattr(self.MODULE, self.PATCHED_LOCK_NAME)
@@ -457,16 +463,59 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Start collecting lock usage."""
         _task.initialize_gevent_support()
         self.patch()
+
+        # Register a hook to re-apply patches if the target module is
+        # re-imported after cleanup_loaded_modules() discards it from sys.modules.
+        # Without this, ddtrace-run + gevent installed = lock profiling silently broken.
+        module_name = self.MODULE.__name__
+        patched_module_id = id(self.MODULE)
+
+        def _on_module_reimport(new_module: ModuleType) -> None:
+            nonlocal patched_module_id
+            if id(new_module) == patched_module_id:
+                return
+            LOG.warning(
+                "%s: target module %r was re-imported (id %#x -> %#x); "
+                "re-applying lock profiling patches. "
+                "This typically happens when gevent is installed and cleanup_loaded_modules() "
+                "discards the previously-patched module from sys.modules.",
+                type(self).__name__,
+                module_name,
+                patched_module_id,
+                id(new_module),
+            )
+            self.unpatch()
+            self.MODULE = new_module
+            self.patch()
+            patched_module_id = id(new_module)
+
+        self._reimport_hook = _on_module_reimport
+        ModuleWatchdog.register_module_hook(module_name, self._reimport_hook)
+
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
     def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
+        if self._reimport_hook is not None:
+            try:
+                ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)
+            except Exception:  # nosec B110
+                pass
+            self._reimport_hook = None
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
         self._original_lock = self._get_patch_target()
+        if isinstance(self._original_lock, _LockAllocatorWrapper):
+            LOG.debug(
+                "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
+                type(self).__name__,
+                self.MODULE.__name__,
+                self.PATCHED_LOCK_NAME,
+            )
+            return
         original_lock: Any = self._original_lock  # Capture non-None value
 
         # Determine which module file to check for internal lock detection

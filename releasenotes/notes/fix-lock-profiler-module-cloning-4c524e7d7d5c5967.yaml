@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the lock profiler silently stopped capturing
+    lock events when running under ``ddtrace-run`` with gevent installed. The
+    module cloning mechanism discarded the patched ``threading`` and ``asyncio``
+    modules, causing user code to import fresh, unpatched modules. The lock
+    profiler now re-applies patches automatically when target modules are
+    re-imported.
