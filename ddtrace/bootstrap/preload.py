@@ -54,12 +54,15 @@ if crashtracker_config.enabled:
         log.error("failed to enable crashtracking", exc_info=True)
 
 
+log.debug("[dd.profiling] preload: DD_PROFILING_ENABLED=%r", profiling_config.enabled)
 if profiling_config.enabled:
-    log.debug("profiler enabled via environment variable")
+    log.debug("[dd.profiling] preload: profiler enabled, importing ddtrace.profiling.auto")
     try:
         import ddtrace.profiling.auto  # noqa: F401
     except Exception:
-        log.error("failed to enable profiling", exc_info=True)
+        log.error("[dd.profiling] preload: failed to import ddtrace.profiling.auto", exc_info=True)
+else:
+    log.debug("[dd.profiling] preload: profiler not enabled, skipping")
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
