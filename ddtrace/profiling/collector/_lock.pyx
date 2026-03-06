@@ -490,6 +490,7 @@ class LockCollector(collector.CaptureSamplerCollector):
             nonlocal patched_module_id
             if id(new_module) == patched_module_id:
                 return
+            self.unpatch()
             self.MODULE = new_module
             self.patch()
             patched_module_id = id(new_module)
@@ -512,8 +513,10 @@ class LockCollector(collector.CaptureSamplerCollector):
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
-        original_lock: Callable[..., Any] = self._get_patch_target()
-        self._original_lock = original_lock
+        self._original_lock = self._get_patch_target()
+        if isinstance(self._original_lock, _LockAllocatorWrapper):
+            return
+        original_lock: Callable[..., Any] = self._original_lock
 
         # Determine which module file to check for internal lock detection
         internal_module_file: Optional[str] = self.INTERNAL_MODULE_FILE
