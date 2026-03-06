@@ -360,7 +360,7 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success'
         uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
         with:
-          datadog_api_key: ${{ secrets.DATADOG_API_KEY }}
+          datadog_api_key: ${{ secrets.DD_API_KEY }}
 
       # The compress step speed up a lot the upload artifact process
       - name: Compress artifact
@@ -412,7 +412,7 @@ jobs:
         if: always() && steps.build_runner.outcome == 'success'
         uses: DataDog/system-tests/.github/actions/push_to_test_optim@main
         with:
-          datadog_api_key: ${{ secrets.DATADOG_API_KEY }}
+          datadog_api_key: ${{ secrets.DD_API_KEY }}
 
       - name: Compress artifact
         if: always() && steps.build_runner.outcome == 'success'
@@ -501,8 +501,8 @@ jobs:
     # if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
     secrets:
-      DD_API_KEY: ${{ secrets.DATADOG_API_KEY }}
-      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DATADOG_API_KEY }}
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      TEST_OPTIMIZATION_API_KEY: ${{ secrets.DD_API_KEY }}
     permissions:
       contents: read
       packages: write
