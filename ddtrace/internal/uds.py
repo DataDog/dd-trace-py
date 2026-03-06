@@ -2,6 +2,7 @@ import http.client as httplib
 import socket
 from typing import Any  # noqa:F401
 
+from .constants import DEFAULT_TIMEOUT
 from .http import HTTPConnectionMixin
 
 
@@ -24,7 +25,11 @@ class UDSHTTPConnection(HTTPConnectionMixin, httplib.HTTPConnection):
 
     def connect(self) -> None:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        if isinstance(self.timeout, (int, float)):
-            sock.settimeout(self.timeout)
+        timeout = self.timeout
+        if timeout is _GLOBAL_DEFAULT_TIMEOUT:
+            timeout = socket.getdefaulttimeout()
+        if timeout is None:
+            timeout = DEFAULT_TIMEOUT
+        sock.settimeout(timeout)
         sock.connect(self.path)
         self.sock = sock
