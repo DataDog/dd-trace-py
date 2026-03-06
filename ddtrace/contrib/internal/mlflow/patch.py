@@ -51,7 +51,7 @@ def _supported_versions() -> dict[str, str]:
 def _traced_start_run(wrapped, instance, args, kwargs):
     experiment_id = get_argument_value(args, kwargs, 1, "experiment_id", True)
     run_name = get_argument_value(args, kwargs, 2, "run_name", True)
-    run_tags = get_argument_value(args, kwargs, 6, "tags", True) or {}
+    run_tags = get_argument_value(args, kwargs, 5, "tags", True) or {}
     normalized_tags = {}
     for key, value in run_tags.items():
         try:
@@ -123,7 +123,11 @@ def _traced_log_param(wrapped, instance, args, kwargs):
 
 def _traced_log_metric(wrapped, instance, args, kwargs):
     run_id = get_argument_value(args, kwargs, 5, "run_id", True)
-    if not run_id:
+    if run_id:
+        # if the user is providing a run_id, we should check we have a span for it
+        if run_id not in MLFLOW_ACTIVE_RUN_SPANS:
+            return wrapped(*args, **kwargs)
+    else:
         run_id = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
         if not run_id:
             return wrapped(*args, **kwargs)
