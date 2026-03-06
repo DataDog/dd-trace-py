@@ -34,6 +34,7 @@ on:
 
 jobs:
   download-s3-wheels:
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -93,7 +94,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
+          ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -146,7 +147,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
+          ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -357,7 +358,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
+          ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -449,6 +450,7 @@ jobs:
           path: binaries/
 
   integration-frameworks-system-tests:
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521

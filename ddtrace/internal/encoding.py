@@ -4,7 +4,11 @@ from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
+from ddtrace.internal.threads import RLock
 
+from ._encoding import BufferedEncoder
+from ._encoding import BufferFull
+from ._encoding import BufferItemTooLarge
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
@@ -12,13 +16,25 @@ from .compat import ensure_text
 from .logger import get_logger
 
 
-__all__ = ["MsgpackEncoderV04", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
+__all__ = [
+    "AgentlessTraceJSONEncoder",
+    "MsgpackEncoderV04",
+    "MsgpackEncoderV05",
+    "ListStringTable",
+    "MSGPACK_ENCODERS",
+]
 
 
 if TYPE_CHECKING:  # pragma: no cover
     from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
+
+
+def _json_dumps_bytes(obj: object) -> bytes:
+    """Serialize to JSON and return UTF-8 bytes (alternative to json.dumps that returns binary)."""
+    # TODO(munir): Consider vendoring orjson to avoid this intermeriate strings
+    return json.dumps(obj).encode("utf-8", errors="backslashreplace")
 
 
 class _EncoderBase(object):
@@ -147,6 +163,64 @@ class JSONEncoderV2(JSONEncoder):
     def encode(self, obj):
         res, _ = super().encode(obj)
         return res, len(obj.get("traces", []))
+
+
+class AgentlessTraceJSONEncoder(BufferedEncoder):
+    """
+    Buffered encoder for the agentless JSON span intake. Buffers traces and
+    produces payloads in the {"spans": [...]} format for HTTPWriter.
+    """
+
+    content_type = "application/json"
+
+    def __init__(self, max_size: int, max_item_size: int) -> None:
+        self.max_size = max_size
+        self.max_item_size = max_item_size
+        self._payloads: list[tuple[Optional[bytes], int]] = []
+        self._size = 0
+        self._lock = RLock()
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._payloads)
+
+    @property
+    def size(self) -> int:
+        with self._lock:
+            return self._size
+
+    def put(self, item) -> None:
+        with self._lock:
+            spans = []
+            for span in item:
+                spans.append(self._item_to_dict(span))
+
+            encoded = _json_dumps_bytes({"spans": spans})
+
+            item_size = len(encoded)
+            if item_size > self.max_item_size:
+                raise BufferItemTooLarge(item_size)
+            elif item_size + self._size > self.max_size:
+                raise BufferFull(item_size + self._size)
+
+            self._size += item_size
+            self._payloads.append((encoded, 1))
+
+    def encode(self) -> list[tuple[Optional[bytes], int]]:
+        with self._lock:
+            payloads = self._payloads
+            self._payloads = []
+            self._size = 0
+            return payloads
+
+    def _item_to_dict(self, item: "Span") -> dict[str, Any]:
+        span_dict = JSONEncoderV2._convert_span(item)
+        span_dict["meta_struct"] = item._meta_struct
+        # Intake Requires ids to be in lowercase
+        span_dict["trace_id"] = span_dict["trace_id"].lower()
+        span_dict["parent_id"] = span_dict["parent_id"].lower()
+        span_dict["span_id"] = span_dict["span_id"].lower()
+        return span_dict
 
 
 MSGPACK_ENCODERS = {

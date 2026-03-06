@@ -8,6 +8,7 @@ on:
 jobs:
   update-riot-lockfiles:
     name: Update riot lockfiles
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     runs-on: ubuntu-22.04
     permissions:
       actions: read

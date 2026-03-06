@@ -44,8 +44,6 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.native import generate_128bit_trace_id
-from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native._native import SpanEventData
 from ddtrace.internal.settings._config import config
@@ -104,7 +102,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "trace_id",
         "_meta",
         "_meta_struct",
         "context",
@@ -158,34 +155,21 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-
-        if not (trace_id is None or isinstance(trace_id, int)):
-            if config._raise:
-                raise TypeError("trace_id must be an integer")
-            return
-        if not (parent_id is None or isinstance(parent_id, int)):
-            if config._raise:
-                raise TypeError("parent_id must be an integer")
-            return
-
         self._meta: dict[str, str] = {}
         self._metrics: dict[str, NumericType] = {}
 
         self._meta_struct: dict[str, dict[str, Any]] = {}
 
-        if trace_id is not None:
-            self.trace_id: int = trace_id
-        elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = generate_128bit_trace_id()  # type: ignore[no-redef]
-        else:
-            self.trace_id: int = rand64bits()  # type: ignore[no-redef]
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
+        # PERF: cache trace_id/span_id to avoid repeated Rust property calls
+        _trace_id = self.trace_id
+        _span_id = self.span_id
         self.context: Context = (
-            context.copy(self.trace_id, self.span_id)
+            context.copy(_trace_id, _span_id)
             if context
-            else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+            else Context(trace_id=_trace_id, span_id=_span_id, is_remote=False)
         )
 
         self._links: list[Union[SpanLink, _SpanPointer]] = []
@@ -227,10 +211,6 @@ class Span(SpanData):
         if not self._store:
             return None
         return self._store.get(key)
-
-    @property
-    def _trace_id_64bits(self) -> int:
-        return _get_64_lowest_order_bits_as_int(self.trace_id)
 
     def finish(self, finish_time: Optional[float] = None) -> None:
         """Mark the end time of the span and submit it to the tracer.
