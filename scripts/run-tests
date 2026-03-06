@@ -29,7 +29,7 @@ from typing import NamedTuple
 
 
 # Add project root and tests to Python path to import suitespec and riotfile
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
@@ -539,7 +539,11 @@ class TestRunner:
                     env[key] = str(value)
                     print(f"🔧 Setting {key}={value}")
 
-            # Override with testagent URL if needed
+            # Override with testagent URL if needed.
+            # NOTE: This only works for suites whose riot venvs do NOT hardcode
+            # DD_TRACE_AGENT_URL in riotfile.py. When riot uses --pass-env, it
+            # copies os.environ then overwrites with inst.env, so hardcoded
+            # values in the riotfile will take precedence over this override.
             if needs_testagent:
                 testagent_url = self.get_testagent_url()
                 env["DD_TRACE_AGENT_URL"] = testagent_url
