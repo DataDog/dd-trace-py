@@ -194,7 +194,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return
 
         with self._lock:
-            spans = []
+            spans: list[dict[str, Any]] = []
             for span in item:
                 # First span in the list needs to set "_dd.compute_stats: 1" in
                 # order for the intake to compute stats on the backend
