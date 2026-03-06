@@ -23,6 +23,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
+from ddtrace.profiling.collector import exception
 from ddtrace.profiling.collector import memalloc
 from ddtrace.profiling.collector import pytorch
 from ddtrace.profiling.collector import stack
@@ -109,6 +110,7 @@ class _ProfilerInstance(service.Service):
         _stack_collector_enabled: bool = profiling_config.stack.enabled,
         _lock_collector_enabled: bool = profiling_config.lock.enabled,
         _pytorch_collector_enabled: bool = profiling_config.pytorch.enabled,
+        _exception_profiling_enabled: bool = profiling_config.exception.enabled,
         enable_code_provenance: bool = profiling_config.code_provenance,
         endpoint_collection_enabled: bool = profiling_config.endpoint_collection,
     ):
@@ -124,6 +126,7 @@ class _ProfilerInstance(service.Service):
         self._stack_collector_enabled: bool = _stack_collector_enabled
         self._lock_collector_enabled: bool = _lock_collector_enabled
         self._pytorch_collector_enabled: bool = _pytorch_collector_enabled
+        self._exception_profiling_enabled: bool = _exception_profiling_enabled
         self.enable_code_provenance: bool = enable_code_provenance
         self.endpoint_collection_enabled: bool = endpoint_collection_enabled
 
@@ -181,6 +184,20 @@ class _ProfilerInstance(service.Service):
                 LOG.debug("Profiling collector (stack) initialized")
             except Exception:
                 LOG.error("Failed to start stack collector, disabling.", exc_info=True)
+
+        # Initialize the Python exception collector if enabled
+        if self._exception_profiling_enabled:
+            LOG.debug("Profiling collector (exception) enabled")
+            try:
+                exc_collector = exception.ExceptionCollector(
+                    max_nframe=profiling_config.max_frames,
+                    sampling_interval=profiling_config.exception.sampling_interval,
+                    collect_message=profiling_config.exception.collect_message,
+                )
+                self._collectors.append(exc_collector)
+                LOG.debug("Profiling collector (exception) initialized")
+            except Exception:
+                LOG.error("Failed to start exception collector, disabling.", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
