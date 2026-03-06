@@ -804,7 +804,7 @@ class Dataset:
                 self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
             del self._new_records_by_record_id[key]
 
-        data_changed = len(new_record_ids) > 0 or len(delete_record_ids) > 0
+        data_changed = new_version != -1
         if new_version != -1:
             self._latest_version = new_version
         logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
