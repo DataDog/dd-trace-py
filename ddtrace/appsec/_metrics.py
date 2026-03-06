@@ -1,9 +1,9 @@
 import typing
 
-from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._utils import DDWaf_info
+from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -157,48 +157,40 @@ def _report_waf_run_error(error: int, rule_version: str, rule_type: typing.Optio
         raise
 
 
-def _set_waf_request_metrics(*_args):
+def _set_waf_request_metrics(result: Telemetry_result) -> None:
     try:
-        result = _asm_request_context.get_waf_telemetry_results()
-        if result is not None:
-            # TODO: enable it when Telemetry intake accepts this tag
-            # is_truncation = any((result.truncation for result in list_results))
+        truncation = result.truncation
+        input_truncated = bool(truncation.string_length or truncation.container_size or truncation.container_depth)
+        tags_request = (
+            ("event_rules_version", result.version or UNKNOWN_VERSION),
+            ("waf_version", ddwaf_version),
+            ("rule_triggered", bool_str[result.triggered]),
+            ("request_blocked", bool_str[result.blocked]),
+            ("waf_timeout", bool_str[bool(result.timeout)]),
+            ("input_truncated", bool_str[input_truncated]),
+            ("waf_error", bool_str[result.error < 0]),  # waf_error is a boolean in waf.requests
+            ("rate_limited", bool_str[result.rate_limited]),
+        )
 
-            truncation = result.truncation
-            input_truncated = bool(truncation.string_length or truncation.container_size or truncation.container_depth)
-            tags_request = (
-                ("event_rules_version", result.version or UNKNOWN_VERSION),
-                ("waf_version", ddwaf_version),
-                ("rule_triggered", bool_str[result.triggered]),
-                ("request_blocked", bool_str[result.blocked]),
-                ("waf_timeout", bool_str[bool(result.timeout)]),
-                ("input_truncated", bool_str[input_truncated]),
-                ("waf_error", bool_str[result.error < 0]),  # waf_error is a boolean in waf.requests
-                ("rate_limited", bool_str[result.rate_limited]),
-            )
-
-            telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request
-            )
-            rasp = result.rasp
-            if rasp.sum_eval:
-                for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
-                    for rule_type, value in getattr(rasp, t).items():
-                        if value:
-                            tags = _TYPES_AND_TAGS.get(rule_type, ()) + (
-                                ("waf_version", ddwaf_version),
-                                ("event_rules_version", result.version or UNKNOWN_VERSION),
-                            )
-                            if t == "match":
-                                tags = tags + (("block", ["irrelevant", "success"][rasp.blocked]),)
-                            telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, n, value, tags=tags)
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "waf.requests", 1, tags=tags_request)
+        rasp = result.rasp
+        if rasp.sum_eval:
+            for t, n in [("eval", "rasp.rule.eval"), ("match", "rasp.rule.match"), ("timeout", "rasp.timeout")]:
+                for rule_type, value in getattr(rasp, t).items():
+                    if value:
+                        tags = _TYPES_AND_TAGS.get(rule_type, ()) + (
+                            ("waf_version", ddwaf_version),
+                            ("event_rules_version", result.version or UNKNOWN_VERSION),
+                        )
+                        if t == "match":
+                            tags = tags + (("block", ["irrelevant", "success"][rasp.blocked]),)
+                        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, n, value, tags=tags)
     except Exception:
         extra = {"product": "appsec", "exec_limit": 6, "more_info": ":waf:request"}
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _report_api_security(route: bool, schemas: int) -> None:
-    framework = _asm_request_context.get_framework()
+def _report_api_security(route: bool, schemas: int, framework: str = "") -> None:
     try:
         if route:
             metric_name = "api_security.request.schema" if schemas > 0 else "api_security.request.no_schema"
