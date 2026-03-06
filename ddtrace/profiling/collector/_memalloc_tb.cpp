@@ -83,7 +83,7 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
         // Once we've reached the frame cap, record that deeper frames were
         // omitted and stop before doing more line-number or filename work.
         if (pushed_frames >= max_nframe) {
-            sample.mark_frames_dropped();
+            sample.incr_dropped_frames();
             break;
         }
 
