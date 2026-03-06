@@ -12,6 +12,7 @@ from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
 
@@ -71,7 +72,7 @@ class BaseLLMIntegration:
         span.set_metric(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
         if self.llmobs_enabled:
-            span._set_ctx_item(INTEGRATION, self._integration_name)
+            _annotate_llmobs_span_data(span, tags={"integration": self._integration_name})
         return span
 
     def llmobs_set_tags(

@@ -75,7 +75,6 @@ from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
-from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import MCP_TOOL_CALL_INTENT
@@ -135,6 +134,7 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_ml_app
@@ -540,14 +540,6 @@ class LLMObs(Service):
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
-        ml_app = _get_ml_app(span)
-        if ml_app is None:
-            raise ValueError(
-                "ML app is required for sending LLM Observability data. "
-                "Ensure this configuration is set before running your application."
-            )
-        span._set_ctx_item(ML_APP, ml_app)
-
         parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID) or ROOT_PARENT_ID
         llmobs_trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
         if llmobs_trace_id is None:
@@ -566,7 +558,7 @@ class LLMObs(Service):
         meta = _build_span_meta(span, llmobs_span, llmobs_meta, span_kind, input_type, output_type)
         metrics = llmobs_data.get(LLMOBS_STRUCT.METRICS) or {}
         session_id = _get_session_id(span)
-        tags = self._llmobs_tags(span, ml_app, session_id, True, llmobs_data)
+        tags = self._llmobs_tags(span)
         span_links = get_span_links(span)
         _dd_attrs = {
             "span_id": str(span.span_id),
@@ -782,7 +774,7 @@ class LLMObs(Service):
             span._set_ctx_item(SESSION_ID, session_id)
             llmobs_span_event["session_id"] = session_id
 
-        llmobs_span_event["tags"] = self._llmobs_tags(span, ml_app, session_id, False, None)
+        llmobs_span_event["tags"] = self._llmobs_tags(span)
 
         span_links = span._get_ctx_item(SPAN_LINKS)
         if isinstance(span_links, list) and span_links:
@@ -795,13 +787,7 @@ class LLMObs(Service):
         return llmobs_span_event
 
     @staticmethod
-    def _llmobs_tags(
-        span: Span,
-        ml_app: str,
-        session_id: Optional[str] = None,
-        use_meta_struct: bool = False,
-        llmobs_data: Optional[LLMObsSpanData] = None,
-    ) -> list[str]:
+    def _llmobs_tags(span: Span) -> list[str]:
         dd_tags = config.tags
         tags = {
             **dd_tags,
@@ -809,7 +795,7 @@ class LLMObs(Service):
             "env": config.env or "",
             "service": span.service or "",
             "source": "integration",
-            "ml_app": ml_app,
+            "ml_app": _get_ml_app(span),
             "ddtrace.version": __version__,
             "language": "python",
             "error": span.error,
@@ -817,19 +803,12 @@ class LLMObs(Service):
         err_type = span.get_tag(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
+        session_id = _get_session_id(span)
         if session_id:
             tags["session_id"] = session_id
 
-        existing_tags: Optional[dict[str, str]] = None
-        if use_meta_struct and llmobs_data:
-            llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS, {})
-            if llmobs_tags.get("integration"):
-                tags["integration"] = llmobs_tags.get("integration")
-            existing_tags = llmobs_tags
-        else:
-            if span._get_ctx_item(INTEGRATION):
-                tags["integration"] = span._get_ctx_item(INTEGRATION)
-            existing_tags = span._get_ctx_item(TAGS)
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        existing_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS, {})
 
         if _is_evaluation_span(span):
             tags[constants.RUNNER_IS_INTEGRATION_SPAN_TAG] = "ragas"
@@ -2049,15 +2028,6 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        span._set_ctx_item(SPAN_KIND, operation_kind)
-        if model_name is not None:
-            span._set_ctx_item(MODEL_NAME, model_name)
-        if model_provider is not None:
-            span._set_ctx_item(MODEL_PROVIDER, model_provider)
-        session_id = session_id if session_id is not None else _get_session_id(span)
-        if session_id is not None:
-            span._set_ctx_item(SESSION_ID, session_id)
-
         ml_app = ml_app if ml_app is not None else _get_ml_app(span)
         if ml_app is None:
             raise ValueError(
@@ -2065,7 +2035,15 @@ class LLMObs(Service):
                 "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
                 "before running your application."
             )
-        span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
+        _annotate_llmobs_span_data(
+            span,
+            kind=operation_kind,
+            model_name=model_name,
+            model_provider=model_provider,
+            session_id=session_id or _get_session_id(span),
+            ml_app=ml_app,
+            tags={"decorator": str(int(_decorator))},
+        )
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
