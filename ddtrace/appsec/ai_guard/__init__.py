@@ -33,6 +33,7 @@ if _HAS_STRANDS:
     try:
         from .integrations.strands import AIGuardStrandsHookProvider as AIGuardStrandsHookProvider
     except ImportError:
+        log.debug("Failed to import AIGuardStrandsHookProvider", exc_info=True)
         _HAS_STRANDS = False
 
 if not _HAS_STRANDS:

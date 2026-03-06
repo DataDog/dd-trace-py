@@ -16,85 +16,17 @@ No real model or API key is needed: the AI Guard HTTP client is mocked, and
 events are built from mock Agent objects with hand-crafted message histories.
 """
 
-from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
-from strands.hooks import AfterModelCallEvent
-from strands.hooks import AfterToolCallEvent
-from strands.hooks import BeforeModelCallEvent
-from strands.hooks import BeforeToolCallEvent
-from strands.interrupt import _InterruptState
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
-from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
+from tests.appsec.ai_guard.strands_hooks.conftest import after_model_event
+from tests.appsec.ai_guard.strands_hooks.conftest import after_tool_event
+from tests.appsec.ai_guard.strands_hooks.conftest import before_model_event
+from tests.appsec.ai_guard.strands_hooks.conftest import before_tool_event
+from tests.appsec.ai_guard.strands_hooks.conftest import make_hook
 from tests.appsec.ai_guard.utils import mock_evaluate_response
-from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-
-# ---------------------------------------------------------------------------
-# Helpers – follows the official Strands SDK test pattern
-# (see sdk-python/tests/strands/hooks/test_registry.py)
-# ---------------------------------------------------------------------------
-
-_AI_GUARD_CONFIG = dict(
-    _ai_guard_enabled="True",
-    _ai_guard_endpoint="https://api.example.com/ai-guard",
-    _dd_api_key="test-api-key",
-    _dd_app_key="test-application-key",
-)
-
-
-def _mock_agent(messages=None, system_prompt=None):
-    agent = Mock()
-    agent.messages = messages if messages is not None else []
-    agent.system_prompt = system_prompt
-    # Required by BeforeToolCallEvent which inherits from _Interruptible
-    agent._interrupt_state = _InterruptState()
-    return agent
-
-
-def _before_model_event(messages=None, system_prompt=None):
-    agent = _mock_agent(messages, system_prompt)
-    return BeforeModelCallEvent(agent=agent, invocation_state={})
-
-
-def _after_model_event(response_message=None):
-    agent = _mock_agent()
-    stop_response = None
-    if response_message is not None:
-        stop_response = AfterModelCallEvent.ModelStopResponse(
-            message=response_message,
-            stop_reason="end_turn",
-        )
-    return AfterModelCallEvent(agent=agent, stop_response=stop_response)
-
-
-def _before_tool_event(tool_use, messages=None):
-    agent = _mock_agent(messages)
-    return BeforeToolCallEvent(
-        agent=agent,
-        selected_tool=None,
-        tool_use=tool_use,
-        invocation_state={},
-    )
-
-
-def _after_tool_event(tool_use, tool_result, messages=None):
-    agent = _mock_agent(messages)
-    return AfterToolCallEvent(
-        agent=agent,
-        selected_tool=None,
-        tool_use=tool_use,
-        invocation_state={},
-        result=tool_result,
-    )
-
-
-def _make_hook(**kwargs):
-    """Create an AIGuardStrandsHookProvider with the given parameters."""
-    with override_ai_guard_config(_AI_GUARD_CONFIG):
-        return AIGuardStrandsHookProvider(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -143,18 +75,18 @@ class TestNormalPromptLifecycle:
         assistant_text_msg = {"role": "assistant", "content": [{"text": "The current time is 10:30 AM UTC."}]}
 
         # Step 1: BeforeModelCallEvent — user prompt
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
 
         # Step 2: Model decides to call current_time -> BeforeToolCallEvent
-        ai_guard_strands_hook._on_before_tool_call(_before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
         # Step 3: AfterToolCallEvent — tool result evaluated
         ai_guard_strands_hook._on_after_tool_call(
-            _after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
+            after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
         # Step 4: AfterModelCallEvent — model text response
-        ai_guard_strands_hook._on_after_model_call(_after_model_event(response_message=assistant_text_msg))
+        ai_guard_strands_hook._on_after_model_call(after_model_event(response_message=assistant_text_msg))
 
         # 4 evaluate calls: BeforeModel + BeforeTool + AfterTool + AfterModel
         assert mock_req.call_count == 4
@@ -185,7 +117,7 @@ class TestDirectPromptInjection:
                 ],
             }
         ]
-        event = _before_model_event(messages=messages)
+        event = before_model_event(messages=messages)
 
         ai_guard_strands_hook._on_before_model_call(event)
 
@@ -196,8 +128,8 @@ class TestDirectPromptInjection:
     def test_injection_caught_raises_with_raise_error(self, mock_req):
         """With raise_error=True, AIGuardAbortError is raised."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="prompt_injection")
-        hook = _make_hook(raise_error=True)
-        event = _before_model_event(
+        hook = make_hook(raise_error=True)
+        event = before_model_event(
             messages=[
                 {
                     "role": "user",
@@ -238,7 +170,7 @@ class TestIndirectPromptInjection:
     def test_benign_prompt_passes_before_model_call(self, mock_req, ai_guard_strands_hook):
         """Step 1: the user prompt alone is benign."""
         mock_req.return_value = mock_evaluate_response("ALLOW")
-        event = _before_model_event(
+        event = before_model_event(
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
         )
 
@@ -250,7 +182,7 @@ class TestIndirectPromptInjection:
     def test_benign_tool_call_passes(self, mock_req, ai_guard_strands_hook):
         """Step 2: the tool call arguments are benign."""
         mock_req.return_value = mock_evaluate_response("ALLOW")
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}},
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
         )
@@ -266,7 +198,7 @@ class TestIndirectPromptInjection:
         tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use=tool_use,
             tool_result=tool_result,
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
@@ -293,13 +225,13 @@ class TestIndirectPromptInjection:
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
         # Step 1: BeforeModelCallEvent — user prompt only
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
 
         # Step 2: BeforeToolCallEvent — benign tool call
-        ai_guard_strands_hook._on_before_tool_call(_before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
         # Step 3: AfterToolCallEvent — poisoned tool result -> replaced
-        event = _after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
+        event = after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         ai_guard_strands_hook._on_after_tool_call(event)
 
         assert event.result["content"][0]["text"] == (
@@ -314,7 +246,7 @@ class TestIndirectPromptInjection:
         tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use=tool_use,
             tool_result=tool_result,
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
@@ -357,7 +289,7 @@ class TestExfiltrationViaToolCall:
             "input": {"user_id": "current_user"},
         }
 
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use=exfiltration_tool_use,
             messages=[
                 user_msg,
@@ -386,7 +318,7 @@ class TestExfiltrationViaToolCall:
             "name": "get_user_profile",
             "input": {"user_id": "current_user"},
         }
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use=exfiltration_tool_use,
             messages=[
                 {"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]},
@@ -434,7 +366,7 @@ class TestExfiltrationInModelResponse:
                 }
             ],
         }
-        event = _after_model_event(response_message=response_message)
+        event = after_model_event(response_message=response_message)
 
         ai_guard_strands_hook._on_after_model_call(event)
 
@@ -444,9 +376,9 @@ class TestExfiltrationInModelResponse:
     def test_exfiltration_img_tag_raises_with_raise_error(self, mock_req):
         """With raise_error=True, raises AIGuardAbortError."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="data_exfiltration")
-        hook = _make_hook(raise_error=True)
+        hook = make_hook(raise_error=True)
 
-        event = _after_model_event(
+        event = after_model_event(
             response_message={
                 "role": "assistant",
                 "content": [
@@ -485,7 +417,7 @@ class TestExfiltrationInModelResponse:
                 }
             ],
         }
-        event = _after_model_event(response_message=response_message)
+        event = after_model_event(response_message=response_message)
 
         ai_guard_strands_hook._on_after_model_call(event)
 
@@ -506,7 +438,7 @@ class TestPIIInToolArguments:
     def test_benign_prompt_passes(self, mock_req, ai_guard_strands_hook):
         """The user prompt itself contains no PII."""
         mock_req.return_value = mock_evaluate_response("ALLOW")
-        event = _before_model_event(
+        event = before_model_event(
             messages=[
                 {
                     "role": "user",
@@ -526,7 +458,7 @@ class TestPIIInToolArguments:
         """The model generates a fake SSN in the tool call -> tool cancelled with message."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="pii_detected")
 
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use={
                 "toolUseId": "tc1",
                 "name": "register_customer",
@@ -556,7 +488,7 @@ class TestPIIInToolArguments:
         """Verify the SSN appears in the tool call arguments sent to AI Guard."""
         mock_req.return_value = mock_evaluate_response("ALLOW")
 
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use={
                 "toolUseId": "tc1",
                 "name": "register_customer",
@@ -598,7 +530,7 @@ class TestPIIInToolArguments:
         }
 
         # Step 1: BeforeModelCallEvent — benign prompt
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
 
         # Step 2: BeforeToolCallEvent — model generates PII in tool args -> cancelled
         tool_use = {
@@ -607,7 +539,7 @@ class TestPIIInToolArguments:
             "input": {"full_name": "John Smith", "ssn": "123-45-6789", "email": "john.smith@example.com"},
         }
 
-        event = _before_tool_event(tool_use=tool_use, messages=[user_msg])
+        event = before_tool_event(tool_use=tool_use, messages=[user_msg])
         ai_guard_strands_hook._on_before_tool_call(event)
 
         assert event.cancel_tool == "[DATADOG AI GUARD] 'register_customer' has been canceled for security reasons"
@@ -639,10 +571,10 @@ class TestIndirectInjectionFullChain:
         tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
-        ai_guard_strands_hook._on_before_tool_call(_before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
-        event = _after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
+        event = after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         ai_guard_strands_hook._on_after_tool_call(event)
 
         assert event.result["content"][0]["text"] == (
@@ -667,10 +599,10 @@ class TestIndirectInjectionFullChain:
         first_tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
-        ai_guard_strands_hook._on_before_tool_call(_before_tool_event(tool_use=first_tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=first_tool_use, messages=[user_msg]))
         ai_guard_strands_hook._on_after_tool_call(
-            _after_tool_event(tool_use=first_tool_use, tool_result=tool_result, messages=[user_msg])
+            after_tool_event(tool_use=first_tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
         messages_after_tool = [
@@ -683,7 +615,7 @@ class TestIndirectInjectionFullChain:
         ]
 
         # BeforeModelCallEvent #2 passes (tool results excluded from evaluation)
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=messages_after_tool))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=messages_after_tool))
 
         # Verify BeforeModelCallEvent #2 excluded tool results from the payload
         call_4_payload = mock_req.call_args_list[3][0][1]
@@ -694,7 +626,7 @@ class TestIndirectInjectionFullChain:
         # Model follows injection -> calls get_user_profile -> tool cancelled
         exfiltration_tool_use = {"toolUseId": "tc2", "name": "get_user_profile", "input": {"user_id": "current_user"}}
 
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use=exfiltration_tool_use,
             messages=messages_after_tool + [{"role": "assistant", "content": [{"toolUse": exfiltration_tool_use}]}],
         )
@@ -728,14 +660,14 @@ class TestIndirectInjectionFullChain:
         tool_result = {"toolUseId": "tc1", "content": [{"text": "Transaction data"}], "status": "success"}
 
         # Step 1: BeforeModelCallEvent #1
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
 
         # Step 2: BeforeToolCallEvent
-        ai_guard_strands_hook._on_before_tool_call(_before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
         # Step 3: AfterToolCallEvent
         ai_guard_strands_hook._on_after_tool_call(
-            _after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
+            after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
         # Step 4: BeforeModelCallEvent #2 (with tool result in conversation)
@@ -747,11 +679,11 @@ class TestIndirectInjectionFullChain:
                 "content": [{"toolResult": {"toolUseId": "tc1", "content": [{"text": "Transaction data"}]}}],
             },
         ]
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=messages_after_tool))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=messages_after_tool))
 
         # Step 5: AfterModelCallEvent
         response_msg = {"role": "assistant", "content": [{"text": "Here are your transactions."}]}
-        ai_guard_strands_hook._on_after_model_call(_after_model_event(response_message=response_msg))
+        ai_guard_strands_hook._on_after_model_call(after_model_event(response_message=response_msg))
 
         assert mock_req.call_count == 5
 
@@ -815,10 +747,10 @@ class TestIndirectInjectionFullChain:
         tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=[user_msg]))
-        ai_guard_strands_hook._on_before_tool_call(_before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
         ai_guard_strands_hook._on_after_tool_call(
-            _after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
+            after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
         messages_after_tool = [
@@ -830,7 +762,7 @@ class TestIndirectInjectionFullChain:
             },
         ]
 
-        ai_guard_strands_hook._on_before_model_call(_before_model_event(messages=messages_after_tool))
+        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=messages_after_tool))
 
         # Model's response includes the exfiltration payload — text is replaced
         response_message = {
@@ -847,7 +779,7 @@ class TestIndirectInjectionFullChain:
                 }
             ],
         }
-        event = _after_model_event(response_message=response_message)
+        event = after_model_event(response_message=response_message)
         ai_guard_strands_hook._on_after_model_call(event)
 
         assert event.stop_response.message["content"][0]["text"] == _BLOCKED_MSG
@@ -864,8 +796,8 @@ class TestDetailedError:
     def test_before_tool_detailed_error(self, mock_req):
         """With detailed_error=True, reason is appended to cancel message."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="pii_detected")
-        hook = _make_hook(detailed_error=True)
-        event = _before_tool_event(
+        hook = make_hook(detailed_error=True)
+        event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "register_customer", "input": {"ssn": "123-45-6789"}},
             messages=[],
         )
@@ -880,9 +812,9 @@ class TestDetailedError:
     def test_after_tool_detailed_error(self, mock_req):
         """With detailed_error=True, reason is appended to replaced result."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="prompt_injection")
-        hook = _make_hook(detailed_error=True)
+        hook = make_hook(detailed_error=True)
         tool_result = {"toolUseId": "tc1", "content": [{"text": "injected"}], "status": "success"}
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {}},
             tool_result=tool_result,
             messages=[],
@@ -898,8 +830,8 @@ class TestDetailedError:
     def test_after_model_detailed_error(self, mock_req):
         """With detailed_error=True, reason is appended to replaced response."""
         mock_req.return_value = mock_evaluate_response("DENY", reason="data_exfiltration")
-        hook = _make_hook(detailed_error=True)
-        event = _after_model_event(
+        hook = make_hook(detailed_error=True)
+        event = after_model_event(
             response_message={"role": "assistant", "content": [{"text": "sensitive data"}]},
         )
 

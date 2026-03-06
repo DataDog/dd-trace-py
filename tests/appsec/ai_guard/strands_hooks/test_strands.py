@@ -10,69 +10,18 @@ from strands.hooks import HookRegistry
 from strands.interrupt import _InterruptState
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
-from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import ToolCall
+from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard.integrations.strands import _convert_strands_messages
 from ddtrace.appsec.ai_guard.integrations.strands import _tool_result_text
+from tests.appsec.ai_guard.strands_hooks.conftest import after_model_event
+from tests.appsec.ai_guard.strands_hooks.conftest import after_tool_event
+from tests.appsec.ai_guard.strands_hooks.conftest import before_model_event
+from tests.appsec.ai_guard.strands_hooks.conftest import before_tool_event
+from tests.appsec.ai_guard.strands_hooks.conftest import make_hook
 from tests.appsec.ai_guard.utils import mock_evaluate_response
-
-
-# ---------------------------------------------------------------------------
-# Helpers to build mock Strands event objects
-# ---------------------------------------------------------------------------
-
-
-def _mock_agent(messages=None, system_prompt=None):
-    """Build a mock Agent with .messages and .system_prompt."""
-    agent = Mock()
-    agent.messages = messages if messages is not None else []
-    agent.system_prompt = system_prompt
-    # Required by BeforeToolCallEvent which inherits from _Interruptible
-    agent._interrupt_state = _InterruptState()
-    return agent
-
-
-def _before_model_event(messages=None, system_prompt=None):
-    """Build a BeforeModelCallEvent with a mock agent."""
-    agent = _mock_agent(messages, system_prompt)
-    return BeforeModelCallEvent(agent=agent, invocation_state={})
-
-
-def _after_model_event(response_message=None):
-    """Build an AfterModelCallEvent with a mock agent and optional response."""
-    agent = _mock_agent()
-    stop_response = None
-    if response_message is not None:
-        stop_response = AfterModelCallEvent.ModelStopResponse(
-            message=response_message,
-            stop_reason="end_turn",
-        )
-    return AfterModelCallEvent(agent=agent, stop_response=stop_response)
-
-
-def _before_tool_event(tool_use, messages=None):
-    """Build a BeforeToolCallEvent with a mock agent."""
-    agent = _mock_agent(messages)
-    return BeforeToolCallEvent(
-        agent=agent,
-        selected_tool=None,
-        tool_use=tool_use,
-        invocation_state={},
-    )
-
-
-def _after_tool_event(tool_use, tool_result, messages=None):
-    """Build an AfterToolCallEvent with a mock agent."""
-    agent = _mock_agent(messages)
-    return AfterToolCallEvent(
-        agent=agent,
-        selected_tool=None,
-        tool_use=tool_use,
-        invocation_state={},
-        result=tool_result,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +230,7 @@ class TestBeforeModelCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_allow(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _before_model_event(
+        event = before_model_event(
             messages=[{"role": "user", "content": [{"text": "Hello"}]}],
         )
 
@@ -295,7 +244,7 @@ class TestBeforeModelCall:
         """Default behavior: replace the last user message content."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
         messages = [{"role": "user", "content": [{"text": "malicious prompt"}]}]
-        event = _before_model_event(messages=messages)
+        event = before_model_event(messages=messages)
 
         ai_guard_strands_hook._on_before_model_call(event)
 
@@ -307,17 +256,8 @@ class TestBeforeModelCall:
     def test_block_raise_error(self, mock_execute_request, decision):
         """With raise_error=True, AIGuardAbortError is raised."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(raise_error=True)
-        event = _before_model_event(
+        hook = make_hook(raise_error=True)
+        event = before_model_event(
             messages=[{"role": "user", "content": [{"text": "malicious prompt"}]}],
         )
 
@@ -327,7 +267,7 @@ class TestBeforeModelCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_with_system_prompt(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _before_model_event(
+        event = before_model_event(
             messages=[{"role": "user", "content": [{"text": "Hello"}]}],
             system_prompt="You are helpful",
         )
@@ -338,7 +278,7 @@ class TestBeforeModelCall:
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_empty_messages(self, mock_execute_request, ai_guard_strands_hook):
-        event = _before_model_event(messages=[])
+        event = before_model_event(messages=[])
 
         ai_guard_strands_hook._on_before_model_call(event)
 
@@ -347,7 +287,7 @@ class TestBeforeModelCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_with_conversation_history(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _before_model_event(
+        event = before_model_event(
             messages=[
                 {"role": "user", "content": [{"text": "What is 2+2?"}]},
                 {"role": "assistant", "content": [{"text": "4"}]},
@@ -363,7 +303,7 @@ class TestBeforeModelCall:
     def test_excludes_tool_results(self, mock_execute_request, ai_guard_strands_hook):
         """BeforeModel should not include tool results (already processed by AfterToolCall)."""
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _before_model_event(
+        event = before_model_event(
             messages=[
                 {"role": "user", "content": [{"text": "What is 2+2?"}]},
                 {
@@ -389,18 +329,9 @@ class TestBeforeModelCall:
     def test_block_with_detailed_error(self, mock_execute_request):
         """With detailed_error=True, reason is appended to blocked message."""
         mock_execute_request.return_value = mock_evaluate_response("DENY", reason="prompt_injection")
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(detailed_error=True)
+        hook = make_hook(detailed_error=True)
         messages = [{"role": "user", "content": [{"text": "malicious prompt"}]}]
-        event = _before_model_event(messages=messages)
+        event = before_model_event(messages=messages)
 
         hook._on_before_model_call(event)
 
@@ -418,7 +349,7 @@ class TestAfterModelCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_allow(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _after_model_event(
+        event = after_model_event(
             response_message={"role": "assistant", "content": [{"text": "Here is the answer."}]},
         )
 
@@ -432,7 +363,7 @@ class TestAfterModelCall:
         """Default behavior: replace response text with blocked message."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
         response_message = {"role": "assistant", "content": [{"text": "sensitive data"}]}
-        event = _after_model_event(response_message=response_message)
+        event = after_model_event(response_message=response_message)
 
         ai_guard_strands_hook._on_after_model_call(event)
 
@@ -446,17 +377,8 @@ class TestAfterModelCall:
     def test_block_raise_error(self, mock_execute_request, decision):
         """With raise_error=True, AIGuardAbortError is raised."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(raise_error=True)
-        event = _after_model_event(
+        hook = make_hook(raise_error=True)
+        event = after_model_event(
             response_message={"role": "assistant", "content": [{"text": "sensitive data"}]},
         )
 
@@ -467,17 +389,8 @@ class TestAfterModelCall:
     def test_block_with_retry(self, mock_execute_request):
         """With retry=True, event.retry is set."""
         mock_execute_request.return_value = mock_evaluate_response("DENY")
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(retry=True)
-        event = _after_model_event(
+        hook = make_hook(retry=True)
+        event = after_model_event(
             response_message={"role": "assistant", "content": [{"text": "sensitive data"}]},
         )
 
@@ -487,7 +400,7 @@ class TestAfterModelCall:
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_no_stop_response(self, mock_execute_request, ai_guard_strands_hook):
-        event = _after_model_event(response_message=None)
+        event = after_model_event(response_message=None)
 
         ai_guard_strands_hook._on_after_model_call(event)
 
@@ -496,7 +409,7 @@ class TestAfterModelCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_skips_tool_use_only_response(self, mock_execute_request, ai_guard_strands_hook):
         """AfterModel should skip responses that only contain tool calls (no text)."""
-        event = _after_model_event(
+        event = after_model_event(
             response_message={
                 "role": "assistant",
                 "content": [{"toolUse": {"toolUseId": "tc1", "name": "calc", "input": {}}}],
@@ -511,7 +424,7 @@ class TestAfterModelCall:
     def test_evaluates_only_text_in_mixed_response(self, mock_execute_request, ai_guard_strands_hook):
         """AfterModel should only evaluate text content, not tool calls."""
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _after_model_event(
+        event = after_model_event(
             response_message={
                 "role": "assistant",
                 "content": [
@@ -541,7 +454,7 @@ class TestBeforeToolCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_allow(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "calculator", "input": {"expr": "2+2"}},
             messages=[{"role": "user", "content": [{"text": "Calculate 2+2"}]}],
         )
@@ -555,7 +468,7 @@ class TestBeforeToolCall:
     def test_block_cancels_with_message(self, mock_execute_request, ai_guard_strands_hook, decision):
         """Default behavior: cancel tool with a descriptive message."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "shell_exec", "input": {"cmd": "rm -rf /"}},
             messages=[{"role": "user", "content": [{"text": "Delete everything"}]}],
         )
@@ -570,17 +483,8 @@ class TestBeforeToolCall:
     def test_block_raise_error(self, mock_execute_request, decision):
         """With raise_error=True, AIGuardAbortError is raised."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(raise_error=True)
-        event = _before_tool_event(
+        hook = make_hook(raise_error=True)
+        event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "shell_exec", "input": {"cmd": "rm -rf /"}},
             messages=[{"role": "user", "content": [{"text": "Delete everything"}]}],
         )
@@ -591,7 +495,7 @@ class TestBeforeToolCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_tool_call_appended_to_history(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {"query": "foo"}},
             messages=[{"role": "user", "content": [{"text": "Search for foo"}]}],
         )
@@ -618,7 +522,7 @@ class TestAfterToolCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_allow(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "calculator", "input": {"expr": "2+2"}},
             tool_result={"toolUseId": "tc1", "content": [{"text": "4"}], "status": "success"},
             messages=[{"role": "user", "content": [{"text": "Calculate 2+2"}]}],
@@ -634,7 +538,7 @@ class TestAfterToolCall:
         """Default behavior: replace tool result content with blocked message."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
         tool_result = {"toolUseId": "tc1", "content": [{"text": "sensitive data"}], "status": "success"}
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {"q": "foo"}},
             tool_result=tool_result,
             messages=[{"role": "user", "content": [{"text": "Search"}]}],
@@ -652,17 +556,8 @@ class TestAfterToolCall:
     def test_block_raise_error(self, mock_execute_request, decision):
         """With raise_error=True, AIGuardAbortError is raised."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(raise_error=True)
-        event = _after_tool_event(
+        hook = make_hook(raise_error=True)
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {"q": "foo"}},
             tool_result={"toolUseId": "tc1", "content": [{"text": "data"}], "status": "success"},
             messages=[],
@@ -675,17 +570,8 @@ class TestAfterToolCall:
     def test_block_with_retry(self, mock_execute_request):
         """With retry=True, event.retry is set."""
         mock_execute_request.return_value = mock_evaluate_response("DENY")
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(retry=True)
-        event = _after_tool_event(
+        hook = make_hook(retry=True)
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {"q": "foo"}},
             tool_result={"toolUseId": "tc1", "content": [{"text": "data"}], "status": "success"},
             messages=[],
@@ -701,7 +587,7 @@ class TestAfterToolCall:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_tool_result_included_in_payload(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {"query": "foo"}},
             tool_result={"toolUseId": "tc1", "content": [{"text": "result data"}], "status": "success"},
             messages=[{"role": "user", "content": [{"text": "Search for foo"}]}],
@@ -725,7 +611,7 @@ class TestAfterToolCall:
     def test_error_status_result(self, mock_execute_request, ai_guard_strands_hook):
         """Tool results with error status are still evaluated."""
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "api_call", "input": {}},
             tool_result={
                 "toolUseId": "tc1",
@@ -744,7 +630,7 @@ class TestAfterToolCall:
         """When tool result has empty content list, blocked message is added."""
         mock_execute_request.return_value = mock_evaluate_response("DENY")
         tool_result = {"toolUseId": "tc1", "content": [], "status": "success"}
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {}},
             tool_result=tool_result,
             messages=[],
@@ -811,7 +697,7 @@ class TestErrorHandling:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_before_model_call_swallows_non_abort_errors(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.side_effect = ConnectionError("network error")
-        event = _before_model_event(
+        event = before_model_event(
             messages=[{"role": "user", "content": [{"text": "Hello"}]}],
         )
 
@@ -823,7 +709,7 @@ class TestErrorHandling:
         """Default behavior: replaces response text instead of raising."""
         mock_execute_request.return_value = mock_evaluate_response("DENY")
         response_message = {"role": "assistant", "content": [{"text": "bad response"}]}
-        event = _after_model_event(response_message=response_message)
+        event = after_model_event(response_message=response_message)
 
         ai_guard_strands_hook._on_after_model_call(event)
 
@@ -834,7 +720,7 @@ class TestErrorHandling:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_before_tool_call_swallows_non_abort_errors(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.side_effect = ConnectionError("network error")
-        event = _before_tool_event(
+        event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
             messages=[],
         )
@@ -845,7 +731,7 @@ class TestErrorHandling:
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_after_tool_call_swallows_non_abort_errors(self, mock_execute_request, ai_guard_strands_hook):
         mock_execute_request.side_effect = ConnectionError("network error")
-        event = _after_tool_event(
+        event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "calc", "input": {}},
             tool_result={"toolUseId": "tc1", "content": [{"text": "4"}], "status": "success"},
             messages=[],
@@ -867,16 +753,7 @@ class TestConstructorParameters:
         assert ai_guard_strands_hook._raise_error is False
 
     def test_custom_parameters(self):
-        from tests.appsec.ai_guard.utils import override_ai_guard_config
-
-        _AI_GUARD_CONFIG = dict(
-            _ai_guard_enabled="True",
-            _ai_guard_endpoint="https://api.example.com/ai-guard",
-            _dd_api_key="test-api-key",
-            _dd_app_key="test-application-key",
-        )
-        with override_ai_guard_config(_AI_GUARD_CONFIG):
-            hook = AIGuardStrandsHookProvider(detailed_error=True, retry=True, raise_error=True)
+        hook = make_hook(detailed_error=True, retry=True, raise_error=True)
         assert hook._detailed_error is True
         assert hook._retry is True
         assert hook._raise_error is True
