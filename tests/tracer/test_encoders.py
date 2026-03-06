@@ -248,24 +248,27 @@ class TestEncoders(TestCase):
         [(payload_bytes, n_traces)] = encoded_traces
         data = json.loads(payload_bytes.decode("utf-8"))
 
+        assert n_traces == 1
         assert data == {
-            "spans": [
-                {
-                    "trace_id": "1234567890abcdef",
-                    "parent_id": "0000000000000000",
-                    "span_id": "1234567890abcdef",
-                    "service": "svc",
-                    "resource": "/r",
-                    "name": "span1",
-                    "error": 1,
-                    "start": 1771941568700091000,
-                    "duration": 1000000000,
-                    "meta": {"tag1": "value1"},
-                    "metrics": {"munir.metric": 1.0},
-                    "type": "web",
-                    "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
-                    "meta_struct": {"payload": {"key": "value"}},
-                }
+            "traces": [
+                [
+                    {
+                        "trace_id": "1234567890abcdef",
+                        "parent_id": "0000000000000000",
+                        "span_id": "1234567890abcdef",
+                        "service": "svc",
+                        "resource": "/r",
+                        "name": "span1",
+                        "error": 1,
+                        "start": 1771941568700091000,
+                        "duration": 1000000000,
+                        "meta": {"tag1": "value1"},
+                        "metrics": {"munir.metric": 1.0},
+                        "type": "web",
+                        "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
+                        "meta_struct": {"payload": {"key": "value"}},
+                    }
+                ]
             ]
         }
 

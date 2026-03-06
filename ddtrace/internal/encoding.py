@@ -167,22 +167,25 @@ class JSONEncoderV2(JSONEncoder):
 
 class AgentlessTraceJSONEncoder(BufferedEncoder):
     """
-    Buffered encoder for the agentless JSON span intake. Buffers traces and
-    produces payloads in the {"spans": [...]} format for HTTPWriter.
+    Buffered encoder for the agentless JSON trace intake. Buffers multiple traces and
+    produces a single payload in the {"traces": [[...], ...]} format for HTTPWriter.
     """
 
     content_type = "application/json"
 
+    # Overhead of the {"traces":[]} wrapper
+    _WRAPPER_SIZE = len(b'{"traces":[]}')
+
     def __init__(self, max_size: int, max_item_size: int) -> None:
         self.max_size = max_size
         self.max_item_size = max_item_size
-        self._payloads: list[tuple[Optional[bytes], int]] = []
+        self._traces: list[bytes] = []
         self._size = 0
         self._lock = RLock()
 
     def __len__(self) -> int:
         with self._lock:
-            return len(self._payloads)
+            return len(self._traces)
 
     @property
     def size(self) -> int:
@@ -191,27 +194,34 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
 
     def put(self, item) -> None:
         with self._lock:
-            spans = []
-            for span in item:
-                spans.append(self._item_to_dict(span))
+            encoded_trace = _json_dumps_bytes([self._item_to_dict(span) for span in item])
 
-            encoded = _json_dumps_bytes({"spans": spans})
-
-            item_size = len(encoded)
+            item_size = len(encoded_trace)
             if item_size > self.max_item_size:
                 raise BufferItemTooLarge(item_size)
-            elif item_size + self._size > self.max_size:
-                raise BufferFull(item_size + self._size)
 
-            self._size += item_size
-            self._payloads.append((encoded, 1))
+            # Full payload size: wrapper + all trace bytes + commas between traces
+            if self._traces:
+                new_size = self._size + 1 + item_size  # +1 for comma separator
+            else:
+                new_size = self._WRAPPER_SIZE + item_size
+
+            if new_size > self.max_size:
+                raise BufferFull(new_size)
+
+            self._size = new_size
+            self._traces.append(encoded_trace)
 
     def encode(self) -> list[tuple[Optional[bytes], int]]:
         with self._lock:
-            payloads = self._payloads
-            self._payloads = []
+            traces = self._traces
+            n_traces = len(traces)
+            self._traces = []
             self._size = 0
-            return payloads
+        if not traces:
+            return []
+        payload = b'{"traces":[' + b",".join(traces) + b"]}"
+        return [(payload, n_traces)]
 
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
         span_dict = JSONEncoderV2._convert_span(item)
