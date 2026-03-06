@@ -81,7 +81,10 @@ def _():
     # causes a SIGABRT with GCC that cannot be caught, so we need to avoid
     # getting to that stage.
     for thread in list(periodic_threads.values()):
-        thread._atexit()
+        try:
+            thread._atexit()
+        except Exception:
+            log.debug("Failed to stop thread %s at exit", thread.name, exc_info=True)
 
 
 # A typical scenario is that of forking worker threads in a loop. For the
