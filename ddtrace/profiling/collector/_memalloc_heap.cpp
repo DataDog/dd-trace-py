@@ -162,7 +162,7 @@ heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t wei
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Initialize it with the new allocation data */
-        tb->init_sample_invokes_cpython(size, weighted_size, max_nframe);
+        tb->init_sample(size, weighted_size, max_nframe);
         return tb;
     }
 

@@ -106,7 +106,7 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
 }
 
 void
-traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size, uint16_t max_nframe)
+traceback_t::init_sample(size_t size, size_t weighted_size, uint16_t max_nframe)
 {
     // Size 0 allocations are legal and we can hypothetically sample them,
     // e.g. if an allocation during sampling pushes us over the next sampling threshold,
@@ -121,7 +121,7 @@ traceback_t::init_sample_invokes_cpython(size_t size, size_t weighted_size, uint
     push_stacktrace_to_sample_no_refcount(sample, max_nframe);
 }
 
-// AIDEV-NOTE: Constructor invokes CPython APIs via init_sample_invokes_cpython()
+// AIDEV-NOTE: Constructor calls init_sample() which reads CPython structs directly
 traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
   : sample(static_cast<Datadog::SampleType>(Datadog::SampleType::Allocation | Datadog::SampleType::Heap), max_nframe)
 {
@@ -129,5 +129,5 @@ traceback_t::traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe)
         return;
     }
 
-    init_sample_invokes_cpython(size, weighted_size, max_nframe);
+    init_sample(size, weighted_size, max_nframe);
 }
