@@ -338,6 +338,10 @@ class TestOptPlugin:
             # Get test location information (path and line numbers)
             relative_path, start_line, end_line = _get_test_location_info(item, self.manager.workspace_path)
 
+            # Set test original name if available
+            if test_original_name := _get_test_original_name(item):
+                test.tags[TestTag.TEST_ORIGINAL_NAME] = test_original_name
+
             # Set test location (use "unknown" path if none found, 0 is default for missing line info)
             test.set_location(path=relative_path or "unknown", start_line=start_line)
 
@@ -1085,6 +1089,10 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
     except TypeError:
         log.warning("Failed to serialize parameters for test %s", item, exc_info=True)
         return None
+
+
+def _get_test_original_name(item: pytest.Item) -> t.Optional[str]:
+    return getattr(item, "originalname", None)
 
 
 def _encode_test_parameter(parameter: t.Any) -> str:
