@@ -767,6 +767,33 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
         return experiment_id, experiment_run_name
 
+    def experiment_update(
+        self,
+        experiment_id: str,
+        status: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}"
+        attributes: dict[str, JSONType] = {}
+        if status is not None:
+            attributes["status"] = status
+        if error is not None:
+            attributes["error"] = error
+        if not attributes:
+            return
+        resp = self.request(
+            "PATCH",
+            path,
+            body={
+                "data": {
+                    "type": "experiments",
+                    "attributes": attributes,
+                }
+            },
+        )
+        if resp.status != 200:
+            logger.warning("Failed to update experiment %s status: %s", experiment_id, resp.status)
+
     def experiment_eval_post(
         self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
     ) -> None:
