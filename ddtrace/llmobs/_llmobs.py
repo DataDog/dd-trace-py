@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from dataclasses import field
 import inspect
 import json
-import math
 import os
 import sys
 import time
@@ -111,6 +110,7 @@ from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
@@ -134,7 +134,6 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
-from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -937,7 +936,7 @@ class LLMObs(Service):
         dataset_name: str,
         project_name: Optional[str] = None,
         description: str = "",
-        records: Optional[list[DatasetRecord]] = None,
+        records: Optional[Sequence[DatasetRecordRaw]] = None,
         bulk_upload: bool = False,
         deduplicate: bool = True,
     ) -> Dataset:
@@ -959,35 +958,11 @@ class LLMObs(Service):
                 deduplication against existing records but does not provide transactional guarantees
                 when the same dataset is modified concurrently by multiple clients.
         """
-        if records is None:
-            records = []
         ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
 
-        if len(records) > 0:
-            if bulk_upload:
-                for record in records:
-                    ds.append(record)
-                ds.push(deduplicate=deduplicate, bulk_upload=True)
-            else:
-                num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
-                batch_size = math.ceil(len(records) / num_batches)
-                log.debug(
-                    "batched upload num_batches :%d, batch_size: %d",
-                    num_batches,
-                    batch_size,
-                )
-                create_new_version = True  # wether the server should attempt to bump the data version or not
-                for record_batch in _batched(records, batch_size):
-                    for record in record_batch:
-                        ds.append(record)
-                    data_changed = ds._push(
-                        deduplicate=deduplicate,
-                        create_new_version=create_new_version,
-                        bulk_upload=False,
-                    )
-                    if data_changed:
-                        # Since we are batching a single upload, we should only bump the version at most once
-                        create_new_version = False
+        if records is not None and len(records) > 0:
+            ds.extend(records)
+            ds.push(deduplicate=deduplicate, bulk_upload=bulk_upload)
 
         return ds
 

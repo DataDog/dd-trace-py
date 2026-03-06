@@ -4,6 +4,7 @@ import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
+import math
 import re
 import sys
 import time
@@ -718,52 +719,94 @@ class Dataset:
                 )
             )
 
-        data_changed = False
         delta_size = self._estimate_delta_size()
         if bulk_upload or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
             # TODO must return version too
             self._dne_client.dataset_bulk_upload(self._id, self._records, deduplicate=deduplicate)
-        else:
-            logger.debug("dataset delta is %d, using batch update", delta_size)
-            updated_records = list(self._updated_record_ids_to_new_fields.values())
-            (
-                new_version,
-                new_record_ids,
-                new_canonical_ids,
-            ) = self._dne_client.dataset_batch_update(
-                dataset_id=self._id,
-                project_id=self.project["_id"],
-                insert_records=list(self._new_records_by_record_id.values()),
-                update_records=updated_records,
-                delete_record_ids=self._deleted_record_ids,
+            self._deleted_record_ids = []
+            self._updated_record_ids_to_new_fields = {}
+            return False
+
+        logger.debug("dataset delta is %d, using batch update", delta_size)
+        insert_records = list(self._new_records_by_record_id.values())
+        update_records = list(self._updated_record_ids_to_new_fields.values())
+        delete_record_ids = list(self._deleted_record_ids)
+
+        # Compute batching based on the total size of insert + update records.
+        total_size = len(safe_json(insert_records)) + len(safe_json(update_records))
+        num_batches = max(1, math.ceil(total_size / self.BATCH_UPDATE_THRESHOLD))
+        insert_batch_size = math.ceil(len(insert_records) / num_batches)
+        update_batch_size = math.ceil(len(update_records) / num_batches)
+        logger.debug(
+            "batched upload num_batches: %d, insert_batch_size: %d, update_batch_size: %d",
+            num_batches,
+            insert_batch_size,
+            update_batch_size,
+        )
+
+        data_changed = False
+        for i in range(num_batches):
+            # Deletes are sent in the first batch only (just IDs, negligible size).
+            batch_changed = self._push_batch(
+                insert_records=insert_records[i * insert_batch_size : (i + 1) * insert_batch_size],
+                update_records=update_records[i * update_batch_size : (i + 1) * update_batch_size],
+                delete_record_ids=delete_record_ids if i == 0 else [],
                 deduplicate=deduplicate,
                 create_new_version=create_new_version,
             )
+            if batch_changed:
+                data_changed = True
+                # Only bump the version at most once across batches.
+                create_new_version = False
 
-            # Attach server-assigned record ids to newly created records.
-            # Use a snapshot of the keys so we can selectively remove only the records
-            # that the server acknowledged. Records the server did not return (e.g. because
-            # they were deduplicated against records in another dataset) keep their local
-            # placeholder id and stay in _new_records_by_record_id so that a subsequent
-            # delete() call treats them as local-only rather than sending the non-deterministic
-            # placeholder id to the server as a delete_record_id.
-            pending_keys = list(self._new_records_by_record_id.keys())
-            for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
-                self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
-                if canonical_id:  # avoid overriding if not present in response
-                    self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
-                del self._new_records_by_record_id[key]
-
-            data_changed = len(new_record_ids) > 0 or len(self._deleted_record_ids) > 0
-            if new_version != -1:
-                self._latest_version = new_version
-            logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
-            # no matter what the version was before the push, pushing will result in the dataset being on the current
-            # version tracked by the backend
-            self._version = self._latest_version
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
+        return data_changed
+
+    def _push_batch(
+        self,
+        insert_records: list,
+        update_records: list,
+        delete_record_ids: list,
+        deduplicate: bool,
+        create_new_version: bool,
+    ) -> bool:
+        """Push a single batch of record changes to the backend.
+
+        Returns True if data was changed (records inserted or deleted).
+        """
+        (
+            new_version,
+            new_record_ids,
+            new_canonical_ids,
+        ) = self._dne_client.dataset_batch_update(
+            dataset_id=self._id,
+            project_id=self.project["_id"],
+            insert_records=insert_records,
+            update_records=update_records,
+            delete_record_ids=delete_record_ids,
+            deduplicate=deduplicate,
+            create_new_version=create_new_version,
+        )
+
+        # Update newly created records with server-assigned ids.
+        # Only remove records the server acknowledged; unacknowledged records
+        # (e.g. deduplicated) stay in _new_records_by_record_id.
+        pending_keys = [r["record_id"] for r in insert_records]
+        for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
+            self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
+            if canonical_id:  # avoid overriding if not present in response
+                self._new_records_by_record_id[key]["canonical_id"] = canonical_id  # type: ignore
+            del self._new_records_by_record_id[key]
+
+        data_changed = new_version != -1
+        if new_version != -1:
+            self._latest_version = new_version
+        logger.debug("new_version %d latest_version %d", new_version, self._latest_version)
+        # no matter what the version was before the push, pushing will result in the dataset being on the current
+        # version tracked by the backend
+        self._version = self._latest_version
         return data_changed
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
@@ -793,7 +836,7 @@ class Dataset:
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
-    def extend(self, records: list[DatasetRecordRaw]) -> None:
+    def extend(self, records: Sequence[DatasetRecordRaw]) -> None:
         for record in records:
             self.append(record)
 
