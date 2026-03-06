@@ -2,10 +2,10 @@
 components:
   appsec:
     - ddtrace/appsec/*
-    - '!ddtrace/appsec/ai_guard'
-    - '!ddtrace/appsec/_ai_guard'
-    - '!ddtrace/appsec/iast'
-    - '!ddtrace/appsec/_iast'
+    - '!ddtrace/appsec/ai_guard/*'
+    - '!ddtrace/appsec/_ai_guard/*'
+    - '!ddtrace/appsec/iast/*'
+    - '!ddtrace/appsec/_iast/*'
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
