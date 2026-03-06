@@ -93,7 +93,7 @@ def compute_base_hash(container_tags_hash):
     if not config.enabled:
         return
 
-    # global base_hash, base_hash_bytes, process_tags
+    global base_hash, base_hash_bytes, process_tags
     if "process_tags" not in globals():
         process_tags, process_tags_list = generate_process_tags()
 
