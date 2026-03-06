@@ -171,7 +171,7 @@ def _on_content_block_stop_chunk(chunk, message):
 
     content_type = _get_attr(message["content"][-1], "type", "")
     if content_type == "tool_use":
-        input_json = _get_attr(message["content"][-1], "input", "{}")
+        input_json = _get_attr(message["content"][-1], "input", "{}") or "{}"
         message["content"][-1]["input"] = json.loads(input_json)
     return message
 

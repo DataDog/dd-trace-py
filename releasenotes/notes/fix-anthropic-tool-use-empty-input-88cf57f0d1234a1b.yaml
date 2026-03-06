@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    anthropic: Fix JSONDecodeError when streaming tool_use content blocks have empty input.
