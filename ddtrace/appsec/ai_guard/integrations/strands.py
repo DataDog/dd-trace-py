@@ -19,8 +19,9 @@ The hook provider evaluates messages at key lifecycle points:
 
 Parameters:
 - ``detailed_error`` (bool): Include AI Guard reasons in blocked messages (default: False)
-- ``retry`` (bool): Use the Strands retry mechanism on AfterModel/AfterToolCall blocks (default: False)
-- ``raise_error`` (bool): Raise ``AIGuardAbortError`` instead of replacing output (default: False)
+- ``raise_error_on_tool_calls`` (bool): Raise ``AIGuardAbortError`` on tool call
+  violations instead of replacing output (default: False). Model call violations
+  (``BeforeModelCallEvent``, ``AfterModelCallEvent``) always raise.
 """
 
 from typing import Any
@@ -146,20 +147,21 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
 
     Evaluates messages sent to LLMs and tool calls against Datadog AI Guard
     security policies. When a policy violation is detected, the default behavior
-    is to replace the offending content with a blocked message. Use the
-    ``raise_error`` parameter to raise ``AIGuardAbortError`` instead.
+    is to replace the offending content with a blocked message.
+
+    Model call violations (``BeforeModelCallEvent`` and ``AfterModelCallEvent``)
+    always raise ``AIGuardAbortError``. Tool call violations default to replacing
+    content; set ``raise_error_on_tool_calls=True`` to raise instead.
 
     :param detailed_error: If True, append the AI Guard reason to blocked messages.
-    :param retry: If True, set ``event.retry = True`` on AfterModel/AfterToolCall blocks
-        so Strands retries the operation.
-    :param raise_error: If True, raise ``AIGuardAbortError`` instead of replacing output.
+    :param raise_error_on_tool_calls: If True, raise ``AIGuardAbortError`` on tool call
+        violations instead of replacing output.
     """
 
-    def __init__(self, *, detailed_error: bool = False, retry: bool = False, raise_error: bool = False):
+    def __init__(self, *, detailed_error: bool = False, raise_error_on_tool_calls: bool = False):
         self._client: AIGuardClient = new_ai_guard_client()
         self._detailed_error = detailed_error
-        self._retry = retry
-        self._raise_error = raise_error
+        self._raise_error_on_tool_calls = raise_error_on_tool_calls
         logger.debug("AIGuardStrandsHookProvider initialized with client: %s", self._client)
 
     def register_hooks(self, registry: _StrandsHookRegistry, **kwargs: Any) -> None:
@@ -182,8 +184,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
         """Evaluate prompt messages before sending to the model.
 
         Skips tool output messages (already processed in AfterToolCall).
-        On block: replaces the last user message content with a blocked message,
-        or raises ``AIGuardAbortError`` if ``raise_error`` is True.
+        On block: always raises ``AIGuardAbortError``.
         """
         try:
             logger.debug("AIGuard event: %s", event)
@@ -196,15 +197,8 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             if ai_guard_messages:
                 result = self._client.evaluate(ai_guard_messages, Options(block=True))
                 logger.debug("AIGuard client evaluate result: %s", result)
-        except AIGuardAbortError as e:
-            if self._raise_error:
-                raise
-            blocked_text = self._blocked_message(reason=e.reason)
-            # Replace the last user message content so the model sees the blocked text
-            for msg in reversed(event.agent.messages):
-                if isinstance(msg, dict) and msg.get("role") == "user":
-                    msg["content"] = [{"text": blocked_text}]
-                    break
+        except AIGuardAbortError:
+            raise
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
 
@@ -212,8 +206,8 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
         """Evaluate model response for policy violations.
 
         Only analyzes assistant text content (tool calls are analyzed
-        individually in BeforeToolCall). On block: replaces the response text
-        with a blocked message and optionally retries.
+        individually in BeforeToolCall). On block: always raises
+        ``AIGuardAbortError``.
         """
         try:
             logger.debug("AIGuard event: %s", event)
@@ -235,16 +229,8 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             if ai_guard_messages:
                 result = self._client.evaluate(ai_guard_messages, Options(block=True))
                 logger.debug("AIGuard client evaluate result: %s", result)
-        except AIGuardAbortError as e:
-            if self._raise_error:
-                raise
-            blocked_text = self._blocked_message(reason=e.reason)
-            # Replace text content in the response message
-            for block in event.stop_response.message.get("content", []):
-                if "text" in block:
-                    block["text"] = blocked_text
-            if self._retry:
-                event.retry = True
+        except AIGuardAbortError:
+            raise
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
 
@@ -298,13 +284,11 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             result = self._client.evaluate(ai_guard_messages, Options(block=True))
             logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError as e:
-            if self._raise_error:
+            if self._raise_error_on_tool_calls:
                 raise
             blocked_text = self._blocked_message(tool_name=tool_name, reason=e.reason)
             # Replace the tool result content with a single blocked message block
             event.result["content"] = [{"text": blocked_text}]
-            if self._retry:
-                event.retry = True
         except Exception:
             logger.debug("Failed to evaluate tool result", exc_info=True)
 
@@ -345,7 +329,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             result = self._client.evaluate(ai_guard_messages, Options(block=True))
             logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError as e:
-            if self._raise_error:
+            if self._raise_error_on_tool_calls:
                 raise
             event.cancel_tool = self._blocked_message(tool_name=tool_name, reason=e.reason)
         except Exception:

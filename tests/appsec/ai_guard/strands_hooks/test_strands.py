@@ -240,29 +240,17 @@ class TestBeforeModelCall:
 
     @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_block_replaces_last_user_message(self, mock_execute_request, ai_guard_strands_hook, decision):
-        """Default behavior: replace the last user message content."""
+    def test_block_always_raises(self, mock_execute_request, ai_guard_strands_hook, decision):
+        """BeforeModelCall always raises AIGuardAbortError on violation."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        messages = [{"role": "user", "content": [{"text": "malicious prompt"}]}]
-        event = before_model_event(messages=messages)
-
-        ai_guard_strands_hook._on_before_model_call(event)
-
-        mock_execute_request.assert_called_once()
-        assert messages[0]["content"] == [{"text": "[DATADOG AI GUARD] has been canceled for security reasons"}]
-
-    @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_block_raise_error(self, mock_execute_request, decision):
-        """With raise_error=True, AIGuardAbortError is raised."""
-        mock_execute_request.return_value = mock_evaluate_response(decision)
-        hook = make_hook(raise_error=True)
         event = before_model_event(
             messages=[{"role": "user", "content": [{"text": "malicious prompt"}]}],
         )
 
         with pytest.raises(AIGuardAbortError):
-            hook._on_before_model_call(event)
+            ai_guard_strands_hook._on_before_model_call(event)
+
+        mock_execute_request.assert_called_once()
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_with_system_prompt(self, mock_execute_request, ai_guard_strands_hook):
@@ -325,20 +313,6 @@ class TestBeforeModelCall:
         tool_msgs = [m for m in sent_messages if m.get("role") == "tool"]
         assert len(tool_msgs) == 0
 
-    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_block_with_detailed_error(self, mock_execute_request):
-        """With detailed_error=True, reason is appended to blocked message."""
-        mock_execute_request.return_value = mock_evaluate_response("DENY", reason="prompt_injection")
-        hook = make_hook(detailed_error=True)
-        messages = [{"role": "user", "content": [{"text": "malicious prompt"}]}]
-        event = before_model_event(messages=messages)
-
-        hook._on_before_model_call(event)
-
-        assert messages[0]["content"] == [
-            {"text": "[DATADOG AI GUARD] has been canceled for security reasons: prompt_injection"}
-        ]
-
 
 # ---------------------------------------------------------------------------
 # _on_after_model_call (via AfterModelCallEvent)
@@ -359,44 +333,17 @@ class TestAfterModelCall:
 
     @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_block_replaces_response_text(self, mock_execute_request, ai_guard_strands_hook, decision):
-        """Default behavior: replace response text with blocked message."""
+    def test_block_always_raises(self, mock_execute_request, ai_guard_strands_hook, decision):
+        """AfterModelCall always raises AIGuardAbortError on violation."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        response_message = {"role": "assistant", "content": [{"text": "sensitive data"}]}
-        event = after_model_event(response_message=response_message)
-
-        ai_guard_strands_hook._on_after_model_call(event)
-
-        mock_execute_request.assert_called_once()
-        assert event.stop_response.message["content"][0]["text"] == (
-            "[DATADOG AI GUARD] has been canceled for security reasons"
-        )
-
-    @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_block_raise_error(self, mock_execute_request, decision):
-        """With raise_error=True, AIGuardAbortError is raised."""
-        mock_execute_request.return_value = mock_evaluate_response(decision)
-        hook = make_hook(raise_error=True)
         event = after_model_event(
             response_message={"role": "assistant", "content": [{"text": "sensitive data"}]},
         )
 
         with pytest.raises(AIGuardAbortError):
-            hook._on_after_model_call(event)
+            ai_guard_strands_hook._on_after_model_call(event)
 
-    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_block_with_retry(self, mock_execute_request):
-        """With retry=True, event.retry is set."""
-        mock_execute_request.return_value = mock_evaluate_response("DENY")
-        hook = make_hook(retry=True)
-        event = after_model_event(
-            response_message={"role": "assistant", "content": [{"text": "sensitive data"}]},
-        )
-
-        hook._on_after_model_call(event)
-
-        assert event.retry is True
+        mock_execute_request.assert_called_once()
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_no_stop_response(self, mock_execute_request, ai_guard_strands_hook):
@@ -481,9 +428,9 @@ class TestBeforeToolCall:
     @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_block_raise_error(self, mock_execute_request, decision):
-        """With raise_error=True, AIGuardAbortError is raised."""
+        """With raise_error_on_tool_calls=True, AIGuardAbortError is raised."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        hook = make_hook(raise_error=True)
+        hook = make_hook(raise_error_on_tool_calls=True)
         event = before_tool_event(
             tool_use={"toolUseId": "tc1", "name": "shell_exec", "input": {"cmd": "rm -rf /"}},
             messages=[{"role": "user", "content": [{"text": "Delete everything"}]}],
@@ -554,9 +501,9 @@ class TestAfterToolCall:
     @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_block_raise_error(self, mock_execute_request, decision):
-        """With raise_error=True, AIGuardAbortError is raised."""
+        """With raise_error_on_tool_calls=True, AIGuardAbortError is raised."""
         mock_execute_request.return_value = mock_evaluate_response(decision)
-        hook = make_hook(raise_error=True)
+        hook = make_hook(raise_error_on_tool_calls=True)
         event = after_tool_event(
             tool_use={"toolUseId": "tc1", "name": "search", "input": {"q": "foo"}},
             tool_result={"toolUseId": "tc1", "content": [{"text": "data"}], "status": "success"},
@@ -565,24 +512,6 @@ class TestAfterToolCall:
 
         with pytest.raises(AIGuardAbortError):
             hook._on_after_tool_call(event)
-
-    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_block_with_retry(self, mock_execute_request):
-        """With retry=True, event.retry is set."""
-        mock_execute_request.return_value = mock_evaluate_response("DENY")
-        hook = make_hook(retry=True)
-        event = after_tool_event(
-            tool_use={"toolUseId": "tc1", "name": "search", "input": {"q": "foo"}},
-            tool_result={"toolUseId": "tc1", "content": [{"text": "data"}], "status": "success"},
-            messages=[],
-        )
-
-        hook._on_after_tool_call(event)
-
-        assert event.retry is True
-        assert event.result["content"][0]["text"] == (
-            "[DATADOG AI GUARD] 'search' has been canceled for security reasons"
-        )
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_tool_result_included_in_payload(self, mock_execute_request, ai_guard_strands_hook):
@@ -705,17 +634,14 @@ class TestErrorHandling:
         ai_guard_strands_hook._on_before_model_call(event)
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-    def test_after_model_call_replaces_on_block(self, mock_execute_request, ai_guard_strands_hook):
-        """Default behavior: replaces response text instead of raising."""
+    def test_after_model_call_raises_on_block(self, mock_execute_request, ai_guard_strands_hook):
+        """AfterModelCall always raises AIGuardAbortError on violation."""
         mock_execute_request.return_value = mock_evaluate_response("DENY")
         response_message = {"role": "assistant", "content": [{"text": "bad response"}]}
         event = after_model_event(response_message=response_message)
 
-        ai_guard_strands_hook._on_after_model_call(event)
-
-        assert event.stop_response.message["content"][0]["text"] == (
-            "[DATADOG AI GUARD] has been canceled for security reasons"
-        )
+        with pytest.raises(AIGuardAbortError):
+            ai_guard_strands_hook._on_after_model_call(event)
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_before_tool_call_swallows_non_abort_errors(self, mock_execute_request, ai_guard_strands_hook):
@@ -749,11 +675,9 @@ class TestErrorHandling:
 class TestConstructorParameters:
     def test_default_parameters(self, ai_guard_strands_hook):
         assert ai_guard_strands_hook._detailed_error is False
-        assert ai_guard_strands_hook._retry is False
-        assert ai_guard_strands_hook._raise_error is False
+        assert ai_guard_strands_hook._raise_error_on_tool_calls is False
 
     def test_custom_parameters(self):
-        hook = make_hook(detailed_error=True, retry=True, raise_error=True)
+        hook = make_hook(detailed_error=True, raise_error_on_tool_calls=True)
         assert hook._detailed_error is True
-        assert hook._retry is True
-        assert hook._raise_error is True
+        assert hook._raise_error_on_tool_calls is True
