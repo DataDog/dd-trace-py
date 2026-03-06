@@ -18,7 +18,8 @@ fi
 # These are mounted into the Docker container at /home/bits/.cache
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CACHE_DIR="$PROJECT_ROOT/.cache"
+CACHE_DIR="${DD_TEST_CACHE_DIR:-$PROJECT_ROOT/.cache}"
+export DD_TEST_CACHE_DIR="$CACHE_DIR"
 
 # Create cache directories if they don't exist
 mkdir -p "$CACHE_DIR/pip" "$CACHE_DIR/cython" "$CACHE_DIR/sccache" 2>/dev/null || true
