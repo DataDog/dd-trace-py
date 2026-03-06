@@ -1,0 +1,22 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "aiohttp.request",
+        "Resource": "aiohttp.request",
+        "Service": "global-service-name",
+        "Type": "http",
+        "HTTPStatusCode": 200,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 6498063,
+        "Errors": 0,
+        "OkSummary": 37,
+        "ErrorSummary": 24
+      }
+    ]
+  }
+]

@@ -1,0 +1,36 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "mysql.query",
+        "Resource": "select 'Jellysmack'",
+        "Service": "mysql",
+        "Type": "sql",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 527509,
+        "Errors": 0,
+        "OkSummary": 37,
+        "ErrorSummary": 24
+      },
+      {
+        "Name": "mysql.query",
+        "Resource": "select * from some_non_existant_table",
+        "Service": "mysql",
+        "Type": "sql",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 4185785,
+        "Errors": 1,
+        "OkSummary": 24,
+        "ErrorSummary": 37
+      }
+    ]
+  }
+]

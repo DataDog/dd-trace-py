@@ -612,7 +612,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         self._raise = _get_config("DD_TESTING_RAISE", False, asbool)
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function()
+        trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
         self._trace_compute_stats = _get_config(
             ["DD_TRACE_COMPUTE_STATS", "DD_TRACE_STATS_COMPUTATION_ENABLED"], trace_compute_stats_default, asbool
         )

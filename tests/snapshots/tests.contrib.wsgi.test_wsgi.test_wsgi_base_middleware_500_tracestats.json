@@ -1,0 +1,22 @@
+[
+  {
+    "Start": 0,
+    "Duration": 10000000000,
+    "Stats": [
+      {
+        "Name": "test_wsgi.request",
+        "Resource": "request resource was modified",
+        "Service": "wsgi",
+        "Type": "web",
+        "HTTPStatusCode": 0,
+        "Synthetics": false,
+        "Hits": 1,
+        "TopLevelHits": 1,
+        "Duration": 788086,
+        "Errors": 1,
+        "OkSummary": 24,
+        "ErrorSummary": 37
+      }
+    ]
+  }
+]
