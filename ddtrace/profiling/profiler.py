@@ -185,8 +185,10 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_lock_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
+                    if any(type(c) is collector_class for c in self._collectors):
+                        return
                     col = collector_class(tracer=self.tracer)
 
                     if self.status == service.ServiceStatus.RUNNING:
@@ -203,25 +205,32 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
-            self._collectors_on_import = [
-                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
-            ]
+            if self._collectors_on_import is None:
+                self._collectors_on_import = []
+
+            self._collectors_on_import.extend(
+                [
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingLockCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingRLockCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingSemaphoreCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingConditionCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioLockCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioSemaphoreCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioConditionCollector)),
+                ]
+            )
 
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
 
         if self._pytorch_collector_enabled:
 
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_pytorch_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
+                    if any(type(c) is collector_class for c in self._collectors):
+                        return
                     col = collector_class()
 
                     if self.status == service.ServiceStatus.RUNNING:
@@ -238,9 +247,14 @@ class _ProfilerInstance(service.Service):
 
                     self._collectors.append(col)
 
-            self._collectors_on_import = [
-                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
-            ]
+            if self._collectors_on_import is None:
+                self._collectors_on_import = []
+
+            self._collectors_on_import.extend(
+                [
+                    ("torch", lambda _: start_pytorch_collector(pytorch.TorchProfilerCollector)),
+                ]
+            )
 
             for module, hook in self._collectors_on_import:
                 ModuleWatchdog.register_module_hook(module, hook)
@@ -301,12 +315,13 @@ class _ProfilerInstance(service.Service):
         """
         LOG.debug("Stopping profiler")
         # Prevent doing more initialisation now that we are shutting down.
-        if self._lock_collector_enabled and self._collectors_on_import:
+        if self._collectors_on_import:
             for module, hook in self._collectors_on_import:
                 try:
                     ModuleWatchdog.unregister_module_hook(module, hook)
-                except ValueError:
+                except (ValueError, Exception):
                     pass
+            self._collectors_on_import = None
 
         if self._scheduler is not None:
             self._scheduler.stop()
