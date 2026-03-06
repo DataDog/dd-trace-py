@@ -18,6 +18,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
+from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.httpx.utils import httpx_url_to_str
 from ddtrace.internal import core
@@ -427,8 +428,8 @@ def listen():
 
     core.on("context.started.httpx.client._send_single_request", _on_httpx_client_send_single_request_started)
     core.on("context.ended.httpx.client._send_single_request", _on_httpx_client_send_single_request_ended)
-    core.on("context.started.http.client.request", _on_httpx_request_started)
-    core.on("context.ended.http.client.request", _on_httpx_request_ended)
+    core.on(f"context.started.{HttpClientEvents.HTTP_REQUEST.value}", _on_httpx_request_started)
+    core.on(f"context.ended.{HttpClientEvents.HTTP_REQUEST.value}", _on_httpx_request_ended)
 
     # disabling threats grpc listeners.
     # core.on("grpc.server.response.message", _on_grpc_server_response)
