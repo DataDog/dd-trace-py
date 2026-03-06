@@ -560,76 +560,99 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 void
 ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
 {
-    const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
+    std::vector<GreenletSnapshot> snapshots;
 
-    auto& greenlet_info_map = echion.greenlet_info_map();
-    auto& greenlet_parent_map = echion.greenlet_parent_map();
-    auto& greenlet_thread_map = echion.greenlet_thread_map();
+    // Phase 1: Snapshot greenlet data under the lock.
+    // This minimises the time we hold greenlet_info_map_lock, which is also
+    // acquired by update_greenlet_frame() on every greenlet switch.  Holding
+    // the lock during the expensive unwind (Phase 2) would block ALL greenlet
+    // switches and lead to resource exhaustion (e.g. DB connection pools).
+    {
+        const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
 
-    if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
-        return;
+        auto& greenlet_info_map = echion.greenlet_info_map();
+        auto& greenlet_parent_map = echion.greenlet_parent_map();
+        auto& greenlet_thread_map = echion.greenlet_thread_map();
 
-    std::unordered_set<GreenletInfo::ID> parent_greenlets;
+        if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
+            return;
 
-    // Collect all parent greenlets
-    std::transform(greenlet_parent_map.cbegin(),
-                   greenlet_parent_map.cend(),
-                   std::inserter(parent_greenlets, parent_greenlets.begin()),
-                   [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
+        std::unordered_set<GreenletInfo::ID> parent_greenlets;
 
-    // Unwind the leaf greenlets
-    for (auto& greenlet_info : greenlet_info_map) {
-        auto greenlet_id = greenlet_info.first;
-        auto& greenlet = greenlet_info.second;
+        // Collect all parent greenlets
+        std::transform(greenlet_parent_map.cbegin(),
+                       greenlet_parent_map.cend(),
+                       std::inserter(parent_greenlets, parent_greenlets.begin()),
+                       [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
 
-        if (parent_greenlets.contains(greenlet_id))
-            continue;
+        // Snapshot the leaf greenlets and precompute their parent chains
+        for (auto& [gid, greenlet] : greenlet_info_map) {
+            if (parent_greenlets.contains(gid))
+                continue;
 
-        auto frame = greenlet->frame;
-        if (frame == FRAME_NOT_SET) {
-            // The greenlet has not been started yet or has finished
-            continue;
+            auto frame = greenlet->frame;
+            if (frame == FRAME_NOT_SET) {
+                // The greenlet has not been started yet or has finished
+                continue;
+            }
+
+            GreenletSnapshot snap;
+            snap.greenlet_id = gid;
+            snap.name = greenlet->name;
+            snap.frame = frame;
+
+            // Precompute parent chain while we still hold the lock
+            auto current_id = gid;
+            std::unordered_set<GreenletInfo::ID> visited;
+            // The limit here is arbitrary, but it should be more than enough for
+            // most use cases.
+            const size_t MAX_GREENLET_DEPTH = 512;
+            // Safety: prevent infinite loops from cycles or corrupted parent maps
+            for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
+                // Check for cycles
+                if (visited.contains(current_id))
+                    break;
+                visited.insert(current_id);
+
+                auto pit = greenlet_parent_map.find(current_id);
+                if (pit == greenlet_parent_map.end())
+                    break;
+
+                auto parent_id = pit->second;
+                auto git = greenlet_info_map.find(parent_id);
+                if (git == greenlet_info_map.end())
+                    break;
+
+                auto parent_frame = git->second->frame;
+                if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
+                    break;
+
+                snap.parent_chain.emplace_back(git->second->name, parent_frame);
+
+                // Move up the greenlet chain
+                current_id = parent_id;
+            }
+
+            snapshots.push_back(std::move(snap));
         }
+    } // Lock released here
 
-        bool on_cpu = frame == Py_None;
-
-        auto stack_info = std::make_unique<StackInfo>(greenlet->name, on_cpu);
+    // Phase 2: Unwind outside the lock.
+    // The expensive process_vm_readv / copy_type calls happen here, without
+    // blocking greenlet switches.  Snapshotted frame pointers may have become
+    // stale, but unwind_frame() handles invalid pointers gracefully via
+    // copy_type() which returns non-zero on failure.
+    for (auto& snap : snapshots) {
+        bool on_cpu = snap.frame == Py_None;
+        auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu);
         auto& stack = stack_info->stack;
 
-        greenlet->unwind(echion, frame, tstate, stack);
+        GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
+        temp.unwind(echion, snap.frame, tstate, stack);
 
-        std::unordered_set<GreenletInfo::ID> visited;
-
-        // Unwind the parent greenlets
-        // The limit here is arbitrary, but it should be more than enough for
-        // most use cases.
-        const size_t MAX_GREENLET_DEPTH = 512;
-        // Safety: prevent infinite loops from cycles or corrupted parent maps
-        for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
-            // Check for cycles
-            if (visited.contains(greenlet_id)) {
-                break;
-            }
-            visited.insert(greenlet_id);
-
-            auto parent_greenlet_info = greenlet_parent_map.find(greenlet_id);
-            if (parent_greenlet_info == greenlet_parent_map.end())
-                break;
-
-            auto parent_greenlet_id = parent_greenlet_info->second;
-
-            auto parent_greenlet = greenlet_info_map.find(parent_greenlet_id);
-            if (parent_greenlet == greenlet_info_map.end())
-                break;
-
-            auto parent_frame = parent_greenlet->second->frame;
-            if (parent_frame == FRAME_NOT_SET || parent_frame == Py_None)
-                break;
-
-            parent_greenlet->second->unwind(echion, parent_frame, tstate, stack);
-
-            // Move up the greenlet chain
-            greenlet_id = parent_greenlet_id;
+        for (auto& [parent_name, parent_frame] : snap.parent_chain) {
+            GreenletInfo parent_temp(0, parent_frame, parent_name);
+            parent_temp.unwind(echion, parent_frame, tstate, stack);
         }
 
         current_greenlets.push_back(std::move(stack_info));
