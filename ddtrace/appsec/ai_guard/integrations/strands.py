@@ -40,13 +40,105 @@ from ddtrace.appsec.ai_guard._api_client import Message
 from ddtrace.appsec.ai_guard._api_client import Options
 from ddtrace.appsec.ai_guard._api_client import ToolCall
 from ddtrace.appsec.ai_guard._api_client import new_ai_guard_client
-import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.logger import get_logger
 
 
-logger = ddlogger.get_logger(__name__)
+logger = get_logger(__name__)
 
 _BLOCKED_MSG = "[DATADOG AI GUARD] has been canceled for security reasons"
 _BLOCKED_TOOL_MSG = "[DATADOG AI GUARD] '{}' has been canceled for security reasons"
+
+
+def _tool_result_text(tool_result: dict) -> str:
+    """Extract text from a Bedrock Converse ToolResult.
+
+    ToolResultContent entries may contain ``text`` or ``json`` keys.
+    """
+    texts = []
+    for entry in tool_result.get("content", []):
+        if "text" in entry:
+            texts.append(entry["text"])
+        elif "json" in entry:
+            texts.append(try_format_json(entry["json"]))
+    return " ".join(texts)
+
+
+def _convert_strands_messages(
+    messages: list[dict],
+    system_prompt: str | None = None,
+    exclude_tool_results: bool = False,
+) -> list[Message]:
+    """Convert Strands/Bedrock Converse messages to AI Guard format.
+
+    Strands messages use the Bedrock Converse schema: each message has a
+    ``role`` ("user" | "assistant") and ``content`` (list of ContentBlock
+    dicts with optional keys ``text``, ``toolUse``, ``toolResult``, etc.).
+
+    :param messages: List of Bedrock Converse message dicts.
+    :param system_prompt: Optional system prompt string (``agent.system_prompt``).
+    :param exclude_tool_results: If True, skip toolResult blocks (already
+        processed in AfterToolCall).
+    :returns: List of AI Guard ``Message`` objects.
+    """
+    result: list[Message] = []
+
+    if system_prompt:
+        result.append(Message(role="system", content=system_prompt))
+
+    for msg in messages:
+        try:
+            if not isinstance(msg, dict):
+                continue
+
+            role = msg.get("role", "")
+            content = msg.get("content", [])
+            if not isinstance(content, list):
+                continue
+
+            # Collect text from all text content blocks in this message
+            texts = [block["text"] for block in content if "text" in block]
+
+            if role == "user":
+                if texts:
+                    result.append(Message(role="user", content=" ".join(texts)))
+
+                # In Bedrock Converse format, tool results appear in user messages
+                if not exclude_tool_results:
+                    for block in content:
+                        if tr := block.get("toolResult"):
+                            result.append(
+                                Message(
+                                    role="tool",
+                                    tool_call_id=tr.get("toolUseId", ""),
+                                    content=_tool_result_text(tr),
+                                )
+                            )
+
+            elif role == "assistant":
+                tool_uses = [block["toolUse"] for block in content if "toolUse" in block]
+                if tool_uses:
+                    result.append(
+                        Message(
+                            role="assistant",
+                            tool_calls=[
+                                ToolCall(
+                                    id=tu.get("toolUseId", ""),
+                                    function=Function(
+                                        name=tu.get("name", ""),
+                                        arguments=try_format_json(tu.get("input", {})),
+                                    ),
+                                )
+                                for tu in tool_uses
+                            ],
+                        )
+                    )
+                if texts:
+                    result.append(Message(role="assistant", content=" ".join(texts)))
+
+        except Exception:
+            logger.warning("Failed to convert message", exc_info=True)
+
+    return result
 
 
 class AIGuardStrandsHookProvider(_StrandsHookProvider):
@@ -258,95 +350,3 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             event.cancel_tool = self._blocked_message(tool_name=tool_name, reason=e.reason)
         except Exception:
             logger.debug("Failed to evaluate tool invocation", exc_info=True)
-
-
-def _tool_result_text(tool_result: dict) -> str:
-    """Extract text from a Bedrock Converse ToolResult.
-
-    ToolResultContent entries may contain ``text`` or ``json`` keys.
-    """
-    texts = []
-    for entry in tool_result.get("content", []):
-        if "text" in entry:
-            texts.append(entry["text"])
-        elif "json" in entry:
-            texts.append(try_format_json(entry["json"]))
-    return " ".join(texts)
-
-
-def _convert_strands_messages(
-    messages: list[dict],
-    system_prompt: str | None = None,
-    exclude_tool_results: bool = False,
-) -> list[Message]:
-    """Convert Strands/Bedrock Converse messages to AI Guard format.
-
-    Strands messages use the Bedrock Converse schema: each message has a
-    ``role`` ("user" | "assistant") and ``content`` (list of ContentBlock
-    dicts with optional keys ``text``, ``toolUse``, ``toolResult``, etc.).
-
-    :param messages: List of Bedrock Converse message dicts.
-    :param system_prompt: Optional system prompt string (``agent.system_prompt``).
-    :param exclude_tool_results: If True, skip toolResult blocks (already
-        processed in AfterToolCall).
-    :returns: List of AI Guard ``Message`` objects.
-    """
-    result: list[Message] = []
-
-    if system_prompt:
-        result.append(Message(role="system", content=system_prompt))
-
-    for msg in messages:
-        try:
-            if not isinstance(msg, dict):
-                continue
-
-            role = msg.get("role", "")
-            content = msg.get("content", [])
-            if not isinstance(content, list):
-                continue
-
-            # Collect text from all text content blocks in this message
-            texts = [block["text"] for block in content if "text" in block]
-
-            if role == "user":
-                if texts:
-                    result.append(Message(role="user", content=" ".join(texts)))
-
-                # In Bedrock Converse format, tool results appear in user messages
-                if not exclude_tool_results:
-                    for block in content:
-                        if tr := block.get("toolResult"):
-                            result.append(
-                                Message(
-                                    role="tool",
-                                    tool_call_id=tr.get("toolUseId", ""),
-                                    content=_tool_result_text(tr),
-                                )
-                            )
-
-            elif role == "assistant":
-                tool_uses = [block["toolUse"] for block in content if "toolUse" in block]
-                if tool_uses:
-                    result.append(
-                        Message(
-                            role="assistant",
-                            tool_calls=[
-                                ToolCall(
-                                    id=tu.get("toolUseId", ""),
-                                    function=Function(
-                                        name=tu.get("name", ""),
-                                        arguments=try_format_json(tu.get("input", {})),
-                                    ),
-                                )
-                                for tu in tool_uses
-                            ],
-                        )
-                    )
-                if texts:
-                    result.append(Message(role="assistant", content=" ".join(texts)))
-
-        except Exception:
-            logger.debug("Failed to convert message", exc_info=True)
-
-    return result
