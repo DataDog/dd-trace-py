@@ -24,17 +24,30 @@
 #include <pthread_np.h>
 #endif
 
+#if PY_VERSION_HEX >= 0x30d0000
+#define py_is_finalizing Py_IsFinalizing
+#else
+#define py_is_finalizing _Py_IsFinalizing
+#endif
+
 struct module_state
 {
     // At-exit barrier to avoid making Python VM calls during or after shutdown.
-    // We use this flag instead of Py_IsFinalizing because we don't have a way
-    // to lock while we check it.
+    // Set by the atexit handler before stopping threads, giving an earlier and
+    // more controlled signal than py_is_finalizing().
     std::atomic<bool> at_exit{ false };
 
     // Mapping of active periodic thread IDs to their PeriodicThread objects.
     PyObject* periodic_threads{ nullptr };
 
-    inline bool is_finalizing() const noexcept { return at_exit.load(std::memory_order_acquire); }
+    inline bool is_finalizing() const noexcept
+    {
+        // Our atexit flag fires first (before threads are stopped), which is
+        // the preferred shutdown path. The py_is_finalizing macro is a fallback
+        // for cases where the atexit handler never ran (e.g. uWSGI
+        // --skip-atexit).
+        return at_exit.load(std::memory_order_acquire) || py_is_finalizing();
+    }
 };
 
 // ----------------------------------------------------------------------------
