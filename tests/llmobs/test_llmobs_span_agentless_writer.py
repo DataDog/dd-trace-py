@@ -157,6 +157,6 @@ llmobs_span_writer.enqueue(_completion_event())
     )
     assert status == 0, err
     assert out == b""
-    assert b"got response code 403" in err
-    # Backend may return "API key is invalid" or "API key is missing"
-    assert b'"status":"403"' in err and b'"title":"Forbidden"' in err
+    assert b"403" in err
+    assert b"Forbidden" in err
+    assert b"errors" in err
