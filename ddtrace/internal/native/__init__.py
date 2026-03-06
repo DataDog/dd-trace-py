@@ -20,6 +20,7 @@ from ._native import rand64bits  # noqa: F401
 from ._native import seed  # noqa: F401
 from ._native import store_metadata  # noqa: F401
 
+
 try:
     from ._native import ffe  # noqa: F401
 except ImportError:
