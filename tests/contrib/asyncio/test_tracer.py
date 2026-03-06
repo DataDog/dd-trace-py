@@ -81,8 +81,8 @@ async def test_exception(tracer, test_spans):
     assert 1 == len(spans)
     span = spans[0]
     assert 1 == span.error
-    assert "f1 error" == span.get_tag(ERROR_MSG)
-    assert "Exception: f1 error" in span.get_tag("error.stack")
+    assert "f1 error" == span._get_str_attribute(ERROR_MSG)
+    assert "Exception: f1 error" in span._get_str_attribute("error.stack")
 
 
 @pytest.mark.asyncio
@@ -105,13 +105,13 @@ async def test_nested_exceptions(tracer, test_spans):
     span = spans[0]
     assert "f2" == span.name
     assert 1 == span.error  # f2 did not catch the exception
-    assert "f1 error" == span.get_tag(ERROR_MSG)
-    assert "Exception: f1 error" in span.get_tag("error.stack")
+    assert "f1 error" == span._get_str_attribute(ERROR_MSG)
+    assert "Exception: f1 error" in span._get_str_attribute("error.stack")
     span = spans[1]
     assert "f1" == span.name
     assert 1 == span.error
-    assert "f1 error" == span.get_tag(ERROR_MSG)
-    assert "Exception: f1 error" in span.get_tag("error.stack")
+    assert "f1 error" == span._get_str_attribute(ERROR_MSG)
+    assert "Exception: f1 error" in span._get_str_attribute("error.stack")
 
 
 @pytest.mark.asyncio
@@ -139,8 +139,8 @@ async def test_handled_nested_exceptions(tracer, test_spans):
     span = spans[1]
     assert "f1" == span.name
     assert 1 == span.error
-    assert "f1 error" == span.get_tag(ERROR_MSG)
-    assert "Exception: f1 error" in span.get_tag("error.stack")
+    assert "f1 error" == span._get_str_attribute(ERROR_MSG)
+    assert "Exception: f1 error" in span._get_str_attribute("error.stack")
 
 
 @pytest.mark.asyncio
@@ -232,7 +232,7 @@ async def test_wrapped_generator(tracer, test_spans):
     async def f(tag_name, tag_value):
         # make sure we can still set tags
         span = tracer.current_span()
-        span.set_tag(tag_name, tag_value)
+        span._set_attribute(tag_name, tag_value)
 
         for i in range(3):
             yield i
@@ -251,4 +251,4 @@ async def test_wrapped_generator(tracer, test_spans):
     assert span.service == "s"
     assert span.resource == "r"
     assert span.span_type == "t"
-    assert span.get_tag("a") == "b"
+    assert span._get_str_attribute("a") == "b"

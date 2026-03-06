@@ -177,11 +177,11 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
         # Verify number of skipped tests in session
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 2
 
     def test_xdist_suite_mode_skipped_suites(self):
         """Test that suite-level ITR skipping works correctly in xdist and counts suites, not individual tests."""
@@ -304,11 +304,11 @@ class TestScope2:
 
         # Assert on session span metrics - key assertion for suite-level skipping
         spans = self.pop_spans()
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"  # loadscope uses suite-level skipping
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"  # loadscope uses suite-level skipping
         # Verify number of skipped SUITES in session (should be 2 suites, not 3 tests)
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 2
 
     def test_pytest_xdist_itr_skips_tests_at_test_level_without_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
@@ -406,11 +406,11 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
         # Verify number of skipped tests in session
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 2
 
     def test_pytest_xdist_itr_skips_tests_at_suite_level_with_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
@@ -506,11 +506,11 @@ CIVisibility.enable = classmethod(patched_enable)
             assert rec.ret == 0  # All tests skipped, so exit code is 0
 
         spans = self.pop_spans()
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
         # Verify number of skipped tests in session
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 4
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 4
 
 
 class TestXdistHooksUnit:
@@ -743,13 +743,13 @@ class TestXdistHooksUnit:
             if skipped_count > 0:
                 session_span = mock_session_span  # Use our mock directly
                 if session_span:
-                    session_span._set_tag_str(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-                    session_span._set_tag_str(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-                    session_span.set_metric(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
+                    session_span._set_attribute(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+                    session_span._set_attribute(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+                    session_span._set_attribute(test.ITR_TEST_SKIPPING_COUNT, skipped_count)
 
         # Verify the session span was tagged with ITR results
-        mock_session_span._set_tag_str.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
-        mock_session_span._set_tag_str.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
+        mock_session_span._set_attribute.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
+        mock_session_span._set_attribute.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
         mock_session_span.set_metric.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
 
         # Clean up
@@ -777,7 +777,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (worker shouldn't aggregate)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
         # Clean up
@@ -806,7 +806,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (no global results to aggregate)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
     def test_pytest_sessionfinish_no_aggregation_when_zero_skipped(self):
@@ -831,7 +831,7 @@ class TestXdistHooksUnit:
             _pytest_sessionfinish(mock_session, 0)
 
             # Verify no ITR tags were set (zero tests skipped)
-            mock_session_span._set_tag_str.assert_not_called()
+            mock_session_span._set_attribute.assert_not_called()
             mock_session_span.set_metric.assert_not_called()
 
         # Clean up
@@ -1136,12 +1136,12 @@ def test_suite2_func1():
 
         # Verify that ITR level was updated to suite level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite due to loadscope detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
 
     def test_xdist_worksteal_enables_test_level_itr(self):
         """Test that --dist=worksteal automatically enables test-level ITR skipping."""
@@ -1187,12 +1187,12 @@ def test_func3():
 
         # Verify that ITR level was updated to test level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to worksteal detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_loadfile_enables_suite_level_itr(self):
         """Test that --dist=loadfile automatically enables suite-level ITR skipping."""
@@ -1237,12 +1237,12 @@ def test_file2_func1():
 
         # Verify that ITR level was updated to suite level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite due to loadfile detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
 
     def test_no_xdist_uses_env_var_setting(self):
         """Test that without xdist, the env var setting is used."""
@@ -1277,12 +1277,12 @@ def test_func():
 
         # Verify that ITR level respects env var (test level)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test as set by env var
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_disabled_with_n_zero_uses_env_var_setting(self):
         """Test that -n 0 (xdist disabled) uses env var setting."""
@@ -1319,12 +1319,12 @@ def test_func():
 
         # Verify that ITR level respects env var (suite level)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite as set by env var
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
 
     def test_xdist_loadgroup_enables_test_level_itr(self):
         """Test that --dist=loadgroup automatically enables test-level ITR skipping."""
@@ -1376,12 +1376,12 @@ def test_group2_func1():
 
         # Verify that ITR level was updated to suite level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite due to loadgroup detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_load_enables_test_level_itr(self):
         """Test that --dist=load (default) automatically enables test-level ITR skipping."""
@@ -1430,12 +1430,12 @@ def test_func4():
 
         # Verify that ITR level was updated to test level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to load detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_each_enables_test_level_itr(self):
         """Test that --dist=each automatically enables test-level ITR skipping."""
@@ -1478,12 +1478,12 @@ def test_func2():
 
         # Verify that ITR level was updated to test level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to each detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_default_no_dist_param_enables_test_level_itr(self):
         """Test that xdist without --dist parameter (defaults to load) enables test-level ITR."""
@@ -1529,12 +1529,12 @@ def test_func3():
 
         # Verify that ITR level was updated to test level (load is test-level)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to default load detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     @pytest.mark.skip(reason="flaky collection error in CI")
     def test_xdist_n_auto_enables_test_level_itr(self):
@@ -1577,12 +1577,12 @@ def test_func2():
 
         # Verify that ITR level was updated to test level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to default load mode with auto workers
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     @pytest.mark.skip(reason="flaky collection error in CI")
     def test_xdist_n_logical_enables_test_level_itr(self):
@@ -1628,12 +1628,12 @@ def test_func2():
 
         # Verify that ITR level was updated to test level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to default load mode with logical workers
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_combination_dist_loadscope_with_maxprocesses(self):
         """Test xdist with --dist=loadscope and --maxprocesses combination."""
@@ -1685,12 +1685,12 @@ class TestScope2:
 
         # Verify that ITR level was updated to suite level
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite due to loadscope detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
 
     def test_xdist_multiple_workers_with_load_distribution(self):
         """Test xdist with multiple workers using load distribution."""
@@ -1736,12 +1736,12 @@ def test_func3():
 
         # Verify that ITR level was updated to test level (load mode)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to load detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_complex_combination_all_options(self):
         """Test xdist with complex combination of all options."""
@@ -1801,12 +1801,12 @@ class TestComplexClass2:
 
         # Verify that ITR level was updated to suite level (loadfile mode takes precedence)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite due to loadfile detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
 
     def test_xdist_worksteal_mode_comprehensive(self):
         """Test xdist with worksteal mode for comprehensive coverage."""
@@ -1849,12 +1849,12 @@ def test_func2():
 
         # Verify that ITR level was updated to test level (worksteal mode)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to worksteal detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
     def test_explicit_env_var_overrides_xdist_suite_mode(self):
         """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=True overrides xdist test-level detection."""
@@ -1898,14 +1898,14 @@ def test_func2():
 
         # Verify that explicit env var overrode xdist detection (should be suite, not test)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite due to explicit env var override
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
         expected_suite_count = 0  # No suites skipped
-        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
+        actual_count = session_span._get_numeric_attribute("test.itr.tests_skipping.count")
         assert actual_count == expected_suite_count, (
             f"Expected {expected_suite_count} suites skipped but got {actual_count}"
         )
@@ -2018,12 +2018,12 @@ class TestScope2:
 
         # Verify that explicit env var overrode xdist detection (should be test, not suite)
         spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        session_spans = [span for span in spans if span._get_str_attribute("type") == "test_session_end"]
         assert len(session_spans) == 1
         session_span = session_spans[0]
 
         # The ITR skipping type should be test due to explicit env var override
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
 
 class TestSkippingLevelForXdistParallelizationMode:

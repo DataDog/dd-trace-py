@@ -76,8 +76,8 @@ class FilterOrg(TraceFilter):
 
     def process_trace(self, trace: list["Span"]) -> Optional[list["Span"]]:
         for span in trace:
-            if span.get_tag("organization"):
-                span._set_tag_str("organization", "not-a-real-org")
+            if span._get_str_attribute("organization"):
+                span._set_attribute("organization", "not-a-real-org")
         return trace
 
 

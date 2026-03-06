@@ -102,7 +102,7 @@ class TracerTestCases(TracerTestCase):
         def f(tag_name, tag_value):
             # make sure we can still set tags
             span = self.tracer.current_span()
-            span.set_tag(tag_name, tag_value)
+            span._set_attribute(tag_name, tag_value)
 
         f("a", "b")
 
@@ -232,8 +232,8 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_wrap_factory(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
             with tracer.trace("wrap.overwrite") as span:
-                span.set_tag("args", args)
-                span.set_tag("kwargs", kwargs)
+                span._set_attribute("args", args)
+                span._set_attribute("kwargs", kwargs)
                 return fn(*args, **kwargs)
 
         @self.tracer.wrap()
@@ -256,8 +256,8 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_wrap_factory_nested(self):
         def wrap_executor(tracer, fn, args, kwargs, span_name=None, service=None, resource=None, span_type=None):
             with tracer.trace("wrap.overwrite") as span:
-                span.set_tag("args", args)
-                span.set_tag("kwargs", kwargs)
+                span._set_attribute("args", args)
+                span._set_attribute("kwargs", kwargs)
                 return fn(*args, **kwargs)
 
         @self.tracer.wrap()
@@ -282,7 +282,7 @@ class TracerTestCases(TracerTestCase):
         def f(tag_name, tag_value):
             # make sure we can still set tags
             span = self.tracer.current_span()
-            span.set_tag(tag_name, tag_value)
+            span._set_attribute(tag_name, tag_value)
 
             for i in range(3):
                 time.sleep(0.01)
@@ -362,7 +362,7 @@ class TracerTestCases(TracerTestCase):
                     next(signals)
                 except StopIteration as e:
                     assert e.value == 10
-                    span.set_metric("num_signals", e.value)
+                    span._set_attribute("num_signals", e.value)
                     break
 
         self.assert_span_count(2)
@@ -372,14 +372,14 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_disabled(self):
         self.tracer.enabled = True
         with self.trace("foo") as s:
-            s.set_tag("a", "b")
+            s._set_attribute("a", "b")
 
         self.assert_has_spans()
         self.reset()
 
         self.tracer.enabled = False
         with self.trace("foo") as s:
-            s.set_tag("a", "b")
+            s._set_attribute("a", "b")
         self.assert_has_no_spans()
 
     def test_unserializable_span_with_finish(self):
@@ -391,7 +391,7 @@ class TracerTestCases(TracerTestCase):
         # a weird case where manually calling finish with an unserializable
         # span was causing an loop of serialization.
         with self.trace("parent") as span:
-            span._metrics["as"] = np.int64(1)  # circumvent the data checks
+            span._set_attribute("as", np.int64(1))
             span.finish()
 
     def test_tracer_disabled_mem_leak(self):
@@ -411,20 +411,20 @@ class TracerTestCases(TracerTestCase):
     def test_tracer_global_tags(self):
         s1 = self.trace("brie")
         s1.finish()
-        self.assertIsNone(s1.get_tag("env"))
-        self.assertIsNone(s1.get_tag("other"))
+        self.assertIsNone(s1._get_str_attribute("env"))
+        self.assertIsNone(s1._get_str_attribute("other"))
 
         self.tracer.set_tags({"env": "prod"})
         s2 = self.trace("camembert")
         s2.finish()
-        self.assertEqual(s2.get_tag("env"), "prod")
-        self.assertIsNone(s2.get_tag("other"))
+        self.assertEqual(s2._get_str_attribute("env"), "prod")
+        self.assertIsNone(s2._get_str_attribute("other"))
 
         self.tracer.set_tags({"env": "staging", "other": "tag"})
         s3 = self.trace("gruyere")
         s3.finish()
-        self.assertEqual(s3.get_tag("env"), "staging")
-        self.assertEqual(s3.get_tag("other"), "tag")
+        self.assertEqual(s3._get_str_attribute("env"), "staging")
+        self.assertEqual(s3._get_str_attribute("other"), "tag")
 
     def test_global_context(self):
         # the tracer uses a global thread-local Context
@@ -559,12 +559,12 @@ class TracerTestCases(TracerTestCase):
                 role="usr.role",
                 scope="usr.scope",
             )
-            assert span.get_tag(user.ID)
-            assert span.get_tag(user.EMAIL)
-            assert span.get_tag(user.SESSION_ID)
-            assert span.get_tag(user.NAME)
-            assert span.get_tag(user.ROLE)
-            assert span.get_tag(user.SCOPE)
+            assert span._get_str_attribute(user.ID)
+            assert span._get_str_attribute(user.EMAIL)
+            assert span._get_str_attribute(user.SESSION_ID)
+            assert span._get_str_attribute(user.NAME)
+            assert span._get_str_attribute(user.ROLE)
+            assert span._get_str_attribute(user.SCOPE)
             assert span.context.dd_user_id is None
 
     def test_tracer_set_user_in_span(self):
@@ -581,12 +581,12 @@ class TracerTestCases(TracerTestCase):
                     scope="usr.scope",
                     span=user_span,
                 )
-                assert user_span.get_tag(user.ID) and parent_span.get_tag(user.ID) is None
-                assert user_span.get_tag(user.EMAIL) and parent_span.get_tag(user.EMAIL) is None
-                assert user_span.get_tag(user.SESSION_ID) and parent_span.get_tag(user.SESSION_ID) is None
-                assert user_span.get_tag(user.NAME) and parent_span.get_tag(user.NAME) is None
-                assert user_span.get_tag(user.ROLE) and parent_span.get_tag(user.ROLE) is None
-                assert user_span.get_tag(user.SCOPE) and parent_span.get_tag(user.SCOPE) is None
+                assert user_span._get_str_attribute(user.ID) and parent_span._get_str_attribute(user.ID) is None
+                assert user_span._get_str_attribute(user.EMAIL) and parent_span._get_str_attribute(user.EMAIL) is None
+                assert user_span._get_str_attribute(user.SESSION_ID) and parent_span._get_str_attribute(user.SESSION_ID) is None
+                assert user_span._get_str_attribute(user.NAME) and parent_span._get_str_attribute(user.NAME) is None
+                assert user_span._get_str_attribute(user.ROLE) and parent_span._get_str_attribute(user.ROLE) is None
+                assert user_span._get_str_attribute(user.SCOPE) and parent_span._get_str_attribute(user.SCOPE) is None
                 assert user_span.context.dd_user_id is None
 
     def test_tracer_set_user_mandatory(self):
@@ -595,15 +595,15 @@ class TracerTestCases(TracerTestCase):
                 self.tracer,
                 user_id="usr.id",
             )
-            span_keys = list(span.get_tags().keys())
+            span_keys = list(span._get_str_attributes().keys())
             span_keys.sort()
             assert span_keys == ["runtime-id", "usr.id"]
-            assert span.get_tag(user.ID)
-            assert span.get_tag(user.EMAIL) is None
-            assert span.get_tag(user.SESSION_ID) is None
-            assert span.get_tag(user.NAME) is None
-            assert span.get_tag(user.ROLE) is None
-            assert span.get_tag(user.SCOPE) is None
+            assert span._get_str_attribute(user.ID)
+            assert span._get_str_attribute(user.EMAIL) is None
+            assert span._get_str_attribute(user.SESSION_ID) is None
+            assert span._get_str_attribute(user.NAME) is None
+            assert span._get_str_attribute(user.ROLE) is None
+            assert span._get_str_attribute(user.SCOPE) is None
             assert span.context.dd_user_id is None
 
     def test_tracer_set_user_warning_no_span(self):
@@ -629,7 +629,7 @@ class TracerTestCases(TracerTestCase):
             )
             user_id = span.context._meta.get("_dd.p.usr.id")
 
-            assert span.get_tag(user.ID) == user_id_string
+            assert span._get_str_attribute(user.ID) == user_id_string
             assert span.context.dd_user_id == user_id_string
             assert user_id == "dXNyLmlk"
 
@@ -648,7 +648,7 @@ class TracerTestCases(TracerTestCase):
             )
             user_id = span.context._meta.get("_dd.p.usr.id")
 
-            assert span.get_tag(user.ID) is None
+            assert span._get_str_attribute(user.ID) is None
             assert span.context.dd_user_id is None
             assert not user_id
 
@@ -667,7 +667,7 @@ class TracerTestCases(TracerTestCase):
             )
             user_id = span.context._meta.get("_dd.p.usr.id")
 
-            assert span.get_tag(user.ID) == user_id_string
+            assert span._get_str_attribute(user.ID) == user_id_string
             assert span.context.dd_user_id == user_id_string
             assert user_id == "44Om44O844K244O8SUQ="
 
@@ -819,50 +819,50 @@ def test_tracer_with_version(tracer):
     # With global `config.version` defined
     with override_global_config(dict(version="1.2.3")):
         with tracer.trace("test.span") as span:
-            assert span.get_tag(VERSION_KEY) == "1.2.3"
+            assert span._get_str_attribute(VERSION_KEY) == "1.2.3"
 
             # override manually
-            span.set_tag(VERSION_KEY, "4.5.6")
-            assert span.get_tag(VERSION_KEY) == "4.5.6"
+            span._set_attribute(VERSION_KEY, "4.5.6")
+            assert span._get_str_attribute(VERSION_KEY) == "4.5.6"
 
     # With no `config.version` defined
     with tracer.trace("test.span") as span:
-        assert span.get_tag(VERSION_KEY) is None
+        assert span._get_str_attribute(VERSION_KEY) is None
 
         # explicitly set in the span
-        span.set_tag(VERSION_KEY, "1.2.3")
-        assert span.get_tag(VERSION_KEY) == "1.2.3"
+        span._set_attribute(VERSION_KEY, "1.2.3")
+        assert span._get_str_attribute(VERSION_KEY) == "1.2.3"
 
     # With global tags set
     tracer.set_tags({VERSION_KEY: "tags.version"})
     with override_global_config(dict(version="config.version")):
         with tracer.trace("test.span") as span:
-            assert span.get_tag(VERSION_KEY) == "config.version"
+            assert span._get_str_attribute(VERSION_KEY) == "config.version"
 
 
 def test_tracer_with_env(tracer):
     # With global `config.env` defined
     with override_global_config(dict(env="prod")):
         with tracer.trace("test.span") as span:
-            assert span.get_tag(ENV_KEY) == "prod"
+            assert span._get_str_attribute(ENV_KEY) == "prod"
 
             # override manually
-            span.set_tag(ENV_KEY, "prod-staging")
-            assert span.get_tag(ENV_KEY) == "prod-staging"
+            span._set_attribute(ENV_KEY, "prod-staging")
+            assert span._get_str_attribute(ENV_KEY) == "prod-staging"
 
     # With no `config.env` defined
     with tracer.trace("test.span") as span:
-        assert span.get_tag(ENV_KEY) is None
+        assert span._get_str_attribute(ENV_KEY) is None
 
         # explicitly set in the span
-        span.set_tag(ENV_KEY, "prod-staging")
-        assert span.get_tag(ENV_KEY) == "prod-staging"
+        span._set_attribute(ENV_KEY, "prod-staging")
+        assert span._get_str_attribute(ENV_KEY) == "prod-staging"
 
     # With global tags set
     tracer.set_tags({ENV_KEY: "tags.env"})
     with override_global_config(dict(env="config.env")):
         with tracer.trace("test.span") as span:
-            assert span.get_tag(ENV_KEY) == "config.env"
+            assert span._get_str_attribute(ENV_KEY) == "config.env"
 
 
 class EnvTracerTestCase(TracerTestCase):
@@ -899,9 +899,9 @@ class EnvTracerTestCase(TracerTestCase):
         # The version will not be tagged if the service is not globally
         # configured.
         with self.trace("root", service="rootsvc") as root:
-            assert VERSION_KEY not in root.get_tags()
+            assert VERSION_KEY not in root._get_str_attributes()
             with self.trace("child") as span:
-                assert VERSION_KEY not in span.get_tags()
+                assert VERSION_KEY not in span._get_str_attributes()
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2"))
     def test_version_service(self):
@@ -912,20 +912,20 @@ class EnvTracerTestCase(TracerTestCase):
         with self.trace("django.request") as root:
             # Root span should be tagged
             assert root.service == "django"
-            assert VERSION_KEY in root.get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
+            assert VERSION_KEY in root._get_str_attributes() and root._get_str_attribute(VERSION_KEY) == "0.1.2"
 
             # Child spans should be tagged
             with self.trace("") as child1:
                 assert child1.service == "django"
-                assert VERSION_KEY in child1.get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
+                assert VERSION_KEY in child1._get_str_attributes() and child1._get_str_attribute(VERSION_KEY) == "0.1.2"
 
             # Version should not be applied to spans of a service that isn't user-defined
             with self.trace("mysql.query", service="mysql") as span:
-                assert VERSION_KEY not in span.get_tags()
+                assert VERSION_KEY not in span._get_str_attributes()
                 # Child should also not have a version
                 with self.trace("") as child2:
                     assert child2.service == "mysql"
-                    assert VERSION_KEY not in child2.get_tags()
+                    assert VERSION_KEY not in child2._get_str_attributes()
 
     @run_in_subprocess(env_overrides=dict(DD_SERVICE="django", DD_VERSION="0.1.2", DD_SERVICE_MAPPING="mysql:django"))
     def test_version_service_mapping(self):
@@ -937,21 +937,21 @@ class EnvTracerTestCase(TracerTestCase):
         with self.trace("django.request") as root:
             # Root span should be tagged
             assert root.service == "django"
-            assert VERSION_KEY in root.get_tags() and root.get_tag(VERSION_KEY) == "0.1.2"
+            assert VERSION_KEY in root._get_str_attributes() and root._get_str_attribute(VERSION_KEY) == "0.1.2"
 
             # Child spans should be tagged
             with self.trace("") as child1:
                 assert child1.service == "django"
-                assert VERSION_KEY in child1.get_tags() and child1.get_tag(VERSION_KEY) == "0.1.2"
+                assert VERSION_KEY in child1._get_str_attributes() and child1._get_str_attribute(VERSION_KEY) == "0.1.2"
 
             # Service name gets remapped to django and we get version tag applied
             with self.trace("mysql.query", service="mysql") as span:
                 assert span.service == "django"
-                assert VERSION_KEY in span.get_tags() and span.get_tag(VERSION_KEY) == "0.1.2"
+                assert VERSION_KEY in span._get_str_attributes() and span._get_str_attribute(VERSION_KEY) == "0.1.2"
                 # Child should also have a version
                 with self.trace("") as child2:
                     assert child2.service == "django"
-                    assert VERSION_KEY in child2.get_tags() and child2.get_tag(VERSION_KEY) == "0.1.2"
+                    assert VERSION_KEY in child2._get_str_attributes() and child2._get_str_attribute(VERSION_KEY) == "0.1.2"
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
@@ -972,8 +972,8 @@ class EnvTracerTestCase(TracerTestCase):
     def test_tags_from_DD_TAGS(self):
         with self.tracer.trace("test") as s:
             assert s.service == "mysvc"
-            assert s.get_tag("env") == "myenv"
-            assert s.get_tag("version") == "myvers"
+            assert s._get_str_attribute("env") == "myenv"
+            assert s._get_str_attribute("version") == "myvers"
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -986,8 +986,8 @@ class EnvTracerTestCase(TracerTestCase):
     def test_tags_from_DD_TAGS_precedence(self):
         with global_tracer.trace("test") as s:
             assert s.service == "svc"
-            assert s.get_tag("env") == "env"
-            assert s.get_tag("version") == "0.123"
+            assert s._get_str_attribute("env") == "env"
+            assert s._get_str_attribute("version") == "0.123"
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="service:mysvc,env:myenv,version:myvers"))
     def test_tags_from_DD_TAGS_override(self):
@@ -996,8 +996,8 @@ class EnvTracerTestCase(TracerTestCase):
         ddtrace.config.version = "0.123"
         with global_tracer.trace("test") as s:
             assert s.service == "service"
-            assert s.get_tag("env") == "env"
-            assert s.get_tag("version") == "0.123"
+            assert s._get_str_attribute("env") == "env"
+            assert s._get_str_attribute("version") == "0.123"
 
 
 @pytest.mark.subprocess(
@@ -1022,17 +1022,17 @@ def test_tracer_set_runtime_tags():
     with global_tracer.start_span("foobar") as span:
         pass
 
-    assert len(span.get_tag("runtime-id"))
+    assert len(span._get_str_attribute("runtime-id"))
 
     with global_tracer.start_span("foobaz") as span2:
         pass
 
-    assert span.get_tag("runtime-id") == span2.get_tag("runtime-id")
+    assert span._get_str_attribute("runtime-id") == span2._get_str_attribute("runtime-id")
 
 
 def _test_tracer_runtime_tags_fork_task(tracer, q):
     span = tracer.start_span("foobaz")
-    q.put(span.get_tag("runtime-id"))
+    q.put(span._get_str_attribute("runtime-id"))
     span.finish()
 
 
@@ -1053,7 +1053,7 @@ def test_tracer_runtime_tags_fork():
     p.join(60)
 
     children_tag = q.get()
-    assert children_tag != span.get_tag("runtime-id")
+    assert children_tag != span._get_str_attribute("runtime-id")
 
 
 def test_tracer_runtime_tags_cross_execution(tracer):
@@ -1061,8 +1061,8 @@ def test_tracer_runtime_tags_cross_execution(tracer):
     tracer.context_provider.activate(ctx)
     with tracer.trace("span") as span:
         pass
-    assert span.get_tag("runtime-id") is not None
-    assert span.get_metric(PID) is not None
+    assert span._get_str_attribute("runtime-id") is not None
+    assert span._get_numeric_attribute(PID) is not None
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
@@ -1121,17 +1121,17 @@ def test_threaded_import():
 def test_runtime_id_parent_only(tracer):
     # Parent spans should have runtime-id
     with tracer.trace("test") as s:
-        rtid = s.get_tag("runtime-id")
+        rtid = s._get_str_attribute("runtime-id")
         assert isinstance(rtid, str)
 
         # Child spans should not
         with tracer.trace("test2") as s2:
-            assert s2.get_tag("runtime-id") is None
+            assert s2._get_str_attribute("runtime-id") is None
 
     # Parent spans should have runtime-id
     s = tracer.trace("test")
     s.finish()
-    rtid = s.get_tag("runtime-id")
+    rtid = s._get_str_attribute("runtime-id")
     assert isinstance(rtid, str)
 
 
@@ -1144,7 +1144,7 @@ def test_runtime_id_fork():
     s = tracer.trace("test")
     s.finish()
 
-    rtid = s.get_tag("runtime-id")
+    rtid = s._get_str_attribute("runtime-id")
     assert isinstance(rtid, str)
 
     pid = os.fork()
@@ -1154,7 +1154,7 @@ def test_runtime_id_fork():
         s = tracer.trace("test")
         s.finish()
 
-        rtid_child = s.get_tag("runtime-id")
+        rtid_child = s._get_str_attribute("runtime-id")
         assert isinstance(rtid_child, str)
         assert rtid != rtid_child
         os._exit(12)
@@ -1185,7 +1185,7 @@ def test_filters(tracer, test_spans):
 
         def process_trace(self, trace):
             for s in trace:
-                s.set_tag(self.key, self.value)
+                s._set_attribute(self.key, self.value)
             return trace
 
     tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
@@ -1197,8 +1197,8 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     s1, s2 = spans
-    assert s1.get_tag("boop") == "beep"
-    assert s2.get_tag("boop") == "beep"
+    assert s1._get_str_attribute("boop") == "beep"
+    assert s2._get_str_attribute("boop") == "beep"
 
     # Test multiple filters
     tracer.configure(trace_processors=[FilterMutate("boop", "beep"), FilterMutate("mats", "sundin")])
@@ -1210,8 +1210,8 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     for s in spans:
-        assert s.get_tag("boop") == "beep"
-        assert s.get_tag("mats") == "sundin"
+        assert s._get_str_attribute("boop") == "beep"
+        assert s._get_str_attribute("mats") == "sundin"
 
     class FilterBroken(object):
         def process_trace(self, trace):
@@ -1234,7 +1234,7 @@ def test_filters(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     for s in spans:
-        assert s.get_tag("boop") == "beep"
+        assert s._get_str_attribute("boop") == "beep"
 
 
 def test_early_exit(tracer, test_spans):
@@ -1367,9 +1367,9 @@ def test_ctx(tracer, test_spans):
     assert s4.parent_id == s1.span_id
     assert s1.trace_id == s2.trace_id == s3.trace_id == s4.trace_id
     # Agent based sampling may set the sampling priority to either 0 or 1.
-    assert s1.get_metric(_SAMPLING_PRIORITY_KEY) in (AUTO_KEEP, AUTO_REJECT)
-    assert s2.get_metric(_SAMPLING_PRIORITY_KEY) is None
-    assert _ORIGIN_KEY not in s1.get_tags()
+    assert s1._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) in (AUTO_KEEP, AUTO_REJECT)
+    assert s2._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is None
+    assert _ORIGIN_KEY not in s1._get_str_attributes()
 
     t = test_spans.pop_traces()
     assert len(t) == 1
@@ -1443,8 +1443,8 @@ def test_ctx_distributed(tracer, test_spans):
 
     trace = test_spans.pop_traces()
     assert len(trace) == 1
-    assert s2.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-    assert s2.get_tag(_ORIGIN_KEY) == "somewhere"
+    assert s2._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == 2
+    assert s2._get_str_attribute(_ORIGIN_KEY) == "somewhere"
 
 
 def test_manual_keep(tracer, test_spans):
@@ -1452,14 +1452,14 @@ def test_manual_keep(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0]._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_KEEP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+    assert spans[0]._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
 def test_manual_keep_then_drop(tracer, test_spans):
@@ -1469,7 +1469,7 @@ def test_manual_keep_then_drop(tracer, test_spans):
             child.set_tag(MANUAL_KEEP_KEY)
         root.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0]._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 def test_manual_drop(tracer, test_spans):
@@ -1477,14 +1477,14 @@ def test_manual_drop(tracer, test_spans):
     with tracer.trace("asdf") as s:
         s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0]._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
     # On a child span
     with tracer.trace("asdf"):
         with tracer.trace("child") as s:
             s.set_tag(MANUAL_DROP_KEY)
     spans = test_spans.pop()
-    assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) is USER_REJECT
+    assert spans[0]._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is USER_REJECT
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1498,8 +1498,8 @@ def test_get_report_hostname_enabled(get_hostname, tracer, test_spans):
     spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
-    assert root.get_tag(_HOSTNAME_KEY) == "test-hostname"
-    assert child.get_tag(_HOSTNAME_KEY) is None
+    assert root._get_str_attribute(_HOSTNAME_KEY) == "test-hostname"
+    assert child._get_str_attribute(_HOSTNAME_KEY) is None
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1513,8 +1513,8 @@ def test_get_report_hostname_disabled(get_hostname, tracer, test_spans):
     spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
-    assert root.get_tag(_HOSTNAME_KEY) is None
-    assert child.get_tag(_HOSTNAME_KEY) is None
+    assert root._get_str_attribute(_HOSTNAME_KEY) is None
+    assert child._get_str_attribute(_HOSTNAME_KEY) is None
 
 
 @mock.patch("ddtrace.internal.hostname.get_hostname")
@@ -1528,8 +1528,8 @@ def test_get_report_hostname_default(get_hostname, tracer, test_spans):
     spans = test_spans.pop()
     root = spans[0]
     child = spans[1]
-    assert root.get_tag(_HOSTNAME_KEY) is None
-    assert child.get_tag(_HOSTNAME_KEY) is None
+    assert root._get_str_attribute(_HOSTNAME_KEY) is None
+    assert child._get_str_attribute(_HOSTNAME_KEY) is None
 
 
 def test_non_active_span(tracer, test_spans):
@@ -1633,7 +1633,7 @@ def test_context_priority(tracer, test_spans):
         spans = test_spans.pop()
         assert len(spans) == 1, "trace should be sampled"
         if p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP]:
-            assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == p
+            assert spans[0]._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == p
 
 
 def test_spans_sampled_out(tracer, test_spans):
@@ -1785,20 +1785,20 @@ def test_fork_pid():
     from ddtrace.trace import tracer
 
     root = tracer.trace("root_span")
-    assert root.get_tag("runtime-id") is not None
-    assert root.get_metric(PID) is not None
+    assert root._get_str_attribute("runtime-id") is not None
+    assert root._get_numeric_attribute(PID) is not None
 
     pid = os.fork()
 
     if pid:
         child1 = tracer.trace("span1")
-        assert child1.get_tag("runtime-id") is None
-        assert child1.get_metric(PID) is None
+        assert child1._get_str_attribute("runtime-id") is None
+        assert child1._get_numeric_attribute(PID) is None
         child1.finish()
     else:
         child2 = tracer.trace("span2")
-        assert child2.get_tag("runtime-id") is not None
-        assert child2.get_metric(PID) is not None
+        assert child2._get_str_attribute("runtime-id") is not None
+        assert child2._get_numeric_attribute(PID) is not None
         child2.finish()
         os._exit(12)
 

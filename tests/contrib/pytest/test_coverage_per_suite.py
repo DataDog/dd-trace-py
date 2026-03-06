@@ -112,9 +112,9 @@ class PytestTestCase(PytestTestCaseBase):
             )
         spans = self.pop_spans()
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         first_suite_span = test_suite_spans[0]
-        assert first_suite_span.get_tag("type") == "test_suite_end"
+        assert first_suite_span._get_str_attribute("type") == "test_suite_end"
         first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
         assert len(first_suite_coverage) == 3
         if _USE_PLUGIN_V2:
@@ -140,7 +140,7 @@ class PytestTestCase(PytestTestCaseBase):
             assert first_suite_coverage["ret_false.py"] == [(1, 2)]
 
         second_suite_span = test_suite_spans[-1]
-        assert second_suite_span.get_tag("type") == "test_suite_end"
+        assert second_suite_span._get_str_attribute("type") == "test_suite_end"
         second_suite_coverage = _get_span_coverage_data(second_suite_span, _USE_PLUGIN_V2)
         assert len(second_suite_coverage) == 2
         if _USE_PLUGIN_V2:
@@ -222,11 +222,11 @@ class PytestTestCase(PytestTestCaseBase):
             )
         spans = self.pop_spans()
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         first_suite_span = test_suite_spans[0]
-        assert first_suite_span.get_tag("type") == "test_suite_end"
+        assert first_suite_span._get_str_attribute("type") == "test_suite_end"
         second_suite_span = test_suite_spans[1]
-        assert second_suite_span.get_tag("type") == "test_suite_end"
+        assert second_suite_span._get_str_attribute("type") == "test_suite_end"
 
         first_suite_coverage = _get_span_coverage_data(first_suite_span, _USE_PLUGIN_V2)
 
@@ -241,4 +241,4 @@ class PytestTestCase(PytestTestCaseBase):
             assert first_suite_coverage["test_cov.py"] == [(5, 5), (8, 9)]
             assert first_suite_coverage["lib_fn.py"] == [(2, 2)]
             assert first_suite_coverage["ret_false.py"] == [(1, 2)]
-            assert COVERAGE_TAG_NAME not in second_suite_span.get_tags()
+            assert COVERAGE_TAG_NAME not in second_suite_span._get_str_attributes()

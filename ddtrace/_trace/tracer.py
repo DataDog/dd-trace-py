@@ -505,7 +505,7 @@ class Tracer(object):
                 # We do not want to propagate AppSec propagation headers
                 # to children spans, only across distributed spans
                 if k not in (SAMPLING_DECISION_TRACE_TAG_KEY, APPSEC.PROPAGATION_HEADER):
-                    span._meta[k] = v
+                    span._set_attribute(k, v)
         else:
             # this is the root span of a new trace
             span = Span(
@@ -518,18 +518,18 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span._set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
+                span._set_attribute(_HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
-            span._set_tag_str("runtime-id", get_runtime_id())
-            span._metrics[PID] = self._pid
+            span._set_attribute("runtime-id", get_runtime_id())
+            span._set_attribute(PID, self._pid)
 
         # Apply default global tags.
         if self._tags:
             span.set_tags(self._tags)
 
         if config.env:
-            span._set_tag_str(ENV_KEY, config.env)
+            span._set_attribute(ENV_KEY, config.env)
 
         # Only set the version tag on internal spans.
         if config.version:
@@ -539,9 +539,9 @@ class Tracer(object):
             #        and the root span has a version tag
             # then the span belongs to the user application and so set the version tag
             if (root_span is None and service == config.service) or (
-                root_span and root_span.service == service and root_span.get_tag(VERSION_KEY) is not None
+                root_span and root_span.service == service and root_span._get_str_attribute(VERSION_KEY) is not None
             ):
-                span._set_tag_str(VERSION_KEY, config.version)
+                span._set_attribute(VERSION_KEY, config.version)
 
         if activate:
             self.context_provider.activate(span)

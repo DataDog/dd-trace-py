@@ -79,5 +79,5 @@ class TestPlainTestContext:
 
         assert context.span_id == span_id
         assert context.trace_id == trace_id
-        assert context.get_tags() == {}
-        assert context.get_metrics() == {}
+        assert context._get_str_attributes() == {}
+        assert context._get_numeric_attributes() == {}

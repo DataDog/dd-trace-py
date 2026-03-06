@@ -69,18 +69,18 @@ class WsgiCustomMiddleware(_DDWSGIMiddlewareBase):
     _response_span_name = "test_wsgi.response"
 
     def _request_span_modifier(self, req_span, environ, parsed_headers=None):
-        req_span.set_tag("request_tag", "req test tag set")
-        req_span.set_metric("request_metric", 1)
+        req_span._set_attribute("request_tag", "req test tag set")
+        req_span._set_attribute("request_metric", 1)
         req_span.resource = "request resource was modified"
 
     def _application_span_modifier(self, app_span, environ, result):
-        app_span.set_tag("app_tag", "app test tag set")
-        app_span.set_metric("app_metric", 2)
+        app_span._set_attribute("app_tag", "app test tag set")
+        app_span._set_attribute("app_metric", 2)
         app_span.resource = "app resource was modified"
 
     def _response_span_modifier(self, resp_span, response):
-        resp_span.set_tag("response_tag", "resp test tag set")
-        resp_span.set_metric("response_metric", 3)
+        resp_span._set_attribute("response_tag", "resp test tag set")
+        resp_span._set_attribute("response_metric", 3)
         resp_span.resource = "response resource was modified"
 
 
@@ -146,19 +146,19 @@ def test_query_string_tracing(tracer, test_spans):
         assert request_span.name == "wsgi.request"
         assert request_span.resource == "GET /"
         assert request_span.error == 0
-        assert request_span.get_tag("http.method") == "GET"
-        assert request_span.get_tag("http.status_code") == "200"
-        assert request_span.get_tag("http.query.string") == "foo=bar&x=y"
-        assert request_span.get_tag("component") == "wsgi"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("http.method") == "GET"
+        assert request_span._get_str_attribute("http.status_code") == "200"
+        assert request_span._get_str_attribute("http.query.string") == "foo=bar&x=y"
+        assert request_span._get_str_attribute("component") == "wsgi"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
         assert spans[0][1].name == "wsgi.application"
         assert spans[0][2].name == "wsgi.start_response"
         assert spans[0][3].name == "wsgi.response"
 
-        assert spans[0][1].get_tag("component") == "wsgi"
-        assert spans[0][2].get_tag("component") == "wsgi"
-        assert spans[0][3].get_tag("component") == "wsgi"
+        assert spans[0][1]._get_str_attribute("component") == "wsgi"
+        assert spans[0][2]._get_str_attribute("component") == "wsgi"
+        assert spans[0][3]._get_str_attribute("component") == "wsgi"
 
 
 def test_http_request_header_tracing(tracer, test_spans):
@@ -170,7 +170,7 @@ def test_http_request_header_tracing(tracer, test_spans):
         assert resp.status == "200 OK"
         assert resp.status_int == 200
         spans = test_spans.pop()
-        assert spans[0].get_tag("http.request.headers.my-header") == "test_value"
+        assert spans[0]._get_str_attribute("http.request.headers.my-header") == "test_value"
     finally:
         config.wsgi.http._reset()
 
@@ -185,7 +185,7 @@ def test_http_response_header_tracing(tracer, test_spans):
         assert resp.status_int == 200
 
         spans = test_spans.pop()
-        assert spans[0].get_tag("http.response.headers.my-response-header") == "test_response_value"
+        assert spans[0]._get_str_attribute("http.response.headers.my-response-header") == "test_response_value"
     finally:
         config.wsgi.http._reset()
 

@@ -316,10 +316,10 @@ def test_span_has_dsm_payload_hash(kafka_tracer, test_spans, consumer, producer,
 
     # kafka.produce and kafka.consume span have payload hash
     assert produce_span.name == "kafka.produce"
-    assert produce_span.get_tag("pathway.hash") is not None
+    assert produce_span._get_str_attribute("pathway.hash") is not None
 
     assert consume_span.name == "kafka.consume"
-    assert consume_span.get_tag("pathway.hash") is not None
+    assert consume_span._get_str_attribute("pathway.hash") is not None
 
 
 @pytest.mark.snapshot(ignores=["metrics.kafka.message_offset", "meta.messaging.kafka.bootstrap.servers"])

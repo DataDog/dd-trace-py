@@ -172,9 +172,9 @@ class TestProcessTags(TracerTestCase):
         span = self.get_spans()[0]
 
         assert span is not None
-        assert PROCESS_TAGS in span._meta
+        assert span._get_attribute(PROCESS_TAGS) is not None
 
-        process_tags = span._meta[PROCESS_TAGS]
+        process_tags = span._get_attribute(PROCESS_TAGS)
         assert ENTRYPOINT_BASEDIR_TAG in process_tags
         assert ENTRYPOINT_NAME_TAG in process_tags
         assert ENTRYPOINT_TYPE_TAG in process_tags

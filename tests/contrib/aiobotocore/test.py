@@ -35,19 +35,19 @@ async def test_traced_client(tracer, test_spans):
     span = traces[0][0]
 
     assert_is_measured(span)
-    assert span.get_tag("aws.agent") == "aiobotocore"
-    assert span.get_tag("aws.region") == "us-west-2"
-    assert span.get_tag("region") == "us-west-2"
-    assert span.get_tag("aws.partition") == "aws"
-    assert span.get_tag("aws.operation") == "DescribeInstances"
+    assert span._get_str_attribute("aws.agent") == "aiobotocore"
+    assert span._get_str_attribute("aws.region") == "us-west-2"
+    assert span._get_str_attribute("region") == "us-west-2"
+    assert span._get_str_attribute("aws.partition") == "aws"
+    assert span._get_str_attribute("aws.operation") == "DescribeInstances"
     assert_span_http_status_code(span, 200)
-    assert span.get_metric("retry_attempts") == 0
+    assert span._get_numeric_attribute("retry_attempts") == 0
     assert span.service == "aws.ec2"
     assert span.resource == "ec2.describeinstances"
     assert span.name == "ec2.command"
     assert span.span_type == "http"
-    assert span.get_tag("component") == "aiobotocore"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert span._get_str_attribute("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -62,13 +62,13 @@ async def test_s3_client(tracer, test_spans):
     span = traces[0][0]
 
     assert_is_measured(span)
-    assert span.get_tag("aws.operation") == "ListBuckets"
+    assert span._get_str_attribute("aws.operation") == "ListBuckets"
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.s3"
     assert span.resource == "s3.listbuckets"
     assert span.name == "s3.command"
-    assert span.get_tag("component") == "aiobotocore"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert span._get_str_attribute("span.kind") == "client"
 
 
 async def _test_s3_put(tracer, test_spans, use_make_api_call, bucket_name):
@@ -88,7 +88,7 @@ async def _test_s3_put(tracer, test_spans, use_make_api_call, bucket_name):
     spans = [trace[0] for trace in test_spans.pop_traces()]
     assert spans
     assert len(spans) == 2
-    assert spans[0].get_tag("aws.operation") == "CreateBucket"
+    assert spans[0]._get_str_attribute("aws.operation") == "CreateBucket"
 
     assert_is_measured(spans[0])
     assert_span_http_status_code(spans[0], 200)
@@ -96,7 +96,7 @@ async def _test_s3_put(tracer, test_spans, use_make_api_call, bucket_name):
     assert spans[0].resource == "s3.createbucket"
 
     assert_is_measured(spans[1])
-    assert spans[1].get_tag("aws.operation") == "PutObject"
+    assert spans[1]._get_str_attribute("aws.operation") == "PutObject"
     assert spans[1].resource == "s3.putobject"
 
     return spans[1]
@@ -107,9 +107,9 @@ async def _test_s3_put(tracer, test_spans, use_make_api_call, bucket_name):
 async def test_s3_put(tracer, test_spans, use_make_api_call):
     bucket_name = f"{time.time()}bucket".replace(".", "")
     span = await _test_s3_put(tracer, test_spans, use_make_api_call, bucket_name)
-    assert span.get_tag("aws.s3.bucket_name") == bucket_name
-    assert span.get_tag("bucketname") == bucket_name
-    assert span.get_tag("component") == "aiobotocore"
+    assert span._get_str_attribute("aws.s3.bucket_name") == bucket_name
+    assert span._get_str_attribute("bucketname") == bucket_name
+    assert span._get_str_attribute("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -117,12 +117,12 @@ async def test_s3_put_no_params(tracer, test_spans):
     bucket_name = f"{time.time()}bucket".replace(".", "")
     with override_config("aiobotocore", dict(tag_no_params=True)):
         span = await _test_s3_put(tracer, test_spans, False, bucket_name)
-        assert span.get_tag("aws.s3.bucket_name") is None
-        assert span.get_tag("bucketname") is None
-        assert span.get_tag("params.Key") is None
-        assert span.get_tag("params.Bucket") is None
-        assert span.get_tag("params.Body") is None
-        assert span.get_tag("component") == "aiobotocore"
+        assert span._get_str_attribute("aws.s3.bucket_name") is None
+        assert span._get_str_attribute("bucketname") is None
+        assert span._get_str_attribute("params.Key") is None
+        assert span._get_str_attribute("params.Bucket") is None
+        assert span._get_str_attribute("params.Body") is None
+        assert span._get_str_attribute("component") == "aiobotocore"
 
 
 @pytest.mark.asyncio
@@ -140,9 +140,9 @@ async def test_s3_client_error(tracer, test_spans):
     assert_is_measured(span)
     assert span.resource == "s3.listobjects"
     assert span.error == 1
-    assert span.get_tag("component") == "aiobotocore"
-    assert "NoSuchBucket" in span.get_tag(ERROR_MSG)
-    assert span.get_tag("span.kind"), "client"
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert "NoSuchBucket" in span._get_str_attribute(ERROR_MSG)
+    assert span._get_str_attribute("span.kind"), "client"
 
 
 @pytest.mark.asyncio
@@ -171,16 +171,16 @@ async def test_s3_client_read(tracer, test_spans):
     span = traces[0][0]
 
     assert_is_measured(span)
-    assert span.get_tag("aws.operation") == "GetObject"
+    assert span._get_str_attribute("aws.operation") == "GetObject"
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.s3"
     assert span.resource == "s3.getobject"
-    assert span.get_tag("component") == "aiobotocore"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert span._get_str_attribute("span.kind") == "client"
 
     if pre_08:
         read_span = traces[1][0]
-        assert read_span.get_tag("aws.operation") == "GetObject"
+        assert read_span._get_str_attribute("aws.operation") == "GetObject"
         assert_span_http_status_code(read_span, 200)
         assert read_span.service == "aws.s3"
         assert read_span.resource == "s3.getobject"
@@ -202,15 +202,15 @@ async def test_sqs_client(tracer, test_spans):
     span = traces[0][0]
 
     assert_is_measured(span)
-    assert span.get_tag("aws.region") == "us-west-2"
-    assert span.get_tag("region") == "us-west-2"
-    assert span.get_tag("aws.partition") == "aws"
-    assert span.get_tag("aws.operation") == "ListQueues"
+    assert span._get_str_attribute("aws.region") == "us-west-2"
+    assert span._get_str_attribute("region") == "us-west-2"
+    assert span._get_str_attribute("aws.partition") == "aws"
+    assert span._get_str_attribute("aws.operation") == "ListQueues"
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.sqs"
     assert span.resource == "sqs.listqueues"
-    assert span.get_tag("component") == "aiobotocore"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert span._get_str_attribute("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -225,15 +225,15 @@ async def test_kinesis_client(tracer, test_spans):
     span = traces[0][0]
 
     assert_is_measured(span)
-    assert span.get_tag("aws.region") == "us-west-2"
-    assert span.get_tag("region") == "us-west-2"
-    assert span.get_tag("aws.partition") == "aws"
-    assert span.get_tag("aws.operation") == "ListStreams"
+    assert span._get_str_attribute("aws.region") == "us-west-2"
+    assert span._get_str_attribute("region") == "us-west-2"
+    assert span._get_str_attribute("aws.partition") == "aws"
+    assert span._get_str_attribute("aws.operation") == "ListStreams"
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.kinesis"
     assert span.resource == "kinesis.liststreams"
-    assert span.get_tag("component") == "aiobotocore"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert span._get_str_attribute("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -248,14 +248,14 @@ async def test_lambda_client(tracer, test_spans):
     span = traces[0][0]
 
     assert_is_measured(span)
-    assert span.get_tag("aws.region") == "us-west-2"
-    assert span.get_tag("region") == "us-west-2"
-    assert span.get_tag("aws.operation") == "ListFunctions"
+    assert span._get_str_attribute("aws.region") == "us-west-2"
+    assert span._get_str_attribute("region") == "us-west-2"
+    assert span._get_str_attribute("aws.operation") == "ListFunctions"
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.lambda"
     assert span.resource == "lambda.listfunctions"
-    assert span.get_tag("component") == "aiobotocore"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert span._get_str_attribute("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -270,16 +270,16 @@ async def test_kms_client(tracer, test_spans):
     span = traces[0][0]
 
     assert_is_measured(span)
-    assert span.get_tag("aws.region") == "us-west-2"
-    assert span.get_tag("region") == "us-west-2"
-    assert span.get_tag("aws.operation") == "ListKeys"
+    assert span._get_str_attribute("aws.region") == "us-west-2"
+    assert span._get_str_attribute("region") == "us-west-2"
+    assert span._get_str_attribute("aws.operation") == "ListKeys"
     assert_span_http_status_code(span, 200)
     assert span.service == "aws.kms"
     assert span.resource == "kms.listkeys"
     # checking for protection on STS against security leak
-    assert span.get_tag("params") is None
-    assert span.get_tag("component") == "aiobotocore"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("params") is None
+    assert span._get_str_attribute("component") == "aiobotocore"
+    assert span._get_str_attribute("span.kind") == "client"
 
 
 @pytest.mark.asyncio
@@ -432,14 +432,14 @@ async def test_response_context_manager(tracer, test_spans):
 
         span = traces[0][0]
         assert_is_measured(span)
-        assert span.get_tag("aws.operation") == "GetObject"
+        assert span._get_str_attribute("aws.operation") == "GetObject"
         assert_span_http_status_code(span, 200)
         assert span.service == "aws.s3"
         assert span.resource == "s3.getobject"
 
         read_span = traces[1][0]
         assert_is_measured(read_span)
-        assert read_span.get_tag("aws.operation") == "GetObject"
+        assert read_span._get_str_attribute("aws.operation") == "GetObject"
         assert_span_http_status_code(read_span, 200)
         assert read_span.service == "aws.s3"
         assert read_span.resource == "s3.getobject"
@@ -447,20 +447,20 @@ async def test_response_context_manager(tracer, test_spans):
         # enforce parenting
         assert read_span.parent_id == span.span_id
         assert read_span.trace_id == span.trace_id
-        assert read_span.get_tag("component") == "aiobotocore"
+        assert read_span._get_str_attribute("component") == "aiobotocore"
     else:
         assert len(traces[0]) == 1
         assert len(traces[0]) == 1
 
         span = traces[0][0]
         assert_is_measured(span)
-        assert span.get_tag("aws.operation") == "GetObject"
+        assert span._get_str_attribute("aws.operation") == "GetObject"
         assert_span_http_status_code(span, 200)
         assert span.service == "aws.s3"
         assert span.resource == "s3.getobject"
         assert span.name == "s3.command"
-        assert span.get_tag("component") == "aiobotocore"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("component") == "aiobotocore"
+        assert span._get_str_attribute("span.kind") == "client"
 
 
 # Peer service tests
@@ -477,7 +477,7 @@ async def test_sqs_client_peer_service_in_lambda(tracer, test_spans, monkeypatch
     assert len(traces[0]) == 1
     span = traces[0][0]
     # Should have peer.service set to sqs hostname
-    assert span.get_tag("peer.service") == "sqs.us-west-2.amazonaws.com"
+    assert span._get_str_attribute("peer.service") == "sqs.us-west-2.amazonaws.com"
 
 
 @pytest.mark.asyncio
@@ -495,7 +495,7 @@ async def test_s3_client_peer_service_in_lambda(tracer, test_spans, monkeypatch)
     assert len(traces[0]) == 1
     span = traces[0][0]
     # Should have peer.service set to bucket-specific hostname
-    assert span.get_tag("peer.service") == f"{bucket_name}.s3.us-west-2.amazonaws.com"
+    assert span._get_str_attribute("peer.service") == f"{bucket_name}.s3.us-west-2.amazonaws.com"
 
 
 @pytest.mark.asyncio
@@ -511,7 +511,7 @@ async def test_dynamodb_client_peer_service_in_lambda(tracer, test_spans, monkey
     assert len(traces[0]) == 1
     span = traces[0][0]
     # Should have peer.service set to dynamodb hostname
-    assert span.get_tag("peer.service") == "dynamodb.us-west-2.amazonaws.com"
+    assert span._get_str_attribute("peer.service") == "dynamodb.us-west-2.amazonaws.com"
 
 
 @pytest.mark.asyncio
@@ -527,7 +527,7 @@ async def test_kinesis_client_peer_service_in_lambda(tracer, test_spans, monkeyp
     assert len(traces[0]) == 1
     span = traces[0][0]
     # Should have peer.service set to kinesis hostname
-    assert span.get_tag("peer.service") == "kinesis.us-west-2.amazonaws.com"
+    assert span._get_str_attribute("peer.service") == "kinesis.us-west-2.amazonaws.com"
 
 
 @pytest.mark.asyncio
@@ -543,7 +543,7 @@ async def test_sns_client_peer_service_in_lambda(tracer, test_spans, monkeypatch
     assert len(traces[0]) == 1
     span = traces[0][0]
     # Should have peer.service set to sns hostname
-    assert span.get_tag("peer.service") == "sns.us-west-2.amazonaws.com"
+    assert span._get_str_attribute("peer.service") == "sns.us-west-2.amazonaws.com"
 
 
 @pytest.mark.asyncio
@@ -559,4 +559,4 @@ async def test_eventbridge_client_peer_service_in_lambda(tracer, test_spans, mon
     assert len(traces[0]) == 1
     span = traces[0][0]
     # Should have peer.service set to events hostname
-    assert span.get_tag("peer.service") == "events.us-west-2.amazonaws.com"
+    assert span._get_str_attribute("peer.service") == "events.us-west-2.amazonaws.com"

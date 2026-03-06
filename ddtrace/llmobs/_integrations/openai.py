@@ -64,14 +64,14 @@ class OpenAIIntegration(BaseLLMIntegration):
         return super().trace(operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
-        span._set_tag_str(COMPONENT, self.integration_config.integration_name)
+        span._set_attribute(COMPONENT, self.integration_config.integration_name)
 
         client = "OpenAI"
         if self._is_provider(span, "azure"):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
-        span._set_tag_str("openai.request.provider", client)
+        span._set_attribute("openai.request.provider", client)
 
     def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
@@ -101,7 +101,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             if operation in OPENAI_LLM_OPERATIONS
             else operation
         )
-        model_name = span.get_tag("openai.response.model") or span.get_tag("openai.request.model") or "unknown_model"
+        model_name = span._get_str_attribute("openai.response.model") or span._get_str_attribute("openai.request.model") or "unknown_model"
 
         model_provider = "openai"
         if self._is_provider(span, "azure"):

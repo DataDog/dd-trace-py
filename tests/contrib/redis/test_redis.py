@@ -55,8 +55,8 @@ class TestRedisPatch(TracerTestCase):
             command_span = self.get_spans()[-1]
 
             assert command_span.name == "redis.command"
-            assert command_span.get_tag("redis.raw_command") == raw_command
-            assert command_span.get_metric("db.row_count") == row_count
+            assert command_span._get_str_attribute("redis.raw_command") == raw_command
+            assert command_span._get_numeric_attribute("db.row_count") == row_count
 
     def test_long_command(self):
         self.r.mget(*range(1000))
@@ -65,13 +65,13 @@ class TestRedisPatch(TracerTestCase):
         mget_spans = [
             s
             for s in spans
-            if s.get_tag("component") == "redis"
-            and s.get_tag("redis.raw_command")
-            and s.get_tag("redis.raw_command").startswith("MGET")
+            if s._get_str_attribute("component") == "redis"
+            and s._get_str_attribute("redis.raw_command")
+            and s._get_str_attribute("redis.raw_command").startswith("MGET")
         ]
         assert len(mget_spans) == 1, (
             f"Expected exactly 1 MGET span, got {len(mget_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in spans]}"
         )
         span = mget_spans[0]
 
@@ -88,15 +88,15 @@ class TestRedisPatch(TracerTestCase):
             "out.redis_db": 0,
         }
         for k, v in meta.items():
-            assert span.get_tag(k) == v
+            assert span._get_str_attribute(k) == v
         for k, v in metrics.items():
-            assert span.get_metric(k) == v
+            assert span._get_numeric_attribute(k) == v
 
-        assert span.get_tag("redis.raw_command").startswith("MGET 0 1 2 3")
-        assert span.get_tag("redis.raw_command").endswith("...")
-        assert span.get_tag("component") == "redis"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "redis"
+        assert span._get_str_attribute("redis.raw_command").startswith("MGET 0 1 2 3")
+        assert span._get_str_attribute("redis.raw_command").endswith("...")
+        assert span._get_str_attribute("component") == "redis"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "redis"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1", DD_SERVICE="mysvc"))
     def test_service_name_v1(self):
@@ -128,13 +128,13 @@ class TestRedisPatch(TracerTestCase):
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_metric("out.redis_db") == 0
-        assert span.get_tag("out.host") == "localhost"
-        assert span.get_tag("redis.raw_command") == "GET cheese"
-        assert span.get_tag("component") == "redis"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "redis"
-        assert span.get_metric("redis.args_length") == 2
+        assert span._get_numeric_attribute("out.redis_db") == 0
+        assert span._get_str_attribute("out.host") == "localhost"
+        assert span._get_str_attribute("redis.raw_command") == "GET cheese"
+        assert span._get_str_attribute("component") == "redis"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "redis"
+        assert span._get_numeric_attribute("redis.args_length") == 2
         assert span.resource == "GET"
 
     def test_connection_error(self):
@@ -160,13 +160,13 @@ class TestRedisPatch(TracerTestCase):
         assert span.resource == "SET\nRPUSH\nHGETALL"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_metric("out.redis_db") == 0
-        assert span.get_tag("out.host") == "localhost"
-        assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
-        assert span.get_tag("component") == "redis"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_metric("redis.pipeline_length") == 3
-        assert span.get_metric("redis.pipeline_length") == 3
+        assert span._get_numeric_attribute("out.redis_db") == 0
+        assert span._get_str_attribute("out.host") == "localhost"
+        assert span._get_str_attribute("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span._get_str_attribute("component") == "redis"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_numeric_attribute("redis.pipeline_length") == 3
+        assert span._get_numeric_attribute("redis.pipeline_length") == 3
 
     def test_pipeline_immediate(self):
         with self.r.pipeline() as p:
@@ -175,10 +175,10 @@ class TestRedisPatch(TracerTestCase):
             p.execute()
 
         spans = self.get_spans()
-        set_spans = [s for s in spans if s.get_tag("component") == "redis" and s.resource == "SET"]
+        set_spans = [s for s in spans if s._get_str_attribute("component") == "redis" and s.resource == "SET"]
         assert len(set_spans) == 2, (
             f"Expected exactly 2 SET spans, got {len(set_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in spans]}"
         )
         span = set_spans[0]
         self.assert_is_measured(span)
@@ -187,10 +187,10 @@ class TestRedisPatch(TracerTestCase):
         assert span.resource == "SET"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_metric("out.redis_db") == 0
-        assert span.get_tag("out.host") == "localhost"
-        assert span.get_tag("component") == "redis"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_numeric_attribute("out.redis_db") == 0
+        assert span._get_str_attribute("out.host") == "localhost"
+        assert span._get_str_attribute("component") == "redis"
+        assert span._get_str_attribute("span.kind") == "client"
 
     def test_meta_override(self):
         r = self.r
@@ -239,8 +239,8 @@ class TestRedisPatch(TracerTestCase):
         get_valid_key_span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET key1")
 
         assert get_valid_key_span.name == "redis.command"
-        assert get_valid_key_span.get_tag("redis.raw_command") == "GET key1"
-        assert get_valid_key_span.get_metric("db.row_count") == 1
+        assert get_valid_key_span._get_str_attribute("redis.raw_command") == "GET key1"
+        assert get_valid_key_span._get_numeric_attribute("db.row_count") == 1
 
         get_commands = ["GET key", "GETEX key", "GETRANGE key 0 2"]
         list_get_commands = ["LINDEX lkey 0", "LRANGE lkey 0 3", "RPOP lkey", "LPOP lkey"]
@@ -281,31 +281,31 @@ class TestRedisPatch(TracerTestCase):
 
         spans = self.get_spans()
         get_both_valid_spans = [
-            s for s in spans if s.get_tag("component") == "redis" and s.get_tag("redis.raw_command") == "MGET key key2"
+            s for s in spans if s._get_str_attribute("component") == "redis" and s._get_str_attribute("redis.raw_command") == "MGET key key2"
         ]
         get_one_missing_spans = [
             s
             for s in spans
-            if s.get_tag("component") == "redis" and s.get_tag("redis.raw_command") == "MGET key missing_key"
+            if s._get_str_attribute("component") == "redis" and s._get_str_attribute("redis.raw_command") == "MGET key missing_key"
         ]
         assert len(get_both_valid_spans) == 1, (
             f"Expected exactly 1 MGET key key2 span, got {len(get_both_valid_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in spans]}"
         )
         assert len(get_one_missing_spans) == 1, (
             f"Expected exactly 1 MGET key missing_key span, got {len(get_one_missing_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in spans]}"
         )
         get_both_valid_span = get_both_valid_spans[0]
         get_one_missing_span = get_one_missing_spans[0]
 
         assert get_both_valid_span.name == "redis.command"
-        assert get_both_valid_span.get_tag("redis.raw_command") == "MGET key key2"
-        assert get_both_valid_span.get_metric("db.row_count") == 2
+        assert get_both_valid_span._get_str_attribute("redis.raw_command") == "MGET key key2"
+        assert get_both_valid_span._get_numeric_attribute("db.row_count") == 2
 
         assert get_one_missing_span.name == "redis.command"
-        assert get_one_missing_span.get_tag("redis.raw_command") == "MGET key missing_key"
-        assert get_one_missing_span.get_metric("db.row_count") == 1
+        assert get_one_missing_span._get_str_attribute("redis.raw_command") == "MGET key missing_key"
+        assert get_one_missing_span._get_numeric_attribute("db.row_count") == 1
 
         multi_key_get_commands = [
             "MGET key key2",
@@ -326,8 +326,8 @@ class TestRedisPatch(TracerTestCase):
         get_missing_key_span = find_redis_span(self.get_spans(), resource="GET", raw_command="GET missing_key")
 
         assert get_missing_key_span.name == "redis.command"
-        assert get_missing_key_span.get_tag("redis.raw_command") == "GET missing_key"
-        assert get_missing_key_span.get_metric("db.row_count") == 0
+        assert get_missing_key_span._get_str_attribute("redis.raw_command") == "GET missing_key"
+        assert get_missing_key_span._get_numeric_attribute("db.row_count") == 0
 
         get_commands = ["GET key", "GETDEL key", "GETEX key", "GETRANGE key 0 2"]
         list_get_commands = ["LINDEX lkey 0", "LRANGE lkey 0 3", "RPOP lkey", "LPOP lkey"]

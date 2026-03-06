@@ -418,7 +418,7 @@ class AsyncPgTestCase(AsyncioTestCase):
         assert conn_span.name == "postgres.connect"
         assert query_span.name == "postgres.query"
 
-        assert query_span.get_tag("_dd.dbm_trace_injected") == "true"
+        assert query_span._get_str_attribute("_dd.dbm_trace_injected") == "true"
 
     @mark_asyncio
     @AsyncioTestCase.run_in_subprocess(

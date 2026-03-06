@@ -77,23 +77,23 @@ def test_django_weak_hash(client, iast_span, tracer):
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_weak_hash_span_metrics(client, iast_span, tracer):
     root_span, _ = _aux_appsec_get_root_span(client, iast_span, tracer, url="/appsec/weak-hash/")
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") > 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") > 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") > 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") == 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") > 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") > 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") > 1.0
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
 def test_django_weak_hash_span_metrics_disabled(client, iast_spans_with_zero_sampling, tracer):
     root_span, _ = _aux_appsec_get_root_span(client, iast_spans_with_zero_sampling, tracer, url="/appsec/weak-hash/")
-    assert root_span.get_metric(IAST.ENABLED) == 0.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") is None
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 0.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".weak_hash") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") is None
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -182,15 +182,15 @@ def test_django_sqli_http_request_parameter_metrics(client, iast_span, tracer):
         url="/appsec/sqli_http_request_parameter_name_post/",
         headers={"HTTP_USER_AGENT": "test/1.2.3"},
     )
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".sql_injection") == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") == 2
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_parameter_name") >= 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") >= 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") >= 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") >= 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".sql_injection") == 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") == 2
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_parameter_name") >= 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") >= 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") >= 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") >= 1.0
 
 
 @pytest.mark.django_db()
@@ -205,17 +205,17 @@ def test_django_sqli_http_request_parameter_metrics_disabled(client, iast_spans_
         url="/appsec/sqli_http_request_parameter_name_post/",
         headers={"HTTP_USER_AGENT": "test/1.2.3"},
     )
-    assert root_span.get_metric(IAST.ENABLED) == 0.0, (
-        f"IAST should be disabled. Metric: {root_span.get_metric(IAST.ENABLED)}"
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 0.0, (
+        f"IAST should be disabled. Metric: {root_span._get_numeric_attribute(IAST.ENABLED)}"
     )
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".sql_injection") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_parameter_name") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".sql_injection") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_parameter_name") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") is None
 
 
 @pytest.mark.django_db()
@@ -1011,13 +1011,13 @@ def test_django_command_injection_span_metrics(client, iast_span, tracer):
         payload="master",
         content_type="application/json",
     )
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".command_injection") == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") == 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") > 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") > 1.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") > 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".command_injection") == 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") >= 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") == 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") > 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") > 1.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") > 1.0
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1030,13 +1030,13 @@ def test_django_command_injection_span_metrics_disabled(client, iast_spans_with_
         payload="master",
         content_type="application/json",
     )
-    assert root_span.get_metric(IAST.ENABLED) == 0.0
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".command_injection") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") is None
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 0.0
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".command_injection") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK + ".header_injection") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_body") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header_name") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_header") is None
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE + ".http_request_path") is None
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1052,7 +1052,7 @@ def test_django_command_injection_secure_mark(client, iast_span, tracer):
 
     loaded = load_iast_report(root_span)
     assert loaded is None
-    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
+    assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1125,7 +1125,7 @@ def test_django_command_injection_security_control(client, tracer, security_cont
         loaded = load_iast_report(root_span)
         if match_function:
             assert loaded is None
-            assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
+            assert root_span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
         else:
             assert loaded is not None
         span.reset()
@@ -1318,7 +1318,7 @@ def test_django_insecure_cookie(client, iast_span, tracer):
         url="/appsec/insecure-cookie/test_insecure/",
     )
 
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     loaded = load_iast_report(root_span)
     assert loaded["sources"] == []
@@ -1342,7 +1342,7 @@ def test_django_insecure_cookie_secure(client, iast_span, tracer):
         url="/appsec/insecure-cookie/test_secure/",
     )
 
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     assert load_iast_report(root_span) is None
 
@@ -1356,7 +1356,7 @@ def test_django_insecure_cookie_empty_cookie(client, iast_span, tracer):
         url="/appsec/insecure-cookie/test_empty_cookie/",
     )
 
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     assert load_iast_report(root_span) is None
 
@@ -1370,7 +1370,7 @@ def test_django_insecure_cookie_2_insecure_1_secure(client, iast_span, tracer):
         url="/appsec/insecure-cookie/test_insecure_2_1/",
     )
 
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     loaded = load_iast_report(root_span)
     assert loaded["sources"] == []
@@ -1386,7 +1386,7 @@ def test_django_insecure_cookie_special_characters(client, iast_span, tracer):
         url="/appsec/insecure-cookie/test_insecure_special/",
     )
 
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     loaded = load_iast_report(root_span)
     assert loaded["sources"] == []
@@ -1412,7 +1412,7 @@ def test_django_stacktrace_leak(client, iast_span, tracer):
         url="/appsec/stacktrace_leak/",
     )
 
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     loaded = load_iast_report(root_span)
     assert loaded["sources"] == []
@@ -1438,7 +1438,7 @@ def test_django_stacktrace_from_technical_500_response(client, iast_span, tracer
     )
 
     assert response.status_code == 500, "Expected a 500 status code"
-    assert root_span.get_metric(IAST.ENABLED) == 1.0
+    assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     loaded = load_iast_report(root_span)
     # technical_500_response reports a XSS also

@@ -35,13 +35,13 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.ExecutorHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/executor_handler/") == request_span.get_tag(http.URL)
+        assert self.get_url("/executor_handler/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -67,13 +67,13 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.ExecutorSubmitHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/executor_submit_handler/") == request_span.get_tag(http.URL)
+        assert self.get_url("/executor_submit_handler/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -98,14 +98,14 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.ExecutorExceptionHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 500)
-        assert self.get_url("/executor_exception/") == request_span.get_tag(http.URL)
+        assert self.get_url("/executor_exception/") == request_span._get_str_attribute(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
-        assert "Exception: Ouch!" in request_span.get_tag("error.stack")
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert "Ouch!" == request_span._get_str_attribute(ERROR_MSG)
+        assert "Exception: Ouch!" in request_span._get_str_attribute("error.stack")
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -113,8 +113,8 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "tornado.executor.with" == executor_span.name
         assert executor_span.parent_id == request_span.span_id
         assert 1 == executor_span.error
-        assert "Ouch!" == executor_span.get_tag(ERROR_MSG)
-        assert "Exception: Ouch!" in executor_span.get_tag("error.stack")
+        assert "Ouch!" == executor_span._get_str_attribute(ERROR_MSG)
+        assert "Exception: Ouch!" in executor_span._get_str_attribute("error.stack")
 
     @unittest.skipIf(
         (version_info[0], version_info[1]) in [(4, 0), (4, 1)],
@@ -136,13 +136,13 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.ExecutorCustomHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/executor_custom_handler/") == request_span.get_tag(http.URL)
+        assert self.get_url("/executor_custom_handler/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
         assert request_span.duration >= 0.05
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
         # this trace is executed in a different thread
         executor_span = traces[0][1]
@@ -171,14 +171,14 @@ class TestTornadoExecutor(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.ExecutorCustomArgsHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 500)
-        assert self.get_url("/executor_custom_args_handler/") == request_span.get_tag(http.URL)
+        assert self.get_url("/executor_custom_args_handler/") == request_span._get_str_attribute(http.URL)
         assert 1 == request_span.error
-        assert "cannot combine positional and keyword args" == request_span.get_tag(ERROR_MSG)
-        assert "ValueError" in request_span.get_tag("error.stack")
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert "cannot combine positional and keyword args" == request_span._get_str_attribute(ERROR_MSG)
+        assert "ValueError" in request_span._get_str_attribute("error.stack")
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     @unittest.skipUnless(futures_available, "Futures must be available to test direct submit")
     def test_futures_double_instrumentation(self):

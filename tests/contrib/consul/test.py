@@ -56,7 +56,7 @@ class TestConsulPatch(TracerTestCase):
             "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
-            assert span.get_tag(k) == v
+            assert span._get_str_attribute(k) == v
 
     def test_get(self):
         key = "test/get/consul"
@@ -81,7 +81,7 @@ class TestConsulPatch(TracerTestCase):
             "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
-            assert span.get_tag(k) == v
+            assert span._get_str_attribute(k) == v
 
     def test_delete(self):
         key = "test/delete/consul"
@@ -106,7 +106,7 @@ class TestConsulPatch(TracerTestCase):
             "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
-            assert span.get_tag(k) == v
+            assert span._get_str_attribute(k) == v
 
     def test_kwargs(self):
         key = "test/kwargs/consul"
@@ -131,7 +131,7 @@ class TestConsulPatch(TracerTestCase):
             "out.host": "127.0.0.1",
         }
         for k, v in tags.items():
-            assert span.get_tag(k) == v
+            assert span._get_str_attribute(k) == v
 
     def test_patch_idempotence(self):
         key = "test/patch/idempotence"

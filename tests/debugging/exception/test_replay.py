@@ -146,9 +146,9 @@ class ExceptionReplayTestCase(TracerTestCase):
             snapshots = {str(s.uuid): s for s in uploader.collector.queue}
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag(replay.DEBUG_INFO_TAG) == "true"
+                assert span._get_str_attribute(replay.DEBUG_INFO_TAG) == "true"
 
-                exc_id = span.get_tag(replay.EXCEPTION_ID_TAG)
+                exc_id = span._get_str_attribute(replay.EXCEPTION_ID_TAG)
 
                 info = {k: v for k, v in enumerate(["c", "b", "a"][n:], start=1)}
 
@@ -156,23 +156,21 @@ class ExceptionReplayTestCase(TracerTestCase):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
-                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots, span._meta
-                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
-                        "_dd.debug.error.%d.file" % i
-                    )
-                    assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
+                    assert span._get_str_attribute("_dd.debug.error.%d.snapshot_id" % i) in snapshots, span._get_str_attributes()
+                    assert span._get_str_attribute("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span._get_str_attribute("_dd.debug.error.%d.file" % i)
+                    assert span._get_str_attribute("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
                         i,
-                        span.get_tag("_dd.debug.error.%d.function" % i),
+                        span._get_str_attribute("_dd.debug.error.%d.function" % i),
                     )
-                    assert span.get_tag("_dd.debug.error.%d.line" % i), "_dd.debug.error.%d.line = %s" % (
+                    assert span._get_str_attribute("_dd.debug.error.%d.line" % i), "_dd.debug.error.%d.line = %s" % (
                         i,
-                        span.get_tag("_dd.debug.error.%d.line" % i),
+                        span._get_str_attribute("_dd.debug.error.%d.line" % i),
                     )
 
                     assert all(str(s.exc_id) == exc_id for s in snapshots.values())
 
             # assert all spans use the same exc_id
-            exc_ids = set(span.get_tag(replay.EXCEPTION_ID_TAG) for span in self.spans)
+            exc_ids = set(span._get_str_attribute(replay.EXCEPTION_ID_TAG) for span in self.spans)
             assert None not in exc_ids and len(exc_ids) == 1
 
     def test_debugger_exception_chaining(self):
@@ -213,9 +211,9 @@ class ExceptionReplayTestCase(TracerTestCase):
             number_of_exc_ids = 1
 
             for n, span in enumerate(self.spans):
-                assert span.get_tag(replay.DEBUG_INFO_TAG) == "true"
+                assert span._get_str_attribute(replay.DEBUG_INFO_TAG) == "true"
 
-                exc_id = span.get_tag(replay.EXCEPTION_ID_TAG)
+                exc_id = span._get_str_attribute(replay.EXCEPTION_ID_TAG)
 
                 info = {k: v for k, v in enumerate(stacks[n], start=1)}
 
@@ -223,24 +221,22 @@ class ExceptionReplayTestCase(TracerTestCase):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
-                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
-                    assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
-                        "_dd.debug.error.%d.file" % i
-                    )
-                    assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
+                    assert span._get_str_attribute("_dd.debug.error.%d.snapshot_id" % i) in snapshots
+                    assert span._get_str_attribute("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span._get_str_attribute("_dd.debug.error.%d.file" % i)
+                    assert span._get_str_attribute("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
                         i,
-                        span.get_tag("_dd.debug.error.%d.function" % i),
+                        span._get_str_attribute("_dd.debug.error.%d.function" % i),
                     )
-                    assert span.get_tag("_dd.debug.error.%d.line" % i), "_dd.debug.error.%d.line = %s" % (
+                    assert span._get_str_attribute("_dd.debug.error.%d.line" % i), "_dd.debug.error.%d.line = %s" % (
                         i,
-                        span.get_tag("_dd.debug.error.%d.line" % i),
+                        span._get_str_attribute("_dd.debug.error.%d.line" % i),
                     )
 
                     # ensure we point to the right snapshots
                     assert any(str(s.exc_id) == exc_id for s in snapshots.values())
 
             # assert number of unique exc_ids based on python version
-            exc_ids = set(span.get_tag(replay.EXCEPTION_ID_TAG) for span in self.spans)
+            exc_ids = set(span._get_str_attribute(replay.EXCEPTION_ID_TAG) for span in self.spans)
             assert None not in exc_ids and len(exc_ids) == number_of_exc_ids
 
             # invoke again (should be in less than 1 sec)
@@ -276,8 +272,8 @@ class ExceptionReplayTestCase(TracerTestCase):
             span_b, span_a = self.spans
 
             assert span_a.name == "a"
-            assert span_a.get_tag(replay.DEBUG_INFO_TAG) == "true"
-            assert span_b.get_tag(replay.DEBUG_INFO_TAG) is None
+            assert span_a._get_str_attribute(replay.DEBUG_INFO_TAG) == "true"
+            assert span_b._get_str_attribute(replay.DEBUG_INFO_TAG) is None
 
     def test_debugger_exception_ident_limit(self):
         def a(v, d=None):
@@ -380,10 +376,10 @@ class ExceptionReplayTestCase(TracerTestCase):
             assert len(n) == config.max_frames
 
             assert root is not None
-            assert root.get_metric(replay.SNAPSHOT_COUNT_TAG) == config.max_frames
+            assert root._get_numeric_attribute(replay.SNAPSHOT_COUNT_TAG) == config.max_frames
 
             # Get all the function names attached to the root span
-            fs = {v for k, v in root.get_tags().items() if k.startswith("_dd.debug.error.") and k.endswith(".function")}
+            fs = {v for k, v in root._get_str_attributes().items() if k.startswith("_dd.debug.error.") and k.endswith(".function")}
 
             # The recursion has saturated the max frames so we should have
             # only the function 'r' in the snapshots
@@ -419,13 +415,13 @@ class ExceptionReplayTestCase(TracerTestCase):
             snapshots = {str(s.uuid): s for s in uploader.collector.queue}
 
             span = self.spans[-1]
-            assert span.get_tag(replay.DEBUG_INFO_TAG) == "true"
+            assert span._get_str_attribute(replay.DEBUG_INFO_TAG) == "true"
 
             # Check that we have all the tags for each snapshot
-            assert span.get_tag("_dd.debug.error.1.snapshot_id") in snapshots
-            assert span.get_tag("_dd.debug.error.1.file") == __file__.replace(".pyc", ".py")
-            assert span.get_tag("_dd.debug.error.1.function") == "a"
-            assert span.get_tag("_dd.debug.error.1.line")
+            assert span._get_str_attribute("_dd.debug.error.1.snapshot_id") in snapshots
+            assert span._get_str_attribute("_dd.debug.error.1.file") == __file__.replace(".pyc", ".py")
+            assert span._get_str_attribute("_dd.debug.error.1.function") == "a"
+            assert span._get_str_attribute("_dd.debug.error.1.line")
 
 
 def test_replay_functions_benchmark(benchmark):

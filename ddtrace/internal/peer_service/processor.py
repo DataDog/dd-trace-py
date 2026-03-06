@@ -14,10 +14,10 @@ class PeerServiceProcessor(TraceProcessor):
 
         traces_to_process = []
         if not self._set_defaults_enabled:
-            traces_to_process = filter(lambda x: x.get_tag(self._config.tag_name), trace)
+            traces_to_process = filter(lambda x: x._get_str_attribute(self._config.tag_name), trace)
         else:
             traces_to_process = filter(
-                lambda x: x.get_tag(self._config.tag_name) or x.get_tag(SPAN_KIND) in self._config.enabled_span_kinds,
+                lambda x: x._get_str_attribute(self._config.tag_name) or x._get_str_attribute(SPAN_KIND) in self._config.enabled_span_kinds,
                 trace,
             )
         any(map(lambda x: self._update_peer_service_tags(x), traces_to_process))
@@ -25,18 +25,18 @@ class PeerServiceProcessor(TraceProcessor):
         return trace
 
     def _update_peer_service_tags(self, span):
-        tag = span.get_tag(self._config.tag_name)
+        tag = span._get_str_attribute(self._config.tag_name)
 
         if tag:  # If the tag already exists, assume it is user generated
-            span._set_tag_str(self._config.source_tag_name, self._config.tag_name)
+            span._set_attribute(self._config.source_tag_name, self._config.tag_name)
         else:
             for data_source in self._config.prioritized_data_sources:
-                tag = span.get_tag(data_source)
+                tag = span._get_str_attribute(data_source)
                 if tag:
-                    span._set_tag_str(self._config.tag_name, tag)
-                    span._set_tag_str(self._config.source_tag_name, data_source)
+                    span._set_attribute(self._config.tag_name, tag)
+                    span._set_attribute(self._config.source_tag_name, data_source)
                     break
 
         if tag in self._mapping:
-            span._set_tag_str(self._config.remap_tag_name, tag)
-            span._set_tag_str(self._config.tag_name, self._config.peer_service_mapping[tag])
+            span._set_attribute(self._config.remap_tag_name, tag)
+            span._set_attribute(self._config.tag_name, self._config.peer_service_mapping[tag])

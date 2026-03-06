@@ -101,13 +101,13 @@ class FlaskAutopatchTestCase(TracerTestCase):
 
         # Request tags
         for tag in ["flask.version", "http.url", "http.method", "http.status_code", "flask.endpoint", "flask.url_rule"]:
-            assert tag in req_span.get_tags()
+            assert tag in req_span._get_str_attributes()
 
-        self.assertEqual(req_span.get_tag("flask.endpoint"), "index")
-        self.assertEqual(req_span.get_tag("flask.url_rule"), "/")
-        self.assertEqual(req_span.get_tag("http.method"), "GET")
-        self.assertEqual(req_span.get_tag(http.URL), "http://localhost/")
-        self.assertEqual(req_span.get_tag("component"), "flask")
+        self.assertEqual(req_span._get_str_attribute("flask.endpoint"), "index")
+        self.assertEqual(req_span._get_str_attribute("flask.url_rule"), "/")
+        self.assertEqual(req_span._get_str_attribute("http.method"), "GET")
+        self.assertEqual(req_span._get_str_attribute(http.URL), "http://localhost/")
+        self.assertEqual(req_span._get_str_attribute("component"), "flask")
         assert_span_http_status_code(req_span, 200)
 
         # Handler span

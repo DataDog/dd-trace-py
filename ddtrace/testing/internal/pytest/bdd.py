@@ -80,16 +80,16 @@ class BddTestOptPlugin:
             child_of=feature_span,
             activate=True,
         )
-        span.set_tag(TestTag.COMPONENT, FRAMEWORK)
-        span.set_tag(TestTag.TEST_FRAMEWORK, FRAMEWORK)
-        span.set_tag(TestTag.TEST_FRAMEWORK_VERSION, self.framework_version)
+        span.set_tag(TestTag.COMPONENT, FRAMEWORK)  # ast-grep-ignore: span-set-tag
+        span.set_tag(TestTag.TEST_FRAMEWORK, FRAMEWORK)  # ast-grep-ignore: span-set-tag
+        span.set_tag(TestTag.TEST_FRAMEWORK_VERSION, self.framework_version)  # ast-grep-ignore: span-set-tag
 
         feature_path = self._get_workspace_relative_path(scenario.feature.filename)
         codeowners = self._get_codeowners(feature_path)
 
-        span.set_tag(TestTag.TEST_FILE, str(feature_path))
+        span.set_tag(TestTag.TEST_FILE, str(feature_path))  # ast-grep-ignore: span-set-tag
         if codeowners:
-            span.set_tag(TestTag.CODEOWNERS, json.dumps(codeowners))
+            span.set_tag(TestTag.CODEOWNERS, json.dumps(codeowners))  # ast-grep-ignore: span-set-tag
 
         setattr(step_func, "_datadog_span", span)
 
@@ -107,7 +107,7 @@ class BddTestOptPlugin:
         if span is not None:
             step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
             if step_func_args:
-                span.set_tag(TestTag.PARAMETERS, step_func_args_json)
+                span.set_tag(TestTag.PARAMETERS, step_func_args_json)  # ast-grep-ignore: span-set-tag
             span.finish()
 
     @pytest.hookimpl(trylast=True)
@@ -130,7 +130,7 @@ class BddTestOptPlugin:
                 _, _, tb = sys.exc_info()
             if step_func_args:
                 step_func_args_json = _get_step_func_args_json(step, step_func, step_func_args)
-                span.set_tag(TestTag.PARAMETERS, step_func_args_json)
+                span.set_tag(TestTag.PARAMETERS, step_func_args_json)  # ast-grep-ignore: span-set-tag
             span.set_exc_info(type(exception), exception, tb)
             span.finish()
 

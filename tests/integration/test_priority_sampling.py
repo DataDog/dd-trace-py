@@ -128,9 +128,9 @@ def test_agent_sample_rate_keep():
     with ddtracer.trace("test", service="test") as span:
         pass
     ddtracer.flush()
-    assert span.get_metric("_dd.agent_psr") == pytest.approx(0.9999)
-    assert span.get_metric("_sampling_priority_v1") == AUTO_KEEP
-    assert span.get_tag("_dd.p.dm") == "-1"
+    assert span._get_numeric_attribute("_dd.agent_psr") == pytest.approx(0.9999)
+    assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP
+    assert span._get_str_attribute("_dd.p.dm") == "-1"
 
 
 @skip_if_testagent
@@ -205,6 +205,6 @@ def test_agent_sample_rate_reject():
     with ddtracer.trace("test", service="test") as span:
         pass
     ddtracer.flush()
-    assert span.get_metric("_dd.agent_psr") == pytest.approx(0.0001)
-    assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
-    assert span.get_tag("_dd.p.dm") == "-1"
+    assert span._get_numeric_attribute("_dd.agent_psr") == pytest.approx(0.0001)
+    assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
+    assert span._get_str_attribute("_dd.p.dm") == "-1"

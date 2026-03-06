@@ -40,10 +40,10 @@ class FalconTestCase(FalconTestMixin):
         assert span.service == self._service
         assert span.resource == "GET 404"
         assert_span_http_status_code(span, 404)
-        assert span.get_tag(httpx.URL) == "http://falconframework.org/fake_endpoint"
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
-        assert httpx.QUERY_STRING not in span.get_tags()
+        assert span._get_str_attribute(httpx.URL) == "http://falconframework.org/fake_endpoint"
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
+        assert httpx.QUERY_STRING not in span._get_str_attributes()
         assert span.parent_id is None
         assert span.error == 0
 
@@ -66,11 +66,11 @@ class FalconTestCase(FalconTestMixin):
         assert span.service == self._service
         assert span.resource == "GET tests.contrib.falcon.app.resources.ResourceException"
         assert_span_http_status_code(span, 500)
-        assert span.get_tag(httpx.URL) == "http://falconframework.org/exception"
+        assert span._get_str_attribute(httpx.URL) == "http://falconframework.org/exception"
         assert span.parent_id is None
         assert span.error == 1
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
 
     def test_200(self, query_string="", trace_query_string=False):
         out = self.make_test_call("/200", expected_status_code=200, query_string=query_string)
@@ -87,13 +87,13 @@ class FalconTestCase(FalconTestMixin):
         assert span.resource == "GET tests.contrib.falcon.app.resources.Resource200"
         assert_span_http_status_code(span, 200)
         fqs = ("?" + query_string) if query_string else ""
-        assert span.get_tag(httpx.URL) == "http://falconframework.org/200" + fqs
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute(httpx.URL) == "http://falconframework.org/200" + fqs
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
         if config.falcon.trace_query_string:
-            assert span.get_tag(httpx.QUERY_STRING) == query_string
+            assert span._get_str_attribute(httpx.QUERY_STRING) == query_string
         else:
-            assert httpx.QUERY_STRING not in span.get_tags()
+            assert httpx.QUERY_STRING not in span._get_str_attributes()
         assert span.parent_id is None
         assert span.span_type == "web"
         assert span.error == 0
@@ -124,9 +124,9 @@ class FalconTestCase(FalconTestMixin):
         assert span.name == "falcon.request"
         assert span.service == self._service
         assert_span_http_status_code(span, status)
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
-        assert span.get_tag("http.route") == expected_route
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
+        assert span._get_str_attribute("http.route") == expected_route
         assert span.parent_id is None
         assert span.span_type == "web"
 
@@ -160,11 +160,11 @@ class FalconTestCase(FalconTestMixin):
         assert span.service == self._service
         assert span.resource == "POST tests.contrib.falcon.app.resources.Resource201"
         assert_span_http_status_code(span, 201)
-        assert span.get_tag(httpx.URL) == "http://falconframework.org/201"
+        assert span._get_str_attribute(httpx.URL) == "http://falconframework.org/201"
         assert span.parent_id is None
         assert span.error == 0
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
 
     def test_500(self):
         out = self.make_test_call("/500", expected_status_code=500)
@@ -180,11 +180,11 @@ class FalconTestCase(FalconTestMixin):
         assert span.service == self._service
         assert span.resource == "GET tests.contrib.falcon.app.resources.Resource500"
         assert_span_http_status_code(span, 500)
-        assert span.get_tag(httpx.URL) == "http://falconframework.org/500"
+        assert span._get_str_attribute(httpx.URL) == "http://falconframework.org/500"
         assert span.parent_id is None
         assert span.error == 1
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
 
     def test_404_exception(self):
         self.make_test_call("/not_found", expected_status_code=404)
@@ -199,11 +199,11 @@ class FalconTestCase(FalconTestMixin):
         assert span.service == self._service
         assert span.resource == "GET tests.contrib.falcon.app.resources.ResourceNotFound"
         assert_span_http_status_code(span, 404)
-        assert span.get_tag(httpx.URL) == "http://falconframework.org/not_found"
+        assert span._get_str_attribute(httpx.URL) == "http://falconframework.org/not_found"
         assert span.parent_id is None
         assert span.error == 0
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
 
     def test_404_exception_no_stacktracer(self):
         # it should not have the stacktrace when a 404 exception is raised
@@ -218,11 +218,11 @@ class FalconTestCase(FalconTestMixin):
         assert span.name == "falcon.request"
         assert span.service == self._service
         assert_span_http_status_code(span, 404)
-        assert span.get_tag(ERROR_TYPE) is None
+        assert span._get_str_attribute(ERROR_TYPE) is None
         assert span.parent_id is None
         assert span.error == 0
-        assert span.get_tag("component") == "falcon"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("component") == "falcon"
+        assert span._get_str_attribute("span.kind") == "server"
 
     def test_http_header_tracing(self):
         with self.override_config("falcon", {}):
@@ -233,8 +233,8 @@ class FalconTestCase(FalconTestMixin):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
-        assert span.get_tag("http.request.headers.my-header") == "my_value"
-        assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+        assert span._get_str_attribute("http.request.headers.my-header") == "my_value"
+        assert span._get_str_attribute("http.response.headers.my-response-header") == "my_response_value"
 
     def test_inferred_spans_api_gateway_default(self):
         headers = {

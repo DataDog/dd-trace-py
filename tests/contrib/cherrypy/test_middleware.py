@@ -141,9 +141,9 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
 
     def test_alias(self):
         self.getPage("/aliases")
@@ -160,9 +160,9 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /aliases"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
 
     def test_handleme(self):
         self.getPage("/handleme")
@@ -178,9 +178,9 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /handleme"
         assert s.error == 0
         assert_span_http_status_code(s, 418)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
 
     def test_error(self):
         self.getPage("/error")
@@ -196,9 +196,9 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /error"
         assert_span_http_status_code(s, 500)
         assert s.error == 1
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
 
     def test_fatal(self):
         self.getPage("/fatal")
@@ -214,12 +214,12 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /fatal"
         assert_span_http_status_code(s, 500)
         assert s.error == 1
-        assert s.get_tag(http.METHOD) == "GET"
-        assert "ZeroDivisionError" in s.get_tag(ERROR_TYPE), s.get_tags()
-        assert "by zero" in s.get_tag(ERROR_MSG)
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
-        assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s.get_tag(ERROR_STACK))
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert "ZeroDivisionError" in s._get_str_attribute(ERROR_TYPE), s._get_str_attributes()
+        assert "by zero" in s._get_str_attribute(ERROR_MSG)
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
+        assert re.search('File ".*/contrib/cherrypy/web.py", line [0-9]+, in fatal', s._get_str_attribute(ERROR_STACK))
 
     def test_unicode(self):
         # Encoded utf8 query strings MUST be parsed correctly.
@@ -240,10 +240,10 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /üŋïĉóđē"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.URL) == "http://127.0.0.1:54583/üŋïĉóđē"
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.URL) == "http://127.0.0.1:54583/üŋïĉóđē"
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
 
     def test_404(self):
         self.getPage("/404/test")
@@ -259,10 +259,10 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /404/test"
         assert s.error == 0
         assert_span_http_status_code(s, 404)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.URL) == "http://127.0.0.1:54583/404/test"
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.URL) == "http://127.0.0.1:54583/404/test"
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
 
     def test_propagation(self):
         self.getPage(
@@ -286,7 +286,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id == 1234
         assert s.parent_id == 4567
-        assert s.get_metric(_SAMPLING_PRIORITY_KEY) == 2
+        assert s._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == 2
 
     def test_disabled_distributed_tracing_config(self):
         previous_distributed_tracing = config.cherrypy["distributed_tracing"]
@@ -313,7 +313,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id != 1234
         assert s.parent_id != 4567
-        assert s.get_metric(_SAMPLING_PRIORITY_KEY) != 2
+        assert s._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) != 2
 
         config.cherrypy["distributed_tracing"] = previous_distributed_tracing
 
@@ -342,7 +342,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         # ensure the propagation worked well
         assert s.trace_id != 1234
         assert s.parent_id != 4567
-        assert s.get_metric(_SAMPLING_PRIORITY_KEY) != 2
+        assert s._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) != 2
 
         cherrypy.tools.tracer.use_distributed_tracing = previous_distributed_tracing
 
@@ -361,9 +361,9 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "overridden"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "cherrypy"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "cherrypy"
+        assert s._get_str_attribute("span.kind") == "server"
 
     def test_http_request_header_tracing(self):
         config.cherrypy.http.trace_headers(["Host", "my-header"])
@@ -381,8 +381,8 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert len(traces) == 1
         assert len(traces[0]) == 1
         span = traces[0][0]
-        assert span.get_tag("http.request.headers.my-header") == "my_value"
-        assert span.get_tag("http.request.headers.host") == "127.0.0.1:54583"
+        assert span._get_str_attribute("http.request.headers.my-header") == "my_value"
+        assert span._get_str_attribute("http.request.headers.host") == "127.0.0.1:54583"
 
     def test_http_response_header_tracing(self):
         config.cherrypy.http.trace_headers(["my-response-header"])
@@ -394,7 +394,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert len(traces[0]) == 1
         span = traces[0][0]
 
-        assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
+        assert span._get_str_attribute("http.response.headers.my-response-header") == "my_response_value"
 
     def test_variable_resource(self):
         self.getPage("/dispatch/abc123/")
@@ -415,7 +415,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /dispatch/abc123/"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.METHOD) == "GET"
 
     def test_post(self):
         self.getPage("/", method="POST")
@@ -433,7 +433,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "POST /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "POST"
+        assert s._get_str_attribute(http.METHOD) == "POST"
 
     def test_service_configuration_config(self):
         previous_service = config.cherrypy.get("service", "test.cherrypy.service")
@@ -453,7 +453,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.METHOD) == "GET"
 
         config.cherrypy["service"] = previous_service
 
@@ -475,7 +475,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.resource == "GET /"
         assert s.error == 0
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.METHOD) == "GET"
 
         cherrypy.tools.tracer.service = previous_service
 

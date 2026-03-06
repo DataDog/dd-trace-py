@@ -1,0 +1,13 @@
+id: span-set-metric
+language: Python
+severity: error
+message: >
+  Use span._set_attribute(key, numeric_value) instead of span.set_metric(key, value).
+note: >
+  set_metric() validates and coerces numeric types at runtime. Internal code that
+  already has a valid numeric value should call _set_attribute(key, numeric_value)
+  directly, skipping the validation overhead.
+rule:
+  pattern: $X.set_metric($KEY, $VALUE)
+ignores:
+  - tests/tracer/test_span_public_api.py

@@ -137,10 +137,10 @@ for denied in SubprocessCmdLine.BINARIES_DENYLIST:
 
 
 def _assert_root_span_empty_system_data(span):
-    assert span.get_tag(COMMANDS.EXEC) is None
-    assert span.get_tag(COMMANDS.COMPONENT) is None
-    assert span.get_tag(COMMANDS.EXIT_CODE) is None
-    assert span.get_tag(COMMANDS.SHELL) is None
+    assert span._get_str_attribute(COMMANDS.EXEC) is None
+    assert span._get_str_attribute(COMMANDS.COMPONENT) is None
+    assert span._get_str_attribute(COMMANDS.EXIT_CODE) is None
+    assert span._get_str_attribute(COMMANDS.SHELL) is None
 
 
 @pytest.mark.parametrize(
@@ -250,10 +250,10 @@ def test_ossystem(tracer, test_spans, config):
         span = spans[1]
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
-        assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
-        assert not span.get_tag(COMMANDS.TRUNCATED)
-        assert span.get_tag(COMMANDS.COMPONENT) == "os"
+        assert span._get_str_attribute(COMMANDS.SHELL) == "dir -l /"
+        assert span._get_str_attribute(COMMANDS.EXIT_CODE) == "0"
+        assert not span._get_str_attribute(COMMANDS.TRUNCATED)
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "os"
 
 
 @pytest.mark.parametrize("config", PATCH_DISABLED_CONFIGURATIONS)
@@ -293,9 +293,9 @@ def test_fork(tracer, test_spans):
         span = spans[1]
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "fork"
-        assert span.get_tag(COMMANDS.COMPONENT) == "os"
-        assert span.get_tag(COMMANDS.EXEC) == str(["os.fork"])
-        assert not span.get_tag(COMMANDS.TRUNCATED)
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "os"
+        assert span._get_str_attribute(COMMANDS.EXEC) == str(["os.fork"])
+        assert not span._get_str_attribute(COMMANDS.TRUNCATED)
 
 
 def test_unpatch(tracer, test_spans):
@@ -309,7 +309,7 @@ def test_unpatch(tracer, test_spans):
         assert spans
         assert len(spans) == 2
         span = spans[1]
-        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
+        assert span._get_str_attribute(COMMANDS.SHELL) == "dir -l /"
 
     unpatch()
     with override_global_config(dict(_ep_enabled=False)):
@@ -321,10 +321,10 @@ def test_unpatch(tracer, test_spans):
         assert spans
         assert len(spans) == 1
         span = spans[0]
-        assert not span.get_tag(COMMANDS.EXEC)
-        assert not span.get_tag(COMMANDS.SHELL)
-        assert not span.get_tag(COMMANDS.EXIT_CODE)
-        assert not span.get_tag(COMMANDS.COMPONENT)
+        assert not span._get_str_attribute(COMMANDS.EXEC)
+        assert not span._get_str_attribute(COMMANDS.SHELL)
+        assert not span._get_str_attribute(COMMANDS.EXIT_CODE)
+        assert not span._get_str_attribute(COMMANDS.COMPONENT)
 
     assert not getattr(os, "_datadogpatch", False)
     assert not getattr(subprocess, "_datadogpatch", False)
@@ -354,9 +354,9 @@ def test_ospopen(tracer, test_spans, config):
         span = spans[2]
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert span.get_tag(COMMANDS.SHELL) == "dir -li /"
-        assert not span.get_tag(COMMANDS.TRUNCATED)
-        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
+        assert span._get_str_attribute(COMMANDS.SHELL) == "dir -li /"
+        assert not span._get_str_attribute(COMMANDS.TRUNCATED)
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "subprocess"
 
 
 _PARAMS = ["/bin/ls", "-l", "/"]
@@ -413,14 +413,14 @@ def test_osspawn_variants(tracer, test_spans, function, mode, arguments):
         # assert len(spans) > 1
         span = spans[1]
         if mode == os.P_WAIT:
-            assert span.get_tag(COMMANDS.EXIT_CODE) == str(ret)
+            assert span._get_str_attribute(COMMANDS.EXIT_CODE) == str(ret)
 
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == arguments[0]
         param_arguments = arguments[1:-1] if "e" in cleaned_name else arguments[1:]
-        assert span.get_tag(COMMANDS.EXEC) == str([arguments[0]] + param_arguments)
-        assert not span.get_tag(COMMANDS.TRUNCATED)
-        assert span.get_tag(COMMANDS.COMPONENT) == "os"
+        assert span._get_str_attribute(COMMANDS.EXEC) == str([arguments[0]] + param_arguments)
+        assert not span._get_str_attribute(COMMANDS.TRUNCATED)
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "os"
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
@@ -437,10 +437,10 @@ def test_subprocess_init_shell_true(tracer, test_spans, config):
         span = spans[2]
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert not span.get_tag(COMMANDS.EXEC)
-        assert span.get_tag(COMMANDS.SHELL) == "dir -li /"
-        assert not span.get_tag(COMMANDS.TRUNCATED)
-        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
+        assert not span._get_str_attribute(COMMANDS.EXEC)
+        assert span._get_str_attribute(COMMANDS.SHELL) == "dir -li /"
+        assert not span._get_str_attribute(COMMANDS.TRUNCATED)
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "subprocess"
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
@@ -455,8 +455,8 @@ def test_subprocess_init_shell_false(tracer, test_spans, config):
         assert spans
         assert len(spans) == 3
         span = spans[2]
-        assert not span.get_tag(COMMANDS.SHELL)
-        assert span.get_tag(COMMANDS.EXEC) == "['dir', '-li', '/']"
+        assert not span._get_str_attribute(COMMANDS.SHELL)
+        assert span._get_str_attribute(COMMANDS.EXEC) == "['dir', '-li', '/']"
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
@@ -502,20 +502,20 @@ def test_subprocess_run(tracer, test_spans, config):
         span = spans[2]
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert span.get_tag(COMMANDS.EXEC) is None
-        assert span.get_tag(COMMANDS.TRUNCATED) is None
-        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
-        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
-        assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
+        assert span._get_str_attribute(COMMANDS.EXEC) is None
+        assert span._get_str_attribute(COMMANDS.TRUNCATED) is None
+        assert span._get_str_attribute(COMMANDS.SHELL) == "dir -l /"
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "subprocess"
+        assert span._get_str_attribute(COMMANDS.EXIT_CODE) == "0"
 
         span = spans[3]
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert span.get_tag(COMMANDS.EXEC) is None
-        assert span.get_tag(COMMANDS.TRUNCATED) is None
-        assert span.get_tag(COMMANDS.SHELL) == "dir -l /"
-        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
-        assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
+        assert span._get_str_attribute(COMMANDS.EXEC) is None
+        assert span._get_str_attribute(COMMANDS.TRUNCATED) is None
+        assert span._get_str_attribute(COMMANDS.SHELL) == "dir -l /"
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "subprocess"
+        assert span._get_str_attribute(COMMANDS.EXIT_CODE) == "0"
 
 
 @pytest.mark.parametrize("config", CONFIGURATIONS)
@@ -690,11 +690,11 @@ def test_subprocess_communicate(tracer, test_spans):
         span = spans[2]
         assert span.name == COMMANDS.SPAN_NAME
         assert span.resource == "dir"
-        assert not span.get_tag(COMMANDS.EXEC)
-        assert span.get_tag(COMMANDS.SHELL) == "dir -li /"
-        assert not span.get_tag(COMMANDS.TRUNCATED)
-        assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
-        assert span.get_tag(COMMANDS.EXIT_CODE) == "0"
+        assert not span._get_str_attribute(COMMANDS.EXEC)
+        assert span._get_str_attribute(COMMANDS.SHELL) == "dir -li /"
+        assert not span._get_str_attribute(COMMANDS.TRUNCATED)
+        assert span._get_str_attribute(COMMANDS.COMPONENT) == "subprocess"
+        assert span._get_str_attribute(COMMANDS.EXIT_CODE) == "0"
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Only for Linux")
@@ -763,9 +763,9 @@ def test_complex_shell_command_with_pipes(tracer, test_spans, config):
             if span.name == COMMANDS.SPAN_NAME:
                 assert span.resource == "echo"
                 if i <= 1:
-                    assert span.get_tag(COMMANDS.COMPONENT) is None
+                    assert span._get_str_attribute(COMMANDS.COMPONENT) is None
                 else:
-                    assert span.get_tag(COMMANDS.COMPONENT) == "subprocess"
+                    assert span._get_str_attribute(COMMANDS.COMPONENT) == "subprocess"
             i += 1
 
 
@@ -795,7 +795,7 @@ def test_mixed_subprocess_functions_sequence(tracer, test_spans, config):
         assert len(subprocess_spans) >= 4  # os.system, Popen, run, os.popen
 
         # Check that different components are represented
-        components = [s.get_tag(COMMANDS.COMPONENT) for s in subprocess_spans]
+        components = [s._get_str_attribute(COMMANDS.COMPONENT) for s in subprocess_spans]
         assert "os" in components
         assert "subprocess" in components
 
@@ -905,4 +905,4 @@ def test_subprocess_resource_cleanup_on_error(tracer, test_spans, config):
 
         # Verify exit code is recorded even for failed processes
         span = subprocess_spans[-1]  # Last subprocess span
-        assert span.get_tag(COMMANDS.EXIT_CODE) == "1"
+        assert span._get_str_attribute(COMMANDS.EXIT_CODE) == "1"

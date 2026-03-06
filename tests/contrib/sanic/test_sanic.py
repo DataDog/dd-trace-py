@@ -216,10 +216,10 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
     request_span = spans[0][0]
     assert request_span.name == "sanic.request"
     assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("component") == "sanic"
-    assert request_span.get_tag("span.kind") == "server"
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span._get_str_attribute("http.method") == "GET"
+    assert request_span._get_str_attribute("component") == "sanic"
+    assert request_span._get_str_attribute("span.kind") == "server"
+    assert request_span._get_str_attribute("http.status_code") == "200"
     assert request_span.resource == "GET /hello"
 
     sleep_span = spans[0][1]
@@ -232,15 +232,15 @@ async def test_basic_app(tracer, client, integration_config, integration_http_co
         assert request_span.service == "sanic"
 
     if integration_http_config.get("trace_query_string"):
-        assert request_span.get_tag("http.query.string") == "foo=bar"
+        assert request_span._get_str_attribute("http.query.string") == "foo=bar"
     else:
-        assert request_span.get_tag("http.query.string") is None
+        assert request_span._get_str_attribute("http.query.string") is None
 
     if integration_config.get("http_tag_query_string_enabled"):
-        assert re.search(r"/hello\?foo\=bar$", request_span.get_tag("http.url"))
+        assert re.search(r"/hello\?foo\=bar$", request_span._get_str_attribute("http.url"))
 
     if integration_config.get("http_tag_query_string_disabled"):
-        assert re.search(r"/hello$", request_span.get_tag("http.url"))
+        assert re.search(r"/hello$", request_span._get_str_attribute("http.url"))
 
     if integration_config.get("distributed_tracing", True):
         assert request_span.parent_id == 1234
@@ -281,12 +281,12 @@ async def test_streaming_response(tracer, client, test_spans):
     assert request_span.name == "sanic.request"
     assert request_span.service == "sanic"
     assert request_span.error == 0
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("component") == "sanic"
-    assert request_span.get_tag("span.kind") == "server"
-    assert re.search("/stream_response$", request_span.get_tag("http.url"))
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "200"
+    assert request_span._get_str_attribute("http.method") == "GET"
+    assert request_span._get_str_attribute("component") == "sanic"
+    assert request_span._get_str_attribute("span.kind") == "server"
+    assert re.search("/stream_response$", request_span._get_str_attribute("http.url"))
+    assert request_span._get_str_attribute("http.query.string") is None
+    assert request_span._get_str_attribute("http.status_code") == "200"
 
 
 @pytest.mark.asyncio
@@ -308,16 +308,16 @@ async def test_error_app(tracer, client, test_spans, status_code, url, content):
 
     # We do not attach exception info for 404s
     assert request_span.error == 0
-    assert request_span.get_tag(ERROR_MSG) is None
-    assert request_span.get_tag(ERROR_TYPE) is None
-    assert request_span.get_tag(ERROR_STACK) is None
-    assert request_span.get_tag("component") == "sanic"
-    assert request_span.get_tag("span.kind") == "server"
+    assert request_span._get_str_attribute(ERROR_MSG) is None
+    assert request_span._get_str_attribute(ERROR_TYPE) is None
+    assert request_span._get_str_attribute(ERROR_STACK) is None
+    assert request_span._get_str_attribute("component") == "sanic"
+    assert request_span._get_str_attribute("span.kind") == "server"
 
-    assert request_span.get_tag("http.method") == "GET"
-    assert re.search(f"{url}$", request_span.get_tag("http.url"))
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == str(status_code)
+    assert request_span._get_str_attribute("http.method") == "GET"
+    assert re.search(f"{url}$", request_span._get_str_attribute("http.url"))
+    assert request_span._get_str_attribute("http.query.string") is None
+    assert request_span._get_str_attribute("http.status_code") == str(status_code)
 
 
 @pytest.mark.asyncio
@@ -333,12 +333,12 @@ async def test_exception(tracer, client, test_spans):
     assert request_span.name == "sanic.request"
     assert request_span.service == "sanic"
     assert request_span.error == 1
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("component") == "sanic"
-    assert request_span.get_tag("span.kind") == "server"
-    assert re.search("/error$", request_span.get_tag("http.url"))
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "500"
+    assert request_span._get_str_attribute("http.method") == "GET"
+    assert request_span._get_str_attribute("component") == "sanic"
+    assert request_span._get_str_attribute("span.kind") == "server"
+    assert re.search("/error$", request_span._get_str_attribute("http.url"))
+    assert request_span._get_str_attribute("http.query.string") is None
+    assert request_span._get_str_attribute("http.status_code") == "500"
 
 
 @pytest.mark.asyncio
@@ -379,12 +379,12 @@ async def test_invalid_response_type_str(tracer, client, test_spans):
     assert request_span.name == "sanic.request"
     assert request_span.service == "sanic"
     assert request_span.error == 1
-    assert request_span.get_tag("http.method") == "GET"
-    assert request_span.get_tag("component") == "sanic"
-    assert request_span.get_tag("span.kind") == "server"
-    assert re.search("/invalid$", request_span.get_tag("http.url"))
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "500"
+    assert request_span._get_str_attribute("http.method") == "GET"
+    assert request_span._get_str_attribute("component") == "sanic"
+    assert request_span._get_str_attribute("span.kind") == "server"
+    assert re.search("/invalid$", request_span._get_str_attribute("http.url"))
+    assert request_span._get_str_attribute("http.query.string") is None
+    assert request_span._get_str_attribute("http.status_code") == "500"
 
 
 @pytest.mark.asyncio
@@ -399,12 +399,12 @@ async def test_invalid_response_type_empty(tracer, client, test_spans):
     assert request_span.name == "sanic.request"
     assert request_span.service == "sanic"
     assert request_span.error == 1
-    assert request_span.get_tag("http.method") == "GET"
-    assert re.search("/empty$", request_span.get_tag("http.url"))
-    assert request_span.get_tag("http.query.string") is None
-    assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag("component") == "sanic"
-    assert request_span.get_tag("span.kind") == "server"
+    assert request_span._get_str_attribute("http.method") == "GET"
+    assert re.search("/empty$", request_span._get_str_attribute("http.url"))
+    assert request_span._get_str_attribute("http.query.string") is None
+    assert request_span._get_str_attribute("http.status_code") == "500"
+    assert request_span._get_str_attribute("component") == "sanic"
+    assert request_span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -423,7 +423,7 @@ async def test_http_request_header_tracing(tracer, client, test_spans):
     assert len(spans) == 1
     assert len(spans[0]) == 2
     request_span = spans[0][0]
-    assert request_span.get_tag("http.request.headers.my-header") == "my_value"
+    assert request_span._get_str_attribute("http.request.headers.my-header") == "my_value"
 
 
 @pytest.mark.asyncio

@@ -45,9 +45,9 @@ class GitMetadataTestCase(TracerTestCase):
         with self.tracer.trace("span") as s:
             pass
 
-        assert s.get_tag("_dd.git.commit.sha") == os.getenv("SHA_VALUE")
-        assert s.get_tag("_dd.git.repository_url") == "https://github.com/companydotcom/repo"
-        assert s.get_tag("_dd.python_main_package") == "mypackage"
+        assert s._get_str_attribute("_dd.git.commit.sha") == os.getenv("SHA_VALUE")
+        assert s._get_str_attribute("_dd.git.repository_url") == "https://github.com/companydotcom/repo"
+        assert s._get_str_attribute("_dd.python_main_package") == "mypackage"
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -59,11 +59,11 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must be from DD_TAGS
-        assert s.get_tag("_dd.git.commit.sha") == "12345"
-        assert s.get_tag("_dd.git.repository_url") == "github.com/user/tag_repo"
+        assert s._get_str_attribute("_dd.git.commit.sha") == "12345"
+        assert s._get_str_attribute("_dd.git.repository_url") == "github.com/user/tag_repo"
         # must be not present in old tags
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -78,13 +78,13 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must be from env variables
-        assert s.get_tag("_dd.git.commit.sha") == "123456"
-        assert s.get_tag("_dd.git.repository_url") == "github.com/user/env_repo"
-        assert s.get_tag("_dd.python_main_package") == "mypackage"
+        assert s._get_str_attribute("_dd.git.commit.sha") == "123456"
+        assert s._get_str_attribute("_dd.git.repository_url") == "github.com/user/env_repo"
+        assert s._get_str_attribute("_dd.python_main_package") == "mypackage"
         # must be not present in old tags
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
-        assert s.get_tag("dd.python_main_package") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
+        assert s._get_str_attribute("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -100,12 +100,12 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must not present
-        assert s.get_tag("_dd.git.commit.sha") is None
-        assert s.get_tag("_dd.git.repository_url") is None
-        assert s.get_tag("_dd.python_main_package") is None
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
-        assert s.get_tag("dd.python_main_package") is None
+        assert s._get_str_attribute("_dd.git.commit.sha") is None
+        assert s._get_str_attribute("_dd.git.repository_url") is None
+        assert s._get_str_attribute("_dd.python_main_package") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
+        assert s._get_str_attribute("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -117,10 +117,10 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must not present
-        assert s.get_tag("_dd.git.commit.sha") is None
-        assert s.get_tag("_dd.git.repository_url") is None
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
+        assert s._get_str_attribute("_dd.git.commit.sha") is None
+        assert s._get_str_attribute("_dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -135,13 +135,13 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must be from env variables
-        assert s.get_tag("_dd.git.commit.sha") == "123456"
-        assert s.get_tag("_dd.git.repository_url") == "https://github.com/user/env_repo.git"
-        assert s.get_tag("_dd.python_main_package") == "mypackage"
+        assert s._get_str_attribute("_dd.git.commit.sha") == "123456"
+        assert s._get_str_attribute("_dd.git.repository_url") == "https://github.com/user/env_repo.git"
+        assert s._get_str_attribute("_dd.python_main_package") == "mypackage"
         # must be not present in old tags
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
-        assert s.get_tag("dd.python_main_package") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
+        assert s._get_str_attribute("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -153,11 +153,11 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must be from DD_TAGS
-        assert s.get_tag("_dd.git.commit.sha") == "12345"
-        assert s.get_tag("_dd.git.repository_url") == "https://github.com/user/tag_repo.git"
+        assert s._get_str_attribute("_dd.git.commit.sha") == "12345"
+        assert s._get_str_attribute("_dd.git.repository_url") == "https://github.com/user/tag_repo.git"
         # must be not present in old tags
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -172,13 +172,13 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must be from env variables
-        assert s.get_tag("_dd.git.commit.sha") == "123456"
-        assert s.get_tag("_dd.git.repository_url") == "ssh://github.com/user/env_repo.git"
-        assert s.get_tag("_dd.python_main_package") == "mypackage"
+        assert s._get_str_attribute("_dd.git.commit.sha") == "123456"
+        assert s._get_str_attribute("_dd.git.repository_url") == "ssh://github.com/user/env_repo.git"
+        assert s._get_str_attribute("_dd.python_main_package") == "mypackage"
         # must be not present in old tags
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
-        assert s.get_tag("dd.python_main_package") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
+        assert s._get_str_attribute("dd.python_main_package") is None
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -190,11 +190,11 @@ class GitMetadataTestCase(TracerTestCase):
             pass
 
         # must be from DD_TAGS
-        assert s.get_tag("_dd.git.commit.sha") == "12345"
-        assert s.get_tag("_dd.git.repository_url") == "ssh://github.com/user/tag_repo.git"
+        assert s._get_str_attribute("_dd.git.commit.sha") == "12345"
+        assert s._get_str_attribute("_dd.git.repository_url") == "ssh://github.com/user/tag_repo.git"
         # must be not present in old tags
-        assert s.get_tag("dd.git.repository_url") is None
-        assert s.get_tag("dd.git.commit.sha") is None
+        assert s._get_str_attribute("dd.git.repository_url") is None
+        assert s._get_str_attribute("dd.git.commit.sha") is None
 
 
 @pytest.mark.subprocess(

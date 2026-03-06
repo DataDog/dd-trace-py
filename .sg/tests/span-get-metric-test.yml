@@ -1,0 +1,11 @@
+id: span-get-metric
+valid:
+  # Standalone function call (no receiver)
+  - get_metric("key")
+  # Different method names are fine
+  - span._get_numeric_attribute("key")
+invalid:
+  - span.get_metric("_dd.measured")
+  - self.get_metric(ANALYTICS_SAMPLE_RATE_KEY)
+  - |
+    rate = span.get_metric(ANALYTICS_SAMPLE_RATE_KEY)

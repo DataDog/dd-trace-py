@@ -1,0 +1,14 @@
+id: span-set-tag
+language: Python
+severity: error
+message: >
+  Use span._set_attribute(key, str_value) instead of span.set_tag(key, value).
+note: >
+  set_tag() has overhead from type coercion and special-key routing (MANUAL_KEEP_KEY,
+  SERVICE_KEY, http.status_code, etc.). Internal code that knows the type should call
+  _set_attribute(key, str_value) directly. For special keys, call the appropriate
+  internal method (e.g. _override_sampling_decision() for MANUAL_KEEP/DROP).
+rule:
+  pattern: $X.set_tag($KEY, $VALUE)
+ignores:
+  - tests/tracer/test_span_public_api.py

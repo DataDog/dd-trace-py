@@ -779,7 +779,7 @@ class CIVisibility(Service):
         try:
             handles = cls._instance._codeowners.of(location)
             if handles:
-                span.set_tag(test.CODEOWNERS, json.dumps(handles))
+                span.set_tag(test.CODEOWNERS, json.dumps(handles))  # ast-grep-ignore: span-set-tag
             else:
                 log.debug("no matching codeowners for %s", location)
         except Exception:  # noqa: E722

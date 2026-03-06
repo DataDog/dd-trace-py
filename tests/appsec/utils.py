@@ -91,4 +91,4 @@ def asm_context(
 
 
 def is_blocked(span: Span) -> bool:
-    return span.get_tag("appsec.blocked") == "true" and span.get_tag("appsec.event") == "true"
+    return span._get_str_attribute("appsec.blocked") == "true" and span._get_str_attribute("appsec.event") == "true"

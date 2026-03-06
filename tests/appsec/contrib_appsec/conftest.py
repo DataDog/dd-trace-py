@@ -159,10 +159,10 @@ def get_tag(test_spans, root_span):
     def get(name):
         for span in test_spans.spans:
             if span.parent_id is None or span.span_type == "web":
-                res = span.get_tag(name)
+                res = span._get_str_attribute(name)
                 if res is not None:
                     return res
-        return root_span().get_tag(name)
+        return root_span()._get_str_attribute(name)
 
     yield get
 
@@ -170,19 +170,19 @@ def get_tag(test_spans, root_span):
 @pytest.fixture
 def get_entry_span_tag(entry_span):
     def get(name):
-        return entry_span().get_tag(name)
+        return entry_span()._get_str_attribute(name)
 
     yield get
 
 
 @pytest.fixture
 def get_metric(root_span):
-    yield lambda name: root_span().get_metric(name)
+    yield lambda name: root_span()._get_numeric_attribute(name)
 
 
 @pytest.fixture
 def get_entry_span_metric(entry_span):
-    yield lambda name: entry_span().get_metric(name)
+    yield lambda name: entry_span()._get_numeric_attribute(name)
 
 
 @pytest.fixture

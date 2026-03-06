@@ -27,7 +27,7 @@ log = get_logger(__name__)
 
 def _is_measured(span: Span) -> bool:
     """Return whether the span is flagged to be measured or not."""
-    return span._metrics.get(_SPAN_MEASURED_KEY) == 1
+    return span._get_numeric_attribute(_SPAN_MEASURED_KEY) == 1
 
 
 """
@@ -70,9 +70,9 @@ def _span_aggr_key(span: Span) -> SpanAggrKey:
     service = span.service or ""
     resource = span.resource or ""
     _type = span.span_type or ""
-    status_code = span.get_tag("http.status_code") or 0
-    method = span.get_tag("http.method") or ""
-    endpoint = span.get_tag("http.endpoint") or span.get_tag("http.route") or ""
+    status_code = span._get_str_attribute("http.status_code") or 0
+    method = span._get_str_attribute("http.method") or ""
+    endpoint = span._get_str_attribute("http.endpoint") or span._get_str_attribute("http.route") or ""
     synthetics = span.context.dd_origin == "synthetics"
     return (span.name, service, resource, _type, int(status_code), synthetics, method, endpoint)
 

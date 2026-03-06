@@ -104,17 +104,17 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             root = ddtrace.tracer.current_root_span()
             span = ddtrace.tracer.current_span()
             location = self.location
-            if root is None or span is None or root.get_tag("_dd.entry_location.file") is not None:
+            if root is None or span is None or root._get_str_attribute("_dd.entry_location.file") is not None:
                 return self
 
             # Add tags to the local root
             for s in (root, span):
-                s._set_tag_str("_dd.code_origin.type", "entry")
+                s._set_attribute("_dd.code_origin.type", "entry")
 
-                s._set_tag_str("_dd.code_origin.frames.0.file", location.file)
-                s._set_tag_str("_dd.code_origin.frames.0.line", str(location.line))
-                s._set_tag_str("_dd.code_origin.frames.0.type", location.module)
-                s._set_tag_str("_dd.code_origin.frames.0.method", location.name)
+                s._set_attribute("_dd.code_origin.frames.0.file", location.file)
+                s._set_attribute("_dd.code_origin.frames.0.line", str(location.line))
+                s._set_attribute("_dd.code_origin.frames.0.type", location.module)
+                s._set_attribute("_dd.code_origin.frames.0.method", location.name)
 
             self.set("start_time", monotonic_ns())
 
@@ -150,8 +150,8 @@ class EntrySpanWrappingContext(LazyWrappingContext):
             snapshot.do_enter()
 
             # Correlate the snapshot with the span
-            root._set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
-            span._set_tag_str("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
+            root._set_attribute("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
+            span._set_attribute("_dd.code_origin.frames.0.snapshot_id", snapshot.uuid)
 
             snapshot.do_exit(retval, exc_info, monotonic_ns() - start_time)
 

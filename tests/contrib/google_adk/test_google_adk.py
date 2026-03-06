@@ -44,9 +44,9 @@ async def test_agent_run_async(test_runner, test_spans, request_vcr):
 
     span = runner_spans[0]
     assert span.name == "google_adk.request"
-    assert span.get_tag("component") == "google_adk"
-    assert span.get_tag("google_adk.request.provider") == "google"
-    assert span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    assert span._get_str_attribute("component") == "google_adk"
+    assert span._get_str_attribute("google_adk.request.provider") == "google"
+    assert span._get_str_attribute("google_adk.request.model") == "gemini-2.5-pro"
 
 
 @pytest.mark.asyncio
@@ -90,13 +90,13 @@ async def test_agent_with_tool_usage(test_runner, test_spans, request_vcr):
 
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
-    assert runner_span.get_tag("component") == "google_adk"
-    assert runner_span.get_tag("google_adk.request.provider") == "google"
-    assert runner_span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    assert runner_span._get_str_attribute("component") == "google_adk"
+    assert runner_span._get_str_attribute("google_adk.request.provider") == "google"
+    assert runner_span._get_str_attribute("google_adk.request.model") == "gemini-2.5-pro"
 
     tool_span = tool_spans[0]
     assert tool_span.name == "google_adk.request"
-    assert tool_span.get_tag("component") == "google_adk"
+    assert tool_span._get_str_attribute("component") == "google_adk"
 
 
 @pytest.mark.asyncio
@@ -153,13 +153,13 @@ async def test_agent_with_tool_calculation(test_runner, test_spans, request_vcr)
 
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
-    assert runner_span.get_tag("component") == "google_adk"
-    assert runner_span.get_tag("google_adk.request.provider") == "google"
-    assert runner_span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    assert runner_span._get_str_attribute("component") == "google_adk"
+    assert runner_span._get_str_attribute("google_adk.request.provider") == "google"
+    assert runner_span._get_str_attribute("google_adk.request.model") == "gemini-2.5-pro"
 
     tool_span = tool_spans[0]
     assert tool_span.name == "google_adk.request"
-    assert tool_span.get_tag("component") == "google_adk"
+    assert tool_span._get_str_attribute("component") == "google_adk"
 
 
 def test_execute_code_creates_span(mock_invocation_context, test_spans):
@@ -174,9 +174,9 @@ def test_execute_code_creates_span(mock_invocation_context, test_spans):
     span = spans[0]
     assert span.name == "google_adk.request"
     assert span.resource == "UnsafeLocalCodeExecutor.execute_code"
-    assert span.get_tag("component") == "google_adk"
-    assert span.get_tag("google_adk.request.provider") == "google"
-    assert span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    assert span._get_str_attribute("component") == "google_adk"
+    assert span._get_str_attribute("google_adk.request.provider") == "google"
+    assert span._get_str_attribute("google_adk.request.model") == "gemini-2.5-pro"
     assert span.error == 0
 
 
@@ -192,9 +192,9 @@ def test_execute_code_with_error_creates_span(mock_invocation_context, test_span
     span = spans[0]
     assert span.name == "google_adk.request"
     assert span.resource == "UnsafeLocalCodeExecutor.execute_code"
-    assert span.get_tag("component") == "google_adk"
-    assert span.get_tag("google_adk.request.provider") == "google"
-    assert span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    assert span._get_str_attribute("component") == "google_adk"
+    assert span._get_str_attribute("google_adk.request.provider") == "google"
+    assert span._get_str_attribute("google_adk.request.model") == "gemini-2.5-pro"
     # we don't set error tags for code execution failures
     assert span.error == 0
 
@@ -236,10 +236,10 @@ async def test_error_handling_e2e(test_runner, test_spans, request_vcr):
     if tool_spans:
         tool_span = tool_spans[0]
         assert tool_span.name == "google_adk.request"
-        assert tool_span.get_tag("component") == "google_adk"
+        assert tool_span._get_str_attribute("component") == "google_adk"
 
     runner_span = runner_spans[0]
     assert runner_span.name == "google_adk.request"
-    assert runner_span.get_tag("component") == "google_adk"
-    assert runner_span.get_tag("google_adk.request.provider") == "google"
-    assert runner_span.get_tag("google_adk.request.model") == "gemini-2.5-pro"
+    assert runner_span._get_str_attribute("component") == "google_adk"
+    assert runner_span._get_str_attribute("google_adk.request.provider") == "google"
+    assert runner_span._get_str_attribute("google_adk.request.model") == "gemini-2.5-pro"

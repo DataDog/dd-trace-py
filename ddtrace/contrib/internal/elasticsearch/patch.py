@@ -143,13 +143,13 @@ def _get_perform_request_coro(transport):
             if pin.tags:
                 span.set_tags(pin.tags)
 
-            span._set_tag_str(COMPONENT, config.elasticsearch.integration_name)
+            span._set_attribute(COMPONENT, config.elasticsearch.integration_name)
 
             # set span.kind to the type of request being performed
-            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
             method, target = args
             params = kwargs.get("params")
@@ -163,9 +163,9 @@ def _get_perform_request_coro(transport):
             else:
                 encoded_params = parsed.query
 
-            span._set_tag_str(metadata.METHOD, method)
-            span._set_tag_str(metadata.URL, url)
-            span._set_tag_str(metadata.PARAMS, encoded_params)
+            span._set_attribute(metadata.METHOD, method)
+            span._set_attribute(metadata.URL, url)
+            span._set_attribute(metadata.PARAMS, encoded_params)
             try:
                 # elasticsearch<8
                 connections = instance.connection_pool.connections
@@ -175,12 +175,12 @@ def _get_perform_request_coro(transport):
             for connection in connections:
                 hostname, _ = extract_netloc_and_query_info_from_url(connection.host)
                 if hostname:
-                    span._set_tag_str(net.TARGET_HOST, hostname)
-                    span._set_tag_str(net.SERVER_ADDRESS, hostname)
+                    span._set_attribute(net.TARGET_HOST, hostname)
+                    span._set_attribute(net.SERVER_ADDRESS, hostname)
                     break
 
             if config.elasticsearch.trace_query_string:
-                span._set_tag_str(http.QUERY_STRING, encoded_params)
+                span._set_attribute(http.QUERY_STRING, encoded_params)
 
             if method in ["GET", "POST"]:
                 try:
@@ -195,12 +195,9 @@ def _get_perform_request_coro(transport):
                 # Ideally the body should be truncated, however we cannot truncate as the obfuscation
                 # logic for the body lives in the agent and truncating would make the body undecodable.
                 if len(ser_body) <= _limits.MAX_SPAN_META_VALUE_LEN:
-                    span._set_tag_str(metadata.BODY, ser_body)
+                    span._set_attribute(metadata.BODY, ser_body)
                 else:
-                    span._set_tag_str(
-                        metadata.BODY,
-                        "<body size %s exceeds limit of %s>" % (len(ser_body), _limits.MAX_SPAN_META_VALUE_LEN),
-                    )
+                    span._set_attribute(metadata.BODY, "<body size %s exceeds limit of %s>" % (len(ser_body), _limits.MAX_SPAN_META_VALUE_LEN))
             status = None
 
             span = quantize(span)
@@ -229,7 +226,7 @@ def _get_perform_request_coro(transport):
 
                 took = data.get("took")
                 if took:
-                    span.set_metric(metadata.TOOK, int(took))
+                    span._set_attribute(metadata.TOOK, int(took))
             except Exception:
                 log.debug("Unexpected exception", exc_info=True)
 

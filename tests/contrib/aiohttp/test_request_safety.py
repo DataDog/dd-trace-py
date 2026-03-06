@@ -28,7 +28,7 @@ async def test_full_request(test_spans, patched_app, aiohttp_client):
     assert "aiohttp-web" == request_span.service
     assert "aiohttp.request" == request_span.name
     assert "GET /" == request_span.resource
-    assert request_span.get_tag("span.kind") == "server"
+    assert request_span._get_str_attribute("span.kind") == "server"
 
 
 async def test_multiple_full_request(test_spans, patched_app, aiohttp_client):

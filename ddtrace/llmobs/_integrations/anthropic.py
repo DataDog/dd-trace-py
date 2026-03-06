@@ -47,7 +47,7 @@ class AnthropicIntegration(BaseLLMIntegration):
     ) -> None:
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
         if model is not None:
-            span._set_tag_str(MODEL, model)
+            span._set_attribute(MODEL, model)
 
     def _llmobs_set_tags(
         self,
@@ -81,7 +81,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
-                MODEL_NAME: span.get_tag("anthropic.request.model") or "",
+                MODEL_NAME: span._get_str_attribute("anthropic.request.model") or "",
                 MODEL_PROVIDER: "anthropic",
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,

@@ -1,0 +1,22 @@
+id: span-set-tag-str
+snapshots:
+  self._set_tag_str(ERROR_TYPE, exc.__class__.__name__):
+    labels:
+    - source: self._set_tag_str(ERROR_TYPE, exc.__class__.__name__)
+      style: primary
+      start: 0
+      end: 53
+  ? |
+    span = tracer.start_span("op")
+    span._set_tag_str("component", "mylib")
+  : labels:
+    - source: span._set_tag_str("component", "mylib")
+      style: primary
+      start: 31
+      end: 70
+  span._set_tag_str("http.url", url):
+    labels:
+    - source: span._set_tag_str("http.url", url)
+      style: primary
+      start: 0
+      end: 34

@@ -137,17 +137,17 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert span.service == service
         assert span.error == 0
         assert span.span_type == "grpc"
-        assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
-        assert span.get_tag("grpc.method.package") == "helloworld"
-        assert span.get_tag("grpc.method.service") == "Hello"
-        assert span.get_tag("grpc.method.name") == method_name
-        assert span.get_tag("grpc.method.kind") == method_kind
-        assert span.get_tag("grpc.status.code") == "StatusCode.OK"
-        assert span.get_tag("grpc.host") == "127.0.0.1"
-        assert span.get_tag("peer.hostname") is None
-        assert span.get_tag("network.destination.port") == "50531"
-        assert span.get_tag("component") == "grpc"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
+        assert span._get_str_attribute("grpc.method.package") == "helloworld"
+        assert span._get_str_attribute("grpc.method.service") == "Hello"
+        assert span._get_str_attribute("grpc.method.name") == method_name
+        assert span._get_str_attribute("grpc.method.kind") == method_kind
+        assert span._get_str_attribute("grpc.status.code") == "StatusCode.OK"
+        assert span._get_str_attribute("grpc.host") == "127.0.0.1"
+        assert span._get_str_attribute("peer.hostname") is None
+        assert span._get_str_attribute("network.destination.port") == "50531"
+        assert span._get_str_attribute("component") == "grpc"
+        assert span._get_str_attribute("span.kind") == "client"
 
     def _check_server_span(self, span, service, method_name, method_kind):
         self.assert_is_measured(span)
@@ -156,13 +156,13 @@ class GrpcTestCase(GrpcBaseTestCase):
         assert span.service == service
         assert span.error == 0
         assert span.span_type == "grpc"
-        assert span.get_tag("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
-        assert span.get_tag("grpc.method.package") == "helloworld"
-        assert span.get_tag("grpc.method.service") == "Hello"
-        assert span.get_tag("grpc.method.name") == method_name
-        assert span.get_tag("grpc.method.kind") == method_kind
-        assert span.get_tag("component") == "grpc_server"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("grpc.method.path") == "/helloworld.Hello/{}".format(method_name)
+        assert span._get_str_attribute("grpc.method.package") == "helloworld"
+        assert span._get_str_attribute("grpc.method.service") == "Hello"
+        assert span._get_str_attribute("grpc.method.name") == method_name
+        assert span._get_str_attribute("grpc.method.kind") == method_kind
+        assert span._get_str_attribute("component") == "grpc_server"
+        assert span._get_str_attribute("span.kind") == "server"
 
     def test_insecure_channel_using_args_parameter(self):
         def insecure_channel_using_args(target):
@@ -321,11 +321,11 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MSG) == "aborted"
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.ABORTED"
-        assert client_span.get_tag("grpc.status.code") == "StatusCode.ABORTED"
-        assert client_span.get_tag("component") == "grpc"
-        assert client_span.get_tag("span.kind") == "client"
+        assert client_span._get_str_attribute(ERROR_MSG) == "aborted"
+        assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.ABORTED"
+        assert client_span._get_str_attribute("grpc.status.code") == "StatusCode.ABORTED"
+        assert client_span._get_str_attribute("component") == "grpc"
+        assert client_span._get_str_attribute("span.kind") == "client"
 
     def test_custom_interceptor_exception(self):
         # add an interceptor that raises a custom exception and check error tags
@@ -342,21 +342,21 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MSG) == "custom"
-        assert client_span.get_tag(ERROR_TYPE) == "tests.contrib.grpc.test_grpc._CustomException"
-        assert client_span.get_tag(ERROR_STACK) is not None
-        assert client_span.get_tag("grpc.status.code") == "StatusCode.INTERNAL"
-        assert client_span.get_tag("component") == "grpc"
-        assert client_span.get_tag("span.kind") == "client"
+        assert client_span._get_str_attribute(ERROR_MSG) == "custom"
+        assert client_span._get_str_attribute(ERROR_TYPE) == "tests.contrib.grpc.test_grpc._CustomException"
+        assert client_span._get_str_attribute(ERROR_STACK) is not None
+        assert client_span._get_str_attribute("grpc.status.code") == "StatusCode.INTERNAL"
+        assert client_span._get_str_attribute("component") == "grpc"
+        assert client_span._get_str_attribute("span.kind") == "client"
 
         # no exception on server end
         assert server_span.resource == "/helloworld.Hello/SayHello"
         assert server_span.error == 0
-        assert server_span.get_tag(ERROR_MSG) is None
-        assert server_span.get_tag(ERROR_TYPE) is None
-        assert server_span.get_tag(ERROR_STACK) is None
-        assert server_span.get_tag("component") == "grpc_server"
-        assert server_span.get_tag("span.kind") == "server"
+        assert server_span._get_str_attribute(ERROR_MSG) is None
+        assert server_span._get_str_attribute(ERROR_TYPE) is None
+        assert server_span._get_str_attribute(ERROR_STACK) is None
+        assert server_span._get_str_attribute("component") == "grpc_server"
+        assert server_span._get_str_attribute("span.kind") == "server"
 
     def test_client_cancellation(self):
         # use an event to signal when the callbacks have been called from the response
@@ -388,12 +388,12 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
-        assert client_span.get_tag(ERROR_STACK) is None
-        assert client_span.get_tag("grpc.status.code") == "StatusCode.CANCELLED"
-        assert client_span.get_tag("component") == "grpc"
-        assert client_span.get_tag("span.kind") == "client"
+        assert client_span._get_str_attribute(ERROR_MSG) == "Locally cancelled by application!"
+        assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.CANCELLED"
+        assert client_span._get_str_attribute(ERROR_STACK) is None
+        assert client_span._get_str_attribute("grpc.status.code") == "StatusCode.CANCELLED"
+        assert client_span._get_str_attribute("component") == "grpc"
+        assert client_span._get_str_attribute("span.kind") == "client"
 
     def test_unary_exception(self):
         with grpc.secure_channel("127.0.0.1:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
@@ -406,20 +406,20 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHello"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MSG) == "exception"
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        assert client_span.get_tag("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
-        assert client_span.get_tag("component") == "grpc"
-        assert client_span.get_tag("span.kind") == "client"
+        assert client_span._get_str_attribute(ERROR_MSG) == "exception"
+        assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert client_span._get_str_attribute("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
+        assert client_span._get_str_attribute("component") == "grpc"
+        assert client_span._get_str_attribute("span.kind") == "client"
 
         assert server_span.resource == "/helloworld.Hello/SayHello"
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MSG) == "exception"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        assert server_span.get_tag("component") == "grpc_server"
-        assert server_span.get_tag("span.kind") == "server"
-        assert "Traceback" in server_span.get_tag(ERROR_STACK)
-        assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(ERROR_STACK)
+        assert server_span._get_str_attribute(ERROR_MSG) == "exception"
+        assert server_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert server_span._get_str_attribute("component") == "grpc_server"
+        assert server_span._get_str_attribute("span.kind") == "server"
+        assert "Traceback" in server_span._get_str_attribute(ERROR_STACK)
+        assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span._get_str_attribute(ERROR_STACK)
 
     def test_client_stream_exception(self):
         requests_iterator = iter(HelloRequest(name=name) for name in ["first", "exception"])
@@ -434,20 +434,20 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHelloLast"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MSG) == "exception"
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        assert client_span.get_tag("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
-        assert client_span.get_tag("component") == "grpc"
-        assert client_span.get_tag("span.kind") == "client"
+        assert client_span._get_str_attribute(ERROR_MSG) == "exception"
+        assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert client_span._get_str_attribute("grpc.status.code") == "StatusCode.INVALID_ARGUMENT"
+        assert client_span._get_str_attribute("component") == "grpc"
+        assert client_span._get_str_attribute("span.kind") == "client"
 
         assert server_span.resource == "/helloworld.Hello/SayHelloLast"
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MSG) == "exception"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        assert server_span.get_tag("component") == "grpc_server"
-        assert server_span.get_tag("span.kind") == "server"
-        assert "Traceback" in server_span.get_tag(ERROR_STACK)
-        assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span.get_tag(ERROR_STACK)
+        assert server_span._get_str_attribute(ERROR_MSG) == "exception"
+        assert server_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert server_span._get_str_attribute("component") == "grpc_server"
+        assert server_span._get_str_attribute("span.kind") == "server"
+        assert "Traceback" in server_span._get_str_attribute(ERROR_STACK)
+        assert "grpc.StatusCode.INVALID_ARGUMENT" in server_span._get_str_attribute(ERROR_STACK)
 
     def test_server_stream_exception(self):
         # use an event to signal when the callbacks have been called from the response
@@ -469,18 +469,18 @@ class GrpcTestCase(GrpcBaseTestCase):
 
         assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
         assert client_span.error == 1
-        assert client_span.get_tag(ERROR_MSG) == "exception"
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
-        assert client_span.get_tag("grpc.status.code") == "StatusCode.RESOURCE_EXHAUSTED"
-        assert client_span.get_tag("span.kind") == "client"
+        assert client_span._get_str_attribute(ERROR_MSG) == "exception"
+        assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
+        assert client_span._get_str_attribute("grpc.status.code") == "StatusCode.RESOURCE_EXHAUSTED"
+        assert client_span._get_str_attribute("span.kind") == "client"
 
         assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
         assert server_span.error == 1
-        assert server_span.get_tag(ERROR_MSG) == "exception"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
-        assert server_span.get_tag("span.kind") == "server"
-        assert "Traceback" in server_span.get_tag(ERROR_STACK)
-        assert "grpc.StatusCode.RESOURCE_EXHAUSTED" in server_span.get_tag(ERROR_STACK)
+        assert server_span._get_str_attribute(ERROR_MSG) == "exception"
+        assert server_span._get_str_attribute(ERROR_TYPE) == "StatusCode.RESOURCE_EXHAUSTED"
+        assert server_span._get_str_attribute("span.kind") == "server"
+        assert "Traceback" in server_span._get_str_attribute(ERROR_STACK)
+        assert "grpc.StatusCode.RESOURCE_EXHAUSTED" in server_span._get_str_attribute(ERROR_STACK)
 
     def test_unknown_servicer(self):
         with grpc.secure_channel("127.0.0.1:%d" % (_GRPC_PORT), credentials=grpc.ChannelCredentials(None)) as channel:
@@ -612,7 +612,7 @@ class GrpcTestCase(GrpcBaseTestCase):
         spans = self.get_spans_with_sync_and_assert(size=2)
         client_span = spans[0]
 
-        assert client_span.get_tag("custom_interceptor_worked")
+        assert client_span._get_str_attribute("custom_interceptor_worked")
 
 
 class _CustomException(Exception):

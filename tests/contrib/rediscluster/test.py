@@ -58,11 +58,11 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == "GET cheese"
-        assert span.get_tag("component") == "rediscluster"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "redis"
-        assert span.get_metric("redis.args_length") == 2
+        assert span._get_str_attribute("redis.raw_command") == "GET cheese"
+        assert span._get_str_attribute("component") == "rediscluster"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "redis"
+        assert span._get_numeric_attribute("redis.args_length") == 2
         assert span.resource == "GET"
 
     def test_unicode(self):
@@ -74,11 +74,11 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.name == "redis.command"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == "GET 😐"
-        assert span.get_tag("component") == "rediscluster"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "redis"
-        assert span.get_metric("redis.args_length") == 2
+        assert span._get_str_attribute("redis.raw_command") == "GET 😐"
+        assert span._get_str_attribute("component") == "rediscluster"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "redis"
+        assert span._get_numeric_attribute("redis.args_length") == 2
         assert span.resource == "GET"
 
     def test_pipeline(self):
@@ -97,10 +97,10 @@ class TestGrokzenRedisClusterPatch(TracerTestCase):
         assert span.resource == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
         assert span.span_type == "redis"
         assert span.error == 0
-        assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
-        assert span.get_tag("component") == "rediscluster"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_metric("redis.pipeline_length") == 3
+        assert span._get_str_attribute("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span._get_str_attribute("component") == "rediscluster"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_numeric_attribute("redis.pipeline_length") == 3
 
     def test_patch_unpatch(self):
         # Test patch idempotence

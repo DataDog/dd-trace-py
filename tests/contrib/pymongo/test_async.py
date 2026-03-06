@@ -61,12 +61,12 @@ class TestAsyncPymongo(AsyncioTestCase):
                 assert_is_measured(span)
                 assert span.service == "pymongo"
                 assert span.span_type == SpanTypes.MONGODB
-                assert span.get_tag("mongodb.collection") == "teams"
+                assert span._get_str_attribute("mongodb.collection") == "teams"
 
             find_spans = [s for s in cmd_spans if "find" in s.resource]
             assert len(find_spans) >= 2
-            find_all = [s for s in find_spans if s.get_tag("mongodb.query") is None][0]
-            find_query = [s for s in find_spans if s.get_tag("mongodb.query") is not None][0]
+            find_all = [s for s in find_spans if s._get_str_attribute("mongodb.query") is None][0]
+            find_query = [s for s in find_spans if s._get_str_attribute("mongodb.query") is not None][0]
             assert "find teams" in find_all.resource
             assert 'find teams {"name": "?"}' in find_query.resource
         finally:
@@ -132,10 +132,10 @@ class TestAsyncPymongo(AsyncioTestCase):
             spans = self.pop_spans()
             find_spans = [s for s in spans if s.name == "pymongo.cmd" and "find" in s.resource]
             one_row = [s for s in find_spans if '{"name": "?"}' in s.resource][0]
-            two_row = [s for s in find_spans if s.get_metric("db.row_count") == 2][0]
+            two_row = [s for s in find_spans if s._get_numeric_attribute("db.row_count") == 2][0]
 
-            assert one_row.get_metric("db.row_count") == 1
-            assert two_row.get_metric("db.row_count") == 2
+            assert one_row._get_numeric_attribute("db.row_count") == 1
+            assert two_row._get_numeric_attribute("db.row_count") == 2
         finally:
             await client.close()
             await asyncio.sleep(0.1)

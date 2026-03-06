@@ -1,0 +1,21 @@
+id: span-get-metric
+snapshots:
+  ? |
+    rate = span.get_metric(ANALYTICS_SAMPLE_RATE_KEY)
+  : labels:
+    - source: span.get_metric(ANALYTICS_SAMPLE_RATE_KEY)
+      style: primary
+      start: 7
+      end: 49
+  self.get_metric(ANALYTICS_SAMPLE_RATE_KEY):
+    labels:
+    - source: self.get_metric(ANALYTICS_SAMPLE_RATE_KEY)
+      style: primary
+      start: 0
+      end: 42
+  span.get_metric("_dd.measured"):
+    labels:
+    - source: span.get_metric("_dd.measured")
+      style: primary
+      start: 0
+      end: 31

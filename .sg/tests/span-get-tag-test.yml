@@ -1,0 +1,16 @@
+id: span-get-tag
+valid:
+  # Standalone function call (no receiver)
+  - get_tag("key")
+  # Different method names are fine
+  - span._get_str_attribute("key")
+  # Context and Pin do not have get_tag — these patterns do not exist in practice
+invalid:
+  # Direct span usage
+  - span.get_tag("http.url")
+  - self.get_tag(ERROR_TYPE)
+  - |
+    url = span.get_tag("http.url")
+  # LLMObs has its own get_tag that routes through span internals and needs migration
+  - llmobs.get_tag("key")
+  - ci_item.get_tag(test.STATUS)

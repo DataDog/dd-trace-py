@@ -34,15 +34,15 @@ from ddtrace.internal.logger import get_logger as _get_logger
 
 
 def _get_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> Any:
-    return require_ci_visibility_service().get_item_by_id(item_id).get_tag(tag_name)
+    return require_ci_visibility_service().get_item_by_id(item_id)._get_str_attribute(tag_name)  # ast-grep-ignore: span-get-tag
 
 
 def _set_item_tag(item_id: TestVisibilityItemId, tag_name: str, tag_value: Any) -> None:
-    require_ci_visibility_service().get_item_by_id(item_id).set_tag(tag_name, tag_value)
+    require_ci_visibility_service().get_item_by_id(item_id).set_tag(tag_name, tag_value)  # ast-grep-ignore: span-set-tag
 
 
 def _set_item_tags(item_id: TestVisibilityItemId, tags: dict[str, Any]) -> None:
-    require_ci_visibility_service().get_item_by_id(item_id).set_tags(tags)
+    require_ci_visibility_service().get_item_by_id(item_id).set_tags(tags)  # ast-grep-ignore: span-set-tags
 
 
 def _delete_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> None:

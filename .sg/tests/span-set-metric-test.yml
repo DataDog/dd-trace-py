@@ -1,0 +1,12 @@
+id: span-set-metric
+valid:
+  # Standalone function call (no receiver)
+  - set_metric("key", 1.0)
+  # Different method names are fine
+  - span._set_attribute("key", 1.0)
+invalid:
+  - span.set_metric("_dd.measured", 1)
+  - self.set_metric(ANALYTICS_SAMPLE_RATE_KEY, rate)
+  - |
+    span = tracer.start_span("op")
+    span.set_metric("db.row_count", row_count)

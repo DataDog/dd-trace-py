@@ -111,13 +111,13 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
-            assert span.get_tag("component") == "pymongo"
-            assert span.get_tag("span.kind") == "client"
-            assert span.get_tag("db.system") == "mongodb"
-            assert span.get_tag("mongodb.collection") == "songs"
-            assert span.get_tag("mongodb.db") == "testdb"
-            assert span.get_tag("out.host")
-            assert span.get_metric("network.destination.port")
+            assert span._get_str_attribute("component") == "pymongo"
+            assert span._get_str_attribute("span.kind") == "client"
+            assert span._get_str_attribute("db.system") == "mongodb"
+            assert span._get_str_attribute("mongodb.collection") == "songs"
+            assert span._get_str_attribute("mongodb.db") == "testdb"
+            assert span._get_str_attribute("out.host")
+            assert span._get_numeric_attribute("network.destination.port")
 
         expected_resources = set(
             [
@@ -174,13 +174,13 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
-            assert span.get_tag("component") == "pymongo"
-            assert span.get_tag("span.kind") == "client"
-            assert span.get_tag("db.system") == "mongodb"
-            assert span.get_tag("mongodb.collection") == collection_name
-            assert span.get_tag("mongodb.db") == "testdb"
-            assert span.get_tag("out.host")
-            assert span.get_metric("network.destination.port")
+            assert span._get_str_attribute("component") == "pymongo"
+            assert span._get_str_attribute("span.kind") == "client"
+            assert span._get_str_attribute("db.system") == "mongodb"
+            assert span._get_str_attribute("mongodb.collection") == collection_name
+            assert span._get_str_attribute("mongodb.db") == "testdb"
+            assert span._get_str_attribute("out.host")
+            assert span._get_numeric_attribute("network.destination.port")
 
         if pymongo.version_tuple >= (4, 0):
             expected_resources = [
@@ -258,13 +258,13 @@ class PymongoCore(object):
             assert_is_measured(span)
             assert span.service == "pymongo"
             assert span.span_type == "mongodb"
-            assert span.get_tag("component") == "pymongo"
-            assert span.get_tag("span.kind") == "client"
-            assert span.get_tag("db.system") == "mongodb"
-            assert span.get_tag("mongodb.collection") == "teams"
-            assert span.get_tag("mongodb.db") == "testdb"
-            assert span.get_tag("out.host")
-            assert span.get_metric("network.destination.port")
+            assert span._get_str_attribute("component") == "pymongo"
+            assert span._get_str_attribute("span.kind") == "client"
+            assert span._get_str_attribute("db.system") == "mongodb"
+            assert span._get_str_attribute("mongodb.collection") == "teams"
+            assert span._get_str_attribute("mongodb.db") == "testdb"
+            assert span._get_str_attribute("out.host")
+            assert span._get_numeric_attribute("network.destination.port")
             assert span.start > start
             assert span.duration < end - start
 
@@ -287,12 +287,12 @@ class PymongoCore(object):
         assert expected_resources == list(s.resource for s in spans)
 
         # confirm query tag for find all
-        assert spans[-2].get_tag("mongodb.query") is None
+        assert spans[-2]._get_str_attribute("mongodb.query") is None
         assert spans[-2].resource == "find teams"
 
         # confirm query tag find with query criteria on name
         assert spans[-1].resource == 'find teams {"name": "?"}'
-        assert spans[-1].get_tag("mongodb.query") == '{"name": "?"}'
+        assert spans[-1]._get_str_attribute("mongodb.query") == '{"name": "?"}'
 
     def test_rowcount(self):
         tracer, client = self.get_tracer_and_client()
@@ -341,13 +341,13 @@ class PymongoCore(object):
 
         # Assert resource names and mongodb.query
         assert one_row_span.resource == 'find songs {"name": "?"}'
-        assert one_row_span.get_tag("mongodb.query") == '{"name": "?"}'
+        assert one_row_span._get_str_attribute("mongodb.query") == '{"name": "?"}'
         assert two_row_span.resource == 'find songs {"artist": "?"}'
-        assert two_row_span.get_tag("mongodb.query") == '{"artist": "?"}'
+        assert two_row_span._get_str_attribute("mongodb.query") == '{"artist": "?"}'
 
         assert one_row_span.name == "pymongo.cmd"
-        assert one_row_span.get_metric("db.row_count") == 1
-        assert two_row_span.get_metric("db.row_count") == 2
+        assert one_row_span._get_numeric_attribute("db.row_count") == 1
+        assert two_row_span._get_numeric_attribute("db.row_count") == 2
 
     def test_patch_pymongo_client_after_import(self):
         """Ensure that the pymongo integration can be enabled after MongoClient has been imported"""
@@ -369,7 +369,7 @@ class PymongoCore(object):
         assert len(spans) == 2
         assert spans[1].name == "pymongo.cmd"
         assert spans[1].resource == "buildinfo 1"
-        assert spans[1].get_tag("mongodb.query") is None
+        assert spans[1]._get_str_attribute("mongodb.query") is None
 
 
 class TestPymongoPatchDefault(TracerTestCase, PymongoCore):
@@ -610,8 +610,8 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client[db_name].drop_collection("whatever")
         spans = self.pop_spans()
         assert len(spans) == 2
-        assert spans[1].get_tag("mongodb.db") == db_name
-        assert spans[1].get_tag("peer.service") == db_name
+        assert spans[1]._get_str_attribute("mongodb.db") == db_name
+        assert spans[1]._get_str_attribute("peer.service") == db_name
 
     def test_patch_with_disabled_tracer(self):
         tracer, client = self.get_tracer_and_client()
@@ -695,11 +695,11 @@ class TestPymongoSocketTracing(TracerTestCase):
         assert span.name == "pymongo.%s" % _CHECKOUT_FN_NAME
         assert span.service == "pymongo"
         assert span.span_type == SpanTypes.MONGODB
-        assert span.get_tag("out.host") == "localhost"
-        assert span.get_tag("component") == "pymongo"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_metric("network.destination.port") == MONGO_CONFIG["port"]
-        assert span.get_tag("db.system") == "mongodb"
+        assert span._get_str_attribute("out.host") == "localhost"
+        assert span._get_str_attribute("component") == "pymongo"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_numeric_attribute("network.destination.port") == MONGO_CONFIG["port"]
+        assert span._get_str_attribute("db.system") == "mongodb"
 
     def test_single_op(self):
         self.client["some_db"].drop_collection("some_collection")
@@ -864,7 +864,7 @@ class TestPymongoDBMInjection(TracerTestCase):
 
         # Check that the find span has the DBM trace injected tag
         find_span = [s for s in cmd_spans if "find" in s.resource][0]
-        assert find_span.get_tag("_dd.dbm_trace_injected") == "true"
+        assert find_span._get_str_attribute("_dd.dbm_trace_injected") == "true"
         # Inspect captured commands
         find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
         assert len(find_commands) > 0
@@ -877,7 +877,7 @@ class TestPymongoDBMInjection(TracerTestCase):
         )
 
         insert_span = [s for s in cmd_spans if "insert" in s.resource][0]
-        assert insert_span.get_tag("_dd.dbm_trace_injected") == "true"
+        assert insert_span._get_str_attribute("_dd.dbm_trace_injected") == "true"
         insert_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "insert"]
         assert len(insert_commands) > 0
         assert insert_commands[0].get("insert") == "songs"
@@ -916,7 +916,7 @@ class TestPymongoDBMInjection(TracerTestCase):
 
         # Check that the find span does not have the DBM trace injected tag
         find_span = [s for s in cmd_spans if "find" in s.resource][0]
-        assert find_span.get_tag("_dd.dbm_trace_injected") is None
+        assert find_span._get_str_attribute("_dd.dbm_trace_injected") is None
         find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
         assert len(find_commands) > 0
         assert find_commands[0].get("find") == "songs"
@@ -959,7 +959,7 @@ class TestPymongoDBMInjection(TracerTestCase):
 
         # Check that the find span does not have the DBM trace injected tag (service mode doesn't add this)
         find_span = [s for s in cmd_spans if "find" in s.resource][0]
-        assert find_span.get_tag("_dd.dbm_trace_injected") is None
+        assert find_span._get_str_attribute("_dd.dbm_trace_injected") is None
         find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
         assert len(find_commands) > 0
         assert find_commands[0].get("find") == "songs"
@@ -1031,7 +1031,7 @@ class TestPymongoDBMInjection(TracerTestCase):
         assert len(cmd_spans) >= 3
 
         find_span = [s for s in cmd_spans if "find" in s.resource][0]
-        assert find_span.get_tag("_dd.dbm_trace_injected") is None
+        assert find_span._get_str_attribute("_dd.dbm_trace_injected") is None
         find_commands = [cmd for _, name, cmd in self.command_capture.started_commands if name == "find"]
         assert len(find_commands) > 0
         assert find_commands[0].get("find") == "songs"

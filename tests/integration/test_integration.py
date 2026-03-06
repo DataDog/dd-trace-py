@@ -121,8 +121,8 @@ def test_payload_too_large():
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         for i in range(100000 if encoding == "v0.5" else 1000):
             with t.trace("operation") as s:
-                s.set_tag(str(i), "b" * 190)
-                s.set_tag(str(i), "a" * 190)
+                s._set_attribute(str(i), "b" * 190)
+                s._set_attribute(str(i), "a" * 190)
 
         t.shutdown()
         calls = [
@@ -323,7 +323,7 @@ def test_single_trace_too_large_partial_flush_disabled():
         with t.trace("huge"):
             for _ in range(200000):
                 with t.trace("operation") as s:
-                    s.set_tag("a" * 10, "b" * 10)
+                    s._set_attribute("a" * 10, "b" * 10)
         t.shutdown()
 
         calls = [mock.call("trace (%db) larger than payload buffer item limit (%db), dropping", AnyInt(), AnyInt())]

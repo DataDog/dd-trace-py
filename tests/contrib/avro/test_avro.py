@@ -62,8 +62,8 @@ def test_basic_schema_serialize(avro, tracer, test_spans):
     assert span.name == "basic_avro_schema.serialization"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OPENAPI_USER_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "avro"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "example.avro.User"
@@ -104,8 +104,8 @@ def test_advanced_schema_serialize(avro, tracer, test_spans):
     assert span.name == "advanced_avro_schema.serialization"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OPENAPI_ADVANCED_USER_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "avro"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "example.avro.AdvancedUser"
@@ -132,8 +132,8 @@ def test_basic_schema_deserialize(avro, tracer, test_spans):
     assert span.name == "basic_avro_schema.deserialization"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OPENAPI_USER_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "avro"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "example.avro.User"
@@ -161,8 +161,8 @@ def test_advanced_schema_deserialize(avro, tracer, test_spans):
     assert span.name == "advanced_avro_schema.deserialization"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OPENAPI_ADVANCED_USER_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "avro"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "example.avro.AdvancedUser"

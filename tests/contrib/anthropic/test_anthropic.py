@@ -32,9 +32,9 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, test_span
     span = test_spans.pop_traces()[0][0]
     assert span.resource == "Messages.create"
     assert span.service == "test-svc"
-    assert span.get_tag("env") == "staging"
-    assert span.get_tag("version") == "1234"
-    assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
+    assert span._get_str_attribute("env") == "staging"
+    assert span._get_str_attribute("version") == "1234"
+    assert span._get_str_attribute("anthropic.request.model") == "claude-3-opus-20240229"
 
 
 @pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
@@ -297,9 +297,9 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
     span = test_spans.pop_traces()[0][0]
     assert span.resource == "AsyncMessages.create"
     assert span.service == "test-svc"
-    assert span.get_tag("env") == "staging"
-    assert span.get_tag("version") == "1234"
-    assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
+    assert span._get_str_attribute("env") == "staging"
+    assert span._get_str_attribute("version") == "1234"
+    assert span._get_str_attribute("anthropic.request.model") == "claude-3-opus-20240229"
 
 
 @pytest.mark.asyncio

@@ -145,7 +145,7 @@ class TestLLMIOProcessing:
         }
 
     def _conditional_input_output_processor(span: LLMObsSpan):
-        if span.get_tag("scrub_values") == "1":
+        if span._get_str_attribute("scrub_values") == "1":
             for message in span.input + span.output:
                 message["content"] = "redacted"
         return span
@@ -170,7 +170,7 @@ class TestLLMIOProcessing:
         assert llmobs_events[0]["meta"]["output"] == {"messages": [{"content": "value", "role": ""}]}
 
     def _omit_span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
-        if span.get_tag("omit_span") == "true":
+        if span._get_str_attribute("omit_span") == "true":
             return None
         return span
 
@@ -654,7 +654,7 @@ def test_apm_traces_dropped_when_disabled(llmobs, llmobs_events, tracer, llmobs_
     tracer._span_aggregator.writer = dummy_writer
 
     with tracer.trace("apm_span") as apm_span:
-        apm_span.set_tag("operation", "test")
+        apm_span._set_attribute("operation", "test")
 
     # Create an LLMObs span (should be sent to LLMObs but not APM)
     with llmobs.llm(model_name="test-model") as llm_span:

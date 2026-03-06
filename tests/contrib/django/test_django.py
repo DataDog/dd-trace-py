@@ -84,7 +84,7 @@ def test_django_v2XX_request_root_span(client, test_spans):
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^$"
 
-    assert http.QUERY_STRING not in root.get_tags()
+    assert http.QUERY_STRING not in root._get_str_attributes()
     root.assert_matches(
         name="django.request",
         service="django",
@@ -126,7 +126,7 @@ def test_django_v2XX_alter_root_resource(client, test_spans):
     if django.VERSION >= (2, 2, 0):
         meta["http.route"] = "^alter-resource/$"
 
-    assert http.QUERY_STRING not in root.get_tags()
+    assert http.QUERY_STRING not in root._get_str_attributes()
     root.assert_matches(
         name="django.request",
         service="django",
@@ -201,8 +201,8 @@ def test_disallowed_host(client, test_spans):
         assert b"Bad Request (400)" in resp.content
 
     root_span = test_spans.get_root_span()
-    assert root_span.get_tag("http.status_code") == "400"
-    assert root_span.get_tag("http.url") == "http://testserver/"
+    assert root_span._get_str_attribute("http.status_code") == "400"
+    assert root_span._get_str_attribute("http.url") == "http://testserver/"
 
 
 def test_http_header_tracing_disabled(client, test_spans):
@@ -218,8 +218,8 @@ def test_http_header_tracing_disabled(client, test_spans):
 
     root = test_spans.get_root_span()
 
-    assert root.get_tag("http.request.headers.my-header") is None
-    assert root.get_tag("http.response.headers.my-response-header") is None
+    assert root._get_str_attribute("http.request.headers.my-header") is None
+    assert root._get_str_attribute("http.response.headers.my-response-header") is None
 
 
 def test_http_header_tracing_enabled(client, test_spans):
@@ -236,8 +236,8 @@ def test_http_header_tracing_enabled(client, test_spans):
 
     root = test_spans.get_root_span()
 
-    assert root.get_tag("http.request.headers.my-header") == "my_value"
-    assert root.get_tag("http.response.headers.my-response-header") == "my_response_value"
+    assert root._get_str_attribute("http.request.headers.my-header") == "my_value"
+    assert root._get_str_attribute("http.response.headers.my-response-header") == "my_response_value"
 
 
 """
@@ -379,15 +379,15 @@ def test_middleware_trace_error_500(client, test_spans):
     # Test the root span
     span = test_spans.get_root_span()
     assert span.error == 1
-    assert span.get_tag("http.status_code") == "500"
-    assert span.get_tag(http.URL) == "http://testserver/error-500/"
+    assert span._get_str_attribute("http.status_code") == "500"
+    assert span._get_str_attribute(http.URL) == "http://testserver/error-500/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^error-500/$"
     else:
         assert span.resource == "GET tests.contrib.django.views.error_500"
-    assert span.get_tag(ERROR_MSG) is None
-    assert span.get_tag(ERROR_TYPE) is None
-    assert span.get_tag(ERROR_STACK) is None
+    assert span._get_str_attribute(ERROR_MSG) is None
+    assert span._get_str_attribute(ERROR_TYPE) is None
+    assert span._get_str_attribute(ERROR_STACK) is None
 
     # Test the view span (where the exception is generated)
     view_span = list(test_spans.filter_spans(name="django.view"))
@@ -395,17 +395,17 @@ def test_middleware_trace_error_500(client, test_spans):
     view_span = view_span[0]
     assert view_span.error == 1
     # Make sure the message is somewhere in the stack trace
-    assert "Error 500" in view_span.get_tag(ERROR_STACK)
+    assert "Error 500" in view_span._get_str_attribute(ERROR_STACK)
 
     # Test the catch exception middleware
     res = "tests.contrib.django.middleware.CatchExceptionMiddleware.process_exception"
     mw_span = list(test_spans.filter_spans(resource=res))[0]
     assert mw_span.error == 1
     # Make sure the message is somewhere in the stack trace
-    assert "Error 500" in view_span.get_tag(ERROR_STACK)
-    assert mw_span.get_tag(ERROR_MSG) is not None
-    assert mw_span.get_tag(ERROR_TYPE) is not None
-    assert mw_span.get_tag(ERROR_STACK) is not None
+    assert "Error 500" in view_span._get_str_attribute(ERROR_STACK)
+    assert mw_span._get_str_attribute(ERROR_MSG) is not None
+    assert mw_span._get_str_attribute(ERROR_TYPE) is not None
+    assert mw_span._get_str_attribute(ERROR_STACK) is not None
 
 
 def test_middleware_handled_view_exception_success(client, test_spans):
@@ -430,9 +430,9 @@ def test_middleware_handled_view_exception_success(client, test_spans):
     # Test the root span
     root_span = test_spans.get_root_span()
     assert root_span.error == 0
-    assert root_span.get_tag(ERROR_STACK) is None
-    assert root_span.get_tag(ERROR_MSG) is None
-    assert root_span.get_tag(ERROR_TYPE) is None
+    assert root_span._get_str_attribute(ERROR_STACK) is None
+    assert root_span._get_str_attribute(ERROR_MSG) is None
+    assert root_span._get_str_attribute(ERROR_TYPE) is None
 
     # Test the view span (where the exception is generated)
     view_span = list(test_spans.filter_spans(name="django.view"))
@@ -440,7 +440,7 @@ def test_middleware_handled_view_exception_success(client, test_spans):
     view_span = view_span[0]
     assert view_span.error == 1
     # Make sure the message is somewhere in the stack trace
-    assert "Error 500" in view_span.get_tag("error.stack")
+    assert "Error 500" in view_span._get_str_attribute("error.stack")
 
 
 @pytest.mark.skipif(django.VERSION < (1, 10, 0), reason="Middleware functions only implemented since 1.10.0")
@@ -516,8 +516,8 @@ def test_lambda_based_view(client, test_spans):
     assert client.get("/lambda-view/").status_code == 200
 
     span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/lambda-view/"
+    assert span._get_str_attribute("http.status_code") == "200"
+    assert span._get_str_attribute(http.URL) == "http://testserver/lambda-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^lambda-view/$"
     else:
@@ -542,7 +542,7 @@ def test_template_view(client, test_spans):
     )
 
     root_span = test_spans.get_root_span()
-    assert root_span.get_tag("django.response.template") == "basic.html"
+    assert root_span._get_str_attribute("django.response.template") == "basic.html"
 
 
 def test_template_simple_view(client, test_spans):
@@ -563,7 +563,7 @@ def test_template_simple_view(client, test_spans):
     )
 
     root_span = test_spans.get_root_span()
-    assert root_span.get_tag("django.response.template") == "basic.html"
+    assert root_span._get_str_attribute("django.response.template") == "basic.html"
 
 
 def test_template_list_view(client, test_spans):
@@ -584,8 +584,8 @@ def test_template_list_view(client, test_spans):
     )
 
     root_span = test_spans.get_root_span()
-    assert root_span.get_tag("django.response.template.0") == "doesntexist.html"
-    assert root_span.get_tag("django.response.template.1") == "basic.html"
+    assert root_span._get_str_attribute("django.response.template.0") == "doesntexist.html"
+    assert root_span._get_str_attribute("django.response.template.1") == "basic.html"
 
 
 def test_middleware_trace_function_based_view(client, test_spans):
@@ -593,8 +593,8 @@ def test_middleware_trace_function_based_view(client, test_spans):
     assert client.get("/fn-view/").status_code == 200
 
     span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/fn-view/"
+    assert span._get_str_attribute("http.status_code") == "200"
+    assert span._get_str_attribute(http.URL) == "http://testserver/fn-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^fn-view/$"
     else:
@@ -606,8 +606,8 @@ def test_middleware_trace_errors(client, test_spans):
     assert client.get("/fail-view/").status_code == 403
 
     span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "403"
-    assert span.get_tag(http.URL) == "http://testserver/fail-view/"
+    assert span._get_str_attribute("http.status_code") == "403"
+    assert span._get_str_attribute(http.URL) == "http://testserver/fail-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^fail-view/$"
     else:
@@ -619,8 +619,8 @@ def test_middleware_trace_staticmethod(client, test_spans):
     assert client.get("/static-method-view/").status_code == 200
 
     span = test_spans.get_root_span()
-    assert span.get_tag("http.status_code") == "200"
-    assert span.get_tag(http.URL) == "http://testserver/static-method-view/"
+    assert span._get_str_attribute("http.status_code") == "200"
+    assert span._get_str_attribute(http.URL) == "http://testserver/static-method-view/"
     if django.VERSION >= (2, 2, 0):
         assert span.resource == "GET ^static-method-view/$"
     else:
@@ -727,8 +727,8 @@ def test_connection():
         assert span.name == "sqlite.query"
         assert span.service == "defaultdb"
         assert span.span_type == "sql"
-        assert span.get_tag("django.db.vendor") == "sqlite"
-        assert span.get_tag("django.db.alias") == "default"
+        assert span._get_str_attribute("django.db.vendor") == "sqlite"
+        assert span._get_str_attribute("django.db.alias") == "default"
 
 
 """
@@ -767,7 +767,7 @@ def test_cache_get():
         "django.cache.key": "missing_key",
     }
 
-    assert_dict_issuperset(span.get_tags(), expected_meta)
+    assert_dict_issuperset(span._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -819,7 +819,7 @@ def test_cache_get_rowcount_existing_key():
     assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(span._get_numeric_attributes(), {"db.row_count": 1})
     setup.__exit__(None, None, None)
 
 
@@ -845,7 +845,7 @@ def test_cache_get_rowcount_missing_key():
     assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(span._get_numeric_attributes(), {"db.row_count": 0})
     setup.__exit__(None, None, None)
 
 
@@ -878,7 +878,7 @@ def test_cache_get_rowcount_empty_key():
     assert get_span.service == "django"
     assert get_span.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(get_span._get_numeric_attributes(), {"db.row_count": 1})
     setup.__exit__(None, None, None)
 
 
@@ -904,7 +904,7 @@ def test_cache_get_rowcount_missing_key_with_default():
     span = spans[0]
     assert span.service == "django"
     assert span.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(span.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(span._get_numeric_attributes(), {"db.row_count": 1})
     setup.__exit__(None, None, None)
 
 
@@ -961,17 +961,17 @@ def test_cache_get_rowcount_throws_attribute_and_value_error():
     get_1 = spans[3]
     assert get_1.service == "django"
     assert get_1.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(get_1.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(get_1._get_numeric_attributes(), {"db.row_count": 0})
 
     get_2 = spans[4]
     assert get_2.service == "django"
     assert get_2.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(get_2.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(get_2._get_numeric_attributes(), {"db.row_count": 0})
 
     get_3 = spans[5]
     assert get_3.service == "django"
     assert get_3.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(get_3.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(get_3._get_numeric_attributes(), {"db.row_count": 0})
     setup.__exit__(None, None, None)
 
 
@@ -1039,12 +1039,12 @@ def test_cache_get_rowcount_iterable_ambiguous_truthiness():
     get_1 = spans[2]
     assert get_1.service == "django"
     assert get_1.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(get_1.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(get_1._get_numeric_attributes(), {"db.row_count": 1})
 
     get_2 = spans[3]
     assert get_2.service == "django"
     assert get_2.resource == "django.core.cache.backends.locmem.get"
-    assert_dict_issuperset(get_2.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(get_2._get_numeric_attributes(), {"db.row_count": 0})
     setup.__exit__(None, None, None)
 
 
@@ -1079,7 +1079,7 @@ def test_cache_get_unicode():
         "django.cache.key": "😐",
     }
 
-    assert_dict_issuperset(span.get_tags(), expected_meta)
+    assert_dict_issuperset(span._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1115,7 +1115,7 @@ def test_cache_set():
         "django.cache.key": "a_new_key",
     }
 
-    assert_dict_issuperset(span.get_tags(), expected_meta)
+    assert_dict_issuperset(span._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1150,7 +1150,7 @@ def test_cache_delete():
         "django.cache.key": "an_existing_key",
     }
 
-    assert_dict_issuperset(span.get_tags(), expected_meta)
+    assert_dict_issuperset(span._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1196,8 +1196,8 @@ def test_cache_incr_1XX():
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_get.get_tags(), expected_meta)
-    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_get._get_str_attributes(), expected_meta)
+    assert_dict_issuperset(span_incr._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1237,7 +1237,7 @@ def test_cache_incr_2XX():
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1289,9 +1289,9 @@ def test_cache_decr_1XX():
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_get.get_tags(), expected_meta)
-    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
-    assert_dict_issuperset(span_decr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_get._get_str_attributes(), expected_meta)
+    assert_dict_issuperset(span_incr._get_str_attributes(), expected_meta)
+    assert_dict_issuperset(span_decr._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1337,8 +1337,8 @@ def test_cache_decr_2XX():
         "django.cache.key": "value",
     }
 
-    assert_dict_issuperset(span_incr.get_tags(), expected_meta)
-    assert_dict_issuperset(span_decr.get_tags(), expected_meta)
+    assert_dict_issuperset(span_incr._get_str_attributes(), expected_meta)
+    assert_dict_issuperset(span_decr._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1387,7 +1387,7 @@ def test_cache_get_many():
         "django.cache.key": "missing_key another_key",
     }
 
-    assert_dict_issuperset(span_get_many.get_tags(), expected_meta)
+    assert_dict_issuperset(span_get_many._get_str_attributes(), expected_meta)
     setup.__exit__(None, None, None)
 
 
@@ -1423,9 +1423,9 @@ def test_cache_get_many_rowcount_all_existing():
     assert span_get_second.service == "django"
     assert span_get_second.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 2})
-    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 1})
-    assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 1})
+    assert_dict_issuperset(span_get_many._get_numeric_attributes(), {"db.row_count": 2})
+    assert_dict_issuperset(span_get_first._get_numeric_attributes(), {"db.row_count": 1})
+    assert_dict_issuperset(span_get_second._get_numeric_attributes(), {"db.row_count": 1})
     setup.__exit__(None, None, None)
 
 
@@ -1460,9 +1460,9 @@ def test_cache_get_many_rowcount_none_existing():
     assert span_get_second.service == "django"
     assert span_get_second.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 0})
-    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 0})
-    assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(span_get_many._get_numeric_attributes(), {"db.row_count": 0})
+    assert_dict_issuperset(span_get_first._get_numeric_attributes(), {"db.row_count": 0})
+    assert_dict_issuperset(span_get_second._get_numeric_attributes(), {"db.row_count": 0})
     setup.__exit__(None, None, None)
 
 
@@ -1499,9 +1499,9 @@ def test_cache_get_many_rowcount_some_existing():
     assert span_get_second.service == "django"
     assert span_get_second.resource == "django.core.cache.backends.locmem.get"
 
-    assert_dict_issuperset(span_get_many.get_metrics(), {"db.row_count": 1})
-    assert_dict_issuperset(span_get_first.get_metrics(), {"db.row_count": 1})
-    assert_dict_issuperset(span_get_second.get_metrics(), {"db.row_count": 0})
+    assert_dict_issuperset(span_get_many._get_numeric_attributes(), {"db.row_count": 1})
+    assert_dict_issuperset(span_get_first._get_numeric_attributes(), {"db.row_count": 1})
+    assert_dict_issuperset(span_get_second._get_numeric_attributes(), {"db.row_count": 0})
     setup.__exit__(None, None, None)
 
 
@@ -1543,9 +1543,9 @@ def test_cache_set_many():
     assert span_set_many.span_type == "cache"
     assert span_set_many.error == 0
 
-    assert span_set_many.get_tag("django.cache.backend") == "django.core.cache.backends.locmem.LocMemCache"
-    assert "first_key" in span_set_many.get_tag("django.cache.key")
-    assert "second_key" in span_set_many.get_tag("django.cache.key")
+    assert span_set_many._get_str_attribute("django.cache.backend") == "django.core.cache.backends.locmem.LocMemCache"
+    assert "first_key" in span_set_many._get_str_attribute("django.cache.key")
+    assert "second_key" in span_set_many._get_str_attribute("django.cache.key")
     setup.__exit__(None, None, None)
 
 
@@ -1587,9 +1587,9 @@ def test_cache_delete_many():
     assert span_delete_many.span_type == "cache"
     assert span_delete_many.error == 0
 
-    assert span_delete_many.get_tag("django.cache.backend") == "django.core.cache.backends.locmem.LocMemCache"
-    assert "missing_key" in span_delete_many.get_tag("django.cache.key")
-    assert "another_key" in span_delete_many.get_tag("django.cache.key")
+    assert span_delete_many._get_str_attribute("django.cache.backend") == "django.core.cache.backends.locmem.LocMemCache"
+    assert "missing_key" in span_delete_many._get_str_attribute("django.cache.key")
+    assert "another_key" in span_delete_many._get_str_attribute("django.cache.key")
     setup.__exit__(None, None, None)
 
 
@@ -1651,8 +1651,8 @@ def test_cached_view():
             "_dd.base_service": "ddtrace_subprocess_dir",
         }
 
-        assert span_view.get_tags() == expected_meta_view, span_view.get_tags()
-        assert span_header.get_tags() == expected_meta_header
+        assert span_view._get_str_attributes() == expected_meta_view, span_view._get_str_attributes()
+        assert span_header._get_str_attributes() == expected_meta_header
 
 
 """
@@ -1920,7 +1920,7 @@ def test_django_request_distributed(client, test_spans):
             _SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
-    assert root.get_tag("span.kind") == "server"
+    assert root._get_str_attribute("span.kind") == "server"
     first_child_span = test_spans.find_span(parent_id=root.span_id)
     assert first_child_span
 
@@ -1944,7 +1944,7 @@ def test_django_request_distributed_disabled(client, test_spans):
 
     # Assert the trace doesn't inherit from the distributed trace
     root = test_spans.find_span(name="django.request")
-    assert root.get_tag("span.kind") == "server"
+    assert root._get_str_attribute("span.kind") == "server"
     assert root.trace_id != 12345
     assert root.parent_id is None
 
@@ -2094,9 +2094,9 @@ def test_trace_query_string_integration_enabled(client, test_spans):
         assert client.get("/?key1=value1&key2=value2").status_code == 200
 
     sp_request = test_spans.get_root_span()
-    assert sp_request.get_tag("span.kind") == "server"
+    assert sp_request._get_str_attribute("span.kind") == "server"
     assert sp_request.name == "django.request"
-    assert sp_request.get_tag(http.QUERY_STRING) == "key1=value1&key2=value2"
+    assert sp_request._get_str_attribute(http.QUERY_STRING) == "key1=value1&key2=value2"
 
 
 def test_disabled_caches(client, test_spans):
@@ -2141,7 +2141,7 @@ def test_template():
     assert len(spans) == 2
 
     span = spans[1]
-    assert span.get_tag("django.template.name") == "my-template"
+    assert span._get_str_attribute("django.template.name") == "my-template"
     setup.__exit__(None, None, None)
 
 
@@ -2189,7 +2189,7 @@ def test_template_name():
     assert len(spans) == 1
 
     (span,) = spans
-    assert span.get_tag("django.template.name") == "/my-template"
+    assert span._get_str_attribute("django.template.name") == "/my-template"
     assert span.resource == "/my-template"
     setup.__exit__(None, None, None)
 
@@ -2264,15 +2264,15 @@ def test_user_name_included(client, test_spans, pk_type):
 
     # user name should be present in root span tags
     root = test_spans.get_root_span()
-    assert root.get_tag("django.user.name") == "Jane Doe"
-    assert root.get_tag("django.user.is_authenticated") == "True"
+    assert root._get_str_attribute("django.user.name") == "Jane Doe"
+    assert root._get_str_attribute("django.user.is_authenticated") == "True"
 
     if pk_type == "int":
-        assert root.get_tag(user.ID) == "1"
+        assert root._get_str_attribute(user.ID) == "1"
     else:
-        assert root.get_tag(user.ID) is not None
+        assert root._get_str_attribute(user.ID) is not None
         try:
-            uuid.UUID(root.get_tag(user.ID))
+            uuid.UUID(root._get_str_attribute(user.ID))
         except ValueError:
             assert False, "User ID span tag was not a valid UUID"
 
@@ -2291,14 +2291,14 @@ def test_user_name_excluded(client, test_spans, pk_type):
 
     # user name should not be present in root span tags
     root = test_spans.get_root_span()
-    assert "django.user.name" not in root.get_tags()
-    assert root.get_tag("django.user.is_authenticated") == "True"
+    assert "django.user.name" not in root._get_str_attributes()
+    assert root._get_str_attribute("django.user.is_authenticated") == "True"
     if pk_type == "int":
-        assert root.get_tag(user.ID) == "1"
+        assert root._get_str_attribute(user.ID) == "1"
     else:
-        assert root.get_tag(user.ID) is not None
+        assert root._get_str_attribute(user.ID) is not None
         try:
-            uuid.UUID(root.get_tag(user.ID))
+            uuid.UUID(root._get_str_attribute(user.ID))
         except ValueError:
             assert False, "User ID span tag was not a valid UUID"
 
@@ -2624,7 +2624,7 @@ class TestWSGI:
         if django.VERSION >= (2, 2, 0):
             meta["http.route"] = "^$"
 
-        assert http.QUERY_STRING not in root.get_tags()
+        assert http.QUERY_STRING not in root._get_str_attributes()
         root.assert_matches(
             name="django.request",
             service="django",
@@ -2654,9 +2654,9 @@ class TestWSGI:
         root = test_spans.get_root_span()
 
         assert root.error == 1
-        assert root.get_tag("http.status_code") == "500"
-        assert root.get_tag(http.URL) == "http://testserver/error-500/"
-        assert root.get_tag("django.response.class") == "django.http.response.HttpResponseServerError"
+        assert root._get_str_attribute("http.status_code") == "500"
+        assert root._get_str_attribute(http.URL) == "http://testserver/error-500/"
+        assert root._get_str_attribute("django.response.class") == "django.http.response.HttpResponseServerError"
         if django.VERSION >= (2, 2, 0):
             assert root.resource == "GET ^error-500/$"
         else:
@@ -2688,12 +2688,12 @@ def test_django_get_user(client, test_spans):
     root = test_spans.get_root_span()
 
     # Values defined in tests/contrib/django/views.py::identify
-    assert root.get_tag(user.ID) == "usr.id"
-    assert root.get_tag(user.EMAIL) == "usr.email"
-    assert root.get_tag(user.SESSION_ID) == "usr.session_id"
-    assert root.get_tag(user.NAME) == "usr.name"
-    assert root.get_tag(user.ROLE) == "usr.role"
-    assert root.get_tag(user.SCOPE) == "usr.scope"
+    assert root._get_str_attribute(user.ID) == "usr.id"
+    assert root._get_str_attribute(user.EMAIL) == "usr.email"
+    assert root._get_str_attribute(user.SESSION_ID) == "usr.session_id"
+    assert root._get_str_attribute(user.NAME) == "usr.name"
+    assert root._get_str_attribute(user.ROLE) == "usr.role"
+    assert root._get_str_attribute(user.SCOPE) == "usr.scope"
 
 
 @pytest.mark.skipif(django.VERSION < (2, 0, 0), reason="")

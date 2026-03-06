@@ -66,13 +66,13 @@ class PyMySQLCore(object):
         assert span.name == "pymysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
-        assert span.get_tag("component") == "pymysql"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "mysql"
+        assert span._get_numeric_attribute("network.destination.port") == MYSQL_CONFIG.get("port")
+        assert span._get_str_attribute("component") == "pymysql"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "mysql"
         meta = {}
         meta.update(self.DB_INFO)
-        assert_dict_issuperset(span.get_tags(), meta)
+        assert_dict_issuperset(span._get_str_attributes(), meta)
 
     def test_simple_query_fetchall(self):
         with self.override_config("pymysql", dict(trace_fetch_methods=True)):
@@ -91,13 +91,13 @@ class PyMySQLCore(object):
             assert span.name == "pymysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
-            assert span.get_tag("component") == "pymysql"
-            assert span.get_tag("span.kind") == "client"
-            assert span.get_tag("db.system") == "mysql"
+            assert span._get_numeric_attribute("network.destination.port") == MYSQL_CONFIG.get("port")
+            assert span._get_str_attribute("component") == "pymysql"
+            assert span._get_str_attribute("span.kind") == "client"
+            assert span._get_str_attribute("db.system") == "mysql"
             meta = {}
             meta.update(self.DB_INFO)
-            assert_dict_issuperset(span.get_tags(), meta)
+            assert_dict_issuperset(span._get_str_attributes(), meta)
 
             fetch_span = spans[1]
             assert fetch_span.name == "pymysql.query.fetchall"
@@ -243,10 +243,10 @@ class PyMySQLCore(object):
         assert span.name == "pymysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+        assert span._get_numeric_attribute("network.destination.port") == MYSQL_CONFIG.get("port")
         meta = {}
         meta.update(self.DB_INFO)
-        assert_dict_issuperset(span.get_tags(), meta)
+        assert_dict_issuperset(span._get_str_attributes(), meta)
 
     def test_commit(self):
         conn = self._get_conn()
@@ -299,11 +299,11 @@ class TestPyMysqlPatch(PyMySQLCore, TracerTestCase):
             assert span.name == "pymysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == MYSQL_CONFIG.get("port")
+            assert span._get_numeric_attribute("network.destination.port") == MYSQL_CONFIG.get("port")
 
             meta = {}
             meta.update(self.DB_INFO)
-            assert_dict_issuperset(span.get_tags(), meta)
+            assert_dict_issuperset(span._get_str_attributes(), meta)
         finally:
             unpatch()
 

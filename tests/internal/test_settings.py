@@ -462,7 +462,7 @@ call_apm_tracing_rc(_base_rc_config({"tracing_tags": ["team:onboarding"]}), conf
 
 with tracer.trace("test") as span:
     pass
-assert span.get_tag("team") == "onboarding", span._meta
+assert span.get_tag("team") == "onboarding", span._get_str_attributes()
 
 call_apm_tracing_rc(_base_rc_config({}), config)
 with tracer.trace("test") as span:
@@ -586,7 +586,7 @@ with tracer.trace("test_rc_override") as span2:
     trace_utils.set_http_meta(span2,
                               config.falcon,  # randomly chosen http integration config
                               request_headers={"X-Header-Tag-420": "foobarbanana", "X-Header-Tag-419": "helloworld"})
-assert span2.get_tag("header_tag_420") == "foobarbanana", span2._meta
+assert span2.get_tag("header_tag_420") == "foobarbanana", span2._get_str_attributes()
 assert span2.get_tag("env_set_tag_name") is None
 
 config._http._reset()

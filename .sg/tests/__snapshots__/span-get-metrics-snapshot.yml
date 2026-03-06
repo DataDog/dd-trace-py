@@ -1,0 +1,23 @@
+id: span-get-metrics
+snapshots:
+  ? |
+    metrics = span.get_metrics()
+    for key, value in metrics.items():
+        process(key, value)
+  : labels:
+    - source: span.get_metrics()
+      style: primary
+      start: 10
+      end: 28
+  self.get_metrics():
+    labels:
+    - source: self.get_metrics()
+      style: primary
+      start: 0
+      end: 18
+  span.get_metrics():
+    labels:
+    - source: span.get_metrics()
+      style: primary
+      start: 0
+      end: 18

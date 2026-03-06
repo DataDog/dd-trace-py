@@ -40,8 +40,8 @@ class TestLLMObsBedrock:
 
         expected_event = _expected_llmobs_llm_span_event(
             span,
-            model_name=span.get_tag("bedrock.request.model"),
-            model_provider=span.get_tag("bedrock.request.model_provider"),
+            model_name=span._get_str_attribute("bedrock.request.model"),
+            model_provider=span._get_str_attribute("bedrock.request.model_provider"),
             input_messages=expected_input,
             output_messages=expected_output,
             metadata=expected_parameters,
@@ -252,14 +252,14 @@ class TestLLMObsBedrock:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
-            model_name=span.get_tag("bedrock.request.model"),
-            model_provider=span.get_tag("bedrock.request.model_provider"),
+            model_name=span._get_str_attribute("bedrock.request.model"),
+            model_provider=span._get_str_attribute("bedrock.request.model_provider"),
             input_messages=[{"content": mock.ANY}],
             metadata=metadata,
             output_messages=[{"content": ""}],
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
+            error=span._get_str_attribute("error.type"),
+            error_message=span._get_str_attribute("error.message"),
+            error_stack=span._get_str_attribute("error.stack"),
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
@@ -332,9 +332,9 @@ class TestLLMObsBedrock:
                 "temperature": request_params.get("inferenceConfig", {}).get("temperature", 0.0),
                 "max_tokens": request_params.get("inferenceConfig", {}).get("maxTokens", 0),
             },
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
+            error=span._get_str_attribute("error.type"),
+            error_message=span._get_str_attribute("error.message"),
+            error_stack=span._get_str_attribute("error.stack"),
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 

@@ -3,6 +3,7 @@ import bm.utils as utils
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
+from ddtrace.trace import Span as SpanClass
 from ddtrace.trace import tracer
 
 
@@ -21,6 +22,7 @@ class Span(Scenario):
     record_exception: bool
     set_status: bool
     update_name: bool
+    set_attributes: bool
 
     cprofile_loops: int = 200
 
@@ -32,6 +34,18 @@ class Span(Scenario):
         # run scenario to also set metrics on spans
         metrics = utils.gen_metrics(self)
         setmetrics = len(metrics) > 0
+
+        # Span._set_attributes accepts dict[str, str | int | float]
+        setattributes = self.set_attributes
+        attributes: dict[str, str | int | float] = {}
+        if setattributes and hasattr(SpanClass, "_set_attributes"):
+            setmetrics = False
+            settags = False
+            attributes.update(tags)
+            attributes.update(metrics)
+        else:
+            # If we don't have _set_attributes, call both set_tags and set_metrics
+            setattributes = False
 
         # run scenario to include finishing spans
         # Note - if finishspan is False the span will be gc'd when the SpanAggregrator._traces is reset
@@ -64,6 +78,8 @@ class Span(Scenario):
                         s.set_tags(tags)
                     if setmetrics:
                         s.set_metrics(metrics)
+                    if setattributes:
+                        s._set_attributes(attributes)
                     if add_event:
                         s._add_event("test.event", test_attributes)
                     if add_link:

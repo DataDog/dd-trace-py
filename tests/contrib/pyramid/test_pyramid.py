@@ -50,10 +50,10 @@ class TestPyramid(PyramidTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("component") == "pyramid"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute("component") == "pyramid"
+        assert s._get_str_attribute("span.kind") == "server"
 
-        assert s.get_tag("http.request.headers.my-header") == "my_value"
+        assert s._get_str_attribute("http.request.headers.my-header") == "my_value"
 
     def test_http_response_header_tracing(self):
         config.pyramid.http.trace_headers(["my-response-header"])
@@ -65,7 +65,7 @@ class TestPyramid(PyramidTestCase):
         assert len(spans) == 1
         s = spans[0]
 
-        assert s.get_tag("http.response.headers.my-response-header") == "my_response_value"
+        assert s._get_str_attribute("http.response.headers.my-response-header") == "my_response_value"
 
 
 class TestPyramidDistributedTracingDefault(PyramidBase):
@@ -88,12 +88,12 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
-        assert span.get_tag("component") == "pyramid"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("component") == "pyramid"
+        assert span._get_str_attribute("span.kind") == "server"
         assert span.trace_id == 100
         assert span.parent_id == 42
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-        assert span.get_tag(_ORIGIN_KEY) == "synthetics"
+        assert span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == 2
+        assert span._get_str_attribute(_ORIGIN_KEY) == "synthetics"
 
     def test_distributed_tracing_patterned(self):
         # ensure the Context is properly created
@@ -109,14 +109,14 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
-        assert span.get_tag("component") == "pyramid"
-        assert span.get_tag("span.kind") == "server"
-        assert span.get_tag("pyramid.route.name") == "hello_patterned"
-        assert span.get_tag("http.route") == "/hello/{param}"
+        assert span._get_str_attribute("component") == "pyramid"
+        assert span._get_str_attribute("span.kind") == "server"
+        assert span._get_str_attribute("pyramid.route.name") == "hello_patterned"
+        assert span._get_str_attribute("http.route") == "/hello/{param}"
         assert span.trace_id == 100
         assert span.parent_id == 42
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-        assert span.get_tag(_ORIGIN_KEY) == "synthetics"
+        assert span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == 2
+        assert span._get_str_attribute(_ORIGIN_KEY) == "synthetics"
 
 
 class TestPyramidDistributedTracingDisabled(PyramidBase):
@@ -140,12 +140,12 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         assert len(spans) == 1
         # check the propagated Context
         span = spans[0]
-        assert span.get_tag("component") == "pyramid"
-        assert span.get_tag("span.kind") == "server"
+        assert span._get_str_attribute("component") == "pyramid"
+        assert span._get_str_attribute("span.kind") == "server"
         assert span.trace_id != 100
         assert span.parent_id != 42
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert span.get_tag(_ORIGIN_KEY) != "synthetics"
+        assert span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) != 2
+        assert span._get_str_attribute(_ORIGIN_KEY) != "synthetics"
 
 
 class TestSchematization(PyramidBase):

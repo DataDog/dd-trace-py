@@ -31,12 +31,12 @@ def traced_function(rule, tracer, name="test_name", service="test_service", trac
 def assert_sampling_decision_tags(
     span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling=False
 ):
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
+    assert span._get_numeric_attribute(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
+    assert span._get_numeric_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
+    assert span._get_numeric_attribute(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling:
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) > 0
+        assert span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) > 0
 
 
 def test_single_rule_init_via_env():

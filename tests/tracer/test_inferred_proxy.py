@@ -40,27 +40,27 @@ def test_create_inferred_proxy_span_for_apigateway(
     assert span.name == span_name
     assert span.name in SUPPORTED_PROXY_SPAN_NAMES
     assert span.span_type == "web"
-    assert span.get_tag("span.kind") == "server"
+    assert span._get_str_attribute("span.kind") == "server"
     if not missing_resource_path:
         assert span.resource == "POST /{Path}"
     else:
         assert span.resource == "POST /http-api-path"
     assert span.service == "id.execute-api.us-east-1.amazonaws.com"
     assert span.start_ns == 1736973768000 * 1000000
-    assert span.get_tag("component") == proxy_header
-    assert span.get_tag("http.method") == "POST"
-    assert span.get_tag("http.url") == "https://id.execute-api.us-east-1.amazonaws.com/http-api-path"
+    assert span._get_str_attribute("component") == proxy_header
+    assert span._get_str_attribute("http.method") == "POST"
+    assert span._get_str_attribute("http.url") == "https://id.execute-api.us-east-1.amazonaws.com/http-api-path"
     if not missing_resource_path:
-        assert span.get_tag("http.route") == "/{Path}"
-    assert span.get_tag("stage") == "prod"
-    assert span.get_tag("account_id") == "123456789012"
-    assert span.get_tag("apiid") == "abcdef123456"
-    assert span.get_tag("region") == "us-east-1"
-    assert span.get_tag("aws_user") == "apigw-user"
+        assert span._get_str_attribute("http.route") == "/{Path}"
+    assert span._get_str_attribute("stage") == "prod"
+    assert span._get_str_attribute("account_id") == "123456789012"
+    assert span._get_str_attribute("apiid") == "abcdef123456"
+    assert span._get_str_attribute("region") == "us-east-1"
+    assert span._get_str_attribute("aws_user") == "apigw-user"
     if proxy_header == "aws-httpapi":
-        assert span.get_tag("dd_resource_key") == "arn:aws:apigateway:us-east-1::/apis/abcdef123456"
+        assert span._get_str_attribute("dd_resource_key") == "arn:aws:apigateway:us-east-1::/apis/abcdef123456"
     elif proxy_header == "aws-apigateway":
-        assert span.get_tag("dd_resource_key") == "arn:aws:apigateway:us-east-1::/restapis/abcdef123456"
+        assert span._get_str_attribute("dd_resource_key") == "arn:aws:apigateway:us-east-1::/restapis/abcdef123456"
 
     assert ctx.get_item("inferred_proxy_finish_callback") is not None
 

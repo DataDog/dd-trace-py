@@ -123,10 +123,10 @@ def _wrap_urlopen(func, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.urllib3),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span._set_tag_str(COMPONENT, config.urllib3.integration_name)
+        span._set_attribute(COMPONENT, config.urllib3.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         if config.urllib3.split_by_domain:
             span.service = hostname
@@ -157,6 +157,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 response_headers={} if response is None else dict(response.headers),
                 retries_remain=retries,
             )
-            span._set_tag_str(net.SERVER_ADDRESS, instance.host)
+            span._set_attribute(net.SERVER_ADDRESS, instance.host)
 
         return response

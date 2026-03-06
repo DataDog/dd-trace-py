@@ -1,0 +1,22 @@
+id: span-set-tags
+snapshots:
+  self.set_tags(tags):
+    labels:
+    - source: self.set_tags(tags)
+      style: primary
+      start: 0
+      end: 19
+  ? |
+    span = tracer.start_span("op")
+    span.set_tags({"http.url": url, "http.method": method})
+  : labels:
+    - source: 'span.set_tags({"http.url": url, "http.method": method})'
+      style: primary
+      start: 31
+      end: 86
+  'span.set_tags({"key": "value"})':
+    labels:
+    - source: 'span.set_tags({"key": "value"})'
+      style: primary
+      start: 0
+      end: 31

@@ -92,7 +92,7 @@ class PsycopgCore(TracerTestCase):
             dict(name="postgres.query", resource=q, service=service, error=0, span_type="sql"),
         )
         root = self.get_root_span()
-        self.assertIsNone(root.get_tag("sql.query"))
+        self.assertIsNone(root._get_str_attribute("sql.query"))
         assert start <= root.start <= end
         assert root.duration <= end - start
         self.reset()
@@ -123,9 +123,9 @@ class PsycopgCore(TracerTestCase):
             ),
         )
         root = self.get_root_span()
-        assert root.get_tag("component") == "psycopg"
+        assert root._get_str_attribute("component") == "psycopg"
         assert_is_measured(root)
-        self.assertIsNone(root.get_tag("sql.query"))
+        self.assertIsNone(root._get_str_attribute("sql.query"))
         self.reset()
 
     def test_psycopg2_connection_with_string(self):

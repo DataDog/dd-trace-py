@@ -80,18 +80,18 @@ class AlgoliasearchTest(TracerTestCase):
         assert span.span_type == "http"
         assert span.error == 0
         assert span.service == "algoliasearch"
-        assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
+        assert span._get_str_attribute("query.args.attributes_to_retrieve") == "firstname,lastname"
         # Verify that adding new arguments to the search API will simply be ignored and not cause
         # errors
-        assert span.get_tag("query.args.unsupported_totally_new_argument") is None
-        assert span.get_metric("processing_time_ms") == 23
-        assert span.get_metric("number_of_hits") == 1
-        assert span.get_tag("component") == "algoliasearch"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("query.args.unsupported_totally_new_argument") is None
+        assert span._get_numeric_attribute("processing_time_ms") == 23
+        assert span._get_numeric_attribute("number_of_hits") == 1
+        assert span._get_str_attribute("component") == "algoliasearch"
+        assert span._get_str_attribute("span.kind") == "client"
 
         # Verify query_text, which may contain sensitive data, is not passed along
         # unless the config value is appropriately set
-        assert span.get_tag("query.text") is None
+        assert span._get_str_attribute("query.text") is None
 
     def test_algoliasearch_with_query_text(self):
         self.patch_algoliasearch()
@@ -103,9 +103,9 @@ class AlgoliasearchTest(TracerTestCase):
         )
         spans = self.get_spans()
         span = spans[0]
-        assert span.get_tag("query.text") == "test search"
-        assert span.get_tag("query.args.attributes_to_retrieve") == "firstname,lastname"
-        assert span.get_tag("query.args.unsupportedTotallyNewArgument") is None
+        assert span._get_str_attribute("query.text") == "test search"
+        assert span._get_str_attribute("query.args.attributes_to_retrieve") == "firstname,lastname"
+        assert span._get_str_attribute("query.args.unsupportedTotallyNewArgument") is None
         config.algoliasearch.collect_query_text = original
 
     def test_algoliasearch_with_query_args_nontext(self):
@@ -116,9 +116,9 @@ class AlgoliasearchTest(TracerTestCase):
         self.perform_search("test search", {"hitsPerPage": 1, "page": 3})
         spans = self.get_spans()
         span = spans[0]
-        assert span.get_tag("query.text") == "test search"
-        assert span.get_metric("query.args.page") == 3
-        assert span.get_metric("query.args.hits_per_page") == 1
+        assert span._get_str_attribute("query.text") == "test search"
+        assert span._get_numeric_attribute("query.args.page") == 3
+        assert span._get_numeric_attribute("query.args.hits_per_page") == 1
         config.algoliasearch.collect_query_text = original
 
     def test_patch_unpatch(self):

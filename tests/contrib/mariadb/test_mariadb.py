@@ -67,10 +67,10 @@ def test_simple_query(connection, tracer, test_spans):
     assert span.name == "mariadb.query"
     assert span.span_type == "sql"
     assert span.error == 0
-    assert span.get_metric("network.destination.port") == 3306
+    assert span._get_numeric_attribute("network.destination.port") == 3306
 
     assert_dict_issuperset(
-        span.get_tags(),
+        span._get_str_attributes(),
         {
             "out.host": "127.0.0.1",
             "db.name": "test",
@@ -114,7 +114,7 @@ def test_query_executemany(connection, tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     span = spans[-1]
-    assert span.get_tag("mariadb.query") is None
+    assert span._get_str_attribute("mariadb.query") is None
     cursor.execute("drop table if exists dummy")
 
 

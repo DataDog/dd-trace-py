@@ -88,7 +88,7 @@ class AutoTestRetriesHandler(RetryHandler):
         if test_run.attempt_number == 0:
             return
 
-        test_run.set_tags(
+        test_run.set_tags(  # ast-grep-ignore: span-set-tags
             {
                 TestTag.IS_RETRY: TAG_TRUE,
                 TestTag.RETRY_REASON: "auto_test_retry",
@@ -153,7 +153,7 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         if test_run.attempt_number == 0:
             return
 
-        test_run.set_tags(
+        test_run.set_tags(  # ast-grep-ignore: span-set-tags
             {
                 TestTag.IS_RETRY: TAG_TRUE,
                 TestTag.RETRY_REASON: "early_flake_detection",
@@ -197,7 +197,7 @@ class AttemptToFixHandler(RetryHandler):
         elif status_counts[TestStatus.FAIL] == total_count:
             final_tags[TestTag.HAS_FAILED_ALL_RETRIES] = TAG_TRUE
 
-        test.last_test_run.set_tags(final_tags)
+        test.last_test_run.set_tags(final_tags)  # ast-grep-ignore: span-set-tags
 
         return final_status
 
@@ -205,7 +205,7 @@ class AttemptToFixHandler(RetryHandler):
         if test_run.attempt_number == 0:
             return
 
-        test_run.set_tags(
+        test_run.set_tags(  # ast-grep-ignore: span-set-tags
             {
                 TestTag.IS_RETRY: TAG_TRUE,
                 TestTag.RETRY_REASON: "attempt_to_fix",

@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-import logging
 import os
 import signal
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -22,11 +20,11 @@ def test_single_trace_single_span(tracer):
     from ddtrace.trace import tracer
 
     s = tracer.trace("operation", service="my-svc")
-    s.set_tag("k", "v")
+    s._set_attribute("k", "v")
     # numeric tag
-    s.set_tag("num", 1234)
-    s.set_metric("float_metric", 12.34)
-    s.set_metric("int_metric", 4321)
+    s._set_attribute("num", 1234)
+    s._set_attribute("float_metric", 12.34)
+    s._set_attribute("int_metric", 4321)
     s.finish()
     tracer.flush()
 
@@ -60,17 +58,17 @@ def test_multiple_traces(tracer):
     from ddtrace.trace import tracer
 
     with tracer.trace("operation1", service="my-svc") as s:
-        s.set_tag("k", "v")
-        s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("k", "v")
+        s._set_attribute("num", 1234)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
 
     with tracer.trace("operation2", service="my-svc") as s:
-        s.set_tag("k", "v")
-        s.set_tag("num", 1234)
-        s.set_metric("float_metric", 12.34)
-        s.set_metric("int_metric", 4321)
+        s._set_attribute("k", "v")
+        s._set_attribute("num", 1234)
+        s._set_attribute("float_metric", 12.34)
+        s._set_attribute("int_metric", 4321)
         tracer.trace("child").finish()
     tracer.flush()
 
@@ -90,7 +88,7 @@ def test_filters():
 
         def process_trace(self, trace):
             for s in trace:
-                s.set_tag(self.key, self.value)
+                s._set_attribute(self.key, self.value)
             return trace
 
     tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
@@ -230,62 +228,6 @@ def test_wrong_service_type_not_sent():
         assert span.service is None
 
 
-@pytest.mark.parametrize(
-    "meta",
-    [
-        ({"env": "my-env", "tag1": "some_str_1", "tag2": "some_str_2", "tag3": [1, 2, 3]}),
-        ({"env": "test-env", b"tag1": {"wrong_type": True}, b"tag2": "some_str_2", b"tag3": "some_str_3"}),
-        ({"env": "my-test-env", "😐": "some_str_1", b"tag2": "some_str_2", "unicode": 12345}),
-        ({"env": set([1, 2, 3])}),
-        ({"env": None}),
-        ({"env": True}),
-        ({"env": 1.0}),
-    ],
-)
-@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-def test_trace_with_wrong_meta_types_not_sent(encoding, meta, monkeypatch):
-    """Wrong meta types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        logger = logging.getLogger("ddtrace.internal._encoding")
-        with mock.patch.object(logger, "warning") as log_warning:
-            with tracer.trace("root") as root:
-                root._meta = meta
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._meta = meta
-
-            assert log_warning.call_count == 300
-            log_warning.assert_called_with(
-                "[span ID %d] Meta key %r has non-string value %r, skipping", mock.ANY, mock.ANY, mock.ANY
-            )
-
-
-@pytest.mark.parametrize(
-    "metrics,expected_warning_count",
-    [
-        ({"num1": 12345, "num2": 53421, "num3": 1, "num4": "not-a-number"}, 300),
-        ({b"num1": 123.45, b"num2": [1, 2, 3], b"num3": 11.0, b"num4": 1.20}, 300),
-        ({"😐": "123.45", b"num2": "1", "num3": {"is_number": False}, "num4": "12345"}, 1200),
-    ],
-)
-@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
-def test_trace_with_wrong_metrics_types_not_sent(encoding, metrics, expected_warning_count):
-    """Wrong metric types should raise TypeErrors during encoding and fail to send to the agent."""
-    with override_global_config(dict(_trace_api=encoding)):
-        logger = logging.getLogger("ddtrace.internal._encoding")
-        with mock.patch.object(logger, "warning") as log_warning:
-            with tracer.trace("root") as root:
-                root._metrics = metrics
-                for _ in range(299):
-                    with tracer.trace("child") as child:
-                        child._metrics = metrics
-
-            assert log_warning.call_count == expected_warning_count
-            log_warning.assert_called_with(
-                "[span ID %d] Metric key %r has non-numeric value %r, skipping", mock.ANY, mock.ANY, mock.ANY
-            )
-
-
 @pytest.mark.subprocess()
 @pytest.mark.snapshot()
 def test_tracetagsprocessor_only_adds_new_tags():
@@ -296,7 +238,7 @@ def test_tracetagsprocessor_only_adds_new_tags():
 
     with tracer.trace(name="web.request") as span:
         span.context.sampling_priority = AUTO_KEEP
-        span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
+        span._set_attribute(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.flush()
 
@@ -346,10 +288,10 @@ def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
 
     with override_global_config(dict(_trace_api=encoding)):
         s = tracer.trace("operation", service="my-svc")
-        s.set_tag("env", "my-env")
-        s.set_metric("number1", 123)
-        s.set_metric("number2", 12.0)
-        s.set_metric("number3", "1")
+        s._set_attribute("env", "my-env")
+        s._set_attribute("number1", 123)
+        s._set_attribute("number2", 12.0)
+        s._set_attribute("number3", "1")
         s.finish()
 
 
@@ -360,7 +302,7 @@ def test_encode_span_with_large_string_attributes(encoding):
 
     with override_global_config(dict(_trace_api=encoding)):
         with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
-            span.set_tag(key="c" * 25001, value="d" * 2000)
+            span._set_attribute(key="c" * 25001, value="d" * 2000)
 
 
 @pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
@@ -370,7 +312,7 @@ def test_encode_span_with_large_unicode_string_attributes(encoding):
 
     with override_global_config(dict(_trace_api=encoding)):
         with tracer.trace(name="á" * 25000, resource="â" * 25001) as span:
-            span.set_tag(key="å" * 25001, value="ä" * 2000)
+            span._set_attribute(key="å" * 25001, value="ä" * 2000)
 
 
 @pytest.mark.snapshot

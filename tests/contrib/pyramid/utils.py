@@ -62,20 +62,20 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "GET index"
         assert s.error == 0
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
-        assert s.get_tag("component") == "pyramid"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute("http.method") == "GET"
+        assert s._get_str_attribute("component") == "pyramid"
+        assert s._get_str_attribute("span.kind") == "server"
         assert_span_http_status_code(s, 200)
         if config.pyramid.trace_query_string:
-            assert s.get_tag(http.QUERY_STRING) == query_string
+            assert s._get_str_attribute(http.QUERY_STRING) == query_string
         else:
-            assert http.QUERY_STRING not in s.get_tags()
+            assert http.QUERY_STRING not in s._get_str_attributes()
 
         if config._http_tag_query_string:
-            assert s.get_tag(http.URL) == "http://localhost/" + fqs
+            assert s._get_str_attribute(http.URL) == "http://localhost/" + fqs
         else:
-            assert s.get_tag(http.URL) == "http://localhost/"
-        assert s.get_tag("pyramid.route.name") == "index"
+            assert s._get_str_attribute(http.URL) == "http://localhost/"
+        assert s._get_str_attribute("pyramid.route.name") == "index"
 
     def test_200_query_string(self):
         return self.test_200("foo=bar")
@@ -95,9 +95,9 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "404"
         assert s.error == 0
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 404)
-        assert s.get_tag(http.URL) == "http://localhost/404"
+        assert s._get_str_attribute(http.URL) == "http://localhost/404"
 
     def test_302(self):
         self.app.get("/redirect", status=302)
@@ -110,9 +110,9 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "GET raise_redirect"
         assert s.error == 0
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 302)
-        assert s.get_tag(http.URL) == "http://localhost/redirect"
+        assert s._get_str_attribute(http.URL) == "http://localhost/redirect"
 
     def test_204(self):
         self.app.get("/nocontent", status=204)
@@ -125,9 +125,9 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "GET raise_no_content"
         assert s.error == 0
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 204)
-        assert s.get_tag(http.URL) == "http://localhost/nocontent"
+        assert s._get_str_attribute(http.URL) == "http://localhost/nocontent"
 
     def test_exception(self):
         try:
@@ -143,10 +143,10 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "GET exception"
         assert s.error == 1
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 500)
-        assert s.get_tag(http.URL) == "http://localhost/exception"
-        assert s.get_tag("pyramid.route.name") == "exception"
+        assert s._get_str_attribute(http.URL) == "http://localhost/exception"
+        assert s._get_str_attribute("pyramid.route.name") == "exception"
 
     def test_500(self):
         self.app.get("/error", status=500)
@@ -159,10 +159,10 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "GET error"
         assert s.error == 1
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 500)
-        assert s.get_tag(http.URL) == "http://localhost/error"
-        assert s.get_tag("pyramid.route.name") == "error"
+        assert s._get_str_attribute(http.URL) == "http://localhost/error"
+        assert s._get_str_attribute("pyramid.route.name") == "error"
         assert type(s.error) == int
 
     def test_json(self):
@@ -179,10 +179,10 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "GET json"
         assert s.error == 0
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.URL) == "http://localhost/json"
-        assert s.get_tag("pyramid.route.name") == "json"
+        assert s._get_str_attribute(http.URL) == "http://localhost/json"
+        assert s._get_str_attribute("pyramid.route.name") == "json"
 
         s = spans_by_name["pyramid.render"]
         assert s.service == "foobar"
@@ -203,10 +203,10 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "GET renderer"
         assert s.error == 0
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.URL) == "http://localhost/renderer"
-        assert s.get_tag("pyramid.route.name") == "renderer"
+        assert s._get_str_attribute(http.URL) == "http://localhost/renderer"
+        assert s._get_str_attribute("pyramid.route.name") == "renderer"
 
         s = spans_by_name["pyramid.render"]
         assert s.service == "foobar"
@@ -225,9 +225,9 @@ class PyramidTestCase(PyramidBase):
         assert s.resource == "404"
         assert s.error == 1
         assert s.span_type == "web"
-        assert s.get_tag("http.method") == "GET"
+        assert s._get_str_attribute("http.method") == "GET"
         assert_span_http_status_code(s, 404)
-        assert s.get_tag(http.URL) == "http://localhost/404/raise_exception"
+        assert s._get_str_attribute(http.URL) == "http://localhost/404/raise_exception"
 
     def test_insert_tween_if_needed_already_set(self):
         settings = {"pyramid.tweens": "ddtrace.contrib.pyramid:trace_tween_factory"}

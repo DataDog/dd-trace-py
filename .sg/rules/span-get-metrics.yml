@@ -1,0 +1,12 @@
+id: span-get-metrics
+language: Python
+severity: error
+message: >
+  Use span._get_numeric_attributes() instead of span.get_metrics().
+note: >
+  get_metrics() is a thin wrapper around _get_numeric_attributes(). Internal code should
+  call _get_numeric_attributes() directly to avoid the indirection.
+rule:
+  pattern: $X.get_metrics()
+ignores:
+  - tests/tracer/test_span_public_api.py

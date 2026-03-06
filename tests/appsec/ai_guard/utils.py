@@ -34,8 +34,8 @@ def assert_ai_guard_span(
 ) -> None:
     span = find_ai_guard_span(test_spans)
     for tag, value in tags.items():
-        assert tag in span.get_tags(), f"Missing {tag} from spans tags"
-        assert span.get_tag(tag) == value, f"Wrong value {span.get_tag(tag)}, expected {value}"
+        assert tag in span._get_str_attributes(), f"Missing {tag} from spans tags"
+        assert span._get_str_attribute(tag) == value, f"Wrong value {span._get_str_attribute(tag)}, expected {value}"
     struct = span._get_struct_tag(AI_GUARD.TAG)
     for meta, value in meta_struct.items():
         assert meta in struct.keys(), f"Missing {meta} from meta_struct keys"

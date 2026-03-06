@@ -120,7 +120,7 @@ def test_produce_single_server(kafka_tracer, test_spans, producer, kafka_topic):
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     produce_span = traces[0][0]
-    assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
+    assert produce_span._get_str_attribute("messaging.kafka.bootstrap.servers") == BOOTSTRAP_SERVERS
 
 
 def test_produce_none_key(kafka_tracer, test_spans, producer, kafka_topic):
@@ -139,7 +139,7 @@ def test_produce_multiple_servers(kafka_tracer, test_spans, kafka_topic):
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     produce_span = traces[0][0]
-    assert produce_span.get_tag("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
+    assert produce_span._get_str_attribute("messaging.kafka.bootstrap.servers") == ",".join([BOOTSTRAP_SERVERS] * 3)
 
 
 def test_produce_topicname(kafka_tracer, test_spans, producer, kafka_topic):
@@ -149,7 +149,7 @@ def test_produce_topicname(kafka_tracer, test_spans, producer, kafka_topic):
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     produce_span = traces[0][0]
-    assert produce_span.get_tag("messaging.destination.name") == kafka_topic
+    assert produce_span._get_str_attribute("messaging.destination.name") == kafka_topic
 
 
 @pytest.mark.parametrize("tombstone", [False, True])
@@ -350,14 +350,14 @@ def test_tracing_context_is_not_propagated_by_default(kafka_tracer, test_spans, 
     produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
-            if span.get_tag("kafka.received_message") == "True":
-                if span.get_tag("kafka.message_key") == test_key:
+            if span._get_str_attribute("kafka.received_message") == "True":
+                if span._get_str_attribute("kafka.message_key") == test_key:
                     consume_span = span
 
     # kafka.produce span is created without a parent
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
-    assert produce_span.get_tag("pathway.hash") is not None
+    assert produce_span._get_str_attribute("pathway.hash") is not None
 
     # None of the kafka.consume spans have parents
     assert consume_span.name == "kafka.consume"
@@ -528,11 +528,11 @@ def test_tracing_with_serialization_works(kafka_tracer, test_spans, kafka_topic)
     produce_span = traces[0][0]
     consume_span = traces[len(traces) - 1][0]
 
-    assert produce_span.get_tag("kafka.message_key") is not None
+    assert produce_span._get_str_attribute("kafka.message_key") is not None
 
     # consumer span will not have tag set since we can't serialize the deserialized key from the original type to
     # a string
-    assert consume_span.get_tag("kafka.message_key") is None
+    assert consume_span._get_str_attribute("kafka.message_key") is None
 
 
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
@@ -548,7 +548,7 @@ def test_traces_empty_poll_by_default(kafka_tracer, test_spans, consumer, kafka_
         for span in trace:
             try:
                 assert span.name == "kafka.consume"
-                assert span.get_tag("kafka.received_message") == "False"
+                assert span._get_str_attribute("kafka.received_message") == "False"
                 empty_poll_span_created = True
             except AssertionError:
                 pass

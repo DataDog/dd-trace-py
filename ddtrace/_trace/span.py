@@ -35,7 +35,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -102,10 +101,8 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "_meta",
         "_meta_struct",
         "context",
-        "_metrics",
         "_store",
         # Internal attributes
         "_parent_context",
@@ -155,9 +152,6 @@ class Span(SpanData):
         :param object context: the Context of the span.
         :param on_finish: list of functions called when the span finishes.
         """
-        self._meta: dict[str, str] = {}
-        self._metrics: dict[str, NumericType] = {}
-
         self._meta_struct: dict[str, dict[str, Any]] = {}
 
         self._on_finish_callbacks = [] if on_finish is None else on_finish
@@ -186,10 +180,12 @@ class Span(SpanData):
 
     def _update_tags_from_context(self) -> None:
         with self.context:
-            for tag in self.context._meta:
-                self._meta.setdefault(tag, self.context._meta[tag])
-            for metric in self.context._metrics:
-                self._metrics.setdefault(metric, self.context._metrics[metric])
+            for tag, tag_value in self.context._meta.items():
+                if not self._has_attribute(tag):
+                    self._set_attribute(tag, tag_value)
+            for metric, metric_value in self.context._metrics.items():
+                if not self._has_attribute(metric):
+                    self._set_attribute(metric, metric_value)
 
     def _ignore_exception(self, exc: type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -238,8 +234,7 @@ class Span(SpanData):
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
-                if key in self._local_root._metrics:
-                    del self._local_root._metrics[key]
+                self._local_root._remove_attribute(key)
 
     def _set_sampling_decision_maker(
         self,
@@ -280,12 +275,12 @@ class Span(SpanData):
 
         # Set integers that are less than equal to 2^53 as metrics
         if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self._set_attribute(key, value)  # type: ignore
             return
 
         # All floats should be set as a metric
         elif isinstance(value, float):
-            self.set_metric(key, value)
+            self._set_attribute(key, value)
             return
 
         elif key == MANUAL_KEEP_KEY:
@@ -299,19 +294,17 @@ class Span(SpanData):
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
-            self.set_tag(VERSION_KEY, value)
+            self.set_tag(VERSION_KEY, value)  # ast-grep-ignore: span-set-tag
         elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self._set_attribute(key, value)  # type: ignore
             return
 
         try:
-            self._meta[key] = str(value)
-            if key in self._metrics:
-                del self._metrics[key]
+            self._set_attribute(key, str(value))
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
@@ -326,25 +319,13 @@ class Span(SpanData):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def _set_tag_str(self, key: str, value: str) -> None:
-        """Set a value for a tag. Values are coerced to unicode in Python 2 and
-        str in Python 3, with decoding errors in conversion being replaced with
-        U+FFFD.
-        """
-        try:
-            self._meta[key] = ensure_text(value, errors="replace")
-        except Exception as e:
-            if config._raise:
-                raise e
-            log.warning("Failed to set text tag '%s'", key, exc_info=True)
-
     def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
-        return self._meta.get(key, None)
+        return self._get_str_attribute(key)
 
     def get_tags(self) -> dict[str, str]:
         """Return all tags."""
-        return self._meta.copy()
+        return self._get_str_attributes()
 
     def set_tags(self, tags: dict[str, str]) -> None:
         """Set a dictionary of tags on the given span. Keys and values
@@ -352,7 +333,7 @@ class Span(SpanData):
         """
         if tags:
             for k, v in iter(tags.items()):
-                self.set_tag(k, v)
+                self.set_tag(k, v)  # ast-grep-ignore: span-set-tag
 
     def set_metric(self, key: str, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
@@ -380,9 +361,7 @@ class Span(SpanData):
             log.debug("ignoring not real metric %s:%s", key, value)
             return
 
-        if key in self._meta:
-            del self._meta[key]
-        self._metrics[key] = value
+        self._set_attribute(key, value)
 
     def set_metrics(self, metrics: dict[str, NumericType]) -> None:
         """Set a dictionary of metrics on the given span. Keys must be
@@ -390,11 +369,11 @@ class Span(SpanData):
         """
         if metrics:
             for k, v in metrics.items():
-                self.set_metric(k, v)
+                self._set_attribute(k, v)
 
     def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""
-        return self._metrics.get(key)
+        return self._get_numeric_attribute(key)
 
     def _add_event(
         self, name: str, attributes: Optional[dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
@@ -407,7 +386,7 @@ class Span(SpanData):
 
     def get_metrics(self) -> dict[str, NumericType]:
         """Return all metrics."""
-        return self._metrics.copy()
+        return self._get_numeric_attributes()
 
     def set_traceback(self, limit: Optional[int] = None):
         """If the current stack has an exception, tag the span with the
@@ -423,7 +402,7 @@ class Span(SpanData):
             if limit is None:
                 limit = config._span_traceback_max_size
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
-            self._meta[ERROR_STACK] = tb
+            self._set_attribute(ERROR_STACK, tb)
 
     def _get_traceback(
         self,
@@ -492,18 +471,18 @@ class Span(SpanData):
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
-        self._meta[ERROR_TYPE] = exc_type_str
+        self._set_attribute(ERROR_TYPE, exc_type_str)
 
         try:
-            self._meta[ERROR_MSG] = str(exc_val)
+            self._set_attribute(ERROR_MSG, str(exc_val))
         except Exception:
             # An exception can occur if a custom Exception overrides __str__
             # If this happens str(exc_val) won't work, so best we can do is print the class name
             # Otherwise, don't try to set an error message
             if exc_val and hasattr(exc_val, "__class__"):
-                self._meta[ERROR_MSG] = exc_val.__class__.__name__
+                self._set_attribute(ERROR_MSG, exc_val.__class__.__name__)
 
-        self._meta[ERROR_STACK] = tb
+        self._set_attribute(ERROR_STACK, tb)
 
         # some web integrations like bottle rely on set_exc_info to get the error tags, so we need to dispatch
         # this event such that the additional tags for inferred aws api gateway spans can be appended here.
@@ -729,8 +708,8 @@ class Span(SpanData):
             f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
             f"duration={self.duration_ns}, "
             f"error={self.error}, "
-            f"tags={self._meta}, "
-            f"metrics={self._metrics}, "
+            f"tags={self._get_str_attributes()}, "
+            f"metrics={self._get_numeric_attributes()}, "
             f"links={self._links}, "
             f"events={self._events}, "
             f"context={self.context}, "

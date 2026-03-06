@@ -64,10 +64,10 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             (span,) = self.get_spans()
 
             assert span.name == "traceme"
-            assert span.get_tag("test.tag") == "42"
-            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
+            assert span._get_str_attribute("test.tag") == "42"
+            assert span._get_str_attribute("_dd.di.test.tag.probe_id") == "span-decoration"
             assert (
-                span.get_tag("_dd.di.test.bad.evaluation_error")
+                span._get_str_attribute("_dd.di.test.bad.evaluation_error")
                 == "'Failed to evaluate expression \"test\": No such local variable: \\'notathing\\''"
             )
 
@@ -106,10 +106,10 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             (span,) = self.get_spans()
 
             assert span.name == "traceme"
-            assert int(span.get_tag("test.tag"))
-            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
+            assert int(span._get_str_attribute("test.tag"))
+            assert span._get_str_attribute("_dd.di.test.tag.probe_id") == "span-decoration"
             assert (
-                span.get_tag("_dd.di.test.bad.evaluation_error")
+                span._get_str_attribute("_dd.di.test.bad.evaluation_error")
                 == "'Failed to evaluate expression \"test\": No such local variable: \\'notathing\\''"
             )
 
@@ -146,8 +146,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             (span,) = self.get_spans()
 
             assert span.name == "traceme"
-            assert span.get_tag("test.tag") == "test.value"
-            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
+            assert span._get_str_attribute("test.tag") == "test.value"
+            assert span._get_str_attribute("_dd.di.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_on_traced_function_active_span(self):
         with debugger() as d:
@@ -173,8 +173,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             (span,) = self.get_spans()
 
             assert span.name == "traceme"
-            assert span.get_tag("test.tag") == "test.value"
-            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
+            assert span._get_str_attribute("test.tag") == "test.value"
+            assert span._get_str_attribute("_dd.di.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_in_traced_function_active_span(self):
         with debugger() as d:
@@ -199,8 +199,8 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             (span,) = self.get_spans()
 
             assert span.name == "traceme"
-            assert span.get_tag("test.tag") == "test.value"
-            assert span.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
+            assert span._get_str_attribute("test.tag") == "test.value"
+            assert span._get_str_attribute("_dd.di.test.tag.probe_id") == "span-decoration"
 
     def test_debugger_span_decoration_probe_in_traced_function_root_span(self):
         with debugger() as d:
@@ -227,9 +227,9 @@ class SpanDecorationProbeTestCase(TracerTestCase):
             parent, child = self.get_spans()
 
             assert parent is root
-            assert parent.get_tag("test.tag") == "🍰"
-            assert parent.get_tag("_dd.di.test.tag.probe_id") == "span-decoration"
+            assert parent._get_str_attribute("test.tag") == "🍰"
+            assert parent._get_str_attribute("_dd.di.test.tag.probe_id") == "span-decoration"
 
             assert child.name == "traceme"
-            assert child.get_tag("test.tag") is None
-            assert child.get_tag("_dd.di.test.tag.probe_id") is None
+            assert child._get_str_attribute("test.tag") is None
+            assert child._get_str_attribute("_dd.di.test.tag.probe_id") is None

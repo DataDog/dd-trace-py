@@ -98,17 +98,17 @@ def test_otel_span_status_with_status_obj(oteltracer, caplog):
     with oteltracer.start_span("otel-unset") as unsetspan:
         unsetspan.set_status(OtelStatus(OtelStatusCode.UNSET, "is unset"))
         assert unsetspan._ddspan.error == 0
-        assert "is unset" not in unsetspan._ddspan.get_tags().values()
+        assert "is unset" not in unsetspan._ddspan._get_str_attributes().values()
 
     with oteltracer.start_span("otel-ok") as okspan:
         okspan.set_status(OtelStatus(OtelStatusCode.OK, "ok was set"))
         assert okspan._ddspan.error == 0
-        assert "ok was set" not in okspan._ddspan.get_tags().values()
+        assert "ok was set" not in okspan._ddspan._get_str_attributes().values()
 
     with oteltracer.start_span("otel-error") as errspan:
         errspan.set_status(OtelStatus(OtelStatusCode.ERROR, "error message for otel span"))
         assert errspan._ddspan.error == 1
-        assert errspan._ddspan.get_tag("error.message") in "error message for otel span"
+        assert errspan._ddspan._get_str_attribute("error.message") in "error message for otel span"
 
     with oteltracer.start_span("otel-error-dup-description") as errspan_dup_des:
         with caplog.at_level(logging.DEBUG):
@@ -116,7 +116,7 @@ def test_otel_span_status_with_status_obj(oteltracer, caplog):
                 OtelStatus(OtelStatusCode.ERROR, "main otel err message"), "ot_duplicate_message"
             )
         assert errspan_dup_des._ddspan.error == 1
-        assert errspan_dup_des._ddspan.get_tag("error.message") in "main otel err message"
+        assert errspan_dup_des._ddspan._get_str_attribute("error.message") in "main otel err message"
         assert (
             "Conflicting descriptions detected. The following description will not be set "
             "on the otel-error-dup-description span: ot_duplicate_message. Ensure `Span.set_status(...)` "
@@ -130,24 +130,24 @@ def test_otel_span_status_with_status_obj(oteltracer, caplog):
     assert span1._ddspan.error == 0
     span1.set_status(OtelStatus(OtelStatusCode.ERROR, "error message for otel span"))
     assert span1._ddspan.error == 0
-    assert span1._ddspan.get_tag("error.message") is None
+    assert span1._ddspan._get_str_attribute("error.message") is None
 
 
 def test_otel_span_status_with_status_code(oteltracer):
     with oteltracer.start_span("otel-unset") as unsetspan:
         unsetspan.set_status(OtelStatusCode.UNSET, "is unset")
         assert unsetspan._ddspan.error == 0
-        assert "is unset" not in unsetspan._ddspan.get_tags().values()
+        assert "is unset" not in unsetspan._ddspan._get_str_attributes().values()
 
     with oteltracer.start_span("otel-ok") as okspan:
         okspan.set_status(OtelStatusCode.OK, "otel is okay")
         assert okspan._ddspan.error == 0
-        assert "otel is okay" not in okspan._ddspan.get_tags().values()
+        assert "otel is okay" not in okspan._ddspan._get_str_attributes().values()
 
     with oteltracer.start_span("otel-error") as errspan:
         errspan.set_status(OtelStatusCode.ERROR, "error message for otel span")
         assert errspan._ddspan.error == 1
-        assert errspan._ddspan.get_tag("error.message") == "error message for otel span"
+        assert errspan._ddspan._get_str_attribute("error.message") == "error message for otel span"
 
     with oteltracer.start_span("set-status-code-on-otel-span") as span2:
         pass
@@ -155,7 +155,7 @@ def test_otel_span_status_with_status_code(oteltracer):
     assert span2._ddspan.error == 0
     span2.set_status(OtelStatusCode.ERROR, "some otel error message")
     assert span2._ddspan.error == 0
-    assert span2._ddspan.get_tag("error.message") is None
+    assert span2._ddspan._get_str_attribute("error.message") is None
 
 
 def test_otel_add_event(oteltracer):
@@ -199,9 +199,9 @@ def test_otel_span_exception_handling(oteltracer):
             raise Exception("Sorry Friend, I failed you")
 
     assert span._ddspan.error == 1
-    assert span._ddspan._meta["error.message"] == "Sorry Friend, I failed you"
-    assert span._ddspan._meta["error.type"] == "builtins.Exception"
-    assert span._ddspan._meta["error.stack"] is not None
+    assert span._ddspan._get_attribute("error.message") == "Sorry Friend, I failed you"
+    assert span._ddspan._get_attribute("error.type") == "builtins.Exception"
+    assert span._ddspan._get_attribute("error.stack") is not None
 
 
 def test_otel_get_span_context(oteltracer):

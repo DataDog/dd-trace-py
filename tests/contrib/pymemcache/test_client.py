@@ -72,10 +72,10 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         get_key_missing_span = spans[1]
 
         assert get_key_exists_span.resource == "get"
-        assert get_key_exists_span.get_metric("db.row_count") == 1
+        assert get_key_exists_span._get_numeric_attribute("db.row_count") == 1
 
         assert get_key_missing_span.resource == "get"
-        assert get_key_missing_span.get_metric("db.row_count") == 0
+        assert get_key_missing_span._get_numeric_attribute("db.row_count") == 0
 
     def test_append_stored(self):
         client = self.make_client([b"STORED\r\n"])
@@ -182,10 +182,10 @@ class PymemcacheClientTestCase(PymemcacheClientTestCaseMixin):
         gets_key_missing_span = spans[1]
 
         assert gets_key_exists_span.resource == "gets"
-        assert gets_key_exists_span.get_metric("db.row_count") == 1
+        assert gets_key_exists_span._get_numeric_attribute("db.row_count") == 1
 
         assert gets_key_missing_span.resource == "gets"
-        assert gets_key_missing_span.get_metric("db.row_count") == 0
+        assert gets_key_missing_span._get_numeric_attribute("db.row_count") == 0
 
     def test_touch_not_found(self):
         client = self.make_client([b"NOT_FOUND\r\n"])

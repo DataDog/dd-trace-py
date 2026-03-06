@@ -32,9 +32,9 @@ def test_global_tags(vertexai, test_spans):
     span = test_spans.pop_traces()[0][0]
     assert span.resource == "GenerativeModel.generate_content"
     assert span.service == "test-svc"
-    assert span.get_tag("env") == "staging"
-    assert span.get_tag("version") == "1234"
-    assert span.get_tag("vertexai.request.model") == "gemini-1.5-flash"
+    assert span._get_str_attribute("env") == "staging"
+    assert span._get_str_attribute("version") == "1234"
+    assert span._get_str_attribute("vertexai.request.model") == "gemini-1.5-flash"
 
 
 @pytest.mark.snapshot(token="tests.contrib.vertexai.test_vertexai.test_vertexai_completion")

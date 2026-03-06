@@ -53,10 +53,10 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert span.name == "valkey.command"
         assert span.span_type == "valkey"
         assert span.error == 0
-        assert span.get_tag("valkey.raw_command") == "GET cheese"
-        assert span.get_tag("component") == "valkey"
-        assert span.get_tag("db.system") == "valkey"
-        assert span.get_metric("valkey.args_length") == 2
+        assert span._get_str_attribute("valkey.raw_command") == "GET cheese"
+        assert span._get_str_attribute("component") == "valkey"
+        assert span._get_str_attribute("db.system") == "valkey"
+        assert span._get_numeric_attribute("valkey.args_length") == 2
         assert span.resource == "GET"
 
     def test_unicode(self):
@@ -74,10 +74,10 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert span.name == "valkey.command"
         assert span.span_type == "valkey"
         assert span.error == 0
-        assert span.get_tag("valkey.raw_command") == "GET 😐"
-        assert span.get_tag("component") == "valkey"
-        assert span.get_tag("db.system") == "valkey"
-        assert span.get_metric("valkey.args_length") == 2
+        assert span._get_str_attribute("valkey.raw_command") == "GET 😐"
+        assert span._get_str_attribute("component") == "valkey"
+        assert span._get_str_attribute("db.system") == "valkey"
+        assert span._get_numeric_attribute("valkey.args_length") == 2
         assert span.resource == "GET"
 
     def test_pipeline(self):
@@ -94,9 +94,9 @@ class TestValkeyClusterPatch(TracerTestCase):
         assert span.resource == "SET\nRPUSH\nHGETALL"
         assert span.span_type == "valkey"
         assert span.error == 0
-        assert span.get_tag("valkey.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
-        assert span.get_tag("component") == "valkey"
-        assert span.get_metric("valkey.pipeline_length") == 3
+        assert span._get_str_attribute("valkey.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+        assert span._get_str_attribute("component") == "valkey"
+        assert span._get_numeric_attribute("valkey.pipeline_length") == 3
 
     def test_patch_unpatch(self):
         # Test patch idempotence
@@ -119,7 +119,7 @@ class TestValkeyClusterPatch(TracerTestCase):
         r.get("key")
 
         spans = self.pop_spans()
-        valkey_spans = [s for s in spans if s.get_tag("component") == "valkey"]
+        valkey_spans = [s for s in spans if s._get_str_attribute("component") == "valkey"]
         assert not valkey_spans, valkey_spans
 
         # Test patch again

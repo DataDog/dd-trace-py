@@ -96,11 +96,8 @@ def test_civisibility_intake_payloads():
             s = t.trace("operation", service="svc-no-cov")
             s.finish()
             span = t.trace("operation2", service="my-svc2")
-            span.set_tag(
-                COVERAGE_TAG_NAME,
-                '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
-                + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}',
-            )
+            span._set_attribute(COVERAGE_TAG_NAME, '{"files": [{"filename": "test_cov.py", "segments": [[5, 0, 5, 0, -1]]}, '
+            + '{"filename": "test_module.py", "segments": [[2, 0, 2, 0, -1]]}]}')
             span.finish()
             conn = t._span_aggregator.writer._conn
             t.shutdown()

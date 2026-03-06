@@ -168,8 +168,8 @@ class TestRun(TestItem["Test", t.NoReturn]):
     def set_context(self, context: TestContext) -> None:
         self.span_id = context.span_id
         self.trace_id = context.trace_id
-        self.set_tags(context.get_tags())
-        self.set_metrics(context.get_metrics())
+        self.set_tags(context._get_str_attributes())  # ast-grep-ignore: span-get-tags, span-set-tags
+        self.set_metrics(context._get_numeric_attributes())  # ast-grep-ignore: span-get-metrics, span-set-metrics
 
     def is_retry(self) -> bool:
         return self.attempt_number > 0

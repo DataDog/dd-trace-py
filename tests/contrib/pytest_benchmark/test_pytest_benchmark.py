@@ -44,48 +44,48 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_tag(TEST_TYPE) == "benchmark"
-        assert spans[0].get_tag(BENCHMARK_INFO) == "Time"
+        assert spans[0]._get_str_attribute(TEST_TYPE) == "benchmark"
+        assert spans[0]._get_str_attribute(BENCHMARK_INFO) == "Time"
 
-        assert isinstance(spans[0].get_metric(BENCHMARK_MEAN), (float, int))
-        assert isinstance(spans[0].get_metric(BENCHMARK_RUN), int)
-        assert isinstance(spans[0].get_metric(STATISTICS_HD15IQR), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_IQR), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_IQR_OUTLIERS), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_LD15IQR), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_MAX), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_MEAN), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_MEDIAN), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_MIN), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_OPS), (float, int))
-        assert isinstance(spans[0].get_tag(STATISTICS_OUTLIERS), str)
-        assert isinstance(spans[0].get_metric(STATISTICS_Q1), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_Q3), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_N), int)
-        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS), (float, int))
-        assert isinstance(spans[0].get_metric(STATISTICS_TOTAL), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(BENCHMARK_MEAN), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(BENCHMARK_RUN), int)
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_HD15IQR), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_IQR), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_IQR_OUTLIERS), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_LD15IQR), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_MAX), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_MEAN), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_MEDIAN), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_MIN), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_OPS), (float, int))
+        assert isinstance(spans[0]._get_str_attribute(STATISTICS_OUTLIERS), str)
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_Q1), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_Q3), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_N), int)
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_STDDEV), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_STDDEV_OUTLIERS), (float, int))
+        assert isinstance(spans[0]._get_numeric_attribute(STATISTICS_TOTAL), (float, int))
 
-        assert spans[0].get_metric(BENCHMARK_MEAN) > 0.0002
-        assert spans[0].get_metric(BENCHMARK_RUN) > 0
-        assert spans[0].get_metric(STATISTICS_HD15IQR) is not None
-        assert spans[0].get_metric(STATISTICS_IQR) is not None
-        assert spans[0].get_metric(STATISTICS_IQR_OUTLIERS) is not None
-        assert spans[0].get_metric(STATISTICS_LD15IQR) is not None
-        assert spans[0].get_metric(STATISTICS_MAX) > 0.0002
-        assert spans[0].get_metric(STATISTICS_MEAN) > 0.0002
-        assert spans[0].get_metric(STATISTICS_MEDIAN) > 0.0002
-        assert spans[0].get_metric(STATISTICS_MIN) > 0.0002
-        assert spans[0].get_metric(STATISTICS_OPS) > 0
-        assert spans[0].get_tag(STATISTICS_OUTLIERS) is not None
-        assert spans[0].get_metric(STATISTICS_Q1) > 0
-        assert spans[0].get_metric(STATISTICS_Q3) > 0
-        assert spans[0].get_metric(STATISTICS_N) > 0
-        assert spans[0].get_metric(STATISTICS_STDDEV) is not None
-        assert spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS) is not None
-        assert spans[0].get_metric(STATISTICS_TOTAL) > 0.0002
-        assert spans[0].get_metric(BENCHMARK_RUN) == spans[0].get_metric(STATISTICS_N)
-        assert spans[0].get_metric(BENCHMARK_MEAN) == spans[0].get_metric(STATISTICS_MEAN)
+        assert spans[0]._get_numeric_attribute(BENCHMARK_MEAN) > 0.0002
+        assert spans[0]._get_numeric_attribute(BENCHMARK_RUN) > 0
+        assert spans[0]._get_numeric_attribute(STATISTICS_HD15IQR) is not None
+        assert spans[0]._get_numeric_attribute(STATISTICS_IQR) is not None
+        assert spans[0]._get_numeric_attribute(STATISTICS_IQR_OUTLIERS) is not None
+        assert spans[0]._get_numeric_attribute(STATISTICS_LD15IQR) is not None
+        assert spans[0]._get_numeric_attribute(STATISTICS_MAX) > 0.0002
+        assert spans[0]._get_numeric_attribute(STATISTICS_MEAN) > 0.0002
+        assert spans[0]._get_numeric_attribute(STATISTICS_MEDIAN) > 0.0002
+        assert spans[0]._get_numeric_attribute(STATISTICS_MIN) > 0.0002
+        assert spans[0]._get_numeric_attribute(STATISTICS_OPS) > 0
+        assert spans[0]._get_str_attribute(STATISTICS_OUTLIERS) is not None
+        assert spans[0]._get_numeric_attribute(STATISTICS_Q1) > 0
+        assert spans[0]._get_numeric_attribute(STATISTICS_Q3) > 0
+        assert spans[0]._get_numeric_attribute(STATISTICS_N) > 0
+        assert spans[0]._get_numeric_attribute(STATISTICS_STDDEV) is not None
+        assert spans[0]._get_numeric_attribute(STATISTICS_STDDEV_OUTLIERS) is not None
+        assert spans[0]._get_numeric_attribute(STATISTICS_TOTAL) > 0.0002
+        assert spans[0]._get_numeric_attribute(BENCHMARK_RUN) == spans[0]._get_numeric_attribute(STATISTICS_N)
+        assert spans[0]._get_numeric_attribute(BENCHMARK_MEAN) == spans[0]._get_numeric_attribute(STATISTICS_MEAN)
 
     def test_span_no_benchmark(self):
         """Test without benchmark."""
@@ -106,25 +106,25 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_tag(TEST_TYPE) == "test"
-        assert spans[0].get_tag(BENCHMARK_INFO) is None
-        assert spans[0].get_metric(BENCHMARK_MEAN) is None
-        assert spans[0].get_metric(BENCHMARK_RUN) is None
-        assert spans[0].get_metric(STATISTICS_HD15IQR) is None
-        assert spans[0].get_metric(STATISTICS_IQR) is None
-        assert spans[0].get_metric(STATISTICS_IQR_OUTLIERS) is None
-        assert spans[0].get_metric(STATISTICS_LD15IQR) is None
-        assert spans[0].get_metric(STATISTICS_MAX) is None
-        assert spans[0].get_metric(STATISTICS_MEAN) is None
-        assert spans[0].get_metric(STATISTICS_MEDIAN) is None
-        assert spans[0].get_metric(STATISTICS_MIN) is None
-        assert spans[0].get_metric(STATISTICS_OPS) is None
-        assert spans[0].get_tag(STATISTICS_OUTLIERS) is None
-        assert spans[0].get_metric(STATISTICS_Q1) is None
-        assert spans[0].get_metric(STATISTICS_Q3) is None
-        assert spans[0].get_metric(STATISTICS_N) is None
-        assert spans[0].get_metric(STATISTICS_STDDEV) is None
-        assert spans[0].get_metric(STATISTICS_STDDEV_OUTLIERS) is None
-        assert spans[0].get_metric(STATISTICS_TOTAL) is None
-        assert spans[0].get_metric(BENCHMARK_RUN) == spans[0].get_metric(STATISTICS_N)
-        assert spans[0].get_metric(BENCHMARK_MEAN) == spans[0].get_metric(STATISTICS_MEAN)
+        assert spans[0]._get_str_attribute(TEST_TYPE) == "test"
+        assert spans[0]._get_str_attribute(BENCHMARK_INFO) is None
+        assert spans[0]._get_numeric_attribute(BENCHMARK_MEAN) is None
+        assert spans[0]._get_numeric_attribute(BENCHMARK_RUN) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_HD15IQR) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_IQR) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_IQR_OUTLIERS) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_LD15IQR) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_MAX) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_MEAN) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_MEDIAN) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_MIN) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_OPS) is None
+        assert spans[0]._get_str_attribute(STATISTICS_OUTLIERS) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_Q1) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_Q3) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_N) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_STDDEV) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_STDDEV_OUTLIERS) is None
+        assert spans[0]._get_numeric_attribute(STATISTICS_TOTAL) is None
+        assert spans[0]._get_numeric_attribute(BENCHMARK_RUN) == spans[0]._get_numeric_attribute(STATISTICS_N)
+        assert spans[0]._get_numeric_attribute(BENCHMARK_MEAN) == spans[0]._get_numeric_attribute(STATISTICS_MEAN)

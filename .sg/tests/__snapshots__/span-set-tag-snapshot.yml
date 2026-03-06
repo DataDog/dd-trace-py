@@ -1,0 +1,40 @@
+id: span-set-tag
+snapshots:
+  ci_item.set_tag(test.STATUS, TestStatus.PASS):
+    labels:
+    - source: ci_item.set_tag(test.STATUS, TestStatus.PASS)
+      style: primary
+      start: 0
+      end: 45
+  llmobs_span.set_tag("key", "value"):
+    labels:
+    - source: llmobs_span.set_tag("key", "value")
+      style: primary
+      start: 0
+      end: 35
+  self.set_tag("component", "mylib"):
+    labels:
+    - source: self.set_tag("component", "mylib")
+      style: primary
+      start: 0
+      end: 34
+  ? |
+    span = tracer.start_span("op")
+    span.set_tag("http.url", url)
+  : labels:
+    - source: span.set_tag("http.url", url)
+      style: primary
+      start: 31
+      end: 60
+  span.set_tag("key", "value"):
+    labels:
+    - source: span.set_tag("key", "value")
+      style: primary
+      start: 0
+      end: 28
+  span.set_tag(ERROR_TYPE, exc.__class__.__name__):
+    labels:
+    - source: span.set_tag(ERROR_TYPE, exc.__class__.__name__)
+      style: primary
+      start: 0
+      end: 48

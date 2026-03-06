@@ -1,0 +1,22 @@
+id: span-set-metric
+snapshots:
+  self.set_metric(ANALYTICS_SAMPLE_RATE_KEY, rate):
+    labels:
+    - source: self.set_metric(ANALYTICS_SAMPLE_RATE_KEY, rate)
+      style: primary
+      start: 0
+      end: 48
+  ? |
+    span = tracer.start_span("op")
+    span.set_metric("db.row_count", row_count)
+  : labels:
+    - source: span.set_metric("db.row_count", row_count)
+      style: primary
+      start: 31
+      end: 73
+  span.set_metric("_dd.measured", 1):
+    labels:
+    - source: span.set_metric("_dd.measured", 1)
+      style: primary
+      start: 0
+      end: 34

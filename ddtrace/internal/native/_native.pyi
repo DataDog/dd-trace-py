@@ -1,8 +1,10 @@
+from collections.abc import Mapping
 from enum import Enum
 from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import TypeVar
+from typing import Union
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
 
@@ -542,6 +544,43 @@ class SpanData:
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+
+    # Write methods
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
+    def _set_attributes(self, attrs: Mapping[str, Union[str, int, float]]) -> None: ...
+    def _remove_attribute(self, key: str) -> None: ...
+
+    # Read methods — typed single-key accessors (prefer these for general use)
+    def _get_attribute(self, key: str) -> Union[str, float, None]: ...
+    def _get_str_attribute(self, key: str) -> Optional[str]: ...
+    def _get_numeric_attribute(self, key: str) -> Optional[float]: ...
+    def _has_attribute(self, key: str) -> bool: ...
+
+    # Bulk read methods — encoder helpers only, do not use elsewhere
+    def _get_str_attributes(self) -> dict[str, str]:
+        """Return all string attributes as the live internal dict cache (no copy).
+
+        **Encoder helper — do not use in general code.** Prefer ``_get_str_attribute`` for
+        single-key reads.
+
+        **Do not mutate the returned mapping.**  It is the internal cache kept in sync with the
+        Rust HashMap.  Mutating it directly bypasses that sync and corrupts internal state.
+        The underlying object is a ``PyDict`` — a deliberate performance optimisation so that
+        encoders can use ``PyDict_Next`` for zero-copy iteration.
+        """
+        ...
+    def _get_numeric_attributes(self) -> dict[str, float]:
+        """Return all numeric attributes as the live internal dict cache (no copy).
+
+        **Encoder helper — do not use in general code.** Prefer ``_get_numeric_attribute`` for
+        single-key reads.
+
+        **Do not mutate the returned mapping.**  It is the internal cache kept in sync with the
+        Rust HashMap.  Mutating it directly bypasses that sync and corrupts internal state.
+        The underlying object is a ``PyDict`` — a deliberate performance optimisation so that
+        encoders can use ``PyDict_Next`` for zero-copy iteration.
+        """
+        ...
 
 class SpanEventData:
     def __init__(self, name: str, attributes: Optional[dict[str, Any]], time_unix_nano: Optional[int]): ...

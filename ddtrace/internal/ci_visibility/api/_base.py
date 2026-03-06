@@ -173,11 +173,11 @@ class TestVisibilityItemBase(abc.ABC):
 
         try:
             if isinstance(tag_value, str):
-                self._span._set_tag_str(tag, tag_value)
+                self._span._set_attribute(tag, tag_value)
             elif isinstance(tag_value, bool):
-                self._span._set_tag_str(tag, "true" if tag_value else "false")
+                self._span._set_attribute(tag, "true" if tag_value else "false")
             else:
-                self._span.set_tag(tag, tag_value)
+                self._span.set_tag(tag, tag_value)  # ast-grep-ignore: span-set-tag
         except Exception as e:
             log.debug("Error setting tag %s: %s", tag, e)
 
@@ -199,8 +199,8 @@ class TestVisibilityItemBase(abc.ABC):
             activate=True,
         )
         # Setting initial tags is necessary for integrations that might look at the span before it is finished
-        self._span.set_tag(EVENT_TYPE, self._event_type)
-        self._span.set_tag(SPAN_KIND, "test")
+        self._span.set_tag(EVENT_TYPE, self._event_type)  # ast-grep-ignore: span-set-tag
+        self._span.set_tag(SPAN_KIND, "test")  # ast-grep-ignore: span-set-tag
         log.debug("Started span %s for item %s", self._span, self)
 
     @_require_span
@@ -256,7 +256,7 @@ class TestVisibilityItemBase(abc.ABC):
         reported as successful.
         """
 
-        self.set_tags(
+        self.set_tags(  # ast-grep-ignore: span-set-tags
             {
                 COMPONENT: self._session_settings.test_framework,
                 test.FRAMEWORK: self._session_settings.test_framework,
@@ -267,7 +267,7 @@ class TestVisibilityItemBase(abc.ABC):
         )
 
         if self._codeowners:
-            self.set_tag(test.CODEOWNERS, json.dumps(self._codeowners))
+            self.set_tag(test.CODEOWNERS, json.dumps(self._codeowners))  # ast-grep-ignore: span-set-tag
 
         if self._source_file_info is not None:
             if self._source_file_info.path:
@@ -277,11 +277,11 @@ class TestVisibilityItemBase(abc.ABC):
                 except ValueError:
                     log.debug("Source file path is not within the root directory, replacing with absolute path")
                     relative_path = self._source_file_info.path
-                self.set_tag(test.SOURCE_FILE, str(relative_path))
+                self.set_tag(test.SOURCE_FILE, str(relative_path))  # ast-grep-ignore: span-set-tag
             if self._source_file_info.start_line is not None:
-                self.set_tag(test.SOURCE_START, self._source_file_info.start_line)
+                self.set_tag(test.SOURCE_START, self._source_file_info.start_line)  # ast-grep-ignore: span-set-tag
             if self._source_file_info.end_line is not None:
-                self.set_tag(test.SOURCE_END, self._source_file_info.end_line)
+                self.set_tag(test.SOURCE_END, self._source_file_info.end_line)  # ast-grep-ignore: span-set-tag
 
     def _set_item_tags(self) -> None:
         """Overridable by subclasses to set tags specific to the item type"""
@@ -293,11 +293,11 @@ class TestVisibilityItemBase(abc.ABC):
             return
 
         if self._is_itr_skipped:
-            self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)
-        self.set_tag(test.ITR_SKIPPED, self._is_itr_skipped)
+            self.set_tag(test.SKIP_REASON, SKIPPED_BY_ITR_REASON)  # ast-grep-ignore: span-set-tag
+        self.set_tag(test.ITR_SKIPPED, self._is_itr_skipped)  # ast-grep-ignore: span-set-tag
 
-        self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)
-        self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)
+        self.set_tag(test.ITR_UNSKIPPABLE, self._is_itr_unskippable)  # ast-grep-ignore: span-set-tag
+        self.set_tag(test.ITR_FORCED_RUN, self._is_itr_forced_run)  # ast-grep-ignore: span-set-tag
 
     def _set_efd_tags(self) -> None:
         """EFD tags are only set at the test or session level"""
@@ -375,7 +375,7 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _set_test_hierarchy_tags(self) -> None:
         """Add module, suite, and test name and id tags"""
-        self.set_tags(self._collect_hierarchy_tags())
+        self.set_tags(self._collect_hierarchy_tags())  # ast-grep-ignore: span-set-tags
 
     @abc.abstractmethod
     def _telemetry_record_event_created(self):
@@ -709,11 +709,11 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         if not itr_enabled:
             return
 
-        self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
+        self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)  # ast-grep-ignore: span-set-tag
 
         # Only parent items set skipped counts because tests would always be 1 or 0
         if self._children or self._distributed_children:
-            self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
+            self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)  # ast-grep-ignore: span-set-tag
 
     def set_distributed_children(self) -> None:
         self._distributed_children = True

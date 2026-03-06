@@ -1,0 +1,12 @@
+id: span-set-tags
+valid:
+  # Standalone function call (no receiver)
+  - 'set_tags({"key": "value"})'
+  # Different method names are fine
+  - span._set_attribute("key", "value")
+invalid:
+  - 'span.set_tags({"key": "value"})'
+  - self.set_tags(tags)
+  - |
+    span = tracer.start_span("op")
+    span.set_tags({"http.url": url, "http.method": method})

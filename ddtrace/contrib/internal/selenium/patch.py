@@ -90,7 +90,7 @@ class SeleniumGetWrappingContext(SeleniumWrappingContextBase):
         root_span = tracer.current_root_span()
         test_trace_id = root_span.trace_id
 
-        if root_span is None or root_span.get_tag("type") != "test":
+        if root_span is None or root_span._get_str_attribute("type") != "test":
             return
 
         webdriver_instance = self._get_webdriver_instance()
@@ -112,13 +112,13 @@ class SeleniumGetWrappingContext(SeleniumWrappingContextBase):
         browser_name = webdriver_instance.capabilities.get("browserName")
         browser_version = webdriver_instance.capabilities.get("browserVersion")
 
-        existing_browser_name = root_span.get_tag("test.browser.name")
+        existing_browser_name = root_span._get_str_attribute("test.browser.name")
         if existing_browser_name is None:
             root_span.set_tag("test.browser.name", browser_name)
         elif existing_browser_name not in ["", browser_name]:
             root_span.set_tag("test.browser.name", "")
 
-        existing_browser_version = root_span.get_tag("test.browser.version")
+        existing_browser_version = root_span._get_str_attribute("test.browser.version")
         if existing_browser_version is None:
             root_span.set_tag("test.browser.version", browser_version)
         elif existing_browser_version not in ["", browser_version]:
@@ -129,7 +129,7 @@ class SeleniumQuitWrappingContext(SeleniumWrappingContextBase):
     def _handle_enter(self) -> None:
         root_span = tracer.current_root_span()
 
-        if root_span is None or root_span.get_tag("type") != "test":
+        if root_span is None or root_span._get_str_attribute("type") != "test":
             return
 
         webdriver_instance = self._get_webdriver_instance()

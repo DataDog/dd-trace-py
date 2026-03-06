@@ -38,7 +38,7 @@ class TestVisibilityModule(
         super().__init__(name, session_settings, session_settings.module_operation_name, initial_tags)
 
         self._module_path = module_path.absolute() if module_path else None
-        self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
+        self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)  # ast-grep-ignore: span-set-tag
 
     def _get_hierarchy_tags(self) -> dict[str, str]:
         # Module path is set for module and below
@@ -64,13 +64,13 @@ class TestVisibilityModule(
         """Set module-level tags based in ITR enablement status"""
         super()._set_itr_tags(itr_enabled)
 
-        self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)
+        self.set_tag(test.ITR_TEST_SKIPPING_ENABLED, self._session_settings.itr_test_skipping_enabled)  # ast-grep-ignore: span-set-tag
         if itr_enabled:
-            self.set_tag(
+            self.set_tag(  # ast-grep-ignore: span-set-tag
                 test.ITR_TEST_SKIPPING_TYPE,
                 TEST if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST else SUITE,
             )
-            self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)
+            self.set_tag(test.ITR_DD_CI_ITR_TESTS_SKIPPED, self._itr_skipped_count > 0)  # ast-grep-ignore: span-set-tag
 
     def _telemetry_record_event_created(self):
         record_event_created(

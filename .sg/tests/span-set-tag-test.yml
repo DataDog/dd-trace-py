@@ -1,0 +1,19 @@
+id: span-set-tag
+valid:
+  # Standalone function call (no receiver) — not a method call on an object
+  - set_tag("key", "value")
+  # Different method names are fine
+  - span._set_attribute("key", "value")
+  - span._set_tag_str("key", "value")
+  # Context and Pin do not have set_tag — these patterns do not exist in practice
+invalid:
+  # Direct span usage
+  - span.set_tag("key", "value")
+  - span.set_tag(ERROR_TYPE, exc.__class__.__name__)
+  - self.set_tag("component", "mylib")
+  - |
+    span = tracer.start_span("op")
+    span.set_tag("http.url", url)
+  # LLMObs and CI visibility objects also call set_tag and need migration
+  - llmobs_span.set_tag("key", "value")
+  - ci_item.set_tag(test.STATUS, TestStatus.PASS)

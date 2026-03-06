@@ -181,16 +181,16 @@ class TestVertica(TracerTestCase):
         assert spans[0].service == "vertica"
         assert spans[0].span_type == "sql"
         assert spans[0].name == "vertica.query"
-        assert spans[0].get_metric("db.row_count") == -1
+        assert spans[0]._get_numeric_attribute("db.row_count") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
-        assert spans[0].get_tag("out.host") == "127.0.0.1"
-        assert spans[0].get_metric("network.destination.port") == 5433
-        assert spans[0].get_tag("db.name") == "docker"
-        assert spans[0].get_tag("db.user") == "dbadmin"
-        assert spans[0].get_tag("db.system") == "vertica"
-        assert spans[0].get_tag("component") == "vertica"
-        assert spans[0].get_tag("span.kind") == "client"
+        assert spans[0]._get_str_attribute("out.host") == "127.0.0.1"
+        assert spans[0]._get_numeric_attribute("network.destination.port") == 5433
+        assert spans[0]._get_str_attribute("db.name") == "docker"
+        assert spans[0]._get_str_attribute("db.user") == "dbadmin"
+        assert spans[0]._get_str_attribute("db.system") == "vertica"
+        assert spans[0]._get_str_attribute("component") == "vertica"
+        assert spans[0]._get_str_attribute("span.kind") == "client"
 
         assert spans[1].resource == "SELECT * FROM test_table;"
 
@@ -210,14 +210,14 @@ class TestVertica(TracerTestCase):
         assert spans[0].service == "vertica"
         assert spans[0].span_type == "sql"
         assert spans[0].name == "vertica.query"
-        assert spans[0].get_metric("db.row_count") == -1
+        assert spans[0]._get_numeric_attribute("db.row_count") == -1
         query = "INSERT INTO test_table (a, b) VALUES (1, 'aa');"
         assert spans[0].resource == query
-        assert spans[0].get_tag("out.host") == "127.0.0.1"
-        assert spans[0].get_metric("network.destination.port") == 5433
-        assert spans[0].get_tag("db.system") == "vertica"
-        assert spans[0].get_tag("component") == "vertica"
-        assert spans[0].get_tag("span.kind") == "client"
+        assert spans[0]._get_str_attribute("out.host") == "127.0.0.1"
+        assert spans[0]._get_numeric_attribute("network.destination.port") == 5433
+        assert spans[0]._get_str_attribute("db.system") == "vertica"
+        assert spans[0]._get_str_attribute("component") == "vertica"
+        assert spans[0]._get_str_attribute("span.kind") == "client"
 
         assert spans[1].resource == "SELECT * FROM test_table;"
 
@@ -236,13 +236,13 @@ class TestVertica(TracerTestCase):
         # check all the metadata
         assert spans[0].service == "vertica"
         assert spans[0].error == 1
-        assert "INVALID QUERY" in spans[0].get_tag(ERROR_MSG)
+        assert "INVALID QUERY" in spans[0]._get_str_attribute(ERROR_MSG)
         error_type = "vertica_python.errors.VerticaSyntaxError"
-        assert spans[0].get_tag(ERROR_TYPE) == error_type
-        assert spans[0].get_tag(ERROR_STACK)
-        assert spans[0].get_tag("db.system") == "vertica"
-        assert spans[0].get_tag("component") == "vertica"
-        assert spans[0].get_tag("span.kind") == "client"
+        assert spans[0]._get_str_attribute(ERROR_TYPE) == error_type
+        assert spans[0]._get_str_attribute(ERROR_STACK)
+        assert spans[0]._get_str_attribute("db.system") == "vertica"
+        assert spans[0]._get_str_attribute("component") == "vertica"
+        assert spans[0]._get_str_attribute("span.kind") == "client"
 
         assert spans[1].resource == "COMMIT;"
 
@@ -284,30 +284,30 @@ class TestVertica(TracerTestCase):
 
         # check all the rowcounts
         assert spans[0].name == "vertica.query"
-        assert spans[0].get_tag("span.kind") == "client"
-        assert spans[0].get_tag("db.system") == "vertica"
-        assert spans[0].get_tag("component") == "vertica"
-        assert spans[1].get_metric("db.row_count") == -1
+        assert spans[0]._get_str_attribute("span.kind") == "client"
+        assert spans[0]._get_str_attribute("db.system") == "vertica"
+        assert spans[0]._get_str_attribute("component") == "vertica"
+        assert spans[1]._get_numeric_attribute("db.row_count") == -1
         assert spans[1].name == "vertica.query"
-        assert spans[1].get_tag("span.kind") == "client"
-        assert spans[1].get_metric("db.row_count") == -1
-        assert spans[1].get_tag("db.system") == "vertica"
-        assert spans[1].get_tag("component") == "vertica"
+        assert spans[1]._get_str_attribute("span.kind") == "client"
+        assert spans[1]._get_numeric_attribute("db.row_count") == -1
+        assert spans[1]._get_str_attribute("db.system") == "vertica"
+        assert spans[1]._get_str_attribute("component") == "vertica"
         assert spans[2].name == "vertica.fetchone"
-        assert spans[2].get_tag("out.host") == "127.0.0.1"
-        assert spans[2].get_metric("db.row_count") == 1
-        assert spans[2].get_metric("network.destination.port") == 5433
-        assert spans[2].get_metric("db.row_count") == 1
-        assert spans[2].get_tag("db.system") == "vertica"
-        assert spans[2].get_tag("component") == "vertica"
+        assert spans[2]._get_str_attribute("out.host") == "127.0.0.1"
+        assert spans[2]._get_numeric_attribute("db.row_count") == 1
+        assert spans[2]._get_numeric_attribute("network.destination.port") == 5433
+        assert spans[2]._get_numeric_attribute("db.row_count") == 1
+        assert spans[2]._get_str_attribute("db.system") == "vertica"
+        assert spans[2]._get_str_attribute("component") == "vertica"
         assert spans[3].name == "vertica.fetchone"
-        assert spans[3].get_metric("db.row_count") == 2
-        assert spans[3].get_tag("db.system") == "vertica"
-        assert spans[3].get_tag("component") == "vertica"
+        assert spans[3]._get_numeric_attribute("db.row_count") == 2
+        assert spans[3]._get_str_attribute("db.system") == "vertica"
+        assert spans[3]._get_str_attribute("component") == "vertica"
         assert spans[4].name == "vertica.fetchall"
-        assert spans[4].get_metric("db.row_count") == 5
-        assert spans[4].get_tag("db.system") == "vertica"
-        assert spans[4].get_tag("component") == "vertica"
+        assert spans[4]._get_numeric_attribute("db.row_count") == 5
+        assert spans[4]._get_str_attribute("db.system") == "vertica"
+        assert spans[4]._get_str_attribute("component") == "vertica"
 
     def test_nextset(self):
         """cursor.nextset() should be traced."""
@@ -322,9 +322,9 @@ class TestVertica(TracerTestCase):
 
         # check all the rowcounts
         assert spans[0].name == "vertica.query"
-        assert spans[1].get_metric("db.row_count") == -1
+        assert spans[1]._get_numeric_attribute("db.row_count") == -1
         assert spans[1].name == "vertica.nextset"
-        assert spans[1].get_metric("db.row_count") == -1
+        assert spans[1]._get_numeric_attribute("db.row_count") == -1
         assert spans[2].name == "vertica.query"
         assert spans[2].resource == "COMMIT;"
 

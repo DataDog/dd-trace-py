@@ -31,11 +31,11 @@ if __name__ == "__main__":
     assert span.name == "redis.command"
     assert span.span_type == "redis"
     assert span.error == 0
-    assert span.get_metric("network.destination.port") == REDIS_CONFIG["port"]
-    assert span.get_metric("out.redis_db") == 0
-    assert span.get_tag("out.host") == REDIS_CONFIG["host"]
-    assert span.get_tag("redis.raw_command").startswith("mget 0 1 2 3")
-    assert span.get_tag("redis.raw_command").endswith("...")
+    assert span._get_numeric_attribute("network.destination.port") == REDIS_CONFIG["port"]
+    assert span._get_numeric_attribute("out.redis_db") == 0
+    assert span._get_str_attribute("out.host") == REDIS_CONFIG["host"]
+    assert span._get_str_attribute("redis.raw_command").startswith("mget 0 1 2 3")
+    assert span._get_str_attribute("redis.raw_command").endswith("...")
 
     tracer_scope.__exit__(None, None, None)
     print("Test success")

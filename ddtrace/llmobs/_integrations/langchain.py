@@ -173,7 +173,7 @@ class LangChainIntegration(BaseLLMIntegration):
             return
 
         self._set_links(span)
-        model_provider = span.get_tag(PROVIDER)
+        model_provider = span._get_str_attribute(PROVIDER)
 
         is_workflow = False
 
@@ -430,7 +430,7 @@ class LangChainIntegration(BaseLLMIntegration):
     ) -> None:
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
-        stream = span.get_tag("langchain.request.stream")
+        stream = span._get_str_attribute("langchain.request.stream")
 
         prompts = get_argument_value(args, kwargs, 0, "input" if stream else "prompts")
         if isinstance(prompts, str) or not isinstance(prompts, list):
@@ -444,8 +444,8 @@ class LangChainIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "llm",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
+                MODEL_NAME: span._get_str_attribute(MODEL) or "",
+                MODEL_PROVIDER: span._get_str_attribute(PROVIDER) or "",
                 input_tag_key: input_messages,
             }
         )
@@ -481,8 +481,8 @@ class LangChainIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "llm",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
+                MODEL_NAME: span._get_str_attribute(MODEL) or "",
+                MODEL_PROVIDER: span._get_str_attribute(PROVIDER) or "",
             }
         )
 
@@ -490,7 +490,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
-        stream = span.get_tag("langchain.request.stream")
+        stream = span._get_str_attribute("langchain.request.stream")
 
         input_messages: list[Message] = []
         if stream:
@@ -630,7 +630,7 @@ class LangChainIntegration(BaseLLMIntegration):
         return input_messages
 
     def _llmobs_set_meta_tags_from_chain(self, span: Span, args, kwargs, outputs: Any) -> None:
-        if span.get_tag("langchain.request.stream"):
+        if span._get_str_attribute("langchain.request.stream"):
             inputs = get_argument_value(args, kwargs, 0, "input")
         else:
             inputs = kwargs
@@ -653,8 +653,8 @@ class LangChainIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "embedding",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
+                MODEL_NAME: span._get_str_attribute(MODEL) or "",
+                MODEL_PROVIDER: span._get_str_attribute(PROVIDER) or "",
             }
         )
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_DOCUMENTS
@@ -710,8 +710,8 @@ class LangChainIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: "workflow" if is_workflow else "retrieval",
-                MODEL_NAME: span.get_tag(MODEL) or "",
-                MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
+                MODEL_NAME: span._get_str_attribute(MODEL) or "",
+                MODEL_PROVIDER: span._get_str_attribute(PROVIDER) or "",
             }
         )
         input_query = get_argument_value(args, kwargs, 0, "query")
@@ -736,7 +736,7 @@ class LangChainIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, "[{} document(s) retrieved]".format(len(documents)))
 
     def _llmobs_set_meta_tags_from_tool(self, span: Span, tool_inputs: dict[str, Any], tool_output: object) -> None:
-        metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
+        metadata = json.loads(str(span._get_str_attribute(METADATA))) if span._get_str_attribute(METADATA) else {}
         formatted_input = ""
         if tool_inputs is not None:
             tool_name, tool_id, tool_args = self._extract_tool_call_args_from_inputs(tool_inputs)
@@ -785,9 +785,9 @@ class LangChainIntegration(BaseLLMIntegration):
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
         if provider is not None:
-            span._set_tag_str(PROVIDER, provider)
+            span._set_attribute(PROVIDER, provider)
         if model is not None:
-            span._set_tag_str(MODEL, model)
+            span._set_attribute(MODEL, model)
 
     def _extract_tool_call_args_from_inputs(self, tool_inputs: dict[str, Any]) -> tuple[str, str, str]:
         """

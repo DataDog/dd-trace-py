@@ -174,7 +174,7 @@ def traced_handler(wrapped, instance, args, kwargs):
                 span.resource = path
             # route should only be in the root span
             if index == 0:
-                span._set_tag_str(http.ROUTE, path)
+                span._set_attribute(http.ROUTE, path)
     # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
@@ -182,7 +182,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans[0].resource = "{} {}".format(scope["method"], route)
         else:
             request_spans[0].resource = route
-        request_spans[0]._set_tag_str(http.ROUTE, route)
+        request_spans[0]._set_attribute(http.ROUTE, route)
     else:
         log.debug(
             "unable to update the request span resource name, request_spans:%r, resource_paths:%r",
@@ -199,14 +199,14 @@ def traced_handler(wrapped, instance, args, kwargs):
         if asm_config._iast_enabled:
             from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
 
-            _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
+            _iast_instrument_starlette_scope(scope, request_spans[0]._get_str_attribute(http.ROUTE))
 
         trace_utils.set_http_meta(
             request_spans[0],
             "starlette",
             request_path_params=scope.get("path_params"),
             request_cookies=starlette_requests.cookie_parser(request_cookies),
-            route=request_spans[0].get_tag(http.ROUTE),
+            route=request_spans[0]._get_str_attribute(http.ROUTE),
         )
     core.dispatch("asgi.start_request", ("starlette",))
     blocked = get_blocked()
@@ -215,7 +215,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
-        request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
+        request_spans[-1].set_tag(http.URL, request_spans[0]._get_str_attribute(http.URL))
 
     return wrapped(*args, **kwargs)
 

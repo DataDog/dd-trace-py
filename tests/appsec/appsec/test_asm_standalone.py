@@ -51,6 +51,6 @@ def test_appsec_standalone_apm_enabled_metric(tracer_appsec_standalone):
         or args.get("iast_enabled", None)
         or args.get("DD_APPSEC_SCA_ENABLED", "0") == "1"
     ):
-        assert span.get_metric("_dd.apm.enabled") == 0.0
+        assert span._get_numeric_attribute("_dd.apm.enabled") == 0.0
     else:
-        assert span.get_metric("_dd.apm.enabled") is None
+        assert span._get_numeric_attribute("_dd.apm.enabled") is None

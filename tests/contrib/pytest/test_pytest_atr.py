@@ -193,29 +193,29 @@ class PytestATRTestCase(PytestTestCaseBase):
         assert rec.ret == 1
         spans = self.pop_spans()
         session_span = _get_spans_from_list(spans, "session")[0]
-        assert session_span.get_tag("test.status") == "fail"
+        assert session_span._get_str_attribute("test.status") == "fail"
 
         module_spans = _get_spans_from_list(spans, "module")
         assert len(module_spans) == 1
-        assert module_spans[0].get_tag("test.status") == "fail"
+        assert module_spans[0]._get_str_attribute("test.status") == "fail"
 
         suite_spans = _get_spans_from_list(spans, "suite")
         assert len(suite_spans) == 5
         for suite_span in suite_spans:
-            suite_name = suite_span.get_tag("test.suite")
+            suite_name = suite_span._get_str_attribute("test.suite")
             if suite_name in ("test_errors.py", "test_fail.py"):
-                assert suite_span.get_tag("test.status") == "fail"
+                assert suite_span._get_str_attribute("test.status") == "fail"
             elif suite_name == "test_skip.py":
-                assert suite_span.get_tag("test.status") == "skip"
+                assert suite_span._get_str_attribute("test.status") == "skip"
             else:
-                assert suite_span.get_tag("test.status") == "pass"
+                assert suite_span._get_str_attribute("test.status") == "pass"
 
         func_fail_spans = _get_spans_from_list(spans, "test", "test_func_fail")
         assert len(func_fail_spans) == 6
         func_fail_retries = 0
         for func_fail_span in func_fail_spans:
-            assert func_fail_span.get_tag("test.status") == "fail"
-            if func_fail_span.get_tag("test.is_retry") == "true":
+            assert func_fail_span._get_str_attribute("test.status") == "fail"
+            if func_fail_span._get_str_attribute("test.is_retry") == "true":
                 func_fail_retries += 1
         assert func_fail_retries == 5
 
@@ -223,8 +223,8 @@ class PytestATRTestCase(PytestTestCaseBase):
         assert len(class_func_fail_spans) == 6
         class_func_fail_retries = 0
         for class_func_fail_span in class_func_fail_spans:
-            assert class_func_fail_span.get_tag("test.status") == "fail"
-            if class_func_fail_span.get_tag("test.is_retry") == "true":
+            assert class_func_fail_span._get_str_attribute("test.status") == "fail"
+            if class_func_fail_span._get_str_attribute("test.is_retry") == "true":
                 class_func_fail_retries += 1
         assert class_func_fail_retries == 5
 
@@ -232,8 +232,8 @@ class PytestATRTestCase(PytestTestCaseBase):
         assert len(func_fail_skip_spans) == 6
         func_fail_skip_retries = 0
         for func_fail_skip_span in func_fail_skip_spans:
-            func_fail_skip_is_retry = func_fail_skip_span.get_tag("test.is_retry") == "true"
-            assert func_fail_skip_span.get_tag("test.status") == ("skip" if func_fail_skip_is_retry else "fail")
+            func_fail_skip_is_retry = func_fail_skip_span._get_str_attribute("test.is_retry") == "true"
+            assert func_fail_skip_span._get_str_attribute("test.status") == ("skip" if func_fail_skip_is_retry else "fail")
             if func_fail_skip_is_retry:
                 func_fail_skip_retries += 1
         assert func_fail_skip_retries == 5
@@ -242,8 +242,8 @@ class PytestATRTestCase(PytestTestCaseBase):
         assert len(class_func_fail_skip_spans) == 6
         class_func_fail_skip_retries = 0
         for class_func_fail_skip_span in class_func_fail_skip_spans:
-            class_func_fail_skip_is_retry = class_func_fail_skip_span.get_tag("test.is_retry") == "true"
-            assert class_func_fail_skip_span.get_tag("test.status") == (
+            class_func_fail_skip_is_retry = class_func_fail_skip_span._get_str_attribute("test.is_retry") == "true"
+            assert class_func_fail_skip_span._get_str_attribute("test.status") == (
                 "skip" if class_func_fail_skip_is_retry else "fail"
             )
             if class_func_fail_skip_is_retry:
@@ -252,30 +252,30 @@ class PytestATRTestCase(PytestTestCaseBase):
 
         func_pass_spans = _get_spans_from_list(spans, "test", "test_func_pass")
         assert len(func_pass_spans) == 1
-        assert func_pass_spans[0].get_tag("test.status") == "pass"
-        assert func_pass_spans[0].get_tag("test.retry") is None
+        assert func_pass_spans[0]._get_str_attribute("test.status") == "pass"
+        assert func_pass_spans[0]._get_str_attribute("test.retry") is None
 
         # Skips are tested twice: once with a skip mark (skips during setup) and once using pytest.skip() in the
         # test body (skips during call), neither should be retried
         func_skip_mark_spans = _get_spans_from_list(spans, "test", "test_func_skip_mark")
         assert len(func_skip_mark_spans) == 1
-        assert func_skip_mark_spans[0].get_tag("test.status") == "skip"
-        assert func_skip_mark_spans[0].get_tag("test.is_retry") is None
+        assert func_skip_mark_spans[0]._get_str_attribute("test.status") == "skip"
+        assert func_skip_mark_spans[0]._get_str_attribute("test.is_retry") is None
 
         func_skip_inside_spans = _get_spans_from_list(spans, "test", "test_func_skip_inside")
         assert len(func_skip_inside_spans) == 1
-        assert func_skip_inside_spans[0].get_tag("test.status") == "skip"
-        assert func_skip_inside_spans[0].get_tag("test.is_retry") is None
+        assert func_skip_inside_spans[0]._get_str_attribute("test.status") == "skip"
+        assert func_skip_inside_spans[0]._get_str_attribute("test.is_retry") is None
 
         class_func_skip_mark_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_skip_mark")
         assert len(class_func_skip_mark_spans) == 1
-        assert class_func_skip_mark_spans[0].get_tag("test.status") == "skip"
-        assert class_func_skip_mark_spans[0].get_tag("test.is_retry") is None
+        assert class_func_skip_mark_spans[0]._get_str_attribute("test.status") == "skip"
+        assert class_func_skip_mark_spans[0]._get_str_attribute("test.is_retry") is None
 
         class_func_skip_inside_spans = _get_spans_from_list(spans, "test", "SomeTestCase::test_class_func_skip_inside")
         assert len(class_func_skip_inside_spans) == 1
-        assert class_func_skip_inside_spans[0].get_tag("test.status") == "skip"
-        assert class_func_skip_inside_spans[0].get_tag("test.is_retry") is None
+        assert class_func_skip_inside_spans[0]._get_str_attribute("test.status") == "skip"
+        assert class_func_skip_inside_spans[0]._get_str_attribute("test.is_retry") is None
 
         assert len(spans) == 51
 
@@ -311,11 +311,11 @@ class PytestATRTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         fails_setup_spans = _get_spans_from_list(spans, "test", "test_func_fails_setup")
         assert len(fails_setup_spans) == 1
-        assert fails_setup_spans[0].get_tag("test.is_retry") != "true"
+        assert fails_setup_spans[0]._get_str_attribute("test.is_retry") != "true"
 
         fails_teardown_spans = _get_spans_from_list(spans, "test", "test_func_fails_teardown")
         assert len(fails_teardown_spans) == 1
-        assert fails_teardown_spans[0].get_tag("test.is_retry") != "true"
+        assert fails_teardown_spans[0]._get_str_attribute("test.is_retry") != "true"
 
         assert rec.ret == 1
         assert len(spans) == 5

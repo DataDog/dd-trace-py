@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import contextlib
 import json
 import random
 import string
@@ -51,8 +50,8 @@ def span_to_tuple(span):
         span.start_ns or 0,
         span.duration_ns or 0,
         int(bool(span.error)),
-        span.get_tags() or {},
-        span.get_metrics() or {},
+        span._get_str_attributes() or {},
+        span._get_numeric_attributes() or {},
         span.span_type,
     )
 
@@ -82,7 +81,7 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
                 span.span_type = "web"
 
             for _ in range(0, nmetrics):
-                span.set_tag(rands(key_size), random.randint(0, 2**16))
+                span._set_attribute(rands(key_size), random.randint(0, 2**16))
 
             trace.append(span)
 
@@ -231,9 +230,9 @@ class TestEncoders(TestCase):
         span = Span(
             name="span1", trace_id=0x12341234567890ABCDEF, span_id=0x1234567890ABCDEF, service="svc", resource="/r"
         )
-        span.set_tag("tag1", "value1")
+        span._set_attribute("tag1", "value1")
         span.set_tag("manual.keep")
-        span.set_metric("munir.metric", 1.0)
+        span._set_attribute("munir.metric", 1.0)
         span.set_link(trace_id=3, span_id=4)
         span.error = 1
         span.start_ns = 1771941568700091000
@@ -297,7 +296,7 @@ def test_encode_meta_struct():
     }
 
     super_span._set_struct_tag("payload", payload)
-    super_span.set_tag("payload", "meta_payload")
+    super_span._set_attribute("payload", "meta_payload")
     encoder.put(
         [
             super_span,
@@ -362,7 +361,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     trace = gen_trace(nspans=1, ntags=100, nmetrics=100, key_size=10, value_size=10)
     rand_string = rands(size=20, chars=string.ascii_letters)
     # trace only has one span
-    trace[0]._set_tag_str("some_tag", rand_string)
+    trace[0]._set_attribute("some_tag", rand_string)
     try:
         # Encode a trace that will trigger a rollback/BufferItemTooLarge exception
         # BufferFull is not raised since only one span is being encoded
@@ -374,7 +373,7 @@ def test_msgpack_encoding_after_an_exception_was_raised():
     # Successfully encode a small trace
     small_trace = gen_trace(nspans=1, ntags=0, nmetrics=0)
     # Add a tag to the small trace that was previously encoded in the encoder's StringTable
-    small_trace[0]._set_tag_str("previously_encoded_string", rand_string)
+    small_trace[0]._set_attribute("previously_encoded_string", rand_string)
     rolledback_encoder.put(small_trace)
 
     # Encode a trace without triggering a rollback/BufferFull exception
@@ -901,7 +900,7 @@ def test_encoder_buffer_item_size_limit(encoder_cls):
     span = Span(name="test")
     encoder.put([span])
     with pytest.raises(BufferItemTooLarge):
-        span.set_tag("test", "a" * (max_item_size + 1))
+        span._set_attribute("test", "a" * (max_item_size + 1))
         encoder.put([span])
 
 
@@ -979,11 +978,6 @@ def test_list_string_table():
     assert list(t) == ["", "foobar", "foobaz"]
 
 
-@contextlib.contextmanager
-def _value():
-    yield "value"
-
-
 @pytest.mark.parametrize(
     "field,invalid_value,expected_value,span_name",
     [
@@ -1035,40 +1029,6 @@ def test_encoding_invalid_rust_string_fields_handled_gracefully(field, invalid_v
     # Verify the span field was converted to the expected value
     assert getattr(span, field) == expected_value
 
-
-@pytest.mark.parametrize(
-    "meta,metrics",
-    [
-        ({"num": 100}, {}),
-        # Validating behavior with a context manager is a customer regression
-        ({"key": _value()}, {}),
-        ({}, {"key": "value"}),
-    ],
-)
-def test_encoding_invalid_data_ok(meta: dict[str, Any], metrics: dict[str, Any]):
-    """Encoding invalid meta/metrics data should not raise an exception"""
-    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
-
-    span = Span(name="test")
-    span._meta = meta  # type: ignore
-    span._metrics = metrics  # type: ignore
-
-    trace = [span]
-    encoder.put(trace)
-
-    encoded_payloads = encoder.encode()
-    assert len(encoded_payloads) == 1
-
-    # Ensure it can be decoded properly
-    traces = msgpack.unpackb(encoded_payloads[0][0], raw=False)
-    assert len(traces) == 1
-    assert len(traces[0]) == 1
-
-    # We didn't encode the invalid meta/metrics
-    for key in meta.keys():
-        assert key not in traces[0][0]["meta"]
-    for key in metrics.keys():
-        assert key not in traces[0][0]["metrics"]
 
 
 @allencodings

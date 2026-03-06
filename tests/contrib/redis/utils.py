@@ -16,13 +16,13 @@ def find_redis_span(spans, resource=None, raw_command=None, component="redis", r
     :param raw_command_tag: Tag name to use for raw_command filtering (default: "redis.raw_command")
     :returns: The matching span
     """
-    filtered = [s for s in spans if s.get_tag("component") == component]
+    filtered = [s for s in spans if s._get_str_attribute("component") == component]
     if resource:
         filtered = [s for s in filtered if s.resource == resource]
     if raw_command:
-        filtered = [s for s in filtered if s.get_tag(raw_command_tag) == raw_command]
+        filtered = [s for s in filtered if s._get_str_attribute(raw_command_tag) == raw_command]
     assert len(filtered) == 1, (
         f"Expected exactly 1 matching span, got {len(filtered)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in spans]}"
     )
     return filtered[0]

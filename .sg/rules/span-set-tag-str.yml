@@ -1,0 +1,10 @@
+id: span-set-tag-str
+language: Python
+severity: error
+message: >
+  Use span._set_attribute(key, str_value) instead of span._set_tag_str(key, value).
+note: >
+  _set_tag_str() was the previous low-overhead string setter. It is superseded by
+  _set_attribute(key, str_value) which writes directly to the Rust HashMap.
+rule:
+  pattern: $X._set_tag_str($KEY, $VALUE)

@@ -49,7 +49,7 @@ async def slow_numbers(minimum, maximum):
 def _set_rasp_done(endpoint: str) -> None:
     span = tracer.current_span()
     if span is not None and getattr(span, "_service_entry_span", None) is not None:
-        span._service_entry_span.set_tag("rasp.request.done", endpoint)
+        span._service_entry_span._set_attribute("rasp.request.done", endpoint)
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -74,7 +74,7 @@ class BaseHandler(tornado.web.RequestHandler):
             root_span = tracer.current_root_span()
             if root_span is not None:
                 root_span.service = service_name
-                root_span.set_tag("scope", service_name)
+                root_span._set_attribute("scope", service_name)
 
     def _query_params(self) -> dict:
         return {k: self.get_query_argument(k) for k in self.request.query_arguments}

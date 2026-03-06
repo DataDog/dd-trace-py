@@ -50,9 +50,9 @@ class TestPytestFlakyPlugin(PytestTestCaseBase):
         assert len(pass_spans) == 1
         assert len(fail_spans) == 1  # ATR is off because the `flaky` plugin is enabled
         assert len(flaky_spans) == 1  # ATR is off because the `flaky` plugin is enabled
-        assert pass_spans[0].get_tag("test.status") == "pass"
-        assert fail_spans[0].get_tag("test.status") == "fail"
-        assert flaky_spans[0].get_tag("test.status") == "pass"  # `flaky` plugin made it pass
+        assert pass_spans[0]._get_str_attribute("test.status") == "pass"
+        assert fail_spans[0]._get_str_attribute("test.status") == "fail"
+        assert flaky_spans[0]._get_str_attribute("test.status") == "pass"  # `flaky` plugin made it pass
         assert rec.ret == 1
 
     def test_pytest_no_flaky(self):
@@ -65,10 +65,10 @@ class TestPytestFlakyPlugin(PytestTestCaseBase):
         assert len(pass_spans) == 1
         assert len(fail_spans) == 6  # ATR is on
         assert len(flaky_spans) == 2  # ATR is on, passed on 2nd attempt
-        assert pass_spans[0].get_tag("test.status") == "pass"
-        assert fail_spans[0].get_tag("test.status") == "fail"
-        assert flaky_spans[0].get_tag("test.status") == "fail"
-        assert flaky_spans[1].get_tag("test.status") == "pass"
+        assert pass_spans[0]._get_str_attribute("test.status") == "pass"
+        assert fail_spans[0]._get_str_attribute("test.status") == "fail"
+        assert flaky_spans[0]._get_str_attribute("test.status") == "fail"
+        assert flaky_spans[1]._get_str_attribute("test.status") == "pass"
         assert rec.ret == 1
 
     def test_skipif_without_condition(self):
@@ -89,7 +89,7 @@ class TestPytestFlakyPlugin(PytestTestCaseBase):
         rec.assertoutcome(skipped=1)
         spans = self.pop_spans()
         [test_span] = _get_spans_from_list(spans, "test", "test_foo")
-        assert test_span.get_tag("test.status") == "skip"
+        assert test_span._get_str_attribute("test.status") == "skip"
         assert rec.ret == 0
 
     def test_skipif_with_keyword_condition(self):
@@ -115,8 +115,8 @@ class TestPytestFlakyPlugin(PytestTestCaseBase):
         spans = self.pop_spans()
         [skip_test_span] = _get_spans_from_list(spans, "test", "test_skip")
         [no_skip_test_span] = _get_spans_from_list(spans, "test", "test_no_skip")
-        assert skip_test_span.get_tag("test.status") == "skip"
-        assert no_skip_test_span.get_tag("test.status") == "pass"
+        assert skip_test_span._get_str_attribute("test.status") == "skip"
+        assert no_skip_test_span._get_str_attribute("test.status") == "pass"
         assert rec.ret == 0
 
     def test_skipif_with_string_condition(self):
@@ -143,8 +143,8 @@ class TestPytestFlakyPlugin(PytestTestCaseBase):
         spans = self.pop_spans()
         [skip_test_span] = _get_spans_from_list(spans, "test", "test_skip")
         [no_skip_test_span] = _get_spans_from_list(spans, "test", "test_no_skip")
-        assert skip_test_span.get_tag("test.status") == "skip"
-        assert no_skip_test_span.get_tag("test.status") == "pass"
+        assert skip_test_span._get_str_attribute("test.status") == "skip"
+        assert no_skip_test_span._get_str_attribute("test.status") == "pass"
         assert rec.ret == 0
 
     def test_skipif_with_string_keyword_condition(self):
@@ -180,6 +180,6 @@ class TestPytestFlakyPlugin(PytestTestCaseBase):
         spans = self.pop_spans()
         [skip_test_span] = _get_spans_from_list(spans, "test", "test_skip")
         [no_skip_test_span] = _get_spans_from_list(spans, "test", "test_no_skip")
-        assert skip_test_span.get_tag("test.status") == "skip"
-        assert no_skip_test_span.get_tag("test.status") == "pass"
+        assert skip_test_span._get_str_attribute("test.status") == "skip"
+        assert no_skip_test_span._get_str_attribute("test.status") == "pass"
         assert rec.ret == 0

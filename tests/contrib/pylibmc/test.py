@@ -123,9 +123,9 @@ class PylibmcCore(object):
         get_missing_key_span = spans[2]
 
         assert get_existing_key_span.resource == "get"
-        assert get_existing_key_span.get_metric("db.row_count") == 1
+        assert get_existing_key_span._get_numeric_attribute("db.row_count") == 1
         assert get_missing_key_span.resource == "get"
-        assert get_missing_key_span.get_metric("db.row_count") == 0
+        assert get_missing_key_span._get_numeric_attribute("db.row_count") == 0
 
     def test_add(self):
         client = self.get_client()
@@ -170,11 +170,11 @@ class PylibmcCore(object):
         get_multi_0_keys_exist_span = spans[3]
 
         assert get_multi_2_keys_exist_span.resource == "get_multi"
-        assert get_multi_2_keys_exist_span.get_metric("db.row_count") == 2
+        assert get_multi_2_keys_exist_span._get_numeric_attribute("db.row_count") == 2
         assert get_multi_1_keys_exist_span.resource == "get_multi"
-        assert get_multi_1_keys_exist_span.get_metric("db.row_count") == 1
+        assert get_multi_1_keys_exist_span._get_numeric_attribute("db.row_count") == 1
         assert get_multi_0_keys_exist_span.resource == "get_multi"
-        assert get_multi_0_keys_exist_span.get_metric("db.row_count") == 0
+        assert get_multi_0_keys_exist_span._get_numeric_attribute("db.row_count") == 0
 
     def test_get_set_multi_prefix(self):
         client = self.get_client()
@@ -189,9 +189,9 @@ class PylibmcCore(object):
         spans = self.pop_spans()
         for s in spans:
             self._verify_cache_span(s, start, end)
-            assert s.get_tag("memcached.query") == "%s foo" % s.resource
-            assert s.get_tag("component") == "pylibmc"
-            assert s.get_tag("span.kind") == "client"
+            assert s._get_str_attribute("memcached.query") == "%s foo" % s.resource
+            assert s._get_str_attribute("component") == "pylibmc"
+            assert s._get_str_attribute("span.kind") == "client"
         expected_resources = sorted(["get_multi", "set_multi", "delete_multi"])
         resources = sorted(s.resource for s in spans)
         assert expected_resources == resources
@@ -213,9 +213,9 @@ class PylibmcCore(object):
         spans = self.pop_spans()
         for s in spans:
             self._verify_cache_span(s, start, end)
-            assert s.get_tag("memcached.query") == "%s %s" % (s.resource, k)
-            assert s.get_tag("component") == "pylibmc"
-            assert s.get_tag("span.kind") == "client"
+            assert s._get_str_attribute("memcached.query") == "%s %s" % (s.resource, k)
+            assert s._get_str_attribute("component") == "pylibmc"
+            assert s._get_str_attribute("span.kind") == "client"
         expected_resources = sorted(["get", "get", "delete", "set"])
         resources = sorted(s.resource for s in spans)
         assert expected_resources == resources
@@ -226,11 +226,11 @@ class PylibmcCore(object):
         assert s.start + s.duration < end
         assert s.span_type == "cache"
         assert s.name == "memcached.cmd"
-        assert s.get_tag("out.host") == cfg["host"]
-        assert s.get_tag("component") == "pylibmc"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("db.system") == "memcached"
-        assert s.get_metric("network.destination.port") == cfg["port"]
+        assert s._get_str_attribute("out.host") == cfg["host"]
+        assert s._get_str_attribute("component") == "pylibmc"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("db.system") == "memcached"
+        assert s._get_numeric_attribute("network.destination.port") == cfg["port"]
 
     def test_disabled(self):
         """

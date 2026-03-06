@@ -42,7 +42,7 @@ def _get_span_coverage_data(span, use_plugin_v2=False):
 
     else:
         # This will raise an exception and the test will fail if the tag is not found
-        tag_data = json.loads(span.get_tag(COVERAGE_TAG_NAME))
+        tag_data = json.loads(span._get_str_attribute(COVERAGE_TAG_NAME))
         return {
             file_data["filename"]: _get_tuples_from_segments(file_data["segments"]) for file_data in tag_data["files"]
         }

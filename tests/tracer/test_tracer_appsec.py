@@ -156,14 +156,14 @@ def test_set_http_meta(
             request_path_params=path_params,
         )
     if method is not None:
-        assert span.get_tag(http.METHOD) == method
+        assert span._get_str_attribute(http.METHOD) == method
     else:
-        assert http.METHOD not in span.get_tags()
+        assert http.METHOD not in span._get_str_attributes()
 
     if target_host is not None:
-        assert span.get_tag(net.TARGET_HOST) == target_host
+        assert span._get_str_attribute(net.TARGET_HOST) == target_host
     else:
-        assert net.TARGET_HOST not in span.get_tags()
+        assert net.TARGET_HOST not in span._get_str_attributes()
 
     if url is not None:
         if url.startswith("http://user"):
@@ -173,31 +173,31 @@ def test_set_http_meta(
             expected_url = url
 
         if query and int_config.myint.http.trace_query_string:
-            assert span.get_tag(http.URL) == str(expected_url + "?" + query)
+            assert span._get_str_attribute(http.URL) == str(expected_url + "?" + query)
         else:
-            assert span.get_tag(http.URL) == str(expected_url)
+            assert span._get_str_attribute(http.URL) == str(expected_url)
     else:
-        assert http.URL not in span.get_tags()
+        assert http.URL not in span._get_str_attributes()
 
     if status_code is not None:
-        assert span.get_tag(http.STATUS_CODE) == str(status_code)
+        assert span._get_str_attribute(http.STATUS_CODE) == str(status_code)
         if 500 <= int(status_code) < 600:
             assert span.error == 1
         else:
             assert span.error == 0
     else:
-        assert http.STATUS_CODE not in span.get_tags()
+        assert http.STATUS_CODE not in span._get_str_attributes()
 
     if status_msg is not None:
-        assert span.get_tag(http.STATUS_MSG) == str(status_msg)
+        assert span._get_str_attribute(http.STATUS_MSG) == str(status_msg)
 
     if query is not None and int_config.myint.http.trace_query_string:
-        assert span.get_tag(http.QUERY_STRING) == query
+        assert span._get_str_attribute(http.QUERY_STRING) == query
 
     if request_headers is not None:
         for header, value in request_headers.items():
             tag = "http.request.headers." + header
-            assert span.get_tag(tag) == value
+            assert span._get_str_attribute(tag) == value
 
 
 def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
@@ -219,8 +219,8 @@ def test_asm_standalone_ignores_agent_based_samplers(tracer: Tracer):
             with tracer.trace("test_span", service="asm_standalone") as span:
                 pass
 
-            assert span._metrics.get("_sampling_priority_v1") == AUTO_KEEP, (
-                f"Expected AUTO_KEEP (1), got {span._metrics.get('_sampling_priority_v1')}. "
+            assert span._get_attribute("_sampling_priority_v1") == AUTO_KEEP, (
+                f"Expected AUTO_KEEP (1), got {span._get_attribute('_sampling_priority_v1')}. "
                 "Agent-based samplers should not interfere with ASM standalone mode."
             )
 

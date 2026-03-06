@@ -60,9 +60,9 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("network.destination.port") == 3306
+        assert span._get_numeric_attribute("network.destination.port") == 3306
         assert_dict_issuperset(
-            span.get_tags(),
+            span._get_str_attributes(),
             {
                 "out.host": "127.0.0.1",
                 "db.name": "test",
@@ -90,9 +90,9 @@ class MySQLCore(object):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == 3306
+            assert span._get_numeric_attribute("network.destination.port") == 3306
             assert_dict_issuperset(
-                span.get_tags(),
+                span._get_str_attributes(),
                 {
                     "out.host": "127.0.0.1",
                     "db.name": "test",
@@ -121,9 +121,9 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("network.destination.port") == 3306
+        assert span._get_numeric_attribute("network.destination.port") == 3306
         assert_dict_issuperset(
-            span.get_tags(),
+            span._get_str_attributes(),
             {
                 "out.host": "127.0.0.1",
                 "db.name": "test",
@@ -151,9 +151,9 @@ class MySQLCore(object):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == 3306
+            assert span._get_numeric_attribute("network.destination.port") == 3306
             assert_dict_issuperset(
-                span.get_tags(),
+                span._get_str_attributes(),
                 {
                     "out.host": "127.0.0.1",
                     "db.name": "test",
@@ -177,7 +177,7 @@ class MySQLCore(object):
         spans = self.pop_spans()
         assert len(spans) == 1
         span = spans[0]
-        assert span.get_tag("sql.query") is None
+        assert span._get_str_attribute("sql.query") is None
 
     def test_query_with_several_rows_fetchall(self):
         with self.override_config("mysqldb", dict(trace_fetch_methods=True)):
@@ -191,7 +191,7 @@ class MySQLCore(object):
             spans = self.pop_spans()
             assert len(spans) == 2
             span = spans[0]
-            assert span.get_tag("sql.query") is None
+            assert span._get_str_attribute("sql.query") is None
             fetch_span = spans[1]
             assert fetch_span.name == "mysql.query.fetchall"
 
@@ -228,7 +228,7 @@ class MySQLCore(object):
         spans = self.pop_spans()
         assert len(spans) == 2
         span = spans[1]
-        assert span.get_tag("sql.query") is None
+        assert span._get_str_attribute("sql.query") is None
         cursor.execute("drop table if exists dummy")
 
     def test_query_many_fetchall(self):
@@ -265,7 +265,7 @@ class MySQLCore(object):
             spans = self.pop_spans()
             assert len(spans) == 3
             span = spans[1]
-            assert span.get_tag("sql.query") is None
+            assert span._get_str_attribute("sql.query") is None
             cursor.execute("drop table if exists dummy")
             fetch_span = spans[2]
             assert fetch_span.name == "mysql.query.fetchall"
@@ -307,9 +307,9 @@ class MySQLCore(object):
         assert span.name == "mysql.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_metric("network.destination.port") == 3306
+        assert span._get_numeric_attribute("network.destination.port") == 3306
         assert_dict_issuperset(
-            span.get_tags(),
+            span._get_str_attributes(),
             {
                 "out.host": "127.0.0.1",
                 "db.name": "test",
@@ -319,7 +319,7 @@ class MySQLCore(object):
                 "span.kind": "client",
             },
         )
-        assert span.get_tag("sql.query") is None
+        assert span._get_str_attribute("sql.query") is None
 
     def test_commit(self):
         conn = self._get_conn()
@@ -405,9 +405,9 @@ class MySQLCore(object):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == 3306
+            assert span._get_numeric_attribute("network.destination.port") == 3306
             assert_dict_issuperset(
-                span.get_tags(),
+                span._get_str_attributes(),
                 {
                     "out.host": "127.0.0.1",
                     "db.name": "test",
@@ -481,9 +481,9 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
             assert span.name == "mysql.query"
             assert span.span_type == "sql"
             assert span.error == 0
-            assert span.get_metric("network.destination.port") == 3306
+            assert span._get_numeric_attribute("network.destination.port") == 3306
             assert_dict_issuperset(
-                span.get_tags(),
+                span._get_str_attributes(),
                 {
                     "out.host": "127.0.0.1",
                     "db.name": "test",
@@ -493,7 +493,7 @@ class TestMysqlPatch(MySQLCore, TracerTestCase):
                     "span.kind": "client",
                 },
             )
-            assert span.get_tag("sql.query") is None
+            assert span._get_str_attribute("sql.query") is None
 
         finally:
             unpatch()

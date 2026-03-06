@@ -22,8 +22,8 @@ def test_get_log_correlation_ust():
         }, dd_log_record
     # Ensure that the USTs from the global config is used, not the span
     with tracer.trace("test-span-2", service="span-service") as span2:
-        span2.set_tag(VERSION_KEY, "span-version")
-        span2.set_tag(ENV_KEY, "span-env")
+        span2._set_attribute(VERSION_KEY, "span-version")
+        span2._set_attribute(ENV_KEY, "span-env")
         dd_log_record = tracer.get_log_correlation_context()
         assert dd_log_record == {
             "dd.span_id": str(span2.span_id),

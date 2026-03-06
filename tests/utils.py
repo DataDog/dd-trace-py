@@ -61,23 +61,23 @@ FILE_PATH = Path(__file__).resolve().parent
 
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
-    assert _SPAN_MEASURED_KEY in span.get_metrics()
-    assert _SPAN_MEASURED_KEY not in span.get_tags()
-    assert span.get_metric(_SPAN_MEASURED_KEY) == 1
+    assert _SPAN_MEASURED_KEY in span._get_numeric_attributes()
+    assert _SPAN_MEASURED_KEY not in span._get_str_attributes()
+    assert span._get_numeric_attribute(_SPAN_MEASURED_KEY) == 1
 
 
 def assert_is_not_measured(span):
     """Assert that the span does not set _dd.measured"""
-    assert _SPAN_MEASURED_KEY not in span.get_tags()
-    if _SPAN_MEASURED_KEY in span.get_metrics():
-        assert span.get_metric(_SPAN_MEASURED_KEY) == 0
+    assert _SPAN_MEASURED_KEY not in span._get_str_attributes()
+    if _SPAN_MEASURED_KEY in span._get_numeric_attributes():
+        assert span._get_numeric_attribute(_SPAN_MEASURED_KEY) == 0
     else:
-        assert _SPAN_MEASURED_KEY not in span.get_metrics()
+        assert _SPAN_MEASURED_KEY not in span._get_numeric_attributes()
 
 
 def assert_span_http_status_code(span, code):
     """Assert on the span's 'http.status_code' tag"""
-    tag = span.get_tag(http.STATUS_CODE)
+    tag = span._get_str_attribute(http.STATUS_CODE)
     code = str(code)
     assert tag == code, "%r != %r" % (tag, code)
 
@@ -812,12 +812,12 @@ class TestSpan(Span):
         :rtype: bool
         """
         if exact:
-            return self.get_tags() == meta
+            return self._get_str_attributes() == meta
 
         for key, value in meta.items():
-            if key not in self._meta:
+            if self._get_attribute(key) is None:
                 return False
-            if self.get_tag(key) != value:
+            if self._get_attribute(key) != value:
                 return False
         return True
 
@@ -862,12 +862,12 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self.get_tags() == meta
+            assert self._get_str_attributes() == meta
         else:
             for key, value in meta.items():
-                assert key in self._meta, "{0} meta does not have property {1!r}".format(self, key)
-                assert self.get_tag(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self.get_tag(key), value
+                assert self._get_attribute(key) is not None, "{0} meta does not have property {1!r}".format(self, key)
+                assert self._get_attribute(key) == value, "{0} meta property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self._get_attribute(key), value
                 )
 
     def assert_metrics(self, metrics, exact=False):
@@ -886,12 +886,14 @@ class TestSpan(Span):
         :raises: AssertionError
         """
         if exact:
-            assert self._metrics == metrics
+            assert self._get_numeric_attributes() == metrics
         else:
             for key, value in metrics.items():
-                assert key in self._metrics, "{0} metrics does not have property {1!r}".format(self, key)
-                assert self._metrics[key] == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
-                    self, key, self._metrics[key], value
+                assert self._get_attribute(key) is not None, "{0} metrics does not have property {1!r}".format(
+                    self, key
+                )
+                assert self._get_attribute(key) == value, "{0} metrics property {1!r}: {2!r} != {3!r}".format(
+                    self, key, self._get_attribute(key), value
                 )
 
     def assert_span_event_count(self, count):
