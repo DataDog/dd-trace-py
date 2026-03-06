@@ -139,7 +139,7 @@ void
 Datadog::Sample::push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
 
-    if (locations.size() <= max_nframes) {
+    if (locations.size() < max_nframes) {
         push_frame_impl(name, filename, address, line);
     } else {
         ++dropped_frames;
@@ -186,7 +186,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         // Early exit optimization: once we've reached the frame limit, stop traversing
         // to avoid expensive CPython API calls (PyFrame_GetCode, PyFrame_GetLineNumber, etc.)
         // for frames that will be dropped anyway.
-        if (locations.size() > max_nframes) {
+        if (locations.size() >= max_nframes) {
             ++dropped_frames;
             if (!is_initial_frame) {
                 Py_DECREF(f); // Clean up frame reference obtained from PyFrame_GetBack
@@ -250,7 +250,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
 void
 Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t line)
 {
-    if (locations.size() <= max_nframes) {
+    if (locations.size() < max_nframes) {
         push_frame_impl(function_id, address, line);
     } else {
         ++dropped_frames;
