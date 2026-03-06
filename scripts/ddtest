@@ -27,7 +27,12 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # NOTE: If building outside the container (without ddtest/run-tests), source paths differ
 # across worktrees. Set SCCACHE_BASEDIRS to the repo root to normalize paths in cache keys.
 # Users can override with DD_TEST_CACHE_DIR for a fully custom location.
-MAIN_REPO_ROOT="$(cd "$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir)/.." && pwd)"
+GIT_COMMON_DIR="$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir)"
+# git-common-dir returns a relative path in normal repos (.git) but absolute in worktrees
+case "$GIT_COMMON_DIR" in
+    /*) MAIN_REPO_ROOT="$(cd "$GIT_COMMON_DIR/.." && pwd)" ;;
+    *)  MAIN_REPO_ROOT="$(cd "$PROJECT_ROOT/$GIT_COMMON_DIR/.." && pwd)" ;;
+esac
 CACHE_DIR="${DD_TEST_CACHE_DIR:-$MAIN_REPO_ROOT/.cache}"
 # Canonicalize to absolute path so Docker Compose doesn't treat relative names as named volumes
 mkdir -p "$CACHE_DIR" 2>/dev/null || true
