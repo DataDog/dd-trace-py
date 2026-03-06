@@ -16,6 +16,31 @@ from ddtrace.internal.utils.cache import callonce
 
 LOG = logging.getLogger(__name__)
 
+# Try to use fast Rust implementation if available
+#
+# AIDEV-NOTE: The Rust implementation provides a subset of the stdlib importlib.metadata API:
+#   - Distribution.name, .version: fully supported
+#   - Distribution.metadata: returns a plain dict with only these exact keys:
+#     "name", "Name", "version", "Version" (case-sensitive, unlike stdlib's case-insensitive access).
+#     Accessing other keys (e.g., "Author", "License") or different casing (e.g., "NAME") will raise KeyError.
+#     (stdlib returns an email.Message-like object with all metadata fields and case-insensitive access)
+#   - Distribution.files: returns list of PackagePath objects (lazy-loaded)
+#   - Distribution.read_text(filename): reads files from dist-info directory
+#   - PackagePath: only supports .parts, .read_text(), .locate(), __str__, __fspath__
+#     (stdlib PackagePath inherits from PurePosixPath with many more methods)
+#
+# Only use the supported API surface when working with _distributions() results.
+_distributions: t.Callable[[], t.Iterable[t.Any]]
+try:
+    from ddtrace.internal.native._native import distributions as _distributions
+
+    LOG.debug("Using Rust-optimized distributions() implementation")
+except (ImportError, AttributeError):
+    import importlib.metadata as importlib_metadata
+
+    _distributions = importlib_metadata.distributions
+    LOG.debug("Rust distributions() not available, falling back to Python implementation")
+
 Distribution = t.NamedTuple("Distribution", [("name", str), ("version", str)])
 
 
@@ -25,15 +50,12 @@ _PACKAGE_DISTRIBUTIONS: t.Optional[t.Mapping[str, t.List[str]]] = None  # noqa: 
 @callonce
 def get_distributions() -> t.Mapping[str, str]:
     """returns the mapping from distribution name to version for all distributions in a python path"""
-    import importlib.metadata as importlib_metadata
-
     pkgs = {}
-    for dist in importlib_metadata.distributions():
-        # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
-        # Optimization: we should avoid accessing dist.metadata more than once
-        metadata = dist.metadata
-        name = metadata["name"]
-        version = metadata["version"]
+
+    for dist in _distributions():
+        # Both Rust and Python implementations provide .name and .version
+        name = dist.name
+        version = dist.version
         if name and version:
             pkgs[name.lower()] = version
 
@@ -44,13 +66,8 @@ def get_package_distributions() -> t.Mapping[str, list[str]]:
     """a mapping of importable package names to their distribution name(s)"""
     global _PACKAGE_DISTRIBUTIONS
     if _PACKAGE_DISTRIBUTIONS is None:
-        import importlib.metadata as importlib_metadata
-
-        # Prefer the official API if available, otherwise fallback to the vendored version
-        if hasattr(importlib_metadata, "packages_distributions"):
-            _PACKAGE_DISTRIBUTIONS = importlib_metadata.packages_distributions()
-        else:
-            _PACKAGE_DISTRIBUTIONS = _packages_distributions()
+        # Use our own implementation which can leverage the optimized Rust distributions()
+        _PACKAGE_DISTRIBUTIONS = _packages_distributions()
     return _PACKAGE_DISTRIBUTIONS
 
 
@@ -82,15 +99,11 @@ def get_module_distribution_versions(module_name: str) -> t.Optional[tuple[str, 
     return (names[0], get_version_for_package(names[0]))
 
 
-@cached(maxsize=1024)
 def get_version_for_package(name: str) -> str:
     """returns the version of a package"""
-    import importlib.metadata as importlib_metadata
-
-    try:
-        return importlib_metadata.version(name)
-    except Exception:
-        return ""
+    # Use our already-cached get_distributions() which leverages Rust-optimized distributions()
+    # No need for @cached decorator since get_distributions() is already cached with @callonce
+    return get_distributions().get(name.lower(), "")
 
 
 def _effective_root(rel_path: Path, parent: Path) -> str:
@@ -154,11 +167,9 @@ def _root_module(path: Path) -> str:
 
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
-    import importlib.metadata as importlib_metadata
-
     namespaces: dict[str, bool] = {}
 
-    def is_namespace(f: importlib_metadata.PackagePath):
+    def is_namespace(f):
         root = f.parts[0]
         try:
             return namespaces[root]
@@ -181,7 +192,8 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     try:
         mapping = {}
 
-        for dist in importlib_metadata.distributions():
+        # Use Rust implementation if available (now supports dist.files)
+        for dist in _distributions():
             if not (files := dist.files):
                 continue
             metadata = dist.metadata
@@ -291,17 +303,11 @@ def _(path: str) -> bool:
     return not (is_stdlib(_path) or is_third_party(_path))
 
 
-@cached(maxsize=256)
 def is_distribution_available(name: str) -> bool:
     """Determine if a distribution is available in the current environment."""
-    import importlib.metadata as importlib_metadata
-
-    try:
-        importlib_metadata.distribution(name)
-    except importlib_metadata.PackageNotFoundError:
-        return False
-
-    return True
+    # Use our already-cached get_distributions() which leverages Rust-optimized distributions()
+    # No need for @cached decorator since get_distributions() is already cached with @callonce
+    return name.lower() in get_distributions()
 
 
 # ----
@@ -318,10 +324,9 @@ def _packages_distributions() -> t.Mapping[str, list[str]]:
     >>> all(isinstance(dist, collections.abc.Sequence) for dist in pkgs.values())
     True
     """
-    import importlib.metadata as importlib_metadata
-
+    # Use Rust implementation if available (now supports dist.read_text() and dist.files)
     pkg_to_dist = collections.defaultdict(list)
-    for dist in importlib_metadata.distributions():
+    for dist in _distributions():
         for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
             pkg_to_dist[pkg].append(dist.metadata["Name"])
     return dict(pkg_to_dist)
@@ -358,7 +363,8 @@ def _get_toplevel_name(name) -> str:
     """
     return _topmost(name) or (
         # python/typeshed#10328
-        inspect.getmodulename(name) or str(name)
+        # Convert to str to handle PackagePath objects that may not implement __fspath__
+        inspect.getmodulename(str(name)) or str(name)
     )
 
 
