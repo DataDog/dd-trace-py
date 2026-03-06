@@ -136,7 +136,7 @@ def _convert_strands_messages(
                     result.append(Message(role="assistant", content=" ".join(texts)))
 
         except Exception:
-            logger.warning("Failed to convert message", exc_info=True)
+            logger.debug("Failed to convert message", exc_info=True)
 
     return result
 
