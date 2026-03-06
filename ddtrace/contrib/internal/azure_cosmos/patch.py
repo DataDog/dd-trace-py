@@ -63,7 +63,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
     with tracer.trace(
         "cosmosdb.query",
         service=trace_utils.ext_service(pin, config.azure_cosmos),
-        span_type=SpanTypes.HTTP,
+        span_type=SpanTypes.COSMOS,
     ) as span:
         log.debug("in the span")
         #span kind
@@ -77,6 +77,10 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         request_params = get_argument_value(args, kwargs, 1, "request_params")
         request = get_argument_value(args, kwargs, 5, "request")
 
+        log.debug("args: " + str(args))
+        log.debug("kwargs: " + str(kwargs))
+        log.debug("request params: " + str(request_params))
+
         #out.host
         span._set_tag_str(net.TARGET_HOST, client.url_connection)
         #http.useragent
@@ -88,11 +92,13 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         else:
             span._set_tag_str("cosmosdb.connection.mode", "other")
     
+        log.debug("request: " + str(request))
+        log.debug("request url: " + request.url)
         idx=(request.url).find("/dbs")
         if idx !=-1:
             resource_link = (request.url)[idx:]
         else:
-            resource_link = request.url
+            resource_link = "/dbs"
         #resource name
         span.resource = request_params.operation_type +  " " + resource_link
         log.debug("resource: " + span.resource)
@@ -158,7 +164,7 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
     with tracer.trace(
         "cosmosdb.query",
         service=trace_utils.ext_service(pin, config.azure_cosmos),
-        span_type=SpanTypes.HTTP,
+        span_type=SpanTypes.COSMOS,
     ) as span:
         log.debug("in the span")
         #span kind
