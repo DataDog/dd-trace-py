@@ -1,3 +1,6 @@
+#[cfg(feature = "crashtracker")]
+{
+
 use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -311,4 +314,6 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
     libdd_crashtracker::receiver_entry_point_stdin()
+}
+
 }

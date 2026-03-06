@@ -1,3 +1,5 @@
+#[cfg(feature = "ffe")]
+{
 // FFE (Feature Flagging and Experimentation) module.
 
 use pyo3::pymodule;
@@ -241,4 +243,6 @@ pub mod ffe {
             }
         }
     }
+}
+
 }
