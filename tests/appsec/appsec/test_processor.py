@@ -859,7 +859,7 @@ def test_lambda_unsupported_event(tracer, skip_event):
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
 
 
-@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi"])
+@pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi", "azure.apim"])
 def test_lambda_inferred_span(tracer, inferred_span_name):
     """
     Ensure that when the service entry span is below an inferred span, both spans have
