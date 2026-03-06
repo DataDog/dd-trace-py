@@ -123,6 +123,7 @@ jobs:
         with:
           branch: ${{ steps.create-commit.outputs.branch }}
           head-sha: ${{ steps.create-commit.outputs.branch-from }}
+          target: "DataDog/dd-trace-py"
           create-branch: true
           command: push
           commits: ${{ steps.create-commit.outputs.commit }}
