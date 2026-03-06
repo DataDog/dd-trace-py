@@ -20,6 +20,6 @@ def pytest_configure():
 @pytest.fixture
 def ai_guard_strands_hook():
     with override_ai_guard_config(_AI_GUARD_CONFIG):
-        from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
+        from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
 
         yield AIGuardStrandsHookProvider()

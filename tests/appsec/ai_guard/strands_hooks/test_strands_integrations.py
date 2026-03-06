@@ -27,7 +27,7 @@ from strands.hooks import BeforeToolCallEvent
 from strands.interrupt import _InterruptState
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
-from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
+from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import override_ai_guard_config
 

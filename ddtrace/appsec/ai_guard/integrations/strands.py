@@ -2,7 +2,7 @@
 
 Usage::
 
-    from ddtrace.appsec.ai_guard.strands import AIGuardStrandsHookProvider
+    from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
 
     agent = Agent(
         model=model,
@@ -163,6 +163,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
         then evaluates against security policies. On block: replaces the tool
         result content with a blocked message.
         """
+        tool_name = ""
         try:
             logger.debug("AIGuard event: %s", event)
             logger.debug("AIGuard agent: %s", event.agent)
@@ -226,6 +227,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
         and evaluates it against security policies. On block: cancels the tool
         with a descriptive message.
         """
+        tool_name = ""
         try:
             logger.debug("AIGuard event: %s", event)
             logger.debug("AIGuard agent: %s", event.agent)

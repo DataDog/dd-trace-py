@@ -10,10 +10,10 @@ from strands.hooks import HookRegistry
 from strands.interrupt import _InterruptState
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
+from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard import Function
 from ddtrace.appsec.ai_guard import Message
 from ddtrace.appsec.ai_guard import ToolCall
-from ddtrace.appsec.ai_guard.integrations.strands import AIGuardStrandsHookProvider
 from ddtrace.appsec.ai_guard.integrations.strands import _convert_strands_messages
 from ddtrace.appsec.ai_guard.integrations.strands import _tool_result_text
 from tests.appsec.ai_guard.utils import mock_evaluate_response
