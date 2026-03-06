@@ -26,6 +26,7 @@ on:
 
 jobs:
   build_wheels:
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: []
     uses: ./.github/workflows/build_python_3.yml
     with:
