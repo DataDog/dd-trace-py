@@ -1,6 +1,6 @@
 import concurrent.futures
 
-from mock import ANY
+from unittest.mock import ANY
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
