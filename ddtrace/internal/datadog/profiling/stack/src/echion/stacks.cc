@@ -3,13 +3,13 @@
 #include <echion/echion_sampler.h>
 #include <unordered_set>
 
-#include "native_call_tracker.hpp"
+#include "dd_wrapper/include/profiler_state.hpp"
 
 void
 FrameStack::render(EchionSampler& echion)
 {
     auto& renderer = echion.renderer();
-    auto& registry = Datadog::NativeCallRegistry::get_instance();
+    auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
     for (auto it = this->begin(); it != this->end(); ++it) {
 #if PY_VERSION_HEX >= 0x030c0000

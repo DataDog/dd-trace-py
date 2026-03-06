@@ -2,7 +2,6 @@
 
 #include "constants.hpp"
 #include "dd_wrapper/include/sample.hpp"
-#include "native_call_tracker.hpp"
 #include "thread_span_links.hpp"
 
 #include "echion/danger.h"
@@ -313,9 +312,6 @@ stack_postfork_cleanup()
 
     // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
     ThreadSpanLinks::postfork_child();
-
-    // Reset NativeCallRegistry state (reset locks, clear call site registry)
-    NativeCallRegistry::postfork_child();
 
     // Clear Sampler state (reset locks, clear mappings, etc.)
     Sampler::get().postfork_child();

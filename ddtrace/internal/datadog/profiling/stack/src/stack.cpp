@@ -1,5 +1,5 @@
 #include "cast_to_pyfunc.hpp"
-#include "native_call_tracker.hpp"
+#include "dd_wrapper/include/profiler_state.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
 #include "thread_span_links.hpp"
@@ -41,7 +41,7 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     // across tests, as the tests are run in the same process.
     Py_BEGIN_ALLOW_THREADS; // Release GIL before busy-waiting
     ThreadSpanLinks::get_instance().reset();
-    NativeCallRegistry::get_instance().reset();
+    ProfilerState::get().native_call_registry.reset();
     Py_END_ALLOW_THREADS; // Re-acquire GIL
 
     Py_RETURN_NONE;
@@ -404,7 +404,7 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
         PyErr_Clear();
     }
 
-    NativeCallRegistry::get_instance().register_call_site(
+    ProfilerState::get().native_call_registry.register_call_site(
       code_ptr, offset_bytes, first_lineno, std::move(name), std::move(module));
 
     Py_INCREF(g_disable_sentinel);

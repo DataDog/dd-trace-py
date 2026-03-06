@@ -45,9 +45,12 @@ NativeCallRegistry::reset()
 void
 NativeCallRegistry::postfork_child()
 {
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&get_instance().mtx) std::shared_mutex();
-    get_instance().reset();
+    // NB placement-new to re-init the mutex because doing anything else is UB.
+    // We intentionally do NOT clear call_sites: after fork the code objects live
+    // at the same addresses, and sys.monitoring has already returned DISABLE for
+    // every call site seen in the parent. Clearing would lose native frame info
+    // with no way to re-populate it.
+    new (&mtx) std::shared_mutex();
 }
 
 } // namespace Datadog

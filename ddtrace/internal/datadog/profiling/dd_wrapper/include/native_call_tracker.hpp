@@ -40,11 +40,8 @@ struct NativeCallEntry
 class NativeCallRegistry
 {
   public:
-    static NativeCallRegistry& get_instance()
-    {
-        static NativeCallRegistry instance;
-        return instance;
-    }
+    NativeCallRegistry() = default;
+    ~NativeCallRegistry() = default;
 
     NativeCallRegistry(NativeCallRegistry const&) = delete;
     NativeCallRegistry& operator=(NativeCallRegistry const&) = delete;
@@ -57,14 +54,11 @@ class NativeCallRegistry
     std::optional<NativeCallEntry> lookup(uintptr_t code_ptr, int offset_bytes, int first_lineno);
     void reset();
 
-    static void postfork_child();
+    void postfork_child();
 
   private:
     std::shared_mutex mtx;
     std::unordered_map<CallSiteKey, NativeCallEntry, CallSiteKeyHash> call_sites;
-
-    NativeCallRegistry() = default;
-    ~NativeCallRegistry() = default;
 };
 
 } // namespace Datadog

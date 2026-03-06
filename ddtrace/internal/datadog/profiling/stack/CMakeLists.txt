@@ -70,7 +70,6 @@ add_library(
     src/echion/tasks.cc
     src/echion/threads.cc
     src/echion/vm.cc
-    src/native_call_tracker.cpp
     src/sampler.cpp
     src/stack.cpp
     src/stack_renderer.cpp

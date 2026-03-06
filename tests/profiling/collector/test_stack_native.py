@@ -60,6 +60,105 @@ def test_native_frames_detection(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+@pytest.mark.subprocess(err=None)
+def test_native_frames_preserved_after_fork() -> None:
+    """Test that native C frames are preserved in forked children.
+
+    sys.monitoring returns DISABLE for each call site, so it only fires once.
+    After fork, the registry must retain the parent's call site data, otherwise
+    native frames are lost forever in the child with no way to re-populate them.
+
+    This simulates a gunicorn-style fork: the profiler is running when fork()
+    happens, the sampler restarts via the atfork handler, and the child profiles
+    the same code paths that were already warmed up in the parent.
+    """
+    import _thread
+    import os
+    import pathlib
+    import tempfile
+    import time
+    import zlib
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    FILE_NAME = "test_stack_native.py"
+
+    def loc(function_name, filename="", line_no=-1):
+        return pprof_utils.StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+    tmp_path = pathlib.Path(tempfile.mkdtemp())
+    test_name = "test_native_frames_preserved_after_fork"
+    pprof_prefix = str(tmp_path / test_name)
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    def compress_loop() -> None:
+        data = b"x" * 100000
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            zlib.compress(data)
+
+    # Start the profiler and warm up call sites. sys.monitoring returns DISABLE
+    # after the first fire, so the callback won't trigger again for these sites.
+    # Fork while the profiler is still running (like gunicorn workers).
+    collector = stack.StackCollector()
+    collector.start()
+    compress_loop()
+
+    # Fork while profiler is running. The sampler restarts via the atfork
+    # handler, and the NativeCallRegistry data is preserved.
+    pid = os.fork()
+    if pid == 0:
+        # ----- child process -----
+        # Reconfigure ddup to write to a child-specific file so we can
+        # read the child's profile independently.
+        child_pprof_prefix = str(tmp_path / (test_name + "_child"))
+        child_output = child_pprof_prefix + "." + str(os.getpid())
+
+        ddup.config(env="test", service=test_name, version="my_version", output_filename=child_pprof_prefix)
+        ddup.start()
+        ddup.upload()
+
+        # The sampler restarted automatically via atfork. Run the same C
+        # calls — the registry should still have the call site entries from
+        # the parent, so native frames should appear.
+        compress_loop()
+
+        collector.stop()
+        ddup.upload()
+
+        profile = pprof_utils.parse_newest_profile(child_output)
+        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        assert len(samples) > 0
+
+        try:
+            pprof_utils.assert_profile_has_sample(
+                profile,
+                samples=samples,
+                expected_sample=pprof_utils.StackEvent(
+                    thread_id=_thread.get_ident(),
+                    thread_name="MainThread",
+                    locations=[loc("compress"), loc("compress_loop", FILE_NAME)],
+                ),
+                print_samples_on_failure=True,
+            )
+        except AssertionError:
+            os._exit(1)
+        os._exit(0)
+    else:
+        # ----- parent process -----
+        collector.stop()
+        _, status = os.waitpid(pid, 0)
+        exit_code = os.waitstatus_to_exitcode(status)
+        assert exit_code == 0, "Child process failed: native frames were not preserved after fork"
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
 @pytest.mark.subprocess()
 def test_native_frames_detection_hashlib() -> None:
     """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
