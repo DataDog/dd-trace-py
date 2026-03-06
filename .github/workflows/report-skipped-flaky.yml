@@ -16,6 +16,7 @@ on:
 jobs:
   flaky-tests:
     name: Run Skipped Flaky Tests Report
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     runs-on: ubuntu-latest
 
     steps:
