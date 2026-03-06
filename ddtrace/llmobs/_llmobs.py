@@ -109,8 +109,8 @@ from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
-from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import EvaluatorType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentResult
