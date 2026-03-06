@@ -149,6 +149,7 @@ class Sample
                     uint64_t address,        // for ddog_prof_Location
                     int64_t line             // for ddog_prof_Location
     );
+    void mark_frames_dropped(size_t count = 1);
 
     // Push an entire PyFrameObject chain to the sample.
     // This walks the frame chain and pushes each frame in leaf-to-root order.
