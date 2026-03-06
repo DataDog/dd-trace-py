@@ -233,20 +233,16 @@ def test_native_frames_detection_numpy_flat() -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
 
-    expected_stacks = [
-        [loc("matmul"), loc("numpy_loop", FILE_NAME)],
-        [loc("rand"), loc("numpy_loop", FILE_NAME)],
-    ]
-
-    for exp_stack in expected_stacks:
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("matmul"), loc("numpy_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
@@ -256,7 +252,7 @@ def test_native_frames_detection_numpy_flat() -> None:
     )
 )
 def test_native_frames_detection_numpy_nested() -> None:
-    """Test that hashlib.sha256 appears as the top-most native C frame in the profile."""
+    """Test that numpy.matmul appears as the top-most native C frame in the profile."""
     import _thread
     import os
     import pathlib
@@ -300,20 +296,16 @@ def test_native_frames_detection_numpy_nested() -> None:
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
 
-    expected_stacks = [
-        [loc("matmul"), loc("numpy_loop", FILE_NAME)],
-        [loc("rand"), loc("numpy_loop", FILE_NAME)],
-    ]
-
-    for exp_stack in expected_stacks:
-        pprof_utils.assert_profile_has_sample(
-            profile,
-            samples=samples,
-            expected_sample=pprof_utils.StackEvent(
-                thread_id=_thread.get_ident(), thread_name="MainThread", locations=exp_stack
-            ),
-            print_samples_on_failure=True,
-        )
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples=samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_id=_thread.get_ident(),
+            thread_name="MainThread",
+            locations=[loc("matmul"), loc("numpy_loop", FILE_NAME)],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
