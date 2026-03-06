@@ -34,6 +34,7 @@ on:
 
 jobs:
   download-s3-wheels:
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -437,6 +438,7 @@ jobs:
           path: binaries/
 
   integration-frameworks-system-tests:
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521

@@ -14,10 +14,14 @@ WHAT THESE TESTS CANNOT CATCH:
   that the ORIGINAL also inherits from object, so comparing finds no gap.
   Such bugs require behavioral tests (actually pickle, actually subclass) which
   are in test_threading.py.
+- Issue #16375 (__or__ / __ror__) - PEP 604 type union syntax (e.g.,
+  asyncio.Condition | None). __or__ lives on the metaclass `type` (Python 3.10+),
+  not on the class itself, so it never appears in dir(). Behavioral tests are in
+  test_threading.py and test_asyncio.py (test_pep604_type_union_syntax).
 
 Pure reflection can only detect missing methods that the original explicitly
-defines. It cannot detect when an inherited method (from object) is semantically
-broken for our wrapper.
+defines. It cannot detect when an inherited method (from object or from a
+metaclass like type) is semantically broken for our wrapper.
 """
 
 from __future__ import annotations

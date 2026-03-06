@@ -10,7 +10,11 @@ from ddtrace.llmobs._evaluators import BaseAsyncEvaluator
 from ddtrace.llmobs._evaluators import BaseAsyncSummaryEvaluator
 from ddtrace.llmobs._evaluators import BaseEvaluator
 from ddtrace.llmobs._evaluators import BaseSummaryEvaluator
+from ddtrace.llmobs._evaluators import BooleanStructuredOutput
+from ddtrace.llmobs._evaluators import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators import EvaluatorContext
+from ddtrace.llmobs._evaluators import LLMJudge
+from ddtrace.llmobs._evaluators import ScoreStructuredOutput
 from ddtrace.llmobs._evaluators import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
@@ -30,7 +34,11 @@ __all__ = [
     "BaseSummaryEvaluator",
     "BaseAsyncEvaluator",
     "BaseAsyncSummaryEvaluator",
+    "BooleanStructuredOutput",
+    "CategoricalStructuredOutput",
     "EvaluatorContext",
     "EvaluatorResult",
+    "LLMJudge",
+    "ScoreStructuredOutput",
     "SummaryEvaluatorContext",
 ]
