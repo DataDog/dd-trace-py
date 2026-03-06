@@ -10,6 +10,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -100,6 +101,7 @@ def _wrap_send(func, instance, args, kwargs):
 
     operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
+        maybe_set_service_source_tag(span, config.requests)
         span._set_tag_str(COMPONENT, config.requests.integration_name)
 
         # set span.kind to the type of operation being performed

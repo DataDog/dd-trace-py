@@ -2,6 +2,7 @@ from tornado import template
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.trace import tracer
@@ -27,6 +28,7 @@ def generate(func, renderer, args, kwargs):
 
     # trace the original call
     with tracer.trace("tornado.template", service=pin.service, resource=resource, span_type=SpanTypes.TEMPLATE) as span:
+        maybe_set_service_source_tag(span, config.tornado)
         span._set_tag_str(COMPONENT, config.tornado.integration_name)
 
         span._set_tag_str("tornado.template_name", template_name)

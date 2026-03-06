@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    tracing: Spans on which `service` matches the default specified by their integrations now include the `_dd.svc.src` tag. #16612

@@ -29,6 +29,7 @@ from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_I
 # from ddtrace.internal.utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -168,6 +169,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     if ctx.get_item("measured"):
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+    maybe_set_service_source_tag(span, integration_config or dict())
 
     ctx.span = span
 
