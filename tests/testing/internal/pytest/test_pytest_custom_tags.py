@@ -83,6 +83,39 @@ class TestCustomTags:
         assert skipped_test["content"]["meta"]["test.suite"] == "test_file.py"
         assert skipped_test["content"]["meta"]["test.name"] == "TEST_FOO"
 
+    def test_test_function_name_tag_for_parameterized_tests(self, pytester: Pytester) -> None:
+        pytester.makepyfile(
+            test_file="""
+            import pytest
+
+            @pytest.mark.parametrize("value", ["foo", "bar"], ids=["foo_id", "bar_id"])
+            def test_foo(value):
+                assert value
+        """,
+        )
+
+        with (
+            patch(
+                "ddtrace.testing.internal.session_manager.APIClient",
+                return_value=mock_api_client_settings(),
+            ),
+            setup_standard_mocks(),
+        ):
+            with EventCapture.capture() as event_capture:
+                result = pytester.inline_run("--ddtrace", "-v", "-s")
+
+        assert result.ret == 0
+        result.assertoutcome(passed=2)
+
+        test_events = [event for event in event_capture.events_by_type("test")]
+        assert len(test_events) == 2
+
+        test_names = {event["content"]["meta"]["test.name"] for event in test_events}
+        assert test_names == {"test_foo[foo_id]", "test_foo[bar_id]"}
+
+        test_function_names = {event["content"]["meta"]["test.function_name"] for event in test_events}
+        assert test_function_names == {"test_foo"}
+
     def test_custom_test_module_and_suite_hooks(self, pytester: Pytester) -> None:
         """Test that module and suite names can be overridden by hooks, and test name keeps the default value."""
         pytester.makepyfile(
