@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fix resolves an issue where the lock profiler's wrapper class did not support
+    PEP 604 type union syntax (e.g., ``asyncio.Condition | None``). This was causing a ``TypeError`` at
+    import time for libraries such as `kopf <https://kopf.readthedocs.io/en/stable/>`_ that use union type annotations at class definition time.
