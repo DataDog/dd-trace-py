@@ -25,13 +25,7 @@ def _decode_datastreams_payload(payload):
     return decoded
 
 
-@pytest.mark.subprocess()
 def test_periodic_payload_process_tags():
-    import mock
-
-    from ddtrace.internal.datastreams.processor import DataStreamsProcessor
-    from tests.datastreams.test_processor import _decode_datastreams_payload
-
     processor = DataStreamsProcessor("http://localhost:8126")
     try:
         captured_payloads = []

@@ -250,17 +250,7 @@ def test_batch_json_encoder():
     assert queue.count == 0
 
 
-@pytest.mark.subprocess()
 def test_process_tags_are_included():
-    import inspect
-    import json
-    import threading
-
-    from ddtrace.debugging._encoding import LogSignalJsonEncoder
-    from ddtrace.debugging._encoding import SignalQueue
-    from ddtrace.debugging._signal.snapshot import Snapshot
-    from tests.debugging.utils import create_snapshot_line_probe
-
     s = Snapshot(
         probe=create_snapshot_line_probe(probe_id="batch-test", source_file="foo.py", line=42),
         frame=inspect.currentframe(),
