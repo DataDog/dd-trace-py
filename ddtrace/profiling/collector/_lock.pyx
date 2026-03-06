@@ -539,7 +539,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         if self._reimport_hook is not None:
             try:
                 ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)
-            except Exception:
+            except Exception:  # nosec B110
                 pass
             self._reimport_hook = None
 
