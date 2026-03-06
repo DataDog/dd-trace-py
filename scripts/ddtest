@@ -24,6 +24,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # so source paths in cache keys are identical across worktrees (no SCCACHE_BASEDIRS needed).
 # Concurrent builds with different content are also safe: sccache keys include a hash of the
 # preprocessed source, so divergent files produce separate cache entries, never stale hits.
+# NOTE: If building outside the container (without ddtest/run-tests), source paths differ
+# across worktrees. Set SCCACHE_BASEDIRS to the repo root to normalize paths in cache keys.
 # Users can override with DD_TEST_CACHE_DIR for a fully custom location.
 MAIN_REPO_ROOT="$(cd "$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir)/.." && pwd)"
 CACHE_DIR="${DD_TEST_CACHE_DIR:-$MAIN_REPO_ROOT/.cache}"
