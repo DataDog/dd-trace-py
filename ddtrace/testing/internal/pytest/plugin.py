@@ -1091,7 +1091,7 @@ def _get_test_parameters_json(item: pytest.Item) -> t.Optional[str]:
         return None
 
 
-def _get_test_original_name(item: pytest.Item) -> str | None:
+def _get_test_original_name(item: pytest.Item) -> t.Optional[str]:
     return getattr(item, "originalname", None)
 
 
