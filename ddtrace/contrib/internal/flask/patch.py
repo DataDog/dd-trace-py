@@ -4,7 +4,6 @@ import flask
 import werkzeug
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
-from werkzeug.exceptions import abort
 
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
@@ -16,8 +15,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
-from ddtrace.internal.utils import http as http_utils
-from ddtrace.internal.utils import set_blocked
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -543,15 +540,6 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
     return _wrap(*args, **kwargs)
 
 
-def _block_request_callable(call):
-    set_blocked()
-    core.dispatch("flask.blocked_request_callable", (call,))
-    block_config = get_blocked()
-    ctype = block_config.content_type if block_config else "application/json"
-    block_id = block_config.block_id if block_config else "(default)"
-    abort(flask.Response(http_utils._get_blocked_template(ctype, block_id), content_type=ctype, status=403))
-
-
 def request_patcher(name):
     @with_instance_pin
     def _patched_request(pin, wrapped, instance, args, kwargs):
@@ -563,7 +551,6 @@ def request_patcher(name):
                 service=trace_utils.int_service(pin, config.flask, pin),
                 flask_config=config.flask,
                 flask_request=flask.request,
-                block_request_callable=_block_request_callable,
                 ignored_exception_type=NotFound,
                 tags={COMPONENT: config.flask.integration_name},
             ) as ctx,
