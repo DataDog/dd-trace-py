@@ -15,7 +15,7 @@ jobs:
     # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target.
     if: >
       github.event.pull_request.merged
-      && (
+      || (
         (
           github.event.action == 'closed'
           && contains(join(github.event.pull_request.labels.*.name, ','), 'backport ')
@@ -122,7 +122,9 @@ jobs:
         uses: DataDog/commit-headless@action/v2.0.3
         with:
           branch: ${{ steps.create-commit.outputs.branch }}
-          branch-from: ${{ steps.create-commit.outputs.branch-from }}
+          head-sha: ${{ steps.create-commit.outputs.branch-from }}
+          target: "DataDog/dd-trace-py"
+          create-branch: true
           command: push
           commits: ${{ steps.create-commit.outputs.commit }}
           force: true
