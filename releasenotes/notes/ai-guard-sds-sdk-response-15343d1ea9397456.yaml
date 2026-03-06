@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AI Guard: This updates the AI Guard API client to return Sensitive Data Scanner (SDS) results in the SDK response.
