@@ -22,16 +22,10 @@ def patch():
     if getattr(durable_functions, "_datadog_patch", False):
         return
     durable_functions._datadog_patch = True
-    _patch_dfapp()
 
-
-def _patch_dfapp():
     try:
-        from azure.durable_functions.decorators import durable_app
+        from azure.durable_functions.decorators import durable_app  # noqa: F401
     except Exception:
-        return
-
-    if not hasattr(durable_app, "DFApp"):
         return
 
     _w("azure.durable_functions", "DFApp.get_functions", patched_get_functions)
@@ -46,5 +40,5 @@ def unpatch():
         from azure.durable_functions.decorators import durable_app
     except Exception:
         durable_app = None
-    if durable_app is not None and hasattr(durable_app, "DFApp"):
+    if durable_app is not None:
         _u(durable_app.DFApp, "get_functions")
