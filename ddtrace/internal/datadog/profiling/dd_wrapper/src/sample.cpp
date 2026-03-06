@@ -142,7 +142,7 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
     if (locations.size() < max_nframes) {
         push_frame_impl(name, filename, address, line);
     } else {
-        ++dropped_frames;
+        mark_frames_dropped();
     }
 }
 
@@ -187,7 +187,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         // to avoid expensive CPython API calls (PyFrame_GetCode, PyFrame_GetLineNumber, etc.)
         // for frames that will be dropped anyway.
         if (locations.size() >= max_nframes) {
-            ++dropped_frames;
+            mark_frames_dropped();
             if (!is_initial_frame) {
                 Py_DECREF(f); // Clean up frame reference obtained from PyFrame_GetBack
             }
@@ -248,12 +248,18 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
 }
 
 void
+Datadog::Sample::mark_frames_dropped(size_t count)
+{
+    dropped_frames += count;
+}
+
+void
 Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t line)
 {
     if (locations.size() < max_nframes) {
         push_frame_impl(function_id, address, line);
     } else {
-        ++dropped_frames;
+        mark_frames_dropped();
     }
 }
 
