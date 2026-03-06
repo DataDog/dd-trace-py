@@ -160,9 +160,12 @@ class ExceptionReplayTestCase(TracerTestCase):
                     assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
-                    assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
+                    # Python 3.11+ uses qualified names, earlier versions use simple names
+                    actual_fn = span.get_tag("_dd.debug.error.%d.function" % i)
+                    assert actual_fn.endswith(fn), "_dd.debug.error.%d.function = %s (expected to end with %s)" % (
                         i,
-                        span.get_tag("_dd.debug.error.%d.function" % i),
+                        actual_fn,
+                        fn,
                     )
                     assert span.get_tag("_dd.debug.error.%d.line" % i), "_dd.debug.error.%d.line = %s" % (
                         i,
@@ -227,9 +230,12 @@ class ExceptionReplayTestCase(TracerTestCase):
                     assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
-                    assert span.get_tag("_dd.debug.error.%d.function" % i) == fn, "_dd.debug.error.%d.function = %s" % (
+                    # Python 3.11+ uses qualified names, earlier versions use simple names
+                    actual_fn = span.get_tag("_dd.debug.error.%d.function" % i)
+                    assert actual_fn.endswith(fn), "_dd.debug.error.%d.function = %s (expected to end with %s)" % (
                         i,
-                        span.get_tag("_dd.debug.error.%d.function" % i),
+                        actual_fn,
+                        fn,
                     )
                     assert span.get_tag("_dd.debug.error.%d.line" % i), "_dd.debug.error.%d.line = %s" % (
                         i,
@@ -424,7 +430,8 @@ class ExceptionReplayTestCase(TracerTestCase):
             # Check that we have all the tags for each snapshot
             assert span.get_tag("_dd.debug.error.1.snapshot_id") in snapshots
             assert span.get_tag("_dd.debug.error.1.file") == __file__.replace(".pyc", ".py")
-            assert span.get_tag("_dd.debug.error.1.function") == "a"
+            # Python 3.11+ uses qualified names, earlier versions use simple names
+            assert span.get_tag("_dd.debug.error.1.function").endswith("a")
             assert span.get_tag("_dd.debug.error.1.line")
 
 
