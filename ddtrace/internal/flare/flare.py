@@ -79,7 +79,8 @@ class Flare:
 
         # Setup logging and create config file
         pid = self._setup_flare_logging(flare_log_level_int)
-        return self._generate_config_file(pid)
+        self._generate_config_file(pid)
+        return True
 
     def send(self, flare_send_req: FlareSendRequest):
         """
