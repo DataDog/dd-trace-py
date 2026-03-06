@@ -1,0 +1,13 @@
+id: span-get-tags
+valid:
+  # Standalone function call (no receiver)
+  - get_tags()
+  # Different method names are fine
+  - span._get_str_attributes()
+invalid:
+  - span.get_tags()
+  - self.get_tags()
+  - |
+    tags = span.get_tags()
+    for key, value in tags.items():
+        process(key, value)

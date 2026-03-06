@@ -41,10 +41,10 @@ def assert_sampling_decision_tags(
     :param sampling_priority: expected sampling priority ``_sampling_priority_v1``
     :param trace_tag: expected sampling decision trace tag ``_dd.p.dm``. Format is ``-{SAMPLINGMECHANISM}``.
     """
-    metric_agent = span.get_metric(_SAMPLING_AGENT_DECISION)
-    metric_limit = span.get_metric(_SAMPLING_LIMIT_DECISION)
-    metric_rule = span.get_metric(_SAMPLING_RULE_DECISION)
-    metric_sampling_priority = span.get_metric(_SAMPLING_PRIORITY_KEY)
+    metric_agent = span._get_numeric_attribute(_SAMPLING_AGENT_DECISION)
+    metric_limit = span._get_numeric_attribute(_SAMPLING_LIMIT_DECISION)
+    metric_rule = span._get_numeric_attribute(_SAMPLING_RULE_DECISION)
+    metric_sampling_priority = span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY)
     if agent:
         assert metric_agent == agent
     if limit:
@@ -579,9 +579,9 @@ def test_partial_flush_with_sampling_rules():
                 with tracer.trace("span"):
                     pass
 
-    assert root_span.get_metric("_dd.rule_psr") == 0, repr(root_span)
-    assert child_span1.get_metric("_dd.py.partial_flush") == 5, repr(child_span1)
-    assert child_span2.get_metric("_dd.py.partial_flush") == 5, repr(child_span2)
+    assert root_span._get_numeric_attribute("_dd.rule_psr") == 0, repr(root_span)
+    assert child_span1._get_numeric_attribute("_dd.py.partial_flush") == 5, repr(child_span1)
+    assert child_span2._get_numeric_attribute("_dd.py.partial_flush") == 5, repr(child_span2)
 
     for span in (root_span, child_span1, child_span2):
         assert span.context.sampling_priority == -1, repr(span)

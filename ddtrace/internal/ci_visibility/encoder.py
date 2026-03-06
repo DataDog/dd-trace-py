@@ -87,7 +87,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _get_parent_session(self, traces: list[list["Span"]]) -> int:
         for trace in traces:
             for span in trace:
-                if span.get_tag(EVENT_TYPE) == SESSION_TYPE and span.parent_id is not None:
+                if span._get_str_attribute(EVENT_TYPE) == SESSION_TYPE and span.parent_id is not None:  # ast-grep-ignore: span-get-tag
                     return span.parent_id
         return 0
 
@@ -165,7 +165,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             trace_spans = [
                 self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
                 for span in trace
-                if (not self._is_xdist_worker) or (span.get_tag(EVENT_TYPE) != SESSION_TYPE)
+                if (not self._is_xdist_worker) or (span._get_str_attribute(EVENT_TYPE) != SESSION_TYPE)  # ast-grep-ignore: span-get-tag
             ]
             all_spans_with_trace_info.append((trace_idx, trace_spans))
 
@@ -190,7 +190,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     ) -> dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
-        sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
+        sp["type"] = span._get_str_attribute(EVENT_TYPE) or span.span_type  # ast-grep-ignore: span-get-tag
         sp["duration"] = span.duration_ns
         sp["meta"] = dict(sorted(span._get_str_attributes().items()))
         sp["metrics"] = dict(sorted(span._get_numeric_attributes().items()))
@@ -199,11 +199,11 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         sp = CIVisibilityEncoderV01._filter_ids(sp, new_parent_session_span_id)
 
         version = CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION
-        if span.get_tag(EVENT_TYPE) == "test":
+        if span._get_str_attribute(EVENT_TYPE) == "test":  # ast-grep-ignore: span-get-tag
             version = CIVisibilityEncoderV01.TEST_EVENT_VERSION
 
         if span.span_type == "test":
-            event_type = span.get_tag(EVENT_TYPE)
+            event_type = span._get_str_attribute(EVENT_TYPE)  # ast-grep-ignore: span-get-tag
         else:
             event_type = "span"
 
@@ -259,10 +259,10 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         spans_with_coverage = [
             span
             for span in item
-            if COVERAGE_TAG_NAME in span.get_tags() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None
+            if COVERAGE_TAG_NAME in span._get_str_attributes() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None  # ast-grep-ignore: span-get-tags
         ]
         # Also include session span for parent session ID lookup, even if it doesn't have coverage data
-        session_span = next((span for span in item if span.get_tag(EVENT_TYPE) == SESSION_TYPE), None)
+        session_span = next((span for span in item if span._get_str_attribute(EVENT_TYPE) == SESSION_TYPE), None)  # ast-grep-ignore: span-get-tag
         if session_span and session_span not in spans_with_coverage:
             spans_with_coverage.append(session_span)
 
@@ -301,7 +301,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             self._convert_span(span, new_parent_session_span_id=new_parent_session_span_id)
             for trace in traces
             for span in trace
-            if (COVERAGE_TAG_NAME in span.get_tags() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None)
+            if (COVERAGE_TAG_NAME in span._get_str_attributes() or span._get_struct_tag(COVERAGE_TAG_NAME) is not None)  # ast-grep-ignore: span-get-tags
         ]
         if not normalized_covs:
             return None
@@ -324,12 +324,12 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         files_struct_tag_value = span._get_struct_tag(COVERAGE_TAG_NAME)
         if files_struct_tag_value is not None and "files" in files_struct_tag_value:
             files = files_struct_tag_value["files"]
-        elif COVERAGE_TAG_NAME in span.get_tags():
-            files = json.loads(str(span.get_tag(COVERAGE_TAG_NAME)))["files"]
+        elif COVERAGE_TAG_NAME in span._get_str_attributes():  # ast-grep-ignore: span-get-tags
+            files = json.loads(str(span._get_str_attribute(COVERAGE_TAG_NAME)))["files"]  # ast-grep-ignore: span-get-tag
 
         converted_span = {
-            "test_session_id": new_parent_session_span_id or int(span.get_tag(SESSION_ID) or "1"),
-            "test_suite_id": int(span.get_tag(SUITE_ID) or "1"),
+            "test_session_id": new_parent_session_span_id or int(span._get_str_attribute(SESSION_ID) or "1"),  # ast-grep-ignore: span-get-tag
+            "test_suite_id": int(span._get_str_attribute(SUITE_ID) or "1"),  # ast-grep-ignore: span-get-tag
             "files": files,
         }
 

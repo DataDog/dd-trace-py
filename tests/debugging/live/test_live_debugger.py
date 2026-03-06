@@ -101,4 +101,4 @@ class SpanProbeTestCase(TracerTestCase):
             assert Counter(s.probe.probe_id for s in d.snapshots)["snapshot-probe"] == snapshot_probe.__budget__
 
             # There is an extra call from traced_entrypoint
-            assert trace.get_metric("_dd.ld.probe_id.snapshot-probe") == n_calls + 1
+            assert trace._get_numeric_attribute("_dd.ld.probe_id.snapshot-probe") == n_calls + 1

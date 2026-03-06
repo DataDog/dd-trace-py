@@ -76,4 +76,4 @@ class TestPytest(TracerTestCase):
 
         assert len(spans) == 4
         test_span = spans[0]
-        assert test_span.get_tag(test.STATUS) == test.Status.PASS.value
+        assert test_span._get_str_attribute(test.STATUS) == test.Status.PASS.value

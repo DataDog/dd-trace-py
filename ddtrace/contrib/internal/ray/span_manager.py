@@ -47,7 +47,7 @@ def long_running_ray_span(
     with tracer.start_span(
         name=span_name, service=service, resource=resource, span_type=span_type, child_of=child_of, activate=activate
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags_and_metrics(span)
         start_long_running_span(span)
 
@@ -78,7 +78,7 @@ class RaySpanManager:
             pass
 
     def _get_submission_id(self, span: Span) -> Optional[str]:
-        return span.get_tag(RAY_SUBMISSION_ID_TAG)
+        return span._get_str_attribute(RAY_SUBMISSION_ID_TAG)
 
     def cleanup_on_exit(self) -> None:
         """Clean up all resources when the process exits."""
@@ -102,13 +102,13 @@ class RaySpanManager:
 
     def _emit_partial_span(self, span: Span) -> None:
         partial_version = time.time_ns()
-        if span.get_metric(DD_PARTIAL_VERSION) is None:
-            span.set_metric(DD_PARTIAL_VERSION, partial_version)
-            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+        if span._get_numeric_attribute(DD_PARTIAL_VERSION) is None:
+            span._set_attribute(DD_PARTIAL_VERSION, partial_version)
+            span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
 
         partial_span = self._recreate_job_span(span)
-        partial_span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
-        partial_span.set_metric(DD_PARTIAL_VERSION, partial_version)
+        partial_span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_RUNNING)
+        partial_span._set_attribute(DD_PARTIAL_VERSION, partial_version)
         partial_span.finish()
 
         # Sending spans which are waiting for long running spans to finish
@@ -167,7 +167,7 @@ class RaySpanManager:
             parent_id=job_span.parent_id,
             context=job_span.context,
         )
-        new_span._set_tag_str("component", RAY_COMPONENT)
+        new_span._set_attribute("component", RAY_COMPONENT)
         new_span.start_ns = job_span.start_ns
         new_span._set_attributes(job_span._get_str_attributes())
         new_span._set_attributes(job_span._get_numeric_attributes())
@@ -189,14 +189,14 @@ class RaySpanManager:
 
     def _finish_span(self, span: Span, job_info: Optional[JobInfo] = None) -> None:
         # only if span was long running
-        if span.get_metric(DD_PARTIAL_VERSION) is not None:
+        if span._get_numeric_attribute(DD_PARTIAL_VERSION) is not None:
             span._remove_attribute(DD_PARTIAL_VERSION)
 
-            span.set_metric(DD_WAS_LONG_RUNNING, 1)
-            span._set_tag_str(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
+            span._set_attribute(DD_WAS_LONG_RUNNING, 1)
+            span._set_attribute(RAY_JOB_STATUS, RAY_STATUS_FINISHED)
 
         if job_info:
-            span._set_tag_str(RAY_JOB_STATUS, job_info.status)
+            span._set_attribute(RAY_JOB_STATUS, job_info.status)
             span.set_tag(RAY_JOB_MESSAGE, job_info.message)
 
             if str(job_info.status) == RAY_STATUS_FAILED:

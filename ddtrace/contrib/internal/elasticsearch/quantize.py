@@ -24,8 +24,8 @@ def quantize(span):
 
     All of this should probably be done in the Agent. Later.
     """
-    url = span.get_tag(metadata.URL)
-    method = span.get_tag(metadata.METHOD)
+    url = span._get_str_attribute(metadata.URL)
+    method = span._get_str_attribute(metadata.METHOD)
 
     quantized_url = ID_REGEXP.sub(ID_PLACEHOLDER, url)
     quantized_url = INDEX_REGEXP.sub(INDEX_PLACEHOLDER, quantized_url)

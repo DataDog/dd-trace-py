@@ -139,10 +139,7 @@ def _report_coverage_to_span(
             files = ModuleCodeCollector.report_seen_lines(workspace_path, include_imported=True)
             if not files:
                 return
-            span._set_tag_str(
-                COVERAGE_TAG_NAME,
-                json.dumps({"files": files}),
-            )
+            span._set_attribute(COVERAGE_TAG_NAME, json.dumps({"files": files}))
             record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
             coverage_data.__exit__(None, None, None)
 
@@ -153,10 +150,7 @@ def _report_coverage_to_span(
         record_code_coverage_error()
         return
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, framework)
-    span._set_tag_str(
-        COVERAGE_TAG_NAME,
-        build_payload(coverage_data, root_dir, span_id),
-    )
+    span._set_attribute(COVERAGE_TAG_NAME, build_payload(coverage_data, root_dir, span_id))
     coverage_data._collector.data.clear()  # type: ignore[union-attr]
 
 

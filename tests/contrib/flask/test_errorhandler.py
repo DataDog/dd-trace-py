@@ -30,23 +30,23 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # flask.request span
         self.assertEqual(req_span.error, 0)
         assert_span_http_status_code(req_span, 404)
-        self.assertIsNone(req_span.get_tag("flask.endpoint"))
-        self.assertIsNone(req_span.get_tag("flask.url_rule"))
+        self.assertIsNone(req_span._get_str_attribute("flask.endpoint"))
+        self.assertIsNone(req_span._get_str_attribute("flask.url_rule"))
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 0)
-        self.assertIsNone(dispatch_span.get_tag(ERROR_MSG))
-        self.assertIsNone(dispatch_span.get_tag("error.stack"))
-        self.assertIsNone(dispatch_span.get_tag("error.type"))
+        self.assertIsNone(dispatch_span._get_str_attribute(ERROR_MSG))
+        self.assertIsNone(dispatch_span._get_str_attribute("error.stack"))
+        self.assertIsNone(dispatch_span._get_str_attribute("error.type"))
 
         # flask.handle_user_exception span
         self.assertNotEqual(user_ex_span.parent_id, 0)
-        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(user_ex_span._get_str_attributes(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
         self.assertNotEqual(http_ex_span.parent_id, 0)
-        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(http_ex_span._get_str_attributes(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_abort_500(self):
@@ -76,35 +76,35 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         self.assertEqual(req_span.error, 1)
 
         assert_span_http_status_code(req_span, 500)
-        self.assertEqual(req_span.get_tag("flask.endpoint"), "endpoint_500")
-        self.assertEqual(req_span.get_tag("flask.url_rule"), "/500")
+        self.assertEqual(req_span._get_str_attribute("flask.endpoint"), "endpoint_500")
+        self.assertEqual(req_span._get_str_attribute("flask.url_rule"), "/500")
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag(ERROR_MSG)
+        error_msg = dispatch_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
-        error_stack = dispatch_span.get_tag("error.stack")
+        error_stack = dispatch_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = dispatch_span.get_tag("error.type")
+        error_type = dispatch_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag(ERROR_MSG)
+        error_msg = endpoint_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
-        error_stack = endpoint_span.get_tag("error.stack")
+        error_stack = endpoint_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = endpoint_span.get_tag("error.type")
+        error_type = endpoint_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # flask.handle_user_exception span
         self.assertNotEqual(user_ex_span.parent_id, 0)
-        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(user_ex_span._get_str_attributes(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
         self.assertNotEqual(http_ex_span.parent_id, 0)
-        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(http_ex_span._get_str_attributes(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_abort_500_custom_handler(self):
@@ -139,40 +139,40 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # flask.request span
         self.assertEqual(req_span.error, 0)
         assert_span_http_status_code(req_span, 200)
-        self.assertEqual(req_span.get_tag("flask.endpoint"), "endpoint_500")
-        self.assertEqual(req_span.get_tag("flask.url_rule"), "/500")
+        self.assertEqual(req_span._get_str_attribute("flask.endpoint"), "endpoint_500")
+        self.assertEqual(req_span._get_str_attribute("flask.url_rule"), "/500")
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag(ERROR_MSG)
+        error_msg = dispatch_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
-        error_stack = dispatch_span.get_tag("error.stack")
+        error_stack = dispatch_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = dispatch_span.get_tag("error.type")
+        error_type = dispatch_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag(ERROR_MSG)
+        error_msg = endpoint_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("500 Internal Server Error"))
-        error_stack = endpoint_span.get_tag("error.stack")
+        error_stack = endpoint_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = endpoint_span.get_tag("error.type")
+        error_type = endpoint_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "werkzeug.exceptions.InternalServerError")
 
         # tests.contrib.flask.test_errorhandler.handle_500 span
         self.assertEqual(handler_span.error, 0)
-        self.assertIsNone(handler_span.get_tag(ERROR_MSG))
-        self.assertIsNone(handler_span.get_tag("error.stack"))
-        self.assertIsNone(handler_span.get_tag("error.type"))
+        self.assertIsNone(handler_span._get_str_attribute(ERROR_MSG))
+        self.assertIsNone(handler_span._get_str_attribute("error.stack"))
+        self.assertIsNone(handler_span._get_str_attribute("error.type"))
 
         # flask.handle_user_exception span
-        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(user_ex_span._get_str_attributes(), EXPECTED_METADATA)
         self.assertEqual(user_ex_span.error, 0)
 
         # flask.handle_http_exception span
         self.assertNotEqual(http_ex_span.parent_id, 0)
-        self.assertEqual(http_ex_span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(http_ex_span._get_str_attributes(), EXPECTED_METADATA)
         self.assertEqual(http_ex_span.error, 0)
 
     def test_raise_user_exception(self):
@@ -204,34 +204,34 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # flask.request span
         self.assertEqual(req_span.error, 1)
         assert_span_http_status_code(req_span, 500)
-        self.assertEqual(req_span.get_tag("flask.endpoint"), "endpoint_error")
-        self.assertEqual(req_span.get_tag("flask.url_rule"), "/error")
+        self.assertEqual(req_span._get_str_attribute("flask.endpoint"), "endpoint_error")
+        self.assertEqual(req_span._get_str_attribute("flask.url_rule"), "/error")
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag(ERROR_MSG)
+        error_msg = dispatch_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
-        error_stack = dispatch_span.get_tag("error.stack")
+        error_stack = dispatch_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = dispatch_span.get_tag("error.type")
+        error_type = dispatch_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "tests.contrib.flask.test_errorhandler.FlaskTestException")
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag(ERROR_MSG)
+        error_msg = endpoint_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
-        error_stack = endpoint_span.get_tag("error.stack")
+        error_stack = endpoint_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = endpoint_span.get_tag("error.type")
+        error_type = endpoint_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "tests.contrib.flask.test_errorhandler.FlaskTestException")
 
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.error, 1)
-        error_msg = user_ex_span.get_tag(ERROR_MSG)
+        error_msg = user_ex_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
-        error_stack = user_ex_span.get_tag("error.stack")
+        error_stack = user_ex_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = user_ex_span.get_tag("error.type")
+        error_type = user_ex_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "tests.contrib.flask.test_errorhandler.FlaskTestException")
 
         # flask.handle_http_exception span
@@ -272,25 +272,25 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # flask.request span
         self.assertEqual(req_span.error, 0)
         assert_span_http_status_code(req_span, 200)
-        self.assertEqual(req_span.get_tag("flask.endpoint"), "endpoint_error")
-        self.assertEqual(req_span.get_tag("flask.url_rule"), "/error")
+        self.assertEqual(req_span._get_str_attribute("flask.endpoint"), "endpoint_error")
+        self.assertEqual(req_span._get_str_attribute("flask.url_rule"), "/error")
 
         # flask.dispatch_request span
         self.assertEqual(dispatch_span.error, 1)
-        error_msg = dispatch_span.get_tag(ERROR_MSG)
+        error_msg = dispatch_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
-        error_stack = dispatch_span.get_tag("error.stack")
+        error_stack = dispatch_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = dispatch_span.get_tag("error.type")
+        error_type = dispatch_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "tests.contrib.flask.test_errorhandler.FlaskTestException")
 
         # tests.contrib.flask.test_errorhandler.endpoint_500 span
         self.assertEqual(endpoint_span.error, 1)
-        error_msg = endpoint_span.get_tag(ERROR_MSG)
+        error_msg = endpoint_span._get_str_attribute(ERROR_MSG)
         self.assertTrue(error_msg.startswith("custom error message"))
-        error_stack = endpoint_span.get_tag("error.stack")
+        error_stack = endpoint_span._get_str_attribute("error.stack")
         self.assertTrue(error_stack.startswith("Traceback (most recent call last):"))
-        error_type = endpoint_span.get_tag("error.type")
+        error_type = endpoint_span._get_str_attribute("error.type")
         self.assertEqual(error_type, "tests.contrib.flask.test_errorhandler.FlaskTestException")
 
         # tests.contrib.flask.test_errorhandler.handle_error span
@@ -299,7 +299,7 @@ class FlaskErrorhandlerTestCase(BaseFlaskTestCase):
         # flask.handle_user_exception span
         self.assertEqual(user_ex_span.error, 0)
         self.assertNotEqual(user_ex_span.parent_id, 0)
-        self.assertEqual(user_ex_span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(user_ex_span._get_str_attributes(), EXPECTED_METADATA)
 
         # flask.handle_http_exception span
         self.assertIsNone(http_ex_span)

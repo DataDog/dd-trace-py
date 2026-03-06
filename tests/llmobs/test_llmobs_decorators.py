@@ -243,9 +243,9 @@ def test_llm_decorator_with_error(llmobs, llmobs_events, test_spans):
         model_name="test_model",
         model_provider="test_provider",
         session_id="test_session_id",
-        error=span.get_tag("error.type"),
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error=span._get_str_attribute("error.type"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
     )
 
 
@@ -263,9 +263,9 @@ def test_non_llm_decorators_with_error(llmobs, llmobs_events, test_spans):
             span,
             decorator_name,
             session_id="test_session_id",
-            error=span.get_tag("error.type"),
-            error_message=span.get_tag("error.message"),
-            error_stack=span.get_tag("error.stack"),
+            error=span._get_str_attribute("error.type"),
+            error_message=span._get_str_attribute("error.message"),
+            error_stack=span._get_str_attribute("error.stack"),
         )
 
 
@@ -698,9 +698,9 @@ def test_generator_sync_finishes_span_on_error(llmobs, llmobs_events, test_spans
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
-        error=span.get_tag("error.type"),
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error=span._get_str_attribute("error.type"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
     )
 
 
@@ -720,9 +720,9 @@ async def test_generator_async_finishes_span_on_error(llmobs, llmobs_events, tes
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
-        error=span.get_tag("error.type"),
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error=span._get_str_attribute("error.type"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
     )
 
 
@@ -781,9 +781,9 @@ def test_generator_sync_throw(llmobs, llmobs_events, test_spans):
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
-        error=span.get_tag("error.type"),
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error=span._get_str_attribute("error.type"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
     )
 
 
@@ -802,9 +802,9 @@ async def test_generator_async_throw(llmobs, llmobs_events, test_spans):
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
-        error=span.get_tag("error.type"),
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error=span._get_str_attribute("error.type"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
     )
 
 
@@ -826,9 +826,9 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events, test_spans):
         span,
         "workflow",
         input_value='{"alist": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}',
-        error=span.get_tag("error.type"),
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error=span._get_str_attribute("error.type"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
     )
 
 

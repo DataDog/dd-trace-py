@@ -83,11 +83,11 @@ class TestPytest(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 13  # 3 scenarios + 7 steps + 1 module
-        assert json.loads(spans[1].get_tag(test.PARAMETERS)) == {"bars": 0}
-        assert json.loads(spans[3].get_tag(test.PARAMETERS)) == {"bars": -1}
-        assert json.loads(spans[5].get_tag(test.PARAMETERS)) == {"bars": 2}
-        assert json.loads(spans[7].get_tag(test.PARAMETERS)) == {"bars": 0}
-        assert json.loads(spans[9].get_tag(test.PARAMETERS)) == {"bars": "no"}
+        assert json.loads(spans[1]._get_str_attribute(test.PARAMETERS)) == {"bars": 0}
+        assert json.loads(spans[3]._get_str_attribute(test.PARAMETERS)) == {"bars": -1}
+        assert json.loads(spans[5]._get_str_attribute(test.PARAMETERS)) == {"bars": 2}
+        assert json.loads(spans[7]._get_str_attribute(test.PARAMETERS)) == {"bars": 0}
+        assert json.loads(spans[9]._get_str_attribute(test.PARAMETERS)) == {"bars": "no"}
 
     def test_pytest_bdd_scenario(self):
         """Test that pytest-bdd traces scenario with all steps."""
@@ -125,8 +125,8 @@ class TestPytest(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 7
-        assert spans[0].get_tag("component") == "pytest"
-        assert spans[0].get_tag("test.name") == "Simple scenario"
+        assert spans[0]._get_str_attribute("component") == "pytest"
+        assert spans[0]._get_str_attribute("test.name") == "Simple scenario"
         assert spans[0].span_type == "test"
         assert spans[1].resource == "I have a bar"
         assert spans[1].name == "given"
@@ -172,7 +172,7 @@ class TestPytest(PytestTestCaseBase):
 
         assert len(spans) == 7
         assert spans[3].name == "then"
-        assert spans[3].get_tag(ERROR_MSG)
+        assert spans[3]._get_str_attribute(ERROR_MSG)
 
     def test_pytest_bdd_with_missing_step_implementation(self):
         """Test that pytest-bdd captures missing steps."""
@@ -194,7 +194,7 @@ class TestPytest(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_tag(ERROR_MSG)
+        assert spans[0]._get_str_attribute(ERROR_MSG)
 
     def test_get_step_func_args_json_empty(self):
         self.monkeypatch.setattr(

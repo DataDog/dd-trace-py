@@ -59,9 +59,9 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert s.service == "bottle-app"
         assert s.resource == "GET /hi/<name>"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag("http.method") == "GET"
-        assert s.get_tag("component") == "bottle"
-        assert s.get_tag("span.kind") == "server"
+        assert s._get_str_attribute("http.method") == "GET"
+        assert s._get_str_attribute("component") == "bottle"
+        assert s._get_str_attribute("span.kind") == "server"
         # check distributed headers
         assert 123 == s.trace_id
         assert 456 == s.parent_id
@@ -88,9 +88,9 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert s.service == "bottle-app"
         assert s.resource == "GET /hi/<name>"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag("http.method") == "GET"
-        assert s.get_tag("component") == "bottle"
-        assert s.get_tag("span.kind"), "server"
+        assert s._get_str_attribute("http.method") == "GET"
+        assert s._get_str_attribute("component") == "bottle"
+        assert s._get_str_attribute("span.kind"), "server"
         # check distributed headers
         assert 123 != s.trace_id
         assert 456 != s.parent_id
@@ -117,9 +117,9 @@ class TraceBottleDistributedTest(TracerTestCase):
         assert s.service == "bottle-app"
         assert s.resource == "GET /hi/<name>"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag("http.method") == "GET"
-        assert s.get_tag("component") == "bottle"
-        assert s.get_tag("span.kind"), "server"
+        assert s._get_str_attribute("http.method") == "GET"
+        assert s._get_str_attribute("component") == "bottle"
+        assert s._get_str_attribute("span.kind"), "server"
         # check distributed headers
         assert 123 != s.trace_id
         assert 456 != s.parent_id

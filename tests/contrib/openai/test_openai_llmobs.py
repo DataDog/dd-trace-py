@@ -1110,7 +1110,7 @@ MUL: "*"
                 token_metrics={},
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                error_stack=span.get_tag("error.stack"),
+                error_stack=span._get_str_attribute("error.stack"),
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1138,7 +1138,7 @@ MUL: "*"
                 token_metrics={},
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                error_stack=span.get_tag("error.stack"),
+                error_stack=span._get_str_attribute("error.stack"),
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1779,7 +1779,7 @@ MUL: "*"
                 token_metrics={},
                 error="openai.AuthenticationError",
                 error_message="Error code: 401 - {'error': {'message': 'Incorrect API key provided: <not-a-r****key>. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",  # noqa: E501
-                error_stack=span.get_tag("error.stack"),
+                error_stack=span._get_str_attribute("error.stack"),
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )

@@ -25,10 +25,10 @@ def test_global_tags(mock_generate_content, genai_client, test_spans):
     span = test_spans.pop_traces()[0][0]
     assert span.resource == "Models.generate_content"
     assert span.service == "test-svc"
-    assert span.get_tag("env") == "staging"
-    assert span.get_tag("version") == "1234"
-    assert span.get_tag("google_genai.request.model") == "gemini-2.0-flash-001"
-    assert span.get_tag("google_genai.request.provider") == "google"
+    assert span._get_str_attribute("env") == "staging"
+    assert span._get_str_attribute("version") == "1234"
+    assert span._get_str_attribute("google_genai.request.model") == "gemini-2.0-flash-001"
+    assert span._get_str_attribute("google_genai.request.provider") == "google"
 
 
 def test_google_genai_generate_content(mock_generate_content, genai_client, snapshot_context):

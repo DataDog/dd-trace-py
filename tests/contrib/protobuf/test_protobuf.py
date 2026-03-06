@@ -59,8 +59,8 @@ def test_basic_schema_serialize(protobuf, tracer, test_spans):
     assert span.name == "other_message.serialize"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OTHER_MESSAGE_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "OtherMessage"
@@ -108,8 +108,8 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
     assert span.name == "message_pb2.serialize"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == MESSAGE_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "MyMessage"
@@ -142,8 +142,8 @@ def test_basic_schema_deserialize(protobuf, tracer, test_spans):
     assert span.name == "other_message.deserialize"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == OTHER_MESSAGE_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "OtherMessage"
@@ -198,8 +198,8 @@ def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
     assert span.name == "my_message.deserialize"
     assert span.error == 0
 
-    tags = span.get_tags()
-    metrics = span.get_metrics()
+    tags = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     assert tags[SCHEMA_TAGS.SCHEMA_DEFINITION] == MESSAGE_SCHEMA_DEF
     assert tags[SCHEMA_TAGS.SCHEMA_TYPE] == "protobuf"
     assert tags[SCHEMA_TAGS.SCHEMA_NAME] == "MyMessage"

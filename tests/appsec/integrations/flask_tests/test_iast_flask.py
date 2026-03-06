@@ -92,7 +92,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -147,7 +147,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -205,7 +205,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -264,7 +264,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "Master", "value": "Master"}]
@@ -318,7 +318,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"origin": "http.request.header", "name": "User-Agent", "value": "master"}]
@@ -392,7 +392,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                 assert resp.text == "select%20from%20table"
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_tainted_request_sampling_0(self):
@@ -422,7 +422,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
 
-            assert root_span.get_metric(IAST.ENABLED) == 0.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 0.0
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_enabled_http_request_cookies_value(self):
@@ -459,7 +459,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -525,7 +525,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -583,7 +583,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -640,7 +640,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -699,7 +699,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -767,7 +767,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "json_body", "origin": "http.request.body", "value": "master"}]
@@ -833,7 +833,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "body3", "origin": "http.request.body", "value": "master"}]
@@ -899,7 +899,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "body3", "origin": "http.request.body", "value": "master"}]
@@ -967,7 +967,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "body4", "origin": "http.request.body", "value": "master"}]
@@ -1106,7 +1106,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "extra", "origin": "http.request.body", "value": "master"}]
@@ -1178,7 +1178,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "json_body", "origin": "http.request.body", "value": "master"}]
@@ -1215,7 +1215,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"origin": "http.request.header", "name": "User-Agent", "value": "master"}]
@@ -1280,7 +1280,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.headers["Header-Injection"] == "test"
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
             assert load_iast_report(root_span) is None
 
     def test_flask_header_injection_direct_access_to_header(self):
@@ -1306,7 +1306,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.headers["Header-Injection"] == "test"
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             assert load_iast_report(root_span) is None
 
@@ -1338,7 +1338,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
                     self.client.post("/header_injection_insecure/", data={"name": "test\r\nInjected-Header: 1234"})
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
             assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1364,7 +1364,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             assert load_iast_report(root_span) is None
 
@@ -1391,7 +1391,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             assert load_iast_report(root_span) is None
 
@@ -1420,7 +1420,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
@@ -1461,7 +1461,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded is None
@@ -1491,7 +1491,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
@@ -1531,7 +1531,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded is None
@@ -1561,7 +1561,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
@@ -1628,7 +1628,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded is None
@@ -1675,7 +1675,7 @@ Lorem Ipsum Foobar
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
@@ -1721,7 +1721,7 @@ Lorem Ipsum Foobar
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
@@ -1758,7 +1758,7 @@ Lorem Ipsum Foobar
             assert resp.data == b"<p>XSS: <script>alert('XSS')</script></p>"
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -1801,7 +1801,7 @@ Lorem Ipsum Foobar
             assert b"Redirecting..." in resp.data
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -1845,7 +1845,7 @@ Lorem Ipsum Foobar
             assert b"OK" in resp.data
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -1884,7 +1884,7 @@ Lorem Ipsum Foobar
             assert resp.data == b"<p>XSS: <script>alert('XSS')</script></p>"
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -1929,7 +1929,7 @@ Lorem Ipsum Foobar
             assert resp.data == b"hello &lt;script&gt;alert(&#39;XSS&#39;)&lt;/script&gt;"
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             assert load_iast_report(root_span) is None
 
@@ -1956,7 +1956,7 @@ Lorem Ipsum Foobar
             assert resp.data == b"hello <script>alert('XSS')</script>"
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -2008,7 +2008,7 @@ Lorem Ipsum Foobar
             assert b"<div><script>alert('XSS')</script></div>" in resp.data
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) == 1.0
+            assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
@@ -2132,7 +2132,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
+            assert root_span._get_numeric_attribute(IAST.ENABLED) is None
 
             assert load_iast_report(root_span) is None
 
@@ -2164,7 +2164,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
+            assert root_span._get_numeric_attribute(IAST.ENABLED) is None
 
             assert load_iast_report(root_span) is None
 
@@ -2196,7 +2196,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
+            assert root_span._get_numeric_attribute(IAST.ENABLED) is None
 
             assert load_iast_report(root_span) is None
 
@@ -2228,7 +2228,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
+            assert root_span._get_numeric_attribute(IAST.ENABLED) is None
 
             assert load_iast_report(root_span) is None
 
@@ -2287,6 +2287,6 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            assert root_span.get_metric(IAST.ENABLED) is None
+            assert root_span._get_numeric_attribute(IAST.ENABLED) is None
 
             assert load_iast_report(root_span) is None

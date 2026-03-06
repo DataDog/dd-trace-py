@@ -31,4 +31,4 @@ def test_query_default(client, tracer, test_spans):
     traces = test_spans.pop_traces()
     assert 1 == len(traces)
     assert 1 == len(traces[0])
-    assert traces[0][0].get_tag("memcached.query") is None
+    assert traces[0][0]._get_str_attribute("memcached.query") is None

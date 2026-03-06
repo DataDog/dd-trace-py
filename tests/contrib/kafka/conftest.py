@@ -25,7 +25,7 @@ def async_producer_callback(_exception, _message):
 class KafkaConsumerPollFilter(TraceFilter):
     def process_trace(self, trace):
         # Filter out all poll spans that have no received message
-        if trace[0].name == "kafka.consume" and trace[0].get_tag("kafka.received_message") == "False":
+        if trace[0].name == "kafka.consume" and trace[0]._get_str_attribute("kafka.received_message") == "False":
             return None
 
         return trace

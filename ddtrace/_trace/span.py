@@ -35,7 +35,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
@@ -276,12 +275,12 @@ class Span(SpanData):
 
         # Set integers that are less than equal to 2^53 as metrics
         if value is not None and val_is_an_int and abs(value) <= 2**53:  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self._set_attribute(key, value)  # type: ignore
             return
 
         # All floats should be set as a metric
         elif isinstance(value, float):
-            self.set_metric(key, value)
+            self._set_attribute(key, value)
             return
 
         elif key == MANUAL_KEEP_KEY:
@@ -295,13 +294,13 @@ class Span(SpanData):
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
-            self.set_tag(VERSION_KEY, value)
+            self.set_tag(VERSION_KEY, value)  # ast-grep-ignore: span-set-tag
         elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
                 value = 1  # type: ignore
-            self.set_metric(key, value)  # type: ignore
+            self._set_attribute(key, value)  # type: ignore
             return
 
         try:
@@ -320,18 +319,6 @@ class Span(SpanData):
         """Return the given struct or None if it doesn't exist."""
         return self._meta_struct.get(key, None)
 
-    def _set_tag_str(self, key: str, value: str) -> None:
-        """Set a value for a tag. Values are coerced to unicode in Python 2 and
-        str in Python 3, with decoding errors in conversion being replaced with
-        U+FFFD.
-        """
-        try:
-            self._set_attribute(key, ensure_text(value, errors="replace"))
-        except Exception as e:
-            if config._raise:
-                raise e
-            log.warning("Failed to set text tag '%s'", key, exc_info=True)
-
     def get_tag(self, key: str) -> Optional[str]:
         """Return the given tag or None if it doesn't exist."""
         return self._get_str_attribute(key)
@@ -346,7 +333,7 @@ class Span(SpanData):
         """
         if tags:
             for k, v in iter(tags.items()):
-                self.set_tag(k, v)
+                self.set_tag(k, v)  # ast-grep-ignore: span-set-tag
 
     def set_metric(self, key: str, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
@@ -382,7 +369,7 @@ class Span(SpanData):
         """
         if metrics:
             for k, v in metrics.items():
-                self.set_metric(k, v)
+                self._set_attribute(k, v)
 
     def get_metric(self, key: str) -> Optional[NumericType]:
         """Return the given metric or None if it doesn't exist."""

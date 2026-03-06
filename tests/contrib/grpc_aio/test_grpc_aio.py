@@ -229,17 +229,17 @@ def _check_client_span(span, service, method_name, method_kind, resource="hellow
     assert span.service == service
     assert span.error == 0
     assert span.span_type == "grpc"
-    assert span.get_tag("grpc.method.path") == "/{}/{}".format(resource, method_name)
-    assert span.get_tag("grpc.method.package") == resource.split(".")[0]
-    assert span.get_tag("grpc.method.service") == resource.split(".")[1]
-    assert span.get_tag("grpc.method.name") == method_name
-    assert span.get_tag("grpc.method.kind") == method_kind
-    assert span.get_tag("grpc.status.code") == "StatusCode.OK"
-    assert span.get_tag("grpc.host") == "localhost"
-    assert span.get_tag("peer.hostname") == "localhost"
-    assert span.get_tag("network.destination.port") == "50531"
-    assert span.get_tag("component") == "grpc_aio_client"
-    assert span.get_tag("span.kind") == "client"
+    assert span._get_str_attribute("grpc.method.path") == "/{}/{}".format(resource, method_name)
+    assert span._get_str_attribute("grpc.method.package") == resource.split(".")[0]
+    assert span._get_str_attribute("grpc.method.service") == resource.split(".")[1]
+    assert span._get_str_attribute("grpc.method.name") == method_name
+    assert span._get_str_attribute("grpc.method.kind") == method_kind
+    assert span._get_str_attribute("grpc.status.code") == "StatusCode.OK"
+    assert span._get_str_attribute("grpc.host") == "localhost"
+    assert span._get_str_attribute("peer.hostname") == "localhost"
+    assert span._get_str_attribute("network.destination.port") == "50531"
+    assert span._get_str_attribute("component") == "grpc_aio_client"
+    assert span._get_str_attribute("span.kind") == "client"
 
 
 def _check_server_span(span, service, method_name, method_kind, resource="helloworld.Hello"):
@@ -249,13 +249,13 @@ def _check_server_span(span, service, method_name, method_kind, resource="hellow
     assert span.service == service
     assert span.error == 0
     assert span.span_type == "grpc"
-    assert span.get_tag("grpc.method.path") == "/{}/{}".format(resource, method_name)
-    assert span.get_tag("grpc.method.package") == resource.split(".")[0]
-    assert span.get_tag("grpc.method.service") == resource.split(".")[1]
-    assert span.get_tag("grpc.method.name") == method_name
-    assert span.get_tag("grpc.method.kind") == method_kind
-    assert span.get_tag("component") == "grpc_aio_server"
-    assert span.get_tag("span.kind") == "server"
+    assert span._get_str_attribute("grpc.method.path") == "/{}/{}".format(resource, method_name)
+    assert span._get_str_attribute("grpc.method.package") == resource.split(".")[0]
+    assert span._get_str_attribute("grpc.method.service") == resource.split(".")[1]
+    assert span._get_str_attribute("grpc.method.name") == method_name
+    assert span._get_str_attribute("grpc.method.kind") == method_kind
+    assert span._get_str_attribute("component") == "grpc_aio_server"
+    assert span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
@@ -318,11 +318,11 @@ async def test_invalid_target(server_info, tracer, test_spans):
 
     assert client_span.resource == "/helloworld.Hello/SayHello"
     assert client_span.error == 1
-    assert "failed to connect to all addresses" in client_span.get_tag(ERROR_MSG)
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.UNAVAILABLE"
-    assert client_span.get_tag(ERROR_STACK) is None
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
+    assert "failed to connect to all addresses" in client_span._get_str_attribute(ERROR_MSG)
+    assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.UNAVAILABLE"
+    assert client_span._get_str_attribute(ERROR_STACK) is None
+    assert client_span._get_str_attribute("component") == "grpc_aio_client"
+    assert client_span._get_str_attribute("span.kind") == "client"
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
@@ -355,26 +355,26 @@ async def test_unary_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHello"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "abort_details"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-    assert client_span.get_tag(ERROR_STACK) is None
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
+    assert client_span._get_str_attribute(ERROR_MSG) == "abort_details"
+    assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    assert client_span._get_str_attribute(ERROR_STACK) is None
+    assert client_span._get_str_attribute("component") == "grpc_aio_client"
+    assert client_span._get_str_attribute("span.kind") == "client"
 
     assert server_span.resource == "/helloworld.Hello/SayHello"
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
         if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
-            assert server_span.get_tag(ERROR_MSG) == "abort_details"
-            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+            assert server_span._get_str_attribute(ERROR_MSG) == "abort_details"
+            assert server_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
-            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
-            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-        assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
-        assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
-        assert server_span.get_tag("component") == "grpc_aio_server"
-        assert server_span.get_tag("span.kind") == "server"
+            assert server_span._get_str_attribute(ERROR_MSG) == "Locally aborted."
+            assert "AbortError" in server_span._get_str_attribute(ERROR_TYPE)
+        assert server_span._get_str_attribute(ERROR_MSG) in server_span._get_str_attribute(ERROR_STACK)
+        assert server_span._get_str_attribute(ERROR_TYPE) in server_span._get_str_attribute(ERROR_STACK)
+        assert server_span._get_str_attribute("component") == "grpc_aio_server"
+        assert server_span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.skipif(
@@ -441,25 +441,25 @@ async def test_server_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "abort_details"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-    assert client_span.get_tag(ERROR_STACK) is None
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
+    assert client_span._get_str_attribute(ERROR_MSG) == "abort_details"
+    assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    assert client_span._get_str_attribute(ERROR_STACK) is None
+    assert client_span._get_str_attribute("component") == "grpc_aio_client"
+    assert client_span._get_str_attribute("span.kind") == "client"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert server_span.error == 1
     # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
     if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
-        assert server_span.get_tag(ERROR_MSG) == "abort_details"
-        assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert server_span._get_str_attribute(ERROR_MSG) == "abort_details"
+        assert server_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
     else:
-        assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
-        assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-    assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
-    assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
-    assert server_span.get_tag("component") == "grpc_aio_server"
-    assert server_span.get_tag("span.kind") == "server"
+        assert server_span._get_str_attribute(ERROR_MSG) == "Locally aborted."
+        assert "AbortError" in server_span._get_str_attribute(ERROR_TYPE)
+    assert server_span._get_str_attribute(ERROR_MSG) in server_span._get_str_attribute(ERROR_STACK)
+    assert server_span._get_str_attribute(ERROR_TYPE) in server_span._get_str_attribute(ERROR_STACK)
+    assert server_span._get_str_attribute("component") == "grpc_aio_server"
+    assert server_span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.parametrize(
@@ -505,11 +505,11 @@ async def test_server_streaming_cancelled_during_rpc(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloTwice"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
-    assert client_span.get_tag(ERROR_STACK) is None
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
+    assert client_span._get_str_attribute(ERROR_MSG) == "Locally cancelled by application!"
+    assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.CANCELLED"
+    assert client_span._get_str_attribute(ERROR_STACK) is None
+    assert client_span._get_str_attribute("component") == "grpc_aio_client"
+    assert client_span._get_str_attribute("span.kind") == "client"
 
     # No error on server end
     _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
@@ -576,27 +576,27 @@ async def test_client_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloLast"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "abort_details"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-    assert client_span.get_tag(ERROR_STACK) is None
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
-    assert client_span.get_tag("peer.hostname") == "localhost"
+    assert client_span._get_str_attribute(ERROR_MSG) == "abort_details"
+    assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+    assert client_span._get_str_attribute(ERROR_STACK) is None
+    assert client_span._get_str_attribute("component") == "grpc_aio_client"
+    assert client_span._get_str_attribute("span.kind") == "client"
+    assert client_span._get_str_attribute("peer.hostname") == "localhost"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloLast"
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
         if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
-            assert server_span.get_tag(ERROR_MSG) == "abort_details"
-            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+            assert server_span._get_str_attribute(ERROR_MSG) == "abort_details"
+            assert server_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
-            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
-            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-        assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
-        assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
-        assert server_span.get_tag("component") == "grpc_aio_server"
-        assert server_span.get_tag("span.kind") == "server"
+            assert server_span._get_str_attribute(ERROR_MSG) == "Locally aborted."
+            assert "AbortError" in server_span._get_str_attribute(ERROR_TYPE)
+        assert server_span._get_str_attribute(ERROR_MSG) in server_span._get_str_attribute(ERROR_STACK)
+        assert server_span._get_str_attribute(ERROR_TYPE) in server_span._get_str_attribute(ERROR_STACK)
+        assert server_span._get_str_attribute("component") == "grpc_aio_server"
+        assert server_span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.parametrize("server_info", [_CoroHelloServicer(), _SyncHelloServicer()], indirect=True)
@@ -680,28 +680,28 @@ async def test_bidi_streaming_exception(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    error_msg = client_span.get_tag(ERROR_MSG)
+    error_msg = client_span._get_str_attribute(ERROR_MSG)
     assert error_msg in ("abort_details", "Internal error from Core")
     if error_msg == "abort_details":
-        assert client_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
-        assert client_span.get_tag(ERROR_STACK) is None
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
+        assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+        assert client_span._get_str_attribute(ERROR_STACK) is None
+    assert client_span._get_str_attribute("component") == "grpc_aio_client"
+    assert client_span._get_str_attribute("span.kind") == "client"
 
     assert server_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     if server_info.abort_supported:
         assert server_span.error == 1
         # grpc provide servicer_context.details and servicer_context.code above 1.38.0-pre1
         if packaging_version.parse(grpc.__version__) >= packaging_version.parse("1.38.0-pre1"):
-            assert server_span.get_tag(ERROR_MSG) == "abort_details"
-            assert server_span.get_tag(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
+            assert server_span._get_str_attribute(ERROR_MSG) == "abort_details"
+            assert server_span._get_str_attribute(ERROR_TYPE) == "StatusCode.INVALID_ARGUMENT"
         else:
-            assert server_span.get_tag(ERROR_MSG) == "Locally aborted."
-            assert "AbortError" in server_span.get_tag(ERROR_TYPE)
-        assert server_span.get_tag(ERROR_MSG) in server_span.get_tag(ERROR_STACK)
-        assert server_span.get_tag(ERROR_TYPE) in server_span.get_tag(ERROR_STACK)
-        assert server_span.get_tag("component") == "grpc_aio_server"
-        assert server_span.get_tag("span.kind") == "server"
+            assert server_span._get_str_attribute(ERROR_MSG) == "Locally aborted."
+            assert "AbortError" in server_span._get_str_attribute(ERROR_TYPE)
+        assert server_span._get_str_attribute(ERROR_MSG) in server_span._get_str_attribute(ERROR_STACK)
+        assert server_span._get_str_attribute(ERROR_TYPE) in server_span._get_str_attribute(ERROR_STACK)
+        assert server_span._get_str_attribute("component") == "grpc_aio_server"
+        assert server_span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.parametrize(
@@ -755,12 +755,12 @@ async def test_bidi_streaming_cancelled_during_rpc(server_info, tracer):
 
     assert client_span.resource == "/helloworld.Hello/SayHelloRepeatedly"
     assert client_span.error == 1
-    assert client_span.get_tag(ERROR_MSG) == "Locally cancelled by application!"
-    assert client_span.get_tag(ERROR_TYPE) == "StatusCode.CANCELLED"
-    assert client_span.get_tag(ERROR_STACK) is None
-    assert client_span.get_tag("peer.hostname") == "localhost"
-    assert client_span.get_tag("component") == "grpc_aio_client"
-    assert client_span.get_tag("span.kind") == "client"
+    assert client_span._get_str_attribute(ERROR_MSG) == "Locally cancelled by application!"
+    assert client_span._get_str_attribute(ERROR_TYPE) == "StatusCode.CANCELLED"
+    assert client_span._get_str_attribute(ERROR_STACK) is None
+    assert client_span._get_str_attribute("peer.hostname") == "localhost"
+    assert client_span._get_str_attribute("component") == "grpc_aio_client"
+    assert client_span._get_str_attribute("span.kind") == "client"
 
     # NOTE: The server-side RPC throws `concurrent.futures._base.CancelledError`
     # in old versions of Python, but it's not always so. Thus not checked.

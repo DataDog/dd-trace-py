@@ -695,7 +695,7 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[1][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert loaded is not None
@@ -757,7 +757,7 @@ def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert len(loaded["vulnerabilities"]) == 1
@@ -803,7 +803,7 @@ def test_fastapi_insecure_cookie_empty(fastapi_application, client, tracer, test
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert loaded is None
@@ -842,7 +842,7 @@ def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_s
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert len(loaded["vulnerabilities"]) == 1
@@ -886,7 +886,7 @@ def test_fastapi_no_http_only_cookie_empty(fastapi_application, client, tracer, 
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert loaded is None
@@ -925,7 +925,7 @@ def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_sp
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert len(loaded["vulnerabilities"]) == 1
@@ -975,7 +975,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
             assert resp.headers.get("Injected-Header") is None
 
             span = test_spans.pop_traces()[0][0]
-            assert span.get_metric(IAST.ENABLED) == 1.0
+            assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             assert load_iast_report(span) is None
     finally:
@@ -1011,7 +1011,7 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
             assert resp.headers.get("Injected-Header") is None
 
             span = test_spans.pop_traces()[0][0]
-            assert span.get_metric(IAST.ENABLED) == 1.0
+            assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             iast_tag = load_iast_report(span)
             assert iast_tag is None
@@ -1036,7 +1036,7 @@ def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert loaded is not None
@@ -1066,7 +1066,7 @@ def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
         assert resp.status_code == 200
 
         span = test_spans.pop_traces()[0][0]
-        assert span.get_metric(IAST.ENABLED) == 1.0
+        assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(span)
         assert loaded is not None
@@ -1091,7 +1091,7 @@ def test_fastapi_unvalidated_redirect(fastapi_application, client, tracer, test_
         )
 
         root_span = test_spans.pop_traces()[0][0]
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+        assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(root_span)
         assert loaded["sources"] == [
@@ -1122,7 +1122,7 @@ def test_fastapi_unvalidated_redirect_headers(fastapi_application, client, trace
         )
 
         root_span = test_spans.pop_traces()[0][0]
-        assert root_span.get_metric(IAST.ENABLED) == 1.0
+        assert root_span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
         loaded = load_iast_report(root_span)
         assert loaded["sources"] == [
@@ -1190,7 +1190,7 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
             assert len(traces[0]) > 0, f"No traces {traces}"
             assert traces[0][0], f"No span {traces}"
             span = traces[0][0]
-            assert span.get_metric(IAST.ENABLED) == 1.0
+            assert span._get_numeric_attribute(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(span)
             if i < 8:

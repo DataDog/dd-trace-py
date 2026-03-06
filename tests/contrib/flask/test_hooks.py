@@ -53,7 +53,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -88,17 +88,17 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(root.service, "flask")
         self.assertEqual(root.name, "flask.request")
         self.assertEqual(root.resource, "GET /")
-        self.assertEqual(root.get_tag("flask.endpoint"), "index")
-        self.assertEqual(root.get_tag("flask.url_rule"), "/")
-        self.assertEqual(root.get_tag("http.method"), "GET")
+        self.assertEqual(root._get_str_attribute("flask.endpoint"), "index")
+        self.assertEqual(root._get_str_attribute("flask.url_rule"), "/")
+        self.assertEqual(root._get_str_attribute("http.method"), "GET")
         assert_span_http_status_code(root, 401)
-        self.assertEqual(root.get_tag(http.URL), "http://localhost/")
+        self.assertEqual(root._get_str_attribute(http.URL), "http://localhost/")
 
         # Assert hook span
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -128,7 +128,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.before_first_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.before_first_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         if flask_version >= (2, 2, 0):
@@ -173,7 +173,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.after_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -207,7 +207,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.after_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -236,7 +236,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.teardown_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.teardown_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")
@@ -265,7 +265,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.teardown_appcontext")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.teardown_appcontext")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_appcontext")
@@ -295,7 +295,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -325,7 +325,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_app_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.preprocess_request")
@@ -356,7 +356,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_before_app_first_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_before_app_first_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         if flask_version >= (2, 2, 0):
@@ -406,7 +406,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_after_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_after_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -436,7 +436,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_after_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_after_app_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.process_response")
@@ -466,7 +466,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_teardown_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_teardown_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")
@@ -496,7 +496,7 @@ class FlaskHookTestCase(BaseFlaskTestCase):
         self.assertEqual(span.service, "flask")
         self.assertEqual(span.name, "tests.contrib.flask.test_hooks.bp_teardown_app_request")
         self.assertEqual(span.resource, "tests.contrib.flask.test_hooks.bp_teardown_app_request")
-        self.assertEqual(span.get_tags(), EXPECTED_METADATA)
+        self.assertEqual(span._get_str_attributes(), EXPECTED_METADATA)
 
         # Assert correct parent span
         self.assertEqual(parent.name, "flask.do_teardown_request")

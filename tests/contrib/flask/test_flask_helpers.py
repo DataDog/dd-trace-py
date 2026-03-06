@@ -51,7 +51,7 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[0].service, "tests.contrib.flask")
         self.assertEqual(spans[0].name, "flask.jsonify")
         self.assertEqual(spans[0].resource, "flask.jsonify")
-        assert set(spans[0].get_tags().keys()) == {"runtime-id", "_dd.p.dm", "_dd.p.tid", "component", "language"}
+        assert set(spans[0]._get_str_attributes().keys()) == {"runtime-id", "_dd.p.dm", "_dd.p.tid", "component", "language"}
 
         self.assertEqual(spans[1].name, "flask.do_teardown_request")
         self.assertEqual(spans[2].name, "flask.do_teardown_appcontext")
@@ -82,7 +82,7 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
         self.assertEqual(spans[0].service, "flask")
         self.assertEqual(spans[0].name, "flask.send_file")
         self.assertEqual(spans[0].resource, "flask.send_file")
-        assert set(spans[0].get_tags().keys()) == {
+        assert set(spans[0]._get_str_attributes().keys()) == {
             "runtime-id",
             "_dd.p.dm",
             "component",

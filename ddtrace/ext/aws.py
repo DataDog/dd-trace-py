@@ -22,38 +22,38 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
     if endpoint_name == "cloudwatch":
         log_group_name = params.get("logGroupName")
         if log_group_name:
-            span._set_tag_str("aws.cloudwatch.logs.log_group_name", log_group_name)
-            span._set_tag_str("loggroupname", log_group_name)
+            span._set_attribute("aws.cloudwatch.logs.log_group_name", log_group_name)
+            span._set_attribute("loggroupname", log_group_name)
     elif endpoint_name == "dynamodb":
         table_name = params.get("TableName")
         if table_name:
-            span._set_tag_str("aws.dynamodb.table_name", table_name)
-            span._set_tag_str("tablename", table_name)
+            span._set_attribute("aws.dynamodb.table_name", table_name)
+            span._set_attribute("tablename", table_name)
     elif endpoint_name == "kinesis":
         stream_name = params.get("StreamName")
         if stream_name:
-            span._set_tag_str("aws.kinesis.stream_name", stream_name)
-            span._set_tag_str("streamname", stream_name)
+            span._set_attribute("aws.kinesis.stream_name", stream_name)
+            span._set_attribute("streamname", stream_name)
     elif endpoint_name == "redshift":
         cluster_identifier = params.get("ClusterIdentifier")
         if cluster_identifier:
-            span._set_tag_str("aws.redshift.cluster_identifier", cluster_identifier)
-            span._set_tag_str("clusteridentifier", cluster_identifier)
+            span._set_attribute("aws.redshift.cluster_identifier", cluster_identifier)
+            span._set_attribute("clusteridentifier", cluster_identifier)
     elif endpoint_name == "s3":
         bucket_name = params.get("Bucket")
         if bucket_name:
-            span._set_tag_str("aws.s3.bucket_name", bucket_name)
-            span._set_tag_str("bucketname", bucket_name)
+            span._set_attribute("aws.s3.bucket_name", bucket_name)
+            span._set_attribute("bucketname", bucket_name)
 
     elif endpoint_name == "sns":
         topic_arn = params.get("TopicArn")
         if topic_arn:
             # example topicArn: arn:aws:sns:sa-east-1:1234:topicname
-            span._set_tag_str("aws.sns.topic_arn", topic_arn)
+            span._set_attribute("aws.sns.topic_arn", topic_arn)
             topicname = topic_arn.split(":")[-1]
             aws_account = topic_arn.split(":")[-2]
-            span._set_tag_str("aws_account", aws_account)
-            span._set_tag_str("topicname", topicname)
+            span._set_attribute("aws_account", aws_account)
+            span._set_attribute("topicname", topicname)
 
     elif endpoint_name == "sqs":
         queue_name = params.get("QueueName", "")
@@ -62,21 +62,21 @@ def _add_api_param_span_tags(span: "Span", endpoint_name: str, params: dict[str,
             # example queue_url: https://sqs.sa-east-1.amazonaws.com/12345678/queuename
             queue_name = queue_url.split("/")[-1]
             aws_account = queue_url.split("/")[-2]
-            span._set_tag_str("aws_account", aws_account)
-        span._set_tag_str("aws.sqs.queue_name", queue_name)
-        span._set_tag_str("queuename", queue_name)
+            span._set_attribute("aws_account", aws_account)
+        span._set_attribute("aws.sqs.queue_name", queue_name)
+        span._set_attribute("queuename", queue_name)
 
     elif endpoint_name == "lambda":
         function_name = params.get("FunctionName", "")
-        span._set_tag_str("functionname", function_name)
+        span._set_attribute("functionname", function_name)
 
     elif endpoint_name == "events":
         rule_name = params.get("Name", "")
-        span._set_tag_str("rulename", rule_name)
+        span._set_attribute("rulename", rule_name)
 
     elif endpoint_name == "states":
         state_machine_arn = params.get("stateMachineArn", "")
-        span._set_tag_str("statemachinearn", state_machine_arn)
+        span._set_attribute("statemachinearn", state_machine_arn)
 
 
 def get_aws_partition(region_name: str) -> str:

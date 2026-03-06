@@ -1102,7 +1102,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == SPAN_NAME
             assert span.resource == "mutator"
-            tags = span.get_tags()
+            tags = span._get_str_attributes()
             assert tags["debugger.probeid"] == "span-probe"
             assert tags["tag"] == "value"
             assert tags[_ORIGIN_KEY] == "di"
@@ -1133,7 +1133,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == SPAN_NAME
             assert span.resource == "mutator"
-            assert span.get_tags()["debugger.probeid"] == "span-probe"
+            assert span._get_str_attributes()["debugger.probeid"] == "span-probe"
 
     def test_debugger_snap_probe_linked_to_parent_span(self):
         from tests.submod.stuff import mutator
@@ -1153,7 +1153,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert span.name == SPAN_NAME
             assert span.resource == "mutator"
-            assert span.get_tag("debugger.probeid") == "exit-probe"
+            assert span._get_str_attribute("debugger.probeid") == "exit-probe"
 
             assert span.parent_id == root.span_id
 
@@ -1178,7 +1178,7 @@ class SpanProbeTestCase(TracerTestCase):
 
             assert root.name == SPAN_NAME
             assert root.resource == "caller"
-            assert root.get_tag("debugger.probeid") == "root-dynamic-span-probe"
+            assert root._get_str_attribute("debugger.probeid") == "root-dynamic-span-probe"
 
             assert span.name == "child"
 
@@ -1221,11 +1221,11 @@ class SpanProbeTestCase(TracerTestCase):
             assert log.trace_context.span_id == span.span_id
 
             assert outer.name == "outer"
-            assert outer.get_tag("test.tag") is None
+            assert outer._get_str_attribute("test.tag") is None
 
             assert span.name == SPAN_NAME
             assert span.resource == "mutator"
-            assert span.get_tag("test.tag") == "test.value"
+            assert span._get_str_attribute("test.tag") == "test.value"
 
 
 def test_debugger_modified_probe(stuff):

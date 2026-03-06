@@ -48,10 +48,10 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag(http.URL) == URL_200
-        assert s.get_tag("component") == "urllib3"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s._get_str_attribute(http.URL) == URL_200
+        assert s._get_str_attribute("component") == "urllib3"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == HOST
 
         # Test an absolute URL
         r = pool.request("GET", URL_200)
@@ -66,10 +66,10 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag(http.URL) == "http://" + SOCKET + "/"
-        assert s.get_tag("component") == "urllib3"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s._get_str_attribute(http.URL) == "http://" + SOCKET + "/"
+        assert s._get_str_attribute("component") == "urllib3"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == HOST
 
     def test_resource_path(self):
         """Tests that a successful request tags a single span with the URL"""
@@ -78,10 +78,10 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.url") == URL_200
-        assert s.get_tag("component") == "urllib3"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s._get_str_attribute("http.url") == URL_200
+        assert s._get_str_attribute("component") == "urllib3"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == HOST
 
     def test_tracer_disabled(self):
         """Tests a disabled tracer produces no spans on request"""
@@ -118,13 +118,13 @@ class TestUrllib3(BaseUrllib3TestCase):
             spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
-            assert s.get_tag(http.METHOD) == "POST"
-            assert s.get_tag(http.STATUS_CODE) == "200"
-            assert s.get_tag(http.URL) == URL_200
-            assert s.get_tag("http.request.headers.accept") == "*"
-            assert s.get_tag("component") == "urllib3"
-            assert s.get_tag("span.kind") == "client"
-            assert s.get_tag("out.host") == HOST
+            assert s._get_str_attribute(http.METHOD) == "POST"
+            assert s._get_str_attribute(http.STATUS_CODE) == "200"
+            assert s._get_str_attribute(http.URL) == URL_200
+            assert s._get_str_attribute("http.request.headers.accept") == "*"
+            assert s._get_str_attribute("component") == "urllib3"
+            assert s._get_str_attribute("span.kind") == "client"
+            assert s._get_str_attribute("out.host") == HOST
 
     def test_untraced_request(self):
         """Disabling tracing with unpatch should submit no spans"""
@@ -153,15 +153,15 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.URL) == URL_200
-        assert s.get_tag(http.STATUS_CODE) == "200"
-        assert s.get_tag("component") == "urllib3"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.URL) == URL_200
+        assert s._get_str_attribute(http.STATUS_CODE) == "200"
+        assert s._get_str_attribute("component") == "urllib3"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == HOST
         assert s.error == 0
         assert s.span_type == "http"
-        assert http.QUERY_STRING not in s.get_tags()
+        assert http.QUERY_STRING not in s._get_str_attributes()
 
     def test_200_query_string(self):
         """Tests query string tag is added when trace_query_string config is set"""
@@ -174,15 +174,15 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag(http.STATUS_CODE) == "200"
-        assert s.get_tag(http.URL) == URL_200_QS
-        assert s.get_tag("component") == "urllib3"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.STATUS_CODE) == "200"
+        assert s._get_str_attribute(http.URL) == URL_200_QS
+        assert s._get_str_attribute("component") == "urllib3"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == HOST
         assert s.error == 0
         assert s.span_type == "http"
-        assert s.get_tag(http.QUERY_STRING) == query_string
+        assert s._get_str_attribute(http.QUERY_STRING) == query_string
 
     def test_post_500(self):
         """Test a request with method POST and expected status 500"""
@@ -191,12 +191,12 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag(http.METHOD) == "POST"
-        assert s.get_tag(http.STATUS_CODE) == "500"
-        assert s.get_tag(http.URL) == URL_500
-        assert s.get_tag("component") == "urllib3"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == HOST
+        assert s._get_str_attribute(http.METHOD) == "POST"
+        assert s._get_str_attribute(http.STATUS_CODE) == "500"
+        assert s._get_str_attribute(http.URL) == URL_500
+        assert s._get_str_attribute("component") == "urllib3"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == HOST
         assert s.error == 1
 
     def test_connection_retries(self):
@@ -212,14 +212,14 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 4  # Default retry behavior is 3 retries + original request
         for i, s in enumerate(spans):
-            assert s.get_tag(http.METHOD) == "GET"
+            assert s._get_str_attribute(http.METHOD) == "GET"
             if i > 0:
-                assert s.get_tag(http.RETRIES_REMAIN) == str(retries - i)
+                assert s._get_str_attribute(http.RETRIES_REMAIN) == str(retries - i)
             assert s.error == 1
-            assert "Failed to establish a new connection" in s.get_tag(ERROR_MSG)
-            assert "Failed to establish a new connection" in s.get_tag(ERROR_STACK)
-            assert "Traceback (most recent call last)" in s.get_tag(ERROR_STACK)
-            assert "urllib3.exceptions.MaxRetryError" in s.get_tag(ERROR_TYPE)
+            assert "Failed to establish a new connection" in s._get_str_attribute(ERROR_MSG)
+            assert "Failed to establish a new connection" in s._get_str_attribute(ERROR_STACK)
+            assert "Traceback (most recent call last)" in s._get_str_attribute(ERROR_STACK)
+            assert "urllib3.exceptions.MaxRetryError" in s._get_str_attribute(ERROR_TYPE)
 
     def test_default_service_name(self):
         """Test the default service name is set"""
@@ -400,8 +400,8 @@ class TestUrllib3(BaseUrllib3TestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.request.headers.my-header") is None
-        assert s.get_tag("http.response.headers.access-control-allow-origin") is None
+        assert s._get_str_attribute("http.request.headers.my-header") is None
+        assert s._get_str_attribute("http.response.headers.access-control-allow-origin") is None
 
         # Enabled when explicitly configured
         with self.override_http_config("urllib3", {"_header_tags": dict()}):
@@ -410,8 +410,8 @@ class TestUrllib3(BaseUrllib3TestCase):
             spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.request.headers.my-header") == "my_value"
-        assert s.get_tag("http.response.headers.access-control-allow-origin") == "*"
+        assert s._get_str_attribute("http.request.headers.my-header") == "my_value"
+        assert s._get_str_attribute("http.response.headers.access-control-allow-origin") == "*"
 
     def test_distributed_tracing_enabled(self):
         """Tests distributed tracing headers are passed by default"""

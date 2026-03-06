@@ -443,8 +443,8 @@ def expected_llmobs_error_span_event(span):
         ],
         output_messages=[{"content": "", "role": "assistant"}],
         error="builtins.TypeError",
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
         metadata=get_expected_metadata(),
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
     )
@@ -588,8 +588,8 @@ def expected_llmobs_embedding_error_span_event(span):
         ],
         output_value="",
         error="builtins.TypeError",
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
         metadata={
             "auto_truncate": None,
             "mime_type": None,

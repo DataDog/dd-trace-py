@@ -79,7 +79,7 @@ class PsycopgCore(AsyncioTestCase):
             dict(name="postgres.query", resource=q, error=0, span_type="sql"),
         )
         root = self.get_root_span()
-        self.assertIsNone(root.get_tag("sql.query"))
+        self.assertIsNone(root._get_str_attribute("sql.query"))
         assert start <= root.start <= end
         assert root.duration <= end - start
         self.reset()
@@ -109,10 +109,10 @@ class PsycopgCore(AsyncioTestCase):
             ),
         )
         root = self.get_root_span()
-        assert root.get_tag("component") == "psycopg"
-        assert root.get_tag("span.kind") == "client"
+        assert root._get_str_attribute("component") == "psycopg"
+        assert root._get_str_attribute("span.kind") == "client"
         assert_is_measured(root)
-        self.assertIsNone(root.get_tag("sql.query"))
+        self.assertIsNone(root._get_str_attribute("sql.query"))
         self.reset()
 
     async def test_cursor_ctx_manager(self):

@@ -85,12 +85,12 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.span_type, "web")
         self.assertEqual(span.resource, "GET /hello/{name}/{age}")
-        self.assertEqual(span.get_tag("http.method"), "GET")
-        self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24")
-        self.assertEqual(span.get_tag("component"), "molten")
-        self.assertEqual(span.get_tag("span.kind"), "server")
+        self.assertEqual(span._get_str_attribute("http.method"), "GET")
+        self.assertEqual(span._get_str_attribute(http.URL), "http://127.0.0.1:8000/hello/Jim/24")
+        self.assertEqual(span._get_str_attribute("component"), "molten")
+        self.assertEqual(span._get_str_attribute("span.kind"), "server")
         assert_span_http_status_code(span, 200)
-        assert http.QUERY_STRING not in span.get_tags()
+        assert http.QUERY_STRING not in span._get_str_attributes()
 
         # See test_resources below for specifics of this difference
         if MOLTEN_VERSION >= (0, 7, 2):
@@ -106,7 +106,7 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.span_type, "web")
         assert_span_http_status_code(span, status_code)
-        self.assertEqual(span.get_tag("http.route"), expected_route)
+        self.assertEqual(span._get_str_attribute("http.route"), expected_route)
 
     def test_route_dynamic(self):
         return self.make_route_reporting_test("/hello/foo/42", 200, "/hello/{name}/{age}")
@@ -133,12 +133,12 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.service, "molten")
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.resource, "GET /hello/{name}/{age}")
-        self.assertEqual(span.get_tag("http.method"), "GET")
-        self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/hello/Jim/24?foo=bar")
-        self.assertEqual(span.get_tag("component"), "molten")
-        self.assertEqual(span.get_tag("span.kind"), "server")
+        self.assertEqual(span._get_str_attribute("http.method"), "GET")
+        self.assertEqual(span._get_str_attribute(http.URL), "http://127.0.0.1:8000/hello/Jim/24?foo=bar")
+        self.assertEqual(span._get_str_attribute("component"), "molten")
+        self.assertEqual(span._get_str_attribute("span.kind"), "server")
         assert_span_http_status_code(span, 200)
-        self.assertEqual(span.get_tag(http.QUERY_STRING), "foo=bar")
+        self.assertEqual(span._get_str_attribute(http.QUERY_STRING), "foo=bar")
 
     def test_route_failure(self):
         app = molten.App(routes=[molten.Route("/hello/{name}/{age}", hello)])
@@ -151,10 +151,10 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.service, "molten")
         self.assertEqual(span.name, "molten.request")
         self.assertEqual(span.resource, "GET 404")
-        self.assertEqual(span.get_tag(http.URL), "http://127.0.0.1:8000/goodbye")
-        self.assertEqual(span.get_tag("http.method"), "GET")
-        self.assertEqual(span.get_tag("component"), "molten")
-        self.assertEqual(span.get_tag("span.kind"), "server")
+        self.assertEqual(span._get_str_attribute(http.URL), "http://127.0.0.1:8000/goodbye")
+        self.assertEqual(span._get_str_attribute("http.method"), "GET")
+        self.assertEqual(span._get_str_attribute("component"), "molten")
+        self.assertEqual(span._get_str_attribute("span.kind"), "server")
         assert_span_http_status_code(span, 404)
 
     def test_route_exception(self):
@@ -174,10 +174,10 @@ class TestMolten(TracerTestCase):
         self.assertEqual(span.resource, "GET /error")
         self.assertEqual(span.error, 1)
         # error tags only set for route function span and not root span
-        self.assertIsNone(span.get_tag(ERROR_MSG))
-        self.assertEqual(route_error_span.get_tag(ERROR_MSG), "Error message")
-        self.assertEqual(span.get_tag("component"), "molten")
-        self.assertEqual(span.get_tag("span.kind"), "server")
+        self.assertIsNone(span._get_str_attribute(ERROR_MSG))
+        self.assertEqual(route_error_span._get_str_attribute(ERROR_MSG), "Error message")
+        self.assertEqual(span._get_str_attribute("component"), "molten")
+        self.assertEqual(span._get_str_attribute("span.kind"), "server")
 
     def test_resources(self):
         """Tests request has expected span resources"""
@@ -412,7 +412,7 @@ class TestMolten(TracerTestCase):
         spans = self.pop_spans()
         span = spans[0]
         self.assertEqual(span.name, "molten.request")
-        self.assertEqual(span.get_tag("http.request.headers.my-header"), "my_value")
+        self.assertEqual(span._get_str_attribute("http.request.headers.my-header"), "my_value")
 
     def test_inferred_spans_api_gateway_default(self):
         headers = {

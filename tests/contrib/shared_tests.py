@@ -33,7 +33,7 @@ def _test_dbm_propagation_enabled(tracer, cursor, service):
     span = spans[0]
     assert span.name == f"{service}.query"
 
-    assert span.get_tag("_dd.dbm_trace_injected") == "true"
+    assert span._get_str_attribute("_dd.dbm_trace_injected") == "true"
 
 
 def _test_dbm_propagation_comment_with_global_service_name_configured(

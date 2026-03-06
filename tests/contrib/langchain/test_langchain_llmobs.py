@@ -68,7 +68,7 @@ def _create_multi_message_prompt_template(langchain_core, metadata=None):
 def _expected_langchain_llmobs_llm_span(
     span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None, prompt=None
 ):
-    provider = span.get_tag("langchain.request.provider")
+    provider = span._get_str_attribute("langchain.request.provider")
 
     metadata = metadata if metadata else mock.ANY
 
@@ -84,7 +84,7 @@ def _expected_langchain_llmobs_llm_span(
 
     return _expected_llmobs_llm_span_event(
         span,
-        model_name=span.get_tag("langchain.request.model"),
+        model_name=span._get_str_attribute("langchain.request.model"),
         model_provider=provider,
         input_messages=input_messages if not mock_io else mock.ANY,
         output_messages=output_messages if not mock_io else mock.ANY,
@@ -709,8 +709,8 @@ def test_llmobs_chat_model_tool_calls(langchain_core, langchain_openai, llmobs_e
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
-        model_name=span.get_tag("langchain.request.model"),
-        model_provider=span.get_tag("langchain.request.provider"),
+        model_name=span._get_str_attribute("langchain.request.model"),
+        model_provider=span._get_str_attribute("langchain.request.provider"),
         input_messages=[{"role": "user", "content": "What is the sum of 1 and 2?"}],
         output_messages=[
             {
@@ -790,8 +790,8 @@ def test_llmobs_streamed_chain(
     )
     assert llmobs_events[1] == _expected_llmobs_llm_span_event(
         trace[1],
-        model_name=trace[1].get_tag("langchain.request.model"),
-        model_provider=trace[1].get_tag("langchain.request.provider"),
+        model_name=trace[1]._get_str_attribute("langchain.request.model"),
+        model_provider=trace[1]._get_str_attribute("langchain.request.provider"),
         input_messages=[
             {"content": "You are a world class technical documentation writer.", "role": "SystemMessage"},
             {"content": "how can langsmith help with testing?", "role": "HumanMessage"},
@@ -813,8 +813,8 @@ def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, test_spans
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span,
-        model_name=span.get_tag("langchain.request.model"),
-        model_provider=span.get_tag("langchain.request.provider"),
+        model_name=span._get_str_attribute("langchain.request.model"),
+        model_provider=span._get_str_attribute("langchain.request.provider"),
         input_messages=[
             {"content": "What is 2+2?\n\n"},
         ],

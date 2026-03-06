@@ -44,7 +44,7 @@ class FlaskCacheTest(TracerTestCase):
             "component": "flask_cache",
         }
 
-        assert_dict_issuperset(span.get_tags(), expected_meta)
+        assert_dict_issuperset(span._get_str_attributes(), expected_meta)
 
     def test_simple_cache_get_rowcount_existing_key(self):
         self.cache.set("á_complex_operation", "with_á_value\nin two lines")
@@ -57,7 +57,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(get_span.service, self.SERVICE)
         self.assertEqual(get_span.resource, "get")
 
-        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+        assert_dict_issuperset(get_span._get_numeric_attributes(), {"db.row_count": 1})
 
     def test_simple_cache_get_rowcount_missing_key(self):
         self.cache.get("á_complex_operation")
@@ -69,7 +69,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(get_span.service, self.SERVICE)
         self.assertEqual(get_span.resource, "get")
 
-        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
+        assert_dict_issuperset(get_span._get_numeric_attributes(), {"db.row_count": 0})
 
     def test_simple_cache_set(self):
         self.cache.set("á_complex_operation", "with_á_value\nin two lines")
@@ -89,7 +89,7 @@ class FlaskCacheTest(TracerTestCase):
             "component": "flask_cache",
         }
 
-        assert_dict_issuperset(span.get_tags(), expected_meta)
+        assert_dict_issuperset(span._get_str_attributes(), expected_meta)
 
     def test_simple_cache_add(self):
         self.cache.add("á_complex_number", 50)
@@ -109,7 +109,7 @@ class FlaskCacheTest(TracerTestCase):
             "component": "flask_cache",
         }
 
-        assert_dict_issuperset(span.get_tags(), expected_meta)
+        assert_dict_issuperset(span._get_str_attributes(), expected_meta)
 
     def test_simple_cache_delete(self):
         self.cache.delete("á_complex_operation")
@@ -129,7 +129,7 @@ class FlaskCacheTest(TracerTestCase):
             "component": "flask_cache",
         }
 
-        assert_dict_issuperset(span.get_tags(), expected_meta)
+        assert_dict_issuperset(span._get_str_attributes(), expected_meta)
 
     def test_simple_cache_delete_many(self):
         self.cache.delete_many("complex_operation", "another_complex_op")
@@ -149,7 +149,7 @@ class FlaskCacheTest(TracerTestCase):
             "component": "flask_cache",
         }
 
-        assert_dict_issuperset(span.get_tags(), expected_meta)
+        assert_dict_issuperset(span._get_str_attributes(), expected_meta)
 
     def test_simple_cache_clear(self):
         self.cache.clear()
@@ -168,7 +168,7 @@ class FlaskCacheTest(TracerTestCase):
             "component": "flask_cache",
         }
 
-        assert_dict_issuperset(span.get_tags(), expected_meta)
+        assert_dict_issuperset(span._get_str_attributes(), expected_meta)
 
     def test_simple_cache_get_many(self):
         self.cache.get_many("first_complex_op", "second_complex_op")
@@ -188,7 +188,7 @@ class FlaskCacheTest(TracerTestCase):
             "component": "flask_cache",
         }
 
-        assert_dict_issuperset(span.get_tags(), expected_meta)
+        assert_dict_issuperset(span._get_str_attributes(), expected_meta)
 
     def test_simple_cache_get_many_rowcount_all_existing(self):
         self.cache.set_many(
@@ -206,7 +206,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(get_span.service, self.SERVICE)
         self.assertEqual(get_span.resource, "get_many")
 
-        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 2})
+        assert_dict_issuperset(get_span._get_numeric_attributes(), {"db.row_count": 2})
 
     def test_simple_cache_get_many_rowcount_1_existing(self):
         self.cache.set_many(
@@ -228,7 +228,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(get_span.service, self.SERVICE)
         self.assertEqual(get_span.resource, "get_many")
 
-        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 1})
+        assert_dict_issuperset(get_span._get_numeric_attributes(), {"db.row_count": 1})
 
     def test_simple_cache_get_many_rowcount_0_existing(self):
         self.cache.set_many(
@@ -250,7 +250,7 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(get_span.service, self.SERVICE)
         self.assertEqual(get_span.resource, "get_many")
 
-        assert_dict_issuperset(get_span.get_metrics(), {"db.row_count": 0})
+        assert_dict_issuperset(get_span._get_numeric_attributes(), {"db.row_count": 0})
 
     def test_simple_cache_set_many(self):
         self.cache.set_many(
@@ -269,18 +269,18 @@ class FlaskCacheTest(TracerTestCase):
         self.assertEqual(span.span_type, "cache")
         self.assertEqual(span.error, 0)
 
-        self.assertEqual(span.get_tag("flask_cache.backend"), "simple")
-        self.assertTrue("first_complex_op" in span.get_tag("flask_cache.key"))
-        self.assertTrue("second_complex_op" in span.get_tag("flask_cache.key"))
+        self.assertEqual(span._get_str_attribute("flask_cache.backend"), "simple")
+        self.assertTrue("first_complex_op" in span._get_str_attribute("flask_cache.key"))
+        self.assertTrue("second_complex_op" in span._get_str_attribute("flask_cache.key"))
 
     def test_default_span_tags(self):
         # test tags and attributes
         with self.cache._TracedCache__trace("flask_cache.cmd") as span:
             self.assertEqual(span.service, self.SERVICE)
             self.assertEqual(span.span_type, "cache")
-            self.assertEqual(span.get_tag(CACHE_BACKEND), "simple")
-            self.assertTrue(net.TARGET_HOST not in span.get_tags())
-            self.assertTrue("network.destination.port" not in span.get_tags())
+            self.assertEqual(span._get_str_attribute(CACHE_BACKEND), "simple")
+            self.assertTrue(net.TARGET_HOST not in span._get_str_attributes())
+            self.assertTrue("network.destination.port" not in span._get_str_attributes())
 
     def test_default_span_tags_for_redis(self):
         # create the TracedCache instance for a Flask app
@@ -295,9 +295,9 @@ class FlaskCacheTest(TracerTestCase):
         with cache._TracedCache__trace("flask_cache.cmd") as span:
             self.assertEqual(span.service, self.SERVICE)
             self.assertEqual(span.span_type, "cache")
-            self.assertEqual(span.get_tag(CACHE_BACKEND), "redis")
-            self.assertEqual(span.get_tag(net.TARGET_HOST), "localhost")
-            self.assertEqual(span.get_metric("network.destination.port"), self.TEST_REDIS_PORT)
+            self.assertEqual(span._get_str_attribute(CACHE_BACKEND), "redis")
+            self.assertEqual(span._get_str_attribute(net.TARGET_HOST), "localhost")
+            self.assertEqual(span._get_numeric_attribute("network.destination.port"), self.TEST_REDIS_PORT)
 
     def test_default_span_tags_memcached(self):
         # create the TracedCache instance for a Flask app
@@ -312,9 +312,9 @@ class FlaskCacheTest(TracerTestCase):
         with cache._TracedCache__trace("flask_cache.cmd") as span:
             self.assertEqual(span.service, self.SERVICE)
             self.assertEqual(span.span_type, "cache")
-            self.assertEqual(span.get_tag(CACHE_BACKEND), "memcached")
-            self.assertEqual(span.get_tag(net.TARGET_HOST), "127.0.0.1")
-            self.assertEqual(span.get_metric("network.destination.port"), self.TEST_MEMCACHED_PORT)
+            self.assertEqual(span._get_str_attribute(CACHE_BACKEND), "memcached")
+            self.assertEqual(span._get_str_attribute(net.TARGET_HOST), "127.0.0.1")
+            self.assertEqual(span._get_numeric_attribute("network.destination.port"), self.TEST_MEMCACHED_PORT)
 
 
 class TestFlaskCacheSchematization(TracerTestCase):

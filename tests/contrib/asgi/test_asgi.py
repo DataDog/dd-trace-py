@@ -128,27 +128,27 @@ async def tasks_app_with_more_body(scope, receive, send):
 
 
 def _check_span_tags(scope, span):
-    assert span.get_tag("http.method") == scope["method"]
+    assert span._get_str_attribute("http.method") == scope["method"]
     server = scope.get("server")
     expected_http_url = (
         "http://{}{}".format(server[0], ":{}/".format(server[1]) if server[1] != 80 else "/") if server else None
     )
-    assert expected_http_url or span.get_tag("http.url") == expected_http_url
+    assert expected_http_url or span._get_str_attribute("http.url") == expected_http_url
     assert (
         scope.get("query_string") is None
         or scope.get("query_string") == b""
-        or span.get_tag("http.query.string") == scope["query_string"]
+        or span._get_str_attribute("http.query.string") == scope["query_string"]
     )
-    assert scope.get("http_version") is None or span.get_tag("http.version") == scope["http_version"]
+    assert scope.get("http_version") is None or span._get_str_attribute("http.version") == scope["http_version"]
     assert (
         scope.get("asgi") is None
         or scope["asgi"].get("version") is None
-        or span.get_tag("asgi.version") == scope["asgi"]["version"]
+        or span._get_str_attribute("asgi.version") == scope["asgi"]["version"]
     )
     assert (
         scope.get("asgi") is None
         or scope["asgi"].get("spec_version") is None
-        or span.get_tag("asgi.spec_version") == scope["asgi"]["spec_version"]
+        or span._get_str_attribute("asgi.spec_version") == scope["asgi"]["spec_version"]
     )
 
 
@@ -176,9 +176,9 @@ async def test_basic_asgi(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 0
-    assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "asgi"
-    assert request_span.get_tag("span.kind") == "server"
+    assert request_span._get_str_attribute("http.status_code") == "200"
+    assert request_span._get_str_attribute("component") == "asgi"
+    assert request_span._get_str_attribute("span.kind") == "server"
     _check_span_tags(scope, request_span)
 
 
@@ -312,9 +312,9 @@ async def test_double_callable_asgi(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 0
-    assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "asgi"
-    assert request_span.get_tag("span.kind") == "server"
+    assert request_span._get_str_attribute("http.status_code") == "200"
+    assert request_span._get_str_attribute("component") == "asgi"
+    assert request_span._get_str_attribute("span.kind") == "server"
     _check_span_tags(scope, request_span)
 
 
@@ -344,9 +344,9 @@ async def test_query_string(scope, test_spans):
         assert request_span.name == "asgi.request"
         assert request_span.span_type == "web"
         assert request_span.error == 0
-        assert request_span.get_tag("http.status_code") == "200"
-        assert request_span.get_tag("component") == "asgi"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("http.status_code") == "200"
+        assert request_span._get_str_attribute("component") == "asgi"
+        assert request_span._get_str_attribute("span.kind") == "server"
         _check_span_tags(scope, request_span)
 
 
@@ -365,12 +365,12 @@ async def test_asgi_error(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 1
-    assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag(ERROR_MSG) == "Test"
-    assert request_span.get_tag("error.type") == "builtins.RuntimeError"
-    assert request_span.get_tag("component") == "asgi"
-    assert request_span.get_tag("span.kind") == "server"
-    assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
+    assert request_span._get_str_attribute("http.status_code") == "500"
+    assert request_span._get_str_attribute(ERROR_MSG) == "Test"
+    assert request_span._get_str_attribute("error.type") == "builtins.RuntimeError"
+    assert request_span._get_str_attribute("component") == "asgi"
+    assert request_span._get_str_attribute("span.kind") == "server"
+    assert 'raise RuntimeError("Test")' in request_span._get_str_attribute("error.stack")
     _check_span_tags(scope, request_span)
 
 
@@ -389,15 +389,15 @@ async def test_asgi_500(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 1
-    assert request_span.get_tag("http.status_code") == "500"
-    assert request_span.get_tag("component") == "asgi"
-    assert request_span.get_tag("span.kind") == "server"
+    assert request_span._get_str_attribute("http.status_code") == "500"
+    assert request_span._get_str_attribute("component") == "asgi"
+    assert request_span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.asyncio
 async def test_asgi_error_custom(scope, test_spans):
     def custom_handle_exception_span(exc, span):
-        span.set_tag("http.status_code", 501)
+        span._set_attribute("http.status_code", "501")
 
     app = TraceMiddleware(error_app, handle_exception_span=custom_handle_exception_span)
     instance = ApplicationCommunicator(app, scope)
@@ -412,12 +412,12 @@ async def test_asgi_error_custom(scope, test_spans):
     assert request_span.name == "asgi.request"
     assert request_span.span_type == "web"
     assert request_span.error == 1
-    assert request_span.get_tag("http.status_code") == "501"
-    assert request_span.get_tag(ERROR_MSG) == "Test"
-    assert request_span.get_tag("error.type") == "builtins.RuntimeError"
-    assert request_span.get_tag("component") == "asgi"
-    assert request_span.get_tag("span.kind") == "server"
-    assert 'raise RuntimeError("Test")' in request_span.get_tag("error.stack")
+    assert request_span._get_str_attribute("http.status_code") == "501"
+    assert request_span._get_str_attribute(ERROR_MSG) == "Test"
+    assert request_span._get_str_attribute("error.type") == "builtins.RuntimeError"
+    assert request_span._get_str_attribute("component") == "asgi"
+    assert request_span._get_str_attribute("span.kind") == "server"
+    assert 'raise RuntimeError("Test")' in request_span._get_str_attribute("error.stack")
     _check_span_tags(scope, request_span)
 
 
@@ -452,9 +452,9 @@ async def test_distributed_tracing(scope, test_spans):
     assert request_span.parent_id == 1234
     assert request_span.trace_id == 5678
     assert request_span.error == 0
-    assert request_span.get_tag("http.status_code") == "200"
-    assert request_span.get_tag("component") == "asgi"
-    assert request_span.get_tag("span.kind") == "server"
+    assert request_span._get_str_attribute("http.status_code") == "200"
+    assert request_span._get_str_attribute("component") == "asgi"
+    assert request_span._get_str_attribute("span.kind") == "server"
     _check_span_tags(scope, request_span)
 
 
@@ -480,20 +480,20 @@ async def test_multiple_requests(test_spans):
     r1_span = spans[0][0]
     assert r1_span.name == "asgi.request"
     assert r1_span.span_type == "web"
-    assert r1_span.get_tag("http.method") == "GET"
-    assert r1_span.get_tag("http.url") == "http://testserver/?sleep=true"
-    assert r1_span.get_tag("http.query.string") == "sleep=true"
-    assert r1_span.get_tag("component") == "asgi"
-    assert r1_span.get_tag("span.kind") == "server"
+    assert r1_span._get_str_attribute("http.method") == "GET"
+    assert r1_span._get_str_attribute("http.url") == "http://testserver/?sleep=true"
+    assert r1_span._get_str_attribute("http.query.string") == "sleep=true"
+    assert r1_span._get_str_attribute("component") == "asgi"
+    assert r1_span._get_str_attribute("span.kind") == "server"
 
     r2_span = spans[0][0]
     assert r2_span.name == "asgi.request"
     assert r2_span.span_type == "web"
-    assert r2_span.get_tag("http.method") == "GET"
-    assert r2_span.get_tag("http.url") == "http://testserver/?sleep=true"
-    assert r2_span.get_tag("http.query.string") == "sleep=true"
-    assert r2_span.get_tag("component") == "asgi"
-    assert r2_span.get_tag("span.kind") == "server"
+    assert r2_span._get_str_attribute("http.method") == "GET"
+    assert r2_span._get_str_attribute("http.url") == "http://testserver/?sleep=true"
+    assert r2_span._get_str_attribute("http.query.string") == "sleep=true"
+    assert r2_span._get_str_attribute("component") == "asgi"
+    assert r2_span._get_str_attribute("span.kind") == "server"
 
 
 @pytest.mark.asyncio
@@ -705,7 +705,7 @@ async def test_host_header(scope, test_spans, host):
 
         assert test_spans.spans
         request_span = test_spans.spans[0]
-        assert request_span.get_tag("http.url") == "http://%s/" % (host,)
+        assert request_span._get_str_attribute("http.url") == "http://%s/" % (host,)
 
 
 @pytest.mark.asyncio
@@ -718,7 +718,7 @@ async def test_response_headers(scope, test_spans):
 
             assert test_spans.spans
             request_span = test_spans.spans[0]
-            assert "http.response.headers.content-type" in request_span.get_tags().keys()
+            assert "http.response.headers.content-type" in request_span._get_str_attributes().keys()
 
 
 @pytest.mark.asyncio

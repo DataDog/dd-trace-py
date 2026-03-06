@@ -1,0 +1,33 @@
+id: span-get-tag
+snapshots:
+  ci_item.get_tag(test.STATUS):
+    labels:
+    - source: ci_item.get_tag(test.STATUS)
+      style: primary
+      start: 0
+      end: 28
+  llmobs.get_tag("key"):
+    labels:
+    - source: llmobs.get_tag("key")
+      style: primary
+      start: 0
+      end: 21
+  self.get_tag(ERROR_TYPE):
+    labels:
+    - source: self.get_tag(ERROR_TYPE)
+      style: primary
+      start: 0
+      end: 24
+  span.get_tag("http.url"):
+    labels:
+    - source: span.get_tag("http.url")
+      style: primary
+      start: 0
+      end: 24
+  ? |
+    url = span.get_tag("http.url")
+  : labels:
+    - source: span.get_tag("http.url")
+      style: primary
+      start: 6
+      end: 30

@@ -70,8 +70,8 @@ class TestHeaders(object):
         """
         integration_config.http.trace_headers(["Content-Type", "Max-Age"])
         trace_utils._store_request_headers([("Content-Type", "some;value;content-type")], span, integration_config)
-        assert span.get_tag("http.request.headers.content-type") == "some;value;content-type"
-        assert None is span.get_tag("http.request.headers.other")
+        assert span._get_str_attribute("http.request.headers.content-type") == "some;value;content-type"
+        assert None is span._get_str_attribute("http.request.headers.other")
 
     def test_store_multiple_request_headers_as_dict(self, span, integration_config):
         """
@@ -88,9 +88,9 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.request.headers.content-type") == "some;value;content-type"
-        assert span.get_tag("http.request.headers.max-age") == "some;value;max_age"
-        assert None is span.get_tag("http.request.headers.other")
+        assert span._get_str_attribute("http.request.headers.content-type") == "some;value;content-type"
+        assert span._get_str_attribute("http.request.headers.max-age") == "some;value;max_age"
+        assert None is span._get_str_attribute("http.request.headers.other")
 
     def test_store_multiple_response_headers_as_dict(self, span, integration_config):
         """
@@ -107,9 +107,9 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.content-type") == "some;value;content-type"
-        assert span.get_tag("http.response.headers.max-age") == "some;value;max_age"
-        assert None is span.get_tag("http.response.headers.other")
+        assert span._get_str_attribute("http.response.headers.content-type") == "some;value;content-type"
+        assert span._get_str_attribute("http.response.headers.max-age") == "some;value;max_age"
+        assert None is span._get_str_attribute("http.response.headers.other")
 
     def test_numbers_in_headers_names_are_allowed(self, span, integration_config):
         """
@@ -124,7 +124,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.content-type123") == "some;value"
+        assert span._get_str_attribute("http.response.headers.content-type123") == "some;value"
 
     def test_allowed_chars_not_replaced_in_tag_name(self, span, integration_config):
         """
@@ -140,7 +140,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.c0n_t:e/nt-type") == "some;value"
+        assert span._get_str_attribute("http.response.headers.c0n_t:e/nt-type") == "some;value"
 
     def test_period_is_replaced_by_underscore(self, span, integration_config):
         """
@@ -157,7 +157,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.api_token") == "some;value"
+        assert span._get_str_attribute("http.response.headers.api_token") == "some;value"
 
     def test_non_allowed_chars_replaced(self, span, integration_config):
         """
@@ -173,7 +173,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.c__ontent-type") == "some;value"
+        assert span._get_str_attribute("http.response.headers.c__ontent-type") == "some;value"
 
     def test_key_trim_leading_trailing_spaced(self, span, integration_config):
         """
@@ -188,7 +188,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.content-type") == "some;value"
+        assert span._get_str_attribute("http.response.headers.content-type") == "some;value"
 
     def test_value_not_trim_leading_trailing_spaced(self, span, integration_config):
         """
@@ -203,7 +203,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.content-type") == "   some;value   "
+        assert span._get_str_attribute("http.response.headers.content-type") == "   some;value   "
 
     def test_no_whitelist(self, span, integration_config):
         """
@@ -217,7 +217,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.content-type") is None
+        assert span._get_str_attribute("http.response.headers.content-type") is None
 
     def test_whitelist_exact(self, span, integration_config):
         """
@@ -232,7 +232,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.content-type") == "some;value"
+        assert span._get_str_attribute("http.response.headers.content-type") == "some;value"
 
     def test_whitelist_case_insensitive(self, span, integration_config):
         """
@@ -247,7 +247,7 @@ class TestHeaders(object):
             span,
             integration_config,
         )
-        assert span.get_tag("http.response.headers.content-type") == "some;value"
+        assert span._get_str_attribute("http.response.headers.content-type") == "some;value"
 
     @pytest.mark.parametrize(
         "headers,expected_hostname,case_sensitive",
@@ -284,7 +284,7 @@ class TestHeaders(object):
         trace_utils.set_http_meta(
             span, integration_config, request_headers=headers, headers_are_case_sensitive=case_sensitive
         )
-        assert span.get_tag("http.referrer_hostname") == expected_hostname
+        assert span._get_str_attribute("http.referrer_hostname") == expected_hostname
 
 
 @pytest.mark.parametrize(
@@ -370,9 +370,9 @@ def test_set_http_meta_with_http_header_tags_config():
         integration_config,
         request_headers={"header1": "value1", "header2": "value2", "header3": "value3"},
     )
-    assert request_span.get_tag("http.request.headers.header1") == "value1"
-    assert request_span.get_tag("http.request.headers.header2") == "value2"
-    assert request_span.get_tag("third-header") == "value3"
+    assert request_span._get_str_attribute("http.request.headers.header1") == "value1"
+    assert request_span._get_str_attribute("http.request.headers.header2") == "value2"
+    assert request_span._get_str_attribute("third-header") == "value3"
 
     # test response headers
     response_span = Span(name="new_integration.response")
@@ -381,9 +381,9 @@ def test_set_http_meta_with_http_header_tags_config():
         integration_config,
         response_headers={"header1": "value1", "header2": "value2", "header3": "value3"},
     )
-    assert response_span.get_tag("http.response.headers.header1") == "value1"
-    assert response_span.get_tag("http.response.headers.header2") == "value2"
-    assert response_span.get_tag("third-header") == "value3"
+    assert response_span._get_str_attribute("http.response.headers.header1") == "value1"
+    assert response_span._get_str_attribute("http.response.headers.header2") == "value2"
+    assert response_span._get_str_attribute("third-header") == "value3"
 
 
 @mock.patch("ddtrace.internal.settings._config.log")
@@ -441,7 +441,7 @@ def test_set_http_meta_no_headers(mock_store_headers, span, int_config):
         request_headers={"HTTP_REQUEST_HEADER": "value", "user-agent": "dd-agent/1.0.0"},
         response_headers={"HTTP_RESPONSE_HEADER": "value"},
     )
-    result_keys = list(span.get_tags().keys())
+    result_keys = list(span._get_str_attributes().keys())
     result_keys.sort(reverse=True)
     assert result_keys == ["runtime-id", http.USER_AGENT]
     mock_store_headers.assert_not_called()
@@ -469,10 +469,10 @@ def test_set_http_meta_headers_useragent(
         int_config.myint,
         request_headers={user_agent_key: user_agent_value},
     )
-    result_keys = list(span.get_tags().keys())
+    result_keys = list(span._get_str_attributes().keys())
     result_keys.sort(reverse=True)
     assert result_keys == expected_keys
-    assert span.get_tag(http.USER_AGENT) == expected
+    assert span._get_str_attribute(http.USER_AGENT) == expected
     mock_store_headers.assert_called()
 
 
@@ -482,10 +482,10 @@ def test_set_http_meta_case_sensitive_headers(mock_store_headers, span, int_conf
     trace_utils.set_http_meta(
         span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=True
     )
-    result_keys = list(span.get_tags().keys())
+    result_keys = list(span._get_str_attributes().keys())
     result_keys.sort(reverse=True)
     assert result_keys == ["runtime-id", http.USER_AGENT]
-    assert span.get_tag(http.USER_AGENT) == "dd-agent/1.0.0"
+    assert span._get_str_attribute(http.USER_AGENT) == "dd-agent/1.0.0"
     mock_store_headers.assert_called()
 
 
@@ -495,10 +495,10 @@ def test_set_http_meta_case_sensitive_headers_notfound(mock_store_headers, span,
     trace_utils.set_http_meta(
         span, int_config.myint, request_headers={"USER-AGENT": "dd-agent/1.0.0"}, headers_are_case_sensitive=False
     )
-    result_keys = list(span.get_tags().keys())
+    result_keys = list(span._get_str_attributes().keys())
     result_keys.sort(reverse=True)
     assert result_keys == ["runtime-id"]
-    assert not span.get_tag(http.USER_AGENT)
+    assert not span._get_str_attribute(http.USER_AGENT)
     mock_store_headers.assert_called()
 
 
@@ -714,7 +714,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_default_false(span, int_confi
             int_config.myint,
             request_headers={"x-real-ip": "8.8.8.8"},
         )
-        result_keys = list(span.get_tags().keys())
+        result_keys = list(span._get_str_attributes().keys())
         result_keys.sort(reverse=True)
         assert result_keys == ["runtime-id"]
 
@@ -728,7 +728,7 @@ def test_set_http_meta_headers_ip_asm_disabled_env_false(span, int_config):
             int_config.myint,
             request_headers={"x-real-ip": "8.8.8.8"},
         )
-        result_keys = list(span.get_tags().keys())
+        result_keys = list(span._get_str_attributes().keys())
         result_keys.sort(reverse=True)
         assert result_keys == ["runtime-id"]
 
@@ -742,10 +742,10 @@ def test_set_http_meta_headers_ip_asm_disabled_env_true(span, int_config):
             int_config.myint,
             request_headers={"x-real-ip": "8.8.8.8"},
         )
-        result_keys = list(span.get_tags().keys())
+        result_keys = list(span._get_str_attributes().keys())
         result_keys.sort(reverse=True)
         assert result_keys == ["runtime-id", "network.client.ip", http.CLIENT_IP]
-        assert span.get_tag(http.CLIENT_IP) == "8.8.8.8"
+        assert span._get_str_attribute(http.CLIENT_IP) == "8.8.8.8"
 
 
 def test_ip_subnet_regression():
@@ -776,10 +776,10 @@ def test_set_http_meta_headers_useragent(  # noqa:F811
         request_headers={"user-agent": user_agent_value},
     )
 
-    result_keys = list(span.get_tags().keys())
+    result_keys = list(span._get_str_attributes().keys())
     result_keys.sort(reverse=True)
     assert result_keys == expected_keys
-    assert span.get_tag(http.USER_AGENT) == expected
+    assert span._get_str_attribute(http.USER_AGENT) == expected
     mock_store_headers.assert_not_called()
 
 
@@ -797,10 +797,10 @@ def test_set_http_meta_headers_useragent(  # noqa:F811
 def test_bad_http_code(mock_log, span, int_config, val, bad):
     trace_utils.set_http_meta(span, int_config, status_code=val)
     if bad:
-        assert http.STATUS_CODE not in span.get_tags()
+        assert http.STATUS_CODE not in span._get_str_attributes()
         mock_log.debug.assert_called_once_with("failed to convert http status code %r to int", val)
     else:
-        assert span.get_tag(http.STATUS_CODE) == str(val)
+        assert span._get_str_attribute(http.STATUS_CODE) == str(val)
 
 
 @pytest.mark.parametrize(
@@ -975,7 +975,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
         url=FULL_URL,
         status_code=200,
     )
-    assert span.get_tag(http.URL) == STRIPPED_URL
+    assert span._get_str_attribute(http.URL) == STRIPPED_URL
 
     int_config.http_tag_query_string = True
     trace_utils.set_http_meta(
@@ -985,7 +985,7 @@ def test_sanitized_url_in_http_meta(span, int_config):
         url=FULL_URL,
         status_code=200,
     )
-    assert span.get_tag(http.URL) == FULL_URL
+    assert span._get_str_attribute(http.URL) == FULL_URL
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP": ""})
@@ -1008,7 +1008,7 @@ def test_url_in_http_with_empty_obfuscation_regex():
             url=SENSITIVE_URL,
             status_code=200,
         )
-        assert span.get_tag(http.URL) == SENSITIVE_URL
+        assert span._get_str_attribute(http.URL) == SENSITIVE_URL
 
 
 # TODO(munir): Remove this test when global_query_string_obfuscation_disabled is removed
@@ -1038,7 +1038,7 @@ def test_url_in_http_with_obfuscation_enabled_and_empty_regex():
             url="http://weblog:7777/?application_key=123",
             status_code=200,
         )
-        assert span.get_tag(http.URL) == "http://weblog:7777/", span._get_str_attributes()
+        assert span._get_str_attribute(http.URL) == "http://weblog:7777/", span._get_str_attributes()
 
 
 def test_url_in_http_meta(span, int_config):
@@ -1055,7 +1055,7 @@ def test_url_in_http_meta(span, int_config):
             url=SENSITIVE_QS_URL,
             status_code=200,
         )
-        assert span.get_tag(http.URL) == REDACTED_URL
+        assert span._get_str_attribute(http.URL) == REDACTED_URL
     with override_global_config({"_global_query_string_obfuscation_disabled": True}):
         trace_utils.set_http_meta(
             span,
@@ -1064,7 +1064,7 @@ def test_url_in_http_meta(span, int_config):
             url=SENSITIVE_QS_URL,
             status_code=200,
         )
-        assert span.get_tag(http.URL) == SENSITIVE_QS_URL
+        assert span._get_str_attribute(http.URL) == SENSITIVE_QS_URL
 
     int_config.http_tag_query_string = False
     with override_global_config({"_global_query_string_obfuscation_disabled": False}):
@@ -1075,7 +1075,7 @@ def test_url_in_http_meta(span, int_config):
             url=SENSITIVE_QS_URL,
             status_code=200,
         )
-        assert span.get_tag(http.URL) == STRIPPED_URL
+        assert span._get_str_attribute(http.URL) == STRIPPED_URL
     with override_global_config({"_global_query_string_obfuscation_disabled": True}):
         trace_utils.set_http_meta(
             span,
@@ -1084,7 +1084,7 @@ def test_url_in_http_meta(span, int_config):
             url=SENSITIVE_QS_URL,
             status_code=200,
         )
-        assert span.get_tag(http.URL) == STRIPPED_URL
+        assert span._get_str_attribute(http.URL) == STRIPPED_URL
 
 
 def test_redacted_url_in_http_meta(span, int_config):
@@ -1100,7 +1100,7 @@ def test_redacted_url_in_http_meta(span, int_config):
         url=SENSITIVE_QS_URL,
         status_code=200,
     )
-    assert span.get_tag(http.URL) == STRIPPED_URL
+    assert span._get_str_attribute(http.URL) == STRIPPED_URL
 
     int_config.http_tag_query_string = True
     trace_utils.set_http_meta(
@@ -1110,7 +1110,7 @@ def test_redacted_url_in_http_meta(span, int_config):
         url=SENSITIVE_QS_URL,
         status_code=200,
     )
-    assert span.get_tag(http.URL) == REDACTED_QS_URL
+    assert span._get_str_attribute(http.URL) == REDACTED_QS_URL
 
 
 def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
@@ -1131,7 +1131,7 @@ def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
         query=SENSITIVE_QS,
         status_code=200,
     )
-    assert span.get_tag(http.URL) == STRIPPED_URL
+    assert span._get_str_attribute(http.URL) == STRIPPED_URL
 
     int_config.myint.http_tag_query_string = True
     trace_utils.set_http_meta(
@@ -1142,7 +1142,7 @@ def test_redacted_query_string_as_argument_in_http_meta(span, int_config):
         query=SENSITIVE_QS,
         status_code=200,
     )
-    assert span.get_tag(http.URL) == REDACTED_URL
+    assert span._get_str_attribute(http.URL) == REDACTED_URL
 
 
 @mock.patch("ddtrace.internal.utils.http.redact_query_string")
@@ -1160,7 +1160,7 @@ def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_re
         status_code=200,
     )
     mock_redact_query_string.assert_not_called()
-    assert span.get_tag(http.URL) == URL
+    assert span._get_str_attribute(http.URL) == URL
 
     trace_utils.set_http_meta(
         span,
@@ -1171,7 +1171,7 @@ def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_re
         status_code=200,
     )
     mock_redact_query_string.assert_not_called()
-    assert span.get_tag(http.URL) == URL
+    assert span._get_str_attribute(http.URL) == URL
 
     trace_utils.set_http_meta(
         span,
@@ -1182,7 +1182,7 @@ def test_empty_query_string_in_http_meta_should_not_call_redact_function(mock_re
         status_code=200,
     )
     mock_redact_query_string.assert_not_called()
-    assert span.get_tag(http.URL) == URL
+    assert span._get_str_attribute(http.URL) == URL
 
 
 # This generates a list of (key, value) tuples, with values given by nested
@@ -1204,8 +1204,8 @@ def test_set_flattened_tags_is_flat(items):
     """Ensure that flattening of a nested dict results in a normalized, 1-level dict"""
     span = Span("test")
     trace_utils.set_flattened_tags(span, items)
-    assert isinstance(span.get_tags(), dict)
-    assert not any(isinstance(v, dict) for v in span.get_tags().values())
+    assert isinstance(span._get_str_attributes(), dict)
+    assert not any(isinstance(v, dict) for v in span._get_str_attributes().values())
 
 
 def test_set_flattened_tags_keys():
@@ -1214,7 +1214,7 @@ def test_set_flattened_tags_keys():
     e = dict(A=1, B=2, C_A=3, C_B=4, C_C_A=5, C_C_B=6)
     span = Span("test")
     trace_utils.set_flattened_tags(span, d.items(), sep="_")
-    assert span.get_metrics() == e
+    assert span._get_numeric_attributes() == e
 
 
 def test_set_flattened_tags_exclude_policy():
@@ -1224,4 +1224,4 @@ def test_set_flattened_tags_exclude_policy():
     span = Span("test")
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
-    assert span.get_metrics() == e
+    assert span._get_numeric_attributes() == e

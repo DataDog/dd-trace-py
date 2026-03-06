@@ -833,9 +833,9 @@ def test_last_dd_span_id():
         pass
 
     # The last parent span_id tag should be set ONLY on the local root spans
-    assert local_root.get_tag(LAST_DD_PARENT_ID_KEY) == "123067aa0ba902a6"
+    assert local_root._get_str_attribute(LAST_DD_PARENT_ID_KEY) == "123067aa0ba902a6"
     for span in (root, child1, chunk_root):
-        assert span.get_tag(LAST_DD_PARENT_ID_KEY) is None
+        assert span._get_str_attribute(LAST_DD_PARENT_ID_KEY) is None
     # `p` value in tracestate headers is set using the current active datadog span
     for span in (child1, chunk_root, root, local_root):
         headers = {}

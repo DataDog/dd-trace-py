@@ -112,12 +112,12 @@ class ElasticsearchPatchTest(TracerTestCase):
         assert span.name == "elasticsearch.query"
         assert span.span_type == "elasticsearch"
         assert span.error == 0
-        assert span.get_tag("elasticsearch.method") == "PUT"
-        assert span.get_tag("component") == "elasticsearch"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("elasticsearch.url") == "/%s" % self.ES_INDEX
-        assert span.get_tag("out.host") == self._get_es_config()["host"]
-        assert span.get_tag("server.address") == self._get_es_config()["host"]
+        assert span._get_str_attribute("elasticsearch.method") == "PUT"
+        assert span._get_str_attribute("component") == "elasticsearch"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("elasticsearch.url") == "/%s" % self.ES_INDEX
+        assert span._get_str_attribute("out.host") == self._get_es_config()["host"]
+        assert span._get_str_attribute("server.address") == self._get_es_config()["host"]
         assert span.resource == "PUT /%s" % self.ES_INDEX
 
         args = self._get_index_args()
@@ -133,12 +133,12 @@ class ElasticsearchPatchTest(TracerTestCase):
         TracerTestCase.assert_is_measured(span)
         assert span.error == 0
         if (7, 0, 0) <= elasticsearch.__version__ < (7, 5, 0):
-            assert span.get_tag("elasticsearch.method") == "POST"
+            assert span._get_str_attribute("elasticsearch.method") == "POST"
             assert span.resource == "POST /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE)
         else:
-            assert span.get_tag("elasticsearch.method") == "PUT"
+            assert span._get_str_attribute("elasticsearch.method") == "PUT"
             assert span.resource == "PUT /%s/%s/?" % (self.ES_INDEX, self.ES_TYPE)
-        assert span.get_tag("elasticsearch.url") == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
+        assert span._get_str_attribute("elasticsearch.url") == "/%s/%s/%s" % (self.ES_INDEX, self.ES_TYPE, 10)
 
         es.indices.refresh(index=self.ES_INDEX)
 
@@ -149,10 +149,10 @@ class ElasticsearchPatchTest(TracerTestCase):
         span = spans[0]
         TracerTestCase.assert_is_measured(span)
         assert span.resource == "POST /%s/_refresh" % self.ES_INDEX
-        assert span.get_tag("elasticsearch.method") == "POST"
-        assert span.get_tag("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
-        assert span.get_tag("component") == "elasticsearch"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("elasticsearch.method") == "POST"
+        assert span._get_str_attribute("elasticsearch.url") == "/%s/_refresh" % self.ES_INDEX
+        assert span._get_str_attribute("component") == "elasticsearch"
+        assert span._get_str_attribute("span.kind") == "client"
 
         # search data
         with self.override_http_config("elasticsearch", dict(trace_query_string=True)):
@@ -174,35 +174,35 @@ class ElasticsearchPatchTest(TracerTestCase):
         span = spans[-1]
         TracerTestCase.assert_is_measured(span)
         method, url = span.resource.split(" ")
-        assert method == span.get_tag("elasticsearch.method")
+        assert method == span._get_str_attribute("elasticsearch.method")
         assert method in ["GET", "POST"]
         assert self.ES_INDEX in url
         assert url.endswith("/_search")
-        assert url == span.get_tag("elasticsearch.url")
+        assert url == span._get_str_attribute("elasticsearch.url")
         if elasticsearch.__version__ >= (8, 0, 0):
             # Key order is not consistent, parse into dict to compare
-            body = json.loads(span.get_tag("elasticsearch.body"))
+            body = json.loads(span._get_str_attribute("elasticsearch.body"))
             assert body == {
                 "query": {"match_all": {}},
                 "sort": {"name": {"order": "desc", "unmapped_type": "keyword"}},
                 "size": 100,
             }
-            assert not span.get_tag("elasticsearch.params")
-            assert not span.get_tag(http.QUERY_STRING)
+            assert not span._get_str_attribute("elasticsearch.params")
+            assert not span._get_str_attribute(http.QUERY_STRING)
         else:
-            assert span.get_tag("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
-            assert set(span.get_tag("elasticsearch.params").split("&")) == {
+            assert span._get_str_attribute("elasticsearch.body").replace(" ", "") == '{"query":{"match_all":{}}}'
+            assert set(span._get_str_attribute("elasticsearch.params").split("&")) == {
                 "sort=%7B%27name%27%3A+%7B%27order%27%3A+%27desc%27%2C+%27unmapped_type%27%3A+%27keyword%27%7D%7D",
                 "size=100",
             }
-            assert set(span.get_tag(http.QUERY_STRING).split("&")) == {
+            assert set(span._get_str_attribute(http.QUERY_STRING).split("&")) == {
                 "sort=%7B%27name%27%3A+%7B%27order%27%3A+%27desc%27%2C+%27unmapped_type%27%3A+%27keyword%27%7D%7D",
                 "size=100",
             }
-        assert span.get_tag("component") == "elasticsearch"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("component") == "elasticsearch"
+        assert span._get_str_attribute("span.kind") == "client"
 
-        self.assertTrue(span.get_metric("elasticsearch.took") > 0)
+        self.assertTrue(span._get_numeric_attribute("elasticsearch.took") > 0)
 
         # Search by type not supported by default json encoder
         query = {"range": {"created": {"gte": datetime.date(2016, 2, 1)}}}
@@ -362,7 +362,7 @@ class ElasticsearchPatchTest(TracerTestCase):
         spans = self.get_spans()
         self.reset()
         assert len(spans) == 1
-        assert len(spans[0].get_tag("elasticsearch.body")) < 25000
+        assert len(spans[0]._get_str_attribute("elasticsearch.body")) < 25000
 
     def test_and_emit_get_version(self):
         version = get_version()

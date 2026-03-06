@@ -108,19 +108,19 @@ class TestTwoPhaseFinish:
         test.start()
 
         skip_reason = "Test was skipped for a reason"
-        test.set_tag("test.skip_reason", skip_reason)
+        test._set_attribute("test.skip_reason", skip_reason)
         test.prepare_for_finish(override_status=TestStatus.SKIP)
 
         # Status and tags should be set
         assert test.get_status() == TestStatus.SKIP
-        assert test.get_tag("test.skip_reason") == skip_reason
+        assert test._get_str_attribute("test.skip_reason") == skip_reason
 
         # Write the test
         test.finish()
 
         # Should still have the same status and skip reason
         assert test.get_status() == TestStatus.SKIP
-        assert test._span.get_tag("test.skip_reason") == skip_reason
+        assert test._span._get_str_attribute("test.skip_reason") == skip_reason
 
     def test_override_finish_time_works(self, test):
         """Test that override_finish_time parameter works in prepare_for_finish()"""
@@ -149,7 +149,7 @@ class TestTwoPhaseFinish:
 
         # Write and verify final status
         test.finish()
-        assert test._span.get_tag("test.status") == TestStatus.PASS.value
+        assert test._span._get_str_attribute("test.status") == TestStatus.PASS.value
 
     def test_test_is_not_considered_finished_after_prepare_for_finish(self, test):
         """Test that is_finished() returns False after prepare_for_finish() but finish_time is set"""

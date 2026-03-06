@@ -68,13 +68,13 @@ def _get_spans_from_list(
 
     for span in spans:
         # filter out spans that don't match our desired criteria
-        if span.get_tag("type") != target_type:
+        if span._get_str_attribute("type") != target_type:
             continue
 
-        if name is not None and span.get_tag(target_name) != name:
+        if name is not None and span._get_str_attribute(target_name) != name:
             continue
 
-        if status is not None and span.get_tag("test.status") != status:
+        if status is not None and span._get_str_attribute("test.status") != status:
             continue
 
         selected_spans.append(span)
@@ -279,7 +279,7 @@ class PytestTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         test_span = spans[0]
-        assert test_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
+        assert test_span._get_str_attribute("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
 
     def test_pytest_command_test_session_name(self):
         """Test that the pytest run command is used to set the test session name."""
@@ -350,9 +350,9 @@ class PytestTestCase(PytestTestCaseBase):
 
         expected_params = [1, 2, 3, 4, [1, 2, 3]]
         assert len(spans) == 8
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         for i in range(len(expected_params)):
-            assert json.loads(test_spans[i].get_tag(test.PARAMETERS)) == {
+            assert json.loads(test_spans[i]._get_str_attribute(test.PARAMETERS)) == {
                 "arguments": {"item": str(expected_params[i])},
                 "metadata": {},
             }
@@ -412,9 +412,9 @@ class PytestTestCase(PytestTestCaseBase):
             "{('x', 'y'): 12345}",
         ]
         assert len(spans) == 10
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         for i in range(len(expected_params_contains)):
-            assert expected_params_contains[i] in test_spans[i].get_tag(test.PARAMETERS)
+            assert expected_params_contains[i] in test_spans[i]._get_str_attribute(test.PARAMETERS)
 
     def test_parameterize_case_encoding_error(self):
         """Test parametrize case with complex objects that cannot be JSON encoded."""
@@ -440,7 +440,7 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 4
         test_span = _get_spans_from_list(spans, "test")[0]
-        assert json.loads(test_span.get_tag(test.PARAMETERS)) == {
+        assert json.loads(test_span._get_str_attribute(test.PARAMETERS)) == {
             "arguments": {"item": "Could not encode"},
             "metadata": {},
         }
@@ -465,13 +465,13 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert test_spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
-        assert test_spans[0].get_tag(test.SKIP_REASON) == "decorator"
-        assert test_spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
-        assert test_spans[1].get_tag(test.SKIP_REASON) == "body"
-        assert test_spans[0].get_tag("component") == "pytest"
-        assert test_spans[1].get_tag("component") == "pytest"
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
+        assert test_spans[0]._get_str_attribute(test.STATUS) == test.Status.SKIP.value
+        assert test_spans[0]._get_str_attribute(test.SKIP_REASON) == "decorator"
+        assert test_spans[1]._get_str_attribute(test.STATUS) == test.Status.SKIP.value
+        assert test_spans[1]._get_str_attribute(test.SKIP_REASON) == "body"
+        assert test_spans[0]._get_str_attribute("component") == "pytest"
+        assert test_spans[1]._get_str_attribute("component") == "pytest"
 
     def test_skip_module_with_xfail_cases(self):
         """Test Xfail test cases for a module that is skipped entirely, which should be treated as skip tests."""
@@ -496,13 +496,13 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert test_spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
-        assert test_spans[0].get_tag(test.SKIP_REASON) == "reason"
-        assert test_spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
-        assert test_spans[1].get_tag(test.SKIP_REASON) == "reason"
-        assert test_spans[0].get_tag("component") == "pytest"
-        assert test_spans[1].get_tag("component") == "pytest"
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
+        assert test_spans[0]._get_str_attribute(test.STATUS) == test.Status.SKIP.value
+        assert test_spans[0]._get_str_attribute(test.SKIP_REASON) == "reason"
+        assert test_spans[1]._get_str_attribute(test.STATUS) == test.Status.SKIP.value
+        assert test_spans[1]._get_str_attribute(test.SKIP_REASON) == "reason"
+        assert test_spans[0]._get_str_attribute("component") == "pytest"
+        assert test_spans[1]._get_str_attribute("component") == "pytest"
 
     def test_skipif_module(self):
         """Test XFail test cases for a module that is skipped entirely with the skipif marker."""
@@ -527,13 +527,13 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert test_spans[0].get_tag(test.STATUS) == test.Status.SKIP.value
-        assert test_spans[0].get_tag(test.SKIP_REASON) == "reason"
-        assert test_spans[1].get_tag(test.STATUS) == test.Status.SKIP.value
-        assert test_spans[1].get_tag(test.SKIP_REASON) == "reason"
-        assert test_spans[0].get_tag("component") == "pytest"
-        assert test_spans[1].get_tag("component") == "pytest"
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
+        assert test_spans[0]._get_str_attribute(test.STATUS) == test.Status.SKIP.value
+        assert test_spans[0]._get_str_attribute(test.SKIP_REASON) == "reason"
+        assert test_spans[1]._get_str_attribute(test.STATUS) == test.Status.SKIP.value
+        assert test_spans[1]._get_str_attribute(test.SKIP_REASON) == "reason"
+        assert test_spans[0]._get_str_attribute("component") == "pytest"
+        assert test_spans[1]._get_str_attribute("component") == "pytest"
 
     def test_xfail_fails(self):
         """Test xfail (expected failure) which fails, should be marked as pass."""
@@ -557,15 +557,15 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 5
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert test_spans[0].get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_spans[0].get_tag(test.RESULT) == test.Status.XFAIL.value
-        assert test_spans[0].get_tag(XFAIL_REASON) == "test should fail"
-        assert test_spans[1].get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_spans[1].get_tag(test.RESULT) == test.Status.XFAIL.value
-        assert test_spans[1].get_tag(XFAIL_REASON) == "test should xfail"
-        assert test_spans[0].get_tag("component") == "pytest"
-        assert test_spans[1].get_tag("component") == "pytest"
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
+        assert test_spans[0]._get_str_attribute(test.STATUS) == test.Status.PASS.value
+        assert test_spans[0]._get_str_attribute(test.RESULT) == test.Status.XFAIL.value
+        assert test_spans[0]._get_str_attribute(XFAIL_REASON) == "test should fail"
+        assert test_spans[1]._get_str_attribute(test.STATUS) == test.Status.PASS.value
+        assert test_spans[1]._get_str_attribute(test.RESULT) == test.Status.XFAIL.value
+        assert test_spans[1]._get_str_attribute(XFAIL_REASON) == "test should xfail"
+        assert test_spans[0]._get_str_attribute("component") == "pytest"
+        assert test_spans[1]._get_str_attribute("component") == "pytest"
 
     def test_xfail_runxfail_fails(self):
         """Test xfail with --runxfail flags should not crash when failing."""
@@ -584,7 +584,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_tag(test.STATUS) == test.Status.FAIL.value
+        assert spans[0]._get_str_attribute(test.STATUS) == test.Status.FAIL.value
 
     def test_xfail_runxfail_passes(self):
         """Test xfail with --runxfail flags should not crash when passing."""
@@ -603,7 +603,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_tag(test.STATUS) == test.Status.PASS.value
+        assert spans[0]._get_str_attribute(test.STATUS) == test.Status.PASS.value
 
     def test_xpass_not_strict(self):
         """Test xpass (unexpected passing) with strict=False, should be marked as pass."""
@@ -627,16 +627,16 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 5
         test_should_fail_span = _get_spans_from_list(spans, "test", "test_should_fail_but_passes")[0]
-        assert test_should_fail_span.get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_should_fail_span.get_tag(test.RESULT) == test.Status.XPASS.value
-        assert test_should_fail_span.get_tag(XFAIL_REASON) == "test should fail"
-        assert test_should_fail_span.get_tag("component") == "pytest"
+        assert test_should_fail_span._get_str_attribute(test.STATUS) == test.Status.PASS.value
+        assert test_should_fail_span._get_str_attribute(test.RESULT) == test.Status.XPASS.value
+        assert test_should_fail_span._get_str_attribute(XFAIL_REASON) == "test should fail"
+        assert test_should_fail_span._get_str_attribute("component") == "pytest"
 
         test_should_not_fail_span = _get_spans_from_list(spans, "test", "test_should_not_fail")[0]
-        assert test_should_not_fail_span.get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_should_not_fail_span.get_tag(test.RESULT) == test.Status.XPASS.value
-        assert test_should_not_fail_span.get_tag(XFAIL_REASON) == "test should not xfail"
-        assert test_should_not_fail_span.get_tag("component") == "pytest"
+        assert test_should_not_fail_span._get_str_attribute(test.STATUS) == test.Status.PASS.value
+        assert test_should_not_fail_span._get_str_attribute(test.RESULT) == test.Status.XPASS.value
+        assert test_should_not_fail_span._get_str_attribute(XFAIL_REASON) == "test should not xfail"
+        assert test_should_not_fail_span._get_str_attribute("component") == "pytest"
 
     def test_xpass_strict(self):
         """Test xpass (unexpected passing) with strict=True, should be marked as fail."""
@@ -656,11 +656,11 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 4
         span = _get_spans_from_list(spans, "test")[0]
-        assert span.get_tag(test.STATUS) == test.Status.FAIL.value
-        assert span.get_tag(test.RESULT) == test.Status.XPASS.value
+        assert span._get_str_attribute(test.STATUS) == test.Status.FAIL.value
+        assert span._get_str_attribute(test.RESULT) == test.Status.XPASS.value
         # Note: XFail (strict=True) does not mark the reason with result.wasxfail but into result.longrepr,
         # however it provides the entire traceback/error into longrepr.
-        assert "test should fail" in span.get_tag(XFAIL_REASON)
+        assert "test should fail" in span._get_str_attribute(XFAIL_REASON)
 
     def test_tags(self):
         """Test ddspan tags."""
@@ -681,10 +681,10 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 4
         test_span = spans[0]
-        assert test_span.get_tag("world") == "hello"
-        assert test_span.get_tag("mark") == "dd_tags"
-        assert test_span.get_tag(test.STATUS) == test.Status.PASS.value
-        assert test_span.get_tag("component") == "pytest"
+        assert test_span._get_str_attribute("world") == "hello"
+        assert test_span._get_str_attribute("mark") == "dd_tags"
+        assert test_span._get_str_attribute(test.STATUS) == test.Status.PASS.value
+        assert test_span._get_str_attribute("component") == "pytest"
 
     def test_service_name_repository_name(self):
         """Test span's service name is set to repository name."""
@@ -832,12 +832,12 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == (6 if _USE_PLUGIN_V2 else 8)
-        non_session_spans = [span for span in spans if span.get_tag("type") != "test_session_end"]
+        non_session_spans = [span for span in spans if span._get_str_attribute("type") != "test_session_end"]
         for span in non_session_spans:
-            if span.get_tag("type") == "test_suite_end":
-                assert span.get_tag(test.SUITE) == file_name
+            if span._get_str_attribute("type") == "test_suite_end":
+                assert span._get_str_attribute(test.SUITE) == file_name
         test_session_span = _get_spans_from_list(spans, "session")[0]
-        assert test_session_span.get_tag("test.command") == (
+        assert test_session_span._get_str_attribute("test.command") == (
             "pytest -p no:randomly --ddtrace --doctest-modules test_pytest_doctest_module.py"
         )
 
@@ -855,7 +855,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == 1
+        assert spans[0]._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == 1
 
     def test_pytest_exception(self):
         """Test that pytest sets exception information correctly."""
@@ -871,11 +871,11 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 4
         test_span = spans[0]
-        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
-        assert test_span.get_tag("error.type").endswith("AssertionError") is True
-        assert test_span.get_tag(ERROR_MSG) == "assert 2 == 1"
-        assert test_span.get_tag("error.stack") is not None
-        assert test_span.get_tag("component") == "pytest"
+        assert test_span._get_str_attribute(test.STATUS) == test.Status.FAIL.value
+        assert test_span._get_str_attribute("error.type").endswith("AssertionError") is True
+        assert test_span._get_str_attribute(ERROR_MSG) == "assert 2 == 1"
+        assert test_span._get_str_attribute("error.stack") is not None
+        assert test_span._get_str_attribute("component") == "pytest"
 
     def test_pytest_tests_with_internal_exceptions_get_test_status(self):
         """Test that pytest sets a fail test status if it has an internal exception."""
@@ -895,9 +895,9 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 4
         test_span = spans[0]
-        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
-        assert test_span.get_tag("error.type") is None
-        assert test_span.get_tag("component") == "pytest"
+        assert test_span._get_str_attribute(test.STATUS) == test.Status.FAIL.value
+        assert test_span._get_str_attribute("error.type") is None
+        assert test_span._get_str_attribute("component") == "pytest"
 
     def test_pytest_broken_setup_will_be_reported_as_error(self):
         """Test that pytest sets a fail test status if the setup fails."""
@@ -921,11 +921,11 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 4
         test_span = _get_spans_from_list(spans, "test")[0]
 
-        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
-        assert test_span.get_tag("error.type").endswith("Exception") is True
-        assert test_span.get_tag(ERROR_MSG) == "will fail in setup"
-        assert test_span.get_tag("error.stack") is not None
-        assert test_span.get_tag("component") == "pytest"
+        assert test_span._get_str_attribute(test.STATUS) == test.Status.FAIL.value
+        assert test_span._get_str_attribute("error.type").endswith("Exception") is True
+        assert test_span._get_str_attribute(ERROR_MSG) == "will fail in setup"
+        assert test_span._get_str_attribute("error.stack") is not None
+        assert test_span._get_str_attribute("component") == "pytest"
 
     def test_pytest_broken_teardown_will_be_reported_as_error(self):
         """Test that pytest sets a fail test status if the teardown fails."""
@@ -949,11 +949,11 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 4
         test_span = _get_spans_from_list(spans, "test")[0]
 
-        assert test_span.get_tag(test.STATUS) == test.Status.FAIL.value
-        assert test_span.get_tag("error.type").endswith("Exception") is True
-        assert test_span.get_tag(ERROR_MSG) == "will fail in teardown"
-        assert test_span.get_tag("error.stack") is not None
-        assert test_span.get_tag("component") == "pytest"
+        assert test_span._get_str_attribute(test.STATUS) == test.Status.FAIL.value
+        assert test_span._get_str_attribute("error.type").endswith("Exception") is True
+        assert test_span._get_str_attribute(ERROR_MSG) == "will fail in teardown"
+        assert test_span._get_str_attribute("error.stack") is not None
+        assert test_span._get_str_attribute("component") == "pytest"
 
     def test_pytest_will_report_its_version(self):
         py_file = self.testdir.makepyfile(
@@ -971,7 +971,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 4
         test_span = _get_spans_from_list(spans, "test")[0]
 
-        assert test_span.get_tag(test.FRAMEWORK_VERSION) == pytest.__version__
+        assert test_span._get_str_attribute(test.FRAMEWORK_VERSION) == pytest.__version__
 
     def test_pytest_will_report_codeowners(self):
         file_names = []
@@ -999,9 +999,9 @@ class PytestTestCase(PytestTestCaseBase):
         self.inline_run("--ddtrace", *file_names)
         spans = self.pop_spans()
         assert len(spans) == (6 if _USE_PLUGIN_V2 else 7)
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
-        assert json.loads(test_spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
-        assert json.loads(test_spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
+        assert json.loads(test_spans[0]._get_str_attribute(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
+        assert json.loads(test_spans[1]._get_str_attribute(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
 
     def test_pytest_will_report_codeowners_when_called_from_subdirectory(self):
         self.testdir.mkdir(".github")
@@ -1019,17 +1019,17 @@ class PytestTestCase(PytestTestCaseBase):
         subdir.chdir()
         self.inline_run("--ddtrace", "test_foo.py")
         spans = self.pop_spans()
-        [test_span] = [span for span in spans if span.get_tag("type") == "test"]
-        assert json.loads(test_span.get_tag(test.CODEOWNERS)) == ["@default-team"]
+        [test_span] = [span for span in spans if span._get_str_attribute("type") == "test"]
+        assert json.loads(test_span._get_str_attribute(test.CODEOWNERS)) == ["@default-team"]
 
     def test_pytest_session(self):
         """Test that running pytest will generate a test session span."""
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         assert len(spans) == 1
-        assert spans[0].get_tag("type") == "test_session_end"
-        assert spans[0].get_tag("test_session_id") == str(spans[0].span_id)
-        assert spans[0].get_tag("test.command") == "pytest -p no:randomly --ddtrace"
+        assert spans[0]._get_str_attribute("type") == "test_session_end"
+        assert spans[0]._get_str_attribute("test_session_id") == str(spans[0].span_id)
+        assert spans[0]._get_str_attribute("test.command") == "pytest -p no:randomly --ddtrace"
 
     @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not use class hierarchy")
     def test_pytest_test_class_hierarchy_is_added_to_test_span(self):
@@ -1048,7 +1048,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 4
         test_span = spans[0]
-        assert test_span.get_tag("test.class_hierarchy") == "TestNestedOuter.TestNestedInner"
+        assert test_span._get_str_attribute("test.class_hierarchy") == "TestNestedOuter.TestNestedInner"
 
     def test_pytest_suite(self):
         """Test that running pytest on a test file will generate a test suite span."""
@@ -1065,17 +1065,17 @@ class PytestTestCase(PytestTestCaseBase):
         test_suite_span = spans[3]
         test_module_span = spans[2]
         test_session_span = spans[1]
-        assert test_suite_span.get_tag("type") == "test_suite_end"
-        assert test_suite_span.get_tag("test_session_id") == str(test_session_span.span_id)
-        assert test_suite_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_suite_span.get_tag("test_suite_id") == str(test_suite_span.span_id)
-        assert test_suite_span.get_tag("test.status") == "pass"
-        assert test_module_span.get_tag("test.status") == "pass"
-        assert test_module_span.get_tag("test.module") == ""
-        assert test_module_span.get_tag("test.status") == "pass"
-        assert test_session_span.get_tag("test.status") == "pass"
-        assert test_suite_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
-        assert test_suite_span.get_tag("test.suite") == str(file_name)
+        assert test_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_suite_span._get_str_attribute("test_session_id") == str(test_session_span.span_id)
+        assert test_suite_span._get_str_attribute("test_module_id") == str(test_module_span.span_id)
+        assert test_suite_span._get_str_attribute("test_suite_id") == str(test_suite_span.span_id)
+        assert test_suite_span._get_str_attribute("test.status") == "pass"
+        assert test_module_span._get_str_attribute("test.status") == "pass"
+        assert test_module_span._get_str_attribute("test.module") == ""
+        assert test_module_span._get_str_attribute("test.status") == "pass"
+        assert test_session_span._get_str_attribute("test.status") == "pass"
+        assert test_suite_span._get_str_attribute("test.command") == "pytest -p no:randomly --ddtrace {}".format(file_name)
+        assert test_suite_span._get_str_attribute("test.suite") == str(file_name)
 
     def test_pytest_suites(self):
         """
@@ -1138,9 +1138,9 @@ class PytestTestCase(PytestTestCaseBase):
         test_span_a_inside_class = spans[1]
         test_span_a_outside_after_class = spans[2]
         test_suite_a_span = spans[5]
-        assert test_suite_a_span.get_tag("type") == "test_suite_end"
+        assert test_suite_a_span._get_str_attribute("type") == "test_suite_end"
         if not _USE_PLUGIN_V2:
-            assert test_span_a_inside_class.get_tag("test.class_hierarchy") == "TestClass"
+            assert test_span_a_inside_class._get_str_attribute("test.class_hierarchy") == "TestClass"
         assert test_suite_a_span.start_ns + test_suite_a_span.duration_ns >= test_span_a_outside_after_class.start_ns
 
     def test_pytest_suites_one_fails_propagates(self):
@@ -1165,18 +1165,18 @@ class PytestTestCase(PytestTestCaseBase):
         test_session_span = _get_spans_from_list(spans, "session")[0]
         test_module_spans = _get_spans_from_list(spans, "module")
         test_a_module_span = test_module_spans[0]
-        assert test_a_module_span.get_tag("type") == "test_module_end"
+        assert test_a_module_span._get_str_attribute("type") == "test_module_end"
         test_a_suite_span = _get_spans_from_list(spans, "suite", "test_a.py")[0]
-        assert test_a_suite_span.get_tag("type") == "test_suite_end"
+        assert test_a_suite_span._get_str_attribute("type") == "test_suite_end"
         test_b_module_span = test_module_spans[0] if _USE_PLUGIN_V2 else test_module_spans[1]
-        assert test_b_module_span.get_tag("type") == "test_module_end"
+        assert test_b_module_span._get_str_attribute("type") == "test_module_end"
         test_b_suite_span = _get_spans_from_list(spans, "suite", "test_b.py")[0]
-        assert test_b_suite_span.get_tag("type") == "test_suite_end"
-        assert test_session_span.get_tag("test.status") == "fail"
-        assert test_a_suite_span.get_tag("test.status") == "pass"
-        assert test_b_suite_span.get_tag("test.status") == "fail"
-        assert test_a_module_span.get_tag("test.status") == ("fail" if _USE_PLUGIN_V2 else "pass")
-        assert test_b_module_span.get_tag("test.status") == "fail"
+        assert test_b_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_session_span._get_str_attribute("test.status") == "fail"
+        assert test_a_suite_span._get_str_attribute("test.status") == "pass"
+        assert test_b_suite_span._get_str_attribute("test.status") == "fail"
+        assert test_a_module_span._get_str_attribute("test.status") == ("fail" if _USE_PLUGIN_V2 else "pass")
+        assert test_b_module_span._get_str_attribute("test.status") == "fail"
 
     def test_pytest_suites_one_skip_does_not_propagate(self):
         """Test that if not all tests skip, the status does not propagate upwards."""
@@ -1202,18 +1202,18 @@ class PytestTestCase(PytestTestCaseBase):
         test_session_span = _get_spans_from_list(spans, "session")[0]
         test_module_spans = _get_spans_from_list(spans, "module")
         test_a_module_span = test_module_spans[0]
-        assert test_a_module_span.get_tag("type") == "test_module_end"
+        assert test_a_module_span._get_str_attribute("type") == "test_module_end"
         test_a_suite_span = _get_spans_from_list(spans, "suite", "test_a.py")[0]
-        assert test_a_suite_span.get_tag("type") == "test_suite_end"
+        assert test_a_suite_span._get_str_attribute("type") == "test_suite_end"
         test_b_module_span = test_module_spans[0] if _USE_PLUGIN_V2 else test_module_spans[1]
-        assert test_b_module_span.get_tag("type") == "test_module_end"
+        assert test_b_module_span._get_str_attribute("type") == "test_module_end"
         test_b_suite_span = _get_spans_from_list(spans, "suite", "test_b.py")[0]
-        assert test_b_suite_span.get_tag("type") == "test_suite_end"
-        assert test_session_span.get_tag("test.status") == "pass"
-        assert test_a_suite_span.get_tag("test.status") == "pass"
-        assert test_b_suite_span.get_tag("test.status") == "skip"
-        assert test_a_module_span.get_tag("test.status") == "pass"
-        assert test_b_module_span.get_tag("test.status") == ("pass" if _USE_PLUGIN_V2 else "skip")
+        assert test_b_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_session_span._get_str_attribute("test.status") == "pass"
+        assert test_a_suite_span._get_str_attribute("test.status") == "pass"
+        assert test_b_suite_span._get_str_attribute("test.status") == "skip"
+        assert test_a_module_span._get_str_attribute("test.status") == "pass"
+        assert test_b_module_span._get_str_attribute("test.status") == ("pass" if _USE_PLUGIN_V2 else "skip")
 
     def test_pytest_all_tests_pass_status_propagates(self):
         """Test that if all tests pass, the status propagates upwards."""
@@ -1231,7 +1231,7 @@ class PytestTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=2)
         spans = self.pop_spans()
         for span in spans:
-            assert span.get_tag("test.status") == "pass"
+            assert span._get_str_attribute("test.status") == "pass"
 
     def test_pytest_status_fail_propagates(self):
         """Test that if any tests fail, that status propagates upwards.
@@ -1255,14 +1255,14 @@ class PytestTestCase(PytestTestCaseBase):
         test_suite_span = spans[4]
         test_session_span = spans[2]
         test_module_span = spans[3]
-        assert test_suite_span.get_tag("type") == "test_suite_end"
-        assert test_module_span.get_tag("type") == "test_module_end"
-        assert test_session_span.get_tag("type") == "test_session_end"
-        assert test_span_ok.get_tag("test.status") == "pass"
-        assert test_span_not_ok.get_tag("test.status") == "fail"
-        assert test_suite_span.get_tag("test.status") == "fail"
-        assert test_module_span.get_tag("test.status") == "fail"
-        assert test_session_span.get_tag("test.status") == "fail"
+        assert test_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_module_span._get_str_attribute("type") == "test_module_end"
+        assert test_session_span._get_str_attribute("type") == "test_session_end"
+        assert test_span_ok._get_str_attribute("test.status") == "pass"
+        assert test_span_not_ok._get_str_attribute("test.status") == "fail"
+        assert test_suite_span._get_str_attribute("test.status") == "fail"
+        assert test_module_span._get_str_attribute("test.status") == "fail"
+        assert test_session_span._get_str_attribute("test.status") == "fail"
 
     def test_pytest_all_tests_skipped_propagates(self):
         """Test that if all tests are skipped, that status propagates upwards.
@@ -1287,7 +1287,7 @@ class PytestTestCase(PytestTestCaseBase):
         rec.assertoutcome(skipped=2)
         spans = self.pop_spans()
         for span in spans:
-            assert span.get_tag("test.status") == "skip"
+            assert span._get_str_attribute("test.status") == "skip"
 
     def test_pytest_not_all_tests_skipped_does_not_propagate(self):
         """Test that if not all tests are skipped, that status does not propagate upwards."""
@@ -1312,14 +1312,14 @@ class PytestTestCase(PytestTestCaseBase):
         test_suite_span = _get_spans_from_list(spans, "suite")[0]
         test_span_skipped = _get_spans_from_list(spans, "test", "test_not_ok_but_skipped")[0]
         test_span_ok = _get_spans_from_list(spans, "test", "test_ok")[0]
-        assert test_suite_span.get_tag("type") == "test_suite_end"
-        assert test_module_span.get_tag("type") == "test_module_end"
-        assert test_session_span.get_tag("type") == "test_session_end"
-        assert test_span_skipped.get_tag("test.status") == "skip"
-        assert test_span_ok.get_tag("test.status") == "pass"
-        assert test_suite_span.get_tag("test.status") == "pass"
-        assert test_module_span.get_tag("test.status") == "pass"
-        assert test_session_span.get_tag("test.status") == "pass"
+        assert test_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_module_span._get_str_attribute("type") == "test_module_end"
+        assert test_session_span._get_str_attribute("type") == "test_session_end"
+        assert test_span_skipped._get_str_attribute("test.status") == "skip"
+        assert test_span_ok._get_str_attribute("test.status") == "pass"
+        assert test_suite_span._get_str_attribute("test.status") == "pass"
+        assert test_module_span._get_str_attribute("test.status") == "pass"
+        assert test_session_span._get_str_attribute("test.status") == "pass"
 
     def test_pytest_some_skipped_tests_does_not_propagate_in_testcase(self):
         """Test that if not all tests are skipped, that status does not propagate upwards."""
@@ -1347,14 +1347,14 @@ class PytestTestCase(PytestTestCaseBase):
         test_suite_span = spans[4]
         test_session_span = spans[2]
         test_module_span = spans[3]
-        assert test_suite_span.get_tag("type") == "test_suite_end"
-        assert test_module_span.get_tag("type") == "test_module_end"
-        assert test_session_span.get_tag("type") == "test_session_end"
-        assert test_span_skipped.get_tag("test.status") == "skip"
-        assert test_span_ok.get_tag("test.status") == "pass"
-        assert test_suite_span.get_tag("test.status") == "pass"
-        assert test_session_span.get_tag("test.status") == "pass"
-        assert test_module_span.get_tag("test.status") == "pass"
+        assert test_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_module_span._get_str_attribute("type") == "test_module_end"
+        assert test_session_span._get_str_attribute("type") == "test_session_end"
+        assert test_span_skipped._get_str_attribute("test.status") == "skip"
+        assert test_span_ok._get_str_attribute("test.status") == "pass"
+        assert test_suite_span._get_str_attribute("test.status") == "pass"
+        assert test_session_span._get_str_attribute("test.status") == "pass"
+        assert test_module_span._get_str_attribute("test.status") == "pass"
 
     def test_pytest_all_skipped_tests_does_propagate_in_testcase(self):
         """Test that if all tests are skipped, that status is propagated upwards."""
@@ -1378,19 +1378,19 @@ class PytestTestCase(PytestTestCaseBase):
         rec = self.inline_run("--ddtrace", file_name)
         rec.assertoutcome(skipped=2, passed=0)
         spans = self.pop_spans()
-        test_session_span = [s for s in spans if s.get_tag("type") == "test_session_end"][0]
-        test_suite_span = [s for s in spans if s.get_tag("type") == "test_suite_end"][0]
-        test_module_span = [s for s in spans if s.get_tag("type") == "test_module_end"][0]
-        test_span_ok = [s for s in spans if "test_ok_but_skipped" in str(s.get_tag("test.name"))][0]
-        test_span_skipped = [s for s in spans if "test_not_ok_but_skipped" in str(s.get_tag("test.name"))][0]
-        assert test_suite_span.get_tag("type") == "test_suite_end"
-        assert test_module_span.get_tag("type") == "test_module_end"
-        assert test_session_span.get_tag("type") == "test_session_end"
-        assert test_span_skipped.get_tag("test.status") == "skip"
-        assert test_span_ok.get_tag("test.status") == "skip"
-        assert test_suite_span.get_tag("test.status") == "skip"
-        assert test_session_span.get_tag("test.status") == "skip"
-        assert test_module_span.get_tag("test.status") == "skip"
+        test_session_span = [s for s in spans if s._get_str_attribute("type") == "test_session_end"][0]
+        test_suite_span = [s for s in spans if s._get_str_attribute("type") == "test_suite_end"][0]
+        test_module_span = [s for s in spans if s._get_str_attribute("type") == "test_module_end"][0]
+        test_span_ok = [s for s in spans if "test_ok_but_skipped" in str(s._get_str_attribute("test.name"))][0]
+        test_span_skipped = [s for s in spans if "test_not_ok_but_skipped" in str(s._get_str_attribute("test.name"))][0]
+        assert test_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_module_span._get_str_attribute("type") == "test_module_end"
+        assert test_session_span._get_str_attribute("type") == "test_session_end"
+        assert test_span_skipped._get_str_attribute("test.status") == "skip"
+        assert test_span_ok._get_str_attribute("test.status") == "skip"
+        assert test_suite_span._get_str_attribute("test.status") == "skip"
+        assert test_session_span._get_str_attribute("test.status") == "skip"
+        assert test_module_span._get_str_attribute("test.status") == "skip"
 
     def test_pytest_failed_tests_propagate_in_testcase(self):
         """Test that if any test fails, that status is propagated upwards."""
@@ -1417,14 +1417,14 @@ class PytestTestCase(PytestTestCaseBase):
         test_suite_span = spans[4]
         test_session_span = spans[2]
         test_module_span = spans[3]
-        assert test_suite_span.get_tag("type") == "test_suite_end"
-        assert test_module_span.get_tag("type") == "test_module_end"
-        assert test_session_span.get_tag("type") == "test_session_end"
-        assert test_span_skipped.get_tag("test.status") == "fail"
-        assert test_span_ok.get_tag("test.status") == "pass"
-        assert test_suite_span.get_tag("test.status") == "fail"
-        assert test_session_span.get_tag("test.status") == "fail"
-        assert test_module_span.get_tag("test.status") == "fail"
+        assert test_suite_span._get_str_attribute("type") == "test_suite_end"
+        assert test_module_span._get_str_attribute("type") == "test_module_end"
+        assert test_session_span._get_str_attribute("type") == "test_session_end"
+        assert test_span_skipped._get_str_attribute("test.status") == "fail"
+        assert test_span_ok._get_str_attribute("test.status") == "pass"
+        assert test_suite_span._get_str_attribute("test.status") == "fail"
+        assert test_session_span._get_str_attribute("test.status") == "fail"
+        assert test_module_span._get_str_attribute("test.status") == "fail"
 
     def test_pytest_module(self):
         """Test that running pytest on a test package will generate a test module span."""
@@ -1443,16 +1443,16 @@ class PytestTestCase(PytestTestCaseBase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         for span in spans:
-            assert span.get_tag("test.status") == "pass"
+            assert span._get_str_attribute("test.status") == "pass"
         assert len(spans) == 4
         test_module_span = _get_spans_from_list(spans, "module")[0]
         test_session_span = _get_spans_from_list(spans, "session")[0]
-        assert test_module_span.get_tag("type") == "test_module_end"
-        assert test_module_span.get_tag("test_session_id") == str(test_session_span.span_id)
-        assert test_module_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_module_span.get_tag("test.command") == "pytest -p no:randomly --ddtrace"
-        assert test_module_span.get_tag("test.module") == "test_package_a"
-        assert test_module_span.get_tag("test.module_path") == "test_package_a"
+        assert test_module_span._get_str_attribute("type") == "test_module_end"
+        assert test_module_span._get_str_attribute("test_session_id") == str(test_session_span.span_id)
+        assert test_module_span._get_str_attribute("test_module_id") == str(test_module_span.span_id)
+        assert test_module_span._get_str_attribute("test.command") == "pytest -p no:randomly --ddtrace"
+        assert test_module_span._get_str_attribute("test.module") == "test_package_a"
+        assert test_module_span._get_str_attribute("test.module_path") == "test_package_a"
 
     def test_pytest_modules(self):
         """
@@ -1488,7 +1488,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 7
         test_session_span = _get_spans_from_list(spans, "session")[0]
         assert test_session_span.name == "pytest.test_session"
-        assert test_session_span.get_tag("test.status") == "fail"
+        assert test_session_span._get_str_attribute("test.status") == "fail"
         test_module_spans = _get_spans_from_list(spans, "module")
         for span in test_module_spans:
             assert span.name == "pytest.test_module"
@@ -1501,7 +1501,7 @@ class PytestTestCase(PytestTestCaseBase):
         for i in range(len(test_spans)):
             assert test_spans[i].name == "pytest.test"
             assert test_spans[i].parent_id is None
-            assert test_spans[i].get_tag("test_module_id") == str(test_module_spans[i].span_id)
+            assert test_spans[i]._get_str_attribute("test_module_id") == str(test_module_spans[i].span_id)
 
     def test_pytest_test_class_does_not_prematurely_end_test_module(self):
         """Test that given a test class, the test module span will not end prematurely."""
@@ -1566,21 +1566,21 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 4
         test_session_span = spans[1]
         assert test_session_span.name == "pytest.test_session"
-        assert test_session_span.get_tag("test.status") == "pass"
+        assert test_session_span._get_str_attribute("test.status") == "pass"
         test_module_span = spans[2]
         assert test_module_span.name == "pytest.test_module"
         assert test_module_span.parent_id == test_session_span.span_id
-        assert test_module_span.get_tag("test.status") == "pass"
+        assert test_module_span._get_str_attribute("test.status") == "pass"
         test_suite_span = spans[3]
         assert test_suite_span.name == "pytest.test_suite"
         assert test_suite_span.parent_id == test_module_span.span_id
-        assert test_suite_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_suite_span.get_tag("test.status") == "pass"
+        assert test_suite_span._get_str_attribute("test_module_id") == str(test_module_span.span_id)
+        assert test_suite_span._get_str_attribute("test.status") == "pass"
         test_span = spans[0]
         assert test_span.name == "pytest.test"
         assert test_span.parent_id is None
-        assert test_span.get_tag("test_module_id") == str(test_module_span.span_id)
-        assert test_span.get_tag("test.status") == "pass"
+        assert test_span._get_str_attribute("test_module_id") == str(test_module_span.span_id)
+        assert test_span._get_str_attribute("test.status") == "pass"
 
     def test_pytest_module_path(self):
         """
@@ -1624,25 +1624,25 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 11
         test_module_spans = sorted(
-            [span for span in spans if span.get_tag("type") == "test_module_end"],
-            key=lambda s: s.get_tag("test.module"),
+            [span for span in spans if span._get_str_attribute("type") == "test_module_end"],
+            key=lambda s: s._get_str_attribute("test.module"),
         )
-        assert test_module_spans[0].get_tag("test.module") == "test_outer_package"
-        assert test_module_spans[0].get_tag("test.module_path") == "test_outer_package"
-        assert test_module_spans[1].get_tag("test.module") == "test_outer_package.test_inner_package"
-        assert test_module_spans[1].get_tag("test.module_path") == "test_outer_package/test_inner_package"
+        assert test_module_spans[0]._get_str_attribute("test.module") == "test_outer_package"
+        assert test_module_spans[0]._get_str_attribute("test.module_path") == "test_outer_package"
+        assert test_module_spans[1]._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
+        assert test_module_spans[1]._get_str_attribute("test.module_path") == "test_outer_package/test_inner_package"
         test_suite_spans = sorted(
-            [span for span in spans if span.get_tag("type") == "test_suite_end"], key=lambda s: s.get_tag("test.suite")
+            [span for span in spans if span._get_str_attribute("type") == "test_suite_end"], key=lambda s: s._get_str_attribute("test.suite")
         )
-        assert test_suite_spans[0].get_tag("test.suite") == "test_inner_abc.py"
-        assert test_suite_spans[1].get_tag("test.suite") == "test_outer_abc.py"
+        assert test_suite_spans[0]._get_str_attribute("test.suite") == "test_inner_abc.py"
+        assert test_suite_spans[1]._get_str_attribute("test.suite") == "test_outer_abc.py"
 
         test_spans = _get_spans_from_list(spans, "test")
         for test_span in test_spans:
-            if test_span.get_tag("test.name").startswith("test_ok_1"):
-                assert test_span.get_tag("test.module_path") == "test_outer_package"
-            elif test_span.get_tag("test.name").startswith("test_ok_2"):
-                assert test_span.get_tag("test.module_path") == "test_outer_package/test_inner_package"
+            if test_span._get_str_attribute("test.name").startswith("test_ok_1"):
+                assert test_span._get_str_attribute("test.module_path") == "test_outer_package"
+            elif test_span._get_str_attribute("test.name").startswith("test_ok_2"):
+                assert test_span._get_str_attribute("test.module_path") == "test_outer_package/test_inner_package"
             else:
                 raise ValueError("Unexpected span name")
 
@@ -1673,11 +1673,11 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 4
         test_module_spans = _get_spans_from_list(spans, "module")
         assert len(test_module_spans) == 1
-        assert test_module_spans[0].get_tag("test.module") == ""
-        assert test_module_spans[0].get_tag("test.module_path") == ""
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        assert test_module_spans[0]._get_str_attribute("test.module") == ""
+        assert test_module_spans[0]._get_str_attribute("test.module_path") == ""
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         assert len(test_suite_spans) == 1
-        assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
+        assert test_suite_spans[0]._get_str_attribute("test.suite") == "test_cov.py"
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1730,9 +1730,9 @@ class PytestTestCase(PytestTestCaseBase):
 
         spans = self.pop_spans()
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
-        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
+        assert session_span._get_str_attribute("test.code_coverage.enabled") == "true"
 
         first_test_span = spans[0]
 
@@ -1741,8 +1741,8 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(test_cov_spans) > 0, "Could not find test_cov span"
         first_test_span = test_cov_spans[0]
 
-        assert first_test_span.get_tag("test.name") == "test_cov"
-        assert first_test_span.get_tag("type") == "test"
+        assert first_test_span._get_str_attribute("test.name") == "test_cov"
+        assert first_test_span._get_str_attribute("type") == "test"
 
         first_tag_data = _get_span_coverage_data(first_test_span, True)
         assert len(first_tag_data) == 2
@@ -1751,8 +1751,8 @@ class PytestTestCase(PytestTestCaseBase):
         assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (7, 7)]
 
         second_test_span = spans[1]
-        assert second_test_span.get_tag("type") == "test"
-        assert second_test_span.get_tag("test.name") == "test_second"
+        assert second_test_span._get_str_attribute("type") == "test"
+        assert second_test_span._get_str_attribute("test.name") == "test_second"
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 3
@@ -1828,21 +1828,21 @@ class PytestTestCase(PytestTestCaseBase):
             )
         spans = self.pop_spans()
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.code_coverage.enabled") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 1
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.code_coverage.enabled") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 1
 
         first_test_span = spans[0]
-        assert first_test_span.get_tag("test.name") == "test_cov"
-        assert first_test_span.get_tag("type") == "test"
-        assert COVERAGE_TAG_NAME not in first_test_span.get_tags()
+        assert first_test_span._get_str_attribute("test.name") == "test_cov"
+        assert first_test_span._get_str_attribute("type") == "test"
+        assert COVERAGE_TAG_NAME not in first_test_span._get_str_attributes()
 
         second_test_span = spans[1]
-        assert second_test_span.get_tag("type") == "test"
-        assert second_test_span.get_tag("test.name") == "test_second"
+        assert second_test_span._get_str_attribute("type") == "test"
+        assert second_test_span._get_str_attribute("test.name") == "test_second"
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
@@ -1922,19 +1922,19 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
-        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
+        assert session_span._get_str_attribute("test.code_coverage.enabled") == "true"
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 4
 
         first_test_span = spans[0]
-        assert first_test_span.get_tag("test.name") == "test_cov"
-        assert COVERAGE_TAG_NAME not in first_test_span.get_tags()
+        assert first_test_span._get_str_attribute("test.name") == "test_cov"
+        assert COVERAGE_TAG_NAME not in first_test_span._get_str_attributes()
 
         second_test_span = spans[1]
-        assert second_test_span.get_tag("test.name") == "test_second"
+        assert second_test_span._get_str_attribute("test.name") == "test_second"
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
@@ -1943,7 +1943,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert second_tag_data["/test_cov.py"] == [(1, 1), (3, 4), (8, 10), (12, 15), (17, 18), (22, 25), (27, 28)]
 
         third_test_span = spans[2]
-        assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
+        assert third_test_span._get_str_attribute("test.name") == "test_skipif_mark_false"
 
         third_tag_data = _get_span_coverage_data(third_test_span, True)
         assert len(third_tag_data) == 2
@@ -1952,7 +1952,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert third_tag_data["/test_ret_false.py"] == [(1, 2)]
 
         fourth_test_span = spans[3]
-        assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
+        assert fourth_test_span._get_str_attribute("test.name") == "test_skipif_mark_true"
         assert fourth_test_span._get_struct_tag(COVERAGE_TAG_NAME) is None
 
     @pytest.mark.skipif(
@@ -2007,17 +2007,17 @@ class PytestTestCase(PytestTestCaseBase):
             )
         spans = self.pop_spans()
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
-        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
+        assert session_span._get_str_attribute("test.code_coverage.enabled") == "true"
 
-        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
-        assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
-        assert module_span.get_tag("test.code_coverage.enabled") == "true"
+        module_span = [span for span in spans if span._get_str_attribute("type") == "test_module_end"][0]
+        assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
+        assert module_span._get_str_attribute("test.code_coverage.enabled") == "true"
 
         first_test_span = spans[0]
-        assert first_test_span.get_tag("test.name") == "test_cov"
-        assert first_test_span.get_tag("type") == "test"
+        assert first_test_span._get_str_attribute("test.name") == "test_cov"
+        assert first_test_span._get_str_attribute("type") == "test"
 
         first_tag_data = _get_span_coverage_data(first_test_span, True)
         assert len(first_tag_data) == 1
@@ -2025,8 +2025,8 @@ class PytestTestCase(PytestTestCaseBase):
         assert first_tag_data["/test_cov.py"] == [(1, 1), (3, 5), (9, 9)]
 
         second_test_span = spans[1]
-        assert second_test_span.get_tag("type") == "test"
-        assert second_test_span.get_tag("test.name") == "test_second"
+        assert second_test_span._get_str_attribute("type") == "test"
+        assert second_test_span._get_str_attribute("test.name") == "test_second"
 
         second_tag_data = _get_span_coverage_data(second_test_span, True)
         assert len(second_tag_data) == 2
@@ -2074,17 +2074,17 @@ class PytestTestCase(PytestTestCaseBase):
             )
         spans = self.pop_spans()
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
-        assert session_span.get_tag("test.code_coverage.enabled") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
+        assert session_span._get_str_attribute("test.code_coverage.enabled") == "true"
 
-        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
-        assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
-        assert module_span.get_tag("test.code_coverage.enabled") == "true"
+        module_span = [span for span in spans if span._get_str_attribute("type") == "test_module_end"][0]
+        assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
+        assert module_span._get_str_attribute("test.code_coverage.enabled") == "true"
 
         test_span = spans[0]
-        assert test_span.get_tag("test.name") == "test_cov"
-        assert test_span.get_tag("type") == "test"
+        assert test_span._get_str_attribute("test.name") == "test_cov"
+        assert test_span._get_str_attribute("type") == "test"
 
         tag_data = _get_span_coverage_data(test_span, True)
         assert len(tag_data) == 2
@@ -2110,16 +2110,16 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 4
         test_span = spans[0]
 
-        assert test_span.get_tag(git.COMMIT_MESSAGE) == "this is a commit msg"
-        assert test_span.get_tag(git.COMMIT_AUTHOR_DATE) == "2021-01-19T09:24:53-0400"
-        assert test_span.get_tag(git.COMMIT_AUTHOR_NAME) == "John Doe"
-        assert test_span.get_tag(git.COMMIT_AUTHOR_EMAIL) == "john@doe.com"
-        assert test_span.get_tag(git.COMMIT_COMMITTER_DATE) == "2021-01-20T04:37:21-0400"
-        assert test_span.get_tag(git.COMMIT_COMMITTER_NAME) == "Jane Doe"
-        assert test_span.get_tag(git.COMMIT_COMMITTER_EMAIL) == "jane@doe.com"
-        assert test_span.get_tag(git.BRANCH)
-        assert test_span.get_tag(git.COMMIT_SHA)
-        assert test_span.get_tag(git.REPOSITORY_URL)
+        assert test_span._get_str_attribute(git.COMMIT_MESSAGE) == "this is a commit msg"
+        assert test_span._get_str_attribute(git.COMMIT_AUTHOR_DATE) == "2021-01-19T09:24:53-0400"
+        assert test_span._get_str_attribute(git.COMMIT_AUTHOR_NAME) == "John Doe"
+        assert test_span._get_str_attribute(git.COMMIT_AUTHOR_EMAIL) == "john@doe.com"
+        assert test_span._get_str_attribute(git.COMMIT_COMMITTER_DATE) == "2021-01-20T04:37:21-0400"
+        assert test_span._get_str_attribute(git.COMMIT_COMMITTER_NAME) == "Jane Doe"
+        assert test_span._get_str_attribute(git.COMMIT_COMMITTER_EMAIL) == "jane@doe.com"
+        assert test_span._get_str_attribute(git.BRANCH)
+        assert test_span._get_str_attribute(git.COMMIT_SHA)
+        assert test_span._get_str_attribute(git.REPOSITORY_URL)
 
     def test_pytest_skip_suite_by_path(self):
         """
@@ -2220,46 +2220,46 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 11
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 2
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.type") == "suite"
-        assert outer_module_span.get_metric("test.itr.tests_skipping.count") == 1
+        outer_module_span = [span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package"][0]
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
+        assert outer_module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 1
         inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+            span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
         ][0]
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.type") == "suite"
-        assert inner_module_span.get_metric("test.itr.tests_skipping.count") == 1
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
+        assert inner_module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 1
 
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        passed_spans = [x for x in spans if x._get_str_attribute("test.status") == "pass"]
         assert len(passed_spans) == 7
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        skipped_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_spans) == 4
 
-        skipped_suite_spans = [x for x in skipped_spans if x.get_tag("type") == "test_suite_end"]
+        skipped_suite_spans = [x for x in skipped_spans if x._get_str_attribute("type") == "test_suite_end"]
         assert len(skipped_suite_spans) == 2
         for skipped_suite_span in skipped_suite_spans:
-            assert skipped_suite_span.get_tag("test.skipped_by_itr") == "true"
-            assert skipped_suite_span.get_tag("itr_correlation_id") == "pytestitrcorrelationid"
+            assert skipped_suite_span._get_str_attribute("test.skipped_by_itr") == "true"
+            assert skipped_suite_span._get_str_attribute("itr_correlation_id") == "pytestitrcorrelationid"
 
-        skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
+        skipped_test_spans = [x for x in skipped_spans if x._get_str_attribute("type") == "test"]
         assert len(skipped_test_spans) == 2
         for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
-            assert skipped_test_span.get_tag("itr_correlation_id") is None
+            assert skipped_test_span._get_str_attribute("test.skipped_by_itr") == "true"
+            assert skipped_test_span._get_str_attribute("itr_correlation_id") is None
 
     def test_pytest_skip_tests_by_path(self):
         """
@@ -2325,47 +2325,47 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.status") == "pass"
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 1
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.status") == "pass"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 1
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
-        assert outer_module_span.get_tag("test.status") == "skip"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.type") == "test"
-        assert outer_module_span.get_metric("test.itr.tests_skipping.count") == 1
+        outer_module_span = [span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package"][0]
+        assert outer_module_span._get_str_attribute("test.status") == "skip"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+        assert outer_module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 1
 
         inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+            span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
         ][0]
-        assert inner_module_span.get_tag("test.status") == "pass"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.type") == "test"
-        assert inner_module_span.get_metric("test.itr.tests_skipping.count") == 0
+        assert inner_module_span._get_str_attribute("test.status") == "pass"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+        assert inner_module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 0
 
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        passed_spans = [x for x in spans if x._get_str_attribute("test.status") == "pass"]
         assert len(passed_spans) == 4
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        skipped_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_spans) == 3
 
-        suite_spans = [x for x in spans if x.get_tag("type") == "test_suite_end"]
+        suite_spans = [x for x in spans if x._get_str_attribute("type") == "test_suite_end"]
         for suite_span in suite_spans:
-            assert suite_span.get_tag("itr_correlation_id") is None
+            assert suite_span._get_str_attribute("itr_correlation_id") is None
 
-        skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
+        skipped_test_spans = [x for x in skipped_spans if x._get_str_attribute("type") == "test"]
         for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
-            assert skipped_test_span.get_tag("itr_correlation_id") == "pytestitrcorrelationid"
+            assert skipped_test_span._get_str_attribute("test.skipped_by_itr") == "true"
+            assert skipped_test_span._get_str_attribute("itr_correlation_id") == "pytestitrcorrelationid"
 
     def test_pytest_skip_none_tests(self):
         """
@@ -2418,23 +2418,23 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 0
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 0
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         for module_span in module_spans:
-            assert module_span.get_metric("test.itr.tests_skipping.count") == 0
-            assert module_span.get_tag("test.itr.tests_skipping.type") == "test"
-            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+            assert module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 0
+            assert module_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
 
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        passed_spans = [x for x in spans if x._get_str_attribute("test.status") == "pass"]
         assert len(passed_spans) == 7
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        skipped_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
     def test_pytest_skip_all_tests(self):
@@ -2489,30 +2489,30 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 2
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
         for module_span in module_spans:
-            assert module_span.get_metric("test.itr.tests_skipping.count") == 1
-            assert module_span.get_tag("test.itr.tests_skipping.type") == "test"
-            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+            assert module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 1
+            assert module_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
 
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        passed_spans = [x for x in spans if x._get_str_attribute("test.status") == "pass"]
         assert len(passed_spans) == 0
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        skipped_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_spans) == 7
 
-        skipped_test_spans = [x for x in skipped_spans if x.get_tag("type") == "test"]
+        skipped_test_spans = [x for x in skipped_spans if x._get_str_attribute("type") == "test"]
         assert len(skipped_test_spans) == 2
         for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_test_span._get_str_attribute("test.skipped_by_itr") == "true"
 
     def test_pytest_skip_all_test_suites(self):
         """
@@ -2567,35 +2567,35 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 7
 
         session_span = _get_spans_from_list(spans, "session")[0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 2
 
         module_spans = _get_spans_from_list(spans, "module")
         for module_span in module_spans:
-            assert module_span.get_metric("test.itr.tests_skipping.count") == 1
-            assert module_span.get_tag("test.itr.tests_skipping.type") == "suite"
-            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+            assert module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 1
+            assert module_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
 
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        passed_spans = [x for x in spans if x._get_str_attribute("test.status") == "pass"]
         assert len(passed_spans) == 0
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        skipped_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_spans) == 7
 
         skipped_suite_spans = [
-            x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test_suite_end"
+            x for x in spans if x._get_str_attribute("test.status") == "skip" and x._get_str_attribute("type") == "test_suite_end"
         ]
         assert len(skipped_suite_spans) == 2
         for skipped_suite_span in skipped_suite_spans:
-            assert skipped_suite_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_suite_span._get_str_attribute("test.skipped_by_itr") == "true"
 
-        skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
+        skipped_test_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip" and x._get_str_attribute("type") == "test"]
         assert len(skipped_test_spans) == 2
         for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_test_span._get_str_attribute("test.skipped_by_itr") == "true"
 
     def test_pytest_test_level_skipping_counts_tests_not_suites(self):
         """
@@ -2662,23 +2662,23 @@ class PytestTestCase(PytestTestCaseBase):
 
         # Verify session span tags
         session_span = _get_spans_from_list(spans, "session")[0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "test"
 
         # This is the regression test: should count tests (4), not suites (2)
         expected_test_count = 4  # 4 individual tests were skipped
-        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
+        actual_count = session_span._get_numeric_attribute("test.itr.tests_skipping.count")
         assert actual_count == expected_test_count, (
             f"Expected {expected_test_count} tests skipped but got {actual_count}"
         )
 
         # Verify all test spans were skipped by ITR
-        skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
+        skipped_test_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip" and x._get_str_attribute("type") == "test"]
         assert len(skipped_test_spans) == 4
         for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_test_span._get_str_attribute("test.skipped_by_itr") == "true"
 
     def test_pytest_suite_level_skipping_counts_suites(self):
         """
@@ -2745,23 +2745,23 @@ class PytestTestCase(PytestTestCaseBase):
 
         # Verify session span tags
         session_span = _get_spans_from_list(spans, "session")[0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
 
         # This is the regression test: should count suites (2), not tests (4)
         expected_suite_count = 2  # 4 individual tests were skipped
-        actual_count = session_span.get_metric("test.itr.tests_skipping.count")
+        actual_count = session_span._get_numeric_attribute("test.itr.tests_skipping.count")
         assert actual_count == expected_suite_count, (
             f"Expected {expected_suite_count} suites skipped but got {actual_count}"
         )
 
         # Verify all test spans were skipped by ITR
-        skipped_test_spans = [x for x in spans if x.get_tag("test.status") == "skip" and x.get_tag("type") == "test"]
+        skipped_test_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip" and x._get_str_attribute("type") == "test"]
         assert len(skipped_test_spans) == 4
         for skipped_test_span in skipped_test_spans:
-            assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
+            assert skipped_test_span._get_str_attribute("test.skipped_by_itr") == "true"
 
     def test_pytest_skip_none_test_suites(self):
         """
@@ -2814,23 +2814,23 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 0
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
+        assert session_span._get_numeric_attribute("test.itr.tests_skipping.count") == 0
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         for module_span in module_spans:
-            assert module_span.get_metric("test.itr.tests_skipping.count") == 0
-            assert module_span.get_tag("test.itr.tests_skipping.type") == "suite"
-            assert module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+            assert module_span._get_numeric_attribute("test.itr.tests_skipping.count") == 0
+            assert module_span._get_str_attribute("test.itr.tests_skipping.type") == "suite"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
 
-        passed_spans = [x for x in spans if x.get_tag("test.status") == "pass"]
+        passed_spans = [x for x in spans if x._get_str_attribute("test.status") == "pass"]
         assert len(passed_spans) == 7
-        skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
+        skipped_spans = [x for x in spans if x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
     def test_pytest_skip_all_tests_but_test_skipping_not_enabled(self):
@@ -2870,20 +2870,20 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
         for module_span in module_spans:
-            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 2
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "pass"]
         assert len(passed_test_spans) == 2
 
     def test_pytest_skip_suite_by_path_but_test_skipping_not_enabled(self):
@@ -2946,20 +2946,20 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
         for module_span in module_spans:
-            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 2
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "pass"]
         assert len(passed_test_spans) == 2
 
     def test_pytest_skip_tests_by_path_but_test_skipping_not_enabled(self):
@@ -3019,20 +3019,20 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 7
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
         for module_span in module_spans:
-            assert module_span.get_tag("test.itr.tests_skipping.enabled") == "false"
+            assert module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "false"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 2
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "pass"]
         assert len(passed_test_spans) == 2
 
     def test_pytest_unskippable_tests_forced_run_in_test_level(self):
@@ -3123,66 +3123,66 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 12
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.unskippable") == "true"
-        assert session_span.get_tag("test.itr.forced_run") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert session_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
 
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert outer_module_span.get_tag("test.itr.forced_run") == "false"
+        outer_module_span = [span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package"][0]
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.forced_run") == "false"
 
         inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+            span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
         ][0]
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert inner_module_span.get_tag("test.itr.forced_run") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
 
-        inner_suite_span = [span for span in test_suite_spans if span.get_tag("test.suite") == "test_inner_abc.py"][0]
-        assert inner_suite_span.get_tag("test.itr.forced_run") == "true"
-        assert inner_suite_span.get_tag("test.itr.unskippable") == "true"
+        inner_suite_span = [span for span in test_suite_spans if span._get_str_attribute("test.suite") == "test_inner_abc.py"][0]
+        assert inner_suite_span._get_str_attribute("test.itr.forced_run") == "true"
+        assert inner_suite_span._get_str_attribute("test.itr.unskippable") == "true"
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 7
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "pass"]
         assert len(passed_test_spans) == 3
-        skipped_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "skip"]
+        skipped_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_test_spans) == 4
 
-        test_inner_unskippable_span = [span for span in spans if span.get_tag("test.name") == "test_inner_unskippable"][
+        test_inner_unskippable_span = [span for span in spans if span._get_str_attribute("test.name") == "test_inner_unskippable"][
             0
         ]
-        assert test_inner_unskippable_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_unskippable_span.get_tag("test.itr.forced_run") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.forced_run") == "true"
 
         test_inner_shouldskip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skipif"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_shouldskip_skipif"
         ][0]
-        assert test_inner_shouldskip_skipif_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skipif_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.status") == "skip"
 
         test_inner_shouldskip_skip_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skip"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_shouldskip_skip"
         ][0]
-        assert test_inner_shouldskip_skip_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skip_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.status") == "skip"
 
         test_inner_wasnot_going_to_skip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_wasnot_going_to_skip_skipif"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_wasnot_going_to_skip_skipif"
         ][0]
-        assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
+        assert test_inner_wasnot_going_to_skip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
 
     def test_pytest_unskippable_tests_forced_run_in_suite_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
@@ -3271,33 +3271,33 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(spans) == 12
 
         session_span = _get_spans_from_list(spans, "session")[0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.unskippable") == "true"
-        assert session_span.get_tag("test.itr.forced_run") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert session_span._get_str_attribute("test.itr.forced_run") == "true"
 
         module_spans = _get_spans_from_list(spans, "module")
         assert len(module_spans) == 2
 
         outer_module_span = _get_spans_from_list(module_spans, "module", "test_outer_package")[0]
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert outer_module_span.get_tag("test.itr.forced_run") == "false"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.forced_run") == "false"
 
         inner_module_span = _get_spans_from_list(module_spans, "module", "test_outer_package.test_inner_package")[0]
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert inner_module_span.get_tag("test.itr.forced_run") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("test.itr.forced_run") == "true"
 
         test_suite_spans = _get_spans_from_list(spans, "suite")
         assert len(test_suite_spans) == 2
 
         inner_suite_span = _get_spans_from_list(test_suite_spans, "suite", "test_inner_abc.py")[0]
-        assert inner_suite_span.get_tag("test.itr.forced_run") == "true"
-        assert inner_suite_span.get_tag("test.itr.unskippable") == "true"
+        assert inner_suite_span._get_str_attribute("test.itr.forced_run") == "true"
+        assert inner_suite_span._get_str_attribute("test.itr.unskippable") == "true"
 
         test_spans = _get_spans_from_list(spans, "test")
         assert len(test_spans) == 7
@@ -3306,25 +3306,25 @@ class PytestTestCase(PytestTestCaseBase):
         skipped_test_spans = _get_spans_from_list(test_spans, "test", status="skip")
         assert len(skipped_test_spans) == 3
 
-        test_inner_ok_span = [span for span in spans if span.get_tag("test.name") == "test_inner_ok"][0]
-        assert test_inner_ok_span.get_tag("test.itr.forced_run") == "true"
+        test_inner_ok_span = [span for span in spans if span._get_str_attribute("test.name") == "test_inner_ok"][0]
+        assert test_inner_ok_span._get_str_attribute("test.itr.forced_run") == "true"
 
         test_inner_unskippable_span = _get_spans_from_list(spans, "test", "test_inner_unskippable")[0]
-        assert test_inner_unskippable_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_unskippable_span.get_tag("test.itr.forced_run") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.forced_run") == "true"
 
         test_inner_shouldskip_skipif_span = _get_spans_from_list(spans, "test", "test_inner_shouldskip_skipif")[0]
-        assert test_inner_shouldskip_skipif_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skipif_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.status") == "skip"
 
         test_inner_shouldskip_skip_span = _get_spans_from_list(spans, "test", "test_inner_shouldskip_skip")[0]
-        assert test_inner_shouldskip_skip_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skip_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.status") == "skip"
 
         test_inner_wasnot_going_to_skip_skipif_span = _get_spans_from_list(
             spans, "test", "test_inner_wasnot_going_to_skip_skipif"
         )[0]
-        assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
+        assert test_inner_wasnot_going_to_skip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
 
     def test_pytest_unskippable_none_skipped_in_test_level(self):
         """When no tests are skipped, the test.itr.tests_skipping.tests_skipped tag should be false"""
@@ -3413,29 +3413,29 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 12
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert session_span.get_tag("test.itr.unskippable") == "true"
-        assert session_span.get_tag("test.itr.forced_run") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert session_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert session_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
 
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert outer_module_span.get_tag("test.itr.forced_run") == "false"
+        outer_module_span = [span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package"][0]
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert outer_module_span._get_str_attribute("test.itr.forced_run") == "false"
 
         inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+            span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
         ][0]
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert inner_module_span.get_tag("test.itr.forced_run") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("test.itr.forced_run") == "true"
 
     def test_pytest_unskippable_suite_not_skipped_in_test_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
@@ -3526,66 +3526,66 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 12
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.unskippable") == "true"
-        assert session_span.get_tag("test.itr.forced_run") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert session_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
 
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert outer_module_span.get_tag("test.itr.forced_run") == "false"
+        outer_module_span = [span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package"][0]
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.forced_run") == "false"
 
         inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+            span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
         ][0]
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert inner_module_span.get_tag("test.itr.forced_run") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
 
-        inner_suite_span = [span for span in test_suite_spans if span.get_tag("test.suite") == "test_inner_abc.py"][0]
-        assert inner_suite_span.get_tag("test.itr.forced_run") == "true"
-        assert inner_suite_span.get_tag("test.itr.unskippable") == "true"
+        inner_suite_span = [span for span in test_suite_spans if span._get_str_attribute("test.suite") == "test_inner_abc.py"][0]
+        assert inner_suite_span._get_str_attribute("test.itr.forced_run") == "true"
+        assert inner_suite_span._get_str_attribute("test.itr.unskippable") == "true"
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 7
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "pass"]
         assert len(passed_test_spans) == 4
-        skipped_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "skip"]
+        skipped_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_test_spans) == 3
 
-        test_inner_unskippable_span = [span for span in spans if span.get_tag("test.name") == "test_inner_unskippable"][
+        test_inner_unskippable_span = [span for span in spans if span._get_str_attribute("test.name") == "test_inner_unskippable"][
             0
         ]
-        assert test_inner_unskippable_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_unskippable_span.get_tag("test.itr.forced_run") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.forced_run") == "true"
 
         test_inner_shouldskip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skipif"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_shouldskip_skipif"
         ][0]
-        assert test_inner_shouldskip_skipif_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skipif_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.status") == "skip"
 
         test_inner_shouldskip_skip_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skip"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_shouldskip_skip"
         ][0]
-        assert test_inner_shouldskip_skip_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skip_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.status") == "skip"
 
         test_inner_wasnot_going_to_skip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_wasnot_going_to_skip_skipif"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_wasnot_going_to_skip_skipif"
         ][0]
-        assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
+        assert test_inner_wasnot_going_to_skip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
 
     def test_pytest_unskippable_suite_not_skipped_in_suite_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
@@ -3673,66 +3673,66 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 12
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert session_span.get_tag("test.itr.unskippable") == "true"
-        assert session_span.get_tag("test.itr.forced_run") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert session_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert session_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
 
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "true"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "true"
-        assert outer_module_span.get_tag("test.itr.forced_run") == "false"
+        outer_module_span = [span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package"][0]
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.forced_run") == "false"
 
         inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+            span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
         ][0]
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert inner_module_span.get_tag("test.itr.forced_run") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        test_suite_spans = [span for span in spans if span.get_tag("type") == "test_suite_end"]
+        test_suite_spans = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         assert len(test_suite_spans) == 2
 
-        inner_suite_span = [span for span in test_suite_spans if span.get_tag("test.suite") == "test_inner_abc.py"][0]
-        assert inner_suite_span.get_tag("test.itr.forced_run") == "true"
-        assert inner_suite_span.get_tag("test.itr.unskippable") == "true"
+        inner_suite_span = [span for span in test_suite_spans if span._get_str_attribute("test.suite") == "test_inner_abc.py"][0]
+        assert inner_suite_span._get_str_attribute("test.itr.forced_run") == "true"
+        assert inner_suite_span._get_str_attribute("test.itr.unskippable") == "true"
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 7
-        passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
+        passed_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "pass"]
         assert len(passed_test_spans) == 4
-        skipped_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "skip"]
+        skipped_test_spans = [x for x in spans if x._get_str_attribute("type") == "test" and x._get_str_attribute("test.status") == "skip"]
         assert len(skipped_test_spans) == 3
 
-        test_inner_unskippable_span = [span for span in spans if span.get_tag("test.name") == "test_inner_unskippable"][
+        test_inner_unskippable_span = [span for span in spans if span._get_str_attribute("test.name") == "test_inner_unskippable"][
             0
         ]
-        assert test_inner_unskippable_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_unskippable_span.get_tag("test.itr.forced_run") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_unskippable_span._get_str_attribute("test.itr.forced_run") == "true"
 
         test_inner_shouldskip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skipif"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_shouldskip_skipif"
         ][0]
-        assert test_inner_shouldskip_skipif_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skipif_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skipif_span._get_str_attribute("test.status") == "skip"
 
         test_inner_shouldskip_skip_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_shouldskip_skip"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_shouldskip_skip"
         ][0]
-        assert test_inner_shouldskip_skip_span.get_tag("test.itr.unskippable") == "true"
-        assert test_inner_shouldskip_skip_span.get_tag("test.status") == "skip"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert test_inner_shouldskip_skip_span._get_str_attribute("test.status") == "skip"
 
         test_inner_wasnot_going_to_skip_skipif_span = [
-            span for span in spans if span.get_tag("test.name") == "test_inner_wasnot_going_to_skip_skipif"
+            span for span in spans if span._get_str_attribute("test.name") == "test_inner_wasnot_going_to_skip_skipif"
         ][0]
-        assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
+        assert test_inner_wasnot_going_to_skip_skipif_span._get_str_attribute("test.itr.unskippable") == "true"
 
     def test_pytest_unskippable_none_skipped_in_suite_level(self):
         """When no tests are skipped, the test.itr.tests_skipping.tests_skipped tag should be false"""
@@ -3815,29 +3815,29 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 12
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert session_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert session_span.get_tag("test.itr.unskippable") == "true"
-        assert session_span.get_tag("test.itr.forced_run") == "true"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert session_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert session_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert session_span._get_str_attribute("test.itr.unskippable") == "true"
+        assert session_span._get_str_attribute("test.itr.forced_run") == "true"
 
-        module_spans = [span for span in spans if span.get_tag("type") == "test_module_end"]
+        module_spans = [span for span in spans if span._get_str_attribute("type") == "test_module_end"]
         assert len(module_spans) == 2
 
-        outer_module_span = [span for span in module_spans if span.get_tag("test.module") == "test_outer_package"][0]
-        assert outer_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert outer_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert outer_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert outer_module_span.get_tag("test.itr.forced_run") == "false"
+        outer_module_span = [span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package"][0]
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert outer_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert outer_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert outer_module_span._get_str_attribute("test.itr.forced_run") == "false"
 
         inner_module_span = [
-            span for span in module_spans if span.get_tag("test.module") == "test_outer_package.test_inner_package"
+            span for span in module_spans if span._get_str_attribute("test.module") == "test_outer_package.test_inner_package"
         ][0]
-        assert inner_module_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert inner_module_span.get_tag("test.itr.tests_skipping.tests_skipped") == "false"
-        assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
-        assert inner_module_span.get_tag("test.itr.forced_run") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.enabled") == "true"
+        assert inner_module_span._get_str_attribute("test.itr.tests_skipping.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("_dd.ci.itr.tests_skipped") == "false"
+        assert inner_module_span._get_str_attribute("test.itr.forced_run") == "true"
 
     def test_pytest_ddtrace_test_names(self):
         """Tests that the default naming behavior for pytest works as expected
@@ -3974,11 +3974,11 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 26
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.status") == "pass"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.status") == "pass"
 
         sorted_module_names = sorted(
-            [span.get_tag("test.module") for span in spans if span.get_tag("type") == "test_module_end"]
+            [span._get_str_attribute("test.module") for span in spans if span._get_str_attribute("type") == "test_module_end"]
         )
         assert len(sorted_module_names) == 5
         assert sorted_module_names == [
@@ -3990,7 +3990,7 @@ class PytestTestCase(PytestTestCaseBase):
         ]
 
         sorted_suite_names = sorted(
-            [span.get_tag("test.suite") for span in spans if span.get_tag("type") == "test_suite_end"]
+            [span._get_str_attribute("test.suite") for span in spans if span._get_str_attribute("type") == "test_suite_end"]
         )
         assert len(sorted_suite_names) == 5
         assert sorted_suite_names == [
@@ -4001,7 +4001,7 @@ class PytestTestCase(PytestTestCaseBase):
             "test_outermost_tests.py",
         ]
 
-        sorted_test_names = sorted([span.get_tag("test.name") for span in spans if span.get_tag("type") == "test"])
+        sorted_test_names = sorted([span._get_str_attribute("test.name") for span in spans if span._get_str_attribute("type") == "test"])
         assert len(sorted_test_names) == 15
 
         if _USE_PLUGIN_V2:
@@ -4070,31 +4070,31 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 6
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.status") == "pass"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.status") == "pass"
 
-        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
-        assert module_span.get_tag("test.module") == "test_package"
+        module_span = [span for span in spans if span._get_str_attribute("type") == "test_module_end"][0]
+        assert module_span._get_str_attribute("test.module") == "test_package"
 
-        suite_span = [span for span in spans if span.get_tag("type") == "test_suite_end"][0]
-        assert suite_span.get_tag("test.module") == "test_package"
-        assert suite_span.get_tag("test.suite") == "test_names.py"
+        suite_span = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"][0]
+        assert suite_span._get_str_attribute("test.module") == "test_package"
+        assert suite_span._get_str_attribute("test.suite") == "test_names.py"
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 3
-        assert test_spans[0].get_tag("test.module") == "test_package"
-        assert test_spans[0].get_tag("test.suite") == "test_names.py"
-        assert test_spans[0].get_tag("test.name") == "test_ok"
+        assert test_spans[0]._get_str_attribute("test.module") == "test_package"
+        assert test_spans[0]._get_str_attribute("test.suite") == "test_names.py"
+        assert test_spans[0]._get_str_attribute("test.name") == "test_ok"
 
-        assert test_spans[1].get_tag("test.module") == "test_package"
-        assert test_spans[1].get_tag("test.suite") == "test_names.py"
-        assert test_spans[1].get_tag("test.name") == (
+        assert test_spans[1]._get_str_attribute("test.module") == "test_package"
+        assert test_spans[1]._get_str_attribute("test.suite") == "test_names.py"
+        assert test_spans[1]._get_str_attribute("test.name") == (
             "TestClassOne::test_ok" if _USE_PLUGIN_V2 else "TestClassOne.test_ok"
         )
 
-        assert test_spans[2].get_tag("test.module") == "test_package"
-        assert test_spans[2].get_tag("test.suite") == "test_names.py"
-        assert test_spans[2].get_tag("test.name") == (
+        assert test_spans[2]._get_str_attribute("test.module") == "test_package"
+        assert test_spans[2]._get_str_attribute("test.suite") == "test_names.py"
+        assert test_spans[2]._get_str_attribute("test.name") == (
             "TestClassTwo::test_ok" if _USE_PLUGIN_V2 else "TestClassTwo.test_ok"
         )
 
@@ -4137,20 +4137,20 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 4
 
-        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
-        assert session_span.get_tag("test.status") == "pass"
+        session_span = [span for span in spans if span._get_str_attribute("type") == "test_session_end"][0]
+        assert session_span._get_str_attribute("test.status") == "pass"
 
-        module_span = [span for span in spans if span.get_tag("type") == "test_module_end"][0]
-        assert module_span.get_tag("test.module") == "module_test.test_ok"
+        module_span = [span for span in spans if span._get_str_attribute("type") == "test_module_end"][0]
+        assert module_span._get_str_attribute("test.module") == "module_test.test_ok"
 
-        suite_span = [span for span in spans if span.get_tag("type") == "test_suite_end"][0]
-        assert suite_span.get_tag("test.module") == "module_test.test_ok"
-        assert suite_span.get_tag("test.suite") == "suite_test.test_ok"
+        suite_span = [span for span in spans if span._get_str_attribute("type") == "test_suite_end"][0]
+        assert suite_span._get_str_attribute("test.module") == "module_test.test_ok"
+        assert suite_span._get_str_attribute("test.suite") == "suite_test.test_ok"
 
-        test_span = [span for span in spans if span.get_tag("type") == "test"][0]
-        assert test_span.get_tag("test.module") == "module_test.test_ok"
-        assert test_span.get_tag("test.suite") == "suite_test.test_ok"
-        assert test_span.get_tag("test.name") == "name_test.test_ok"
+        test_span = [span for span in spans if span._get_str_attribute("type") == "test"][0]
+        assert test_span._get_str_attribute("test.module") == "module_test.test_ok"
+        assert test_span._get_str_attribute("test.suite") == "suite_test.test_ok"
+        assert test_span._get_str_attribute("test.name") == "name_test.test_ok"
 
     def test_pytest_reports_source_file_data(self):
         package_outer_dir = self.testdir.mkpydir("test_source_package")
@@ -4205,31 +4205,31 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 8
 
-        test_spans = [span for span in spans if span.get_tag("type") == "test"]
+        test_spans = [span for span in spans if span._get_str_attribute("type") == "test"]
         assert len(test_spans) == 4
-        assert test_spans[0].get_tag("test.name") == "test_my_first_test"
-        assert test_spans[0].get_tag("test.source.file") == "test_source_package/test_names.py"
-        assert test_spans[0].get_metric("test.source.start") == 8
-        assert test_spans[0].get_metric("test.source.end") == 11
+        assert test_spans[0]._get_str_attribute("test.name") == "test_my_first_test"
+        assert test_spans[0]._get_str_attribute("test.source.file") == "test_source_package/test_names.py"
+        assert test_spans[0]._get_numeric_attribute("test.source.start") == 8
+        assert test_spans[0]._get_numeric_attribute("test.source.end") == 11
 
-        assert test_spans[1].get_tag("test.name") == (
+        assert test_spans[1]._get_str_attribute("test.name") == (
             "TestClassOne::test_my_second_test" if _USE_PLUGIN_V2 else "test_my_second_test"
         )
-        assert test_spans[1].get_tag("test.source.file") == "test_source_package/test_names.py"
-        assert test_spans[1].get_metric("test.source.start") == 13
-        assert test_spans[1].get_metric("test.source.end") == 16
+        assert test_spans[1]._get_str_attribute("test.source.file") == "test_source_package/test_names.py"
+        assert test_spans[1]._get_numeric_attribute("test.source.start") == 13
+        assert test_spans[1]._get_numeric_attribute("test.source.end") == 16
 
-        assert test_spans[2].get_tag("test.name") == (
+        assert test_spans[2]._get_str_attribute("test.name") == (
             "TestClassTwo::test_my_third_test" if _USE_PLUGIN_V2 else "test_my_third_test"
         )
-        assert test_spans[2].get_tag("test.source.file") == "test_source_package/test_names.py"
-        assert test_spans[2].get_metric("test.source.start") == 18
-        assert test_spans[2].get_metric("test.source.end") == 20
+        assert test_spans[2]._get_str_attribute("test.source.file") == "test_source_package/test_names.py"
+        assert test_spans[2]._get_numeric_attribute("test.source.start") == 18
+        assert test_spans[2]._get_numeric_attribute("test.source.end") == 20
 
-        assert test_spans[3].get_tag("test.name") == "test_my_string_test"
-        assert test_spans[3].get_tag("test.source.file") == "test_source_package/test_string.py"
-        assert test_spans[3].get_metric("test.source.start") == 5
-        assert test_spans[3].get_metric("test.source.end") == 8
+        assert test_spans[3]._get_str_attribute("test.name") == "test_my_string_test"
+        assert test_spans[3]._get_str_attribute("test.source.file") == "test_source_package/test_string.py"
+        assert test_spans[3]._get_numeric_attribute("test.source.start") == 5
+        assert test_spans[3]._get_numeric_attribute("test.source.end") == 8
 
     def test_pytest_reports_code_coverage_with_cov_flag(self):
         with open("tools.py", "w+") as fd:
@@ -4281,13 +4281,13 @@ class PytestTestCase(PytestTestCaseBase):
         test_module_span = spans[2]
         test_suite_span = spans[3]
 
-        lines_pct_value = test_session_span.get_metric("test.code_coverage.lines_pct")
+        lines_pct_value = test_session_span._get_numeric_attribute("test.code_coverage.lines_pct")
 
         assert lines_pct_value is not None
         assert isinstance(lines_pct_value, float)
-        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_module_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_suite_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
 
     def test_pytest_reports_code_coverage_with_cov_flag_specified(self):
         with open("tools.py", "w+") as fd:
@@ -4339,10 +4339,10 @@ class PytestTestCase(PytestTestCaseBase):
         test_module_span = spans[2]
         test_suite_span = spans[3]
 
-        assert test_session_span.get_metric("test.code_coverage.lines_pct") == 60.0
-        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_session_span._get_numeric_attribute("test.code_coverage.lines_pct") == 60.0
+        assert test_module_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_suite_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
 
     def test_pytest_does_not_report_code_coverage_with_no_cov_flag_override(self):
         with open("tools.py", "w+") as fd:
@@ -4394,10 +4394,10 @@ class PytestTestCase(PytestTestCaseBase):
         test_module_span = spans[2]
         test_suite_span = spans[3]
 
-        assert test_session_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_session_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_module_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_suite_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
 
     def test_pytest_does_not_report_code_coverage_with_no_cov_flag(self):
         with open("tools.py", "w+") as fd:
@@ -4449,10 +4449,10 @@ class PytestTestCase(PytestTestCaseBase):
         test_module_span = spans[2]
         test_suite_span = spans[3]
 
-        assert test_session_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
-        assert test_span.get_metric("test.code_coverage.lines_pct") is None
+        assert test_session_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_module_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_suite_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+        assert test_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
 
     def test_pytest_reports_correct_source_info(self):
         """Tests that decorated functions are reported with correct source file information and with relative to
@@ -4543,13 +4543,13 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         assert len(spans) == 9
         test_names_to_source_info = {
-            span.get_tag("test.name"): (
-                span.get_tag("test.source.file"),
-                span.get_metric("test.source.start"),
-                span.get_metric("test.source.end"),
+            span._get_str_attribute("test.name"): (
+                span._get_str_attribute("test.source.file"),
+                span._get_numeric_attribute("test.source.start"),
+                span._get_numeric_attribute("test.source.end"),
             )
             for span in spans
-            if span.get_tag("type") == "test"
+            if span._get_str_attribute("type") == "test"
         }
         assert len(test_names_to_source_info) == 6
 
@@ -4623,10 +4623,10 @@ class PytestTestCase(PytestTestCaseBase):
             test_module_span = spans[2]
             test_suite_span = spans[3]
 
-            assert test_session_span.get_metric("test.code_coverage.lines_pct") is None
-            assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
-            assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
-            assert test_span.get_metric("test.code_coverage.lines_pct") is None
+            assert test_session_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+            assert test_module_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+            assert test_suite_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
+            assert test_span._get_numeric_attribute("test.code_coverage.lines_pct") is None
 
     def test_pytest_disables_telemetry_dependency_collection(self):
         """Test that telemetry dependency collection is disabled during pytest sessions."""
@@ -4831,22 +4831,22 @@ def test_coverage_target():
             # The key success is that we don't see "UnboundLocalError" or other errors from our fix
 
             spans = self.pop_spans()
-            test_spans = [s for s in spans if s.get_tag("type") == "test"]
+            test_spans = [s for s in spans if s._get_str_attribute("type") == "test"]
 
             # Should have at least 3 test spans (original tests, possibly more due to retries)
             assert len(test_spans) >= 3
 
             for span in test_spans:
                 coverage_data = span._get_struct_tag("test.coverage")
-                assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
+                assert coverage_data is not None, f"Test {span._get_str_attribute('test.name')} missing coverage data"
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
 
             # Check that EFD retry happened for the flaky test
-            efd_flaky_spans = [s for s in test_spans if "efd_flaky" in s.get_tag("test.name")]
+            efd_flaky_spans = [s for s in test_spans if "efd_flaky" in s._get_str_attribute("test.name")]
             assert len(efd_flaky_spans) == 1
             efd_span = efd_flaky_spans[0]
-            assert efd_span.get_tag("test.status") == "fail"
+            assert efd_span._get_str_attribute("test.status") == "fail"
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR or not _PYTEST_SUPPORTS_ATR,
@@ -4920,26 +4920,26 @@ def test_coverage_target():
             assert len(atr_retry_spans) >= 2, f"Expected at least 2 spans for ATR retries, got {len(atr_retry_spans)}"
 
             # Verify that we have retry spans
-            retry_spans = [span for span in atr_retry_spans if span.get_tag("test.is_retry") == "true"]
+            retry_spans = [span for span in atr_retry_spans if span._get_str_attribute("test.is_retry") == "true"]
             assert len(retry_spans) >= 1, f"Expected at least 1 retry span, got {len(retry_spans)}"
 
-            test_spans = [s for s in spans if s.get_tag("type") == "test"]
+            test_spans = [s for s in spans if s._get_str_attribute("type") == "test"]
 
             # Should have at least 3 test spans (original tests, possibly more due to retries)
             assert len(test_spans) >= 3
 
             # Check that ATR retry happened for the failing test
-            atr_retry_spans = [s for s in test_spans if "atr_retry" in s.get_tag("test.name")]
+            atr_retry_spans = [s for s in test_spans if "atr_retry" in s._get_str_attribute("test.name")]
             assert len(atr_retry_spans) == 2
             last_atr_span = atr_retry_spans[-1]
-            assert last_atr_span.get_tag("test.status") == "pass"
+            assert last_atr_span._get_str_attribute("test.status") == "pass"
 
             for span in test_spans:
                 if span in atr_retry_spans:
                     # Coverage not attached to retry spans
                     continue
                 coverage_data = span._get_struct_tag("test.coverage")
-                assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
+                assert coverage_data is not None, f"Test {span._get_str_attribute('test.name')} missing coverage data"
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
 
@@ -5003,14 +5003,14 @@ def test_simple():
             rec.assertoutcome(passed=2, failed=0)
 
             spans = self.pop_spans()
-            test_spans = [s for s in spans if s.get_tag("type") == "test"]
+            test_spans = [s for s in spans if s._get_str_attribute("type") == "test"]
 
             # Should have at least 2 test spans (original tests)
             assert len(test_spans) >= 2
 
             for span in test_spans:
                 coverage_data = span._get_struct_tag("test.coverage")
-                assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
+                assert coverage_data is not None, f"Test {span._get_str_attribute('test.name')} missing coverage data"
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
 

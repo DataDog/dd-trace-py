@@ -89,7 +89,7 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
             and self._session_settings.itr_correlation_id
             and self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.SUITE
         ):
-            self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
+            self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)  # ast-grep-ignore: span-set-tag
 
     def _telemetry_record_event_created(self):
         record_event_created(

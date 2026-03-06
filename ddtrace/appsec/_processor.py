@@ -208,23 +208,23 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         if span.span_type == SpanTypes.SERVERLESS:
-            span.set_metric(APPSEC.SERVERLESS_TRACER_ENABLED, 1.0)
+            span._set_attribute(APPSEC.SERVERLESS_TRACER_ENABLED, 1.0)
             skip_event = core.find_item("appsec_skip_next_lambda_event")
             if skip_event:
                 core.discard_item("appsec_skip_next_lambda_event")
                 log.debug(
                     "appsec: ignoring unsupported lambda event",
                 )
-                span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
+                span._set_attribute(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
                 return
 
         if is_inferred_span(span):
-            span.set_metric(APPSEC.ENABLED, 1.0)
+            span._set_attribute(APPSEC.ENABLED, 1.0)
             return
 
         entry_span = span._service_entry_span
-        entry_span.set_metric(APPSEC.ENABLED, 1.0)
-        entry_span._set_tag_str(_RUNTIME_FAMILY, "python")
+        entry_span._set_attribute(APPSEC.ENABLED, 1.0)
+        entry_span._set_attribute(_RUNTIME_FAMILY, "python")
 
         ctx = self._ddwaf._at_request_start()
         if ctx is not None:
@@ -327,15 +327,15 @@ class AppSecSpanProcessor(SpanProcessor):
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)  # type: ignore
         if waf_results.return_code < 0:
             error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
-            previous = entry_span.get_tag(error_tag)
+            previous = entry_span._get_str_attribute(error_tag)
             if previous is None:
-                entry_span._set_tag_str(error_tag, str(waf_results.return_code))
+                entry_span._set_attribute(error_tag, str(waf_results.return_code))
             else:
                 try:
                     int_previous = int(previous)
                 except ValueError:
                     int_previous = -128
-                entry_span._set_tag_str(error_tag, str(max(int_previous, waf_results.return_code)))
+                entry_span._set_attribute(error_tag, str(max(int_previous, waf_results.return_code)))
 
         blocked = {}
         for action, parameters in waf_results.actions.items():
@@ -354,9 +354,9 @@ class AppSecSpanProcessor(SpanProcessor):
 
         # Trace tagging
         for key, value in waf_results.meta_tags.items():
-            entry_span._set_tag_str(key, value)
+            entry_span._set_attribute(key, value)
         for key, value in waf_results.metrics.items():
-            entry_span.set_metric(key, value)
+            entry_span._set_attribute(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
@@ -382,18 +382,18 @@ class AppSecSpanProcessor(SpanProcessor):
                 entry_span.set_tag(APPSEC.BLOCKED, "true")
 
             # Partial DDAS-011-00
-            entry_span._set_tag_str(APPSEC.EVENT, "true")
+            entry_span._set_attribute(APPSEC.EVENT, "true")
 
             remote_ip = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.REQUEST_HTTP_IP)
             if remote_ip:
                 # Note that if the ip collection is disabled by the env var
                 # DD_TRACE_CLIENT_IP_HEADER_DISABLED actor.ip won't be sent
-                entry_span._set_tag_str("actor.ip", remote_ip)
+                entry_span._set_attribute("actor.ip", remote_ip)
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
-            if entry_span.get_tag(_ORIGIN_KEY) is None:
-                entry_span._set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+            if entry_span._get_str_attribute(_ORIGIN_KEY) is None:
+                entry_span._set_attribute(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         if waf_results.keep and allowed:
             _asm_manual_keep(entry_span)

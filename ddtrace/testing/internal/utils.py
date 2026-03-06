@@ -72,8 +72,8 @@ class DDTraceTestContext(TestContext):
 
     def get_tags(self) -> dict[str, str]:
         # DEV: in ddtrace < 4.x, key names can be bytes.
-        return {ensure_text(k): v for k, v in self._span.get_tags().items()}
+        return {ensure_text(k): v for k, v in self._span._get_str_attributes().items()}  # ast-grep-ignore: span-get-tags
 
     def get_metrics(self) -> dict[str, float]:
         # DEV: in ddtrace < 4.x, key names can be bytes.
-        return {ensure_text(k): v for k, v in self._span.get_metrics().items()}
+        return {ensure_text(k): v for k, v in self._span._get_numeric_attributes().items()}  # ast-grep-ignore: span-get-metrics

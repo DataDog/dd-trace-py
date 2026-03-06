@@ -101,10 +101,10 @@ def _wrap_request(func, instance, args, kwargs):
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
         span = tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-        span._set_tag_str(COMPONENT, config.httplib.integration_name)
+        span._set_attribute(COMPONENT, config.httplib.integration_name)
 
         # set span.kind to the type of operation being performed
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+        span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
         instance._datadog_span = span
 
@@ -146,10 +146,10 @@ def _wrap_putrequest(func, instance, args, kwargs):
             # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
             span = tracer.trace(span_name, span_type=SpanTypes.HTTP)
 
-            span._set_tag_str(COMPONENT, config.httplib.integration_name)
+            span._set_attribute(COMPONENT, config.httplib.integration_name)
 
             # set span.kind to the type of operation being performed
-            span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             instance._datadog_span = span
 

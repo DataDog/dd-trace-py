@@ -48,11 +48,11 @@ async def test_basics(traced_redis_cluster):
     get_spans = [
         s
         for s in all_spans
-        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET cheese"
+        if s._get_str_attribute("component") == "redis" and s.resource == "GET" and s._get_str_attribute("redis.raw_command") == "GET cheese"
     ]
     assert len(get_spans) == 1, (
         f"Expected exactly 1 GET cheese span, got {len(get_spans)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
     )
     span = get_spans[0]
     assert_is_measured(span)
@@ -60,10 +60,10 @@ async def test_basics(traced_redis_cluster):
     assert span.name == "redis.command"
     assert span.span_type == "redis"
     assert span.error == 0
-    assert span.get_tag("redis.raw_command") == "GET cheese"
-    assert span.get_tag("component") == "redis"
-    assert span.get_tag("db.system") == "redis"
-    assert span.get_metric("redis.args_length") == 2
+    assert span._get_str_attribute("redis.raw_command") == "GET cheese"
+    assert span._get_str_attribute("component") == "redis"
+    assert span._get_str_attribute("db.system") == "redis"
+    assert span._get_numeric_attribute("redis.args_length") == 2
     assert span.resource == "GET"
 
 
@@ -81,11 +81,11 @@ async def test_unicode(traced_redis_cluster):
     get_spans = [
         s
         for s in all_spans
-        if s.get_tag("component") == "redis" and s.resource == "GET" and s.get_tag("redis.raw_command") == "GET 😐"
+        if s._get_str_attribute("component") == "redis" and s.resource == "GET" and s._get_str_attribute("redis.raw_command") == "GET 😐"
     ]
     assert len(get_spans) == 1, (
         f"Expected exactly 1 GET 😐 span, got {len(get_spans)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
     )
     span = get_spans[0]
     assert_is_measured(span)
@@ -93,10 +93,10 @@ async def test_unicode(traced_redis_cluster):
     assert span.name == "redis.command"
     assert span.span_type == "redis"
     assert span.error == 0
-    assert span.get_tag("redis.raw_command") == "GET 😐"
-    assert span.get_tag("component") == "redis"
-    assert span.get_tag("db.system") == "redis"
-    assert span.get_metric("redis.args_length") == 2
+    assert span._get_str_attribute("redis.raw_command") == "GET 😐"
+    assert span._get_str_attribute("component") == "redis"
+    assert span._get_str_attribute("db.system") == "redis"
+    assert span._get_numeric_attribute("redis.args_length") == 2
     assert span.resource == "GET"
 
 
@@ -117,10 +117,10 @@ async def test_pipeline(traced_redis_cluster):
     # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
     all_spans = [span for trace in traces for span in trace]
     # Find the pipeline span
-    pipeline_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET\nRPUSH\nHGETALL"]
+    pipeline_spans = [s for s in all_spans if s._get_str_attribute("component") == "redis" and s.resource == "SET\nRPUSH\nHGETALL"]
     assert len(pipeline_spans) == 1, (
         f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
     )
     span = pipeline_spans[0]
     assert_is_measured(span)
@@ -129,9 +129,9 @@ async def test_pipeline(traced_redis_cluster):
     assert span.resource == "SET\nRPUSH\nHGETALL"
     assert span.span_type == "redis"
     assert span.error == 0
-    assert span.get_tag("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
-    assert span.get_tag("component") == "redis"
-    assert span.get_metric("redis.pipeline_length") == 3
+    assert span._get_str_attribute("redis.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+    assert span._get_str_attribute("component") == "redis"
+    assert span._get_numeric_attribute("redis.pipeline_length") == 3
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
@@ -166,16 +166,16 @@ async def test_pipeline_command_stack_parity_when_visible(traced_redis_cluster):
     # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
     all_spans = [span for trace in traces for span in trace]
     # Find the pipeline span
-    pipeline_spans = [s for s in all_spans if s.get_tag("component") == "redis" and s.resource == "SET\nGET"]
+    pipeline_spans = [s for s in all_spans if s._get_str_attribute("component") == "redis" and s.resource == "SET\nGET"]
     assert len(pipeline_spans) == 1, (
         f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
     )
     span = pipeline_spans[0]
     assert span.resource == "SET\nGET"
-    assert span.get_metric("redis.pipeline_length") == 2
+    assert span._get_numeric_attribute("redis.pipeline_length") == 2
     if queued is not None:
-        assert span.get_metric("redis.pipeline_length") == queued
+        assert span._get_numeric_attribute("redis.pipeline_length") == queued
 
 
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")

@@ -1,0 +1,20 @@
+id: span-set-metrics
+snapshots:
+  self.set_metrics(metrics):
+    labels:
+    - source: self.set_metrics(metrics)
+      style: primary
+      start: 0
+      end: 25
+  'span.set_metrics({"_dd.measured": 1, "db.row_count": count})':
+    labels:
+    - source: 'span.set_metrics({"_dd.measured": 1, "db.row_count": count})'
+      style: primary
+      start: 0
+      end: 60
+  'span.set_metrics({"db.row_count": count})':
+    labels:
+    - source: 'span.set_metrics({"db.row_count": count})'
+      style: primary
+      start: 0
+      end: 41

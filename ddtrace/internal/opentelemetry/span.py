@@ -51,7 +51,7 @@ def _ddmap(span, attribute, value):
             if isinstance(value, (str, bytes)):
                 span.set_tag(meta_key, ensure_text(value))
             if isinstance(value, (int, float)):
-                span.set_metric(meta_key, value)
+                span._set_attribute(meta_key, value)
     else:
         setattr(span, attribute, value)
     return span
@@ -201,7 +201,7 @@ class Span(OtelSpan):
             value = ensure_text(value)
             self._ddspan.set_tag(key, value)
         elif isinstance(value, (int, float)):
-            self._ddspan.set_metric(key, value)
+            self._ddspan._set_attribute(key, value)
         else:
             # TODO: get rid of this usage, `set_tag` only takes str values
             self._ddspan.set_tag(key, value)
@@ -319,22 +319,22 @@ class Span(OtelSpan):
         ddspan = self._ddspan
         span_kind = self.kind
 
-        operation_name = ddspan.get_tag("operation.name")
+        operation_name = ddspan._get_str_attribute("operation.name")
         if operation_name:
             return operation_name
 
-        if ddspan.get_tag("http.request.method"):
+        if ddspan._get_str_attribute("http.request.method"):
             if span_kind == SpanKind.SERVER:
                 return "http.server.request"
             if span_kind == SpanKind.CLIENT:
                 return "http.client.request"
 
-        db_system = ddspan.get_tag("db.system")
+        db_system = ddspan._get_str_attribute("db.system")
         if db_system and span_kind == SpanKind.CLIENT:
             return f"{db_system}.query"
 
-        messaging_system = ddspan.get_tag("messaging.system")
-        messaging_operation = ddspan.get_tag("messaging.operation")
+        messaging_system = ddspan._get_str_attribute("messaging.system")
+        messaging_operation = ddspan._get_str_attribute("messaging.operation")
         if (
             messaging_system
             and messaging_operation
@@ -347,9 +347,9 @@ class Span(OtelSpan):
         ):
             return messaging_system + "." + messaging_operation
 
-        rpc_system = ddspan.get_tag("rpc.system")
+        rpc_system = ddspan._get_str_attribute("rpc.system")
         if span_kind == SpanKind.CLIENT and rpc_system == "aws-api":
-            rpc_service = ddspan.get_tag("rpc.service")
+            rpc_service = ddspan._get_str_attribute("rpc.service")
             if not rpc_service:
                 return "aws.client.request"
             return f"aws.{rpc_service}.request"
@@ -358,19 +358,19 @@ class Span(OtelSpan):
         if span_kind == SpanKind.SERVER and rpc_system:
             return f"{rpc_system}.server.request"
 
-        faas_invoked_provider = ddspan.get_tag("faas.invoked_provider")
-        faas_invoked_name = ddspan.get_tag("faas.invoked_name")
+        faas_invoked_provider = ddspan._get_str_attribute("faas.invoked_provider")
+        faas_invoked_name = ddspan._get_str_attribute("faas.invoked_name")
         if span_kind == SpanKind.CLIENT and faas_invoked_provider and faas_invoked_name:
             return f"{faas_invoked_provider}.{faas_invoked_name}.invoke"
-        faas_trigger = ddspan.get_tag("faas.trigger")
+        faas_trigger = ddspan._get_str_attribute("faas.trigger")
         if span_kind == SpanKind.SERVER and faas_trigger:
             return f"{faas_trigger}.invoke"
 
-        graphql_operation_type = ddspan.get_tag("graphql.operation.type")
+        graphql_operation_type = ddspan._get_str_attribute("graphql.operation.type")
         if graphql_operation_type:
             return "graphql.server.request"
 
-        network_protocol_name = ddspan.get_tag("network.protocol.name")
+        network_protocol_name = ddspan._get_str_attribute("network.protocol.name")
         if span_kind == SpanKind.SERVER:
             if network_protocol_name:
                 return f"{network_protocol_name}.server.request"

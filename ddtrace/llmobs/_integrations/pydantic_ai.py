@@ -72,8 +72,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
-                MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
-                MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
+                MODEL_NAME: span._get_str_attribute("pydantic_ai.request.model") or "",
+                MODEL_PROVIDER: span._get_str_attribute("pydantic_ai.request.provider") or "",
             }
         )
 

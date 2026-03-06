@@ -95,27 +95,27 @@ class TestResourceRenaming:
     def test_processor_with_route(self):
         processor = ResourceRenamingProcessor()
         span = Span("test", context=Context(), span_type=SpanTypes.WEB)
-        span.set_tag(http.ROUTE, "/api/users/{id}")
-        span.set_tag(http.URL, "https://example.com/api/users/123")
+        span._set_attribute(http.ROUTE, "/api/users/{id}")
+        span._set_attribute(http.URL, "https://example.com/api/users/123")
 
         processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) is None
+        assert span._get_str_attribute(http.ENDPOINT) is None
 
     def test_processor_without_route(self):
         processor = ResourceRenamingProcessor()
         span = Span("test", context=Context(), span_type=SpanTypes.WEB)
-        span.set_tag(http.URL, "https://example.com/api/users/123")
+        span._set_attribute(http.URL, "https://example.com/api/users/123")
 
         processor.on_span_finish(span)
-        assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+        assert span._get_str_attribute(http.ENDPOINT) == "/api/users/{param:int}"
 
     def test_processor_always_simplified_endpoint(self):
         processor = ResourceRenamingProcessor()
         with override_global_config(dict(_trace_resource_renaming_always_simplified_endpoint=True)):
             span = Span("test", context=Context(), span_type=SpanTypes.WEB)
-            span.set_tag(http.ROUTE, "/api/users/{id}")
-            span.set_tag(http.URL, "https://example.com/api/users/123")
+            span._set_attribute(http.ROUTE, "/api/users/{id}")
+            span._set_attribute(http.URL, "https://example.com/api/users/123")
 
             processor.on_span_finish(span)
         # Should use simplified endpoint even when route exists
-        assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+        assert span._get_str_attribute(http.ENDPOINT) == "/api/users/{param:int}"

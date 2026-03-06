@@ -151,15 +151,15 @@ class TestTracedCursor(TracerTestCase):
         span = self.pop_spans()[0]  # type: Span
         # Only measure if the name passed matches the default name (e.g. `sql.query` and not `sql.query.fetchall`)
         assert_is_not_measured(span)
-        assert span.get_tag("extra1") == "value_extra1", "Extra tags are preserved"
+        assert span._get_str_attribute("extra1") == "value_extra1", "Extra tags are preserved"
         assert span.name == "my_name", "Span name is respected"
         assert span.service == "my_service", "Span service is respected"
         assert span.resource == "my_resource", "Resource is respected"
         assert span.span_type == "sql", "Span has the correct span type"
         # Row count
-        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
-        assert span.get_tag("component") == traced_cursor._self_config.integration_name
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_numeric_attribute("db.row_count") == 123, "Row count is set as a metric"
+        assert span._get_str_attribute("component") == traced_cursor._self_config.integration_name
+        assert span._get_str_attribute("span.kind") == "client"
 
     def test_cfg_service(self):
         cursor = self.cursor
@@ -219,7 +219,7 @@ class TestTracedCursor(TracerTestCase):
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = self.pop_spans()[0]  # type: Span
         # Row count
-        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
+        assert span._get_numeric_attribute("db.row_count") == 123, "Row count is set as a metric"
 
 
 class TestFetchTracedCursor(TracerTestCase):
@@ -316,15 +316,15 @@ class TestFetchTracedCursor(TracerTestCase):
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = self.pop_spans()[0]  # type: Span
-        assert span.get_tag("extra1") == "value_extra1", "Extra tags are preserved"
+        assert span._get_str_attribute("extra1") == "value_extra1", "Extra tags are preserved"
         assert span.name == "my_name", "Span name is respected"
         assert span.service == "my_service", "Span service is respected"
         assert span.resource == "my_resource", "Resource is respected"
         assert span.span_type == "sql", "Span has the correct span type"
         # Row count
-        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
-        assert span.get_tag("component") == traced_cursor._self_config.integration_name
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_numeric_attribute("db.row_count") == 123, "Row count is set as a metric"
+        assert span._get_str_attribute("component") == traced_cursor._self_config.integration_name
+        assert span._get_str_attribute("span.kind") == "client"
 
     def test_django_traced_cursor_backward_compatibility(self):
         cursor = self.cursor
@@ -341,7 +341,7 @@ class TestFetchTracedCursor(TracerTestCase):
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = self.pop_spans()[0]  # type: Span
         # Row count
-        assert span.get_metric("db.row_count") == 123, "Row count is set as a metric"
+        assert span._get_numeric_attribute("db.row_count") == 123, "Row count is set as a metric"
 
     def test_unknown_rowcount(self):
         class Unknown(object):
@@ -357,7 +357,7 @@ class TestFetchTracedCursor(TracerTestCase):
 
         traced_cursor._trace_method(method, "my_name", "my_resource", {"extra1": "value_extra1"}, False)
         span = self.pop_spans()[0]  # type: Span
-        assert span.get_metric("db.row_count") is None
+        assert span._get_numeric_attribute("db.row_count") is None
 
     def test_callproc_can_handle_arbitrary_args(self):
         cursor = self.cursor

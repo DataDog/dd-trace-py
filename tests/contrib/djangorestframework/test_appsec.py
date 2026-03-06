@@ -42,8 +42,8 @@ def test_djangorest_request_body_urlencoded(client, test_spans, tracer):
             query = _addresses_store[-1].get("http.request.body") if _addresses_store else None
 
             assert get_triggers(root_span) is None
-            assert root_span.get_tag("component") == "django"
-            assert root_span.get_tag("span.kind") == "server"
+            assert root_span._get_str_attribute("component") == "django"
+            assert root_span._get_str_attribute("span.kind") == "server"
             assert query == {"mytestingbody_key": "mytestingbody_value"}
     finally:
         unpatch_for_waf_addresses()
@@ -67,7 +67,7 @@ def test_djangorest_request_body_custom_parser(client, test_spans, tracer):
         assert_span_http_status_code(root_span, 200)
 
         assert get_triggers(root_span) is None
-        assert root_span.get_tag("component") == "django"
-        assert root_span.get_tag("span.kind") == "server"
+        assert root_span._get_str_attribute("component") == "django"
+        assert root_span._get_str_attribute("span.kind") == "server"
         # check that the custom parser was used to parse the body
         assert request.content == b'{"received data form":{"yqrweytqwreasldhkuqwgervflnmlnli":"Content of a.txt.\\n"}}'

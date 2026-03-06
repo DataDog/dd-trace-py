@@ -107,9 +107,9 @@ def test_metric_executed_sink(
     # the agent)
     filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:weak_hash"]
     assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
-    assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == expected_num_metrics
+    assert span._get_numeric_attribute("_dd.iast.telemetry.executed.sink.weak_hash") == expected_num_metrics
     # request.tainted metric is None because AST is not running in this test
-    assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
+    assert span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
 
 
 @pytest.mark.parametrize(
@@ -172,7 +172,7 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, tracer):
     filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
     assert filtered_metrics == ["executed.source", "request.tainted"]
     assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
-    assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
+    assert span._get_numeric_attribute(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
 def test_log_metric(telemetry_writer):

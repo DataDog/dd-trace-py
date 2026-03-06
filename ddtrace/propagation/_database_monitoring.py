@@ -84,7 +84,7 @@ class _DBM_Propagator(object):
 
         # the base hash is injected in the comment and on the span tags for correlation purpose
         if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):
-            dbspan._set_tag_str(PROPAGATED_HASH, str(base_hash))
+            dbspan._set_attribute(PROPAGATED_HASH, str(base_hash))
 
         original_sql_statement = get_argument_value(args, kwargs, self.sql_pos, self.sql_kw)
         # add dbm comment to original_sql_statement
@@ -106,7 +106,7 @@ class _DBM_Propagator(object):
         peer_service_enabled = PeerServiceConfig().set_defaults_enabled
         service_name_key = db_span.service
         if peer_service_enabled:
-            db_name = db_span.get_tags().get("db.name")
+            db_name = db_span._get_str_attributes().get("db.name")
             service_name_key = compat.ensure_text(db_name) if db_name else db_span.service
 
         dbm_tags = {
@@ -116,20 +116,20 @@ class _DBM_Propagator(object):
             DBM_DATABASE_SERVICE_NAME_KEY: service_name_key,
         }
 
-        peer_db_name = db_span.get_tag(self.peer_db_name_tag)
+        peer_db_name = db_span._get_str_attribute(self.peer_db_name_tag)
         if peer_db_name:
             dbm_tags[DBM_PEER_DB_NAME_KEY] = peer_db_name
 
-        peer_hostname = db_span.get_tag(self.peer_hostname_tag)
+        peer_hostname = db_span._get_str_attribute(self.peer_hostname_tag)
         if peer_hostname:
             dbm_tags[DBM_PEER_HOSTNAME_KEY] = peer_hostname
 
-        peer_service = db_span.get_tag(self.peer_service_tag)
+        peer_service = db_span._get_str_attribute(self.peer_service_tag)
         if peer_service:
             dbm_tags[DBM_PEER_SERVICE_KEY] = peer_service
 
         if dbm_config.propagation_mode == "full":
-            db_span._set_tag_str(DBM_TRACE_INJECTED_TAG, "true")
+            db_span._set_attribute(DBM_TRACE_INJECTED_TAG, "true")
             dbm_tags[DBM_TRACE_PARENT_KEY] = db_span.context._traceparent
 
         if dbm_config.inject_sql_basehash and (base_hash := process_tags.base_hash):

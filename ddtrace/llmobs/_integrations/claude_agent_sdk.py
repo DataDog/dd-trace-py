@@ -67,7 +67,7 @@ class ClaudeAgentSdkIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
     ) -> None:
         prompt = get_argument_value(args, kwargs, 0, "prompt", optional=True) or ""
-        model = span.get_tag("claude_agent_sdk.request.model") or ""
+        model = span._get_str_attribute("claude_agent_sdk.request.model") or ""
 
         metadata = self._extract_metadata(kwargs)
 

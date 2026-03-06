@@ -93,9 +93,9 @@ def test_log_injection_disabled():
 
 def test_log_trace_global_values(captured_logs):
     span = tracer.trace("test.logging")
-    span.set_tag(ENV_KEY, "local-env")
-    span.set_tag(SERVICE_KEY, "local-service")
-    span.set_tag(VERSION_KEY, "local-version")
+    span._set_attribute(ENV_KEY, "local-env")
+    span.service = "local-service"
+    span._set_attribute(VERSION_KEY, "local-version")
 
     logger.info("Hello!")
     span.finish()

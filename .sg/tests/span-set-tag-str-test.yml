@@ -1,0 +1,12 @@
+id: span-set-tag-str
+valid:
+  # Standalone function call (no receiver)
+  - _set_tag_str("key", "value")
+  # The replacement API is fine
+  - span._set_attribute("key", "value")
+invalid:
+  - span._set_tag_str("http.url", url)
+  - self._set_tag_str(ERROR_TYPE, exc.__class__.__name__)
+  - |
+    span = tracer.start_span("op")
+    span._set_tag_str("component", "mylib")

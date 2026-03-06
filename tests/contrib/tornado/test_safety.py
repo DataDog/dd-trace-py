@@ -102,7 +102,7 @@ class TestAppSafety(TornadoTestCase):
 
         request_span = traces[0][0]
         assert "tests.contrib.tornado.web.app.SuccessHandler" == request_span.resource
-        assert self.get_url(full_url) == request_span.get_tag(http.URL)
+        assert self.get_url(full_url) == request_span._get_str_attribute(http.URL)
 
     def test_arbitrary_resource_404(self):
         # users inputs should not determine `span.resource` field
@@ -115,7 +115,7 @@ class TestAppSafety(TornadoTestCase):
 
         request_span = traces[0][0]
         assert "tornado.web.ErrorHandler" == request_span.resource
-        assert self.get_url("/does_not_exist/") == request_span.get_tag(http.URL)
+        assert self.get_url("/does_not_exist/") == request_span._get_str_attribute(http.URL)
 
     @gen_test
     def test_futures_without_context(self):

@@ -50,7 +50,7 @@ def test_get_dbm_comment_disabled_mode():
         assert new_args == args
 
         # when dbm propagation is disabled dbm tags should not be set
-        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
+        assert dbspan._get_str_attribute(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
 
 
 @pytest.mark.subprocess(
@@ -78,7 +78,7 @@ def test_dbm_propagation_service_mode():
         assert new_args == (sqlcomment + args[0],)
 
         # ensure that dbm tag is not set (only required in full mode)
-        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
+        assert dbspan._get_str_attribute(_database_monitoring.DBM_TRACE_INJECTED_TAG) is None
 
 
 @pytest.mark.subprocess(
@@ -117,7 +117,7 @@ def test_dbm_propagation_full_mode():
         assert new_args == args
 
         # ensure that dbm tag is set (required for full mode)
-        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
+        assert dbspan._get_str_attribute(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
 
 
 @pytest.mark.subprocess(
@@ -252,7 +252,7 @@ def test_dbm_dddbs_peer_service_enabled():
         ), sqlcomment
 
         with tracer.trace("dbname") as dbspan_with_peer_service:
-            dbspan_with_peer_service._set_tag_str("db.name", "db-name-test")
+            dbspan_with_peer_service._set_attribute("db.name", "db-name-test")
 
             # when dbm propagation mode is full sql comments should be generated with dbm tags and traceparent keys
             dbm_popagator = _database_monitoring._DBM_Propagator(0, "procedure")
@@ -277,8 +277,8 @@ def test_dbm_peer_entity_tags():
     from ddtrace.trace import tracer
 
     with tracer.trace("dbname") as dbspan:
-        dbspan.set_tag("out.host", "some-hostname")
-        dbspan.set_tag("db.name", "some-db")
+        dbspan._set_attribute("out.host", "some-hostname")
+        dbspan._set_attribute("db.name", "some-db")
 
         # since inject() below will call the sampler we just call the sampler here
         # so sampling priority will align in the traceparent
@@ -300,7 +300,7 @@ def test_dbm_peer_entity_tags():
         assert new_args == (sqlcomment + args[0],)
 
         # ensure that dbm tag is set (required in full mode)
-        assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) is not None
+        assert dbspan._get_str_attribute(_database_monitoring.DBM_TRACE_INJECTED_TAG) is not None
 
 
 def test_default_sql_injector(caplog):

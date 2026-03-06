@@ -109,23 +109,23 @@ def assert_traces(tracer, task_name, task, port):
     assert async_span.name == "celery.apply"
     assert async_span.resource == f"tests.contrib.celery.test_tagging.{task_name}"
     assert async_span.service == "celery-producer"
-    assert async_span.get_tag("celery.id") == task.task_id
-    assert async_span.get_tag("celery.action") == "apply_async"
-    assert async_span.get_tag("celery.routing_key") == "celery"
-    assert async_span.get_tag("component") == "celery"
-    assert async_span.get_tag("span.kind") == "producer"
-    assert async_span.get_tag("out.host") == "127.0.0.1"
-    assert async_span.get_metric("network.destination.port") == port
+    assert async_span._get_str_attribute("celery.id") == task.task_id
+    assert async_span._get_str_attribute("celery.action") == "apply_async"
+    assert async_span._get_str_attribute("celery.routing_key") == "celery"
+    assert async_span._get_str_attribute("component") == "celery"
+    assert async_span._get_str_attribute("span.kind") == "producer"
+    assert async_span._get_str_attribute("out.host") == "127.0.0.1"
+    assert async_span._get_numeric_attribute("network.destination.port") == port
 
     assert run_span.error == 0
     assert run_span.name == "celery.run"
     assert run_span.resource == f"tests.contrib.celery.test_tagging.{task_name}"
     assert run_span.service == "celery-worker"
-    assert run_span.get_tag("celery.id") == task.task_id
-    assert run_span.get_tag("celery.action") == "run"
-    assert run_span.get_tag("component") == "celery"
-    assert run_span.get_tag("span.kind") == "consumer"
-    assert socket.gethostname() in run_span.get_tag("celery.hostname")
+    assert run_span._get_str_attribute("celery.id") == task.task_id
+    assert run_span._get_str_attribute("celery.action") == "run"
+    assert run_span._get_str_attribute("component") == "celery"
+    assert run_span._get_str_attribute("span.kind") == "consumer"
+    assert socket.gethostname() in run_span._get_str_attribute("celery.hostname")
 
 
 @pytest.fixture(autouse=False)

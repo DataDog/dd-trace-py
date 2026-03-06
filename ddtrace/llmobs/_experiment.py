@@ -1407,9 +1407,9 @@ class Experiment:
                         "dataset_name": self._dataset.name,
                     },
                     "error": {
-                        "message": span.get_tag(ERROR_MSG),
-                        "stack": span.get_tag(ERROR_STACK),
-                        "type": span.get_tag(ERROR_TYPE),
+                        "message": span._get_str_attribute(ERROR_MSG),
+                        "stack": span._get_str_attribute(ERROR_STACK),
+                        "type": span._get_str_attribute(ERROR_TYPE),
                     },
                 }
 

@@ -63,8 +63,8 @@ class VLLMIntegration(BaseLLMIntegration):
         """Set base tags on vLLM spans."""
         model_name = kwargs.get("model_name")
         if model_name:
-            span._set_tag_str(TAG_MODEL, model_name)
-            span._set_tag_str(TAG_PROVIDER, PROVIDER_NAME)
+            span._set_attribute(TAG_MODEL, model_name)
+            span._set_attribute(TAG_PROVIDER, PROVIDER_NAME)
 
     def _build_metadata(self, data: RequestData) -> dict[str, Any]:
         """Extract metadata from request data."""
@@ -159,6 +159,6 @@ class VLLMIntegration(BaseLLMIntegration):
             if operation == "embedding"
             else self._build_completion_context(data, latency_metrics)
         )
-        ctx[MODEL_NAME] = span.get_tag(TAG_MODEL) or ""
-        ctx[MODEL_PROVIDER] = span.get_tag(TAG_PROVIDER) or ""
+        ctx[MODEL_NAME] = span._get_str_attribute(TAG_MODEL) or ""
+        ctx[MODEL_PROVIDER] = span._get_str_attribute(TAG_PROVIDER) or ""
         span._set_ctx_items(ctx)

@@ -1,0 +1,13 @@
+id: span-get-metrics
+valid:
+  # Standalone function call (no receiver)
+  - get_metrics()
+  # Different method names are fine
+  - span._get_numeric_attributes()
+invalid:
+  - span.get_metrics()
+  - self.get_metrics()
+  - |
+    metrics = span.get_metrics()
+    for key, value in metrics.items():
+        process(key, value)

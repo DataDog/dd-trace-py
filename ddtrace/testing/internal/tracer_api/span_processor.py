@@ -24,7 +24,7 @@ class TestOptSpanProcessor(TraceFilter):
 
 
 def span_to_event(span: Span) -> Event:
-    metrics = span.get_metrics()
+    metrics = span._get_numeric_attributes()  # ast-grep-ignore: span-get-metrics
     metrics.pop("_dd.top_level", None)
 
     return Event(
@@ -40,8 +40,8 @@ def span_to_event(span: Span) -> Event:
             "error": span.error,
             "start": span.start_ns,
             "duration": span.duration_ns,
-            "meta": span.get_tags(),
+            "meta": span._get_str_attributes(),  # ast-grep-ignore: span-get-tags
             "metrics": metrics,
-            "type": span.get_tag("type") or span.span_type,
+            "type": span._get_str_attribute("type") or span.span_type,  # ast-grep-ignore: span-get-tag
         },
     )

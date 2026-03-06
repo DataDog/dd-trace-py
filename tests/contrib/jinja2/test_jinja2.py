@@ -41,8 +41,8 @@ class Jinja2Test(TracerTestCase):
         for span in spans:
             assert span.service == "tests.contrib.jinja2"
             assert span.span_type == "template"
-            assert span.get_tag("jinja2.template_name") == "<memory>"
-            assert span.get_tag("component") == "jinja2"
+            assert span._get_str_attribute("jinja2.template_name") == "<memory>"
+            assert span._get_str_attribute("component") == "jinja2"
 
         assert spans[0].name == "jinja2.compile"
         assert_is_not_measured(spans[0])
@@ -60,8 +60,8 @@ class Jinja2Test(TracerTestCase):
         for span in spans:
             assert span.service == "tests.contrib.jinja2"
             assert span.span_type == "template"
-            assert span.get_tag("jinja2.template_name") == "<memory>"
-            assert span.get_tag("component") == "jinja2"
+            assert span._get_str_attribute("jinja2.template_name") == "<memory>"
+            assert span._get_str_attribute("component") == "jinja2"
 
         assert spans[0].name == "jinja2.compile"
         assert_is_not_measured(spans[0])
@@ -91,8 +91,8 @@ class Jinja2Test(TracerTestCase):
 
             render_span = spans[1]
             assert render_span.name == "jinja2.render"
-            assert render_span.get_tag("jinja2.template_name") == expected
-            assert render_span.get_tag("component") == "jinja2"
+            assert render_span._get_str_attribute("jinja2.template_name") == expected
+            assert render_span._get_str_attribute("component") == "jinja2"
             assert render_span.resource == expected
 
     def test_file_template(self):
@@ -111,7 +111,7 @@ class Jinja2Test(TracerTestCase):
 
         # templates.html extends base.html
         def get_def(s):
-            return s.name, s.get_tag("jinja2.template_name")
+            return s.name, s._get_str_attribute("jinja2.template_name")
 
         assert get_def(spans[0]) == ("jinja2.load", "template.html")
         assert_is_not_measured(spans[0])
@@ -125,8 +125,8 @@ class Jinja2Test(TracerTestCase):
         assert_is_not_measured(spans[4])
 
         # additional checks for jinja2.load
-        assert spans[0].get_tag("jinja2.template_path") == os.path.join(TMPL_DIR, "template.html")
-        assert spans[3].get_tag("jinja2.template_path") == os.path.join(TMPL_DIR, "base.html")
+        assert spans[0]._get_str_attribute("jinja2.template_path") == os.path.join(TMPL_DIR, "template.html")
+        assert spans[3]._get_str_attribute("jinja2.template_path") == os.path.join(TMPL_DIR, "base.html")
 
     def test_service_name(self):
         # don't inherit the service name from the parent span, but force the value.

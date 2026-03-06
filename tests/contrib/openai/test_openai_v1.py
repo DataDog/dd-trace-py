@@ -191,11 +191,11 @@ def test_global_tags(openai_vcr, openai, test_spans):
 
     span = test_spans.pop_traces()[0][0]
     assert span.service == "test-svc"
-    assert span.get_tag("env") == "staging"
-    assert span.get_tag("version") == "1234"
-    assert span.get_tag("openai.request.model") == "ada"
-    assert span.get_tag("openai.request.endpoint") == "/v1/completions"
-    assert span.get_tag("openai.request.method") == "POST"
+    assert span._get_str_attribute("env") == "staging"
+    assert span._get_str_attribute("version") == "1234"
+    assert span._get_str_attribute("openai.request.model") == "ada"
+    assert span._get_str_attribute("openai.request.endpoint") == "/v1/completions"
+    assert span._get_str_attribute("openai.request.method") == "POST"
 
 
 def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):

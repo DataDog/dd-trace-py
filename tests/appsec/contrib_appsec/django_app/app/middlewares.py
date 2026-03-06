@@ -17,7 +17,7 @@ class ServiceRenamingMiddleware:
             root_span = tracer.current_root_span()
             if root_span is not None:
                 root_span.service = service_name
-                root_span.set_tag("scope", service_name)
+                root_span._set_attribute("scope", service_name)
 
         # ---- call the view / downstream middleware ------------------
         response = self.get_response(request)

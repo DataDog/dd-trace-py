@@ -162,7 +162,7 @@ def test_stats_aggrs(send_once_stats_tracer):
 
     # HTTP status code
     with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/list") as span:
-        span.set_tag(http.STATUS_CODE, 200)
+        span._set_attribute(http.STATUS_CODE, 200)
 
     # Resource
     with send_once_stats_tracer.trace(name="op", service="my-svc", span_type="web", resource="/users/view"):
@@ -213,4 +213,4 @@ def test_single_span_sampling():
     with tracer.trace("parent", service="test"):
         with tracer.trace("child") as child:
             # FIXME: Replace with span sampling rule
-            child.set_metric("_dd.span_sampling.mechanism", 8)
+            child._set_attribute("_dd.span_sampling.mechanism", 8)

@@ -153,7 +153,7 @@ def test_stripe_checkout_session_create(
     }
 
     for tag, expected_value in expected_tags.items():
-        assert span.get_tag(tag) == expected_value
+        assert span._get_str_attribute(tag) == expected_value
 
     expected_metrics = {
         "appsec.events.payments.create.amount_total": session.amount_total,
@@ -170,7 +170,7 @@ def test_stripe_checkout_session_create(
                 expected_tags["appsec.events.payments.create.coupon"] = value
 
     for metric, expected_value in expected_metrics.items():
-        assert span.get_metric(metric) == expected_value
+        assert span._get_numeric_attribute(metric) == expected_value
 
 
 @pytest.mark.parametrize(
@@ -283,14 +283,14 @@ def test_stripe_payment_intent_create(
     }
 
     for tag, expected_value in expected_tags.items():
-        assert span.get_tag(tag) == expected_value
+        assert span._get_str_attribute(tag) == expected_value
 
     expected_metrics = {
         "appsec.events.payments.create.livemode": int(session.livemode),
     }
 
     for metric, expected_value in expected_metrics.items():
-        assert span.get_metric(metric) == expected_value
+        assert span._get_numeric_attribute(metric) == expected_value
 
 
 def _build_webhook_signature(payload, secret):
@@ -390,7 +390,7 @@ def test_stripe_webhook_events(
     payment_intent = payload["data"]["object"]
 
     for tag, value in expected_tags(payment_intent).items():
-        assert span.get_tag(tag) == value
+        assert span._get_str_attribute(tag) == value
 
     for metric, value in expected_metrics(payment_intent).items():
-        assert span.get_metric(metric) == value
+        assert span._get_numeric_attribute(metric) == value

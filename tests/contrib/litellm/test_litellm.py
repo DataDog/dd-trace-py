@@ -25,9 +25,9 @@ def test_global_tags(litellm, request_vcr, test_spans):
     span = test_spans.pop_traces()[0][0]
     assert span.resource == "completion"
     assert span.service == "test-svc"
-    assert span.get_tag("env") == "staging"
-    assert span.get_tag("version") == "1234"
-    assert span.get_tag("litellm.request.model") == "gpt-3.5-turbo"
+    assert span._get_str_attribute("env") == "staging"
+    assert span._get_str_attribute("version") == "1234"
+    assert span._get_str_attribute("litellm.request.model") == "gpt-3.5-turbo"
 
 
 @pytest.mark.parametrize("stream,n", [(True, 1), (True, 2), (False, 1), (False, 2)])

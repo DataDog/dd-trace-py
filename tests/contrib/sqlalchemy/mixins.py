@@ -109,10 +109,10 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
         assert span.name == "{}.query".format(self.VENDOR)
         assert span.service == self.SERVICE
         assert "INSERT INTO players" in span.resource
-        assert span.get_tag("sql.db") == self.SQL_DB
-        assert span.get_tag("component") == "sqlalchemy"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_metric("db.row_count") == 1
+        assert span._get_str_attribute("sql.db") == self.SQL_DB
+        assert span._get_str_attribute("component") == "sqlalchemy"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_numeric_attribute("db.row_count") == 1
         self.check_meta(span)
         assert span.span_type == "sql"
         assert span.error == 0
@@ -135,9 +135,9 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
             "SELECT players.id AS players_id, players.name AS players_name \nFROM players \nWHERE players.name"
             in span.resource
         )
-        assert span.get_tag("sql.db") == self.SQL_DB
-        assert span.get_tag("component") == "sqlalchemy"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("sql.db") == self.SQL_DB
+        assert span._get_str_attribute("component") == "sqlalchemy"
+        assert span._get_str_attribute("span.kind") == "client"
         self.check_meta(span)
         assert span.span_type == "sql"
         assert span.error == 0
@@ -158,9 +158,9 @@ class SQLAlchemyTestMixin(SQLAlchemyTestBase):
         assert span.name == "{}.query".format(self.VENDOR)
         assert span.service == self.SERVICE
         assert span.resource == "SELECT * FROM players"
-        assert span.get_tag("sql.db") == self.SQL_DB
-        assert span.get_tag("component") == "sqlalchemy"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("sql.db") == self.SQL_DB
+        assert span._get_str_attribute("component") == "sqlalchemy"
+        assert span._get_str_attribute("span.kind") == "client"
         self.check_meta(span)
         assert span.span_type == "sql"
         assert span.error == 0

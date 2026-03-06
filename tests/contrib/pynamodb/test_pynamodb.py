@@ -40,13 +40,13 @@ class PynamodbTest(TracerTestCase):
         assert len(spans) == 1
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.get_tag("aws.operation") == "ListTables"
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("region") == "us-east-1"
-        assert span.get_tag("aws.agent") == "pynamodb"
-        assert span.get_tag("component") == "pynamodb"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "dynamodb"
+        assert span._get_str_attribute("aws.operation") == "ListTables"
+        assert span._get_str_attribute("aws.region") == "us-east-1"
+        assert span._get_str_attribute("region") == "us-east-1"
+        assert span._get_str_attribute("aws.agent") == "pynamodb"
+        assert span._get_str_attribute("component") == "pynamodb"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "dynamodb"
         assert span.duration >= 0
         assert span.error == 0
 
@@ -68,13 +68,13 @@ class PynamodbTest(TracerTestCase):
         assert len(spans) == 1
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.get_tag("aws.operation") == "DeleteTable"
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("region") == "us-east-1"
-        assert span.get_tag("aws.agent") == "pynamodb"
-        assert span.get_tag("component") == "pynamodb"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "dynamodb"
+        assert span._get_str_attribute("aws.operation") == "DeleteTable"
+        assert span._get_str_attribute("aws.region") == "us-east-1"
+        assert span._get_str_attribute("region") == "us-east-1"
+        assert span._get_str_attribute("aws.agent") == "pynamodb"
+        assert span._get_str_attribute("component") == "pynamodb"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "dynamodb"
         assert span.duration >= 0
         assert span.error == 0
 
@@ -96,13 +96,13 @@ class PynamodbTest(TracerTestCase):
         assert len(spans) == 1
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.get_tag("aws.operation") == "Scan"
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("region") == "us-east-1"
-        assert span.get_tag("aws.agent") == "pynamodb"
-        assert span.get_tag("component") == "pynamodb"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "dynamodb"
+        assert span._get_str_attribute("aws.operation") == "Scan"
+        assert span._get_str_attribute("aws.region") == "us-east-1"
+        assert span._get_str_attribute("region") == "us-east-1"
+        assert span._get_str_attribute("aws.agent") == "pynamodb"
+        assert span._get_str_attribute("component") == "pynamodb"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "dynamodb"
         assert span.duration >= 0
         assert span.error == 0
 
@@ -123,16 +123,16 @@ class PynamodbTest(TracerTestCase):
         assert len(spans) == 1
         assert_is_measured(span)
         assert span.span_type == "http"
-        assert span.get_tag("aws.operation") == "Scan"
-        assert span.get_tag("aws.region") == "us-east-1"
-        assert span.get_tag("region") == "us-east-1"
-        assert span.get_tag("aws.agent") == "pynamodb"
-        assert span.get_tag("component") == "pynamodb"
-        assert span.get_tag("span.kind") == "client"
-        assert span.get_tag("db.system") == "dynamodb"
+        assert span._get_str_attribute("aws.operation") == "Scan"
+        assert span._get_str_attribute("aws.region") == "us-east-1"
+        assert span._get_str_attribute("region") == "us-east-1"
+        assert span._get_str_attribute("aws.agent") == "pynamodb"
+        assert span._get_str_attribute("component") == "pynamodb"
+        assert span._get_str_attribute("span.kind") == "client"
+        assert span._get_str_attribute("db.system") == "dynamodb"
         assert span.duration >= 0
         assert span.error == 1
-        assert span.get_tag("error.type") != ""
+        assert span._get_str_attribute("error.type") != ""
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     @mock_dynamodb

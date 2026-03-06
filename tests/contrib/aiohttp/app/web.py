@@ -60,7 +60,7 @@ async def route_wrapped_coroutine(request):
 
 async def route_sub_span(request):
     with tracer.trace("aiohttp.sub_span") as span:
-        span.set_tag("sub_span", "true")
+        span._set_attribute("sub_span", "true")
         return web.Response(text="OK")
 
 
@@ -74,7 +74,7 @@ async def caught_server_error(request):
 
 async def coro_2(request):
     with tracer.trace("aiohttp.coro_2") as span:
-        span.set_tag("aiohttp.worker", "pending")
+        span._set_attribute("aiohttp.worker", "pending")
     return "OK"
 
 

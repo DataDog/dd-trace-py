@@ -268,11 +268,11 @@ def test_extended_sampling_tags_partial_match():
     from ddtrace.trace import tracer
 
     with tracer.trace(name="should_send", service="mycoolservice") as span:
-        span.set_tag("tag1", "monkey")
+        span._set_attribute("tag1", "monkey")
 
     with tracer.trace(name="should_not_send", service="mycoolservice") as span:
-        span.set_tag("tag1", "monkey")
-        span.set_tag("tag2", "banana")
+        span._set_attribute("tag1", "monkey")
+        span._set_attribute("tag2", "banana")
 
 
 @pytest.mark.snapshot()
@@ -284,7 +284,7 @@ def test_extended_sampling_float_special_case_do_not_match():
     from ddtrace.trace import tracer
 
     with tracer.trace(name="should_send") as span:
-        span.set_tag("tag", 20.1)
+        span._set_attribute("tag", 20.1)
 
 
 @pytest.mark.snapshot()
@@ -306,13 +306,13 @@ def test_extended_sampling_float_special_case_match_star():
     from ddtrace.trace import tracer
 
     with tracer.trace(name="should_not_send") as span:
-        span.set_tag("tag", 20.1)
+        span._set_attribute("tag", 20.1)
 
     with tracer.trace(name="should_not_send2") as span:
-        span.set_tag("tag2", 22.2)
+        span._set_attribute("tag2", 22.2)
 
     with tracer.trace(name="should_not_send3") as span:
-        span.set_tag("tag3", 3333333.33333)
+        span._set_attribute("tag3", 3333333.33333)
 
 
 @pytest.mark.subprocess()
@@ -406,11 +406,11 @@ def test_single_span_and_trace_sampling_match_non_root_span():
         assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
 
     # Span 1 was sampled via trace sampling rule
-    assert root.get_metric("_dd.rule_psr") == 0, repr(root)
+    assert root._get_numeric_attribute("_dd.rule_psr") == 0, repr(root)
     # Span 2 was sampled via single span sampling rule
-    assert span2.get_metric("_dd.span_sampling.mechanism") == 8, repr(span2)
-    assert span2.get_metric("_dd.span_sampling.rule_rate") == 1, repr(span2)
-    assert "_dd.rule_psr" not in span2.get_metrics(), repr(span2)
+    assert span2._get_numeric_attribute("_dd.span_sampling.mechanism") == 8, repr(span2)
+    assert span2._get_numeric_attribute("_dd.span_sampling.rule_rate") == 1, repr(span2)
+    assert "_dd.rule_psr" not in span2._get_numeric_attributes(), repr(span2)
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -447,8 +447,8 @@ def test_single_span_and_trace_sampling_match_root_span_partial_flushing():
         assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
 
     # Span 1 was sampled via single span sampling rule
-    assert root.get_metric("_dd.span_sampling.mechanism") == 8
-    assert root.get_metric("_dd.span_sampling.rule_rate") == 1
+    assert root._get_numeric_attribute("_dd.span_sampling.mechanism") == 8
+    assert root._get_numeric_attribute("_dd.span_sampling.rule_rate") == 1
     # Regardless of whether stats computation is enabled or disabled,
     # if the trace matched a trace sampling rule `_dd.rule_psr` should be set.
-    assert root.get_metric("_dd.rule_psr") == 0, repr(root)
+    assert root._get_numeric_attribute("_dd.rule_psr") == 0, repr(root)

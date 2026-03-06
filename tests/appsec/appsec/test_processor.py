@@ -64,7 +64,7 @@ def test_enable(tracer):
     with asm_context(tracer=tracer, config=config_asm) as span:
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert span.get_metric("_dd.appsec.enabled") == 1.0
+    assert span._get_numeric_attribute("_dd.appsec.enabled") == 1.0
 
 
 def test_enable_custom_rules():
@@ -121,7 +121,7 @@ def test_header_attack(tracer):
         )
 
     assert get_triggers(span)
-    assert span.get_tag("actor.ip") == "8.8.8.8"
+    assert span._get_str_attribute("actor.ip") == "8.8.8.8"
 
 
 def test_headers_collection(tracer):
@@ -142,11 +142,11 @@ def test_headers_collection(tracer):
             },
         )
 
-    assert span.get_tag("http.request.headers.hello") is None
-    assert span.get_tag("http.request.headers.accept") == "something"
-    assert span.get_tag("http.request.headers.x-forwarded-for") == "127.0.0.1"
-    assert span.get_tag("http.response.headers.content-length") == "500"
-    assert span.get_tag("http.response.headers.foo") is None
+    assert span._get_str_attribute("http.request.headers.hello") is None
+    assert span._get_str_attribute("http.request.headers.accept") == "something"
+    assert span._get_str_attribute("http.request.headers.x-forwarded-for") == "127.0.0.1"
+    assert span._get_str_attribute("http.response.headers.content-length") == "500"
+    assert span._get_str_attribute("http.response.headers.foo") is None
 
 
 @snapshot(
@@ -265,7 +265,7 @@ def test_ip_update_rules_and_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert (span._local_root or span)._get_str_attribute(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
 
     from ddtrace.appsec._processor import AppSecSpanProcessor
 
@@ -306,7 +306,7 @@ def test_ip_update_rules_expired_no_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert (span._local_root or span)._get_str_attribute(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
 
 
 @snapshot(
@@ -328,7 +328,7 @@ def test_ip_update_rules_expired_no_block(tracer):
 )
 def test_appsec_span_tags_snapshot(tracer):
     with asm_context(tracer=tracer, config=config_asm, service="test") as span:
-        span.set_tag("http.url", "http://example.com/.git")
+        span._set_attribute("http.url", "http://example.com/.git")
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert get_triggers(span)
@@ -355,7 +355,7 @@ def test_appsec_span_tags_snapshot_with_errors(tracer):
         _waf_timeout=50_000,
     )
     with asm_context(tracer=tracer, config=config, service="test") as span:
-        span.set_tag("http.url", "http://example.com/.git")
+        span._set_attribute("http.url", "http://example.com/.git")
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
     assert get_triggers(span) is None
@@ -811,7 +811,7 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
         assert mock_run.call_args[1]["ephemeral_data"] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
+    assert (span._local_root or span)._get_str_attribute(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
 
 
 @mock.patch("ddtrace.appsec._ddwaf.waf.DDWaf.run")
@@ -852,11 +852,11 @@ def test_lambda_unsupported_event(tracer, skip_event):
 
     if skip_event:
         # When skip_event is True, the metric should be set and context item should be discarded
-        assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) == 1.0
+        assert span._get_numeric_attribute(APPSEC.UNSUPPORTED_EVENT_TYPE) == 1.0
         assert core.find_item("appsec_skip_next_lambda_event") is None
     else:
         # When skip_event is False, the metric should not be set
-        assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
+        assert span._get_numeric_attribute(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
 
 
 @pytest.mark.parametrize("inferred_span_name", ["aws.apigateway", "aws.httpapi"])
@@ -877,7 +877,7 @@ def test_lambda_inferred_span(tracer, inferred_span_name):
             with tracer.trace("aws.lambda", span_type=SpanTypes.SERVERLESS, service="test_function") as lambda_span:
                 set_http_meta(lambda_span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert lambda_span.get_metric(APPSEC.ENABLED) == 1.0
-    assert gateway_span.get_metric(APPSEC.ENABLED) == 1.0
+    assert lambda_span._get_numeric_attribute(APPSEC.ENABLED) == 1.0
+    assert gateway_span._get_numeric_attribute(APPSEC.ENABLED) == 1.0
     assert get_triggers(lambda_span)
     assert get_triggers(gateway_span)

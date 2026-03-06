@@ -1,0 +1,12 @@
+id: span-get-tags
+language: Python
+severity: error
+message: >
+  Use span._get_str_attributes() instead of span.get_tags().
+note: >
+  get_tags() is a thin wrapper around _get_str_attributes(). Internal code should
+  call _get_str_attributes() directly to avoid the indirection.
+rule:
+  pattern: $X.get_tags()
+ignores:
+  - tests/tracer/test_span_public_api.py

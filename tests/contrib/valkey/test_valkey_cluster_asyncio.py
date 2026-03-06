@@ -46,13 +46,13 @@ async def test_basics(traced_valkey_cluster):
     get_spans = [
         s
         for s in all_spans
-        if s.get_tag("component") == "valkey"
+        if s._get_str_attribute("component") == "valkey"
         and s.resource == "GET"
-        and s.get_tag("valkey.raw_command") == "GET cheese"
+        and s._get_str_attribute("valkey.raw_command") == "GET cheese"
     ]
     assert len(get_spans) == 1, (
         f"Expected exactly 1 GET cheese span, got {len(get_spans)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
     )
     span = get_spans[0]
     assert_is_measured(span)
@@ -60,10 +60,10 @@ async def test_basics(traced_valkey_cluster):
     assert span.name == "valkey.command"
     assert span.span_type == "valkey"
     assert span.error == 0
-    assert span.get_tag("valkey.raw_command") == "GET cheese"
-    assert span.get_tag("component") == "valkey"
-    assert span.get_tag("db.system") == "valkey"
-    assert span.get_metric("valkey.args_length") == 2
+    assert span._get_str_attribute("valkey.raw_command") == "GET cheese"
+    assert span._get_str_attribute("component") == "valkey"
+    assert span._get_str_attribute("db.system") == "valkey"
+    assert span._get_numeric_attribute("valkey.args_length") == 2
     assert span.resource == "GET"
 
 
@@ -80,11 +80,11 @@ async def test_unicode(traced_valkey_cluster):
     get_spans = [
         s
         for s in all_spans
-        if s.get_tag("component") == "valkey" and s.resource == "GET" and s.get_tag("valkey.raw_command") == "GET 😐"
+        if s._get_str_attribute("component") == "valkey" and s.resource == "GET" and s._get_str_attribute("valkey.raw_command") == "GET 😐"
     ]
     assert len(get_spans) == 1, (
         f"Expected exactly 1 GET 😐 span, got {len(get_spans)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
     )
     span = get_spans[0]
     assert_is_measured(span)
@@ -92,10 +92,10 @@ async def test_unicode(traced_valkey_cluster):
     assert span.name == "valkey.command"
     assert span.span_type == "valkey"
     assert span.error == 0
-    assert span.get_tag("valkey.raw_command") == "GET 😐"
-    assert span.get_tag("component") == "valkey"
-    assert span.get_tag("db.system") == "valkey"
-    assert span.get_metric("valkey.args_length") == 2
+    assert span._get_str_attribute("valkey.raw_command") == "GET 😐"
+    assert span._get_str_attribute("component") == "valkey"
+    assert span._get_str_attribute("db.system") == "valkey"
+    assert span._get_numeric_attribute("valkey.args_length") == 2
     assert span.resource == "GET"
 
 
@@ -113,11 +113,11 @@ async def test_pipeline(traced_valkey_cluster):
     all_spans = [span for trace in traces for span in trace]
     # Find the pipeline span
     pipeline_spans = [
-        s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "SET\nRPUSH\nHGETALL"
+        s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "SET\nRPUSH\nHGETALL"
     ]
     assert len(pipeline_spans) == 1, (
         f"Expected exactly 1 pipeline span, got {len(pipeline_spans)}. "
-        f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+        f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
     )
     span = pipeline_spans[0]
     assert_is_measured(span)
@@ -126,9 +126,9 @@ async def test_pipeline(traced_valkey_cluster):
     assert span.resource == "SET\nRPUSH\nHGETALL"
     assert span.span_type == "valkey"
     assert span.error == 0
-    assert span.get_tag("valkey.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
-    assert span.get_tag("component") == "valkey"
-    assert span.get_metric("valkey.pipeline_length") == 3
+    assert span._get_str_attribute("valkey.raw_command") == "SET blah 32\nRPUSH foo éé\nHGETALL xxx"
+    assert span._get_str_attribute("component") == "valkey"
+    assert span._get_numeric_attribute("valkey.pipeline_length") == 3
 
 
 @pytest.mark.asyncio
@@ -199,10 +199,10 @@ def test_default_service_name_v1():
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        get_spans = [s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "GET"]
         assert len(get_spans) == 1, (
             f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
         )
         span = get_spans[0]
         assert span.service == DEFAULT_SPAN_SERVICE_NAME
@@ -252,10 +252,10 @@ def test_user_specified_service_v0():
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        get_spans = [s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "GET"]
         assert len(get_spans) == 1, (
             f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
         )
         span = get_spans[0]
         assert span.service != "mysvc"
@@ -305,10 +305,10 @@ def test_user_specified_service_v1():
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        get_spans = [s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "GET"]
         assert len(get_spans) == 1, (
             f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
         )
         span = get_spans[0]
         assert span.service == "mysvc"
@@ -350,10 +350,10 @@ def test_env_user_specified_valkeycluster_service_v0():
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        get_spans = [s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "GET"]
         assert len(get_spans) == 1, (
             f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
         )
         span = get_spans[0]
         assert span.service == "myvalkeycluster"
@@ -395,10 +395,10 @@ def test_env_user_specified_valkeycluster_service_v1():
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        get_spans = [s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "GET"]
         assert len(get_spans) == 1, (
             f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
         )
         span = get_spans[0]
         assert span.service == "myvalkeycluster"
@@ -448,10 +448,10 @@ def test_service_precedence_v0():
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        get_spans = [s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "GET"]
         assert len(get_spans) == 1, (
             f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
         )
         span = get_spans[0]
         assert span.service == "myvalkeycluster"
@@ -497,10 +497,10 @@ def test_service_precedence_v1():
         # Flatten all spans from all traces (may have FLUSHALL and cluster discovery spans)
         all_spans = [span for trace in traces for span in trace]
         # Find the GET span
-        get_spans = [s for s in all_spans if s.get_tag("component") == "valkey" and s.resource == "GET"]
+        get_spans = [s for s in all_spans if s._get_str_attribute("component") == "valkey" and s.resource == "GET"]
         assert len(get_spans) == 1, (
             f"Expected exactly 1 GET span, got {len(get_spans)}. "
-            f"All spans: {[(s.resource, s.get_tag('component')) for s in all_spans]}"
+            f"All spans: {[(s.resource, s._get_str_attribute('component')) for s in all_spans]}"
         )
         span = get_spans[0]
         assert span.service == "myvalkeycluster"

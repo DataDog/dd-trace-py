@@ -91,8 +91,8 @@ def test_tags_from_context():
 
     span = Span("test")
     set_tags_from_context(span, context)
-    metas = span.get_tags()
-    metrics = span.get_metrics()
+    metas = span._get_str_attributes()
+    metrics = span._get_numeric_attributes()
     sentinel = object()
     assert metas["celery.correlation_id"] == "44b7f305"
     assert metas["celery.delivery_info.eager"] == "True"
@@ -118,7 +118,7 @@ def test_tags_from_context_empty_keys():
         "timelimit": (None, None),
         "retries": 0,
     }
-    tags = span.get_tags()
+    tags = span._get_str_attributes()
 
     set_tags_from_context(span, context)
     assert {} == tags

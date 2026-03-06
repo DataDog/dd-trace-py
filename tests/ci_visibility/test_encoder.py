@@ -58,8 +58,8 @@ def test_encode_traces_civisibility_v0():
         ],
     ]
     test_trace = traces[2]
-    test_trace[0]._set_tag_str("type", "test")
-    test_trace[1]._set_tag_str("type", "test")
+    test_trace[0]._set_attribute("type", "test")
+    test_trace[1]._set_attribute("type", "test")
 
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
@@ -87,7 +87,7 @@ def test_encode_traces_civisibility_v0():
         }
         expected_event = {
             b"type": b"test" if given_span.span_type == "test" else b"span",
-            b"version": 2 if given_span.get_tag("type") and given_span.get_tag("type") == "test" else 1,
+            b"version": 2 if given_span._get_str_attribute("type") and given_span._get_str_attribute("type") == "test" else 1,
             b"content": {
                 b"trace_id": int(given_span._trace_id_64bits),
                 b"span_id": int(given_span.span_id),
@@ -169,7 +169,7 @@ def test_build_payload_large_trace_splitting():
         for j in range(50):  # Each trace has many spans
             span = Span(name=f"large_test_{i}_{j}", span_id=0x100000 + i * 100 + j, service="test")
             # Add large metadata to increase payload size
-            span._set_tag_str("large_data", "x" * 1000)  # 1KB per span
+            span._set_attribute("large_data", "x" * 1000)  # 1KB per span
             trace.append(span)
         large_traces.append(trace)
 
@@ -201,7 +201,7 @@ def test_build_payload_recursive_splitting():
         trace = []
         for j in range(10):  # Each with 10 spans
             span = Span(name=f"test_{i}_{j}", span_id=0x200000 + i * 100 + j, service="test")
-            span._set_tag_str("data", "x" * 500)  # Make each span moderately large
+            span._set_attribute("data", "x" * 500)  # Make each span moderately large
             trace.append(span)
         traces.append(trace)
 
@@ -239,7 +239,7 @@ def test_build_payload_with_filtered_spans():
 
     try:
         # Add session type tag to trigger filtering
-        traces[0][0]._set_tag_str(EVENT_TYPE, SESSION_TYPE)
+        traces[0][0]._set_attribute(EVENT_TYPE, SESSION_TYPE)
 
         encoder = CIVisibilityEncoderV01(0, 0)
         payloads = encoder._build_payload(traces)
@@ -276,7 +276,7 @@ def test_build_payload_all_spans_filtered():
     try:
         # Make both spans session types to trigger filtering
         for trace in traces:
-            trace[0]._set_tag_str(EVENT_TYPE, SESSION_TYPE)
+            trace[0]._set_attribute(EVENT_TYPE, SESSION_TYPE)
 
         encoder = CIVisibilityEncoderV01(0, 0)
         payloads = encoder._build_payload(traces)
@@ -297,7 +297,7 @@ def test_build_payload_no_infinite_recursion():
     large_trace = []
     for i in range(100):
         span = Span(name=f"large_span_{i}", span_id=0x400000 + i, service="test")
-        span._set_tag_str("large_data", "x" * 1000)
+        span._set_attribute("large_data", "x" * 1000)
         large_trace.append(span)
 
     encoder = CIVisibilityEncoderV01(0, 0)
@@ -323,9 +323,9 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     }
     coverage_json = json.dumps(coverage_data)
     coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
-    coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
-    coverage_span.set_tag(SUITE_ID, "12345")
-    coverage_span.set_tag(SESSION_ID, "67890")
+    coverage_span._set_attribute(COVERAGE_TAG_NAME, coverage_json)
+    coverage_span._set_attribute(SUITE_ID, "12345")
+    coverage_span._set_attribute(SESSION_ID, "67890")
     traces = [
         [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
     ]
@@ -342,8 +342,8 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     assert len(received_covs) == 1
 
     expected_cov = {
-        b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
-        b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
+        b"test_session_id": int(coverage_span._get_str_attribute(SESSION_ID)),
+        b"test_suite_id": int(coverage_span._get_str_attribute(SUITE_ID)),
         b"span_id": 0xAAAAAA,
         b"files": [
             {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
@@ -381,9 +381,9 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
     }
     coverage_json = json.dumps(coverage_data)
     coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
-    coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
-    coverage_span.set_tag(SUITE_ID, "12345")
-    coverage_span.set_tag(SESSION_ID, "67890")
+    coverage_span._set_attribute(COVERAGE_TAG_NAME, coverage_json)
+    coverage_span._set_attribute(SUITE_ID, "12345")
+    coverage_span._set_attribute(SESSION_ID, "67890")
     traces = [
         [Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo"), coverage_span],
     ]
@@ -405,8 +405,8 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
     assert len(received_covs) == 1
 
     expected_cov = {
-        b"test_session_id": int(coverage_span.get_tag(SESSION_ID)),
-        b"test_suite_id": int(coverage_span.get_tag(SUITE_ID)),
+        b"test_session_id": int(coverage_span._get_str_attribute(SESSION_ID)),
+        b"test_suite_id": int(coverage_span._get_str_attribute(SUITE_ID)),
         b"files": [
             {k.encode("utf-8"): v.encode("utf-8") if isinstance(v, str) else v for k, v in file.items()}
             for file in coverage_data["files"]
@@ -440,9 +440,9 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
     }
     coverage_json = json.dumps(coverage_data)
     coverage_span = Span(name=b"client.testing", span_id=0xAAAAAA, span_type="test", service="foo")
-    coverage_span.set_tag(COVERAGE_TAG_NAME, coverage_json)
-    coverage_span.set_tag(SUITE_ID, "12345")
-    coverage_span.set_tag(SESSION_ID, "67890")
+    coverage_span._set_attribute(COVERAGE_TAG_NAME, coverage_json)
+    coverage_span._set_attribute(SUITE_ID, "12345")
+    coverage_span._set_attribute(SESSION_ID, "67890")
     traces = []
 
     encoder = CIVisibilityCoverageEncoderV02(0, 0)
@@ -472,8 +472,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         for span in spans:
-            if span.get_tag("type") == "test":
-                span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
+            if span._get_str_attribute("type") == "test":
+                span._set_attribute(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
         encoded_traces = ci_agentless_encoder.encode()
@@ -507,12 +507,12 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 b"service": given_test_span.service.encode("utf-8"),
                 b"span_id": given_test_span.span_id,
                 b"start": given_test_span.start_ns,
-                b"test_module_id": int(given_test_span.get_tag("test_module_id")),
-                b"test_session_id": int(given_test_span.get_tag("test_session_id")),
-                b"test_suite_id": int(given_test_span.get_tag("test_suite_id")),
+                b"test_module_id": int(given_test_span._get_str_attribute("test_module_id")),
+                b"test_session_id": int(given_test_span._get_str_attribute("test_session_id")),
+                b"test_suite_id": int(given_test_span._get_str_attribute("test_suite_id")),
                 b"trace_id": given_test_span._trace_id_64bits,
                 b"type": given_test_span.span_type.encode("utf-8"),
-                b"itr_correlation_id": given_test_span.get_tag("itr_correlation_id").encode("utf-8"),
+                b"itr_correlation_id": given_test_span._get_str_attribute("itr_correlation_id").encode("utf-8"),
             },
             b"type": given_test_span.span_type.encode("utf-8"),
             b"version": CIVisibilityEncoderV01.TEST_EVENT_VERSION,
@@ -536,8 +536,8 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         rec.assertoutcome(passed=1)
         spans = self.pop_spans()
         for span in spans:
-            if span.get_tag("type") == "test_suite_end":
-                span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
+            if span._get_str_attribute("type") == "test_suite_end":
+                span._set_attribute(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
         encoded_traces = ci_agentless_encoder.encode()
@@ -545,7 +545,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer._span_aggregator.writer.msgpack_encoder._decode(event_payload)
         given_test_suite_span = spans[3]
-        assert given_test_suite_span.get_tag("type") == "test_suite_end"
+        assert given_test_suite_span._get_str_attribute("type") == "test_suite_end"
         given_test_suite_event = decoded_event_payload[b"events"][3]
         expected_meta = {
             "{}".format(key).encode("utf-8"): "{}".format(value).encode("utf-8")
@@ -570,13 +570,13 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 b"resource": given_test_suite_span.resource.encode("utf-8"),
                 b"service": given_test_suite_span.service.encode("utf-8"),
                 b"start": given_test_suite_span.start_ns,
-                b"test_module_id": int(given_test_suite_span.get_tag("test_module_id")),
-                b"test_session_id": int(given_test_suite_span.get_tag("test_session_id")),
-                b"test_suite_id": int(given_test_suite_span.get_tag("test_suite_id")),
-                b"type": given_test_suite_span.get_tag("type").encode("utf-8"),
-                b"itr_correlation_id": given_test_suite_span.get_tag("itr_correlation_id").encode("utf-8"),
+                b"test_module_id": int(given_test_suite_span._get_str_attribute("test_module_id")),
+                b"test_session_id": int(given_test_suite_span._get_str_attribute("test_session_id")),
+                b"test_suite_id": int(given_test_suite_span._get_str_attribute("test_suite_id")),
+                b"type": given_test_suite_span._get_str_attribute("type").encode("utf-8"),
+                b"itr_correlation_id": given_test_suite_span._get_str_attribute("itr_correlation_id").encode("utf-8"),
             },
-            b"type": given_test_suite_span.get_tag("type").encode("utf-8"),
+            b"type": given_test_suite_span._get_str_attribute("type").encode("utf-8"),
             b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,
         }
         assert given_test_suite_event == expected_test_suite_event
@@ -626,11 +626,11 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 b"resource": given_test_module_span.resource.encode("utf-8"),
                 b"service": given_test_module_span.service.encode("utf-8"),
                 b"start": given_test_module_span.start_ns,
-                b"test_session_id": int(given_test_module_span.get_tag("test_session_id")),
-                b"test_module_id": int(given_test_module_span.get_tag("test_module_id")),
-                b"type": given_test_module_span.get_tag("type").encode("utf-8"),
+                b"test_session_id": int(given_test_module_span._get_str_attribute("test_session_id")),
+                b"test_module_id": int(given_test_module_span._get_str_attribute("test_module_id")),
+                b"type": given_test_module_span._get_str_attribute("type").encode("utf-8"),
             },
-            b"type": given_test_module_span.get_tag("type").encode("utf-8"),
+            b"type": given_test_module_span._get_str_attribute("type").encode("utf-8"),
             b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,
         }
         assert given_test_module_event == expected_test_module_event
@@ -679,10 +679,10 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 b"resource": given_test_session_span.resource.encode("utf-8"),
                 b"service": given_test_session_span.service.encode("utf-8"),
                 b"start": given_test_session_span.start_ns,
-                b"test_session_id": int(given_test_session_span.get_tag("test_session_id")),
-                b"type": given_test_session_span.get_tag("type").encode("utf-8"),
+                b"test_session_id": int(given_test_session_span._get_str_attribute("test_session_id")),
+                b"type": given_test_session_span._get_str_attribute("type").encode("utf-8"),
             },
-            b"type": given_test_session_span.get_tag("type").encode("utf-8"),
+            b"type": given_test_session_span._get_str_attribute("type").encode("utf-8"),
             b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,
         }
         assert given_test_session_event == expected_test_session_event
@@ -692,7 +692,7 @@ def test_get_parent_session_with_parent_id():
     """Test _get_parent_session method when session span has a parent_id"""
     # Create a session span with parent_id
     session_span = Span(name="test.session", span_id=0xBBBBBB, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
     session_span.parent_id = 0xAAAAAA  # Non-zero parent_id
 
     # Create a regular test span
@@ -710,7 +710,7 @@ def test_get_parent_session_without_parent_id():
     """Test _get_parent_session method when session span has no parent_id"""
     # Create a session span without parent_id (parent_id defaults to None)
     session_span = Span(name="test.session", span_id=0xBBBBBB, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
     # parent_id remains None (default)
 
     test_span = Span(name="test.case", span_id=0xCCCCCC, service="test")
@@ -739,10 +739,10 @@ def test_get_parent_session_no_session_spans():
 def test_xdist_worker_session_filtering(mock_xdist_worker_env):
     """Test that session spans are filtered out when PYTEST_XDIST_WORKER is set"""
     session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
 
     test_span = Span(name="test.case", span_id=0xBBBBBB, service="test", span_type="test")
-    test_span.set_tag(EVENT_TYPE, "test")
+    test_span._set_attribute(EVENT_TYPE, "test")
 
     traces = [[session_span, test_span]]
 
@@ -768,10 +768,10 @@ def test_xdist_worker_session_filtering(mock_xdist_worker_env):
 def test_xdist_non_worker_includes_session(mock_no_xdist_worker_env):
     """Test that session spans are included when not in xdist worker environment"""
     session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
 
     test_span = Span(name="test.case", span_id=0xBBBBBB, service="test", span_type="test")
-    test_span.set_tag(EVENT_TYPE, "test")
+    test_span._set_attribute(EVENT_TYPE, "test")
 
     traces = [[session_span, test_span]]
 
@@ -807,8 +807,8 @@ def test_xdist_non_worker_includes_session(mock_no_xdist_worker_env):
 def test_filter_ids_with_new_parent_session_span_id():
     """Test that _filter_ids uses new_parent_session_span_id when provided"""
     session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
-    session_span.set_tag(SESSION_ID, "12345")
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(SESSION_ID, "12345")
 
     # Create span dict like the encoder would
     sp = {"meta": {EVENT_TYPE: SESSION_TYPE, SESSION_ID: "12345"}, "trace_id": 999, "span_id": 888, "parent_id": 777}
@@ -825,8 +825,8 @@ def test_filter_ids_with_new_parent_session_span_id():
 def test_filter_ids_without_new_parent_session_span_id():
     """Test that _filter_ids falls back to original session ID when new_parent_session_span_id is 0"""
     session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
-    session_span.set_tag(SESSION_ID, "12345")
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(SESSION_ID, "12345")
 
     # Create span dict like the encoder would
     sp = {"meta": {EVENT_TYPE: SESSION_TYPE, SESSION_ID: "12345"}, "trace_id": 999, "span_id": 888, "parent_id": 777}
@@ -843,19 +843,19 @@ def test_full_encoding_with_parent_session_override():
     """Test complete encoding flow when session spans have parent_id"""
     # Create parent session span (simulating main process)
     parent_session_span = Span(name="parent.session", span_id=0xAAAAAA, service="test")
-    parent_session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
-    parent_session_span.set_tag(SESSION_ID, "99999")
+    parent_session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
+    parent_session_span._set_attribute(SESSION_ID, "99999")
 
     # Create worker session span with parent_id pointing to parent session
     worker_session_span = Span(name="worker.session", span_id=0xBBBBBB, service="test")
-    worker_session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
-    worker_session_span.set_tag(SESSION_ID, "11111")
+    worker_session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
+    worker_session_span._set_attribute(SESSION_ID, "11111")
     worker_session_span.parent_id = 0xAAAAAA  # Points to parent session
 
     # Create test span
     test_span = Span(name="test.case", span_id=0xCCCCCC, service="test", span_type="test")
-    test_span.set_tag(EVENT_TYPE, "test")
-    test_span.set_tag(SESSION_ID, "11111")  # Originally points to worker session
+    test_span._set_attribute(EVENT_TYPE, "test")
+    test_span._set_attribute(SESSION_ID, "11111")  # Originally points to worker session
 
     traces = [[worker_session_span, test_span]]
 
@@ -898,16 +898,16 @@ def test_coverage_encoder_includes_session_span():
     """Test that coverage encoder includes session span even if it doesn't have coverage data"""
     # Create session span without coverage data
     session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
-    session_span.set_tag(SESSION_ID, "12345")
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(SESSION_ID, "12345")
     session_span.parent_id = 0x999999  # Has parent ID for xdist
 
     # Create test span with coverage data
     coverage_data = {"files": [{"filename": "test.py", "segments": [[1, 0, 1, 0, -1]]}]}
     test_span = Span(name="test.case", span_id=0xBBBBBB, service="test", span_type="test")
-    test_span.set_tag(COVERAGE_TAG_NAME, json.dumps(coverage_data))
-    test_span.set_tag(SESSION_ID, "12345")
-    test_span.set_tag(SUITE_ID, "67890")
+    test_span._set_attribute(COVERAGE_TAG_NAME, json.dumps(coverage_data))
+    test_span._set_attribute(SESSION_ID, "12345")
+    test_span._set_attribute(SUITE_ID, "67890")
 
     # Create span without coverage data (should be filtered out)
     regular_span = Span(name="regular.span", span_id=0xCCCCCC, service="test")
@@ -933,16 +933,16 @@ def test_coverage_encoder_parent_session_id_propagation():
     """Test that coverage encoder properly uses parent session ID from session span"""
     # Create session span with parent_id (simulating xdist worker)
     session_span = Span(name="worker.session", span_id=0xBBBBBB, service="test")
-    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
-    session_span.set_tag(SESSION_ID, "123")
+    session_span._set_attribute(EVENT_TYPE, SESSION_TYPE)
+    session_span._set_attribute(SESSION_ID, "123")
     session_span.parent_id = 0xAAAAAA  # Parent session ID from main process
 
     # Create test span with coverage data
     coverage_data = {"files": [{"filename": "test.py", "segments": [[1, 0, 1, 0, -1]]}]}
     test_span = Span(name="test.case", span_id=0xCCCCCC, service="test", span_type="test")
-    test_span.set_tag(COVERAGE_TAG_NAME, json.dumps(coverage_data))
-    test_span.set_tag(SESSION_ID, "123")
-    test_span.set_tag(SUITE_ID, "67890")
+    test_span._set_attribute(COVERAGE_TAG_NAME, json.dumps(coverage_data))
+    test_span._set_attribute(SESSION_ID, "123")
+    test_span._set_attribute(SUITE_ID, "67890")
 
     traces = [[session_span, test_span]]
 

@@ -130,12 +130,12 @@ class TestGeventTracer(TracerTestCase):
 
         def green_1():
             with self.tracer.trace("greenlet.worker") as span:
-                span.set_tag("worker_id", "1")
+                span._set_attribute("worker_id", "1")
                 gevent.sleep(0.01)
 
         def green_2():
             with self.tracer.trace("greenlet.worker") as span:
-                span.set_tag("worker_id", "2")
+                span._set_attribute("worker_id", "2")
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
@@ -148,9 +148,9 @@ class TestGeventTracer(TracerTestCase):
         worker_1 = spans[1]
         worker_2 = spans[2]
         # check sampling priority
-        assert parent_span.get_metric(_SAMPLING_PRIORITY_KEY) == USER_KEEP
-        assert worker_1.get_metric(_SAMPLING_PRIORITY_KEY) is None
-        assert worker_2.get_metric(_SAMPLING_PRIORITY_KEY) is None
+        assert parent_span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == USER_KEEP
+        assert worker_1._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is None
+        assert worker_2._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) is None
 
     def test_trace_spawn_multiple_greenlets_multiple_traces(self):
         # multiple greenlets must be part of the same trace
@@ -162,12 +162,12 @@ class TestGeventTracer(TracerTestCase):
 
         def green_1():
             with self.tracer.trace("greenlet.worker") as span:
-                span.set_tag("worker_id", "1")
+                span._set_attribute("worker_id", "1")
                 gevent.sleep(0.01)
 
         def green_2():
             with self.tracer.trace("greenlet.worker") as span:
-                span.set_tag("worker_id", "2")
+                span._set_attribute("worker_id", "2")
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
@@ -180,11 +180,11 @@ class TestGeventTracer(TracerTestCase):
         # check spans data and hierarchy
         assert parent_span.name == "greenlet.main"
         assert parent_span.resource == "base"
-        assert worker_1.get_tag("worker_id") == "1"
+        assert worker_1._get_str_attribute("worker_id") == "1"
         assert worker_1.name == "greenlet.worker"
         assert worker_1.resource == "greenlet.worker"
         assert worker_1.parent_id == parent_span.span_id
-        assert worker_2.get_tag("worker_id") == "2"
+        assert worker_2._get_str_attribute("worker_id") == "2"
         assert worker_2.name == "greenlet.worker"
         assert worker_2.resource == "greenlet.worker"
         assert worker_2.parent_id == parent_span.span_id
@@ -199,12 +199,12 @@ class TestGeventTracer(TracerTestCase):
 
         def green_1():
             with self.tracer.trace("greenlet.worker") as span:
-                span.set_tag("worker_id", "1")
+                span._set_attribute("worker_id", "1")
                 gevent.sleep(0.01)
 
         def green_2():
             with self.tracer.trace("greenlet.worker") as span:
-                span.set_tag("worker_id", "2")
+                span._set_attribute("worker_id", "2")
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()
@@ -217,11 +217,11 @@ class TestGeventTracer(TracerTestCase):
         # check spans data and hierarchy
         assert parent_span.name == "greenlet.main"
         assert parent_span.resource == "base"
-        assert worker_1.get_tag("worker_id") == "1"
+        assert worker_1._get_str_attribute("worker_id") == "1"
         assert worker_1.name == "greenlet.worker"
         assert worker_1.resource == "greenlet.worker"
         assert worker_1.parent_id == parent_span.span_id
-        assert worker_2.get_tag("worker_id") == "2"
+        assert worker_2._get_str_attribute("worker_id") == "2"
         assert worker_2.name == "greenlet.worker"
         assert worker_2.resource == "greenlet.worker"
         assert worker_2.parent_id == parent_span.span_id
@@ -292,8 +292,8 @@ class TestGeventTracer(TracerTestCase):
         assert 1 == len(traces[0])
         span = traces[0][0]
         assert 1 == span.error
-        assert "Custom exception" == span.get_tag(ERROR_MSG)
-        assert "Traceback (most recent call last)" in span.get_tag("error.stack")
+        assert "Custom exception" == span._get_str_attribute(ERROR_MSG)
+        assert "Traceback (most recent call last)" in span._get_str_attribute("error.stack")
 
     def _assert_spawn_multiple_greenlets(self, spans):
         """A helper to assert the parenting of a trace when greenlets are
@@ -329,10 +329,10 @@ class TestGeventTracer(TracerTestCase):
 
         # check spans data and hierarchy
         assert parent.name == "greenlet.main"
-        assert worker_1.get_tag("worker_id") == "1"
+        assert worker_1._get_str_attribute("worker_id") == "1"
         assert worker_1.name == "greenlet.worker1"
         assert worker_1.resource == "greenlet.worker1"
-        assert worker_2.get_tag("worker_id") == "2"
+        assert worker_2._get_str_attribute("worker_id") == "2"
         assert worker_2.name == "greenlet.worker2"
         assert worker_2.resource == "greenlet.worker2"
 
@@ -347,14 +347,14 @@ class TestGeventTracer(TracerTestCase):
 
         def green_1():
             with self.tracer.trace("greenlet.worker1") as span:
-                span.set_tag("worker_id", "1")
+                span._set_attribute("worker_id", "1")
                 gevent.sleep(0.01)
 
         # note that replacing the `tracer.trace` call here with the
         # OpenTracing equivalent will cause the checks to fail
         def green_2():
             with self.tracer.trace("greenlet.worker2") as span:
-                span.set_tag("worker_id", "2")
+                span._set_attribute("worker_id", "2")
                 gevent.sleep(0.01)
 
         gevent.spawn(entrypoint).join()

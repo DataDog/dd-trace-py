@@ -61,22 +61,22 @@ class SpanProbeTestCase(TracerTestCase):
         entry, middle, _exit = self.get_spans()
 
         # Check for the expected tags on the entry span
-        assert entry.get_tag("_dd.code_origin.type") == "entry"
-        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
-        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
-        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
+        assert entry._get_str_attribute("_dd.code_origin.type") == "entry"
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.type") == __name__
         assert (
-            entry.get_tag("_dd.code_origin.frames.0.method") == "SpanProbeTestCase.test_span_origin.<locals>.entry_call"
+            entry._get_str_attribute("_dd.code_origin.frames.0.method") == "SpanProbeTestCase.test_span_origin.<locals>.entry_call"
         )
 
         # Check that we don't have span location tags on the middle span
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
+        assert middle._get_str_attribute("_dd.code_origin.frames.0.file") is None
+        assert middle._get_str_attribute("_dd.code_origin.frames.0.file") is None
 
         # Check that we also don't have the span location tags on the exit span
-        assert _exit.get_tag("_dd.code_origin.type") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
+        assert _exit._get_str_attribute("_dd.code_origin.type") is None
+        assert _exit._get_str_attribute("_dd.code_origin.frames.0.file") is None
+        assert _exit._get_str_attribute("_dd.code_origin.frames.0.line") is None
 
     def test_span_origin_instrument_once(self):
         """
@@ -100,7 +100,7 @@ class SpanProbeTestCase(TracerTestCase):
         entry, *_ = self.get_spans()
 
         # Check for the expected tags on the entry span
-        assert entry.get_tag("_dd.code_origin.type") == "entry"
+        assert entry._get_str_attribute("_dd.code_origin.type") == "entry"
 
     def test_span_origin_session(self):
         def entry_call():
@@ -120,7 +120,7 @@ class SpanProbeTestCase(TracerTestCase):
         entry, middle, _exit = self.get_spans()
 
         snapshot_ids_from_span_tags = {
-            s.get_tag(f"_dd.code_origin.frames.{_}.snapshot_id") for s in (entry, middle, _exit) for _ in range(8)
+            s._get_str_attribute(f"_dd.code_origin.frames.{_}.snapshot_id") for s in (entry, middle, _exit) for _ in range(8)
         } - {None}
 
         payloads = MockSpanCodeOriginProcessorEntry.get_uploader().wait_for_payloads(len(snapshot_ids_from_span_tags))
@@ -128,16 +128,16 @@ class SpanProbeTestCase(TracerTestCase):
 
         assert len(payloads) == len(snapshot_ids)
 
-        entry_snapshot_id = entry.get_tag("_dd.code_origin.frames.0.snapshot_id")
-        assert entry.get_tag("_dd.code_origin.type") == "entry"
+        entry_snapshot_id = entry._get_str_attribute("_dd.code_origin.frames.0.snapshot_id")
+        assert entry._get_str_attribute("_dd.code_origin.type") == "entry"
         assert entry_snapshot_id in snapshot_ids
 
         # Check that we don't have span location tags on the middle span
-        assert middle.get_tag("_dd.code_origin.frames.0.snapshot_id") is None
+        assert middle._get_str_attribute("_dd.code_origin.frames.0.snapshot_id") is None
 
         # Check that we don't have span location tags on the exit span
-        assert _exit.get_tag("_dd.code_origin.type") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.snapshot_id") is None
+        assert _exit._get_str_attribute("_dd.code_origin.type") is None
+        assert _exit._get_str_attribute("_dd.code_origin.frames.0.snapshot_id") is None
 
         assert snapshot_ids_from_span_tags == snapshot_ids
 
@@ -157,23 +157,23 @@ class SpanProbeTestCase(TracerTestCase):
         entry, middle, _exit = self.get_spans()
 
         # Check for the expected tags on the entry span
-        assert entry.get_tag("_dd.code_origin.type") == "entry"
-        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
-        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
-        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
+        assert entry._get_str_attribute("_dd.code_origin.type") == "entry"
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.line") == str(entry_call.__code__.co_firstlineno)
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.type") == __name__
         assert (
-            entry.get_tag("_dd.code_origin.frames.0.method")
+            entry._get_str_attribute("_dd.code_origin.frames.0.method")
             == "SpanProbeTestCase.test_span_origin_entry.<locals>.entry_call"
         )
 
         # Check that we don't have span location tags on the middle span
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
-        assert middle.get_tag("_dd.code_origin.frames.0.file") is None
+        assert middle._get_str_attribute("_dd.code_origin.frames.0.file") is None
+        assert middle._get_str_attribute("_dd.code_origin.frames.0.file") is None
 
         # Check that we also don't have the span location tags on the exit span
-        assert _exit.get_tag("_dd.code_origin.type") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.file") is None
-        assert _exit.get_tag("_dd.code_origin.frames.0.line") is None
+        assert _exit._get_str_attribute("_dd.code_origin.type") is None
+        assert _exit._get_str_attribute("_dd.code_origin.frames.0.file") is None
+        assert _exit._get_str_attribute("_dd.code_origin.frames.0.line") is None
 
     def test_span_origin_entry_method(self):
         class App:
@@ -194,12 +194,12 @@ class SpanProbeTestCase(TracerTestCase):
         entry, *_ = self.get_spans()
 
         # Check for the expected tags on the entry span
-        assert entry.get_tag("_dd.code_origin.type") == "entry"
-        assert entry.get_tag("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
-        assert entry.get_tag("_dd.code_origin.frames.0.line") == str(App.entry_call.__code__.co_firstlineno)
-        assert entry.get_tag("_dd.code_origin.frames.0.type") == __name__
+        assert entry._get_str_attribute("_dd.code_origin.type") == "entry"
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.file") == str(Path(__file__).resolve())
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.line") == str(App.entry_call.__code__.co_firstlineno)
+        assert entry._get_str_attribute("_dd.code_origin.frames.0.type") == __name__
         assert (
-            entry.get_tag("_dd.code_origin.frames.0.method")
+            entry._get_str_attribute("_dd.code_origin.frames.0.method")
             == "SpanProbeTestCase.test_span_origin_entry_method.<locals>.App.entry_call"
         )
 

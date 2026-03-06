@@ -84,7 +84,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self._coverage_data: TestVisibilityCoverageData = TestVisibilityCoverageData()
 
         if self._parameters is not None:
-            self.set_tag(test.PARAMETERS, parameters)
+            self.set_tag(test.PARAMETERS, parameters)  # ast-grep-ignore: span-set-tag
 
         self._is_new = is_new
         self._is_quarantined = is_quarantined
@@ -140,40 +140,40 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _set_item_tags(self) -> None:
         """Overrides parent tags for cases where they need to be modified"""
         if self._is_benchmark:
-            self.set_tag(test.TYPE, BENCHMARK)
+            self.set_tag(test.TYPE, BENCHMARK)  # ast-grep-ignore: span-set-tag
         else:
-            self.set_tag(test.TYPE, SpanTypes.TEST)
+            self.set_tag(test.TYPE, SpanTypes.TEST)  # ast-grep-ignore: span-set-tag
 
         if self._overwritten_suite_name is not None:
-            self.set_tag(test.SUITE, self._overwritten_suite_name)
+            self.set_tag(test.SUITE, self._overwritten_suite_name)  # ast-grep-ignore: span-set-tag
 
     def _set_known_tests_tags(self) -> None:
         # NOTE: The `is_new` tag is currently being set in the context of:
         # - Known tests enabled
         # - EFD (subset of known tests)
         if self._is_known_tests_enabled and self.is_new():
-            self.set_tag(TEST_IS_NEW, self._is_new)
+            self.set_tag(TEST_IS_NEW, self._is_new)  # ast-grep-ignore: span-set-tag
 
     def _set_efd_tags(self) -> None:
         if self._efd_is_retry:
-            self.set_tag(TEST_IS_RETRY, self._efd_is_retry)
-            self.set_tag(TEST_RETRY_REASON, RETRY_REASON.EARLY_FLAKE_DETECTION.value)
+            self.set_tag(TEST_IS_RETRY, self._efd_is_retry)  # ast-grep-ignore: span-set-tag
+            self.set_tag(TEST_RETRY_REASON, RETRY_REASON.EARLY_FLAKE_DETECTION.value)  # ast-grep-ignore: span-set-tag
 
         if self._efd_abort_reason is not None:
-            self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)
+            self.set_tag(TEST_EFD_ABORT_REASON, self._efd_abort_reason)  # ast-grep-ignore: span-set-tag
 
     def _set_atr_tags(self) -> None:
         if self._atr_is_retry:
-            self.set_tag(TEST_IS_RETRY, self._atr_is_retry)
-            self.set_tag(TEST_RETRY_REASON, RETRY_REASON.AUTO_TEST_RETRIES.value)
+            self.set_tag(TEST_IS_RETRY, self._atr_is_retry)  # ast-grep-ignore: span-set-tag
+            self.set_tag(TEST_RETRY_REASON, RETRY_REASON.AUTO_TEST_RETRIES.value)  # ast-grep-ignore: span-set-tag
 
     def _set_test_management_tags(self) -> None:
         if self._is_quarantined:
-            self.set_tag(TEST_IS_QUARANTINED, self._is_quarantined)
+            self.set_tag(TEST_IS_QUARANTINED, self._is_quarantined)  # ast-grep-ignore: span-set-tag
         if self._is_disabled:
-            self.set_tag(TEST_IS_DISABLED, self._is_disabled)
+            self.set_tag(TEST_IS_DISABLED, self._is_disabled)  # ast-grep-ignore: span-set-tag
         if self._is_attempt_to_fix:
-            self.set_tag(TEST_IS_ATTEMPT_TO_FIX, self._is_attempt_to_fix)
+            self.set_tag(TEST_IS_ATTEMPT_TO_FIX, self._is_attempt_to_fix)  # ast-grep-ignore: span-set-tag
 
     def _set_span_tags(self) -> None:
         """This handles setting tags that can't be properly stored in self._tags
@@ -218,14 +218,14 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     ) -> None:
         log.debug("Test Visibility: finishing %s, with status: %s, skip_reason: %s", self, status, skip_reason)
 
-        self.set_tag(test.TYPE, SpanTypes.TEST)
+        self.set_tag(test.TYPE, SpanTypes.TEST)  # ast-grep-ignore: span-set-tag
 
         # Use override_status if provided, otherwise use status parameter
         _status = override_status if override_status is not None else status
         if _status is not None:
             self.set_status(_status)
         if skip_reason is not None:
-            self.set_tag(test.SKIP_REASON, skip_reason)
+            self.set_tag(test.SKIP_REASON, skip_reason)  # ast-grep-ignore: span-set-tag
         if exc_info is not None:
             self._exc_info = exc_info
 
@@ -318,7 +318,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def set_parameters(self, parameters: str) -> None:
         self._parameters = parameters
-        self.set_tag(test.PARAMETERS, self._parameters)
+        self.set_tag(test.PARAMETERS, self._parameters)  # ast-grep-ignore: span-set-tag
 
     def is_new(self):
         # NOTE: this is a hack because tests with parameters cannot currently be counted as new (due to EFD design
@@ -327,21 +327,21 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def is_quarantined(self):
         return self._session_settings.test_management_settings.enabled and (
-            self._is_quarantined or self.get_tag(TEST_IS_QUARANTINED)
+            self._is_quarantined or self._get_str_attribute(TEST_IS_QUARANTINED)  # ast-grep-ignore: span-get-tag
         )
 
     def is_disabled(self):
         return self._session_settings.test_management_settings.enabled and (
-            self._is_disabled or self.get_tag(TEST_IS_DISABLED)
+            self._is_disabled or self._get_str_attribute(TEST_IS_DISABLED)  # ast-grep-ignore: span-get-tag
         )
 
     def is_attempt_to_fix(self):
         return self._session_settings.test_management_settings.enabled and (
-            self._is_attempt_to_fix or self.get_tag(TEST_IS_ATTEMPT_TO_FIX)
+            self._is_attempt_to_fix or self._get_str_attribute(TEST_IS_ATTEMPT_TO_FIX)  # ast-grep-ignore: span-get-tag
         )
 
     def has_failed_all_retries(self):
-        return bool(self.get_tag(TEST_HAS_FAILED_ALL_RETRIES))
+        return bool(self._get_str_attribute(TEST_HAS_FAILED_ALL_RETRIES))  # ast-grep-ignore: span-get-tag
 
     def _set_itr_tags(self, itr_enabled: bool) -> None:
         """Set test-level ITR tags"""
@@ -353,7 +353,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             and self._session_settings.itr_correlation_id
             and self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST
         ):
-            self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
+            self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)  # ast-grep-ignore: span-set-tag
 
     #
     # EFD (Early Flake Detection) functionality
@@ -564,7 +564,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
                 retry_test.set_status(status)
 
             if self.atr_get_final_status() == TestStatus.FAIL:
-                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)  # ast-grep-ignore: span-set-tag
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
@@ -659,9 +659,9 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
             all_failed = all(retry._status == TestStatus.FAIL for retry in self._attempt_to_fix_retries)
 
             if all_failed:
-                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)
+                retry_test.set_tag(TEST_HAS_FAILED_ALL_RETRIES, True)  # ast-grep-ignore: span-set-tag
 
-            retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)
+            retry_test.set_tag(TEST_ATTEMPT_TO_FIX_PASSED, all_passed)  # ast-grep-ignore: span-set-tag
 
         retry_test.finish_test(status=status, skip_reason=skip_reason, exc_info=exc_info)
 
@@ -690,12 +690,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def _is_rum(self):
         if self._span is None:
             return False
-        return self._span.get_tag("test.is_rum_active") == "true"
+        return self._span._get_str_attribute("test.is_rum_active") == "true"  # ast-grep-ignore: span-get-tag
 
     def _get_browser_driver(self):
         if self._span is None:
             return None
-        return self._span.get_tag("test.browser.driver")
+        return self._span._get_str_attribute("test.browser.driver")  # ast-grep-ignore: span-get-tag
 
     #
     # Benchmark test functionality
@@ -705,12 +705,12 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
         self._is_benchmark = is_benchmark
 
         if self._benchmark_duration_data is not None:
-            self.set_tag(BENCHMARK_INFO, "Time")
+            self.set_tag(BENCHMARK_INFO, "Time")  # ast-grep-ignore: span-set-tag
 
             for tag, attr in BENCHMARK_TAG_MAP.items():
                 value = getattr(self._benchmark_duration_data, tag)
                 if value is not None:
-                    self.set_tag(attr, value)
+                    self.set_tag(attr, value)  # ast-grep-ignore: span-set-tag
 
     def set_final_status(self, final_status: TestStatus):
         """Set the final_status tag on the test span.

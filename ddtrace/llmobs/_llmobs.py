@@ -504,9 +504,9 @@ class LLMObs(Service):
             meta["intent"] = str(intent)
         if span.error:
             meta["error"] = _ErrorField(
-                message=span.get_tag(ERROR_MSG) or "",
-                stack=span.get_tag(ERROR_STACK) or "",
-                type=span.get_tag(ERROR_TYPE) or "",
+                message=span._get_str_attribute(ERROR_MSG) or "",
+                stack=span._get_str_attribute(ERROR_STACK) or "",
+                type=span._get_str_attribute(ERROR_TYPE) or "",
             )
 
         if self._user_span_processor:
@@ -606,7 +606,7 @@ class LLMObs(Service):
             "language": "python",
             "error": span.error,
         }
-        err_type = span.get_tag(ERROR_TYPE)
+        err_type = span._get_str_attribute(ERROR_TYPE)
         if err_type:
             tags["error_type"] = err_type
         if session_id:

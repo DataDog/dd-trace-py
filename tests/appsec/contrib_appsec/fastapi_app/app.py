@@ -73,7 +73,7 @@ def get_app():
             root_span = tracer.current_root_span()
             if root_span is not None:
                 root_span.service = service_name
-                root_span.set_tag("scope", service_name)
+                root_span._set_attribute("scope", service_name)
 
         return await call_next(request)
 
@@ -176,7 +176,7 @@ def get_app():
                             res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span._set_attribute("rasp.request.done", endpoint)
             return HTMLResponse("<\br>\n".join(res))
         elif endpoint == "ssrf":
             res = ["ssrf endpoint"]
@@ -216,7 +216,7 @@ def get_app():
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span._set_attribute("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "sql_injection":
             res = ["sql_injection endpoint"]
@@ -229,7 +229,7 @@ def get_app():
                         res.append(f"Url: {list(cursor)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span._set_attribute("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "shell_injection":
             res = ["shell_injection endpoint"]
@@ -243,7 +243,7 @@ def get_app():
                             res.append(f"cmd stdout: {subprocess.run(f'ls {cmd}', shell=True, timeout=1)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
-            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span._set_attribute("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "command_injection":
             res = ["command_injection endpoint"]
@@ -260,9 +260,9 @@ def get_app():
                         res.append(f"cmd stdout: {subprocess.run(cmd, timeout=0.25)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
-            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span._set_attribute("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
-        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span._set_attribute("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
     @app.get("/redirect/{route:str}/{port:int}", response_class=JSONResponse)

@@ -53,10 +53,10 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.url") == URL_200
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == SOCKET
+        assert s._get_str_attribute("http.url") == URL_200
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == SOCKET
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work
@@ -84,10 +84,10 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             spans = self.pop_spans()
             assert len(spans) == 1
             s = spans[0]
-            assert s.get_tag(http.METHOD) == "GET"
-            assert s.get_tag("component") == "requests"
-            assert s.get_tag("span.kind") == "client"
-            assert s.get_tag("out.host") == SOCKET
+            assert s._get_str_attribute(http.METHOD) == "GET"
+            assert s._get_str_attribute("component") == "requests"
+            assert s._get_str_attribute("span.kind") == "client"
+            assert s._get_str_attribute("out.host") == SOCKET
             assert_span_http_status_code(s, 200)
 
     def test_untraced_request(self):
@@ -120,14 +120,14 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert_is_measured(s)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == SOCKET
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == SOCKET
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
-        assert http.QUERY_STRING not in s.get_tags()
+        assert http.QUERY_STRING not in s._get_str_attributes()
         assert s.resource == "GET /status/200"
 
     def test_auth_200(self):
@@ -135,7 +135,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag(http.URL) == URL_200
+        assert s._get_str_attribute(http.URL) == URL_200
         assert s.resource == "GET /status/200"
 
     def test_200_send(self):
@@ -151,10 +151,10 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert_is_measured(s)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == SOCKET
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == SOCKET
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
@@ -172,15 +172,15 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert_is_measured(s)
-        assert s.get_tag(http.METHOD) == "GET"
+        assert s._get_str_attribute(http.METHOD) == "GET"
         assert_span_http_status_code(s, 200)
-        assert s.get_tag(http.URL) == URL_200 + "?" + query_string
+        assert s._get_str_attribute(http.URL) == URL_200 + "?" + query_string
         assert s.error == 0
         assert s.span_type == "http"
-        assert s.get_tag(http.QUERY_STRING) == query_string
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == SOCKET
+        assert s._get_str_attribute(http.QUERY_STRING) == query_string
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == SOCKET
         assert s.resource == "GET /status/200"
 
     def test_requests_module_200(self):
@@ -194,10 +194,10 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert_is_measured(s)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == SOCKET
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == SOCKET
         assert_span_http_status_code(s, 200)
         assert s.error == 0
         assert s.span_type == "http"
@@ -212,10 +212,10 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert_is_measured(s)
-        assert s.get_tag(http.METHOD) == "POST"
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == SOCKET
+        assert s._get_str_attribute(http.METHOD) == "POST"
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == SOCKET
         assert_span_http_status_code(s, 500)
         assert s.error == 1
         assert s.resource == "POST /status/500"
@@ -233,17 +233,17 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert_is_measured(s)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == "doesnotexist.google.com"
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == "doesnotexist.google.com"
         assert s.error == 1
         assert (
             "HTTPConnectionPool(host='doesnotexist.google.com', port=80): Max retries exceeded with url: /"
-            in s.get_tag(ERROR_MSG)
+            in s._get_str_attribute(ERROR_MSG)
         )
-        assert s.get_tag(ERROR_STACK)
-        assert "requests.exception" in s.get_tag(ERROR_TYPE)
+        assert s._get_str_attribute(ERROR_STACK)
+        assert "requests.exception" in s._get_str_attribute(ERROR_TYPE)
 
     def test_500(self):
         out = self.session.get(URL_500)
@@ -254,10 +254,10 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         s = spans[0]
 
         assert_is_measured(s)
-        assert s.get_tag(http.METHOD) == "GET"
-        assert s.get_tag("component") == "requests"
-        assert s.get_tag("span.kind") == "client"
-        assert s.get_tag("out.host") == SOCKET
+        assert s._get_str_attribute(http.METHOD) == "GET"
+        assert s._get_str_attribute("component") == "requests"
+        assert s._get_str_attribute("span.kind") == "client"
+        assert s._get_str_attribute("out.host") == SOCKET
         assert_span_http_status_code(s, 500)
         assert s.error == 1
         assert s.resource == "GET /status/500"
@@ -342,7 +342,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 1
             s = spans[0]
 
-            assert s.get_tag("out.host") == SOCKET
+            assert s._get_str_attribute("out.host") == SOCKET
             assert s.service == HOST_AND_PORT
 
     def test_split_by_domain(self):
@@ -356,7 +356,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 1
             s = spans[0]
 
-            assert s.get_tag("out.host") == SOCKET
+            assert s._get_str_attribute("out.host") == SOCKET
             assert s.service == HOST_AND_PORT
             assert s.resource == "GET /status/200"
 
@@ -370,7 +370,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 1
             s = spans[0]
 
-            assert s.get_tag("out.host") == SOCKET
+            assert s._get_str_attribute("out.host") == SOCKET
             assert s.service == HOST_AND_PORT
             assert s.resource == "GET /status/200"
 
@@ -395,7 +395,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 1
             s = spans[0]
 
-            assert s.get_tag("out.host") == SOCKET
+            assert s._get_str_attribute("out.host") == SOCKET
             assert s.service == HOST_AND_PORT
 
     def test_split_by_domain_includes_port(self):
@@ -408,7 +408,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 1
             s = spans[0]
 
-            assert s.get_tag("out.host") == SOCKET
+            assert s._get_str_attribute("out.host") == SOCKET
             assert s.service == HOST_AND_PORT
 
     def test_split_by_domain_includes_port_path(self):
@@ -421,7 +421,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             assert len(spans) == 1
             s = spans[0]
 
-            assert s.get_tag("out.host") == SOCKET
+            assert s._get_str_attribute("out.host") == SOCKET
             assert s.service == HOST_AND_PORT
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_REQUESTS_SERVICE="override"))
@@ -500,8 +500,8 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.request.headers.my-header") is None
-        assert s.get_tag("http.response.headers.access-control-allow-origin") is None
+        assert s._get_str_attribute("http.request.headers.my-header") is None
+        assert s._get_str_attribute("http.response.headers.access-control-allow-origin") is None
 
         # Enabled when explicitly configured
         with self.override_config("requests", {}):
@@ -510,7 +510,7 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
             spans = self.pop_spans()
         assert len(spans) == 1
         s = spans[0]
-        assert s.get_tag("http.request.headers.my-header") == "my_value"
+        assert s._get_str_attribute("http.request.headers.my-header") == "my_value"
 
 
 def test_traced_session_no_patch_all(tmpdir):

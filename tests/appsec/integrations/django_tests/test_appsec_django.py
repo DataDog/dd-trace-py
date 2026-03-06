@@ -40,7 +40,7 @@ def update_django_config():
 def test_django_client_ip_nothing(client, test_spans, tracer):
     with override_global_config(dict(_asm_enabled=True)):
         root_span, _ = _aux_appsec_get_root_span(client, test_spans, tracer, url="/?a=1&b&c=d")
-        ip = root_span.get_tag(http.CLIENT_IP)
+        ip = root_span._get_str_attribute(http.CLIENT_IP)
         assert not ip or ip == "127.0.0.1"  # this varies when running under PyCharm or CI
 
 
@@ -60,11 +60,11 @@ def test_request_block_request_callable(client, test_spans, tracer):
             r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
         )
         assert body_parsed == constants.BLOCKED_RESPONSE_JSON
-        assert root.get_tag(http.STATUS_CODE) == "403"
-        assert root.get_tag(http.URL) == "http://testserver/appsec/block/"
-        assert root.get_tag(http.METHOD) == "GET"
-        assert root.get_tag(http.USER_AGENT) == "fooagent"
-        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
+        assert root._get_str_attribute(http.STATUS_CODE) == "403"
+        assert root._get_str_attribute(http.URL) == "http://testserver/appsec/block/"
+        assert root._get_str_attribute(http.METHOD) == "GET"
+        assert root._get_str_attribute(http.USER_AGENT) == "fooagent"
+        assert root._get_str_attribute(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
         if hasattr(result, "headers"):
             assert result.headers["content-type"] == "application/json"
 
@@ -82,23 +82,19 @@ def test_create_new_user(client, test_spans, tracer):
         # Should not block by IP, but the block callable is called directly inside that view
         assert result.status_code == 200
         assert result.content == b"OK"
-        assert root.get_tag(http.STATUS_CODE) == "200"
-        assert root.get_tag(http.URL) == "http://testserver/appsec/signup/?login=john&<redacted>", root.get_tag(
-            http.URL
-        )
-        assert root.get_tag(http.METHOD) == "GET"
-        assert root.get_tag(http.USER_AGENT) == "fooagent"
-        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith("text/html")
+        assert root._get_str_attribute(http.STATUS_CODE) == "200"
+        assert root._get_str_attribute(http.URL) == "http://testserver/appsec/signup/?login=john&<redacted>", root._get_str_attribute(http.URL)
+        assert root._get_str_attribute(http.METHOD) == "GET"
+        assert root._get_str_attribute(http.USER_AGENT) == "fooagent"
+        assert root._get_str_attribute(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type").startswith("text/html")
         if hasattr(result, "headers"):
             assert result.headers["content-type"].startswith("text/html")
-        assert root.get_tag("appsec.events.users.signup.usr.login") == "john"
-        assert root.get_tag("_dd.appsec.usr.login") == "john"
-        assert root.get_tag("_dd.appsec.events.users.signup.auto.mode") == "identification", root.get_tag(
-            "_dd.appsec.events.users.signup.auto.mode"
-        )
-        assert root.get_tag("appsec.events.users.signup.track") == "true"
-        assert root.get_tag("appsec.events.users.signup.usr.id")
-        assert root.get_tag("_dd.appsec.usr.id")
+        assert root._get_str_attribute("appsec.events.users.signup.usr.login") == "john"
+        assert root._get_str_attribute("_dd.appsec.usr.login") == "john"
+        assert root._get_str_attribute("_dd.appsec.events.users.signup.auto.mode") == "identification", root._get_str_attribute("_dd.appsec.events.users.signup.auto.mode")
+        assert root._get_str_attribute("appsec.events.users.signup.track") == "true"
+        assert root._get_str_attribute("appsec.events.users.signup.usr.id")
+        assert root._get_str_attribute("_dd.appsec.usr.id")
 
 
 _BLOCKED_USER = "123456"
@@ -111,7 +107,7 @@ def test_request_userblock_200(client, test_spans, tracer):
             client, test_spans, tracer, url="/appsec/checkuser/%s/" % _ALLOWED_USER
         )
         assert result.status_code == 200
-        assert root.get_tag(http.STATUS_CODE) == "200"
+        assert root._get_str_attribute(http.STATUS_CODE) == "200"
 
 
 def test_request_userblock_403(client, test_spans, tracer):
@@ -125,10 +121,10 @@ def test_request_userblock_403(client, test_spans, tracer):
             r'"security_response_id":"[-0-9a-z]+"', r'"security_response_id":"[security_response_id]"', body
         )
         assert body_parsed == constants.BLOCKED_RESPONSE_JSON, (body_parsed, constants.BLOCKED_RESPONSE_JSON)
-        assert root.get_tag(http.STATUS_CODE) == "403"
-        assert root.get_tag(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
-        assert root.get_tag(http.METHOD) == "GET"
-        assert root.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
+        assert root._get_str_attribute(http.STATUS_CODE) == "403"
+        assert root._get_str_attribute(http.URL) == "http://testserver/appsec/checkuser/%s/" % _BLOCKED_USER
+        assert root._get_str_attribute(http.METHOD) == "GET"
+        assert root._get_str_attribute(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
         if hasattr(result, "headers"):
             assert result.headers["content-type"] == "application/json"
 
@@ -200,25 +196,25 @@ def test_django_login_sucess_identification(client, test_spans, tracer, use_logi
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
-        assert login_span.get_tag(user.ID) == "1"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
-        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
+        assert login_span._get_str_attribute(user.ID) == "1"
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.track") == "true"
+        assert login_span._get_str_attribute(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
         if use_login:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "fred"
+            assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == "fred"
         else:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") is None
+            assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") is None
         if use_email:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
-            assert login_span.get_tag("usr.email") == "fred@test.com"
+            assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") == "fred@test.com"
+            assert login_span._get_str_attribute("usr.email") == "fred@test.com"
         else:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
-            assert login_span.get_tag("usr.email") is None
+            assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
+            assert login_span._get_str_attribute("usr.email") is None
         if use_realname:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
-            assert login_span.get_tag("usr.name") == "Fred"
+            assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") == "Fred"
+            assert login_span._get_str_attribute("usr.name") == "Fred"
         else:
-            assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
-            assert login_span.get_tag("usr.name") is None
+            assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
+            assert login_span._get_str_attribute("usr.name") is None
 
 
 @pytest.mark.django_db
@@ -249,14 +245,14 @@ def test_django_login_sucess_anonymization(client, test_spans, tracer, use_login
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
-        assert login_span.get_tag(user.ID) == "1"
-        assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
-        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.ANON
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == (
+        assert login_span._get_str_attribute(user.ID) == "1"
+        assert login_span._get_str_attribute("appsec.events.users.login.success.track") == "true"
+        assert login_span._get_str_attribute(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.ANON
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login") == (
             "anon_d1ad1f735a4381c2e8dbed0222db1136" if use_login else None
         )
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.email") is None
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.username") is None
 
 
 @pytest.mark.django_db
@@ -288,7 +284,7 @@ def test_django_login_sucess_anonymous_username(client, test_spans, tracer):
         client.login(username="AnonymousUser", password="secret")
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag(user.ID) == "1"
+        assert login_span._get_str_attribute(user.ID) == "1"
 
 
 @pytest.mark.django_db
@@ -303,8 +299,8 @@ def test_django_login_sucess_ident_is_default_if_missing(client, test_spans, tra
         client.login(username="fred", password="secret")
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag(user.ID) == "1"
-        assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
+        assert login_span._get_str_attribute(user.ID) == "1"
+        assert login_span._get_str_attribute("appsec.events.users.login.success.track") == "true"
 
 
 @pytest.mark.django_db
@@ -316,10 +312,10 @@ def test_django_login_failure_user_doesnt_exists(client, test_spans, tracer):
         client.login(username="missing", password="secret2")
         assert not get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
-        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.IDENT
+        assert login_span._get_str_attribute("appsec.events.users.login.failure.track") == "true"
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "missing"
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "false"
+        assert login_span._get_str_attribute(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.IDENT
 
 
 @pytest.mark.django_db
@@ -335,12 +331,12 @@ def test_django_login_failure_identification_user_does_exist(client, test_spans,
         client.login(username="fred", password="wrong")
         assert not get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "1"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
-        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.IDENT
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.email") is None
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.username") is None
+        assert login_span._get_str_attribute("appsec.events.users.login.failure.track") == "true"
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "1"
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
+        assert login_span._get_str_attribute(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.IDENT
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.email") is None
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.username") is None
 
 
 @pytest.mark.django_db
@@ -356,12 +352,12 @@ def test_django_login_failure_anonymization_user_does_exist(client, test_spans, 
         client.login(username="fred", password="wrong")
         assert not get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
-        assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
-        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.ANON
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "1"
-        assert login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.email")
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.username")
+        assert login_span._get_str_attribute("appsec.events.users.login.failure.track") == "true"
+        assert login_span._get_str_attribute(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.ANON
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID) == "1"
+        assert login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.EXISTS) == "true"
+        assert not login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.email")
+        assert not login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.username")
 
 
 @pytest.mark.django_db
@@ -384,15 +380,15 @@ def test_django_login_sucess_anonymization_but_user_set_login(client, test_spans
         assert get_user(client).is_authenticated
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
-        assert login_span.get_tag(user.ID) == "anon_d1ad1f735a4381c2e8dbed0222db1136"
-        assert login_span.get_tag("appsec.events.users.login.success.track") == "true"
-        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.ANON
+        assert login_span._get_str_attribute(user.ID) == "anon_d1ad1f735a4381c2e8dbed0222db1136"
+        assert login_span._get_str_attribute("appsec.events.users.login.success.track") == "true"
+        assert login_span._get_str_attribute(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.ANON
         assert (
-            login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
+            login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX + ".success.login")
             == "anon_d1ad1f735a4381c2e8dbed0222db1136"
         )
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
+        assert not login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.email")
+        assert not login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".success.username")
 
 
 @pytest.mark.django_db
@@ -414,11 +410,11 @@ def test_django_login_failure_anonymization_but_user_set_login(client, test_span
         client.login(username="fred2", password="wrong")
         login_span = test_spans.find_span(name="django.contrib.auth.login")
         assert login_span
-        assert login_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.ANON
-        assert login_span.get_tag("appsec.events.users.login.failure.track") == "true"
+        assert login_span._get_str_attribute(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.ANON
+        assert login_span._get_str_attribute("appsec.events.users.login.failure.track") == "true"
         assert (
-            login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID)
+            login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure." + user.ID)
             == "anon_d1ad1f735a4381c2e8dbed0222db1136"
         )
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.email")
-        assert not login_span.get_tag(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.username")
+        assert not login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.email")
+        assert not login_span._get_str_attribute(APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC + ".failure.username")

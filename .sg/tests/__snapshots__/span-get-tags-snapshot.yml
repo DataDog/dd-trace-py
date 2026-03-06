@@ -1,0 +1,23 @@
+id: span-get-tags
+snapshots:
+  self.get_tags():
+    labels:
+    - source: self.get_tags()
+      style: primary
+      start: 0
+      end: 15
+  span.get_tags():
+    labels:
+    - source: span.get_tags()
+      style: primary
+      start: 0
+      end: 15
+  ? |
+    tags = span.get_tags()
+    for key, value in tags.items():
+        process(key, value)
+  : labels:
+    - source: span.get_tags()
+      style: primary
+      start: 7
+      end: 22

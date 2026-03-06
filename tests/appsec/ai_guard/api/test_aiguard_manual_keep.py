@@ -31,7 +31,7 @@ class TestAiguardManualKeep:
         """_aiguard_manual_keep sets _dd.p.dm to -13 (AI_GUARD)."""
         with tracer.trace("root_span") as span:
             _aiguard_manual_keep(span)
-            assert span.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
+            assert span._get_str_attribute(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
 
     def test_aiguard_manual_keep_does_not_set_propagation_header(self, tracer):
         """_aiguard_manual_keep does NOT set the ASM security propagation header (_dd.p.ts)."""
@@ -59,7 +59,7 @@ class TestAiguardManualKeep:
                 client.evaluate(MESSAGES)
 
         assert root_span.context.sampling_priority == USER_KEEP
-        assert root_span.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
+        assert root_span._get_str_attribute(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_evaluate_sets_manual_keep_on_root_span_blocking(self, mock_execute_request, tracer, test_spans):
@@ -82,7 +82,7 @@ class TestAiguardManualKeep:
                     client.evaluate(MESSAGES, Options(block=True))
 
         assert root_span.context.sampling_priority == USER_KEEP
-        assert root_span.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
+        assert root_span._get_str_attribute(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_evaluate_sets_manual_keep_on_root_span_deny_non_blocking(self, mock_execute_request, tracer, test_spans):
@@ -105,7 +105,7 @@ class TestAiguardManualKeep:
 
         assert result["action"] == "DENY"
         assert root_span.context.sampling_priority == USER_KEEP
-        assert root_span.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
+        assert root_span._get_str_attribute(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
 
     @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
     def test_evaluate_no_root_span_does_not_crash(self, mock_execute_request, ai_guard_client):
@@ -134,7 +134,7 @@ class TestAiguardManualKeep:
                 client.evaluate(MESSAGES)
 
         # Root span should have the manual keep tags
-        assert root_span.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
+        assert root_span._get_str_attribute(SAMPLING_DECISION_TRACE_TAG_KEY) == "-%d" % SamplingMechanism.AI_GUARD
 
         # Find the AI Guard child span and verify it does NOT have the decision maker tag
         ai_guard_span = None
@@ -143,4 +143,4 @@ class TestAiguardManualKeep:
                 ai_guard_span = span
                 break
         assert ai_guard_span is not None
-        assert ai_guard_span.get_tag(SAMPLING_DECISION_TRACE_TAG_KEY) is None
+        assert ai_guard_span._get_str_attribute(SAMPLING_DECISION_TRACE_TAG_KEY) is None

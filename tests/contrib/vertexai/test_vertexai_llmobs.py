@@ -711,8 +711,8 @@ def expected_llmobs_error_span_event(span):
         input_messages=[{"content": "Why do bears hibernate?"}],
         output_messages=[{"content": ""}],
         error="builtins.TypeError",
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )
@@ -790,8 +790,8 @@ def expected_llmobs_stream_error_span_event(span):
         input_messages=[{"content": "How big is the solar system?"}],
         output_messages=[{"content": ""}],
         error="builtins.TypeError",
-        error_message=span.get_tag("error.message"),
-        error_stack=span.get_tag("error.stack"),
+        error_message=span._get_str_attribute("error.message"),
+        error_stack=span._get_str_attribute("error.stack"),
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
     )

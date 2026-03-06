@@ -41,16 +41,16 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
 
         for span, resource, query in zip(spans, resources_expected, queries_expected):
             self.assert_is_measured(span)
-            self.assertEqual(span.get_tag(net.TARGET_HOST), TEST_HOST)
-            self.assertEqual(span.get_metric("network.destination.port"), TEST_PORT)
+            self.assertEqual(span._get_str_attribute(net.TARGET_HOST), TEST_HOST)
+            self.assertEqual(span._get_numeric_attribute("network.destination.port"), TEST_PORT)
             self.assertEqual(span.name, memcachedx.CMD)
             self.assertEqual(span.span_type, "cache")
             self.assertEqual(span.service, memcachedx.SERVICE)
-            self.assertEqual(span.get_tag(memcachedx.QUERY), query)
+            self.assertEqual(span._get_str_attribute(memcachedx.QUERY), query)
             self.assertEqual(span.resource, resource)
-            self.assertEqual(span.get_tag("component"), "pymemcache")
-            self.assertEqual(span.get_tag("span.kind"), "client")
-            self.assertEqual(span.get_tag("db.system"), "memcached")
+            self.assertEqual(span._get_str_attribute("component"), "pymemcache")
+            self.assertEqual(span._get_str_attribute("span.kind"), "client")
+            self.assertEqual(span._get_str_attribute("db.system"), "memcached")
 
         return spans
 
@@ -115,13 +115,13 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         get_many_0_keys = spans[2]
 
         assert get_many_2_keys.resource == "get_many"
-        assert get_many_2_keys.get_metric("db.row_count") == 2
+        assert get_many_2_keys._get_numeric_attribute("db.row_count") == 2
 
         assert get_many_1_keys.resource == "get_many"
-        assert get_many_1_keys.get_metric("db.row_count") == 1
+        assert get_many_1_keys._get_numeric_attribute("db.row_count") == 1
 
         assert get_many_0_keys.resource == "get_many"
-        assert get_many_0_keys.get_metric("db.row_count") == 0
+        assert get_many_0_keys._get_numeric_attribute("db.row_count") == 0
 
     def test_gets_many_rowcount(self):
         client = self.make_client(
@@ -150,13 +150,13 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         get_many_0_keys = spans[2]
 
         assert get_many_2_keys.resource == "gets_many"
-        assert get_many_2_keys.get_metric("db.row_count") == 2
+        assert get_many_2_keys._get_numeric_attribute("db.row_count") == 2
 
         assert get_many_1_keys.resource == "gets_many"
-        assert get_many_1_keys.get_metric("db.row_count") == 1
+        assert get_many_1_keys._get_numeric_attribute("db.row_count") == 1
 
         assert get_many_0_keys.resource == "gets_many"
-        assert get_many_0_keys.get_metric("db.row_count") == 0
+        assert get_many_0_keys._get_numeric_attribute("db.row_count") == 0
 
     def test_get_multi_rowcount(self):
         client = self.make_client(
@@ -185,13 +185,13 @@ class PymemcacheClientTestCaseMixin(TracerTestCase):
         get_many_0_keys = spans[2]
 
         assert get_many_2_keys.resource == "get_many"
-        assert get_many_2_keys.get_metric("db.row_count") == 2
+        assert get_many_2_keys._get_numeric_attribute("db.row_count") == 2
 
         assert get_many_1_keys.resource == "get_many"
-        assert get_many_1_keys.get_metric("db.row_count") == 1
+        assert get_many_1_keys._get_numeric_attribute("db.row_count") == 1
 
         assert get_many_0_keys.resource == "get_many"
-        assert get_many_0_keys.get_metric("db.row_count") == 0
+        assert get_many_0_keys._get_numeric_attribute("db.row_count") == 0
 
     def test_delete_not_found(self):
         client = self.make_client([b"NOT_FOUND\r\n"])

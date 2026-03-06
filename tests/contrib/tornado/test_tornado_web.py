@@ -38,22 +38,22 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.SuccessHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
-        assert "/success/" == request_span.get_tag("http.route")
+        assert "GET" == request_span._get_str_attribute("http.method")
+        assert "/success/" == request_span._get_str_attribute("http.route")
         assert_span_http_status_code(request_span, 200)
         if config.tornado.trace_query_string:
-            assert query_string == request_span.get_tag(http.QUERY_STRING)
+            assert query_string == request_span._get_str_attribute(http.QUERY_STRING)
         else:
-            assert http.QUERY_STRING not in request_span.get_tags()
+            assert http.QUERY_STRING not in request_span._get_str_attributes()
 
         if config.tornado.http_tag_query_string:
-            assert self.get_url("/success/") + fqs == request_span.get_tag(http.URL)
+            assert self.get_url("/success/") + fqs == request_span._get_str_attribute(http.URL)
         else:
-            assert self.get_url("/success/") == request_span.get_tag(http.URL)
+            assert self.get_url("/success/") == request_span._get_str_attribute(http.URL)
 
         assert 0 == request_span.error
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_success_handler_query_string(self):
         self.test_success_handler("foo=bar")
@@ -78,13 +78,13 @@ class TestTornadoWeb(TornadoTestCase):
         request_span = traces[0][0]
         assert_is_measured(request_span)
         assert "tests.contrib.tornado.web.app.ResponseStatusHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 500)
-        assert self.get_url("/status_code/500") == request_span.get_tag(http.URL)
+        assert self.get_url("/status_code/500") == request_span._get_str_attribute(http.URL)
         assert 1 == request_span.error
-        assert request_span.get_tag("http.route") == "/status_code/%s"
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("http.route") == "/status_code/%s"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_nested_application(self):
         """
@@ -103,7 +103,7 @@ class TestTornadoWeb(TornadoTestCase):
         for i, trace in enumerate(traces, start=1):
             request_span = trace[0]
             assert_span_http_status_code(request_span, 200)
-            assert request_span.get_tag("http.route") == f"/nested_app/handler{i}/"
+            assert request_span._get_str_attribute("http.route") == f"/nested_app/handler{i}/"
 
     def test_nested_handler(self):
         # it should trace a handler that calls the tracer.trace() method
@@ -120,9 +120,9 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.NestedHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/nested/") == request_span.get_tag(http.URL)
+        assert self.get_url("/nested/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
         # check nested span
         nested_span = traces[0][1]
@@ -132,8 +132,8 @@ class TestTornadoWeb(TornadoTestCase):
         # check durations because of the yield sleep
         assert request_span.duration >= 0.05
         assert nested_span.duration >= 0.05
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_exception_handler(self):
         # it should trace a handler that raises an exception
@@ -150,14 +150,14 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.ExceptionHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 500)
-        assert self.get_url("/exception/") == request_span.get_tag(http.URL)
+        assert self.get_url("/exception/") == request_span._get_str_attribute(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
-        assert "Exception: Ouch!" in request_span.get_tag("error.stack")
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert "Ouch!" == request_span._get_str_attribute(ERROR_MSG)
+        assert "Exception: Ouch!" in request_span._get_str_attribute("error.stack")
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_http_exception_handler(self):
         # it should trace a handler that raises a Tornado HTTPError
@@ -174,14 +174,14 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.HTTPExceptionHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 501)
-        assert self.get_url("/http_exception/") == request_span.get_tag(http.URL)
+        assert self.get_url("/http_exception/") == request_span._get_str_attribute(http.URL)
         assert 1 == request_span.error
-        assert "HTTP 501: Not Implemented (unavailable)" == request_span.get_tag(ERROR_MSG)
-        assert "HTTP 501: Not Implemented (unavailable)" in request_span.get_tag("error.stack")
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert "HTTP 501: Not Implemented (unavailable)" == request_span._get_str_attribute(ERROR_MSG)
+        assert "HTTP 501: Not Implemented (unavailable)" in request_span._get_str_attribute("error.stack")
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_http_exception_500_handler(self):
         # it should trace a handler that raises a Tornado HTTPError
@@ -198,14 +198,14 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.HTTPException500Handler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 500)
-        assert self.get_url("/http_exception_500/") == request_span.get_tag(http.URL)
+        assert self.get_url("/http_exception_500/") == request_span._get_str_attribute(http.URL)
         assert 1 == request_span.error
-        assert "HTTP 500: Server Error (server error)" == request_span.get_tag(ERROR_MSG)
-        assert "HTTP 500: Server Error (server error)" in request_span.get_tag("error.stack")
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert "HTTP 500: Server Error (server error)" == request_span._get_str_attribute(ERROR_MSG)
+        assert "HTTP 500: Server Error (server error)" in request_span._get_str_attribute("error.stack")
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_http_exception_500_handler_ignored_exception(self):
         # it should trace a handler that raises a Tornado HTTPError
@@ -226,8 +226,8 @@ class TestTornadoWeb(TornadoTestCase):
 
         assert_span_http_status_code(request_span, 500)
         assert request_span.error == 0
-        assert request_span.get_tag(ERROR_MSG) is None
-        assert request_span.get_tag("error.stack") is None
+        assert request_span._get_str_attribute(ERROR_MSG) is None
+        assert request_span._get_str_attribute("error.stack") is None
 
     def test_sync_success_handler(self):
         # it should trace a synchronous handler that returns 200
@@ -244,12 +244,12 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.SyncSuccessHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/sync_success/") == request_span.get_tag(http.URL)
+        assert self.get_url("/sync_success/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_sync_exception_handler(self):
         # it should trace a handler that raises an exception
@@ -266,14 +266,14 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.SyncExceptionHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 500)
-        assert self.get_url("/sync_exception/") == request_span.get_tag(http.URL)
+        assert self.get_url("/sync_exception/") == request_span._get_str_attribute(http.URL)
         assert 1 == request_span.error
-        assert "Ouch!" == request_span.get_tag(ERROR_MSG)
-        assert "Exception: Ouch!" in request_span.get_tag("error.stack")
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert "Ouch!" == request_span._get_str_attribute(ERROR_MSG)
+        assert "Exception: Ouch!" in request_span._get_str_attribute("error.stack")
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_404_handler(self):
         # it should trace 404
@@ -290,12 +290,12 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tornado.web.ErrorHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 404)
-        assert self.get_url("/does_not_exist/") == request_span.get_tag(http.URL)
+        assert self.get_url("/does_not_exist/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_redirect_handler(self):
         # it should trace the built-in RedirectHandler
@@ -314,24 +314,24 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == redirect_span.name
         assert "web" == redirect_span.span_type
         assert "tornado.web.RedirectHandler" == redirect_span.resource
-        assert "GET" == redirect_span.get_tag("http.method")
+        assert "GET" == redirect_span._get_str_attribute("http.method")
         assert_span_http_status_code(redirect_span, 301)
-        assert self.get_url("/redirect/") == redirect_span.get_tag(http.URL)
+        assert self.get_url("/redirect/") == redirect_span._get_str_attribute(http.URL)
         assert 0 == redirect_span.error
-        assert redirect_span.get_tag("component") == "tornado"
-        assert redirect_span.get_tag("span.kind") == "server"
+        assert redirect_span._get_str_attribute("component") == "tornado"
+        assert redirect_span._get_str_attribute("span.kind") == "server"
 
         success_span = traces[1][0]
         assert "tornado-web" == success_span.service
         assert "tornado.request" == success_span.name
         assert "web" == success_span.span_type
         assert "tests.contrib.tornado.web.app.SuccessHandler" == success_span.resource
-        assert "GET" == success_span.get_tag("http.method")
+        assert "GET" == success_span._get_str_attribute("http.method")
         assert_span_http_status_code(success_span, 200)
-        assert self.get_url("/success/") == success_span.get_tag(http.URL)
+        assert self.get_url("/success/") == success_span._get_str_attribute(http.URL)
         assert 0 == success_span.error
-        assert success_span.get_tag("component") == "tornado"
-        assert success_span.get_tag("span.kind") == "server"
+        assert success_span._get_str_attribute("component") == "tornado"
+        assert success_span._get_str_attribute("span.kind") == "server"
 
     def test_static_handler(self):
         # it should trace the access to static files
@@ -349,12 +349,12 @@ class TestTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tornado.web.StaticFileHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/statics/empty.txt") == request_span.get_tag(http.URL)
+        assert self.get_url("/statics/empty.txt") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
     def test_propagation(self):
         # it should trace a handler that returns 200 with a propagated context
@@ -371,15 +371,15 @@ class TestTornadoWeb(TornadoTestCase):
         # simple sanity check on the span
         assert "tornado.request" == request_span.name
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/success/") == request_span.get_tag(http.URL)
+        assert self.get_url("/success/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
 
         # check propagation
         assert 1234 == request_span.trace_id
         assert 4567 == request_span.parent_id
-        assert 2 == request_span.get_metric(_SAMPLING_PRIORITY_KEY)
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert 2 == request_span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY)
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
 
 class TestNoPropagationTornadoWebViaSetting(TornadoTestCase):
@@ -415,16 +415,16 @@ class TestNoPropagationTornadoWebViaSetting(TornadoTestCase):
         # simple sanity check on the span
         assert "tornado.request" == request_span.name
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/success/") == request_span.get_tag(http.URL)
+        assert self.get_url("/success/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
 
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) != 2
+        assert request_span._get_str_attribute(_ORIGIN_KEY) != "synthetics"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
 
 class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
@@ -454,16 +454,16 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         # simple sanity check on the span
         assert "tornado.request" == request_span.name
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/success/") == request_span.get_tag(http.URL)
+        assert self.get_url("/success/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
 
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) != 2
+        assert request_span._get_str_attribute(_ORIGIN_KEY) != "synthetics"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
         config.tornado.distributed_tracing = original
 
@@ -488,16 +488,16 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         # simple sanity check on the span
         assert "tornado.request" == request_span.name
         assert_span_http_status_code(request_span, 200)
-        assert self.get_url("/success/") == request_span.get_tag(http.URL)
+        assert self.get_url("/success/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
 
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) != 2
+        assert request_span._get_str_attribute(_ORIGIN_KEY) != "synthetics"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
 
 class TestCustomTornadoWeb(TornadoTestCase):
@@ -526,12 +526,12 @@ class TestCustomTornadoWeb(TornadoTestCase):
         assert "tornado.request" == request_span.name
         assert "web" == request_span.span_type
         assert "tests.contrib.tornado.web.app.CustomDefaultHandler" == request_span.resource
-        assert "GET" == request_span.get_tag("http.method")
+        assert "GET" == request_span._get_str_attribute("http.method")
         assert_span_http_status_code(request_span, 400)
-        assert self.get_url("/custom_handler/") == request_span.get_tag(http.URL)
+        assert self.get_url("/custom_handler/") == request_span._get_str_attribute(http.URL)
         assert 0 == request_span.error
-        assert request_span.get_tag("component") == "tornado"
-        assert request_span.get_tag("span.kind") == "server"
+        assert request_span._get_str_attribute("component") == "tornado"
+        assert request_span._get_str_attribute("span.kind") == "server"
 
 
 class TestSchematization(TornadoTestCase):

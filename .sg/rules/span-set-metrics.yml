@@ -1,0 +1,12 @@
+id: span-set-metrics
+language: Python
+severity: error
+message: >
+  Use span._set_attribute(key, numeric_value) for each entry instead of span.set_metrics(metrics).
+note: >
+  set_metrics() iterates and calls set_metric() for each entry, incurring validation
+  overhead per key. Internal code should call _set_attribute(key, value) directly for each key.
+rule:
+  pattern: $X.set_metrics($METRICS)
+ignores:
+  - tests/tracer/test_span_public_api.py

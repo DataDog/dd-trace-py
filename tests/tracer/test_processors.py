@@ -77,14 +77,14 @@ def test_aggregator_user_processors():
         def process_trace(self, trace):
             assert len(trace) == 1
             trace[0].set_tag("dd_processor")
-            trace[0].set_tag("final_processor", "dd")
+            trace[0]._set_attribute("final_processor", "dd")
             return trace
 
     class UserProc(TraceProcessor):
         def process_trace(self, trace):
             assert len(trace) == 1
             trace[0].set_tag("user_processor")
-            trace[0].set_tag("final_processor", "user")
+            trace[0]._set_attribute("final_processor", "user")
             return trace
 
     aggr = SpanAggregator(
@@ -97,9 +97,9 @@ def test_aggregator_user_processors():
     with Span("span", on_finish=[aggr.on_span_finish]) as span:
         aggr.on_span_start(span)
 
-    assert span.get_tag("dd_processor")
-    assert span.get_tag("user_processor")
-    assert span.get_tag("final_processor") == "user"
+    assert span._get_str_attribute("dd_processor")
+    assert span._get_str_attribute("user_processor")
+    assert span._get_str_attribute("final_processor") == "user"
 
 
 def test_aggregator_reset_default_args():
@@ -320,11 +320,11 @@ def test_aggregator_partial_flush_0_spans():
     assert writer.pop() == []
     parent.finish()
     assert writer.pop() == [parent]
-    assert parent.get_metric("_dd.py.partial_flush") == 1
+    assert parent._get_numeric_attribute("_dd.py.partial_flush") == 1
     child.finish()
     assert writer.pop() == [child]
     # Not a partial flush since the trace size at this point is 1 and we finished the last span
-    assert child.get_metric("_dd.py.partial_flush") is None
+    assert child._get_numeric_attribute("_dd.py.partial_flush") is None
 
 
 def test_aggregator_partial_flush_2_spans():
@@ -377,11 +377,11 @@ def test_aggregator_partial_flush_2_spans():
     assert writer.pop() == []
     child2.finish()
     assert writer.pop() == [child1, child2]
-    assert child1.get_metric("_dd.py.partial_flush") == 2
-    assert child2.get_metric("_dd.py.partial_flush") is None
+    assert child1._get_numeric_attribute("_dd.py.partial_flush") == 2
+    assert child2._get_numeric_attribute("_dd.py.partial_flush") is None
     parent.finish()
     assert writer.pop() == [parent]
-    assert parent.get_metric("_dd.py.partial_flush") is None
+    assert parent._get_numeric_attribute("_dd.py.partial_flush") is None
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_PARTIAL_FLUSH_ENABLED": "true", "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "2"})
@@ -398,12 +398,12 @@ def test_trace_top_level_span_processor_partial_flushing():
             pass
 
     # child spans 1 and 2 were partial flushed WITHOUT the parent span in the trace chunk
-    assert child1.get_metric("_dd.top_level") is None
-    assert child2.get_metric("_dd.top_level") is None
+    assert child1._get_numeric_attribute("_dd.top_level") is None
+    assert child2._get_numeric_attribute("_dd.top_level") is None
 
     # child span 3 was partial flushed WITH the parent span in the trace chunk
-    assert "_dd.top_level" not in child3.get_metrics()
-    assert parent.get_metric("_dd.top_level") == 1
+    assert "_dd.top_level" not in child3._get_numeric_attributes()
+    assert parent._get_numeric_attribute("_dd.top_level") == 1
 
 
 def test_trace_top_level_span_processor_same_service_name(tracer):
@@ -413,8 +413,8 @@ def test_trace_top_level_span_processor_same_service_name(tracer):
         with tracer.trace("child") as child:
             pass
 
-    assert parent.get_metric("_dd.top_level") == 1
-    assert "_dd.top_level" not in child.get_metrics()
+    assert parent._get_numeric_attribute("_dd.top_level") == 1
+    assert "_dd.top_level" not in child._get_numeric_attributes()
 
 
 def test_trace_top_level_span_processor_different_service_name(tracer):
@@ -423,8 +423,8 @@ def test_trace_top_level_span_processor_different_service_name(tracer):
         with tracer.trace("child", service="top_level_test_service2") as child:
             pass
 
-    assert parent.get_metric("_dd.top_level") == 1
-    assert child.get_metric("_dd.top_level") == 1
+    assert parent._get_numeric_attribute("_dd.top_level") == 1
+    assert child._get_numeric_attribute("_dd.top_level") == 1
 
 
 def test_trace_top_level_span_processor_orphan_span(tracer):
@@ -437,7 +437,7 @@ def test_trace_top_level_span_processor_orphan_span(tracer):
         pass
 
     # top_level in orphan_span should not be set as implicitly it is false
-    assert orphan_span.get_metric("_dd.top_level") is None
+    assert orphan_span._get_numeric_attribute("_dd.top_level") is None
 
 
 @pytest.mark.parametrize(
@@ -482,7 +482,7 @@ def test_span_creation_metrics():
             tracer.trace("span").finish()
 
         with tracer.trace("span") as span:
-            span.set_tag("component", "custom")
+            span._set_attribute("component", "custom")
 
         mock_tm.assert_has_calls(
             [
@@ -688,12 +688,12 @@ def traced_function(tracer, name="test_name", service="test_service", trace_samp
 def assert_span_sampling_decision_tags(
     span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling_priority=None
 ):
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
+    assert span._get_numeric_attribute(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
+    assert span._get_numeric_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
+    assert span._get_numeric_attribute(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling_priority:
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+        assert span._get_numeric_attribute(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):
@@ -763,27 +763,27 @@ def test_trace_tag_processor_adds_chunk_root_tags(tracer):
             pass
 
     # test that parent span gets required chunk root span tags and child does not get language tag
-    assert parent.get_tag("language") == "python"
-    assert child.get_tag("language") is None
+    assert parent._get_str_attribute("language") == "python"
+    assert child._get_str_attribute("language") is None
 
 
 def test_register_unregister_span_processor(tracer):
     class TestProcessor(SpanProcessor):
         def on_span_start(self, span):
-            span.set_tag("on_start", "ok")
+            span._set_attribute("on_start", "ok")
 
         def on_span_finish(self, span):
-            span.set_tag("on_finish", "ok")
+            span._set_attribute("on_finish", "ok")
 
     tp = TestProcessor()
     tp.register()
 
     with tracer.trace("test") as span:
-        assert span.get_tag("on_start") == "ok"
-    assert span.get_tag("on_finish") == "ok"
+        assert span._get_str_attribute("on_start") == "ok"
+    assert span._get_str_attribute("on_finish") == "ok"
 
     tp.unregister()
 
     with tracer.trace("test") as span:
-        assert span.get_tag("on_start") is None
-    assert span.get_tag("on_finish") is None
+        assert span._get_str_attribute("on_start") is None
+    assert span._get_str_attribute("on_finish") is None

@@ -45,7 +45,7 @@ class StubApp:
     @cherrypy.expose
     def child(self):
         with tracer.trace("child") as span:
-            span.set_tag("a", "b")
+            span._set_attribute("a", "b")
             return "child"
 
     @cherrypy.expose

@@ -355,7 +355,7 @@ class TestOptPlugin:
 
             # Add custom tags if available
             if custom_tags := _get_test_custom_tags(item):
-                test.set_tags(custom_tags)
+                test.set_tags(custom_tags)  # ast-grep-ignore: span-set-tags
 
         return self.manager.discover_test(
             test_ref,
@@ -489,12 +489,12 @@ class TestOptPlugin:
     def _set_test_run_data(self, test_run: TestRun, item: pytest.Item, context: TestContext) -> None:
         status, tags = self._get_test_outcome(item.nodeid)
         test_run.set_status(status)
-        test_run.set_tags(tags)
+        test_run.set_tags(tags)  # ast-grep-ignore: span-set-tags
         test_run.set_context(context)
 
         if benchmark_data := self.benchmark_data_by_nodeid.pop(item.nodeid, None):
-            test_run.set_tags(benchmark_data.tags)
-            test_run.set_metrics(benchmark_data.metrics)
+            test_run.set_tags(benchmark_data.tags)  # ast-grep-ignore: span-set-tags
+            test_run.set_metrics(benchmark_data.metrics)  # ast-grep-ignore: span-set-metrics
             test_run.mark_benchmark()
 
     def _do_retries(

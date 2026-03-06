@@ -65,8 +65,8 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.span_type == "sql"
         assert start <= span.start <= end
         assert span.duration <= end - start
-        assert span.get_tag("component") == "aiopg"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("component") == "aiopg"
+        assert span._get_str_attribute("span.kind") == "client"
 
         # run a query with an error and ensure all is well
         q = "select * from some_non_existant_table"
@@ -85,10 +85,10 @@ class AiopgTestCase(AsyncioTestCase):
         assert span.resource == q
         assert span.service == "postgres"
         assert span.error == 1
-        assert span.get_metric("network.destination.port") == TEST_PORT
+        assert span._get_numeric_attribute("network.destination.port") == TEST_PORT
         assert span.span_type == "sql"
-        assert span.get_tag("component") == "aiopg"
-        assert span.get_tag("span.kind") == "client"
+        assert span._get_str_attribute("component") == "aiopg"
+        assert span._get_str_attribute("span.kind") == "client"
 
     @pytest.mark.asyncio
     async def test_async_generator(self):

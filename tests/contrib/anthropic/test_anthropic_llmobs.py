@@ -269,8 +269,8 @@ class TestLLMObsAnthropic:
                         ],
                         output_messages=[{"content": ""}],
                         error="anthropic.AuthenticationError",
-                        error_message=span.get_tag("error.message"),
-                        error_stack=span.get_tag("error.stack"),
+                        error_message=span._get_str_attribute("error.message"),
+                        error_stack=span._get_str_attribute("error.stack"),
                         metadata={"temperature": 0.8, "max_tokens": 15.0},
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
                     )

@@ -32,7 +32,7 @@ try:
         # looking for IAST data in the span
         dict_data = ddspan._get_struct_tag(IAST.STRUCT)
         if dict_data is None:
-            data = ddspan.get_tag(IAST.JSON)
+            data = ddspan._get_str_attribute(IAST.JSON)
             if data is None:
                 return
             else:

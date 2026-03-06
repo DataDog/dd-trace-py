@@ -193,7 +193,7 @@ class LoggingTestCase(TracerTestCase):
     def test_log_trace_version(self):
         def create_span():
             span = self.tracer.trace("test.logging")
-            span.set_tag(VERSION_KEY, "manual.version")
+            span._set_attribute(VERSION_KEY, "manual.version")
             return span
 
         self._test_logging(create_span=create_span, version="")
@@ -210,7 +210,7 @@ class LoggingTestCase(TracerTestCase):
 
         def create_span():
             span = self.tracer.trace("test.logging")
-            span.set_tag(ENV_KEY, "manual.env")
+            span._set_attribute(ENV_KEY, "manual.env")
             return span
 
         self._test_logging(create_span=create_span, env="")

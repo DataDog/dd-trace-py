@@ -79,8 +79,8 @@ def report_error_on_entry_span(error: str, message: str) -> None:
     entry_span = get_entry_span()
     if not entry_span:
         return
-    entry_span._set_tag_str(APPSEC.ERROR_TYPE, error)
-    entry_span._set_tag_str(APPSEC.ERROR_MESSAGE, message)
+    entry_span._set_attribute(APPSEC.ERROR_TYPE, error)
+    entry_span._set_attribute(APPSEC.ERROR_MESSAGE, message)
 
 
 class ASM_Environment:
@@ -246,7 +246,7 @@ def set_blocked_dict(block: Union[dict[str, Any], Block_config, None]) -> None:
 
 
 def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None:
-    span.set_metric(name, value + (span.get_metric(name) or 0.0))
+    span._set_attribute(name, value + (span._get_numeric_attribute(name) or 0.0))
 
 
 def flush_waf_triggers(env: ASM_Environment) -> None:
@@ -274,7 +274,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         env.waf_triggers = []
     telemetry_results: Telemetry_result = env.telemetry
 
-    entry_span._set_tag_str(APPSEC.WAF_VERSION, ddwaf_version)
+    entry_span._set_attribute(APPSEC.WAF_VERSION, ddwaf_version)
     if env.downstream_requests:
         update_span_metrics(entry_span, APPSEC.DOWNSTREAM_REQUESTS, env.downstream_requests)
     if telemetry_results.total_duration:
@@ -292,11 +292,11 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
         update_span_metrics(entry_span, APPSEC.RASP_DURATION_EXT, telemetry_results.rasp.total_duration)
         update_span_metrics(entry_span, APPSEC.RASP_RULE_EVAL, telemetry_results.rasp.sum_eval)
     if telemetry_results.truncation.string_length:
-        entry_span.set_metric(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results.truncation.string_length))
+        entry_span._set_attribute(APPSEC.TRUNCATION_STRING_LENGTH, max(telemetry_results.truncation.string_length))
     if telemetry_results.truncation.container_size:
-        entry_span.set_metric(APPSEC.TRUNCATION_CONTAINER_SIZE, max(telemetry_results.truncation.container_size))
+        entry_span._set_attribute(APPSEC.TRUNCATION_CONTAINER_SIZE, max(telemetry_results.truncation.container_size))
     if telemetry_results.truncation.container_depth:
-        entry_span.set_metric(APPSEC.TRUNCATION_CONTAINER_DEPTH, max(telemetry_results.truncation.container_depth))
+        entry_span._set_attribute(APPSEC.TRUNCATION_CONTAINER_DEPTH, max(telemetry_results.truncation.container_depth))
 
 
 def finalize_asm_env(env: ASM_Environment) -> None:
@@ -314,12 +314,12 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             info = env.waf_info()
             try:
                 if info.errors:
-                    entry_span._set_tag_str(APPSEC.EVENT_RULE_ERRORS, info.errors)
+                    entry_span._set_attribute(APPSEC.EVENT_RULE_ERRORS, info.errors)
                     extra = {"product": "appsec", "more_info": info.errors, "stack_limit": 4}
                     logger.debug("asm_context::finalize_asm_env::waf_errors", extra=extra, stack_info=True)
-                entry_span._set_tag_str(APPSEC.EVENT_RULE_VERSION, info.version)
-                entry_span.set_metric(APPSEC.EVENT_RULE_LOADED, info.loaded)
-                entry_span.set_metric(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
+                entry_span._set_attribute(APPSEC.EVENT_RULE_VERSION, info.version)
+                entry_span._set_attribute(APPSEC.EVENT_RULE_LOADED, info.loaded)
+                entry_span._set_attribute(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             except Exception:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
         if asm_config._rc_client_id is not None:
@@ -332,7 +332,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
         if res_headers:
             _set_headers(entry_span, res_headers, kind="response")
         if env.rc_products:
-            entry_span._set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
+            entry_span._set_attribute(APPSEC.RC_PRODUCTS, env.rc_products)
 
     # Manually clear reference cycles to simplify the work for the GC
     env.callbacks.clear()

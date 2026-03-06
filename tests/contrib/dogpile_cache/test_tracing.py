@@ -55,13 +55,13 @@ def test_traces_get_or_create(tracer, single_cache, test_spans):
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
     assert span.resource == "get_or_create"
-    assert span.get_tag("key") == "tests.contrib.dogpile_cache.test_tracing:fn|1"
-    assert span.get_tag("hit") == "False"
-    assert span.get_tag("expired") == "True"
-    assert span.get_tag("backend") == "MemoryBackend"
-    assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dogpile_cache"
-    assert span.get_metric("db.row_count") == 1
+    assert span._get_str_attribute("key") == "tests.contrib.dogpile_cache.test_tracing:fn|1"
+    assert span._get_str_attribute("hit") == "False"
+    assert span._get_str_attribute("expired") == "True"
+    assert span._get_str_attribute("backend") == "MemoryBackend"
+    assert span._get_str_attribute("region") == "TestRegion"
+    assert span._get_str_attribute("component") == "dogpile_cache"
+    assert span._get_numeric_attribute("db.row_count") == 1
 
     # Now the results should be cached.
     assert single_cache(1) == 2
@@ -75,13 +75,13 @@ def test_traces_get_or_create(tracer, single_cache, test_spans):
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
     assert span.resource == "get_or_create"
-    assert span.get_tag("key") == "tests.contrib.dogpile_cache.test_tracing:fn|1"
-    assert span.get_tag("hit") == "True"
-    assert span.get_tag("expired") == "False"
-    assert span.get_tag("backend") == "MemoryBackend"
-    assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dogpile_cache"
-    assert span.get_metric("db.row_count") == 1
+    assert span._get_str_attribute("key") == "tests.contrib.dogpile_cache.test_tracing:fn|1"
+    assert span._get_str_attribute("hit") == "True"
+    assert span._get_str_attribute("expired") == "False"
+    assert span._get_str_attribute("backend") == "MemoryBackend"
+    assert span._get_str_attribute("region") == "TestRegion"
+    assert span._get_str_attribute("component") == "dogpile_cache"
+    assert span._get_numeric_attribute("db.row_count") == 1
 
 
 def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
@@ -95,15 +95,15 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
-    assert span.get_tag("keys") == (
+    assert span._get_str_attribute("keys") == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|3']"
     )
-    assert span.get_tag("hit") == "False"
-    assert span.get_tag("expired") == "True"
-    assert span.get_tag("backend") == "MemoryBackend"
-    assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dogpile_cache"
-    assert span.get_metric("db.row_count") == 2
+    assert span._get_str_attribute("hit") == "False"
+    assert span._get_str_attribute("expired") == "True"
+    assert span._get_str_attribute("backend") == "MemoryBackend"
+    assert span._get_str_attribute("region") == "TestRegion"
+    assert span._get_str_attribute("component") == "dogpile_cache"
+    assert span._get_numeric_attribute("db.row_count") == 2
 
     # Partial hit
     assert multi_cache(2, 4) == [4, 8]
@@ -115,15 +115,15 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
-    assert span.get_tag("keys") == (
+    assert span._get_str_attribute("keys") == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
-    assert span.get_tag("hit") == "False"
-    assert span.get_tag("expired") == "True"
-    assert span.get_tag("backend") == "MemoryBackend"
-    assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dogpile_cache"
-    assert span.get_metric("db.row_count") == 2
+    assert span._get_str_attribute("hit") == "False"
+    assert span._get_str_attribute("expired") == "True"
+    assert span._get_str_attribute("backend") == "MemoryBackend"
+    assert span._get_str_attribute("region") == "TestRegion"
+    assert span._get_str_attribute("component") == "dogpile_cache"
+    assert span._get_numeric_attribute("db.row_count") == 2
 
     # Full hit
     assert multi_cache(2, 4) == [4, 8]
@@ -135,15 +135,15 @@ def test_traces_get_or_create_multi(tracer, multi_cache, test_spans):
     assert_is_measured(span)
     assert span.name == "dogpile.cache"
     assert span.span_type == "cache"
-    assert span.get_tag("keys") == (
+    assert span._get_str_attribute("keys") == (
         "['tests.contrib.dogpile_cache.test_tracing:fn|2', " + "'tests.contrib.dogpile_cache.test_tracing:fn|4']"
     )
-    assert span.get_tag("hit") == "True"
-    assert span.get_tag("expired") == "False"
-    assert span.get_tag("backend") == "MemoryBackend"
-    assert span.get_tag("region") == "TestRegion"
-    assert span.get_tag("component") == "dogpile_cache"
-    assert span.get_metric("db.row_count") == 2
+    assert span._get_str_attribute("hit") == "True"
+    assert span._get_str_attribute("expired") == "False"
+    assert span._get_str_attribute("backend") == "MemoryBackend"
+    assert span._get_str_attribute("region") == "TestRegion"
+    assert span._get_str_attribute("component") == "dogpile_cache"
+    assert span._get_numeric_attribute("db.row_count") == 2
 
 
 class TestInnerFunctionCalls(object):

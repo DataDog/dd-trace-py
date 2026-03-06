@@ -1,0 +1,10 @@
+id: span-set-metrics
+valid:
+  # Standalone function call (no receiver)
+  - 'set_metrics({"key": 1.0})'
+  # Different method names are fine
+  - span._set_attribute("key", 1.0)
+invalid:
+  - 'span.set_metrics({"db.row_count": count})'
+  - self.set_metrics(metrics)
+  - "span.set_metrics({\"_dd.measured\": 1, \"db.row_count\": count})"

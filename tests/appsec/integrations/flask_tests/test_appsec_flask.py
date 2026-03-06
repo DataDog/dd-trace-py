@@ -52,12 +52,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, "default")
             root_span = self.pop_spans()[0]
-            assert root_span.get_tag(http.STATUS_CODE) == "403"
-            assert root_span.get_tag(http.URL) == "http://localhost/block"
-            assert root_span.get_tag(http.METHOD) == "GET"
-            assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")
+            assert root_span._get_str_attribute(http.STATUS_CODE) == "403"
+            assert root_span._get_str_attribute(http.URL) == "http://localhost/block"
+            assert root_span._get_str_attribute(http.METHOD) == "GET"
+            assert root_span._get_str_attribute(http.USER_AGENT).lower().startswith("werkzeug/")
             assert (
-                root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
+                root_span._get_str_attribute(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
             )
 
     def test_flask_userblock_json(self):
@@ -72,12 +72,12 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             assert resp.status_code == 403
             assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, "default")
             root_span = self.pop_spans()[0]
-            assert root_span.get_tag(http.STATUS_CODE) == "403"
-            assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
-            assert root_span.get_tag(http.METHOD) == "GET"
-            assert root_span.get_tag(http.USER_AGENT).lower().startswith("werkzeug/")
+            assert root_span._get_str_attribute(http.STATUS_CODE) == "403"
+            assert root_span._get_str_attribute(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
+            assert root_span._get_str_attribute(http.METHOD) == "GET"
+            assert root_span._get_str_attribute(http.USER_AGENT).lower().startswith("werkzeug/")
             assert (
-                root_span.get_tag(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
+                root_span._get_str_attribute(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES + ".content-type") == "application/json"
             )
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})

@@ -90,8 +90,8 @@ class TestFinalStatusNoRetries(PytestTestCaseBase):
         assert len(test_spans) == 1
 
         final_span = test_spans[0]
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "pass"
 
     def test_final_status_fail_no_retries(self):
         """Test that fails on first attempt should have final_status:fail"""
@@ -104,8 +104,8 @@ class TestFinalStatusNoRetries(PytestTestCaseBase):
         assert len(test_spans) == 1
 
         final_span = test_spans[0]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "fail"
+        assert final_span._get_str_attribute("test.status") == "fail"
+        assert final_span._get_str_attribute("test.final_status") == "fail"
 
     def test_final_status_skip_no_retries(self):
         """Test that skips on first attempt should have final_status:skip"""
@@ -118,8 +118,8 @@ class TestFinalStatusNoRetries(PytestTestCaseBase):
         assert len(test_spans) == 1
 
         final_span = test_spans[0]
-        assert final_span.get_tag("test.status") == "skip"
-        assert final_span.get_tag("test.final_status") == "skip"
+        assert final_span._get_str_attribute("test.status") == "skip"
+        assert final_span._get_str_attribute("test.final_status") == "skip"
 
 
 @pytest.mark.skipif(not _pytest_version_supports_atr(), reason="ATR tests require pytest >=7.0")
@@ -146,13 +146,13 @@ class TestFinalStatusATR(PytestTestCaseBase):
 
         # Check that only the last span has final_status tag
         first_span = test_spans[0]
-        assert first_span.get_tag("test.status") == "fail"
-        assert first_span.get_tag("test.final_status") is None  # No final_status on intermediate
+        assert first_span._get_str_attribute("test.status") == "fail"
+        assert first_span._get_str_attribute("test.final_status") is None  # No final_status on intermediate
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
-        assert final_span.get_tag("test.is_retry") == "true"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "pass"
+        assert final_span._get_str_attribute("test.is_retry") == "true"
 
     def test_atr_final_status_all_fail(self):
         """ATR: Test fails all retries → final_status:fail"""
@@ -172,13 +172,13 @@ class TestFinalStatusATR(PytestTestCaseBase):
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.status") == "fail"
-            assert span.get_tag("test.final_status") is None  # No final_status on intermediate
+            assert span._get_str_attribute("test.status") == "fail"
+            assert span._get_str_attribute("test.final_status") is None  # No final_status on intermediate
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "fail"
-        assert final_span.get_tag("test.is_retry") == "true"
+        assert final_span._get_str_attribute("test.status") == "fail"
+        assert final_span._get_str_attribute("test.final_status") == "fail"
+        assert final_span._get_str_attribute("test.is_retry") == "true"
 
     def test_atr_final_status_skip_no_retries(self):
         """ATR: Test skips on first attempt → final_status:skip (no retries for skip)"""
@@ -191,8 +191,8 @@ class TestFinalStatusATR(PytestTestCaseBase):
         assert len(test_spans) == 1  # No retries for skip
 
         final_span = test_spans[0]
-        assert final_span.get_tag("test.status") == "skip"
-        assert final_span.get_tag("test.final_status") == "skip"
+        assert final_span._get_str_attribute("test.status") == "skip"
+        assert final_span._get_str_attribute("test.final_status") == "skip"
 
     def test_atr_final_status_fail_skip_pass(self):
         """ATR: Test fails, skips on retry, then passes → final_status:pass"""
@@ -205,16 +205,16 @@ class TestFinalStatusATR(PytestTestCaseBase):
         assert len(test_spans) == 3  # Original fail, skip retry, pass retry
 
         # Check intermediate spans don't have final_status
-        assert test_spans[0].get_tag("test.status") == "fail"
-        assert test_spans[0].get_tag("test.final_status") is None
+        assert test_spans[0]._get_str_attribute("test.status") == "fail"
+        assert test_spans[0]._get_str_attribute("test.final_status") is None
 
-        assert test_spans[1].get_tag("test.status") == "skip"
-        assert test_spans[1].get_tag("test.final_status") is None
+        assert test_spans[1]._get_str_attribute("test.status") == "skip"
+        assert test_spans[1]._get_str_attribute("test.final_status") is None
 
         # Check final span has final_status:pass
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "pass"
 
     def test_atr_final_status_fail_then_skip_all(self):
         """ATR: Test fails, then skips on all retries → final_status:fail"""
@@ -228,11 +228,11 @@ class TestFinalStatusATR(PytestTestCaseBase):
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.final_status") is None
+            assert span._get_str_attribute("test.final_status") is None
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "skip"
-        assert final_span.get_tag("test.final_status") == "fail"  # Final status is fail, not skip
+        assert final_span._get_str_attribute("test.status") == "skip"
+        assert final_span._get_str_attribute("test.final_status") == "fail"  # Final status is fail, not skip
 
 
 @pytest.mark.skipif(not _pytest_version_supports_attempt_to_fix(), reason="Attempt to Fix tests require pytest >=7.0")
@@ -298,13 +298,13 @@ class TestFinalStatusAttemptToFix(PytestTestCaseBase):
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.status") == "pass"
-            assert span.get_tag("test.final_status") is None
+            assert span._get_str_attribute("test.status") == "pass"
+            assert span._get_str_attribute("test.final_status") is None
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
-        assert final_span.get_tag("test.test_management.attempt_to_fix_passed") == "true"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "pass"
+        assert final_span._get_str_attribute("test.test_management.attempt_to_fix_passed") == "true"
 
     def test_attempt_to_fix_final_status_quarantined_fail(self):
         """Attempt to Fix: Quarantined test fails all attempts → final_status:fail"""
@@ -318,13 +318,13 @@ class TestFinalStatusAttemptToFix(PytestTestCaseBase):
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.status") == "fail"
-            assert span.get_tag("test.final_status") is None
+            assert span._get_str_attribute("test.status") == "fail"
+            assert span._get_str_attribute("test.final_status") is None
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "fail"
-        assert final_span.get_tag("test.test_management.attempt_to_fix_passed") == "false"
+        assert final_span._get_str_attribute("test.status") == "fail"
+        assert final_span._get_str_attribute("test.final_status") == "fail"
+        assert final_span._get_str_attribute("test.test_management.attempt_to_fix_passed") == "false"
 
     def test_attempt_to_fix_final_status_quarantined_skip(self):
         """Attempt to Fix: Quarantined test skips all attempts → final_status:skip"""
@@ -338,12 +338,12 @@ class TestFinalStatusAttemptToFix(PytestTestCaseBase):
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.status") == "skip"
-            assert span.get_tag("test.final_status") is None
+            assert span._get_str_attribute("test.status") == "skip"
+            assert span._get_str_attribute("test.final_status") is None
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "skip"
-        assert final_span.get_tag("test.final_status") == "skip"
+        assert final_span._get_str_attribute("test.status") == "skip"
+        assert final_span._get_str_attribute("test.final_status") == "skip"
 
     def test_attempt_to_fix_final_status_quarantined_flaky(self):
         """Attempt to Fix: Quarantined test fails then passes → final_status:fail (all must pass)"""
@@ -365,13 +365,13 @@ def test_flaky():
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.final_status") is None
+            assert span._get_str_attribute("test.final_status") is None
 
         # Final span passes but overall status is fail because not all passed
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "fail"
-        assert final_span.get_tag("test.test_management.attempt_to_fix_passed") == "false"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "fail"
+        assert final_span._get_str_attribute("test.test_management.attempt_to_fix_passed") == "false"
 
     def test_attempt_to_fix_final_status_disabled_pass(self):
         """Attempt to Fix: Disabled test passes all attempts → final_status:pass"""
@@ -385,11 +385,11 @@ def test_flaky():
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.final_status") is None
+            assert span._get_str_attribute("test.final_status") is None
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "pass"
 
     def test_attempt_to_fix_final_status_disabled_fail(self):
         """Attempt to Fix: Disabled test fails all attempts → final_status:fail"""
@@ -403,11 +403,11 @@ def test_flaky():
 
         # Check that only the last span has final_status tag
         for span in test_spans[:-1]:
-            assert span.get_tag("test.final_status") is None
+            assert span._get_str_attribute("test.final_status") is None
 
         final_span = test_spans[-1]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "fail"
+        assert final_span._get_str_attribute("test.status") == "fail"
+        assert final_span._get_str_attribute("test.final_status") == "fail"
 
 
 class TestFinalStatusMixedScenarios(PytestTestCaseBase):
@@ -424,20 +424,20 @@ class TestFinalStatusMixedScenarios(PytestTestCaseBase):
         # Check pass test
         pass_spans = _get_spans_from_list(spans, "test", "test_pass")
         assert len(pass_spans) == 1
-        assert pass_spans[0].get_tag("test.status") == "pass"
-        assert pass_spans[0].get_tag("test.final_status") == "pass"
+        assert pass_spans[0]._get_str_attribute("test.status") == "pass"
+        assert pass_spans[0]._get_str_attribute("test.final_status") == "pass"
 
         # Check fail test
         fail_spans = _get_spans_from_list(spans, "test", "test_fail")
         assert len(fail_spans) == 1
-        assert fail_spans[0].get_tag("test.status") == "fail"
-        assert fail_spans[0].get_tag("test.final_status") == "fail"
+        assert fail_spans[0]._get_str_attribute("test.status") == "fail"
+        assert fail_spans[0]._get_str_attribute("test.final_status") == "fail"
 
         # Check skip test
         skip_spans = _get_spans_from_list(spans, "test", "test_skip")
         assert len(skip_spans) == 1
-        assert skip_spans[0].get_tag("test.status") == "skip"
-        assert skip_spans[0].get_tag("test.final_status") == "skip"
+        assert skip_spans[0]._get_str_attribute("test.status") == "skip"
+        assert skip_spans[0]._get_str_attribute("test.final_status") == "skip"
 
 
 class TestFinalStatusEdgeCases(PytestTestCaseBase):
@@ -458,8 +458,8 @@ def test_error():
         assert len(test_spans) == 1
 
         final_span = test_spans[0]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "fail"
+        assert final_span._get_str_attribute("test.status") == "fail"
+        assert final_span._get_str_attribute("test.final_status") == "fail"
 
     def test_final_status_test_setup_error(self):
         """Test that setup errors are treated as failures"""
@@ -482,8 +482,8 @@ def test_with_broken_fixture(broken_fixture):
         assert len(test_spans) == 1
 
         final_span = test_spans[0]
-        assert final_span.get_tag("test.status") == "fail"
-        assert final_span.get_tag("test.final_status") == "fail"
+        assert final_span._get_str_attribute("test.status") == "fail"
+        assert final_span._get_str_attribute("test.final_status") == "fail"
 
     def test_final_status_xfail_not_strict(self):
         """Test that xfail tests with strict=False are handled correctly"""
@@ -504,8 +504,8 @@ def test_xfail():
 
         final_span = test_spans[0]
         # xfail with strict=False that fails marks as pass with result=xfail
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "pass"
 
     def test_final_status_xfail_strict(self):
         """Test that xfail tests with strict=True are handled correctly"""
@@ -526,8 +526,8 @@ def test_xfail():
 
         final_span = test_spans[0]
         # xfail with strict=True that fails marks as pass with result=xfail
-        assert final_span.get_tag("test.status") == "pass"
-        assert final_span.get_tag("test.final_status") == "pass"
+        assert final_span._get_str_attribute("test.status") == "pass"
+        assert final_span._get_str_attribute("test.final_status") == "pass"
 
     def test_final_status_parametrized_tests(self):
         """Test that parametrized tests each get their own final_status"""
@@ -546,13 +546,13 @@ def test_parametrized(value):
         test_spans = _get_spans_from_list(spans, "test")
 
         # Should have 3 test spans for the 3 parameter values
-        test_parametrized_spans = [s for s in test_spans if "test_parametrized" in s.get_tag("test.name")]
+        test_parametrized_spans = [s for s in test_spans if "test_parametrized" in s._get_str_attribute("test.name")]
         assert len(test_parametrized_spans) == 3
 
         # Each should have final_status set
         for span in test_parametrized_spans:
-            assert span.get_tag("test.final_status") is not None
-            if "[2]" in span.get_tag("test.name"):
-                assert span.get_tag("test.final_status") == "fail"
+            assert span._get_str_attribute("test.final_status") is not None
+            if "[2]" in span._get_str_attribute("test.name"):
+                assert span._get_str_attribute("test.final_status") == "fail"
             else:
-                assert span.get_tag("test.final_status") == "pass"
+                assert span._get_str_attribute("test.final_status") == "pass"

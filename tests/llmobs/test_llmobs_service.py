@@ -49,7 +49,7 @@ RAGAS_AVAILABLE = os.getenv("RAGAS_AVAILABLE", False)
 
 def run_llmobs_trace_filter(tracer, test_spans):
     with tracer.trace("span1", span_type=SpanTypes.LLM) as span:
-        span._set_tag_str(SPAN_KIND, "llm")
+        span._set_attribute(SPAN_KIND, "llm")
     return test_spans.pop()
 
 
@@ -877,7 +877,7 @@ def test_span_error_sets_error(llmobs, llmobs_events):
         model_provider="test_model_provider",
         error="builtins.ValueError",
         error_message="test error message",
-        error_stack=span.get_tag("error.stack"),
+        error_stack=span._get_str_attribute("error.stack"),
     )
 
 

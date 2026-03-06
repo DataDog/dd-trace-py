@@ -77,11 +77,11 @@ def _add_start_end_source_file_path_data_to_span(
     start_line, end_line = get_source_lines_for_test_method(test_method_object)
     if not start_line or not end_line:
         log.debug("Tried to collect source start/end lines for test method %s but an exception was raised", test_name)
-    span._set_tag_str(test.SOURCE_FILE, source_file_path)
+    span._set_attribute(test.SOURCE_FILE, source_file_path)
     if start_line:
-        span.set_metric(test.SOURCE_START, start_line)
+        span._set_attribute(test.SOURCE_START, start_line)
     if end_line:
-        span.set_metric(test.SOURCE_END, end_line)
+        span._set_attribute(test.SOURCE_END, end_line)
 
 
 def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
@@ -92,7 +92,7 @@ def _add_pct_covered_to_span(coverage_data: dict, span: ddtrace.trace.Span):
     if not isinstance(lines_pct_value, float):
         log.warning("Tried to add total covered percentage to session span but the format was unexpected")
         return
-    span.set_metric(test.TEST_LINES_PCT, lines_pct_value)
+    span._set_attribute(test.TEST_LINES_PCT, lines_pct_value)
 
 
 def _generate_fully_qualified_test_name(test_module_path: str, test_suite_name: str, test_name: str) -> str:

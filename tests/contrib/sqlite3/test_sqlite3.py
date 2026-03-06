@@ -70,10 +70,10 @@ class TestSQLite(TracerTestCase):
         )
         root = self.get_root_span()
         assert_is_measured(root)
-        self.assertIsNone(root.get_tag("sql.query"))
-        self.assertEqual(root.get_tag("component"), "sqlite")
-        self.assertEqual(root.get_tag("span.kind"), "client")
-        self.assertEqual(root.get_tag("db.system"), "sqlite")
+        self.assertIsNone(root._get_str_attribute("sql.query"))
+        self.assertEqual(root._get_str_attribute("component"), "sqlite")
+        self.assertEqual(root._get_str_attribute("span.kind"), "client")
+        self.assertEqual(root._get_str_attribute("db.system"), "sqlite")
         assert start <= root.start <= end
         assert root.duration <= end - start
         self.reset()
@@ -88,13 +88,13 @@ class TestSQLite(TracerTestCase):
         )
         root = self.get_root_span()
         assert_is_measured(root)
-        self.assertIsNone(root.get_tag("sql.query"))
-        self.assertEqual(root.get_tag("component"), "sqlite")
-        self.assertEqual(root.get_tag("span.kind"), "client")
-        self.assertEqual(root.get_tag("db.system"), "sqlite")
-        self.assertIsNotNone(root.get_tag(ERROR_STACK))
-        self.assertIn("OperationalError", root.get_tag(ERROR_TYPE))
-        self.assertIn("no such table", root.get_tag(ERROR_MSG))
+        self.assertIsNone(root._get_str_attribute("sql.query"))
+        self.assertEqual(root._get_str_attribute("component"), "sqlite")
+        self.assertEqual(root._get_str_attribute("span.kind"), "client")
+        self.assertEqual(root._get_str_attribute("db.system"), "sqlite")
+        self.assertIsNotNone(root._get_str_attribute(ERROR_STACK))
+        self.assertIn("OperationalError", root._get_str_attribute(ERROR_TYPE))
+        self.assertIn("no such table", root._get_str_attribute(ERROR_MSG))
         self.reset()
 
     def test_sqlite_fetchall_is_traced(self):
@@ -122,7 +122,7 @@ class TestSQLite(TracerTestCase):
             # Assert fetchall
             fetchall_span.assert_structure(dict(name="sqlite.query.fetchall", resource=q, span_type="sql", error=0))
             assert_is_not_measured(fetchall_span)
-            self.assertIsNone(fetchall_span.get_tag("sql.query"))
+            self.assertIsNone(fetchall_span._get_str_attribute("sql.query"))
 
     def test_sqlite_fetchone_is_traced(self):
         q = "select * from sqlite_master"
@@ -144,7 +144,7 @@ class TestSQLite(TracerTestCase):
 
             # Assert query
             assert_is_measured(query_span)
-            self.assertEqual(query_span.get_tag("db.system"), "sqlite")
+            self.assertEqual(query_span._get_str_attribute("db.system"), "sqlite")
             query_span.assert_structure(dict(name="sqlite.query", resource=q))
 
             # Assert fetchone
@@ -157,8 +157,8 @@ class TestSQLite(TracerTestCase):
                     error=0,
                 ),
             )
-            self.assertEqual(fetchone_span.get_tag("db.system"), "sqlite")
-            self.assertIsNone(fetchone_span.get_tag("sql.query"))
+            self.assertEqual(fetchone_span._get_str_attribute("db.system"), "sqlite")
+            self.assertIsNone(fetchone_span._get_str_attribute("sql.query"))
 
     def test_sqlite_fetchmany_is_traced(self):
         q = "select * from sqlite_master"
@@ -181,7 +181,7 @@ class TestSQLite(TracerTestCase):
             # Assert query
             assert_is_measured(query_span)
             query_span.assert_structure(dict(name="sqlite.query", resource=q))
-            self.assertEqual(query_span.get_tag("db.system"), "sqlite")
+            self.assertEqual(query_span._get_str_attribute("db.system"), "sqlite")
 
             # Assert fetchmany
             assert_is_not_measured(fetchmany_span)
@@ -194,8 +194,8 @@ class TestSQLite(TracerTestCase):
                     metrics={"db.fetch.size": 123},
                 ),
             )
-            self.assertIsNone(fetchmany_span.get_tag("sql.query"))
-            self.assertEqual(fetchmany_span.get_tag("db.system"), "sqlite")
+            self.assertIsNone(fetchmany_span._get_str_attribute("sql.query"))
+            self.assertEqual(fetchmany_span._get_str_attribute("db.system"), "sqlite")
 
     def test_commit(self):
         connection = self._given_a_traced_connection(self.tracer)

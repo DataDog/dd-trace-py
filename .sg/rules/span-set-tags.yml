@@ -1,0 +1,12 @@
+id: span-set-tags
+language: Python
+severity: error
+message: >
+  Use span._set_attribute(key, str_value) for each entry instead of span.set_tags(tags).
+note: >
+  set_tags() iterates and calls set_tag() for each entry, incurring type-coercion overhead
+  per key. Internal code should call _set_attribute(key, value) directly for each key.
+rule:
+  pattern: $X.set_tags($TAGS)
+ignores:
+  - tests/tracer/test_span_public_api.py
