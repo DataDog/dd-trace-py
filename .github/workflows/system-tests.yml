@@ -474,10 +474,8 @@ jobs:
       library: python
       ref: main
       scenarios_groups: tracer-release
-      skip_empty_scenarios: true
       _system_tests_dev_mode: true
       push_to_test_optimization: true
-      desired_execution_time: 300
 
   finished:
     name: system-tests finished
