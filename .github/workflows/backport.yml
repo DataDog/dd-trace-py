@@ -122,7 +122,8 @@ jobs:
         uses: DataDog/commit-headless@action/v2.0.3
         with:
           branch: ${{ steps.create-commit.outputs.branch }}
-          branch-from: ${{ steps.create-commit.outputs.branch-from }}
+          target: ${{ steps.create-commit.outputs.branch-from }}
+          create-branch: true
           command: push
           commits: ${{ steps.create-commit.outputs.commit }}
           force: true
