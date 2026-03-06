@@ -235,7 +235,12 @@ cdef call_ddup_push_frame(Sample* sample, name: StringType, filename: StringType
                         string_view(filename_utf8_data, filename_utf8_size),
                         address, line)
 
-cdef call_ddup_push_threadinfo(Sample* sample, int64_t thread_id, int64_t thread_native_id, thread_name: Optional[StringType]):
+cdef call_ddup_push_threadinfo(
+    Sample* sample,
+    int64_t thread_id,
+    int64_t thread_native_id,
+    thread_name: Optional[StringType]
+):
     if not thread_name:
         return
     if isinstance(thread_name, bytes):
