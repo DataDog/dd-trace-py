@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 // Thread-local storage macro for Unix (GCC/Clang)
 // NB - we explicitly specify global-dynamic on Unix because the others are problematic.
 // See e.g. https://fuchsia.dev/fuchsia-src/development/kernel/threads/tls for
@@ -10,13 +12,34 @@
 // sees we're building a shared library. But we've been bit by issues related
 // to this before, and it doesn't hurt to explicitly declare the model here.
 #define MEMALLOC_TLS __attribute__((tls_model("global-dynamic"))) __thread
+
+/* True while the malloc allocator hook is running on this thread.
+ * Used to prevent reentrant heap tracking (which would corrupt the heap
+ * tracker's data structures) and to detect reentrant calls in assert builds. */
 extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
-/* RAII guard for reentrancy protection. Automatically acquires the guard in the
- * constructor and releases it in the destructor.
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+#include <stdio.h>
+#include <stdlib.h>
+
+static inline void
+_memalloc_abort_reentry(const char* inner_op)
+{
+    fprintf(stderr, "[memalloc] FATAL: reentrant allocator hook detected: malloc -> %s\n", inner_op);
+    abort();
+}
+#endif /* MEMALLOC_ASSERT_ON_REENTRY */
+
+/* RAII guard for reentrancy protection. Sets _MEMALLOC_ON_THREAD in the
+ * constructor and clears it in the destructor.
  *
- * Ordinarily, a process-wide semaphore would require a CAS, but since this is
- * thread-local we can just set it.  */
+ * If _MEMALLOC_ON_THREAD is already set (reentrant call), the guard does
+ * not acquire:
+ *  - In assert builds, it aborts immediately for early detection.
+ *  - In production builds, callers check acquired() / operator bool() to
+ *    skip heap tracking and avoid data structure corruption.
+ *
+ * Since this is thread-local, no CAS or atomic is needed.  */
 class memalloc_reentrant_guard_t
 {
   public:
@@ -26,6 +49,10 @@ class memalloc_reentrant_guard_t
         if (!_MEMALLOC_ON_THREAD) {
             _MEMALLOC_ON_THREAD = true;
             acquired_ = true;
+        } else {
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+            _memalloc_abort_reentry("malloc");
+#endif
         }
     }
 

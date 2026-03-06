@@ -360,7 +360,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    /* Avoid loops */
+    /* Skip tracking if we're already inside the malloc hook on this thread.
+     * Reentrant tracking would corrupt the heap tracker's data structures. */
     memalloc_reentrant_guard_t guard;
     if (!guard) {
         return;
