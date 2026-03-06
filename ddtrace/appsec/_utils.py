@@ -9,6 +9,7 @@ from typing import Any
 from typing import Optional
 from typing import Union
 
+from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
@@ -428,4 +429,4 @@ def unpatching_popen():
 
 
 def is_inferred_span(span: Span) -> bool:
-    return span.name in ("aws.apigateway", "aws.httpapi")
+    return span.name in SUPPORTED_PROXY_SPAN_NAMES

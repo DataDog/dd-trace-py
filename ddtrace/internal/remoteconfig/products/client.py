@@ -18,7 +18,9 @@ def _register_rc_products() -> None:
     from ddtrace.internal.flare.handler import _handle_tracer_flare
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
-    flare = Flare(trace_agent_url=agent_config.trace_agent_url, api_key=config._dd_api_key, ddconfig=config.__dict__)
+    flare = Flare(
+        trace_agent_url=str(agent_config.trace_agent_url), api_key=config._dd_api_key, ddconfig=config.__dict__
+    )
 
     # Create shared state
     _flare_state = TracerFlareState()

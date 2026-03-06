@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 @dataclass
 class TracingEvent(Event):
     """TracingEvent is a specialization of Event. It enforces minimal tracing attributes
-    on any TracingEvent. Its purpose is to be used with core.context_with_event
+    on any TracingEvent. Its purpose is to be used with core.context_with_event.
     """
 
     span_type: ClassVar[str]
@@ -30,7 +30,7 @@ class TracingEvent(Event):
     _end_span: bool = field(default=True, init=False)
 
     # Optional tracing related attibutes
-    activate: bool = False  # if True, activate the span as active span context
+    activate: bool = True  # if False, does not activate the span as active span context
     use_active_context: bool = True  # if True, use the active span ctx as parent
     service: Optional[str] = None
     distributed_context: Optional["ActiveTrace"] = None  # if set, use the context as parent
