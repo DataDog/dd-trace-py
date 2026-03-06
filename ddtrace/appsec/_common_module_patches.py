@@ -12,8 +12,8 @@ from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._metrics import _report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
-from ddtrace.appsec.contrib.stripe.patch import patch as patch_stripe_for_appsec
-from ddtrace.appsec.contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
+from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appsec
+from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
