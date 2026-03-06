@@ -227,6 +227,212 @@ def test_periodic_thread_preserves_awake_during_restart_window():
     awaker.join(timeout=1)
 
 
+# ---------------------------------------------------------------------------
+# Regression tests for PeriodicThread crash scenarios (IR-50207)
+#
+# These tests reproduce the three crash paths identified in the
+# PeriodicThread crash analysis:
+#   Problem 1a: TOCTTOU race — crash at interpreter exit
+#   Problem 2:  Post-fork mutex corruption
+#
+# Strategy for reproducing race conditions:
+#   - Problem 1a: Many threads with very short intervals constantly cycling
+#     through AllowThreads (GIL release/acquire). atexit cleared so threads
+#     are alive during Py_FinalizeEx. The threads are in _request->wait()
+#     (not in callbacks) so ~AllowThreads fires during finalization.
+#   - Problem 2: Many threads with tiny intervals maximizing mutex hold time.
+#     Fork rapidly from multiple threads to catch mid-mutex state. Run in
+#     child without stopping first.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(platform.system() != "Linux", reason="Crash behavior is Linux/glibc specific")
+@pytest.mark.subprocess(
+    status=0,
+    err=lambda s: "std::terminate" not in s and "Aborted" not in s,
+    timeout=15,
+)
+def test_periodic_thread_no_crash_at_exit():
+    """Problem 1a: PeriodicThread must not crash during interpreter exit.
+
+    Creates many threads with instant callbacks and short intervals so they
+    constantly cycle through the AllowThreads acquire/release path. Clears
+    atexit so threads are alive when Py_FinalizeEx runs. The threads spend
+    most of their time in _request->wait() with the GIL released via
+    AllowThreads — when the wait times out, ~AllowThreads calls
+    PyEval_RestoreThread which can hit the finalization race.
+
+    On unfixed CPython 3.12, this triggers:
+      PyEval_RestoreThread -> take_gil -> pthread_exit -> __forced_unwind
+      -> std::terminate (SIGABRT)
+    """
+    import atexit
+
+    from ddtrace.internal._threads import PeriodicThread
+    from ddtrace.internal._threads import periodic_threads
+
+    def _fast_callback():
+        # Return immediately so the thread goes back to _request->wait()
+        # as fast as possible, maximizing time in AllowThreads scope.
+        pass
+
+    threads = []
+    # Many threads with very short intervals — each one cycles through
+    # AllowThreads (GIL release -> wait -> GIL acquire) every 1ms.
+    for i in range(20):
+        t = PeriodicThread(
+            interval=0.001,
+            target=_fast_callback,
+            name=f"test:ExitRace{i}",
+            no_wait_at_start=True,
+        )
+        t.start()
+        threads.append(t)
+
+    # Remove all threads from periodic_threads and clear atexit so
+    # nothing stops them before finalization.
+    for t in threads:
+        periodic_threads.pop(t.ident, None)
+    atexit._clear()
+
+    # Exit — 20 threads are cycling through AllowThreads during Py_FinalizeEx.
+    # The more threads, the wider the window for the TOCTTOU race.
+
+
+@pytest.mark.skipif(platform.system() != "Linux", reason="Fork behavior is Linux specific")
+@pytest.mark.subprocess(
+    status=0,
+    err=lambda s: "Segmentation fault" not in s,
+    timeout=15,
+)
+def test_periodic_thread_no_crash_fork_while_active():
+    """Problem 2: Fork while PeriodicThread is actively running.
+
+    Runs multiple threads with tiny intervals so they're constantly locking
+    and unlocking their internal Event mutexes. Forks rapidly from the main
+    thread to catch a thread mid-mutex-operation. In the child, calls
+    _after_fork/_after_fork_child which on unfixed code tries .clear() on
+    Events with corrupted mutexes -> SIGSEGV.
+
+    Uses multiple concurrent threads and many rapid forks to maximize the
+    probability of catching the race.
+    """
+    import os
+    import time
+
+    from ddtrace.internal._threads import PeriodicThread
+
+    def _fast_callback():
+        pass
+
+    # Multiple threads with very short intervals — each one constantly
+    # cycles through Event::wait/set/clear, holding mutexes briefly.
+    threads = []
+    for i in range(10):
+        t = PeriodicThread(
+            interval=0.001,
+            target=_fast_callback,
+            name=f"test:ForkRace{i}",
+            no_wait_at_start=True,
+        )
+        t.start()
+        threads.append(t)
+
+    time.sleep(0.01)
+
+    # Fork rapidly — 50 attempts to catch threads mid-mutex
+    for _ in range(50):
+        pid = os.fork()
+        if pid == 0:
+            # Child: threads don't exist, mutexes may be corrupted.
+            try:
+                for t in threads:
+                    if hasattr(t, "_after_fork_child"):
+                        t._after_fork_child()
+                    else:
+                        t._after_fork()
+                for t in threads:
+                    t.stop()
+                    t.join(timeout=1)
+            except Exception:
+                os._exit(1)
+            os._exit(0)
+        else:
+            _, status = os.waitpid(pid, 0)
+            if os.WIFSIGNALED(status):
+                for t in threads:
+                    t.stop()
+                    t.join(timeout=1)
+                raise AssertionError(f"Child killed by signal {os.WTERMSIG(status)}")
+            exit_code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else -1
+            if exit_code != 0:
+                for t in threads:
+                    t.stop()
+                    t.join(timeout=1)
+                raise AssertionError(f"Child exited with code {exit_code}")
+
+    for t in threads:
+        t.stop()
+        t.join(timeout=2)
+
+
+@pytest.mark.skipif(platform.system() != "Linux", reason="Fork behavior is Linux specific")
+@pytest.mark.subprocess(
+    status=0,
+    err=lambda s: "Segmentation fault" not in s,
+    timeout=15,
+)
+def test_periodic_thread_no_crash_fork_during_start():
+    """Problem 2 variant (Vianney's race): Fork while PeriodicThread is starting.
+
+    Races thread creation against fork. PeriodicThread_start blocks in
+    _started->wait() with the GIL released via AllowThreads. If fork()
+    fires at that moment, the child inherits a locked _started Event mutex.
+
+    Uses multiple fork threads and many iterations to widen the race window.
+    """
+    import os
+    import threading
+
+    from ddtrace.internal._threads import PeriodicThread
+
+    failures = []
+    lock = threading.Lock()
+
+    def _callback():
+        pass
+
+    def _do_fork():
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        else:
+            _, status = os.waitpid(pid, 0)
+            if os.WIFSIGNALED(status):
+                with lock:
+                    failures.append(os.WTERMSIG(status))
+
+    # 50 iterations, each with a fork thread racing against thread start
+    for _ in range(50):
+        t = PeriodicThread(interval=60, target=_callback, name="test:ForkStart")
+
+        # Launch multiple fork threads to increase collision probability
+        fork_threads = []
+        for _ in range(3):
+            ft = threading.Thread(target=_do_fork)
+            ft.start()
+            fork_threads.append(ft)
+
+        t.start()
+        t.stop()
+        t.join(timeout=2)
+        for ft in fork_threads:
+            ft.join(timeout=2)
+
+    if failures:
+        raise AssertionError(f"Child killed by signals: {failures}")
+
+
 def test_timer():
     end = 0
 
