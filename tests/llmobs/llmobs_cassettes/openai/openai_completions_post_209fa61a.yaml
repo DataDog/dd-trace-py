@@ -1,0 +1,111 @@
+interactions:
+- request:
+    body: "{\n  \"model\": \"gpt-3.5-turbo-instruct\",\n  \"temperature\": 0.7,\n
+      \ \"max_tokens\": 256,\n  \"top_p\": 1,\n  \"frequency_penalty\": 0,\n  \"presence_penalty\":
+      0,\n  \"n\": 1,\n  \"stream\": false,\n  \"prompt\": [\n    \"what is 2 + 2?\"\n
+      \ ]\n}"
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip,deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '216'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/JS 4.104.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - traceparent
+      : - 00-697933a5000000000ad689cca833aa37-5ae640532283304d-01
+      ? !!python/object/apply:multidict._multidict.istr
+      - tracestate
+      : - dd=t.dm:-0;t.tid:697933a500000000;s:1;p:5ae640532283304d
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-parent-id
+      : - '6549993433862451277'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-sampling-priority
+      : - '1'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-tags
+      : - _dd.p.tid=697933a500000000,_dd.p.dm=-0
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-trace-id
+      : - '780963097483651639'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-lang
+      : - js
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-os
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-package-version
+      : - 4.104.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-runtime
+      : - node
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-runtime-version
+      : - v24.8.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-timeout
+      : - '600'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n    \"error\": {\n        \"message\": \"Incorrect API key provided:
+        \\u003cnot-a-r****key\\u003e. You can find your API key at https://platform.openai.com/account/api-keys.\",\n
+        \       \"type\": \"invalid_request_error\",\n        \"param\": null,\n        \"code\":
+        \"invalid_api_key\"\n    }\n}\n"
+    headers:
+      CF-RAY:
+      - 9c4b7aafad97a0b1-EWR
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '276'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Tue, 27 Jan 2026 21:52:48 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=9uAfG7Gv3JB_UcTC_MLpKQ3os1ljf5o3l1JYi6RJ2x4-1769550768-1.0.1.1-OsaDZUPTVWGrSu9syAIgIp.9WlpdYLsPLVd1rnFl31crUVgmVcwEHsJlHR6GAaOhVtjjKMd.jkL6uFEsw6D42R5pJGQxvOrbvfzO23buqNE;
+        path=/; expires=Tue, 27-Jan-26 22:22:48 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=gWZN2DfO7tsNN9O3iNyda.VnneqvMEcygQelU_5nmrw-1769550768635-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      vary:
+      - Origin
+      x-openai-proxy-wasm:
+      - v0.1
+      x-request-id:
+      - req_b1856a0d00c0420799457956f5e098c7
+    status:
+      code: 401
+      message: Unauthorized
+version: 1
