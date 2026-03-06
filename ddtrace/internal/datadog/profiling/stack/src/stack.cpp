@@ -336,10 +336,10 @@ native_call_handler(PyObject* Py_UNUSED(self), PyObject* const* args, Py_ssize_t
     // __init__/__new__ are Python functions visible as regular frames.
     // Non-heap types (builtins like str, dict, list, set) are kept because their
     // __init__/__new__ are C implementations that don't fire separate CALL events.
-    if (PyFunction_Check(callable)         // def / lambda / async def
-        || PyMethod_Check(callable)        // bound method wrapping a PyFunction
-        || (PyType_Check(callable) && (reinterpret_cast<PyTypeObject*>(callable)->tp_flags & Py_TPFLAGS_HEAPTYPE))
-        || PyGen_Check(callable)           // generator object (not a C call)
+    if (PyFunction_Check(callable)  // def / lambda / async def
+        || PyMethod_Check(callable) // bound method wrapping a PyFunction
+        || (PyType_Check(callable) && (reinterpret_cast<PyTypeObject*>(callable)->tp_flags & Py_TPFLAGS_HEAPTYPE)) ||
+        PyGen_Check(callable)              // generator object (not a C call)
         || PyCoro_CheckExact(callable)     // coroutine object
         || PyAsyncGen_CheckExact(callable) // async generator object
     ) {
