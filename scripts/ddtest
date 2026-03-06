@@ -18,8 +18,10 @@ fi
 # These are mounted into the Docker container at /home/bits/.cache
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-# Default to the main repo's .cache so all worktrees share the same cache automatically.
+# Default to the main repo's .cache so all worktrees share the same sccache/pip/cython cache.
 # git rev-parse --git-common-dir returns the shared .git dir (same for all worktrees).
+# Sharing sccache is safe because the container always mounts the repo at /home/bits/project,
+# so source paths in cache keys are identical across worktrees (no SCCACHE_BASEDIRS needed).
 # Users can override with DD_TEST_CACHE_DIR for a fully custom location.
 MAIN_REPO_ROOT="$(cd "$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir)/.." && pwd)"
 CACHE_DIR="${DD_TEST_CACHE_DIR:-$MAIN_REPO_ROOT/.cache}"
