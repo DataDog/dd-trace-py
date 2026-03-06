@@ -9,7 +9,6 @@ from pymongo.message import _Query
 
 # project
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -43,11 +42,11 @@ def is_query(op):
     return hasattr(op, "spec")
 
 
-def create_checkout_span(pin):
+def create_checkout_span():
     """Create a span for socket checkout. Shared between sync and async."""
     span = tracer.trace(
         f"pymongo.{_CHECKOUT_FN_NAME}",
-        service=trace_utils.ext_service(pin, config.pymongo),
+        service=trace_utils.ext_service(None, config.pymongo),
         span_type=SpanTypes.MONGODB,
     )
     span._set_tag_str(COMPONENT, config.pymongo.integration_name)
@@ -60,9 +59,6 @@ def setup_checkout_span_tags(span, sock_info, instance):
     """Set up tags and metrics for checkout span. Shared between sync and async."""
     set_address_tags(span, sock_info.address)
     span.set_metric(_SPAN_MEASURED_KEY, 1)
-    pin = Pin.get_from(instance)
-    if pin:
-        pin.onto(sock_info)
 
 
 def process_server_operation_result(span, operation, result):
