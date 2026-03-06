@@ -211,10 +211,19 @@ class AllowThreads
 class PyRef
 {
   public:
+    // Acquires a new reference (increments refcount).
     inline PyRef(PyObject* obj)
       : _obj(obj)
     {
         Py_INCREF(_obj);
+    }
+    // Steals an existing reference (does NOT increment refcount).
+    // Use when the caller has already incremented the refcount.
+    inline PyRef(PyObject* obj, bool stolen)
+      : _obj(obj)
+    {
+        if (!stolen)
+            Py_INCREF(_obj);
     }
     inline ~PyRef()
     {
@@ -451,6 +460,13 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_next_call_time =
       std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
 
+    // AIDEV-NOTE: Prevent use-after-free by incrementing the refcount BEFORE
+    // creating the thread. This guarantees self stays alive for the entire
+    // thread lifetime. Previously, the Py_INCREF happened inside the thread
+    // lambda (via PyRef), leaving a window between thread creation and
+    // refcount increment where self could theoretically be deallocated.
+    Py_INCREF((PyObject*)self);
+
     // Start the thread
     self->_thread = std::make_unique<std::thread>([self]() {
         // AIDEV-NOTE: The entire thread body is wrapped in try/catch to handle
@@ -468,13 +484,21 @@ PeriodicThread_start(PeriodicThread* self, PyObject* Py_UNUSED(args))
             // we could not acquire the GIL. Bail out immediately — calling any
             // Python API without the GIL would crash.
             if (!_gil.acquired()) {
+                // The reference acquired before thread creation is
+                // intentionally leaked here. We can't safely Py_DECREF
+                // without the GIL, and we're only here because the
+                // interpreter is finalizing — the process is exiting.
                 self->_served->set();
                 self->_started->set();
                 self->_stopped->set();
                 return;
             }
 
-            PyRef _((PyObject*)self);
+            // PyRef takes ownership of the reference we acquired before thread
+            // creation (stolen reference — no additional Py_INCREF).
+            // During finalization, ~PyRef skips Py_DECREF, intentionally
+            // leaking the reference (harmless at shutdown).
+            PyRef _((PyObject*)self, /*stolen=*/true);
 
             // Retrieve the thread ID
             {
@@ -702,9 +726,19 @@ PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
     self->_atexit = false;
     self->_skip_shutdown = false;
 
-    // During prefork, stop() sets _request to wake the thread promptly so it
-    // can exit before fork. That wakeup should not trigger a synthetic
-    // periodic() run right after restart.
+    // AIDEV-NOTE: After fork, the internal std::mutex and std::condition_variable
+    // of Event objects may be in an undefined state in the CHILD process (POSIX
+    // says mutexes held by threads that don't exist in the child are undefined).
+    // However, _after_fork is also called in the PARENT to restart threads.
+    // In the parent, other threads (e.g., awake() callers) may hold references
+    // to these Event objects, so we can't destroy them — we must use .clear().
+    //
+    // This is safe in the parent because _before_fork stops and joins all
+    // threads before fork(), ensuring no thread holds a mutex at this point.
+    // In the child, the mutexes SHOULD be in a valid state because the parent
+    // joined all threads before forking. If a thread was mid-mutex-operation
+    // despite the join (a bug in the stop/join logic), .clear() could still
+    // crash — but recreating Events would break parent-side callers.
     self->_request->clear(REQUEST_REASON_FORK_STOP);
     self->_started->clear();
     self->_stopped->clear();
