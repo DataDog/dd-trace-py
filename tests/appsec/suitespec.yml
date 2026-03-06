@@ -2,6 +2,10 @@
 components:
   appsec:
     - ddtrace/appsec/*
+    - '!ddtrace/appsec/ai_guard/*'
+    - '!ddtrace/appsec/_ai_guard/*'
+    - '!ddtrace/appsec/iast/*'
+    - '!ddtrace/appsec/_iast/*'
     - ddtrace/internal/settings/asm.py
   appsec_iast:
     - ddtrace/appsec/iast/*
@@ -19,7 +23,6 @@ suites:
       - '@core'
       - '@tracing'
       - '@appsec'
-      - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/*
     pattern: appsec$
@@ -32,7 +35,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
@@ -47,7 +49,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast/*
@@ -61,7 +62,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
@@ -82,7 +82,6 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@tracing'
-      - '@appsec'
       - '@appsec_iast'
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
