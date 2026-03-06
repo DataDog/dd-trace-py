@@ -15,9 +15,11 @@ except ImportError:
 import ddtrace
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -92,8 +94,11 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
-    if span._get_ctx_item(INTEGRATION):
-        expected_tags.append("integration:{}".format(span._get_ctx_item(INTEGRATION)))
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS)
+    integration = llmobs_tags.get("integration")
+    if integration:
+        expected_tags.append("integration:{}".format(integration))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -310,18 +315,6 @@ def _llmobs_base_span_event(
     if span_links:
         span_event["span_links"] = mock.ANY
     return span_event
-
-
-def _get_llmobs_parent_id(span: Span):
-    if span._get_ctx_item(PARENT_ID_KEY):
-        return span._get_ctx_item(PARENT_ID_KEY)
-    if not span._parent:
-        return "undefined"
-    parent = span._parent
-    while parent is not None:
-        if parent.span_type == SpanTypes.LLM:
-            return str(parent.span_id)
-        parent = parent._parent
 
 
 def _expected_llmobs_eval_metric_event(

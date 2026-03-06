@@ -99,7 +99,7 @@ def record_span_started():
 
 
 def record_span_created(span: Span):
-    is_root_span = _get_llmobs_parent_id(span) == ROOT_PARENT_ID
+    is_root_span = _get_llmobs_parent_id(span) is None
     llmobs_data = _get_llmobs_data_metastruct(span)
     llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META, {})
     llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS, {})
@@ -181,7 +181,7 @@ def record_llmobs_annotate(span: Optional[Span], error: Optional[str]):
     is_root_span = "0"
     if span and isinstance(span, Span):
         span_kind = _get_span_kind(span) or "N/A"
-        is_root_span = str(int(_get_llmobs_parent_id(span) == ROOT_PARENT_ID))
+        is_root_span = str(int(_get_llmobs_parent_id(span) is None))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.ANNOTATIONS, value=1, tags=tuple(tags)
@@ -214,7 +214,7 @@ def record_span_exported(span: Optional[Span], error: Optional[str]):
     is_root_span = "0"
     if span and isinstance(span, Span):
         span_kind = _get_span_kind(span) or "N/A"
-        is_root_span = str(int(_get_llmobs_parent_id(span) == ROOT_PARENT_ID))
+        is_root_span = str(int(_get_llmobs_parent_id(span) is None))
     tags.extend([("span_kind", span_kind), ("is_root_span", is_root_span)])
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS, name=LLMObsTelemetryMetrics.SPANS_EXPORTED, value=1, tags=tuple(tags)

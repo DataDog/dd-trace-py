@@ -372,13 +372,13 @@ def _get_span_kind(span: Span) -> Optional[str]:
     return kind
 
 
-def _get_llmobs_parent_id(span: Span) -> Optional[str]:
+def _get_llmobs_parent_id(span: Span) -> Optional[int]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     parent_id = llmobs_data.get(LLMOBS_STRUCT.PARENT_ID)
     return parent_id
 
 
-def _get_llmobs_trace_id(span: Span) -> Optional[str]:
+def _get_llmobs_trace_id(span: Span) -> Optional[int]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id

@@ -569,7 +569,7 @@ class LLMObs(Service):
             _dd_attrs["scope"] = "experiments"
 
         llmobs_span_event: LLMObsSpanEvent = {
-            "trace_id": llmobs_trace_id,
+            "trace_id": format_trace_id(llmobs_trace_id),
             "span_id": str(span.span_id),
             "parent_id": parent_id,
             "name": _get_span_name(span),
@@ -1990,7 +1990,7 @@ class LLMObs(Service):
                 int(parent_llmobs_trace_id) if parent_llmobs_trace_id is not None else llmobs_parent.trace_id
             )
         else:
-            parent_id = ROOT_PARENT_ID  # FIXME: do we store parent_id as int or string in span._store? how should we do it for meta_struct?
+            parent_id = None
             llmobs_trace_id = generate_128bit_trace_id()
         _annotate_llmobs_span_data(span, parent_id=parent_id, trace_id=llmobs_trace_id)
         self._llmobs_context_provider.activate(span)
