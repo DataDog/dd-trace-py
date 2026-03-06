@@ -3,8 +3,8 @@ from abc import abstractmethod
 import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
-import math
 from dataclasses import field
+import math
 import re
 import sys
 import time
@@ -46,7 +46,6 @@ from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_CONFIG
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_RECORD_METADATA
-from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.version import __version__
@@ -737,20 +736,21 @@ class Dataset:
         # Compute batching based on the total size of insert + update records.
         total_size = len(safe_json(insert_records)) + len(safe_json(update_records))
         num_batches = max(1, math.ceil(total_size / self.BATCH_UPDATE_THRESHOLD))
-        batch_size = math.ceil(len(insert_records) / num_batches) if insert_records else 0
+        insert_batch_size = math.ceil(len(insert_records) / num_batches)
+        update_batch_size = math.ceil(len(update_records) / num_batches)
         logger.debug(
-            "batched upload num_batches: %d, batch_size: %d",
+            "batched upload num_batches: %d, insert_batch_size: %d, update_batch_size: %d",
             num_batches,
-            batch_size,
+            insert_batch_size,
+            update_batch_size,
         )
 
         data_changed = False
-        insert_batches = list(_batched(insert_records, batch_size)) if batch_size > 0 else [[]]
-        for i, insert_batch in enumerate(insert_batches):
-            # Updates and deletes are sent in the first batch only.
+        for i in range(num_batches):
+            # Deletes are sent in the first batch only (just IDs, negligible size).
             batch_changed = self._push_batch(
-                insert_records=list(insert_batch),
-                update_records=update_records if i == 0 else [],
+                insert_records=insert_records[i * insert_batch_size : (i + 1) * insert_batch_size],
+                update_records=update_records[i * update_batch_size : (i + 1) * update_batch_size],
                 delete_record_ids=delete_record_ids if i == 0 else [],
                 deduplicate=deduplicate,
                 create_new_version=create_new_version,
@@ -840,7 +840,7 @@ class Dataset:
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
-    def extend(self, records: list[DatasetRecordRaw]) -> None:
+    def extend(self, records: Sequence[DatasetRecordRaw]) -> None:
         for record in records:
             self.append(record)
 
