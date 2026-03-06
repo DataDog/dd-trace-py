@@ -32,11 +32,21 @@ def test_get_thread_native_id_dummy_thread() -> None:
     instances which lack _native_id, causing .native_id to raise AttributeError.
     Regression test for https://github.com/DataDog/dd-trace-py/issues/16745
     """
-    dummy: threading.Thread = threading._DummyThread()
-    if hasattr(dummy, "_native_id"):
-        del dummy._native_id  # type: ignore[attr-defined]
+    # _DummyThread.__init__ calls _set_ident() + _active[self._ident] = self,
+    # which overwrites the real main-thread entry.  Save and restore it so
+    # later tests still see "MainThread".
+    main_ident: int = threading.get_ident()
+    main_thread_obj: Optional[threading.Thread] = threading._active.get(main_ident)  # type: ignore[attr-defined]
 
     fake_tid: int = 0xBADCAFE
-    threading._active[fake_tid] = dummy  # type: ignore[attr-defined]
-    assert get_thread_native_id(fake_tid) == fake_tid
-    threading._active.pop(fake_tid, None)  # type: ignore[attr-defined]
+    try:
+        dummy: threading.Thread = threading._DummyThread()  # type: ignore[attr-defined]
+        if hasattr(dummy, "_native_id"):
+            del dummy._native_id  # type: ignore[attr-defined]
+
+        threading._active[fake_tid] = dummy  # type: ignore[attr-defined]
+        assert get_thread_native_id(fake_tid) == fake_tid
+    finally:
+        threading._active.pop(fake_tid, None)  # type: ignore[attr-defined]
+        if main_thread_obj is not None:
+            threading._active[main_ident] = main_thread_obj  # type: ignore[attr-defined]
