@@ -1435,6 +1435,7 @@ def listen():
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.eventhubs.message_modifier", _on_azure_message_modifier)
+    core.on("azure.durable_functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.event_hubs_trigger_modifier", _on_azure_functions_message_trigger_span_modifier)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
@@ -1517,6 +1518,8 @@ def listen():
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",
+        "azure.durable_functions.patched_activity",
+        "azure.durable_functions.patched_entity",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
@@ -1550,6 +1553,8 @@ def listen():
         "molten.trace_func",
         "redis.execute_pipeline",
         "redis.command",
+        "azure.durable_functions.patched_activity",
+        "azure.durable_functions.patched_entity",
         "azure.functions.patched_event_hubs",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
