@@ -209,12 +209,8 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             if self._raise_error:
                 raise
             blocked_text = self._blocked_message(tool_name=tool_name, reason=e.reason)
-            # Replace the tool result content
-            content = event.result.get("content", [])
-            if content:
-                content[0]["text"] = blocked_text
-            else:
-                event.result["content"] = [{"text": blocked_text}]
+            # Replace the tool result content with a single blocked message block
+            event.result["content"] = [{"text": blocked_text}]
             if self._retry:
                 event.retry = True
         except Exception:
