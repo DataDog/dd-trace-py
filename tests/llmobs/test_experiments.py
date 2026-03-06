@@ -355,6 +355,18 @@ def test_dataset_url_diff_site_eu(llmobs, test_dataset_one_record):
         assert dataset.url == f"https://app.datadoghq.eu/llm/datasets/{dataset._id}"
 
 
+def test_dataset_url_staging_site(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="datad0g.com")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://dd.datad0g.com/llm/datasets/{dataset._id}"
+
+
+def test_dataset_url_staging_subdomain_org(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="dd.datad0g.com")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://dd.datad0g.com/llm/datasets/{dataset._id}"
+
+
 def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
     dataset = test_dataset_one_record
     df = dataset.as_dataframe()
@@ -2255,6 +2267,29 @@ def test_experiment_run_w_summary(llmobs, test_dataset_one_record):
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
     assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._experiment._id}"
+
+
+@pytest.mark.parametrize(
+    "dd_site,expected_base",
+    [
+        # Bare domains needing app. prefix
+        ("datadoghq.com", "https://app.datadoghq.com"),
+        ("datadoghq.eu", "https://app.datadoghq.eu"),
+        ("ddog-gov.com", "https://app.ddog-gov.com"),
+        # Staging: hardcoded dd. prefix
+        ("datad0g.com", "https://dd.datad0g.com"),
+        # Subdomain sites: DD_SITE already contains the subdomain, no prefix added
+        ("dd.datad0g.com", "https://dd.datad0g.com"),
+        ("us3.datadoghq.com", "https://us3.datadoghq.com"),
+        ("us5.datadoghq.com", "https://us5.datadoghq.com"),
+        ("ap1.datadoghq.com", "https://ap1.datadoghq.com"),
+    ],
+)
+def test_experiment_url_sites(dd_site, expected_base):
+    from ddtrace.llmobs._experiment import _get_base_url
+
+    with override_global_config(dict(_dd_site=dd_site)):
+        assert _get_base_url() == expected_base
 
 
 def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record_w_metadata):
