@@ -3732,7 +3732,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="appsec_threats_django",
+            name="appsec_threats_django_no_iast",
             command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
@@ -3828,7 +3828,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="appsec_threats_flask",
+            name="appsec_threats_flask_no_iast",
             command="pytest -vv tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pkgs={
                 "pytest": latest,
@@ -3922,7 +3922,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="appsec_threats_fastapi",
+            name="appsec_threats_fastapi_no_iast",
             command="pytest tests/appsec/contrib_appsec/test_fastapi.py {cmdargs}",
             pkgs={
                 "pytest": latest,
@@ -4004,7 +4004,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="appsec_threats_tornado",
+            name="appsec_threats_tornado_no_iast",
             command="pytest tests/appsec/contrib_appsec/test_tornado.py {cmdargs}",
             pkgs={
                 "requests": latest,

@@ -188,7 +188,7 @@ suites:
     runner: riot
     services:
       - testagent
-  appsec_threats_django:
+  appsec_threats_django_no_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -219,7 +219,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     runner: riot
-  appsec_threats_fastapi:
+  appsec_threats_fastapi_no_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -252,7 +252,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     runner: riot
-  appsec_threats_flask:
+  appsec_threats_flask_no_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -283,7 +283,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     runner: riot
-  appsec_threats_tornado:
+  appsec_threats_tornado_no_iast:
     venvs_per_job: 1
     paths:
       - '@bootstrap'
