@@ -1,6 +1,3 @@
-#[cfg(feature = "stats")]
-{
-
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -37,6 +34,4 @@ impl DDSketchPy {
         let res = self.ddsketch.clone().encode_to_vec();
         PyBytes::new(py, &res)
     }
-}
-
 }
