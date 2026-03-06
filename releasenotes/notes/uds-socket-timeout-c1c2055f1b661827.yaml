@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Add a timeout to Unix socket connections to prevent thread I/O hangs during pre-fork shutdown.
