@@ -23,7 +23,6 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
-from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
@@ -231,19 +230,12 @@ def _is_evaluation_span(span: Span) -> bool:
     Return whether or not a span is an evaluation span by checking the span's
     nearest LLMObs span ancestor. Default to 'False'
     """
-    llmobs_data = _get_llmobs_data_metastruct(span)
-    is_evaluation_span = llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN) or span._get_ctx_item(IS_EVALUATION_SPAN)
-    if is_evaluation_span:
-        return is_evaluation_span
-    llmobs_parent = _get_nearest_llmobs_ancestor(span)
-    while llmobs_parent:
-        parent_llmobs_data = _get_llmobs_data_metastruct(llmobs_parent)
-        is_evaluation_span = parent_llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN) or llmobs_parent._get_ctx_item(
-            IS_EVALUATION_SPAN
-        )
-        if is_evaluation_span:
-            return is_evaluation_span
-        llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
+    current: Optional[Span] = span
+    while current:
+        llmobs_data = _get_llmobs_data_metastruct(current)
+        if llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN):
+            return True
+        current = _get_nearest_llmobs_ancestor(current)
     return False
 
 
