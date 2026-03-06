@@ -23,7 +23,7 @@ TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
 def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     """Adaptation of _start_span from trace_handlers to use the event directly
     Once every integration adopted events API, trace_handlers _start_span
-    should be completly removed.
+    should be completely removed.
 
     Args:
         ctx: ExecutionContext containing the event
