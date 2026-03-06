@@ -790,13 +790,9 @@ class Dataset:
             create_new_version=create_new_version,
         )
 
-        # Attach server-assigned record ids to newly created records.
-        # Use a snapshot of the keys so we can selectively remove only the records
-        # that the server acknowledged. Records the server did not return (e.g. because
-        # they were deduplicated against records in another dataset) keep their local
-        # placeholder id and stay in _new_records_by_record_id so that a subsequent
-        # delete() call treats them as local-only rather than sending the non-deterministic
-        # placeholder id to the server as a delete_record_id.
+        # Update newly created records with server-assigned ids.
+        # Only remove records the server acknowledged; unacknowledged records
+        # (e.g. deduplicated) stay in _new_records_by_record_id.
         pending_keys = [r["record_id"] for r in insert_records]
         for key, record_id, canonical_id in zip(pending_keys, new_record_ids, new_canonical_ids):
             self._new_records_by_record_id[key]["record_id"] = record_id  # type: ignore
