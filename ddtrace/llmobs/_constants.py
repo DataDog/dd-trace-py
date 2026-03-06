@@ -82,10 +82,6 @@ ROOT_PARENT_ID = "undefined"
 # Used to differentiate traces of Datadog-run operations vs user-application operations.
 RUNNER_IS_INTEGRATION_SPAN_TAG = "runner.integration"
 
-# All ragas traces have this context item set so we can differentiate
-# spans generated from the ragas integration vs user application spans.
-IS_EVALUATION_SPAN = "_ml_obs.evaluation_span"
-
 ANNOTATIONS_CONTEXT_ID = "annotations_context_id"
 INTERNAL_CONTEXT_VARIABLE_KEYS = "_dd_context_variable_keys"
 INTERNAL_QUERY_VARIABLE_KEYS = "_dd_query_variable_keys"
@@ -107,7 +103,6 @@ INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
 DECORATOR = "_ml_obs.decorator"
-INTEGRATION = "_ml_obs.integration"
 
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
