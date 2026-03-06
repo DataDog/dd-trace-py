@@ -1275,7 +1275,7 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
     )
 
 PACKAGE_NAME = f"ddtrace{('-' + WHEEL_FLAVOR) if WHEEL_FLAVOR else ''}"
-subprocess.run(["sed", "-i", "-e", f's/name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
+subprocess.run(["sed", "-i", "-e", f's/^name = ".*"/name = "{PACKAGE_NAME}"/g', "pyproject.toml"])
 print(f"INFO: building package '{PACKAGE_NAME}'")
 
 interpose_sccache()
