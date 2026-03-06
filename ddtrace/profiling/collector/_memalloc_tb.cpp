@@ -80,9 +80,9 @@ push_stacktrace_to_sample_no_refcount(Datadog::Sample& sample, uint16_t max_nfra
 
     uint16_t pushed_frames = 0;
     for (memalloc_frame_t* frame = current_frame; frame != NULL; frame = memalloc_get_previous_frame(frame)) {
-        // Once we're past the frame cap, record that deeper frames were
+        // Once we've reached the frame cap, record that deeper frames were
         // omitted and stop before doing more line-number or filename work.
-        if (pushed_frames > max_nframe) {
+        if (pushed_frames >= max_nframe) {
             sample.mark_frames_dropped();
             break;
         }
