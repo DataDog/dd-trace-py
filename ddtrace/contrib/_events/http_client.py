@@ -3,6 +3,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from typing import MutableMapping
 from typing import Optional
+from typing import Protocol
 
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
@@ -17,6 +18,11 @@ if TYPE_CHECKING:
     from ddtrace.internal.settings.integration import IntegrationConfig
 
 log = get_logger(__name__)
+
+
+class _HttpClientResponse(Protocol):
+    headers: MutableMapping[str, str]
+    status_code: int
 
 
 class HttpClientEvents(Enum):
@@ -46,3 +52,7 @@ class HttpClientRequestEvent(TracingEvent):
         self.span_name = schematize_url_operation(
             self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
+
+    def set_response_data(self, response: _HttpClientResponse) -> None:
+        self.response_headers = response.headers
+        self.response_status_code = response.status_code

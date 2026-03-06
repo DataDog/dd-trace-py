@@ -103,5 +103,4 @@ def _wrap_send(func, instance, args, kwargs):
         finally:
             if response is not None:
                 event: HttpClientRequestEvent = ctx.event
-                event.response_headers = getattr(response, "headers", {})
-                event.response_status_code = response.status_code
+                event.set_response_data(response)

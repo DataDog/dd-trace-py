@@ -114,8 +114,7 @@ async def _wrapped_async_send(
         finally:
             if resp is not None:
                 event: HttpxRequestEvent = ctx.event
-                event.response_headers = getattr(resp, "headers", {})
-                event.response_status_code = resp.status_code
+                event.set_response_data(resp)
                 # Keep raw response available for AppSec body analysis hooks.
                 ctx.set_item("response", resp)
 
@@ -145,8 +144,7 @@ def _wrapped_sync_send(
         finally:
             if resp is not None:
                 event: HttpxRequestEvent = ctx.event
-                event.response_headers = getattr(resp, "headers", {})
-                event.response_status_code = resp.status_code
+                event.set_response_data(resp)
                 # Keep raw response available for AppSec body analysis hooks.
                 ctx.set_item("response", resp)
 
