@@ -530,7 +530,6 @@ class LLMObs(Service):
         finally:
             telemetry.record_llmobs_user_processor_called(error)
 
-
     def _build_span_event_from_meta_struct(self, span: Span, llmobs_data: LLMObsSpanData) -> Optional[LLMObsSpanEvent]:
         llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
