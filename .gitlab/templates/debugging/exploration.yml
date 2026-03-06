@@ -17,30 +17,17 @@
     paths:
       - ${{DD_DEBUGGER_EXPL_OUTPUT_FILE}}
 
-"debugging/exploration/boto3":
+"debugging/exploration/boto":
   extends: ".debugging/exploration"
   variables:
-    DD_DEBUGGER_EXPL_INCLUDE: "boto3"
+    BOTO3_TAG: 1.38.44
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        BOTO3_TAG: 1.38.44
-  script: |
-    git clone --depth 1 --branch ${{BOTO3_TAG}} https://github.com/boto/boto3.git
-    cd boto3
-    python${{PYTHON_VERSION}} scripts/ci/install
-    python${{PYTHON_VERSION}} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning"'
-
-"debugging/exploration/botocore":
-  extends: ".debugging/exploration"
-  timeout: 20m
-  variables:
-    DD_DEBUGGER_EXPL_INCLUDE: "botocore"
-    DD_DEBUGGER_EXPL_CAPTURE: 0
-  parallel:
-    matrix:
+        DD_DEBUGGER_EXPL_INCLUDE: "boto3"
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-        BOTO3_TAG: 1.38.44
+        DD_DEBUGGER_EXPL_INCLUDE: "botocore"
+        DD_DEBUGGER_EXPL_CAPTURE: 0
   script: |
     git clone --depth 1 --branch ${{BOTO3_TAG}} https://github.com/boto/boto3.git
     cd boto3
