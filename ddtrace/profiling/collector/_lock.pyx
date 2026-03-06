@@ -4,6 +4,7 @@
 # would cause Cython compilation errors since they aren't valid C types.
 
 import _thread
+import logging
 import os.path
 import sys
 import time
@@ -26,6 +27,9 @@ from ddtrace.trace import Tracer
 from ddtrace.profiling._threading import get_thread_name, get_thread_native_id
 from ddtrace.profiling.collector._sampler cimport CaptureSampler
 from ddtrace.profiling.collector._task cimport get_task as _c_get_task, initialize_gevent_support as _c_initialize_gevent_support
+
+
+LOG = logging.getLogger(__name__)
 
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
@@ -460,7 +464,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         _c_initialize_gevent_support()
         self.patch()
 
-        # AIDEV-NOTE: Register a hook to re-apply patches if the target module is
+        # Register a hook to re-apply patches if the target module is
         # re-imported after cleanup_loaded_modules() discards it from sys.modules.
         # Without this, ddtrace-run + gevent installed = lock profiling silently broken.
         module_name = self.MODULE.__name__
@@ -470,6 +474,16 @@ class LockCollector(collector.CaptureSamplerCollector):
             nonlocal patched_module_id
             if id(new_module) == patched_module_id:
                 return
+            LOG.warning(
+                "%s: target module %r was re-imported (id %#x -> %#x); "
+                "re-applying lock profiling patches. "
+                "This typically happens when gevent is installed and cleanup_loaded_modules() "
+                "discards the previously-patched module from sys.modules.",
+                type(self).__name__,
+                module_name,
+                patched_module_id,
+                id(new_module),
+            )
             self.unpatch()
             self.MODULE = new_module
             self.patch()
@@ -495,6 +509,12 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Patch the module for tracking lock allocation."""
         self._original_lock = self._get_patch_target()
         if isinstance(self._original_lock, _LockAllocatorWrapper):
+            LOG.debug(
+                "%s: %s.%s is already patched, skipping to avoid double-wrapping.",
+                type(self).__name__,
+                self.MODULE.__name__,
+                self.PATCHED_LOCK_NAME,
+            )
             return
         original_lock: Callable[..., Any] = self._original_lock
 
