@@ -55,6 +55,7 @@ def _api_gateway_http_api_arn(proxy_context: ProxyHeaderContext) -> Optional[str
 supported_proxies: dict[str, ProxyInfo] = {
     "aws-apigateway": ProxyInfo("aws.apigateway", "aws-apigateway", _api_gateway_rest_api_arn),
     "aws-httpapi": ProxyInfo("aws.httpapi", "aws-httpapi", _api_gateway_http_api_arn),
+    "azure-apim": ProxyInfo("azure.apim", "azure-apim"),
 }
 
 SUPPORTED_PROXY_SPAN_NAMES = {info.span_name for info in supported_proxies.values()}
