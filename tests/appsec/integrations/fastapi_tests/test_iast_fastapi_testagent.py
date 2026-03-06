@@ -1,7 +1,7 @@
 import concurrent.futures
 import json
-
 from unittest.mock import ANY
+
 import pytest
 from requests.exceptions import ConnectionError  # noqa: A004
 

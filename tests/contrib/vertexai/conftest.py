@@ -1,6 +1,6 @@
 from unittest import mock
-
 from unittest.mock import PropertyMock
+
 import pytest
 
 from ddtrace.contrib.internal.vertexai.patch import patch

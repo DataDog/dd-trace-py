@@ -1,7 +1,6 @@
 import os
 from time import sleep
-
-from mock.mock import ANY
+from unittest.mock import ANY
 
 from ddtrace.internal.telemetry.constants import TELEMETRY_EVENT_TYPE
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
