@@ -1,4 +1,3 @@
-import io
 import json
 from typing import Any
 from typing import Optional
@@ -20,39 +19,15 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
-from ddtrace.appsec._utils import Block_config
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
-from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
-from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.utils import http as http_utils
-from ddtrace.internal.utils.http import parse_form_multipart
-import ddtrace.vendor.xmltodict as xmltodict
 
 
 logger = get_logger(__name__)
-
-_BODY_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
-
-
-def _get_content_length(environ):
-    content_length = environ.get("CONTENT_LENGTH")
-    transfer_encoding = environ.get("HTTP_TRANSFER_ENCODING")
-
-    if transfer_encoding == "chunked" or content_length is None:
-        return None
-
-    try:
-        return max(0, int(content_length))
-    except Exception:
-        return 0
 
 
 # set_http_meta
@@ -174,111 +149,7 @@ def _on_lambda_parse_body(
             set_body_response(response_body)
 
 
-# ASGI
-
-
-async def _on_asgi_request_parse_body(receive, headers):
-    if asm_config._asm_enabled:
-        # This must not be imported globally due to 3rd party patching timeline
-        import asyncio
-
-        more_body = True
-        body_parts = []
-        try:
-            while more_body:
-                data_received = await asyncio.wait_for(receive(), asm_config._fast_api_async_body_timeout)
-                if data_received is None:
-                    more_body = False
-                if isinstance(data_received, dict):
-                    more_body = data_received.get("more_body", False)
-                    body_parts.append(data_received.get("body", b""))
-        except asyncio.TimeoutError:
-            pass
-        except Exception:
-            return receive, None
-        body = b"".join(body_parts)
-
-        async def receive_wrapped(once=[True]):
-            if once[0]:
-                once[0] = False
-                return {"type": "http.request", "body": body, "more_body": more_body}
-            return await receive()
-
-        try:
-            content_type = headers.get("content-type") or headers.get("Content-Type")
-            if content_type in ("application/json", "text/json"):
-                if body is None or body == b"":
-                    req_body = None
-                else:
-                    req_body = json.loads(body.decode())
-            elif content_type in ("application/xml", "text/xml"):
-                req_body = xmltodict.parse(body)
-            elif content_type == "text/plain":
-                req_body = None
-            else:
-                req_body = parse_form_multipart(body.decode(), headers) or None
-            return receive_wrapped, req_body
-        except Exception:
-            return receive_wrapped, None
-
-    return receive, None
-
-
-# FLASK
-
-
-def _on_request_span_modifier(
-    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
-):
-    req_body = None
-    if asm_config._asm_enabled and request.method in _BODY_METHODS:
-        content_type = request.content_type
-        wsgi_input = environ.get("wsgi.input", "")
-
-        # Copy wsgi input if not seekable
-        if wsgi_input:
-            try:
-                seekable = wsgi_input.seekable()
-            # expect AttributeError in normal error cases
-            except Exception:
-                seekable = False
-            if not seekable:
-                # https://gist.github.com/mitsuhiko/5721547
-                # Provide wsgi.input as an end-of-file terminated stream.
-                # In that case wsgi.input_terminated is set to True
-                # and an app is required to read to the end of the file and disregard CONTENT_LENGTH for reading.
-                if environ.get("wsgi.input_terminated"):
-                    body = wsgi_input.read()
-                else:
-                    content_length = _get_content_length(environ)
-                    body = wsgi_input.read(content_length) if content_length else b""
-                environ["wsgi.input"] = io.BytesIO(body)
-
-        try:
-            if content_type in ("application/json", "text/json"):
-                if _HAS_JSON_MIXIN and hasattr(request, "json") and request.json:
-                    req_body = request.json
-                elif request.data is None or request.data == b"":
-                    req_body = None
-                else:
-                    req_body = json.loads(request.data.decode("UTF-8"))
-            elif content_type in ("application/xml", "text/xml"):
-                req_body = xmltodict.parse(request.get_data())
-            elif hasattr(request, "form"):
-                req_body = request.form.to_dict()
-            else:
-                # no raw body
-                req_body = None
-        except Exception:
-            logger.debug("Failed to parse request body", exc_info=True)
-        finally:
-            # Reset wsgi input to the beginning
-            if wsgi_input:
-                if seekable:
-                    wsgi_input.seek(0)
-                else:
-                    environ["wsgi.input"] = io.BytesIO(body)
-    return req_body
+# gRPC
 
 
 def _on_grpc_server_response(message):
@@ -299,109 +170,6 @@ def _on_grpc_server_data(headers, request_message, method, metadata):
 
     if metadata:
         set_waf_address(SPAN_DATA_NAMES.GRPC_SERVER_REQUEST_METADATA, dict(metadata))
-
-
-def _wsgi_make_block_content(ctx, construct_url) -> tuple[int, list[tuple[str, str]], bytes]:
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
-    headers = ctx.get_item("headers")
-    environ = ctx.get_item("environ")
-    if req_span is None:
-        raise ValueError("request span not found")
-    block_config: Block_config = get_blocked() or Block_config()
-    ctype = None
-    if block_config.type == "none":
-        content = b""
-        resp_headers = [("content-type", "text/plain; charset=utf-8"), ("location", block_config.location)]
-    else:
-        ctype = block_config.content_type
-        content = http_utils._get_blocked_template(ctype, block_config.block_id).encode("UTF-8")
-        resp_headers = [("content-type", ctype)]
-    status = block_config.status_code
-    try:
-        req_span._set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        if ctype is not None:
-            req_span._set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span._set_tag_str(http.STATUS_CODE, str(status))
-        url = construct_url(environ)
-        query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware._config, req_span, url, query_string)
-        if query_string and middleware._config.trace_query_string:
-            req_span._set_tag_str(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            req_span._set_tag_str(http.METHOD, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            req_span._set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        logger.warning("Could not set some span tags on blocked request: %s", str(e))
-    resp_headers.append(("Content-Length", str(len(content))))
-    return status, resp_headers, content
-
-
-def _asgi_make_block_content(ctx, url) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
-    headers = ctx.get_item("headers")
-    environ = ctx.get_item("environ")
-    if req_span is None:
-        raise ValueError("request span not found")
-    block_config = get_blocked() or Block_config()
-    ctype = None
-    if block_config.type == "none":
-        content = b""
-        resp_headers = [
-            (b"content-type", b"text/plain; charset=utf-8"),
-            (b"location", block_config.location.encode()),
-        ]
-    else:
-        content = http_utils._get_blocked_template(block_config.content_type, block_config.block_id).encode("UTF-8")
-        # ctype = f"{ctype}; charset=utf-8" can be considered at some point
-        resp_headers = [(b"content-type", block_config.content_type.encode())]
-    status = block_config.status_code
-    try:
-        req_span._set_tag_str(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        if ctype is not None:
-            req_span._set_tag_str(RESPONSE_HEADERS + ".content-type", ctype)
-        req_span._set_tag_str(http.STATUS_CODE, str(status))
-        query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware.integration_config, req_span, url, query_string)
-        if query_string and middleware._config.trace_query_string:
-            req_span._set_tag_str(http.QUERY_STRING, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            req_span._set_tag_str(http.METHOD, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            req_span._set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        logger.warning("Could not set some span tags on blocked request: %s", str(e))
-    resp_headers.append((b"Content-Length", str(len(content)).encode()))
-    return status, resp_headers, content
-
-
-def _on_flask_blocked_request(span):
-    span._set_tag_str(http.STATUS_CODE, "403")
-    request = core.find_item("flask_request")
-    try:
-        base_url = getattr(request, "base_url", None)
-        query_string = getattr(request, "query_string", None)
-        if base_url and query_string:
-            _set_url_tag(core.find_item("flask_config"), span, base_url, query_string)
-        if query_string and core.find_item("flask_config").trace_query_string:
-            span._set_tag_str(http.QUERY_STRING, query_string)
-        if request.method is not None:
-            span._set_tag_str(http.METHOD, request.method)
-        user_agent = _get_request_header_user_agent(request.headers)
-        if user_agent:
-            span._set_tag_str(http.USER_AGENT, user_agent)
-    except Exception as e:
-        logger.warning("Could not set some span tags on blocked request: %s", str(e))
-
-
-def _on_start_response_blocked(ctx, flask_config, response_headers, status):
-    trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
 
 
 def _on_telemetry_periodic():
@@ -636,13 +404,6 @@ def listen():
     core.on("telemetry.periodic", _on_telemetry_periodic)
 
     core.on("set_http_meta_for_asm", _on_set_http_meta)
-    core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
-
-    core.on("flask.blocked_request_callable", _on_flask_blocked_request)
-
-    core.on("flask.start_response.blocked", _on_start_response_blocked)
-
-    core.on("asgi.request.parse.body", _on_asgi_request_parse_body, "await_receive_and_body")
 
     core.on("aws_lambda.start_request", _on_lambda_start_request)
     core.on("aws_lambda.start_response", _on_lambda_start_response)
@@ -662,6 +423,3 @@ def listen():
     # disabling threats grpc listeners.
     # core.on("grpc.server.response.message", _on_grpc_server_response)
     # core.on("grpc.server.data", _on_grpc_server_data)
-
-    core.on("wsgi.block.started", _wsgi_make_block_content, "status_headers_content")
-    core.on("asgi.block.started", _asgi_make_block_content, "status_headers_content")

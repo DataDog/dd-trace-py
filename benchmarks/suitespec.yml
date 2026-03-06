@@ -123,6 +123,14 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  # events_api:
+  #   paths:
+  #     - '@bootstrap'
+  #     - '@core'
+  #     - '@tracing'
+  #     - '@vendor'
+  #   cpus_per_run: 1
+  #   type: 'microbenchmark'
   set_http_meta:
     paths:
       - '@bootstrap'
