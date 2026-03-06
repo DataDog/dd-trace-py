@@ -142,7 +142,7 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
     if (locations.size() < max_nframes) {
         push_frame_impl(name, filename, address, line);
     } else {
-        mark_frames_dropped();
+        incr_dropped_frames();
     }
 }
 
@@ -187,7 +187,7 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         // to avoid expensive CPython API calls (PyFrame_GetCode, PyFrame_GetLineNumber, etc.)
         // for frames that will be dropped anyway.
         if (locations.size() >= max_nframes) {
-            mark_frames_dropped();
+            incr_dropped_frames();
             if (!is_initial_frame) {
                 Py_DECREF(f); // Clean up frame reference obtained from PyFrame_GetBack
             }
@@ -247,8 +247,12 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
     // Error state is automatically restored by error_restorer destructor
 }
 
+// Increments the dropped-frame counter. During export_sample(), if dropped_frames > 0,
+// a single synthetic "<N frame(s) omitted>" location is appended to the sample.
+// The indicator is added at most once, even if export_sample() is called multiple times
+// (guarded by has_dropped_frames_indicator).
 void
-Datadog::Sample::mark_frames_dropped(size_t count)
+Datadog::Sample::incr_dropped_frames(size_t count)
 {
     dropped_frames += count;
 }
@@ -259,7 +263,7 @@ Datadog::Sample::push_frame(function_id function_id, uint64_t address, int64_t l
     if (locations.size() < max_nframes) {
         push_frame_impl(function_id, address, line);
     } else {
-        mark_frames_dropped();
+        incr_dropped_frames();
     }
 }
 
