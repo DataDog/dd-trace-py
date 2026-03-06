@@ -18,6 +18,7 @@ from typing import Union
 from typing import cast
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.profiling import collector
 from ddtrace.trace import Tracer
@@ -498,6 +499,7 @@ class LockCollector(collector.CaptureSamplerCollector):
         super().__init__(*args, **kwargs)
         self.tracer: Optional[Tracer] = tracer
         self._original_lock: Optional[Callable[..., Any]] = None
+        self._reimport_hook: Optional[Callable[[ModuleType], None]] = None
 
     def _get_patch_target(self) -> Callable[..., Any]:
         return cast(Callable[..., Any], getattr(self.MODULE, self.PATCHED_LOCK_NAME))
@@ -509,12 +511,36 @@ class LockCollector(collector.CaptureSamplerCollector):
         """Start collecting lock usage."""
         _c_initialize_gevent_support()
         self.patch()
+
+        # AIDEV-NOTE: Register a hook to re-apply patches if the target module is
+        # re-imported after cleanup_loaded_modules() discards it from sys.modules.
+        # Without this, ddtrace-run + gevent installed = lock profiling silently broken.
+        module_name = self.MODULE.__name__
+        patched_module_id = id(self.MODULE)
+
+        def _on_module_reimport(new_module: ModuleType) -> None:
+            nonlocal patched_module_id
+            if id(new_module) == patched_module_id:
+                return
+            self.MODULE = new_module
+            self.patch()
+            patched_module_id = id(new_module)
+
+        self._reimport_hook = _on_module_reimport
+        ModuleWatchdog.register_module_hook(module_name, self._reimport_hook)
+
         super(LockCollector, self)._start_service()  # type: ignore[safe-super]
 
     def _stop_service(self) -> None:
         """Stop collecting lock usage."""
         super(LockCollector, self)._stop_service()  # type: ignore[safe-super]
         self.unpatch()
+        if self._reimport_hook is not None:
+            try:
+                ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)
+            except Exception:
+                pass
+            self._reimport_hook = None
 
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
