@@ -18,7 +18,7 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
 from ddtrace.appsec._http_utils import parse_http_body
-from ddtrace.contrib._events.httpx import HttpxRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.httpx.utils import httpx_url_to_str
 from ddtrace.internal import core
 from ddtrace.internal import telemetry
@@ -304,6 +304,9 @@ APPSEC_SSRF_ANALYZE_BODY_KEY = "appsec.ssrf_analyze_body"
 
 
 def _on_httpx_request_started(ctx: ExecutionContext) -> None:
+    if ctx.event.config.integration_name != "httpx":
+        return
+
     if not _get_rasp_capability("ssrf"):
         return
     asm_context = _get_asm_context()
@@ -373,6 +376,11 @@ def _on_httpx_client_send_single_request_ended(ctx: ExecutionContext, exc_info) 
 
 
 def _on_httpx_request_ended(ctx: ExecutionContext, exc_info) -> None:
+    event: HttpClientRequestEvent = ctx.event
+
+    if event.config.integration_name != "httpx":
+        return
+
     exc_type, _, _ = exc_info
     if exc_type is not None:
         return
@@ -380,7 +388,6 @@ def _on_httpx_request_ended(ctx: ExecutionContext, exc_info) -> None:
     if not _get_rasp_capability("ssrf"):
         return
 
-    event: HttpxRequestEvent = ctx.event
     if event.response_status_code is None or (300 <= event.response_status_code < 400):
         return
 
@@ -420,8 +427,8 @@ def listen():
 
     core.on("context.started.httpx.client._send_single_request", _on_httpx_client_send_single_request_started)
     core.on("context.ended.httpx.client._send_single_request", _on_httpx_client_send_single_request_ended)
-    core.on("context.started.httpx.request", _on_httpx_request_started)
-    core.on("context.ended.httpx.request", _on_httpx_request_ended)
+    core.on("context.started.http.request", _on_httpx_request_started)
+    core.on("context.ended.http.request", _on_httpx_request_ended)
 
     # disabling threats grpc listeners.
     # core.on("grpc.server.response.message", _on_grpc_server_response)
