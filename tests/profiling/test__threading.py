@@ -28,8 +28,9 @@ def test_get_thread_native_id_unknown_thread() -> None:
 def test_get_thread_native_id_dummy_thread() -> None:
     """get_thread_native_id handles _DummyThread (no _native_id attr).
 
-    gevent monkey-patches threading and registers greenlets as _DummyThread
-    instances which lack _native_id, causing .native_id to raise AttributeError.
+    _DummyThread instances lack _native_id, causing .native_id to raise
+    AttributeError. This can occur with threads not created via threading.Thread
+    (e.g., greenlets, C-level threads, _thread.start_new_thread).
     Regression test for https://github.com/DataDog/dd-trace-py/issues/16745
     """
     # _DummyThread.__init__ calls _set_ident() + _active[self._ident] = self,

@@ -2,8 +2,7 @@
 fixes:
   - |
     profiling: Fixes an ``AttributeError`` crash that occurred when the lock
-    profiler or stack profiler encountered ``_DummyThread`` instances created
-    by gevent monkey-patching. Accessing ``native_id`` on these threads raised
-    ``AttributeError`` because ``_DummyThread`` lacks the ``_native_id``
-    attribute. Both ``get_thread_native_id`` and ``init_stack`` now fall back
-    to using the thread identifier when ``native_id`` is unavailable.
+    profiler or stack profiler encountered ``_DummyThread`` instances.
+    ``_DummyThread`` lacks the ``_native_id`` attribute, so accessing
+    ``native_id`` raises ``AttributeError``. The profiler now falls back to
+    using the thread identifier when ``native_id`` is unavailable.

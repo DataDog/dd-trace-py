@@ -34,8 +34,8 @@ cpdef get_thread_name(thread_id):
 cpdef get_thread_native_id(thread_id):
     thread = get_thread_by_id(thread_id)
 
-    # _DummyThread (used by gevent greenlets) lacks _native_id, so
-    # thread.native_id raises AttributeError.  Fall back to thread_id.
+    # _DummyThread lacks _native_id, so thread.native_id raises
+    # AttributeError.  Fall back to thread_id.
     # Also handles thread being None (not found).
     try:
         return thread.native_id
