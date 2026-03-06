@@ -587,8 +587,6 @@ def test_collect_gevent_thread_task() -> None:
     from tests.profiling.collector.test_stack import _fib
     from tests.profiling.collector.test_stack import _main_thread_has_native_id
 
-    from test_stack import _main_thread_has_native_id
-
     test_name = "test_collect_gevent_thread_task"
     pprof_prefix = "/tmp/" + test_name
     output_filename = pprof_prefix + "." + str(os.getpid())
