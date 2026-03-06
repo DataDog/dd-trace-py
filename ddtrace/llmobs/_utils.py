@@ -410,8 +410,8 @@ def _annotate_llmobs_span_data(
     experiment_input: Optional[str] = None,
     experiment_output: Optional[str] = None,
     intent: Optional[str] = None,
-    parent_id: Optional[str] = None,
-    trace_id: Optional[str] = None,
+    parent_id: Optional[int] = None,
+    trace_id: Optional[int] = None,
 ) -> None:
     """Annotate llmobs data on span meta_struct field.
 
