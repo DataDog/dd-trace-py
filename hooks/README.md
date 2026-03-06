@@ -14,17 +14,17 @@ This will create symlinks in `.git/hooks/` for all configured hook types.
 
 ## Available Hooks
 
-### pre-commit
-Runs before each commit. Contains:
+### pre-commit (blocking)
+Runs before each commit. A non-zero exit code **aborts the commit**. Contains:
 - Code formatting and linting checks
 - Other pre-commit validations
 
-### post-merge
-Runs after `git pull` or `git merge`. Contains:
+### post-merge (non-blocking)
+Runs after `git pull` or `git merge`. Non-zero exit codes are logged but **do not block** the operation (the merge has already completed). Contains:
 - **check-native-changes**: Detects changes to native code files (C, C++, Rust, Cython) and alerts you to rebuild
 
-### post-checkout
-Runs after `git checkout` or `git switch`. Contains:
+### post-checkout (non-blocking)
+Runs after `git checkout` or `git switch`. Non-zero exit codes are logged but **do not block** the operation. Contains:
 - **check-native-changes**: Detects changes to native code files and alerts you to rebuild
 
 ## Native Code Change Detection
@@ -59,7 +59,7 @@ The following native code files have changed:
   • ddtrace/appsec/_ddwaf.cpp
   ... and 5 more file(s)
 
-You need to rebuild native extensions!
+You may need to rebuild native extensions.
 
 Run one of the following commands:
 
