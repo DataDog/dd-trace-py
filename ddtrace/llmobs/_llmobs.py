@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from dataclasses import field
 import inspect
 import json
-import math
 import os
 import sys
 import time
@@ -134,7 +133,6 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
-from ddtrace.llmobs._utils import _batched
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -964,30 +962,8 @@ class LLMObs(Service):
         ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
 
         if len(records) > 0:
-            if bulk_upload:
-                for record in records:
-                    ds.append(record)
-                ds.push(deduplicate=deduplicate, bulk_upload=True)
-            else:
-                num_batches = math.ceil(len(safe_json(records)) / ds.BATCH_UPDATE_THRESHOLD)
-                batch_size = math.ceil(len(records) / num_batches)
-                log.debug(
-                    "batched upload num_batches :%d, batch_size: %d",
-                    num_batches,
-                    batch_size,
-                )
-                create_new_version = True  # wether the server should attempt to bump the data version or not
-                for record_batch in _batched(records, batch_size):
-                    for record in record_batch:
-                        ds.append(record)
-                    data_changed = ds._push(
-                        deduplicate=deduplicate,
-                        create_new_version=create_new_version,
-                        bulk_upload=False,
-                    )
-                    if data_changed:
-                        # Since we are batching a single upload, we should only bump the version at most once
-                        create_new_version = False
+            ds.extend(records)
+            ds._push(deduplicate=deduplicate, bulk_upload=bulk_upload)
 
         return ds
 
