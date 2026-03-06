@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import struct
 import sys
+from typing import Any
 from typing import Callable
 from typing import Optional
 
@@ -18,6 +19,8 @@ ENTRYPOINT_WORKDIR_TAG = "entrypoint.workdir"
 ENTRYPOINT_TYPE_TAG = "entrypoint.type"
 ENTRYPOINT_TYPE_SCRIPT = "script"
 ENTRYPOINT_BASEDIR_TAG = "entrypoint.basedir"
+SVC_USER_TAG = "svc.user"
+SVC_AUTO_TAG = "svc.auto"
 
 _CONSECUTIVE_UNDERSCORES_PATTERN = re.compile(r"_{2,}")
 _ALLOWED_CHARS = _ALLOWED_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789/._-")
@@ -62,11 +65,15 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
     if not config.enabled:
         return None, None
 
+    from ddtrace import config as ddtrace_config
+
     tag_definitions = [
         (ENTRYPOINT_WORKDIR_TAG, lambda: os.path.basename(os.getcwd())),
         (ENTRYPOINT_BASEDIR_TAG, lambda: Path(sys.argv[0]).resolve().parent.name),
         (ENTRYPOINT_NAME_TAG, lambda: os.path.splitext(os.path.basename(sys.argv[0]))[0]),
         (ENTRYPOINT_TYPE_TAG, lambda: ENTRYPOINT_TYPE_SCRIPT),
+        (SVC_USER_TAG, lambda: "true" if ddtrace_config._is_user_provided_service else None),
+        (SVC_AUTO_TAG, lambda: ddtrace_config.service if not ddtrace_config._is_user_provided_service else None),
     ]
 
     process_tags_list = sorted(
@@ -83,9 +90,12 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
 
 
 def compute_base_hash(container_tags_hash):
-    global base_hash, base_hash_bytes
-    if not process_tags:
+    if not config.enabled:
         return
+
+    global base_hash, base_hash_bytes, process_tags
+    if "process_tags" not in globals():
+        process_tags, process_tags_list = generate_process_tags()
 
     b = bytes(process_tags, encoding="utf-8") + bytes(container_tags_hash, encoding="utf-8")
     base_hash = fnv1_64(b)
@@ -93,4 +103,15 @@ def compute_base_hash(container_tags_hash):
 
 
 base_hash, base_hash_bytes = None, b""
-process_tags, process_tags_list = generate_process_tags()
+
+
+def __getattr__(name: str) -> Any:
+    if "process_tags" in name:
+        global process_tags
+        global process_tags_list
+        process_tags, process_tags_list = generate_process_tags()  # type: ignore
+        if name == "process_tags":
+            return process_tags  # type: ignore
+        elif name == "process_tags_list":
+            return process_tags_list  # type: ignore
+    return globals()[name]
