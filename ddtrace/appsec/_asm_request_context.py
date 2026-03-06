@@ -14,6 +14,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import Constant_Class
+from ddtrace.appsec._metrics import _set_waf_request_metrics
 from ddtrace.appsec._utils import Block_config
 from ddtrace.appsec._utils import Telemetry_result
 from ddtrace.appsec._utils import get_triggers
@@ -112,7 +113,7 @@ class ASM_Environment:
         self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: dict[str, Any] = {}
         self.waf_callable: Optional[WafCallable] = waf_callable
-        self.callbacks: dict[str, Any] = {_CONTEXT_CALL: []}
+        self.callbacks: dict[str, Any] = {}
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
         self.waf_triggers: list[dict[str, Any]] = []
@@ -304,8 +305,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     for function in GLOBAL_CALLBACKS[_CONTEXT_CALL]:
         function(env)
     flush_waf_triggers(env)
-    for function in env.callbacks[_CONTEXT_CALL]:
-        function(env)
+    _set_waf_request_metrics(env.telemetry)
     entry_span = env.entry_span
     if entry_span:
         if env.waf_info:
@@ -402,19 +402,14 @@ def get_waf_address(address: str, default: Any = None) -> Any:
 def add_context_callback(function, global_callback: bool = False) -> None:
     if global_callback:
         callbacks = GLOBAL_CALLBACKS.setdefault(_CONTEXT_CALL, [])
-    else:
-        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
-    if callbacks is not None:
         callbacks.append(function)
 
 
 def remove_context_callback(function, global_callback: bool = False) -> None:
     if global_callback:
         callbacks = GLOBAL_CALLBACKS.get(_CONTEXT_CALL)
-    else:
-        callbacks = get_value(_CALLBACKS, _CONTEXT_CALL)
-    if callbacks:
-        callbacks[:] = list([cb for cb in callbacks if cb != function])
+        if callbacks:
+            callbacks[:] = list([cb for cb in callbacks if cb != function])
 
 
 def set_waf_info(info: Callable[[], "DDWaf_info"]) -> None:
