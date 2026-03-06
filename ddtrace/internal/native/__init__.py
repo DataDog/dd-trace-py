@@ -14,12 +14,17 @@ from ._native import SerializationError  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import config  # noqa: F401
-from ._native import ffe  # noqa: F401
 from ._native import generate_128bit_trace_id  # noqa: F401
 from ._native import logger  # noqa: F401
 from ._native import rand64bits  # noqa: F401
 from ._native import seed  # noqa: F401
 from ._native import store_metadata  # noqa: F401
+
+
+try:
+    from ._native import ffe  # noqa: F401
+except ImportError:
+    pass
 
 
 def get_configuration_from_disk() -> tuple[dict[str, str], dict[str, str], dict[str, Optional[str]]]:
