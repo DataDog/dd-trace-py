@@ -1302,6 +1302,29 @@ venv = Venv(
             },
         ),
         Venv(
+            name="mlflow",
+            command="pytest {cmdargs} tests/contrib/mlflow/",
+            pkgs={
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.11"),
+                    pkgs={
+                        "mlflow": ["~=2.11.0"],
+                        "setuptools": latest,
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pkgs={
+                        "mlflow": [latest],
+                        "setuptools": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="mysql",
             command="pytest {cmdargs} tests/contrib/mysql",
             pkgs={
