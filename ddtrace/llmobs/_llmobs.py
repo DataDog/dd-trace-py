@@ -1163,7 +1163,7 @@ class LLMObs(Service):
         :param description: The description of the dataset.
         :param records: Optional records to initialize the dataset with.
         :param deduplicate:
-            Wether to deduplicate the records or not. If bulk_upload is True, deduplication occurs
+            Whether to deduplicate the records or not. If bulk_upload is True, deduplication occurs
             within the uploaded data, not existing data already stored on the sever.
         :param bulk_upload:
             - True:
@@ -1191,7 +1191,7 @@ class LLMObs(Service):
                     num_batches,
                     batch_size,
                 )
-                create_new_version = True  # wether the server should attempt to bump the data version or not
+                create_new_version = True  # whether the server should attempt to bump the data version or not
                 for record_batch in _batched(records, batch_size):
                     for record in record_batch:
                         ds.append(record)

@@ -679,7 +679,7 @@ class Dataset:
         """Pushes any local changes in this dataset since the last push.
 
         :param deduplicate:
-            Wether to deduplicate the records or not. Does not deduplicate against existing
+            Whether to deduplicate the records or not. Does not deduplicate against existing
             data if bulk_upload is False.
         :param create_new_version:
             Whether to create a new version of the dataset when changes are detected, or update the
