@@ -1,7 +1,7 @@
 # stdlib
 import time
+from unittest import mock
 
-import mock
 import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Composed

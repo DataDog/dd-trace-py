@@ -6,9 +6,9 @@ from pathlib import Path
 import sys
 import tempfile
 from threading import Thread
+from unittest import mock
+from unittest.mock import call
 
-import mock
-from mock.mock import call
 import pytest
 
 import ddtrace

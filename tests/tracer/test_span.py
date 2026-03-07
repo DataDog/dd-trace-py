@@ -3,9 +3,9 @@ from functools import partial
 import sys
 import time
 import traceback
+from unittest import mock
 from unittest.case import SkipTest
 
-import mock
 import pytest
 
 from ddtrace._trace._span_link import SpanLink

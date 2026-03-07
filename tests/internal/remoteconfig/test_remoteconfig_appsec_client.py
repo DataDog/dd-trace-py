@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-import mock
-from mock.mock import MagicMock
+from unittest import mock
+from unittest.mock import MagicMock
+
 import pytest
 
 from ddtrace.internal.remoteconfig import ConfigMetadata

@@ -1,7 +1,7 @@
 import unittest
+from unittest import mock
 
 import flask
-import mock
 
 from ddtrace.contrib.internal.flask.patch import _u
 from ddtrace.contrib.internal.flask.patch import _w

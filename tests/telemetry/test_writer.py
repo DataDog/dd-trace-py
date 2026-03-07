@@ -4,9 +4,9 @@ import sysconfig
 import time
 from typing import Any  # noqa:F401
 from typing import Optional  # noqa:F401
+from unittest import mock
 
 import httpretty
-import mock
 import pytest
 
 from ddtrace import config

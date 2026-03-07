@@ -2,8 +2,8 @@ import threading
 from time import sleep
 from typing import Any
 import unittest
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace import config

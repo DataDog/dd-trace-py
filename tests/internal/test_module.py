@@ -2,9 +2,9 @@ import json
 import os
 from pathlib import Path
 import sys
+from unittest import mock
 from warnings import warn
 
-import mock
 import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -103,8 +103,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
     import os
     from pathlib import Path
     import sys
-
-    from mock import mock
+    from unittest.mock import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 
@@ -137,8 +136,7 @@ def test_import_origin_hook_for_module_not_yet_imported():
 @pytest.mark.subprocess
 def test_import_module_hook_for_module_not_yet_imported():
     import sys
-
-    from mock import mock
+    from unittest.mock import mock
 
     from ddtrace.internal.module import ModuleWatchdog
 

@@ -3,8 +3,8 @@ from functools import partial
 import sys
 from time import sleep
 import unittest
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.utils import ArgumentError

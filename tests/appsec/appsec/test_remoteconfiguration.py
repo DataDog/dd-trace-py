@@ -2,8 +2,8 @@ import base64
 import hashlib
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec._capabilities import _appsec_rc_capabilities

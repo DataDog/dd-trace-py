@@ -4,10 +4,10 @@ import subprocess
 import sys
 import time
 from time import sleep
+from unittest import mock
 
 import celery
 from celery.exceptions import Retry
-import mock
 import pytest
 
 from ddtrace.constants import ERROR_MSG

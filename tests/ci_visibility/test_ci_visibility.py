@@ -6,8 +6,8 @@ import re
 import socket
 import textwrap
 import time
+from unittest import mock
 
-import mock
 import msgpack
 import pytest
 
