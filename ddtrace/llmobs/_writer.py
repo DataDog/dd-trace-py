@@ -351,6 +351,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
+    @fibonacci_backoff_with_jitter(
+        attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
+        initial_wait=0.5,
+        until=lambda result: isinstance(result, Response) and result.status < 500,
+    )
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
