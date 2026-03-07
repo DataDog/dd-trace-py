@@ -6,6 +6,7 @@ from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
 from tests.contrib.litellm.utils import consume_stream_iter
 from tests.contrib.litellm.utils import consume_stream_next
+from tests.contrib.litellm.utils import expected_aliased_router_settings
 from tests.contrib.litellm.utils import expected_router_settings
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
@@ -458,6 +459,100 @@ class TestLLMObsLiteLLM:
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
+
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_router_completion_aliased_model(
+        self, litellm, request_vcr, llmobs_events, test_spans, aliased_router, stream, n, consume_stream
+    ):
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = aliased_router.completion(
+                model="my-gpt",
+                messages=messages,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": True},
+            )
+            if stream:
+                output_messages, _ = consume_stream(resp, n)
+            else:
+                output_messages, _ = parse_response(resp)
+
+        trace = test_spans.pop_traces()[0]
+        assert len(trace) == 2
+        router_span = trace[0]
+
+        assert len(llmobs_events) == 2
+        router_event = llmobs_events[1]
+        llm_event = llmobs_events[0]
+
+        assert llm_event["meta"]["span"]["kind"] == "llm"
+        assert llm_event["meta"]["model_provider"] == "openai"
+        assert llm_event["name"] == "completion"
+
+        expected_event = _expected_llmobs_non_llm_span_event(
+            router_span,
+            span_kind="workflow",
+            input_value=safe_json(messages, ensure_ascii=False),
+            output_value=safe_json(output_messages, ensure_ascii=False),
+            metadata={
+                "stream": stream,
+                "n": n,
+                "stream_options": {"include_usage": True},
+                "router_settings": expected_aliased_router_settings,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+        expected_event["meta"]["model_name"] = "gpt-3.5-turbo"
+        expected_event["meta"]["model_provider"] = "openai"
+        assert router_event == expected_event
+
+    @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
+    async def test_router_acompletion_aliased_model(
+        self, litellm, request_vcr, llmobs_events, test_spans, aliased_router, stream, n, consume_stream
+    ):
+        with request_vcr.use_cassette(get_cassette_name(stream, n)):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = await aliased_router.acompletion(
+                model="my-gpt",
+                messages=messages,
+                stream=stream,
+                n=n,
+                stream_options={"include_usage": True},
+            )
+            if stream:
+                output_messages, _ = await consume_stream(resp, n)
+            else:
+                output_messages, _ = parse_response(resp)
+
+        trace = test_spans.pop_traces()[0]
+        assert len(trace) == 2
+        router_span = trace[0]
+
+        assert len(llmobs_events) == 2
+        router_event = llmobs_events[1]
+        llm_event = llmobs_events[0]
+
+        assert llm_event["meta"]["span"]["kind"] == "llm"
+        assert llm_event["meta"]["model_provider"] == "openai"
+        assert llm_event["name"] == "acompletion"
+
+        expected_event = _expected_llmobs_non_llm_span_event(
+            router_span,
+            span_kind="workflow",
+            input_value=safe_json(messages, ensure_ascii=False),
+            output_value=safe_json(output_messages, ensure_ascii=False),
+            metadata={
+                "stream": stream,
+                "n": n,
+                "stream_options": {"include_usage": True},
+                "router_settings": expected_aliased_router_settings,
+            },
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+        expected_event["meta"]["model_name"] = "gpt-3.5-turbo"
+        expected_event["meta"]["model_provider"] = "openai"
+        assert router_event == expected_event
 
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])

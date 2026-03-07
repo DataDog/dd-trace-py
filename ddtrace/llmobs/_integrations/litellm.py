@@ -4,6 +4,8 @@ from typing import Optional
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
+from ddtrace.llmobs._constants import LITELLM_STREAM_MODEL_KEY
+from ddtrace.llmobs._constants import LITELLM_STREAM_PROVIDER_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -65,6 +67,18 @@ class LiteLLMIntegration(BaseLLMIntegration):
     ) -> None:
         model_name = get_argument_value(args, kwargs, 0, "model", False) or ""
         model_name, model_provider = self._model_map.get(model_name, (model_name, ""))
+
+        # fallback for Router aliases not present in _model_map
+        if not model_provider:
+            if response is not None:
+                hidden_params = getattr(response, "_hidden_params", None) or {}
+                model_provider = hidden_params.get("custom_llm_provider", "")
+                resolved_model = getattr(response, "model", None)
+                if resolved_model:
+                    model_name = resolved_model
+            if not model_provider:
+                model_provider = kwargs.get(LITELLM_STREAM_PROVIDER_KEY, "")
+                model_name = kwargs.get(LITELLM_STREAM_MODEL_KEY, model_name)
 
         # use Open AI helpers since response format will match Open AI
         if self.is_completion_operation(operation):

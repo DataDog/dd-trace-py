@@ -3,6 +3,7 @@ import pytest
 from ddtrace.contrib.internal.litellm.patch import patch
 from ddtrace.contrib.internal.litellm.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
+from tests.contrib.litellm.utils import aliased_model_list
 from tests.contrib.litellm.utils import get_request_vcr
 from tests.contrib.litellm.utils import model_list
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -73,3 +74,10 @@ def router():
     from litellm import Router
 
     yield Router(model_list=model_list)
+
+
+@pytest.fixture
+def aliased_router():
+    from litellm import Router
+
+    yield Router(model_list=aliased_model_list)
