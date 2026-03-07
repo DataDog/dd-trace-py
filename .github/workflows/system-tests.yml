@@ -93,7 +93,7 @@ jobs:
             manylinux2014_x86_64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: wheels-manylinux_x86_64
           path: ./wheels/*.whl
@@ -131,7 +131,7 @@ jobs:
           ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
 
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           pattern: wheels-*
           path: binaries/
@@ -145,7 +145,7 @@ jobs:
         run: |
           docker image save system_tests/weblog:latest | gzip > ${{ matrix.weblog-variant}}_weblog_${{ github.sha }}.tar.gz
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: |
@@ -186,7 +186,7 @@ jobs:
       - name: Build runner
         uses: ./.github/actions/install_runner
 
-      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: images_artifacts/
@@ -363,7 +363,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always() && steps.docker_load.outcome == 'success'
         with:
           name: logs_${{ matrix.weblog-variant }}_${{ matrix.scenario }}
@@ -388,7 +388,7 @@ jobs:
           # Automatically managed, use scripts/update-system-tests-version to update
           ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           pattern: wheels-*
           path: binaries/
@@ -407,7 +407,7 @@ jobs:
         run: tar -czvf artifact.tar.gz $(ls | grep logs)
 
       - name: Upload artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         if: always() && steps.build_runner.outcome == 'success'
         with:
           name: logs_parametric
@@ -424,7 +424,7 @@ jobs:
           repository: "DataDog/datadog-lambda-python"
 
       - name: Download wheel to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: wheels-manylinux_x86_64
           path: artifacts/
@@ -435,7 +435,7 @@ jobs:
           ARCH=amd64 PYTHON_VERSION=3.13 DD_TRACE_WHEEL=$wheel_path ./scripts/build_layers.sh
 
       - name: Upload layer artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           path: .layers/datadog_lambda_py-amd64-3.13.zip
           name: serverless_system_tests_binaries
@@ -443,7 +443,7 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@01d133adc8ed57d84b4d75cfe985fb33780ffa07
     secrets: inherit
     permissions:
       contents: read
@@ -459,14 +459,14 @@ jobs:
     needs: [download-s3-wheels]
     steps:
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           pattern: wheels-*
           path: binaries/
           merge-multiple: true
 
       - name: Upload combined wheels
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: integration-frameworks-wheels
           path: binaries/
@@ -475,7 +475,7 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@01d133adc8ed57d84b4d75cfe985fb33780ffa07
     secrets: inherit
     permissions:
       contents: read
