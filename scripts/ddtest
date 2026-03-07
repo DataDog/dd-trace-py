@@ -37,6 +37,24 @@ fi
 # Ensure the directories are writable
 chmod -R u+w "$CACHE_DIR" 2>/dev/null || true
 
+# Generate a per-run compose project name from the project root path so that
+# concurrent runs in different worktrees get isolated compose projects.
+if [ -z "${COMPOSE_PROJECT_NAME:-}" ]; then
+    PATH_HASH=$(echo -n "$PROJECT_ROOT" | shasum | head -c 8)
+    export COMPOSE_PROJECT_NAME="ddtracepy-${PATH_HASH}"
+fi
+
+# Handle git worktree: mount the common git directory so that git works inside
+# the container even when .git is a file pointing outside the mount.
+EXTRA_VOLUMES=()
+GIT_DIR_FILE="$PROJECT_ROOT/.git"
+if [ -f "$GIT_DIR_FILE" ]; then
+    GIT_COMMON_DIR=$(cd "$PROJECT_ROOT" && git rev-parse --git-common-dir)
+    # Resolve to absolute path
+    GIT_COMMON_DIR=$(cd "$PROJECT_ROOT" && cd "$GIT_COMMON_DIR" && pwd)
+    EXTRA_VOLUMES+=("-v" "${GIT_COMMON_DIR}:${GIT_COMMON_DIR}:ro")
+fi
+
 COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
 if command -v nvidia-smi >/dev/null 2>&1; then
     COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.gpu.yml")
@@ -44,7 +62,8 @@ fi
 
 docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
        -e DD_TRACE_AGENT_URL \
+       ${EXTRA_VOLUMES[@]+"${EXTRA_VOLUMES[@]}"} \
        --rm \
        -i \
        testrunner \
-       bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+       bash -c "(git config --global --add safe.directory /home/bits/project || true) && (git config --global --add safe.directory ${GIT_COMMON_DIR:-/home/bits/project} || true) && $CMD"

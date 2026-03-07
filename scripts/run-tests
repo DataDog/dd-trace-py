@@ -18,6 +18,7 @@ Note: This runs entire test suites, not individual test files.
 
 import argparse
 import fnmatch
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -28,9 +29,23 @@ from typing import NamedTuple
 
 
 # Add project root and tests to Python path to import suitespec and riotfile
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
+
+
+def _ensure_compose_project_name():
+    """Set COMPOSE_PROJECT_NAME if not already set, using a hash of the project root.
+
+    This ensures concurrent runs from different worktrees get isolated compose
+    projects and don't interfere with each other's containers.
+    """
+    if "COMPOSE_PROJECT_NAME" not in os.environ:
+        path_hash = hashlib.sha1(str(ROOT).encode()).hexdigest()[:8]
+        os.environ["COMPOSE_PROJECT_NAME"] = f"ddtracepy-{path_hash}"
+
+
+_ensure_compose_project_name()
 
 import riotfile  # noqa: E402
 from tests.suitespec import get_patterns  # noqa: E402
@@ -38,7 +53,7 @@ from tests.suitespec import get_suites  # noqa: E402
 
 
 # Constants
-TESTAGENT_URL = "http://localhost:9126"
+TESTAGENT_PORT_DEFAULT = 9126
 
 
 class RiotVenv(NamedTuple):
@@ -283,6 +298,29 @@ class TestRunner:
             print(f"❌ Failed to start services: {e}")
             return False
 
+    def get_testagent_url(self) -> str:
+        """Discover the testagent URL by querying its dynamically assigned host port."""
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "port", "testagent", "8126"],
+                capture_output=True,
+                text=True,
+                cwd=self.root,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # Output is like "0.0.0.0:32768" or "127.0.0.1:32768"
+                host_port = result.stdout.strip().rsplit(":", 1)[-1]
+                url = f"http://localhost:{host_port}"
+                print(f"🔍 Discovered testagent at {url}")
+                return url
+        except Exception as e:
+            print(f"⚠️  Failed to discover testagent port: {e}")
+
+        # Fall back to the conventional fixed port
+        url = f"http://localhost:{TESTAGENT_PORT_DEFAULT}"
+        print(f"⚠️  Falling back to {url}")
+        return url
+
     def stop_services(self, services: set[str]) -> bool:
         """Stop and remove Docker services."""
         if not services:
@@ -503,8 +541,9 @@ class TestRunner:
 
             # Override with testagent URL if needed
             if needs_testagent:
-                env["DD_TRACE_AGENT_URL"] = TESTAGENT_URL
-                print(f"🔧 Setting DD_TRACE_AGENT_URL={TESTAGENT_URL} for snapshot tests")
+                testagent_url = self.get_testagent_url()
+                env["DD_TRACE_AGENT_URL"] = testagent_url
+                print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
 
             # Execute each unique venv hash in this suite
             # Note: riot will run all instances for each hash (different commands, env vars, etc.)

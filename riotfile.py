@@ -463,7 +463,6 @@ venv = Venv(
                 Venv(
                     name="integration-snapshot",
                     env={
-                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
                 ),
@@ -472,7 +471,6 @@ venv = Venv(
                 Venv(
                     name="integration-snapshot-native-writer",
                     env={
-                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                         "_DD_TRACE_WRITER_NATIVE": "1",
                     },
@@ -496,7 +494,6 @@ venv = Venv(
                 Venv(
                     name="integration-snapshot-civisibility",
                     env={
-                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
                 ),
@@ -1435,7 +1432,6 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
-                "DD_TRACE_AGENT_URL": "http://0.0.0.0:9126",
                 "DD_FAST_BUILD": "1",
                 "PYDONTWRITEBYTECODE": "1",
                 "PYTHONUNBUFFERED": "1",
