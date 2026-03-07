@@ -21,6 +21,9 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_cosmos:
+    - ddtrace/contrib/internal/azure_cosmos/*
+    - ddtrace/ext/azure_cosmos.py
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
     - ddtrace/ext/azure_eventhubs.py
@@ -361,6 +364,21 @@ suites:
       - tests/snapshots/tests.{suite}.*
     runner: riot
     snapshot: true
+  azure_cosmos:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_cosmos'
+      - tests/contrib/azure_cosmos/*
+      - tests/snapshots/tests.contrib.azure_cosmos.*
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azurecosmosemulator
   azure_eventhubs:
     parallelism: 4
     paths:
@@ -391,6 +409,23 @@ suites:
     snapshot: true
     services:
       - azurite
+  azure_functions:cosmos:
+    parallelism: 4
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_functions'
+      - '@azure_cosmos'
+      - tests/contrib/azure_functions_cosmos/*
+      - tests/snapshots/tests.contrib.azure_functions_cosmos.*
+    pattern: azure_functions:cosmos
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
+      - azurecosmosemulator
   azure_functions:eventhubs:
     parallelism: 4
     paths:

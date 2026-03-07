@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "ACCOUNT_URI": "https://rith-cosmos.documents.azure.com:443/",
+    "ACCOUNT_KEY": "ex",
+    "CONNECTION_STRING": "ample",
+    "FUNCTIONS_EXTENSION_VERSION": "~4",
+  }
+}
