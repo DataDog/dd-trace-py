@@ -65,10 +65,8 @@ log_extra = {"product": "appsec", "stack_limit": 4, "exec_limit": 4}
 
 _ASM_CONTEXT: Literal["_asm_env"] = "_asm_env"
 _WAF_ADDRESSES: Literal["waf_addresses"] = "waf_addresses"
-_CALLBACKS: Literal["callbacks"] = "callbacks"
 _TELEMETRY: Literal["telemetry"] = "telemetry"
 _CONTEXT_CALL: Literal["context"] = "context"
-_BLOCK_CALL: Literal["block"] = "block"
 
 
 GLOBAL_CALLBACKS: dict[str, list[Callable]] = {_CONTEXT_CALL: []}
@@ -113,7 +111,7 @@ class ASM_Environment:
         self.waf_info: Optional[Callable[[], "DDWaf_info"]] = None
         self.waf_addresses: dict[str, Any] = {}
         self.waf_callable: Optional[WafCallable] = waf_callable
-        self.callbacks: dict[str, Any] = {}
+        self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
         self.waf_triggers: list[dict[str, Any]] = []
@@ -333,7 +331,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             entry_span._set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
 
     # Manually clear reference cycles to simplify the work for the GC
-    env.callbacks.clear()
+    env.block_callable = None
     env.waf_callable = None
     core.discard_local_item(_ASM_CONTEXT)
 
@@ -431,10 +429,10 @@ def call_waf_callback(
     env = get_active_asm_context()
     if env is not None and env.waf_callable is not None:
         return env.waf_callable(custom_data, crop_trace, rule_type, force_sent)
-    else:
-        logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
-        report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
-        return None
+
+    logger.warning(WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET, extra=log_extra, stack_info=True)
+    report_error_on_entry_span("appsec::instrumentation::diagnostic", WARNING_TAGS.CALL_WAF_CALLBACK_NOT_SET)
+    return None
 
 
 def call_waf_callback_no_instrumentation() -> None:
@@ -478,23 +476,25 @@ def get_headers_case_sensitive() -> bool:
     return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
 
 
-def set_block_request_callable(_callable: Optional[Callable], *_) -> None:
+def set_block_request_callable(_callable: Optional[Callable[[], None]], *_) -> None:
     """
     Sets a callable that could be use to do a best-effort to block the request. If
     the callable need any params, like headers, they should be curried with
     functools.partial.
     """
     if asm_config._asm_enabled and _callable:
-        set_value(_CALLBACKS, _BLOCK_CALL, _callable)
+        env = get_active_asm_context()
+        if env is not None:
+            env.block_callable = _callable
 
 
 def block_request() -> None:
     """
     Calls or returns the stored block request callable, if set.
     """
-    _callable = get_value(_CALLBACKS, _BLOCK_CALL)
-    if _callable:
-        _callable()
+    env = get_active_asm_context()
+    if env is not None and env.block_callable is not None:
+        env.block_callable()
     else:
         logger.warning(WARNING_TAGS.BLOCK_REQUEST_NOT_CALLABLE, extra=log_extra, stack_info=True)
 
@@ -511,7 +511,7 @@ def asm_request_context_set(
     remote_ip: Optional[str] = None,
     headers: Any = None,
     headers_case_sensitive: bool = False,
-    block_request_callable: Optional[Callable] = None,
+    block_request_callable: Optional[Callable[[], None]] = None,
 ) -> None:
     set_ip(remote_ip)
     set_headers(headers)
