@@ -1,6 +1,6 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
-  MANYLINUX_AMD64_IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+  MANYLINUX_AMD64_IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
   ALPINE_BUILD_IMAGE_TAG: "v99952233-e6a3deb-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
@@ -20,12 +20,12 @@ variables:
   - "cp314-cp314"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
-  - "v85383414-751efc0-manylinux2014_aarch64"
-  - "v85383359-751efc0-musllinux_1_2_aarch64"
+  - "v100156565-ebe2831-manylinux2014_aarch64"
+  - "v100156843-ebe2831-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
-  - "v85383392-751efc0-manylinux2014_x86_64"
-  - "v85383325-751efc0-musllinux_1_2_x86_64"
+  - "v100156674-ebe2831-manylinux2014_x86_64"
+  - "v100157041-ebe2831-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -156,7 +156,7 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
@@ -189,10 +189,10 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: "cp311-cp311"
-            IMAGE_TAG: "v85383414-751efc0-manylinux2014_aarch64"
+            IMAGE_TAG: "v100156565-ebe2831-manylinux2014_aarch64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "serverless"

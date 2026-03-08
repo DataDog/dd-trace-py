@@ -55,6 +55,15 @@ setup_env() {
   export FINAL_WHEEL_DIR="${PROJECT_DIR}/pywheels"
   export DEBUG_WHEEL_DIR="${PROJECT_DIR}/debugwheelhouse"
   mkdir -p "${BUILT_WHEEL_DIR}" "${TMP_WHEEL_DIR}" "${FINAL_WHEEL_DIR}" "${DEBUG_WHEEL_DIR}"
+
+  # Use system libzstd if available, to avoid compiling zstd-sys from source (~30s).
+  # PKG_CONFIG_ALL_STATIC=1 ensures static linking so auditwheel doesn't need to bundle libzstd.so.
+  if pkg-config --exists libzstd 2>/dev/null; then
+    echo "System libzstd found ($(pkg-config --modversion libzstd)), using ZSTD_SYS_USE_PKG_CONFIG=1"
+    export ZSTD_SYS_USE_PKG_CONFIG=1
+    export PKG_CONFIG_ALL_STATIC=1
+  fi
+
   section_end "setup_env"
 }
 

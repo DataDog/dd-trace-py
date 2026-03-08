@@ -159,7 +159,7 @@ microbenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
   rules:
     # Allow failures if explicitly asked
     - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
@@ -183,7 +183,7 @@ macrobenchmarks:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp39-cp39"
-            IMAGE_TAG: "v85383392-751efc0-manylinux2014_x86_64"
+            IMAGE_TAG: "v100156674-ebe2831-manylinux2014_x86_64"
   trigger:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
