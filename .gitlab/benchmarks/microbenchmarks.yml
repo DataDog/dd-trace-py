@@ -191,6 +191,7 @@ benchmarks-pr-comment:
 # Since benchmark failures block the PR directly, this job blocks the PR if
 # benchmarks succeed but there are SLO breaches.
 check-slo-breaches:
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:f29252ce
   extends: .check-slo-breaches
   stage: gate
   needs:
