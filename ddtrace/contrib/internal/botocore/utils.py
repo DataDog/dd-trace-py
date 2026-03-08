@@ -15,8 +15,8 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-TWOFIFTYSIX_KB = 1 << 18
-MAX_EVENTBRIDGE_DETAIL_SIZE = TWOFIFTYSIX_KB
+ONE_MB = 1 << 20
+MAX_EVENTBRIDGE_DETAIL_SIZE = ONE_MB
 LINE_BREAK = "\n"
 
 
