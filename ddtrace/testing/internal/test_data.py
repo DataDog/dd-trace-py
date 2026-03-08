@@ -171,6 +171,13 @@ class TestRun(TestItem["Test", t.NoReturn]):
         self.set_tags(context.get_tags())
         self.set_metrics(context.get_metrics())
 
+    def set_status(self, status: TestStatus) -> None:
+        super().set_status(status)
+        if status == TestStatus.PASS:
+            self.test._has_passed = True
+        elif status == TestStatus.FAIL:
+            self.test._has_failed = True
+
     def is_retry(self) -> bool:
         return self.attempt_number > 0
 
@@ -215,6 +222,8 @@ class Test(TestItem["TestSuite", "TestRun"]):
         self.session = self.module.parent
 
         self._is_flaky_run = False
+        self._has_passed = False
+        self._has_failed = False
 
     def __str__(self) -> str:
         return f"{self.parent.parent.name}/{self.parent.name}::{self.name}"
@@ -312,6 +321,12 @@ class Test(TestItem["TestSuite", "TestRun"]):
 
     def is_flaky_run(self) -> bool:
         return self._is_flaky_run
+
+    def has_passed(self) -> bool:
+        return self._has_passed
+
+    def has_failed(self) -> bool:
+        return self._has_failed
 
 
 class TestSuite(TestItem["TestModule", "Test"]):
