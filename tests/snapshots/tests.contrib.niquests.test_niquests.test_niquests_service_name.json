@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "niquests.request",
+    "service": "localhost:8001",
+    "resource": "niquests.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.niquests",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6995bb2100000000",
+      "component": "niquests",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "niquests/3.17.0",
+      "language": "python",
+      "runtime-id": "0bd5c9949c784e3d94060d4fae646912",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 0.6666666666666667,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 1943375,
+    "start": 1771420449980456967
+  }]]
