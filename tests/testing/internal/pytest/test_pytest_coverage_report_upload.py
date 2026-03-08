@@ -9,6 +9,7 @@ from _pytest.pytester import Pytester
 import pytest
 from pytest import MonkeyPatch
 
+from ddtrace.contrib.internal.coverage.patch import reset_coverage_state
 from tests.testing.mocks import CoverageReportUploadCapture
 from tests.testing.mocks import EventCapture
 from tests.testing.mocks import mock_api_client_settings
@@ -194,7 +195,6 @@ class TestPytestCoverageReportUpload:
         coverage_uploads = upload_capture.get_coverage_report_uploads()
         assert len(coverage_uploads) == 0
 
-    @pytest.mark.skip("Skipping due to flakiness: ")
     def test_coverage_report_upload_without_pytest_cov(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test coverage report upload uses coverage.py when pytest-cov is not enabled."""
         pytester.makepyfile(
@@ -207,6 +207,7 @@ class TestPytestCoverageReportUpload:
             """
         )
 
+        reset_coverage_state()
         with CoverageReportUploadCapture.capture() as upload_capture:
             mock_client = mock_api_client_settings(
                 coverage_report_upload_enabled=True, coverage_upload_capture=upload_capture
@@ -223,9 +224,6 @@ class TestPytestCoverageReportUpload:
                 stack.enter_context(setup_standard_mocks())
                 for mock in git_mocks:
                     stack.enter_context(mock)
-
-                # Fix flaky test: Mock get_workspace_path to return pytester's actual directory
-                # This ensures coverage.py starts with the correct source path to the test files
                 stack.enter_context(
                     patch(
                         "ddtrace.testing.internal.git.get_workspace_path",
@@ -235,6 +233,7 @@ class TestPytestCoverageReportUpload:
 
                 m = stack.enter_context(monkeypatch.context())
 
+                m.chdir(pytester.path)
                 m.setenv(COVERAGE_UPLOAD_ENABLED_ENV, "1")
 
                 # Run WITHOUT --cov flag (will start coverage.py via start_coverage())
@@ -252,6 +251,7 @@ class TestPytestCoverageReportUpload:
             # Verify the LCOV report contains data
             lcov_content = upload_capture.get_lcov_content(coverage_uploads[0])
             assert "SF:" in lcov_content
+        reset_coverage_state()
 
     def test_coverage_report_includes_git_tags(self, pytester: Pytester, monkeypatch: MonkeyPatch) -> None:
         """Test that coverage report event includes git and CI tags."""
