@@ -6,15 +6,17 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "",
+    "type": "worker",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69a8454500000000",
+      "_dd.p.tid": "69ae9e2000000000",
+      "component": "mlflow",
       "language": "python",
-      "mlflow.run_id": "60a8ef1b52eb4a3ab0bd6b0e571106a5",
+      "mlflow.run_id": "dac9f6f9d7714d4a9f814c05a2d96c46",
       "mlflow.run_name": "manual_run",
-      "runtime-id": "00d4b6f3c7b4480d9640f5bfb7359b06"
+      "runtime-id": "046e54cf641a4dafa4bef737835c4249",
+      "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
@@ -22,8 +24,8 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 605.0
     },
-    "duration": 43073166,
-    "start": 1772635461067605847
+    "duration": 41382500,
+    "start": 1773051424510261547
   },
      {
        "name": "mlflow.step",
@@ -32,14 +34,16 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "",
+       "type": "worker",
        "error": 0,
        "meta": {
-         "mlflow.run_id": "60a8ef1b52eb4a3ab0bd6b0e571106a5",
-         "mlflow.step": "0"
+         "component": "mlflow",
+         "mlflow.run_id": "dac9f6f9d7714d4a9f814c05a2d96c46",
+         "mlflow.step": "0",
+         "span.kind": "internal"
        },
-       "duration": 10322792,
-       "start": 1772635461100284138
+       "duration": 10341375,
+       "start": 1773051424541236005
      },
         {
           "name": "mlflow.manual.work",
@@ -51,8 +55,8 @@
           "type": "",
           "error": 0,
           "meta": {
-            "mlflow.run_id": "60a8ef1b52eb4a3ab0bd6b0e571106a5"
+            "mlflow.run_id": "dac9f6f9d7714d4a9f814c05a2d96c46"
           },
-          "duration": 84334,
-          "start": 1772635461100415513
+          "duration": 61417,
+          "start": 1773051424541354130
         }]]

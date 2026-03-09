@@ -1426,7 +1426,10 @@ def _on_mlflow_new_step(run_id: str, active_step_spans):
     new_step_span = tracer.trace(
         "mlflow.step",
         service=config.mlflow.get("service", config.mlflow._default_service),
+        span_type=SpanTypes.WORKER,
     )
+    new_step_span._set_tag_str(COMPONENT, config.mlflow.integration_name)
+    new_step_span._set_tag_str(SPAN_KIND, SpanKind.INTERNAL)
     active_step_spans[run_id] = new_step_span
 
 

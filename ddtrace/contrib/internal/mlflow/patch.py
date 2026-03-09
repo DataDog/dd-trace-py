@@ -7,12 +7,16 @@ from wrapt import wrap_function_wrapper as _w
 import ddtrace
 from ddtrace import config
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.mlflow.constants import LOG_ATTR_MLFLOW_RUN_ID
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 
@@ -52,7 +56,7 @@ def _traced_start_run(wrapped, instance, args, kwargs):
     experiment_id = get_argument_value(args, kwargs, 1, "experiment_id", True)
     run_name = get_argument_value(args, kwargs, 2, "run_name", True)
     run_tags = get_argument_value(args, kwargs, 5, "tags", True) or {}
-    normalized_tags = {}
+    normalized_tags = {COMPONENT: config.mlflow.integration_name, SPAN_KIND: SpanKind.INTERNAL}
     for key, value in run_tags.items():
         try:
             normalized_tags[key] = str(value)
@@ -68,6 +72,7 @@ def _traced_start_run(wrapped, instance, args, kwargs):
         "mlflow.run",
         span_name="mflow.run",
         service=config.mlflow.get("service", config.mlflow._default_service),
+        span_type=SpanTypes.WORKER,
         tags=normalized_tags,
     ) as ctx:
         run = wrapped(*args, **kwargs)
@@ -97,7 +102,7 @@ def _traced_end_run(wrapped, instance, args, kwargs):
     try:
         return wrapped(*args, **kwargs)
     except Exception:
-        # error happening when trying to end thte run
+        # error happening when trying to end the run
         end_run_exc_info = sys.exc_info()
         raise
     finally:

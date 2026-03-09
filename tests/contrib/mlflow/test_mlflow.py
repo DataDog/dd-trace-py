@@ -51,6 +51,19 @@ def test_mlflow_multiple_steps(test_spans):
     _assert_run_id_on_all_spans(test_spans)
 
 
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_mlflow_nested_run(test_spans):
+    with mlflow.start_run(run_name="parent"):
+        mlflow.log_param("p", 1)
+
+        with mlflow.start_run(run_name="child_1", nested=True):
+            mlflow.log_param("c1", 10)
+
+        with mlflow.start_run(run_name="child_2", nested=True):
+            mlflow.log_param("c2", 20)
+    _assert_run_id_on_all_spans(test_spans)
+
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES + ["meta.error.stack"])
 def test_mlflow_error_in_run(test_spans):
     with pytest.raises(ValueError):
