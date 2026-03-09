@@ -67,12 +67,11 @@ class StringTable
 
     static constexpr bool is_ephemeral(StringTag tag)
     {
-        // GreenletName is NOT ephemeral because greenlet names are cached in
-        // GreenletInfo::name as StringTable keys.  If clear_ephemeral() ran
-        // while a GreenletInfo still held the key, subsequent lookups would
-        // fail and sampling would be lost for that greenlet.  Greenlet strings
-        // are cleaned up naturally when the GreenletInfo is removed via
-        // untrack_greenlet().
+        // NOTE: GreenletName is NOT ephemeral because greenlet names are cached in
+        // GreenletInfo::name as StringTable keys. If clear_ephemeral ran while a
+        // GreenletInfo still held the key, subsequent lookups would fail and
+        // sampling would be lost for that greenlet. Greenlet strings are
+        // explicitly removed via StringTable::erase in untrack_greenlet.
         return tag == StringTag::TaskName;
     }
 
@@ -107,6 +106,12 @@ class StringTable
     {
         const std::lock_guard<std::mutex> lock(table_lock);
         ephemeral_.clear();
+    }
+
+    void erase(Key key)
+    {
+        const std::lock_guard<std::mutex> lock(table_lock);
+        table_for(extract_tag(key)).erase(key);
     }
 
     StringTable()

@@ -499,7 +499,15 @@ Sampler::untrack_greenlet(uintptr_t greenlet_id)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    echion->greenlet_info_map().erase(greenlet_id);
+    auto& greenlet_info_map = echion->greenlet_info_map();
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end()) {
+        // Remove the greenlet's name string from the string table to prevent
+        // unbounded growth of String Table.
+        echion->string_table().erase(entry->second->name);
+        greenlet_info_map.erase(entry);
+    }
+
     echion->greenlet_parent_map().erase(greenlet_id);
     echion->greenlet_thread_map().erase(greenlet_id);
 }
