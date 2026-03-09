@@ -500,12 +500,23 @@ class TestLLMObsLiteLLM:
             )
             output_messages, token_metrics = parse_response(resp)
 
+        span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="claude-sonnet-4-5-20250929",
+            model_provider="anthropic",
+            input_messages=messages,
+            output_messages=output_messages,
+            metadata={},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
 
+        # Verify cache token metrics are present
         event_metrics = llmobs_events[0]["metrics"]
-        assert event_metrics["input_tokens"] == token_metrics["input_tokens"]
-        assert event_metrics["output_tokens"] == token_metrics["output_tokens"]
-        assert event_metrics["total_tokens"] == token_metrics["total_tokens"]
+        assert "cache_read_input_tokens" in event_metrics
+        assert "cache_write_input_tokens" in event_metrics
 
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
