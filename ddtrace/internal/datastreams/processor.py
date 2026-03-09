@@ -37,7 +37,7 @@ from .schemas.schema_sampler import SchemaSampler
 try:
     from ddtrace.internal.native import DDSketch
 except ImportError:
-    DDSketch = None
+    DDSketch = None  # type: ignore
 
 
 def gzip_compress(payload):
@@ -110,9 +110,10 @@ class DataStreamsProcessor(PeriodicService):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(DataStreamsProcessor, self).__init__(interval=interval)
+        self._enabled: bool = True
         # DDSketch is not included in slim builds
         if DDSketch is None:
-            self._enabled = False
+            self._enabled: bool = False  # type: ignore[no-redef]
             return
         self._agent_url = agent_url or agent_config.trace_agent_url
         self._endpoint = "/v0.1/pipeline_stats"
@@ -134,7 +135,6 @@ class DataStreamsProcessor(PeriodicService):
         self._service = compat.ensure_text(config._get_service(DEFAULT_SERVICE_NAME))
         self._lock = Lock()
         self._current_context = threading.local()
-        self._enabled = True
         self._schema_samplers: dict[str, SchemaSampler] = {}
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(

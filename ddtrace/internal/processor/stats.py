@@ -24,7 +24,7 @@ from ..writer import _human_size
 try:
     from ddtrace.internal.native import DDSketch
 except ImportError:
-    DDSketch = None
+    DDSketch = None  # type: ignore
 
 
 log = get_logger(__name__)
@@ -95,9 +95,10 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if interval is None:
             interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
         super(SpanStatsProcessorV06, self).__init__(interval=interval)
+        self._enabled: bool = True
         # DDSketch is not included in slim builds
         if DDSketch is None:
-            self._enabled = False
+            self._enabled: bool = False  # type: ignore[no-redef]
             return
         self._agent_url = agent_url or agent.config.trace_agent_url
         self._endpoint = "/v0.6/stats"
@@ -117,7 +118,6 @@ class SpanStatsProcessorV06(PeriodicService, SpanProcessor):
         if config._report_hostname:
             self._hostname = get_hostname()
         self._lock = Lock()
-        self._enabled = True
 
         self._flush_stats_with_backoff = fibonacci_backoff_with_jitter(
             attempts=retry_attempts,
