@@ -256,13 +256,6 @@ def wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_detai
 
 
 def patched_get_functions(wrapped, instance, args, kwargs):
-    try:
-        import azure.durable_functions as durable_functions
-
-        durable_patched = getattr(durable_functions, "_datadog_patch", False)
-    except Exception:
-        durable_patched = False
-
     functions = wrapped(*args, **kwargs)
 
     for function in functions:
@@ -285,11 +278,11 @@ def patched_get_functions(wrapped, instance, args, kwargs):
             function._func = wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_details)
         elif trigger_type == "eventHubTrigger":
             function._func = wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_details)
-        elif durable_patched and trigger_type == "activityTrigger":
+        elif trigger_type == "activityTrigger":
             function._func = wrap_durable_trigger(
                 func, function_name, "Activity", "azure.durable_functions.patched_activity"
             )
-        elif durable_patched and trigger_type == "entityTrigger":
+        elif trigger_type == "entityTrigger":
             function._func = wrap_durable_trigger(
                 func, function_name, "Entity", "azure.durable_functions.patched_entity"
             )
