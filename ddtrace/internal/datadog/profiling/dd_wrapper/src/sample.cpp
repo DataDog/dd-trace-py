@@ -146,16 +146,6 @@ Datadog::Sample::push_frame(std::string_view name, std::string_view filename, ui
     }
 }
 
-// Increments the dropped-frame counter. During export_sample(), if dropped_frames > 0,
-// a single synthetic "<N frame(s) omitted>" location is appended to the sample.
-// The indicator is added at most once, even if export_sample() is called multiple times
-// (guarded by has_dropped_frames_indicator).
-void
-Datadog::Sample::incr_dropped_frames(size_t count)
-{
-    dropped_frames += count;
-}
-
 /* Helper function to convert PyUnicode object to string_view
  * Returns the string_view pointing to internal UTF-8 representation, or fallback if conversion fails
  * The pointer remains valid as long as the PyObject is alive */
@@ -255,6 +245,16 @@ Datadog::Sample::push_pyframes(PyFrameObject* frame)
         f = back;
     }
     // Error state is automatically restored by error_restorer destructor
+}
+
+// Increments the dropped-frame counter. During export_sample(), if dropped_frames > 0,
+// a single synthetic "<N frame(s) omitted>" location is appended to the sample.
+// The indicator is added at most once, even if export_sample() is called multiple times
+// (guarded by has_dropped_frames_indicator).
+void
+Datadog::Sample::incr_dropped_frames(size_t count)
+{
+    dropped_frames += count;
 }
 
 void
