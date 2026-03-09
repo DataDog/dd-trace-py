@@ -2,8 +2,8 @@ import threading
 
 import pytest
 
-from ddtrace import config
 from ddtrace.trace import tracer
+from tests.utils import override_config
 
 
 SNAPSHOT_IGNORES = [
@@ -99,14 +99,10 @@ def test_propagation_preserves_user_attributes(publisher, topic_path, subscriber
 
 def test_propagation_disabled(publisher, topic_path, subscriber, subscription_path):
     """Test that trace context keys are NOT injected when propagation is disabled."""
-    original = config.google_cloud_pubsub.distributed_tracing_enabled
-    config.google_cloud_pubsub.distributed_tracing_enabled = False
-    try:
+    with override_config("google_cloud_pubsub", dict(distributed_tracing_enabled=False)):
         with tracer.trace("parent.span"):
             future = publisher.publish(topic_path, b"Hello World")
             future.result(timeout=10)
-    finally:
-        config.google_cloud_pubsub.distributed_tracing_enabled = original
 
     response = subscriber.pull(subscription=subscription_path, max_messages=1, timeout=10)
     assert len(response.received_messages) == 1
