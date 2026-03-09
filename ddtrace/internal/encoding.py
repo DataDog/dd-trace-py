@@ -200,10 +200,6 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
                 # Root and top-level are normally set by the Agent; set them here for trace views.
                 if not spans:
                     span._meta["_dd.compute_stats"] = "1"
-                    if not span.parent_id:
-                        span._metrics["_trace_root"] = 1
-                    if span._is_top_level:
-                        span._metrics["_top_level"] = 1
                 spans.append(self._item_to_dict(span))
 
             encoded = _json_dumps_bytes({"spans": spans})
@@ -225,6 +221,11 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return payloads
 
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
+        if not item.parent_id:
+            item._metrics["_trace_root"] = 1
+        if item._is_top_level:
+            item._metrics["_top_level"] = 1
+
         span_dict = JSONEncoderV2._convert_span(item)
         span_dict["meta_struct"] = item._meta_struct
         # Intake Requires ids to be in lowercase
