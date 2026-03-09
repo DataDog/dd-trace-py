@@ -382,9 +382,9 @@ features that crash when combined with other features under fork.
 
 ### Review checklist
 
-- If this is a thread-safety fix for native-only components, has it been
-  validated with ThreadSanitizer (TSan)? (Note: TSan + Python is not yet
-  supported; use for native-only test binaries.)
+- For native-only components with standalone test binaries, consider
+  ThreadSanitizer (TSan) validation. TSan + Python is not supported, so this
+  only applies to isolated native test suites.
 - If this interacts with fork, has it been tested with **all** features enabled
   simultaneously (tracing + profiling + AppSec)?
 - If this fix uses preprocessor macros or conditional compilation, has the
