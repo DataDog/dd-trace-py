@@ -516,7 +516,7 @@ jobs:
   finished:
     name: system-tests finished
     runs-on: ubuntu-latest
-    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
+    needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests, tracer-release]
     if: always()
     steps:
       - name: Print results
