@@ -149,6 +149,7 @@ class Sample
                     uint64_t address,        // for ddog_prof_Location
                     int64_t line             // for ddog_prof_Location
     );
+
     // Explicitly mark that one or more frames were dropped without attempting to push them.
     // This is useful for callers that perform their own frame-limit checks and want to
     // record dropped frames without going through push_frame().
