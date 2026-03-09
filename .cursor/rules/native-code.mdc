@@ -30,7 +30,8 @@ code, also consult `.cursor/rules/iast.mdc`.
 ## Trigger Symbols
 
 - GIL: `PyGILState_Ensure`, `PyEval_RestoreThread`, `PyEval_SaveThread`,
-  `AllowThreads`, `py_is_finalizing`, `take_gil`, `detach`
+  `Py_BEGIN_ALLOW_THREADS`, `Py_END_ALLOW_THREADS`, `AllowThreads`,
+  `py_is_finalizing`, `take_gil`, `detach`
 - Fork: `fork(`, `pthread_atfork`, `_before_fork`, `_after_fork`, `Event`,
   `mutex`, `condition_variable`, `rwlock`
 - Object lifetime: `std::thread`, `Py_INCREF`, `Py_DECREF`, `PyObject*`

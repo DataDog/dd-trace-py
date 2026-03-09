@@ -37,8 +37,10 @@ only defense on musl.
 
 ### Review checklist
 
-- Does this code call `PyGILState_Ensure()`, `PyEval_RestoreThread()`, or
-  `PyEval_SaveThread()`? Is there a `py_is_finalizing()` check before each?
+- Does this code call `PyGILState_Ensure()`, `PyEval_RestoreThread()`,
+  `PyEval_SaveThread()`, or the `Py_BEGIN_ALLOW_THREADS` /
+  `Py_END_ALLOW_THREADS` macros (which expand to `PyEval_SaveThread()` /
+  `PyEval_RestoreThread()`)? Is there a `py_is_finalizing()` check before each?
 - **TOCTTOU is inherent** — the check-then-call can never be fully atomic.
   Is there a `try/catch(abi::__forced_unwind&)` wrapping the code that might
   trigger `pthread_exit()`? The catch must re-throw (glibc aborts if swallowed).
@@ -61,11 +63,13 @@ only defense on musl.
 | 3.12 (all) | `PyThread_exit_thread()` -> `pthread_exit()` -> crash |
 | 3.13.0-3.13.7 | Same as 3.12 |
 | 3.13.8+ | `PyThread_hang_thread()` -> `pause()` forever (hang, not crash) |
-| 3.14+ | Same as 3.13.8+ |
+| 3.14+ | Hangs until program exits ([official](https://docs.python.org/3/c-api/threads.html)); `PyThread_exit_thread()` deprecated |
 | 3.15+ | `PyGILState_Ensure()` itself hangs safely |
 
 `py_is_finalizing()` checks are essential on all versions. On 3.13.8+,
-they prevent infinite hangs instead of crashes.
+they prevent infinite hangs instead of crashes. Note that `PyGILState_Ensure`,
+`PyEval_RestoreThread`, `PyEval_AcquireThread`, and `PyThreadState_Swap` all
+hang during finalization in 3.14+.
 
 **Other 3.14+ behavior changes** (not `take_gil()`-specific):
 - `_Py_Dealloc` dereferences `tstate` immediately — calling `Py_DECREF`
