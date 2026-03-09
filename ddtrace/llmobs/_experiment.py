@@ -121,9 +121,10 @@ def _validate_evaluator_name(name: str) -> None:
         raise TypeError("Evaluator name must be a string")
     if not name:
         raise ValueError("Evaluator name cannot be empty")
-    if not re.match(r"^[a-zA-Z0-9_]+$", name):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
         raise ValueError(
-            f"Evaluator name '{name}' is invalid. Name must contain only alphanumeric characters and underscores."
+            f"Evaluator name '{name}' is invalid."
+            " Name must contain only alphanumeric characters, underscores, and hyphens."
         )
 
 
@@ -248,6 +249,14 @@ class BaseEvaluator(ABC):
                  or an EvaluatorResult object containing the value plus additional metadata
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
+
+    def _build_publish_payload(
+        self,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError("This evaluator does not support publishing.")
 
 
 class BaseSummaryEvaluator(ABC):
@@ -1163,6 +1172,14 @@ class Experiment:
 
         return inputs, outputs, expected_outputs, metadata_list, eval_results_by_name
 
+    def _update_status(self, status: str, error: Optional[str] = None) -> None:
+        if not self._llmobs_instance or not self._id:
+            return
+        try:
+            self._llmobs_instance._dne_client.experiment_update(cast(str, self._id), status=status, error=error)
+        except Exception:
+            logger.debug("Failed to update experiment status to %s", status, exc_info=True)
+
     def _setup_experiment(self, llmobs_not_enabled_error: str, ensure_unique: bool = True) -> None:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             raise ValueError(llmobs_not_enabled_error)
@@ -1229,6 +1246,8 @@ class Experiment:
         self._run_results = []
         self._retries.clear()
         self._interrupted = False
+        self._has_errors = False
+        self._update_status("running")
         try:
             for run_iteration in range(self._runs):
                 run = _ExperimentRunInfo(run_iteration)
@@ -1251,10 +1270,15 @@ class Experiment:
                 self._run_results.append(run_result)
         except BaseException:
             self._interrupted = True
+            self._update_status("interrupted")
             raise
         finally:
             result = self._build_result(self._run_results)
             self._log_experiment_summary(result)
+        if self._has_errors:
+            self._update_status("failed", error=self._build_error_summary(result))
+        else:
+            self._update_status("completed")
         return result
 
     @staticmethod
@@ -1306,6 +1330,24 @@ class Experiment:
             parts.append("Retries ({}):\n  {}".format(len(self._retries), "\n  ".join(self._retries)))
 
         return "\n".join(parts)
+
+    @staticmethod
+    def _build_error_summary(result: ExperimentResult) -> str:
+        errors = []
+        for run in result.get("runs", []):
+            for row in run.rows:
+                err = row.get("error")
+                if isinstance(err, dict) and err.get("message"):
+                    errors.append("{}: {}".format(err.get("type", "Error"), err["message"]))
+                for name, data in (row.get("evaluations") or {}).items():
+                    if not isinstance(data, dict):
+                        continue
+                    eval_err = data.get("error")
+                    if isinstance(eval_err, dict) and eval_err.get("message"):
+                        errors.append("{} ({}): {}".format(name, eval_err.get("type", "Error"), eval_err["message"]))
+        if not errors:
+            return "unknown error"
+        return "; ".join(set(errors))
 
     def _log_experiment_summary(self, result: ExperimentResult) -> None:
         msg = self._format_experiment_summary(result)
@@ -1386,6 +1428,7 @@ class Experiment:
                 if attempt > 0:
                     tags["retries"] = str(attempt)
                 if last_exc_info:
+                    self._has_errors = True
                     span.set_exc_info(*last_exc_info)
                 self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
 
@@ -1567,6 +1610,7 @@ class Experiment:
                                 finally:
                                     await semaphore.acquire()
                                 continue
+                            self._has_errors = True
                             if raise_errors:
                                 raise RuntimeError(f"Evaluator {evaluator_name} failed on row {idx}") from e
 
@@ -1647,6 +1691,7 @@ class Experiment:
                         )
                     eval_result_value = eval_result
                 except Exception as e:
+                    self._has_errors = True
                     eval_err = self._build_evaluator_error(e)
                     if raise_errors:
                         raise RuntimeError(f"Summary evaluator {evaluator_name} failed") from e
