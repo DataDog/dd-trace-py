@@ -824,8 +824,8 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
             found_callsite_sample = False
             for sample_idx, sample in enumerate(samples):
-                # Stack export allows one extra frame plus an omitted-frames marker.
-                assert len(sample.location_id) <= config.max_frames + 2, (
+                # Stack export allows one extra frame for the omitted-frames marker.
+                assert len(sample.location_id) <= config.max_frames + 1, (
                     f"sample index={sample_idx} has too many locations: {len(sample.location_id)}"
                 )
 

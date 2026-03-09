@@ -3,6 +3,8 @@ import collections
 import gzip
 import json
 import time
+from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -37,21 +39,21 @@ class TooLargeSchemaException(Exception):
     pass
 
 
-def path_param_transform(v):
+def path_param_transform(v: Any) -> Union[dict, list]:
     if isinstance(v, (list, tuple)):
         return list(v)
     return dict(v)
 
 
 class APIManager(Service):
-    BLOCK_COLLECTED = [
+    BLOCK_COLLECTED: list[tuple[str, str, Optional[Callable[[Any], Any]]]] = [
         ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
         ("REQUEST_COOKIES", API_SECURITY.REQUEST_COOKIES, dict),
         ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, path_param_transform),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
     ]
-    COLLECTED = BLOCK_COLLECTED + [
+    COLLECTED: list[tuple[str, str, Optional[Callable[[Any], Any]]]] = BLOCK_COLLECTED + [
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
         ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f() if callable(f) else f),
     ]
