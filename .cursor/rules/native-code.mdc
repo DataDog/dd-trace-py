@@ -79,8 +79,9 @@ verification.
 libdatadog, or libddwaf based on documentation alone — read the source code
 for the pinned version as ground truth. CPython internal APIs and struct
 layouts change between versions; check `pyproject.toml` `requires-python` for
-the supported range. For libdatadog and libddwaf, check the pinned version in
-`setup.py` and verify behavior against that version's source, not the latest.
+the supported range. For libdatadog, check the pinned version in `src/native/Cargo.toml`. For
+libddwaf, check the pinned version in `setup.py`. Verify behavior against
+that version's source, not the latest.
 Crashes have been misattributed due to wrong assumptions about library
 internals (e.g., `ddwaf_run` vs `ddwaf_context_init` in stripped binaries).
 
