@@ -47,20 +47,22 @@ code, also consult `.cursor/rules/iast.mdc`.
 
 Any of these is an immediate blocker:
 
-1. `PyGILState_Ensure`/`PyEval_RestoreThread` without `py_is_finalizing()`
-   check AND `try/catch(__forced_unwind&)` where glibc unwind can cross C++
-2. Operating on inherited sync primitives in child after `fork()` instead of
+1. `PyGILState_Ensure`, `PyEval_RestoreThread`, or `PyEval_SaveThread` without
+   a `py_is_finalizing()` check before the call
+2. GIL operations in C++ code reachable from glibc `pthread_exit()` without a
+   `try/catch(abi::__forced_unwind&)` that re-throws
+3. Operating on inherited sync primitives in child after `fork()` instead of
    recreating from scratch
-3. Capturing `PyObject*` in a thread lambda without `Py_INCREF` **before**
+4. Capturing `PyObject*` in a thread lambda without `Py_INCREF` **before**
    `std::thread` creation — there is a race between thread start and the
    lambda body running where the object can be deallocated
-4. Calling `Py_DECREF`, `PyFrame_GetBack`, or any allocating API inside an
+5. Calling `Py_DECREF`, `PyFrame_GetBack`, or any allocating API inside an
    allocator hook
-5. Assuming C++ exceptions propagate through Rust `extern "C"` or CPython C
+6. Assuming C++ exceptions propagate through Rust `extern "C"` or CPython C
    boundaries
-6. Looping over CPython internal linked lists without a hard upper bound
-7. Assuming in-tree build behavior matches release wheel behavior
-8. Assuming CPython/libdatadog/libddwaf behavior without reading the pinned
+7. Looping over CPython internal linked lists without a hard upper bound
+8. Assuming in-tree build behavior matches release wheel behavior
+9. Assuming CPython/libdatadog/libddwaf behavior without reading the pinned
    version's source
 
 ## Key Version/Platform Facts
@@ -80,7 +82,7 @@ what to check for each:
 
 | Dimension | §  | Core question |
 |-----------|----|--------------|
-| GIL & finalization | §1 | Is every GIL acquire/restore guarded by `py_is_finalizing()`? |
+| GIL & finalization | §1 | Is every GIL acquire/release/restore guarded by `py_is_finalizing()`? |
 | Fork safety | §2 | Are child-side primitives recreated, parent-side only reset? |
 | Object lifetime | §3 | Is `Py_INCREF` before thread creation, `Py_DECREF` only with safe context? |
 | Allocator hooks | §4 | Does hook code avoid all allocating/GC-triggering APIs? |
@@ -90,13 +92,3 @@ what to check for each:
 | Version awareness | §8 | Was behavior verified against the pinned version's source? |
 | Fix validation | §9 | Does the test fail without the fix? Combined feature sets tested? |
 | Cython | §10 | Do `cdef` functions declare `except *`/`except -1`? Are `nogil` blocks Python-free? |
-
-## Reference Files
-
-Canonical patterns to consult before writing new native code:
-
-- `ddtrace/internal/_threads.cpp` — GIL guards, fork safety, thread lifecycle
-- `ddtrace/profiling/collector/_memalloc_tb.cpp` — allocator hook safety
-- `src/native/` — Rust/pyo3 bindings, libdatadog FFI
-- `ddtrace/appsec/_iast/_taint_tracking/native.cpp` — pybind11 bindings
-- `ddtrace/internal/_encoding.pyx` — Cython extension patterns
