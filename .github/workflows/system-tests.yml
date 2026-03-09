@@ -498,7 +498,7 @@ jobs:
       binaries_artifact: integration-frameworks-wheels
 
   tracer-release:
-    # if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@main
     secrets:
       DD_API_KEY: ${{ secrets.DD_API_KEY }}
