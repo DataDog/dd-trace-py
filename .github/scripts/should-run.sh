@@ -39,9 +39,19 @@ is_ignored() {
     [[ "$f" == benchmarks/* ]] && return 0
     [[ "$f" == ".gitignore" ]] && return 0
     [[ "$f" == ".gitattributes" ]] && return 0
-    # scripts/** is ignored, except download-s3-wheels.sh
-    [[ "$f" == "scripts/download-s3-wheels.sh" ]] && return 1
-    [[ "$f" == scripts/* ]] && return 0
+    [[ "$f" == hooks/* ]] && return 0
+    # scripts/ — only ignore subdirectories that are clearly CI/dev tooling.
+    # Individual script files are NOT ignored since some affect wheel builds
+    # (e.g. zip_filter.py, validate_wheel.py, download-s3-wheels.sh).
+    [[ "$f" == scripts/ci-analysis/* ]] && return 0
+    [[ "$f" == scripts/ci_visibility/* ]] && return 0
+    [[ "$f" == scripts/docs/* ]] && return 0
+    [[ "$f" == scripts/iast/* ]] && return 0
+    [[ "$f" == scripts/import-analysis/* ]] && return 0
+    [[ "$f" == scripts/integration_registry/* ]] && return 0
+    [[ "$f" == scripts/profiles/* ]] && return 0
+    [[ "$f" == scripts/trace_flares/* ]] && return 0
+    [[ "$f" == scripts/vcr/* ]] && return 0
     return 1
 }
 
