@@ -59,6 +59,7 @@ class LineCollector(ModuleCollector):
                         probe_id=probe_id,
                         source_file=o,
                         line=line,
+                        rate=0.0,
                         template="",
                         segments=[],
                     )
