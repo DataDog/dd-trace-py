@@ -178,7 +178,7 @@ class APIManager(Service):
                 priority = max(priorities)
             should_collect = self._should_collect_schema(env, priority)
             if should_collect is None:
-                self._metrics._report_api_security(False, 0)
+                self._metrics._report_api_security(False, 0, env.framework)
                 return
             if not should_collect:
                 return
@@ -220,7 +220,7 @@ class APIManager(Service):
                 extra = {"product": "appsec", "exec_limit": 6, "more_info": f":schema_failure:{meta}"}
                 log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
         env.api_security_reported = nb_schemas
-        self._metrics._report_api_security(True, nb_schemas)
+        self._metrics._report_api_security(True, nb_schemas, env.framework)
 
         # If we have a schema and APM tracing is disabled, force keep the trace
         if nb_schemas > 0 and not asm_config._apm_tracing_enabled:
