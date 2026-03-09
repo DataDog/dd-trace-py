@@ -215,7 +215,7 @@ def test_stripe_checkout_session_create(
 def test_stripe_checkout_session_ignore_setup(
     request, tracer: Tracer, stripe_vcr, stripe_session_create, monkeypatch, payload
 ):
-    import ddtrace.appsec._handlers as handlers
+    import ddtrace.appsec._contrib.stripe.handlers as handlers
 
     waf_callback = MagicMock(wraps=handlers.call_waf_callback)
     monkeypatch.setattr(handlers, "call_waf_callback", waf_callback)
