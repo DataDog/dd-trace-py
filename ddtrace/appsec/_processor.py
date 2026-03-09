@@ -97,7 +97,7 @@ class AppSecSpanProcessor(SpanProcessor):
             cls._instance = None
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return self._ddwaf is not None
 
     def __post_init__(self) -> None:
@@ -150,7 +150,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         self._update_required()
 
-    def _update_required(self):
+    def _update_required(self) -> None:
         if self._ddwaf is None:
             return
         self._addresses_to_keep.clear()
