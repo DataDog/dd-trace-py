@@ -194,4 +194,4 @@ def listen():
     core.on("django.after_request_headers.finalize", _set_headers_and_response)
 
     core.on("context.ended.django.traced_get_response", _on_context_ended)
-    core.on("django.traced_get_response.pre", set_block_request_callable)
+    core.on("django.traced_get_response.pre", lambda block_callable, *_: set_block_request_callable(block_callable))
