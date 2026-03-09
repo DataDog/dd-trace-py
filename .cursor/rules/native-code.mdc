@@ -409,8 +409,9 @@ features that crash when combined with other features under fork.
 
 1. **Never** call `PyGILState_Ensure`/`PyEval_RestoreThread` without a
    `py_is_finalizing()` check AND a `try/catch(__forced_unwind&)` safety net
-2. **Never** call `.clear()` or `.lock()` on mutexes in the child process after
-   fork — recreate them from scratch
+2. **Never** operate on synchronization primitives (mutexes, condition variables,
+   rwlocks, Events) inherited from the parent in a child process after fork —
+   recreate them from scratch
 3. **Never** pass a Python object to a thread via raw pointer without
    `Py_INCREF` BEFORE thread creation
 4. **Never** call `Py_DECREF`, `PyFrame_GetBack`, or any allocating API from
