@@ -763,6 +763,8 @@ class AgentlessTraceWriter(HTTPWriter):
     HTTP_METHOD = "POST"
     # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
     INTAKE_HOST = "public-trace-http-intake.logs"
+    # Agentless payloads must be under 15 MB.
+    MAX_BUFFER_SIZE = 15 << 20  # 15 MB
 
     def __init__(
         self,
@@ -777,7 +779,7 @@ class AgentlessTraceWriter(HTTPWriter):
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
     ) -> None:
-        buffer_size = buffer_size or config._trace_writer_buffer_size
+        buffer_size = min(buffer_size or config._trace_writer_buffer_size, self.MAX_BUFFER_SIZE)
         max_payload_size = max_payload_size or config._trace_writer_payload_size
         client = AgentlessWriterClient(buffer_size, max_payload_size)
         headers = {

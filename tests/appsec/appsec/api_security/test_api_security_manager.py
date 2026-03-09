@@ -47,6 +47,7 @@ class TestApiSecurityManager:
         env.waf_addresses = {}
         env.waf_callable = MagicMock()
         env.blocked = None
+        env.framework = "test"
         return env
 
     def test_schema_callback_no_span(self, api_manager, mock_environment, tracer):
@@ -115,7 +116,7 @@ class TestApiSecurityManager:
 
         api_manager._should_collect_schema.assert_called_once()
         mock_environment.waf_callable.assert_called_once()
-        api_manager._metrics._report_api_security.assert_called_with(True, 1)
+        api_manager._metrics._report_api_security.assert_called_with(True, 1, "test")
 
         assert len(entry_span._meta) == 1
         assert "_dd.appsec.s.req.body" in entry_span._meta
@@ -212,7 +213,7 @@ class TestApiSecurityManager:
         ]:
             assert meta in entry_span._meta
 
-        api_manager._metrics._report_api_security.assert_called_with(True, 7)
+        api_manager._metrics._report_api_security.assert_called_with(True, 7, "test")
 
     def test_schema_callback_oversized_schema(self, api_manager, mock_environment):
         """Test that _schema_callback handles oversized schemas correctly.
@@ -233,7 +234,7 @@ class TestApiSecurityManager:
             mock_log.warning.assert_called_once()
             entry_span = mock_environment.entry_span
             assert len(entry_span._meta) == 0
-            api_manager._metrics._report_api_security.assert_called_with(True, 0)
+            api_manager._metrics._report_api_security.assert_called_with(True, 0, "test")
 
     def test_schema_callback_parse_response_body_disabled(self, api_manager, mock_environment, caplog):
         """Test that _schema_callback respects the api_security_parse_response_body configuration.
@@ -253,7 +254,7 @@ class TestApiSecurityManager:
             assert "RESPONSE_BODY" not in call_args
 
             assert len(mock_environment.entry_span._meta) == 0
-            api_manager._metrics._report_api_security.assert_called_with(True, 0)
+            api_manager._metrics._report_api_security.assert_called_with(True, 0, "test")
 
     def test_should_collect_schema_route_fallbacks_to_endpoint(self, mock_environment):
         """Test that _should_collect_schema falls back to endpoint tags when route is missing."""

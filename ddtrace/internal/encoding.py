@@ -193,7 +193,13 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return self._size
 
     def put(self, item) -> None:
+        if not item:
+            return
+
         with self._lock:
+            # First span in the list: set compute_stats in meta so intake can compute stats.
+            # Root and top-level are normally set by the Agent; set them here for trace views.
+            item[0]._meta["_dd.compute_stats"] = "1"
             encoded_trace = _json_dumps_bytes([self._item_to_dict(span) for span in item])
 
             item_size = len(encoded_trace)
@@ -224,6 +230,11 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
         return [(payload, n_traces)]
 
     def _item_to_dict(self, item: "Span") -> dict[str, Any]:
+        if not item.parent_id:
+            item._metrics["_trace_root"] = 1
+        if item._is_top_level:
+            item._metrics["_top_level"] = 1
+
         span_dict = JSONEncoderV2._convert_span(item)
         span_dict["meta_struct"] = item._meta_struct
         # Intake Requires ids to be in lowercase
