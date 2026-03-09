@@ -405,10 +405,12 @@ features that crash when combined with other features under fork.
 5. **Never** assume C++ exceptions can propagate through Rust `extern "C"` or
    CPython C boundaries
 6. **Never** leave RAII `_state` members uninitialized when the constructor
-   conditionally skips the operation — use a tracking flag
-7. **Never** assume `_before_fork` join completes — threads may be stuck in
-   blocking I/O
+   conditionally skips — use a tracking flag
+7. **Never** assume `_before_fork` join completes — check for timeout handling
+   when threads may be stuck in blocking I/O
 8. **Never** loop over CPython internal linked lists without a hard upper bound
 9. **Never** assume a preprocessor fix works without verifying the compiled
    output
 10. **Never** assume in-tree build behavior matches release wheel behavior
+11. **Never** assume behavior of CPython APIs or internals — read the source
+    code for the target version as ground truth

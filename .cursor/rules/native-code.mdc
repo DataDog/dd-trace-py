@@ -2,8 +2,6 @@
 description: Native code (C/C++/Rust/Cython) review checklist for dd-trace-py
 globs:
   - "**/ddtrace/internal/_threads.cpp"
-  - "**/ddtrace/internal/_threads.pyi"
-  - "**/ddtrace/internal/threads.py"
   - "**/ddtrace/profiling/collector/_memalloc*"
   - "**/ddtrace/internal/datadog/profiling/**"
   - "**/src/native/**"
@@ -32,13 +30,12 @@ boundaries abort on foreign exceptions — Rust code needs its own finalization
 check before re-acquiring the GIL.
 
 **Fork safety:** After `fork()`, all synchronization primitives (mutexes,
-condition variables, rwlocks) inherited from the parent are in an undefined
-state (POSIX). In the child process, recreate them from scratch — never call
-`.clear()`, `.lock()`, or `.wait()` on inherited primitives. In the parent
-process, use `.clear()` to preserve references held by other threads. When
-adding `pthread_atfork` handlers, verify the full execution order — a handler
-can free state that a later handler needs. Prefer centralized handlers over
-many independent ones.
+condition variables, rwlocks, Events) inherited from the parent are in an
+undefined state (POSIX). In the child process, recreate them from scratch —
+never operate on inherited primitives. In the parent process, use `.clear()`
+to preserve references held by other threads. When adding `pthread_atfork`
+handlers, verify the full execution order — a handler can free state that a
+later handler needs. Prefer centralized handlers over many independent ones.
 
 **Object lifetime across threads:** When passing a Python object to a native
 thread, call `Py_INCREF` before `std::thread` creation, not inside the thread
@@ -47,13 +44,15 @@ where the object can be deallocated. After a thread signals completion (sets a
 flag or notifies a condition variable), it must not call `Py_DECREF` or any
 Python API — callers of `join()` may already be using the object.
 
-**Allocator hook reentrance:** Code inside `malloc`/`free`/`realloc` hooks must
-not call any Python C API function that can trigger allocation or GC.
+**Memory safety in native code:** Code inside `malloc`/`free`/`realloc` hooks
+must not call any Python C API function that can trigger allocation or GC.
 `Py_INCREF` is safe; `Py_DECREF` is not (can trigger `__del__` chains).
 `PyFrame_GetBack`, `PyFrame_GetCode`, `PyUnicode_AsUTF8AndSize`, and
 `PyObject_CallObject` all allocate. Use direct struct field reads instead. If
-GC is disabled via preprocessor macros, verify the compiled output contains the
-disable call — a previous fix was dead code from a missing `#include`.
+GC is disabled via preprocessor macros, flag for human verification that the
+compiled output actually contains the disable call. Use `size_t` for
+sizes/counts to avoid integer overflow. Clear all state when returning objects
+to pools or caches.
 
 **FFI exception propagation:** C++ exceptions cannot cross Rust `extern "C"` or
 CPython C boundaries. A `try/catch` in C++ code above a Rust call will never
@@ -68,25 +67,36 @@ code must not call functions that can re-enter the instrumented primitive
 (e.g., `LOG.debug()` from a lock profiler hook can acquire a lock, triggering
 infinite recursion).
 
-**Build validation:** Preprocessor-conditional fixes can be silently dead code
-if the defining header is not included. Changes to build layout, linking, or
-conditional compilation must be verified on actual release wheels — in-tree
-builds may not reproduce wheel-specific issues. Flag for human verification.
+**Build and release validation:** Preprocessor-conditional fixes can be silently
+dead code if the defining header is not included. Changes to build layout,
+linking, or conditional compilation must be verified on actual release wheels —
+in-tree builds may not reproduce wheel-specific issues. Flag for human
+verification.
 
 **Python version compatibility:** CPython internal APIs and struct layouts
-change between versions. Read the actual CPython source (`~/dd/cpython`) for
-the target version rather than guessing. Check `pyproject.toml`
-`requires-python` for the supported range and verify across all versions.
+change between versions. Never assume behavior of CPython APIs or internals
+based on documentation alone — read the actual CPython source code
+([github.com/python/cpython](https://github.com/python/cpython)) for the
+target version. Check `pyproject.toml` `requires-python` for the supported
+range and verify across all supported versions.
+
+**Validating fixes:** Test fixes with all features enabled simultaneously
+(tracing + profiling + AppSec) since fork interactions between features cause
+crashes that single-feature tests miss. Verify that tests actually exercise the
+fixed code path — a test that passes both with and without the fix is not
+valid. If a fix uses conditional compilation, flag for human verification that
+the compiled output contains the fix.
 
 ## The "Never" list
 
 1. Never call `PyGILState_Ensure`/`PyEval_RestoreThread` without a `py_is_finalizing()` check AND a `try/catch(__forced_unwind&)` safety net
-2. Never operate on synchronization primitives inherited from the parent in a child process after fork — recreate them from scratch
+2. Never operate on synchronization primitives (mutexes, condition variables, rwlocks, Events) inherited from the parent in a child process after fork — recreate them from scratch
 3. Never pass a Python object to a thread via raw pointer without `Py_INCREF` BEFORE thread creation
 4. Never call `Py_DECREF`, `PyFrame_GetBack`, or any allocating API from inside an allocator hook
 5. Never assume C++ exceptions can propagate through Rust `extern "C"` or CPython C boundaries
-6. Never leave RAII state members uninitialized when the constructor conditionally skips — use a tracking flag
-7. Never assume `_before_fork` join completes — threads may be stuck in blocking I/O
+6. Never leave RAII `_state` members uninitialized when the constructor conditionally skips — use a tracking flag
+7. Never assume `_before_fork` join completes — check for timeout handling when threads may be stuck in blocking I/O
 8. Never loop over CPython internal linked lists without a hard upper bound
 9. Never assume a preprocessor fix works without verifying the compiled output
 10. Never assume in-tree build behavior matches release wheel behavior
+11. Never assume behavior of CPython APIs or internals — read the source code for the target version as ground truth
