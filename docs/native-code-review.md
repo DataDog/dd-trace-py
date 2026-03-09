@@ -412,5 +412,5 @@ features that crash when combined with other features under fork.
 9. **Never** assume a preprocessor fix works without verifying the compiled
    output
 10. **Never** assume in-tree build behavior matches release wheel behavior
-11. **Never** assume behavior of CPython APIs or internals — read the source
-    code for the target version as ground truth
+11. **Never** assume behavior of CPython, libdatadog, or libddwaf APIs — read
+    the source code for the pinned version as ground truth
