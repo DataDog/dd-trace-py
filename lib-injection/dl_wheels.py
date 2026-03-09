@@ -45,7 +45,7 @@ if pip_version < MIN_PIP_VERSION:
 supported_versions = ["2.7", "3.6", "3.7", "3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 supported_arches = ["aarch64", "x86_64", "i686"]
 supported_platforms = ["musllinux_1_2", "manylinux2014"]
-supported_flavors = ["", "_slim"]
+supported_flavors = ["", "slim"]
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument(
