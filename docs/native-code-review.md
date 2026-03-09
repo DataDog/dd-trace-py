@@ -9,7 +9,9 @@ allocator hooks. For IAST taint tracking code, also consult
 **How to use:** When reviewing native code (C/C++/Rust/Cython), work through
 each applicable section. Include your assessment in the PR
 description (e.g., "GIL lifecycle: no new PyEval_RestoreThread calls" or
-"Fork safety: Events recreated in _after_fork_child").
+"Fork safety: Events recreated in _after_fork_child"). For the compact
+triage checklist with trigger symbols and stop conditions, see
+`.cursor/rules/native-code.mdc`.
 
 **Maintenance:** Last updated 2026-03-09. If this document is more than 3
 months old, ask a human reviewer to refresh it with recent `fix(core)`,
@@ -64,6 +66,12 @@ only defense on musl.
 
 `py_is_finalizing()` checks are essential on all versions. On 3.13.8+,
 they prevent infinite hangs instead of crashes.
+
+**Other 3.14+ behavior changes** (not `take_gil()`-specific):
+- `_Py_Dealloc` dereferences `tstate` immediately — calling `Py_DECREF`
+  during finalization (when tstate may be NULL) crashes. See §3.
+- Default multiprocessing start method changed from `fork` to `forkserver`,
+  requiring lock wrappers to be picklable. See §8.
 
 ### Historical examples
 
@@ -177,6 +185,15 @@ Dangerous functions inside allocator hooks:
 - `PyUnicode_AsUTF8AndSize()` — can allocate UTF-8 cache
 - `PyObject_CallObject()` — can release GIL, allowing other threads to observe
   partially-constructed state
+- `threading.current_thread()` — Python-level call that releases the GIL,
+  crashes on partially-constructed state
+
+Safe alternatives inside allocator hooks:
+- `PyThread_get_thread_ident()` / `PyThread_get_thread_native_id()` — no
+  allocation, no GIL release
+- Direct struct field reads (e.g., `frame->f_code` instead of
+  `PyFrame_GetCode()`) — avoids new references and allocation
+- `Py_INCREF` — safe (no deallocation chain)
 
 **Integer overflow:** Integer types too small for array sizes cause overflow,
 resulting in smaller allocations than needed, leading to out-of-bounds writes.
@@ -391,6 +408,84 @@ features that crash when combined with other features under fork.
   [#10225](https://github.com/DataDog/dd-trace-py/pull/10225))
 - GC disable fix was **dead code** from a missing `#include`
   ([#15388](https://github.com/DataDog/dd-trace-py/pull/15388))
+
+---
+
+## 10. Cython Code (.pyx / .pxd)
+
+### What goes wrong
+
+**Silent exception swallowing:** A `cdef` function that can raise a Python
+exception but lacks an `except` clause silently discards the exception. The
+caller sees a zero/NULL return with no error set, and continues with corrupt
+state.
+
+**String lifetime with `string_view`:** `PyUnicode_AsUTF8AndSize` returns a
+pointer into the Python object's internal buffer. If that object is garbage
+collected while a `string_view` or raw `const char*` still points to it, the
+pointer dangles. This is especially subtle when building a C++ container of
+`string_view`s in a loop — the source strings must be kept alive for the
+entire duration.
+
+**Unsafe casts without type validation:** Casting an arbitrary `PyObject*` to a
+CPython internal struct pointer (e.g., `PyFrameObject*`) without an
+`isinstance()` check crashes if the object is the wrong type.
+
+### Review checklist
+
+- Does every `cdef` function that can raise an exception declare `except *`,
+  `except -1`, or `except? -1`? Without this, exceptions are silently
+  swallowed. Prefer `except? -1` for int-returning functions (checks return
+  value, then checks for exception) over `except -1` (assumes -1 always means
+  error).
+- Do `nogil` blocks avoid all Python C API calls and `PyObject*` access? Only
+  pure C/C++ operations are safe inside `nogil`.
+- When `PyUnicode_AsUTF8AndSize` is used to create `string_view` or raw
+  `const char*` values, are the source Python strings kept alive (e.g., stored
+  in a list) for the full lifetime of the native pointers?
+- Do `cdef class` types with native resources (pointers, buffers) implement
+  `__dealloc__` with NULL checks before cleanup and defensive NULL assignment
+  after?
+- Are raw casts to CPython internal struct types (e.g., `<PyFrameObject*>`)
+  preceded by an `isinstance()` check?
+- Does `PyMem_Malloc` / `PyMem_Realloc` check for NULL return before use?
+- If buffer operations can fail mid-way, is there a rollback path (restore
+  previous length/size)?
+
+### Patterns from the codebase
+
+**Exception declaration (correct):**
+```cython
+# _encoding.pyx — except? -1 checks return value then exception state
+cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
+```
+
+**String lifetime (correct):**
+```cython
+# _ddup.pyx — keeps source strings alive while string_views exist
+endpoint_list = []  # prevents GC of source strings
+for endpoint in endpoints:
+    endpoint_list.append(endpoint)
+    utf8_data = PyUnicode_AsUTF8AndSize(endpoint, &utf8_size)
+    container.insert(string_view(utf8_data, utf8_size))
+```
+
+**Safe cast (correct):**
+```cython
+# _ddup.pyx — isinstance before unsafe cast
+if not isinstance(frame, types.FrameType):
+    return
+frame_ptr = <PyFrameObject*><PyObject*>frame
+```
+
+**Dealloc (correct):**
+```cython
+# _ddup.pyx — NULL check + defensive NULL assignment
+def __dealloc__(self):
+    if self.ptr is not NULL:
+        ddup_drop_sample(self.ptr)
+        self.ptr = NULL
+```
 
 ---
 

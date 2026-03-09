@@ -78,18 +78,18 @@ Any of these is an immediate blocker:
 Each dimension is fully documented in `docs/native-code-review.md`. Here is
 what to check for each:
 
-| Dimension | Core question |
-|-----------|--------------|
-| GIL & finalization | Is every GIL acquire/restore guarded by `py_is_finalizing()`? |
-| Fork safety | Are child-side primitives recreated, parent-side only reset? |
-| Object lifetime | Is `Py_INCREF` before thread creation, `Py_DECREF` only with safe context? |
-| Allocator hooks | Does hook code avoid all allocating/GC-triggering APIs? |
-| FFI boundaries | Are exceptions/unwind contained on each side of every ABI boundary? |
-| Unbounded iteration | Does every linked-list walk have a hard upper bound? |
-| Cython | Do `cdef` functions declare `except *`/`except -1`? Are `nogil` blocks Python-free? |
-| Build/release | Is the fix actually compiled in, not dead code from missing `#include`? |
-| Version awareness | Was behavior verified against the pinned version's source? |
-| Fix validation | Does the test fail without the fix? Combined feature sets tested? |
+| Dimension | §  | Core question |
+|-----------|----|--------------|
+| GIL & finalization | §1 | Is every GIL acquire/restore guarded by `py_is_finalizing()`? |
+| Fork safety | §2 | Are child-side primitives recreated, parent-side only reset? |
+| Object lifetime | §3 | Is `Py_INCREF` before thread creation, `Py_DECREF` only with safe context? |
+| Allocator hooks | §4 | Does hook code avoid all allocating/GC-triggering APIs? |
+| FFI boundaries | §5 | Are exceptions/unwind contained on each side of every ABI boundary? |
+| Unbounded iteration | §6 | Does every linked-list walk have a hard upper bound? |
+| Build/release | §7 | Is the fix actually compiled in, not dead code from missing `#include`? |
+| Version awareness | §8 | Was behavior verified against the pinned version's source? |
+| Fix validation | §9 | Does the test fail without the fix? Combined feature sets tested? |
+| Cython | §10 | Do `cdef` functions declare `except *`/`except -1`? Are `nogil` blocks Python-free? |
 
 ## Reference Files
 
