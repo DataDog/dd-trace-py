@@ -94,7 +94,7 @@ the compiled output contains the fix.
 3. Never pass a Python object to a thread via raw pointer without `Py_INCREF` BEFORE thread creation
 4. Never call `Py_DECREF`, `PyFrame_GetBack`, or any allocating API from inside an allocator hook
 5. Never assume C++ exceptions can propagate through Rust `extern "C"` or CPython C boundaries
-6. Never leave RAII `_state` members uninitialized when the constructor conditionally skips — use a tracking flag
+6. Never leave RAII state members uninitialized when the constructor conditionally skips — use a tracking flag
 7. Never assume `_before_fork` join completes — check for timeout handling when threads may be stuck in blocking I/O
 8. Never loop over CPython internal linked lists without a hard upper bound
 9. Never assume a preprocessor fix works without verifying the compiled output

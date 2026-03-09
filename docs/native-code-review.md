@@ -404,7 +404,7 @@ features that crash when combined with other features under fork.
    inside an allocator hook
 5. **Never** assume C++ exceptions can propagate through Rust `extern "C"` or
    CPython C boundaries
-6. **Never** leave RAII `_state` members uninitialized when the constructor
+6. **Never** leave RAII state members uninitialized when the constructor
    conditionally skips — use a tracking flag
 7. **Never** assume `_before_fork` join completes — check for timeout handling
    when threads may be stuck in blocking I/O
