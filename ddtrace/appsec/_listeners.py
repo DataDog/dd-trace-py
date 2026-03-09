@@ -21,20 +21,31 @@ def _asm_switch_state() -> None:
 def load_appsec() -> None:
     """Lazily load the appsec module listeners."""
     from ddtrace.appsec._asm_request_context import asm_listen
+    from ddtrace.appsec._contrib.aws_lambda import listen as aws_lambda_listen
+    from ddtrace.appsec._contrib.django import listen as django_listen
+    from ddtrace.appsec._contrib.fastapi import listen as fastapi_listen
+    from ddtrace.appsec._contrib.flask import listen as flask_listen
+    from ddtrace.appsec._contrib.httpx import listen as httpx_listen
+    from ddtrace.appsec._contrib.stripe.handlers import listen as stripe_listen
+    from ddtrace.appsec._contrib.tornado import listen as tornado_listen
     from ddtrace.appsec._handlers import listen
-    from ddtrace.appsec.contrib.django import listen as django_listen
-    from ddtrace.appsec.contrib.fastapi import listen as fastapi_listen
-    from ddtrace.appsec.contrib.flask import listen as flask_listen
-    from ddtrace.appsec.contrib.tornado import listen as tornado_listen
+    # from ddtrace.appsec._contrib.grpc import listen as grpc_listen
 
     global _APPSEC_TO_BE_LOADED
     if _APPSEC_TO_BE_LOADED:
         listen()
         asm_listen()
+        aws_lambda_listen()
         flask_listen()
         django_listen()
         fastapi_listen()
+        httpx_listen()
+        stripe_listen()
         tornado_listen()
+
+        # GRPC integration was disabled in commit 5fe1c163738c9e6d13127067f8eceee2302bcb67, deemed too unreliable
+        # grpc_listen()
+
         core.on("asm.switch_state", _asm_switch_state)
         _APPSEC_TO_BE_LOADED = False
     if asm_config._asm_enabled:
@@ -47,7 +58,7 @@ def load_appsec() -> None:
             APIManager.enable()
 
 
-def load_common_appsec_modules():
+def load_common_appsec_modules() -> None:
     """Lazily load the common module patches."""
     from ddtrace.internal.settings.asm import config as asm_config
 
