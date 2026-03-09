@@ -13,13 +13,12 @@ except ImportError:
     vcr = None
 
 import ddtrace
-from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._constants import PARENT_ID_KEY
-from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
+from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -294,7 +293,7 @@ def _llmobs_base_span_event(
     span_event = {
         "trace_id": mock.ANY,
         "span_id": str(span.span_id),
-        "parent_id": _get_llmobs_parent_id(span),
+        "parent_id": str(_get_llmobs_parent_id(span)) if _get_llmobs_parent_id(span) is not None else ROOT_PARENT_ID,
         "name": _get_span_name(span),
         "start_ns": span.start_ns,
         "duration": span.duration_ns,

@@ -11,30 +11,18 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import INPUT_DOCUMENTS
-from ddtrace.llmobs._constants import INPUT_MESSAGES
-from ddtrace.llmobs._constants import INPUT_PROMPT
-from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
-from ddtrace.llmobs._constants import METADATA
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import ML_APP
-from ddtrace.llmobs._constants import MODEL_NAME
-from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
-from ddtrace.llmobs._constants import OUTPUT_MESSAGES
-from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
-from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
-from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import _get_llmobs_trace_id
+from ddtrace.llmobs._utils import _get_span_kind
 from ddtrace.llmobs._utils import mark_as_evaluation_span
 from ddtrace.llmobs.types import Prompt
 from ddtrace.trace import Context
@@ -219,14 +207,14 @@ def test_start_span_with_no_ml_app_defaults_to_service_name(llmobs_no_ml_app):
     with llmobs_no_ml_app.task() as span:
         pass
 
-    assert span._get_ctx_item(ML_APP) == "tests.llmobs"
+    assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) == "tests.llmobs"
 
 
 def test_start_span_empty_ml_app_defaults_to_service_name(llmobs_empty_ml_app):
     with llmobs_empty_ml_app.task() as span:
         pass
 
-    assert span._get_ctx_item(ML_APP) == "tests.llmobs"
+    assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) == "tests.llmobs"
 
 
 def test_start_span_without_ml_app_does_noop():
@@ -238,7 +226,7 @@ def test_ml_app_local_precedence(llmobs, tracer):
     with tracer.trace("apm") as apm_span:
         apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
         with llmobs.workflow(ml_app="local-ml-app") as span:
-            assert span._get_ctx_item(ML_APP) == "local-ml-app"
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) == "local-ml-app"
 
 
 def test_ml_app_parent_precedence(llmobs, tracer):
@@ -246,19 +234,19 @@ def test_ml_app_parent_precedence(llmobs, tracer):
         apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
         with llmobs.workflow(ml_app="local-ml-app"):
             with llmobs.workflow() as child_workflow_span:
-                assert child_workflow_span._get_ctx_item(ML_APP) == "local-ml-app"
+                assert _get_llmobs_data_metastruct(child_workflow_span).get(LLMOBS_STRUCT.ML_APP) == "local-ml-app"
 
 
 def test_ml_app_propagated_precedence(llmobs, tracer):
     with tracer.trace("apm") as apm_span:
         apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
         with llmobs.workflow() as span:
-            assert span._get_ctx_item(ML_APP) == "propagated-ml-app"
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) == "propagated-ml-app"
 
 
 def test_ml_app_uses_global_as_default(llmobs):
     with llmobs.workflow() as span:
-        assert span._get_ctx_item(ML_APP) == "unnamed-ml-app"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) == "unnamed-ml-app"
 
 
 def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
@@ -294,15 +282,15 @@ def test_start_span_uses_kind_as_default_name(llmobs):
 
 def test_start_span_with_session_id(llmobs):
     with llmobs.llm(model_name="test_model", session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID) == "test_session_id"
     with llmobs.tool(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID) == "test_session_id"
     with llmobs.task(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID) == "test_session_id"
     with llmobs.workflow(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID) == "test_session_id"
     with llmobs.agent(session_id="test_session_id") as span:
-        assert span._get_ctx_item(SESSION_ID) == "test_session_id"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID) == "test_session_id"
 
 
 def test_session_id_becomes_top_level_field(llmobs, llmobs_events):
@@ -318,9 +306,14 @@ def test_llm_span(llmobs, llmobs_events):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "llm"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
+        assert _get_span_kind(span) == "llm"
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME) == "test_model"
+        )
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER)
+            == "test_provider"
+        )
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="test_model", model_provider="test_provider"
@@ -329,7 +322,7 @@ def test_llm_span(llmobs, llmobs_events):
 
 def test_llm_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.llm(name="test_llm_call", model_provider="test_provider") as span:
-        assert span._get_ctx_item(MODEL_NAME) == "custom"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME) == "custom"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "llm", model_name="custom", model_provider="test_provider"
@@ -341,9 +334,13 @@ def test_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_llm_call"
         assert span.resource == "llm"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "llm"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "custom"
+        assert _get_span_kind(span) == "llm"
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME) == "test_model"
+        )
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER) == "custom"
+        )
 
 
 def test_tool_span(llmobs, llmobs_events):
@@ -351,7 +348,7 @@ def test_tool_span(llmobs, llmobs_events):
         assert span.name == "test_tool"
         assert span.resource == "tool"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "tool"
+        assert _get_span_kind(span) == "tool"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "tool")
 
@@ -361,7 +358,7 @@ def test_task_span(llmobs, llmobs_events):
         assert span.name == "test_task"
         assert span.resource == "task"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "task"
+        assert _get_span_kind(span) == "task"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "task")
 
@@ -371,7 +368,7 @@ def test_workflow_span(llmobs, llmobs_events):
         assert span.name == "test_workflow"
         assert span.resource == "workflow"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "workflow"
+        assert _get_span_kind(span) == "workflow"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(span, "workflow")
 
@@ -381,14 +378,14 @@ def test_agent_span(llmobs, llmobs_events):
         assert span.name == "test_agent"
         assert span.resource == "agent"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "agent"
+        assert _get_span_kind(span) == "agent"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(span, "agent")
 
 
 def test_embedding_span_no_model_sets_default(llmobs, llmobs_events):
     with llmobs.embedding(name="test_embedding", model_provider="test_provider") as span:
-        assert span._get_ctx_item(MODEL_NAME) == "custom"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME) == "custom"
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="custom", model_provider="test_provider"
@@ -400,9 +397,13 @@ def test_embedding_default_model_provider_set_to_custom(llmobs):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "embedding"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "custom"
+        assert _get_span_kind(span) == "embedding"
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME) == "test_model"
+        )
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER) == "custom"
+        )
 
 
 def test_embedding_span(llmobs, llmobs_events):
@@ -410,9 +411,14 @@ def test_embedding_span(llmobs, llmobs_events):
         assert span.name == "test_embedding"
         assert span.resource == "embedding"
         assert span.span_type == "llm"
-        assert span._get_ctx_item(SPAN_KIND) == "embedding"
-        assert span._get_ctx_item(MODEL_NAME) == "test_model"
-        assert span._get_ctx_item(MODEL_PROVIDER) == "test_provider"
+        assert _get_span_kind(span) == "embedding"
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME) == "test_model"
+        )
+        assert (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER)
+            == "test_provider"
+        )
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
         span, "embedding", model_name="test_model", model_provider="test_provider"
@@ -447,14 +453,19 @@ def test_annotate_finished_span_does_nothing(llmobs):
 def test_annotate_metadata(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
-        assert span._get_ctx_item(METADATA) == {"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3}
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA) == {
+            "temperature": 0.5,
+            "max_tokens": 20,
+            "top_k": 10,
+            "n": 3,
+        }
 
 
 def test_annotate_metadata_updates(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, metadata={"temperature": 0.5, "max_tokens": 20, "top_k": 10, "n": 3})
         llmobs.annotate(span=span, metadata={"temperature": 1, "logit_bias": [{"1": 2}]})
-        assert span._get_ctx_item(METADATA) == {
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA) == {
             "temperature": 1,
             "max_tokens": 20,
             "top_k": 10,
@@ -473,14 +484,21 @@ def test_annotate_metadata_wrong_type_raises(llmobs):
 def test_annotate_tag(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"test_tag_name": "test_tag_value", "test_numeric_tag": 10})
-        assert span._get_ctx_item(TAGS) == {"test_tag_name": "test_tag_value", "test_numeric_tag": 10}
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+            "test_tag_name": "test_tag_value",
+            "test_numeric_tag": 10,
+            "decorator": "0",
+        }
 
 
 def test_annotate_tag_can_set_session_id(llmobs):
     with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
         llmobs.annotate(span=span, tags={"session_id": "1234567890"})
-        assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
-        assert span._get_ctx_item(SESSION_ID) == "1234567890"
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+            "session_id": "1234567890",
+            "decorator": "0",
+        }
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID) == "1234567890"
 
 
 def test_annotate_tag_wrong_type(llmobs):
@@ -493,57 +511,141 @@ def test_annotate_tag_wrong_type(llmobs):
 def test_annotate_input_string(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, input_data="test_input")
-        assert llm_span._get_ctx_item(INPUT_MESSAGES) == [{"content": "test_input"}]
+        assert _get_llmobs_data_metastruct(llm_span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+            LLMOBS_STRUCT.MESSAGES
+        ) == [{"content": "test_input"}]
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data="test_input")
-        assert task_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_input"
+        )
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, input_data="test_input")
-        assert tool_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert (
+            _get_llmobs_data_metastruct(tool_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_input"
+        )
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, input_data="test_input")
-        assert workflow_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert (
+            _get_llmobs_data_metastruct(workflow_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_input"
+        )
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, input_data="test_input")
-        assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert (
+            _get_llmobs_data_metastruct(agent_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_input"
+        )
     with llmobs.retrieval() as retrieval_span:
         llmobs.annotate(span=retrieval_span, input_data="test_input")
-        assert retrieval_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert (
+            _get_llmobs_data_metastruct(retrieval_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_input"
+        )
 
 
 def test_annotate_numeric_io(llmobs):
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=0, output_data=0)
-        assert task_span._get_ctx_item(INPUT_VALUE) == "0"
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == "0"
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "0"
+        )
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "0"
+        )
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=1.23, output_data=1.23)
-        assert task_span._get_ctx_item(INPUT_VALUE) == "1.23"
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == "1.23"
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "1.23"
+        )
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "1.23"
+        )
 
 
 def test_annotate_input_serializable_value(llmobs):
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, input_data=["test_input"])
-        assert task_span._get_ctx_item(INPUT_VALUE) == '["test_input"]'
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == '["test_input"]'
+        )
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, input_data={"test_input": "hello world"})
-        assert tool_span._get_ctx_item(INPUT_VALUE) == '{"test_input": "hello world"}'
+        assert (
+            _get_llmobs_data_metastruct(tool_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == '{"test_input": "hello world"}'
+        )
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, input_data=("asd", 123))
-        assert workflow_span._get_ctx_item(INPUT_VALUE) == '["asd", 123]'
+        assert (
+            _get_llmobs_data_metastruct(workflow_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == '["asd", 123]'
+        )
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, input_data="test_input")
-        assert agent_span._get_ctx_item(INPUT_VALUE) == "test_input"
+        assert (
+            _get_llmobs_data_metastruct(agent_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_input"
+        )
     with llmobs.retrieval() as retrieval_span:
         llmobs.annotate(span=retrieval_span, input_data=[0, 1, 2, 3, 4])
-        assert retrieval_span._get_ctx_item(INPUT_VALUE) == str([0, 1, 2, 3, 4])
+        assert _get_llmobs_data_metastruct(retrieval_span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+            LLMOBS_STRUCT.VALUE
+        ) == str([0, 1, 2, 3, 4])
 
 
 def test_annotate_input_llm_message(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data=[{"content": "test_input", "role": "human"}])
-        assert span._get_ctx_item(INPUT_MESSAGES) == [{"content": "test_input", "role": "human"}]
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+            LLMOBS_STRUCT.MESSAGES
+        ) == [{"content": "test_input", "role": "human"}]
 
 
 def test_annotate_input_llm_message_wrong_type(llmobs):
@@ -583,13 +685,23 @@ def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")
-        documents = span._get_ctx_item(INPUT_DOCUMENTS)
+        documents = (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.DOCUMENTS)
+        )
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with llmobs.retrieval() as span:
         llmobs.annotate(span=span, output_data="test_document_text")
-        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
+        documents = (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.DOCUMENTS)
+        )
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -598,13 +710,23 @@ def test_annotate_document_str(llmobs):
 def test_annotate_document_dict(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data={"text": "test_document_text"})
-        documents = span._get_ctx_item(INPUT_DOCUMENTS)
+        documents = (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.DOCUMENTS)
+        )
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with llmobs.retrieval() as span:
         llmobs.annotate(span=span, output_data={"text": "test_document_text"})
-        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
+        documents = (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.DOCUMENTS)
+        )
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -616,7 +738,12 @@ def test_annotate_document_list(llmobs):
             span=span,
             input_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = span._get_ctx_item(INPUT_DOCUMENTS)
+        documents = (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.DOCUMENTS)
+        )
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -629,7 +756,12 @@ def test_annotate_document_list(llmobs):
             span=span,
             output_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = span._get_ctx_item(OUTPUT_DOCUMENTS)
+        documents = (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.DOCUMENTS)
+        )
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -699,46 +831,110 @@ def test_annotate_incorrect_document_field_type_raises(llmobs):
 def test_annotate_output_string(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, output_data="test_output")
-        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) == [{"content": "test_output"}]
+        assert _get_llmobs_data_metastruct(llm_span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {}).get(
+            LLMOBS_STRUCT.MESSAGES
+        ) == [{"content": "test_output"}]
     with llmobs.embedding(model_name="test_model") as embedding_span:
         llmobs.annotate(span=embedding_span, output_data="test_output")
-        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert (
+            _get_llmobs_data_metastruct(embedding_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_output"
+        )
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, output_data="test_output")
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_output"
+        )
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, output_data="test_output")
-        assert tool_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert (
+            _get_llmobs_data_metastruct(tool_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_output"
+        )
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, output_data="test_output")
-        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert (
+            _get_llmobs_data_metastruct(workflow_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_output"
+        )
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, output_data="test_output")
-        assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert (
+            _get_llmobs_data_metastruct(agent_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_output"
+        )
 
 
 def test_annotate_output_serializable_value(llmobs):
     with llmobs.embedding(model_name="test_model") as embedding_span:
         llmobs.annotate(span=embedding_span, output_data=[[0, 1, 2, 3], [4, 5, 6, 7]])
-        assert embedding_span._get_ctx_item(OUTPUT_VALUE) == "[[0, 1, 2, 3], [4, 5, 6, 7]]"
+        assert (
+            _get_llmobs_data_metastruct(embedding_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "[[0, 1, 2, 3], [4, 5, 6, 7]]"
+        )
     with llmobs.task() as task_span:
         llmobs.annotate(span=task_span, output_data=["test_output"])
-        assert task_span._get_ctx_item(OUTPUT_VALUE) == '["test_output"]'
+        assert (
+            _get_llmobs_data_metastruct(task_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == '["test_output"]'
+        )
     with llmobs.tool() as tool_span:
         llmobs.annotate(span=tool_span, output_data={"test_output": "hello world"})
-        assert tool_span._get_ctx_item(OUTPUT_VALUE) == '{"test_output": "hello world"}'
+        assert (
+            _get_llmobs_data_metastruct(tool_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == '{"test_output": "hello world"}'
+        )
     with llmobs.workflow() as workflow_span:
         llmobs.annotate(span=workflow_span, output_data=("asd", 123))
-        assert workflow_span._get_ctx_item(OUTPUT_VALUE) == '["asd", 123]'
+        assert (
+            _get_llmobs_data_metastruct(workflow_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == '["asd", 123]'
+        )
     with llmobs.agent() as agent_span:
         llmobs.annotate(span=agent_span, output_data="test_output")
-        assert agent_span._get_ctx_item(OUTPUT_VALUE) == "test_output"
+        assert (
+            _get_llmobs_data_metastruct(agent_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.VALUE)
+            == "test_output"
+        )
 
 
 def test_annotate_output_llm_message(llmobs):
     with llmobs.llm(model_name="test_model") as llm_span:
         llmobs.annotate(span=llm_span, output_data=[{"content": "test_output", "role": "human"}])
-        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) == [{"content": "test_output", "role": "human"}]
+        assert _get_llmobs_data_metastruct(llm_span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {}).get(
+            LLMOBS_STRUCT.MESSAGES
+        ) == [{"content": "test_output", "role": "human"}]
 
 
 def test_annotate_output_llm_message_wrong_type(llmobs):
@@ -746,20 +942,34 @@ def test_annotate_output_llm_message_wrong_type(llmobs):
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=llm_span, output_data=[{"content": object()}])
         assert str(excinfo.value) == "Failed to parse output messages."
-        assert llm_span._get_ctx_item(OUTPUT_MESSAGES) is None
+        assert (
+            _get_llmobs_data_metastruct(llm_span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.OUTPUT, {})
+            .get(LLMOBS_STRUCT.MESSAGES)
+            is None
+        )
 
 
 def test_annotate_metrics(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30})
-        assert span._get_ctx_item(METRICS) == {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS) == {
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "total_tokens": 30,
+        }
 
 
 def test_annotate_metrics_updates(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, metrics={"input_tokens": 10, "output_tokens": 20})
         llmobs.annotate(span=span, metrics={"input_tokens": 20, "total_tokens": 40})
-        assert span._get_ctx_item(METRICS) == {"input_tokens": 20, "output_tokens": 20, "total_tokens": 40}
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS) == {
+            "input_tokens": 20,
+            "output_tokens": 20,
+            "total_tokens": 40,
+        }
 
 
 def test_annotate_metrics_wrong_type(llmobs):
@@ -780,7 +990,9 @@ def test_annotate_prompt_dict(llmobs):
                 "id": "test_prompt",
             },
         )
-        assert span._get_ctx_item(INPUT_PROMPT) == {
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+            LLMOBS_STRUCT.PROMPT
+        ) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -789,7 +1001,10 @@ def test_annotate_prompt_dict(llmobs):
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
-        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+            PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated",
+            "decorator": "0",
+        }
 
 
 def test_annotate_prompt_dict_with_context_var_keys(llmobs):
@@ -805,7 +1020,9 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
                 "rag_query_variables": ["user_input"],
             },
         )
-        assert span._get_ctx_item(INPUT_PROMPT) == {
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+            LLMOBS_STRUCT.PROMPT
+        ) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -814,7 +1031,10 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
-        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+            PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated",
+            "decorator": "0",
+        }
 
 
 def test_annotate_prompt_typed_dict(llmobs):
@@ -830,7 +1050,9 @@ def test_annotate_prompt_typed_dict(llmobs):
                 rag_query_variables=["user_input"],
             ),
         )
-        assert span._get_ctx_item(INPUT_PROMPT) == {
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+            LLMOBS_STRUCT.PROMPT
+        ) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -839,7 +1061,10 @@ def test_annotate_prompt_typed_dict(llmobs):
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
         }
-        assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+            PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated",
+            "decorator": "0",
+        }
 
 
 def test_annotate_prompt_wrong_type(llmobs):
@@ -862,7 +1087,7 @@ def test_annotate_prompt_wrong_type(llmobs):
 def test_annotate_linked_spans(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, _linked_spans=[{"span_id": "123", "trace_id": "456"}])
-        assert span._get_ctx_item(SPAN_LINKS) == [
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS) == [
             {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}}
         ]
 
@@ -950,7 +1175,7 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         span_context = llmobs.export_span(span=span)
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID))
+        assert span_context["trace_id"] == format_trace_id(_get_llmobs_trace_id(span))
 
 
 def test_export_span_no_specified_span_no_active_span_raises(llmobs):
@@ -979,7 +1204,7 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         span_context = llmobs.export_span()
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID))
+        assert span_context["trace_id"] == format_trace_id(_get_llmobs_trace_id(span))
 
 
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
@@ -1337,35 +1562,50 @@ def test_llmobs_with_evaluation_runner_does_not_enqueue_non_llm_spans(mock_llmob
 def test_annotation_context_modifies_span_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         with llmobs.agent(name="test_agent") as span:
-            assert span._get_ctx_item(TAGS) == {"foo": "bar"}
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {"foo": "bar", "decorator": "0"}
 
 
 def test_annotation_context_can_update_session_id(llmobs):
     with llmobs.annotation_context(tags={"session_id": "1234567890"}):
         with llmobs.agent(name="test_agent") as span:
-            assert span._get_ctx_item(TAGS) == {"session_id": "1234567890"}
-            assert span._get_ctx_item(SESSION_ID) == "1234567890"
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+                "session_id": "1234567890",
+                "decorator": "0",
+            }
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID) == "1234567890"
 
 
 def test_annotation_context_modifies_prompt(llmobs):
     prompt = {"template": "test_template"}
     with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert span._get_ctx_item(INPUT_PROMPT) == {
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+                LLMOBS_STRUCT.PROMPT
+            ) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
                 "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
-            assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+                PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated",
+                "decorator": "0",
+            }
 
 
 def test_annotation_context_prompt_includes_ml_app(llmobs):
     prompt = {"template": "test_template"}
     with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert span._get_ctx_item(INPUT_PROMPT).get("ml_app") == "unnamed-ml-app"
+            assert (
+                _get_llmobs_data_metastruct(span)
+                .get(LLMOBS_STRUCT.META, {})
+                .get(LLMOBS_STRUCT.INPUT, {})
+                .get(LLMOBS_STRUCT.PROMPT, {})
+                .get("ml_app")
+                == "unnamed-ml-app"
+            )
 
 
 def test_annotation_context_modifies_name(llmobs):
@@ -1378,7 +1618,7 @@ def test_annotation_context_modifies_span_links(llmobs):
     with llmobs.annotation_context(_linked_spans=[{"span_id": "123", "trace_id": "456"}]):
         with llmobs.llm(model_name="test_model") as span:
             llmobs.annotate(span=span, _linked_spans=[{"span_id": "abc", "trace_id": "def"}])
-            assert span._get_ctx_item(SPAN_LINKS) == [
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS) == [
                 {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}},
                 {"span_id": "abc", "trace_id": "def", "attributes": {"from": "output", "to": "input"}},
             ]
@@ -1388,14 +1628,20 @@ def test_annotation_context_finished_context_does_not_modify_tags(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar"}):
         pass
     with llmobs.agent(name="test_agent") as span:
-        assert span._get_ctx_item(TAGS) is None
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {"decorator": "0"}
 
 
 def test_annotation_context_finished_context_does_not_modify_prompt(llmobs):
     with llmobs.annotation_context(prompt={"template": "test_template"}):
         pass
     with llmobs.llm(name="test_agent", model_name="test") as span:
-        assert span._get_ctx_item(INPUT_PROMPT) is None
+        assert (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.PROMPT)
+            is None
+        )
 
 
 def test_annotation_context_finished_context_does_not_modify_name(llmobs):
@@ -1409,7 +1655,11 @@ def test_annotation_context_nested(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with llmobs.annotation_context(tags={"foo": "baz"}):
             with llmobs.agent(name="test_agent") as span:
-                assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
+                assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+                    "foo": "baz",
+                    "boo": "bar",
+                    "decorator": "0",
+                }
 
 
 def test_annotation_context_nested_overrides_name(llmobs):
@@ -1425,8 +1675,16 @@ def test_annotation_context_nested_maintains_trace_structure(llmobs, llmobs_even
         with llmobs.agent(name="parent_span") as parent_span:
             with llmobs.annotation_context(tags={"foo": "baz"}):
                 with llmobs.workflow(name="child_span") as child_span:
-                    assert child_span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
-                    assert parent_span._get_ctx_item(TAGS) == {"foo": "bar", "boo": "bar"}
+                    assert _get_llmobs_data_metastruct(child_span).get(LLMOBS_STRUCT.TAGS) == {
+                        "foo": "baz",
+                        "boo": "bar",
+                        "decorator": "0",
+                    }
+                    assert _get_llmobs_data_metastruct(parent_span).get(LLMOBS_STRUCT.TAGS) == {
+                        "foo": "bar",
+                        "boo": "bar",
+                        "decorator": "0",
+                    }
 
     assert len(llmobs_events) == 2
     parent_span, child_span = llmobs_events[1], llmobs_events[0]
@@ -1466,15 +1724,24 @@ def test_annotation_context_persists_across_multiple_root_span_operations(llmobs
     with llmobs.annotation_context(tags={"test_tag": "should_persist"}):
         # First operation - creates and finishes a root span
         with llmobs.workflow(name="first_batch") as span1:
-            assert span1._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+            assert _get_llmobs_data_metastruct(span1).get(LLMOBS_STRUCT.TAGS) == {
+                "test_tag": "should_persist",
+                "decorator": "0",
+            }
 
         # Second operation - should still have annotation context applied
         with llmobs.workflow(name="second_batch") as span2:
-            assert span2._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+            assert _get_llmobs_data_metastruct(span2).get(LLMOBS_STRUCT.TAGS) == {
+                "test_tag": "should_persist",
+                "decorator": "0",
+            }
 
         # Third operation - verify it continues to work
         with llmobs.agent(name="third_operation") as span3:
-            assert span3._get_ctx_item(TAGS) == {"test_tag": "should_persist"}
+            assert _get_llmobs_data_metastruct(span3).get(LLMOBS_STRUCT.TAGS) == {
+                "test_tag": "should_persist",
+                "decorator": "0",
+            }
 
 
 def test_annotation_context_not_reactivated_after_exit(llmobs):
@@ -1484,11 +1751,11 @@ def test_annotation_context_not_reactivated_after_exit(llmobs):
     """
     with llmobs.annotation_context(tags={"inside": "context"}):
         with llmobs.workflow(name="inside_span") as span1:
-            assert span1._get_ctx_item(TAGS) == {"inside": "context"}
+            assert _get_llmobs_data_metastruct(span1).get(LLMOBS_STRUCT.TAGS) == {"inside": "context", "decorator": "0"}
 
     # After exiting annotation_context, tags should not be applied
     with llmobs.workflow(name="outside_span") as span2:
-        assert span2._get_ctx_item(TAGS) is None
+        assert _get_llmobs_data_metastruct(span2).get(LLMOBS_STRUCT.TAGS) == {"decorator": "0"}
 
 
 def test_annotation_context_sequential_contexts_work_independently(llmobs):
@@ -1508,28 +1775,28 @@ def test_annotation_context_sequential_contexts_work_independently(llmobs):
     # First annotation context
     with llmobs.annotation_context(tags={"context": "first"}):
         with llmobs.workflow(name="first_ctx_op1") as span1:
-            assert span1._get_ctx_item(TAGS) == {"context": "first"}
+            assert _get_llmobs_data_metastruct(span1).get(LLMOBS_STRUCT.TAGS) == {"context": "first", "decorator": "0"}
         with llmobs.workflow(name="first_ctx_op2") as span2:
-            assert span2._get_ctx_item(TAGS) == {"context": "first"}
+            assert _get_llmobs_data_metastruct(span2).get(LLMOBS_STRUCT.TAGS) == {"context": "first", "decorator": "0"}
 
     # Second annotation context - this is where the bug manifested
     with llmobs.annotation_context(tags={"context": "second"}):
         # First operation works (reused old context ID)
         with llmobs.workflow(name="second_ctx_op1") as span3:
-            assert span3._get_ctx_item(TAGS) == {"context": "second"}
+            assert _get_llmobs_data_metastruct(span3).get(LLMOBS_STRUCT.TAGS) == {"context": "second", "decorator": "0"}
         # Second operation failed before the fix (context not reactivated)
         with llmobs.workflow(name="second_ctx_op2") as span4:
-            assert span4._get_ctx_item(TAGS) == {"context": "second"}
+            assert _get_llmobs_data_metastruct(span4).get(LLMOBS_STRUCT.TAGS) == {"context": "second", "decorator": "0"}
         # Third operation to verify it continues to work
         with llmobs.agent(name="second_ctx_op3") as span5:
-            assert span5._get_ctx_item(TAGS) == {"context": "second"}
+            assert _get_llmobs_data_metastruct(span5).get(LLMOBS_STRUCT.TAGS) == {"context": "second", "decorator": "0"}
 
     # Third annotation context - verify it still works
     with llmobs.annotation_context(tags={"context": "third"}):
         with llmobs.workflow(name="third_ctx_op1") as span6:
-            assert span6._get_ctx_item(TAGS) == {"context": "third"}
+            assert _get_llmobs_data_metastruct(span6).get(LLMOBS_STRUCT.TAGS) == {"context": "third", "decorator": "0"}
         with llmobs.workflow(name="third_ctx_op2") as span7:
-            assert span7._get_ctx_item(TAGS) == {"context": "third"}
+            assert _get_llmobs_data_metastruct(span7).get(LLMOBS_STRUCT.TAGS) == {"context": "third", "decorator": "0"}
 
 
 def test_annotation_context_only_applies_to_local_context(llmobs):
@@ -1551,7 +1818,10 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
         with llmobs.annotation_context(name="expected_agent", tags={"foo": "bar"}):
             with llmobs.agent(name="test_agent") as span:
                 event.wait()
-                agent_has_correct_tags = span._get_ctx_item(TAGS) == {"foo": "bar"}
+                agent_has_correct_tags = _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+                    "foo": "bar",
+                    "decorator": "0",
+                }
                 agent_has_correct_name = span.name == "expected_agent"
 
     # thread which registers an annotation context for 0.5 seconds
@@ -1562,7 +1832,9 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
             with llmobs.annotation_context(name="expected_tool"):
                 with llmobs.tool(name="test_tool") as tool_span:
                     event.wait()
-                    tool_does_not_have_tags = tool_span._get_ctx_item(TAGS) is None
+                    tool_does_not_have_tags = _get_llmobs_data_metastruct(tool_span).get(LLMOBS_STRUCT.TAGS) == {
+                        "decorator": "0"
+                    }
                     tool_has_correct_name = tool_span.name == "expected_tool"
 
     thread_one = threading.Thread(target=context_one)
@@ -1572,7 +1844,7 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
 
     with llmobs.agent(name="test_agent") as span:
         assert span.name == "test_agent"
-        assert span._get_ctx_item(TAGS) is None
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {"decorator": "0"}
 
     event.set()
     thread_one.join()
@@ -1589,21 +1861,26 @@ def test_annotation_context_only_applies_to_local_context(llmobs):
 async def test_annotation_context_async_modifies_span_tags(llmobs):
     async with llmobs.annotation_context(tags={"foo": "bar"}):
         with llmobs.agent(name="test_agent") as span:
-            assert span._get_ctx_item(TAGS) == {"foo": "bar"}
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {"foo": "bar", "decorator": "0"}
 
 
 async def test_annotation_context_async_modifies_prompt(llmobs):
     prompt = {"template": "test_template"}
     async with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert span._get_ctx_item(INPUT_PROMPT) == {
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {}).get(
+                LLMOBS_STRUCT.PROMPT
+            ) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
                 "ml_app": "unnamed-ml-app",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
                 "_dd_query_variable_keys": ["question"],
             }
-            assert span._get_ctx_item(TAGS) == {PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated"}
+            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+                PROMPT_TRACKING_INSTRUMENTATION_METHOD: "annotated",
+                "decorator": "0",
+            }
 
 
 async def test_annotation_context_async_modifies_name(llmobs):
@@ -1616,14 +1893,20 @@ async def test_annotation_context_async_finished_context_does_not_modify_tags(ll
     async with llmobs.annotation_context(tags={"foo": "bar"}):
         pass
     with llmobs.agent(name="test_agent") as span:
-        assert span._get_ctx_item(TAGS) is None
+        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {"decorator": "0"}
 
 
 async def test_annotation_context_async_finished_context_does_not_modify_prompt(llmobs):
     async with llmobs.annotation_context(prompt={"template": "test_template"}):
         pass
     with llmobs.llm(name="test_agent", model_name="test") as span:
-        assert span._get_ctx_item(INPUT_PROMPT) is None
+        assert (
+            _get_llmobs_data_metastruct(span)
+            .get(LLMOBS_STRUCT.META, {})
+            .get(LLMOBS_STRUCT.INPUT, {})
+            .get(LLMOBS_STRUCT.PROMPT)
+            is None
+        )
 
 
 async def test_annotation_context_finished_context_async_does_not_modify_name(llmobs):
@@ -1637,7 +1920,11 @@ async def test_annotation_context_async_nested(llmobs):
     async with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         async with llmobs.annotation_context(tags={"foo": "baz"}):
             with llmobs.agent(name="test_agent") as span:
-                assert span._get_ctx_item(TAGS) == {"foo": "baz", "boo": "bar"}
+                assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS) == {
+                    "foo": "baz",
+                    "boo": "bar",
+                    "decorator": "0",
+                }
 
 
 def test_service_enable_starts_evaluator_runner_when_evaluators_exist(tracer):
@@ -1901,7 +2188,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+            trace_id=format_trace_id(_get_llmobs_trace_id(span)),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -1930,7 +2217,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+            trace_id=format_trace_id(_get_llmobs_trace_id(span)),
             label="sentiment",
             metric_type="score",
             score_value=0.9,
@@ -2155,7 +2442,7 @@ def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmo
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+            trace_id=format_trace_id(_get_llmobs_trace_id(span)),
             label="is_toxic",
             metric_type="boolean",
             boolean_value=False,
@@ -2190,7 +2477,6 @@ class TestBuildSpanEventFromMetaStructE2E:
         with llmobs.llm(model_name="test_model", model_provider="test_provider", name="test_llm") as span:
             _annotate_llmobs_span_data(
                 span,
-                trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
                 model_name="test_model",
                 model_provider="test_provider",
                 input_messages=[{"role": "user", "content": "hello"}],
@@ -2213,7 +2499,6 @@ class TestBuildSpanEventFromMetaStructE2E:
         with llmobs.task(name="test_task") as span:
             _annotate_llmobs_span_data(
                 span,
-                trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
                 input_value="some input",
                 output_value="some output",
             )
@@ -2227,7 +2512,6 @@ class TestBuildSpanEventFromMetaStructE2E:
         with llmobs.embedding(model_name="text-embedding-3", model_provider="openai", name="test_embedding") as span:
             _annotate_llmobs_span_data(
                 span,
-                trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
                 model_name="text-embedding-3",
                 model_provider="openai",
                 input_documents=[{"text": "embed this"}],
@@ -2244,7 +2528,6 @@ class TestBuildSpanEventFromMetaStructE2E:
             with llmobs.llm(name="test_error") as span:
                 _annotate_llmobs_span_data(
                     span,
-                    trace_id=span._get_ctx_item(LLMOBS_TRACE_ID),
                 )
                 raise ValueError("something went wrong")
         assert len(llmobs_events) == 1

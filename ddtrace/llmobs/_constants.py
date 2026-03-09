@@ -157,7 +157,7 @@ PROMPTS_ENDPOINT = "/api/unstable/llm-obs/v1/prompts"
 class LLMOBS_STRUCT:
     """Nested LLMObs struct keys in span._meta_struct."""
 
-    KEY: Final = "llmobs"
+    KEY: Final = "_llmobs"
     NAME: Final = "name"
     PARENT_ID: Final = "parent_id"
     TRACE_ID: Final = "trace_id"
