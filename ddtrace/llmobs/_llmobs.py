@@ -473,13 +473,6 @@ class LLMObs(Service):
             if span_event and span_kind == "llm" and not _is_evaluation_span(span) and self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
-    def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
-        """Generate LLMObs span event using either the meta_struct path or the legacy _store path."""
-        llmobs_data = _get_llmobs_data_metastruct(span)
-        if not llmobs_data:
-            return None
-        return self._build_span_event_from_meta_struct(span, llmobs_data)
-
     def _apply_user_span_processor(self, llmobs_span: LLMObsSpan, llmobs_data: LLMObsSpanData) -> Optional[LLMObsSpan]:
         """Run the user span processor.
 
@@ -504,7 +497,12 @@ class LLMObs(Service):
         finally:
             telemetry.record_llmobs_user_processor_called(error)
 
-    def _build_span_event_from_meta_struct(self, span: Span, llmobs_data: LLMObsSpanData) -> Optional[LLMObsSpanEvent]:
+    def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
+        """Generate LLMObs span event using either the meta_struct path or the legacy _store path."""
+        llmobs_data = _get_llmobs_data_metastruct(span)
+        if not llmobs_data:
+            return None
+
         llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or _Meta()
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
         llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
@@ -1750,7 +1748,7 @@ class LLMObs(Service):
             return active
         elif isinstance(active, Span):
             context = active.context
-            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(_get_llmobs_trace_id(active)) or str(active.trace_id)
+            context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = str(_get_llmobs_trace_id(active) or active.trace_id)
             return context
         return None
 
@@ -2203,7 +2201,7 @@ class LLMObs(Service):
                     validated_prompt = _validate_prompt(prompt, strict_validation=False)
                     _annotate_llmobs_span_data(
                         span,
-                        prompt=validated_prompt,
+                        prompt=cast(Prompt, validated_prompt),
                         tags={PROMPT_TRACKING_INSTRUMENTATION_METHOD: INSTRUMENTATION_METHOD_ANNOTATED},
                     )
                 except (ValueError, TypeError) as e:
@@ -2532,7 +2530,10 @@ class LLMObs(Service):
             llmobs_trace_id = _get_llmobs_trace_id(active_span)
         elif active_context is not None:
             ml_app = active_context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
-            llmobs_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or generate_128bit_trace_id()
+            _propagated_trace_id = active_context._meta.get(PROPAGATED_LLMOBS_TRACE_ID_KEY) or None
+            llmobs_trace_id = (
+                int(_propagated_trace_id) if _propagated_trace_id is not None else generate_128bit_trace_id()
+            )
         else:
             ml_app = config._llmobs_ml_app
             llmobs_trace_id = generate_128bit_trace_id()

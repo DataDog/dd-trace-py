@@ -236,7 +236,7 @@ def _get_ml_app(span: Span) -> Optional[str]:
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the global config LLMObs ML app name otherwise.
     """
-    current = span
+    current: Optional[Span] = span
     while current:
         llmobs_data = _get_llmobs_data_metastruct(current)
         ml_app = llmobs_data.get(LLMOBS_STRUCT.ML_APP)
@@ -248,7 +248,7 @@ def _get_ml_app(span: Span) -> Optional[str]:
 
 def _get_session_id(span: Span) -> Optional[str]:
     """Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor."""
-    current = span
+    current: Optional[Span] = span
     while current:
         llmobs_data = _get_llmobs_data_metastruct(current)
         session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID)

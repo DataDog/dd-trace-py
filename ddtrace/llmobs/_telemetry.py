@@ -121,7 +121,7 @@ def record_span_created(span: Span):
         ("error", str(span.error)),
     ]
     if not autoinstrumented:
-        tags.append(("decorator", decorator))
+        tags.append(("decorator", decorator or "N/A"))
     if model_provider:
         tags.append(("model_provider", model_provider))
     telemetry_writer.add_count_metric(
