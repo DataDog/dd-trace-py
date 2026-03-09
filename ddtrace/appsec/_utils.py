@@ -102,7 +102,7 @@ class DDWaf_result:
                 self.metrics[k] = v
         self.keep = keep
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
             f" actions: {self.actions}, runtime: {self.runtime},"
@@ -166,7 +166,7 @@ class Block_config:
         grpc_status_code: int = 10,
         security_response_id: str = "default",
         location: str = "",
-        **_kwargs,
+        **_kwargs: Any,
     ) -> None:
         self.block_id: str = security_response_id
         self.grpc_status_code: int = grpc_status_code
@@ -224,23 +224,23 @@ class Telemetry_result:
         self.error = 0
 
 
-def parse_response_body(raw_body, headers):
+def parse_response_body(raw_body: Any, headers: Any) -> Optional[Any]:
     if not raw_body:
-        return
+        return None
 
     if isinstance(raw_body, dict):
         return raw_body
 
     if not headers:
-        return
+        return None
     content_type = _get_header_value_case_insensitive(
         {str(k): str(v) for k, v in dict(headers).items()},
         "content-type",
     )
     if not content_type:
-        return
+        return None
 
-    def access_body(bd):
+    def access_body(bd: Any) -> Any:
         if isinstance(bd, list) and isinstance(bd[0], (str, bytes)):
             bd = bd[0][:0].join(bd)
         if getattr(bd, "decode", False):
@@ -259,11 +259,12 @@ def parse_response_body(raw_body, headers):
 
             req_body = xmltodict.parse(access_body(raw_body))
         else:
-            return
+            return None
     except Exception:
         log.debug("Failed to parse response body", exc_info=True)
     else:
         return req_body
+    return None
 
 
 def _hash_user_id(user_id: str) -> str:
@@ -272,7 +273,7 @@ def _hash_user_id(user_id: str) -> str:
     return f"anon_{hashlib.sha256(user_id.encode()).hexdigest()[:32]}"
 
 
-def _safe_userid(user_id):
+def _safe_userid(user_id: Any) -> Optional[Any]:
     try:
         _ = int(user_id)
         return user_id
@@ -291,7 +292,7 @@ def _safe_userid(user_id):
 
 
 class _UserInfoRetriever:
-    def __init__(self, user):
+    def __init__(self, user: Any) -> None:
         self.user = user
         self.possible_user_id_fields = ["pk", "id", "uid", "userid", "user_id", "PK", "ID", "UID", "USERID"]
         self.possible_login_fields = ["username", "user", "login", "USERNAME", "USER", "LOGIN"]
@@ -315,7 +316,7 @@ class _UserInfoRetriever:
 
         return None  # explicit to make clear it has a meaning
 
-    def get_userid(self):
+    def get_userid(self) -> Any:
         user_login = getattr(self.user, asm_config._user_model_login_field, None)
         if user_login is not None:
             return user_login
@@ -323,7 +324,7 @@ class _UserInfoRetriever:
         user_login = self.find_in_user_model(self.possible_user_id_fields)
         return user_login
 
-    def get_username(self):
+    def get_username(self) -> Any:
         username = getattr(self.user, asm_config._user_model_name_field, None)
         if username is not None:
             return username
@@ -336,21 +337,21 @@ class _UserInfoRetriever:
 
         return self.find_in_user_model(self.possible_login_fields)
 
-    def get_user_email(self):
+    def get_user_email(self) -> Any:
         email = getattr(self.user, asm_config._user_model_email_field, None)
         if email is not None:
             return email
 
         return self.find_in_user_model(self.possible_email_fields)
 
-    def get_name(self):
+    def get_name(self) -> Any:
         name = getattr(self.user, asm_config._user_model_name_field, None)
         if name is not None:
             return name
 
         return self.find_in_user_model(self.possible_name_fields)
 
-    def get_user_info(self, login=False, email=False, name=False):
+    def get_user_info(self, login: bool = False, email: bool = False, name: bool = False) -> tuple[Any, dict[str, Any]]:
         """
         In safe mode, try to get the user id from the user object.
         In extended mode, try to also get the username (which will be the returned user_id),
@@ -371,13 +372,13 @@ class _UserInfoRetriever:
         return user_id, user_extra_info
 
 
-def has_triggers(span) -> bool:
+def has_triggers(span: Span) -> bool:
     if asm_config._use_metastruct_for_triggers:
         return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None) is not None
     return span.get_tag(APPSEC.JSON) is not None
 
 
-def get_triggers(span) -> Any:
+def get_triggers(span: Span) -> Any:
     if asm_config._use_metastruct_for_triggers:
         return (span._get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
     json_payload = span.get_tag(APPSEC.JSON)
@@ -395,7 +396,7 @@ def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
 
 
 @contextlib.contextmanager
-def unpatching_popen():
+def unpatching_popen() -> typing.Iterator[None]:
     """
     Context manager to temporarily unpatch `subprocess.Popen` for testing purposes.
     This is useful to ensure that the original `Popen` behavior is restored after the context.
@@ -409,14 +410,14 @@ def unpatching_popen():
     original_os_close = os.close
     os.close = unpatched_close
     original_popen = subprocess.Popen
-    subprocess.Popen = unpatched_Popen
+    setattr(subprocess, "Popen", unpatched_Popen)
     # Save the original bypass flag value
     original_bypass_flag = asm_config._bypass_instrumentation_for_waf
     asm_config._bypass_instrumentation_for_waf = True
     try:
         yield
     finally:
-        subprocess.Popen = original_popen
+        setattr(subprocess, "Popen", original_popen)
         os.close = original_os_close
         # In tests, restore the original value to avoid corrupting test configurations
         # In production, force to False to ensure instrumentation is re-enabled
