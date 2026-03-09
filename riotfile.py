@@ -119,7 +119,7 @@ _appsec_threats_iast_variants = [
 
 venv = Venv(
     pkgs={
-        "pytest": latest,
+        "pytest": "~=8.0",
         "pytest-mock": latest,
         "coverage": latest,
         "pytest-cov": latest,
@@ -1066,14 +1066,14 @@ venv = Venv(
                     pys=["3.9"],
                     pkgs={
                         "dramatiq": "~=1.10.0",
-                        "pytest": latest,
+                        "pytest": "~=8.0",
                         "redis": latest,
                         "pika": latest,
                     },
                 ),
                 Venv(
                     pys=select_pys(max_version="3.13"),
-                    pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
+                    pkgs={"dramatiq": latest, "pytest": "~=8.0", "redis": latest},
                 ),
             ],
         ),
@@ -3789,7 +3789,7 @@ venv = Venv(
             name="appsec_threats_flask",
             command="pytest -vv tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pkgs={
-                "pytest": latest,
+                "pytest": "~=8.0",
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
@@ -3839,7 +3839,7 @@ venv = Venv(
             name="appsec_threats_fastapi",
             command="pytest tests/appsec/contrib_appsec/test_fastapi.py {cmdargs}",
             pkgs={
-                "pytest": latest,
+                "pytest": "~=8.0",
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
