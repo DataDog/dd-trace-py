@@ -138,7 +138,8 @@ class BedrockIntegration(BaseLLMIntegration):
                 METADATA: metadata,
                 METRICS: usage_metrics if span_kind != "workflow" else {},
                 OUTPUT_MESSAGES: output_messages,
-                # INTEGRATION: self._integration_name, # FIXME: apply integration tag manually since bedrock doesn't use trace()
+                # FIXME: apply integration tag manually since bedrock doesn't use trace()
+                # INTEGRATION: self._integration_name,
             }
         )
 
@@ -158,7 +159,8 @@ class BedrockIntegration(BaseLLMIntegration):
                 INPUT_VALUE: str(input_value),
                 TAGS: {"session_id": session_id},
                 METADATA: {"agent_id": agent_id, "agent_alias_id": agent_alias_id},
-                # INTEGRATION: "bedrock_agents", # FIXME: apply integration tag manually since bedrock doesn't use trace()
+                # FIXME: apply integration tag manually since bedrock doesn't use trace()
+                # INTEGRATION: "bedrock_agents",
             }
         )
         if not response:
