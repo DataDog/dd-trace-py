@@ -1,0 +1,94 @@
+---
+description: Native code (C/C++/Rust/Cython) review checklist for dd-trace-py
+globs:
+  - "**/*.c"
+  - "**/*.cc"
+  - "**/*.cpp"
+  - "**/*.h"
+  - "**/*.hh"
+  - "**/*.hpp"
+  - "**/*.rs"
+  - "**/*.pyx"
+  - "**/*.pxd"
+---
+
+# Native Code Review Checklist
+
+Compact triage checklist. For detailed context, incident history, and CPython
+version tables, read `docs/native-code-review.md`. For IAST taint tracking
+code, also consult `.cursor/rules/iast.mdc`.
+
+## How To Use
+
+1. Grep the diff for trigger symbols. If any match, read the corresponding
+   section in `docs/native-code-review.md` before approving.
+2. Check the stop conditions below — any violation is an immediate blocker.
+3. Record one-line evidence per applicable dimension in the PR.
+4. Add `HUMAN-CHECK:` when safety depends on wheel behavior, conditional
+   compilation, or pinned dependency internals.
+
+## Trigger Symbols
+
+- GIL: `PyGILState_Ensure`, `PyEval_RestoreThread`, `PyEval_SaveThread`,
+  `Py_BEGIN_ALLOW_THREADS`, `Py_END_ALLOW_THREADS`, `AllowThreads`,
+  `py_is_finalizing`, `take_gil`, `detach`
+- Fork: `fork(`, `pthread_atfork`, `_before_fork`, `_after_fork`, `Event`,
+  `mutex`, `condition_variable`, `rwlock`
+- Object lifetime: `std::thread`, `Py_INCREF`, `Py_DECREF`, `PyObject*`
+  capture, `join`
+- Allocator hooks: `malloc`, `free`, `realloc`, memalloc, frame walking
+- FFI: `extern "C"`, `noexcept`, `catch(...)`, `#[pyclass]`, `#[pyfunction]`,
+  `pybind11`, `PYBIND11_MODULE`
+- Iteration: linked-list traversal, interpreter/greenlet/stack-chunk walks
+- Build: `#ifdef`, `CMakeLists.txt`, packaging scripts, dependency pins
+- Cython: `cdef`, `cpdef`, `nogil`, `with gil:`
+- Env: `getenv`, `std::env::var` (not thread-safe under concurrent mutation)
+
+## Stop Conditions
+
+Any of these is an immediate blocker:
+
+1. `PyGILState_Ensure`, `PyEval_RestoreThread`, or `PyEval_SaveThread` without
+   a `py_is_finalizing()` check before the call. On glibc, also add
+   `try/catch(abi::__forced_unwind&)` that re-throws as a TOCTTOU safety net.
+2. Operating on inherited sync primitives in child after `fork()` instead of
+   recreating from scratch
+3. Capturing `PyObject*` in a thread lambda without `Py_INCREF` **before**
+   `std::thread` creation — there is a race between thread start and the
+   lambda body running where the object can be deallocated
+4. Calling `Py_DECREF`, `PyFrame_GetBack`, or any allocating API inside an
+   allocator hook
+5. Assuming C++ exceptions propagate through Rust `extern "C"` or CPython C
+   boundaries
+6. Looping over CPython internal linked lists without a hard upper bound
+7. Assuming in-tree build behavior matches release wheel behavior
+8. Assuming CPython/libdatadog/libddwaf behavior without reading the pinned
+   version's source
+
+## Key Version/Platform Facts
+
+- CPython 3.12–3.13.7: `take_gil()` crash via `pthread_exit()`. 3.13.8+: hang.
+- CPython 3.14+: `_Py_Dealloc` dereferences `tstate` (crash if NULL during
+  finalization). Default multiprocessing start method is now `forkserver`.
+- glibc: `pthread_exit()` throws `abi::__forced_unwind` — must re-throw.
+- musl/Alpine: `pthread_exit()` uses `longjmp` — C++ catch won't fire.
+- Pinned versions: `pyproject.toml` (Python), `src/native/Cargo.toml`
+  (libdatadog), `setup.py` (libddwaf).
+
+## Review Dimensions — Quick Index
+
+Each dimension is fully documented in `docs/native-code-review.md`. Here is
+what to check for each:
+
+| Dimension | §  | Core question |
+|-----------|----|--------------|
+| GIL & finalization | §1 | Is every GIL acquire/release/restore guarded by `py_is_finalizing()`? |
+| Fork safety | §2 | Are child-side primitives recreated, parent-side only reset? |
+| Object lifetime | §3 | Are `PyObject*` refs passed to threads incref'd before `std::thread` creation? |
+| Allocator hooks | §4 | Does hook code avoid all allocating/GC-triggering APIs? |
+| FFI boundaries | §5 | Are exceptions/unwind contained on each side of every ABI boundary? |
+| Unbounded iteration | §6 | Does every linked-list walk have a hard upper bound? |
+| Build/release | §7 | Is the fix actually compiled in, not dead code from missing `#include`? |
+| Version awareness | §8 | Was behavior verified against the pinned version's source? |
+| Fix validation | §9 | Does the test fail without the fix? Combined feature sets tested? |
+| Cython | §10 | Do `cdef` functions declare `except *`/`except -1`? Are `nogil` blocks Python-free? |
