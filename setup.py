@@ -129,10 +129,11 @@ def interpose_sccache():
     if not SCCACHE_COMPILE:
         return
 
-    # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
-    _sccache_path = os.getenv("SCCACHE_PATH", shutil.which("sccache"))
+    # Check for sccache.  We don't do multi-step failover (e.g., if the path is set, but the binary is invalid)
+    # Honor both SCCACHE_PATH and SCCACHE env vars for compatibility with docs
+    _sccache_path = os.getenv("SCCACHE_PATH") or os.getenv("SCCACHE") or shutil.which("sccache")
     if _sccache_path is None:
-        print("WARNING: SCCACHE_PATH is not set, skipping sccache interposition")
+        print("WARNING: sccache not found in SCCACHE_PATH, SCCACHE, or PATH, skipping sccache interposition")
         return
     sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):

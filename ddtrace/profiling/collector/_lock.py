@@ -9,9 +9,14 @@ from types import CodeType
 from types import FrameType
 from types import ModuleType
 from types import TracebackType
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+
+
+if TYPE_CHECKING:
+    from types import UnionType
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
@@ -387,6 +392,14 @@ class _LockAllocatorWrapper:
         if original_class is not None:
             return getattr(original_class, name)
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    def __or__(self, other: type[Any] | None) -> UnionType:
+        """Support PEP 604 type union syntax (e.g., asyncio.Condition | None)."""
+        return (self._original_class | other) if isinstance(self._original_class, type) else NotImplemented
+
+    def __ror__(self, other: type[Any] | None) -> UnionType:
+        """Support PEP 604 type union syntax (e.g., None | asyncio.Condition)."""
+        return (other | self._original_class) if isinstance(self._original_class, type) else NotImplemented
 
     def __mro_entries__(self, bases: tuple[Any, ...]) -> tuple[type[Any], ...]:
         """Support subclassing the wrapped lock type (PEP 560).
