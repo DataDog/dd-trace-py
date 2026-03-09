@@ -6,8 +6,8 @@ language boundary, manages threads or the GIL, or runs in fork handlers or
 allocator hooks. For IAST taint tracking code, also consult
 `.cursor/rules/iast.mdc`.
 
-**How to use:** When reviewing code that matches the glob patterns above,
-work through each applicable section. Include your assessment in the PR
+**How to use:** When reviewing native code (C/C++/Rust/Cython), work through
+each applicable section. Include your assessment in the PR
 description (e.g., "GIL lifecycle: no new PyEval_RestoreThread calls" or
 "Fork safety: Events recreated in _after_fork_child").
 
@@ -323,12 +323,16 @@ wheel directory layout.
 
 ---
 
-## 8. Python Version Compatibility
+## 8. Dependency Version Awareness
 
 ### What goes wrong
 
 New Python versions change defaults, add safety checks, deprecate internal
 APIs, or break assumptions about finalization order and GIL behavior.
+libdatadog and libddwaf APIs and behavior also change between versions.
+Crashes have been misattributed due to wrong assumptions about library
+internals (e.g., `ddwaf_context_init` crash misattributed as `ddwaf_run` in
+stripped binaries).
 
 ### Review checklist
 
@@ -336,11 +340,11 @@ APIs, or break assumptions about finalization order and GIL behavior.
   Check the supported version range in `pyproject.toml` (`requires-python`)
   and verify behavior across all supported versions. Use the
   `compare-cpython-versions` skill when adding support for a new version.
-- **Read the actual CPython source code** rather than guessing. Clone or use
-  `~/dd/cpython` and `git checkout` the relevant version tag. This is
-  especially important for verifying whether a C API function can release the
-  GIL, understanding struct field layouts, and confirming behavior of
-  undocumented `_Py_*` APIs.
+- **Read the actual source code** rather than guessing. For CPython, use
+  [github.com/python/cpython](https://github.com/python/cpython) and checkout
+  the relevant version tag. For libdatadog, check the pinned version in
+  `src/native/Cargo.toml`. For libddwaf, check the pinned version in
+  `setup.py`. Verify behavior against that version's source, not the latest.
 - Does this code depend on Python's default behavior for multiprocessing start
   method, GC scheduling, or finalization order?
 - Has this been tested against the latest Python RC/beta?

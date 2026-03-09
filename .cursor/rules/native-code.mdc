@@ -16,15 +16,16 @@ globs:
 
 When reviewing C/C++/Rust/Cython code, verify these rules. Each exists
 because its violation caused production crashes. For detailed context,
-examples, and CPython version tables, see `docs/native-code-review.md`.
+examples, and CPython version tables, see `docs/native-code-review.md`. For
+IAST taint tracking code, also consult `.cursor/rules/iast.mdc`.
 
 ## Review dimensions
 
 **GIL and finalization:** Every call to `PyGILState_Ensure`,
 `PyEval_RestoreThread`, or `PyEval_SaveThread` must be preceded by a
 `py_is_finalizing()` check. RAII wrappers must track whether the operation
-completed (e.g., `_acquired`/`_saved` flags) so destructors don't operate on
-uninitialized state. On glibc, `pthread_exit` during finalization throws
+completed (e.g., a boolean flag tracking success) so destructors don't operate
+on uninitialized state. On glibc, `pthread_exit` during finalization throws
 `abi::__forced_unwind` — C++ thread bodies need `try/catch` that re-throws.
 On musl (Alpine), `pthread_exit` uses `longjmp` instead — the catch won't
 fire, making `py_is_finalizing()` the only defense. Rust `extern "C"`
@@ -34,8 +35,8 @@ check before re-acquiring the GIL.
 **Fork safety:** After `fork()`, all synchronization primitives (mutexes,
 condition variables, rwlocks, Events) inherited from the parent are in an
 undefined state (POSIX). In the child process, recreate them from scratch —
-never operate on inherited primitives. In the parent process, use `.clear()`
-to preserve references held by other threads. When adding `pthread_atfork`
+never operate on inherited primitives. In the parent process, reset state
+without destroying the object to preserve references held by other threads. When adding `pthread_atfork`
 handlers, verify the full execution order — a handler can free state that a
 later handler needs. Prefer centralized handlers over many independent ones.
 
@@ -79,11 +80,9 @@ verification.
 libdatadog, or libddwaf based on documentation alone — read the source code
 for the pinned version as ground truth. CPython internal APIs and struct
 layouts change between versions; check `pyproject.toml` `requires-python` for
-the supported range. For libdatadog, check the pinned version in `src/native/Cargo.toml`. For
-libddwaf, check the pinned version in `setup.py`. Verify behavior against
-that version's source, not the latest.
-Crashes have been misattributed due to wrong assumptions about library
-internals (e.g., `ddwaf_run` vs `ddwaf_context_init` in stripped binaries).
+the supported range. For libdatadog, check the pinned version in
+`src/native/Cargo.toml`. For libddwaf, check the pinned version in `setup.py`.
+Verify behavior against that version's source, not the latest.
 
 **Validating fixes:** Test fixes with all features enabled simultaneously
 (tracing + profiling + AppSec) since fork interactions between features cause
