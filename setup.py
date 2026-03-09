@@ -1191,7 +1191,7 @@ if not IS_PYSTON:
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
         memalloc_cmake_args = []
-        if os.environ.get("DD_PROFILING_ENABLE_ASSERTS", "0") not in ("0", ""):
+        if os.environ.get("DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY", "0") not in ("0", ""):
             memalloc_cmake_args.append("-DMEMALLOC_ASSERT_ON_REENTRY=ON")
         ext_modules.append(
             CMakeExtension(
