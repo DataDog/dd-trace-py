@@ -6,6 +6,7 @@ import os
 from re import Match
 import sys
 from typing import Any
+from typing import Generator
 from typing import Iterator
 from typing import Literal  # noqa:F401
 
@@ -39,7 +40,7 @@ class Constant_Class(type):
         raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
     def __iter__(self) -> Iterator[tuple[str, Any]]:
-        def aux():
+        def aux() -> Generator[tuple[str, Any], Any, None]:
             for t in self.__dict__.items():
                 if not t[0].startswith("_"):
                     yield t

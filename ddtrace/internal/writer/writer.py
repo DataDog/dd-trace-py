@@ -930,7 +930,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._exporter.stop_worker()
 
     def __del__(self):
-        if self._fork_hook:
+        if hasattr(self, "_fork_hook") and self._fork_hook:
             forksafe.unregister_before_fork(self._fork_hook)
 
     def _create_exporter(self) -> native.TraceExporter:

@@ -5,7 +5,7 @@ import pytest
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._api_security.api_manager import APIManager
-from ddtrace.appsec._asm_request_context import _WAF_CALL
+from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
@@ -35,7 +35,7 @@ class TestApiSecurityManager:
             yield manager
 
     @pytest.fixture
-    def mock_environment(self):
+    def mock_environment(self) -> ASM_Environment:
         # Create a mock environment with required attributes
         env = MagicMock()
         entry_span = MagicMock(spec=Span)
@@ -45,8 +45,9 @@ class TestApiSecurityManager:
         env.span.context.sampling_priority = None
         entry_span.context.sampling_priority = None
         env.waf_addresses = {}
-        env.callbacks = {_WAF_CALL: MagicMock()}
+        env.waf_callable = MagicMock()
         env.blocked = None
+        env.framework = "test"
         return env
 
     def test_schema_callback_no_span(self, api_manager, mock_environment, tracer):
@@ -92,7 +93,7 @@ class TestApiSecurityManager:
         api_manager._schema_callback(mock_environment)
 
         api_manager._should_collect_schema.assert_called_once()
-        mock_environment.callbacks[_WAF_CALL].assert_not_called()
+        mock_environment.waf_callable.assert_not_called()
 
     @pytest.mark.parametrize("sampling_priority", [USER_KEEP, AUTO_KEEP])
     def test_schema_callback_sampling_priority_keep(self, api_manager, mock_environment, sampling_priority):
@@ -104,7 +105,7 @@ class TestApiSecurityManager:
 
         mock_waf_result = MagicMock()
         mock_waf_result.api_security = {"_dd.appsec.s.req.body": {"type": "object"}}
-        mock_environment.callbacks[_WAF_CALL].return_value = mock_waf_result
+        mock_environment.waf_callable.return_value = mock_waf_result
 
         mock_environment.waf_addresses = {
             SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: {"Content-Type": "application/json"},
@@ -114,8 +115,8 @@ class TestApiSecurityManager:
         api_manager._schema_callback(mock_environment)
 
         api_manager._should_collect_schema.assert_called_once()
-        mock_environment.callbacks[_WAF_CALL].assert_called_once()
-        api_manager._metrics._report_api_security.assert_called_with(True, 1)
+        mock_environment.waf_callable.assert_called_once()
+        api_manager._metrics._report_api_security.assert_called_with(True, 1, "test")
 
         assert len(entry_span._meta) == 1
         assert "_dd.appsec.s.req.body" in entry_span._meta
@@ -138,7 +139,7 @@ class TestApiSecurityManager:
             "_dd.appsec.s.res.headers": {"type": "object"},
             "_dd.appsec.s.res.body": {"type": "object", "properties": {"status": {"type": "string"}}},
         }
-        mock_environment.callbacks[_WAF_CALL].return_value = mock_waf_result
+        mock_environment.waf_callable.return_value = mock_waf_result
 
         api_manager._should_collect_schema.return_value = should_collect_return
         mock_environment.entry_span.context.sampling_priority = sampling_priority
@@ -167,7 +168,7 @@ class TestApiSecurityManager:
             "_dd.appsec.s.res.headers": {"type": "object"},
             "_dd.appsec.s.res.body": {"type": "object", "properties": {"status": {"type": "string"}}},
         }
-        mock_environment.callbacks[_WAF_CALL].return_value = mock_waf_result
+        mock_environment.waf_callable.return_value = mock_waf_result
 
         mock_environment.waf_addresses = {
             SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES: {"Content-Type": "application/json"},
@@ -182,10 +183,10 @@ class TestApiSecurityManager:
         api_manager._schema_callback(mock_environment)
 
         api_manager._should_collect_schema.assert_called_once()
-        mock_environment.callbacks[_WAF_CALL].assert_called_once()
+        mock_environment.waf_callable.assert_called_once()
 
         # Verify WAF payload includes all addresses
-        call_args = mock_environment.callbacks[_WAF_CALL].call_args[0][0]
+        call_args = mock_environment.waf_callable.call_args[0][0]
         for call_arg in [
             "PROCESSOR_SETTINGS",
             "REQUEST_HEADERS_NO_COOKIES",
@@ -212,7 +213,7 @@ class TestApiSecurityManager:
         ]:
             assert meta in entry_span._meta
 
-        api_manager._metrics._report_api_security.assert_called_with(True, 7)
+        api_manager._metrics._report_api_security.assert_called_with(True, 7, "test")
 
     def test_schema_callback_oversized_schema(self, api_manager, mock_environment):
         """Test that _schema_callback handles oversized schemas correctly.
@@ -221,7 +222,7 @@ class TestApiSecurityManager:
         mock_waf_result = MagicMock()
         large_schema = {"type": "object", "properties": {f"prop_{i}": {"type": "string"} for i in range(10000)}}
         mock_waf_result.api_security = {"_dd.appsec.s.req.body": large_schema}
-        mock_environment.callbacks[_WAF_CALL].return_value = mock_waf_result
+        mock_environment.waf_callable.return_value = mock_waf_result
 
         with patch("gzip.compress") as mock_compress:
             mock_compress.return_value = b"x" * 100000  # data exceeding MAX_SPAN_META_VALUE_LEN
@@ -233,7 +234,7 @@ class TestApiSecurityManager:
             mock_log.warning.assert_called_once()
             entry_span = mock_environment.entry_span
             assert len(entry_span._meta) == 0
-            api_manager._metrics._report_api_security.assert_called_with(True, 0)
+            api_manager._metrics._report_api_security.assert_called_with(True, 0, "test")
 
     def test_schema_callback_parse_response_body_disabled(self, api_manager, mock_environment, caplog):
         """Test that _schema_callback respects the api_security_parse_response_body configuration.
@@ -242,18 +243,18 @@ class TestApiSecurityManager:
 
         with override_global_config(values=dict(_api_security_parse_response_body=False)):
             mock_waf_result = MagicMock()
-            mock_environment.callbacks[_WAF_CALL].return_value = mock_waf_result
+            mock_environment.waf_callable.return_value = mock_waf_result
             mock_environment.waf_addresses = {
                 SPAN_DATA_NAMES.RESPONSE_BODY: {"status": "success"},  # This should be ignored
             }
 
             api_manager._schema_callback(mock_environment)
 
-            call_args = mock_environment.callbacks[_WAF_CALL].call_args[0][0]
+            call_args = mock_environment.waf_callable.call_args[0][0]
             assert "RESPONSE_BODY" not in call_args
 
             assert len(mock_environment.entry_span._meta) == 0
-            api_manager._metrics._report_api_security.assert_called_with(True, 0)
+            api_manager._metrics._report_api_security.assert_called_with(True, 0, "test")
 
     def test_should_collect_schema_route_fallbacks_to_endpoint(self, mock_environment):
         """Test that _should_collect_schema falls back to endpoint tags when route is missing."""
