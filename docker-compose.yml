@@ -123,7 +123,7 @@ services:
     testagent:
         image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.43.0
         ports:
-            - "127.0.0.1::8126"
+            - "127.0.0.1:${TESTAGENT_HOST_PORT:-9126}:8126"
         volumes:
             - ./tests/snapshots:/snapshots
             - ./tests/llmobs/llmobs_cassettes:/cassettes

@@ -285,7 +285,12 @@ class TestRunner:
             return []
 
     def start_services(self, services: set[str]) -> bool:
-        """Start required Docker services."""
+        """Start required Docker services.
+
+        For testagent, first tries the default port (9126). If that fails
+        (e.g., another worktree already claimed it), retries with a random
+        port by setting TESTAGENT_HOST_PORT=0.
+        """
         if not services:
             return True
 
@@ -294,9 +299,20 @@ class TestRunner:
             cmd = ["docker", "compose", "up", "-d"] + list(services)
             subprocess.run(cmd, cwd=self.root, check=True)
             return True
-        except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to start services: {e}")
-            return False
+        except subprocess.CalledProcessError:
+            if "testagent" in services:
+                print("⚠️  Port conflict detected, retrying testagent with a random port...")
+                os.environ["TESTAGENT_HOST_PORT"] = "0"
+                try:
+                    cmd = ["docker", "compose", "up", "-d"] + list(services)
+                    subprocess.run(cmd, cwd=self.root, check=True)
+                    return True
+                except subprocess.CalledProcessError as e:
+                    print(f"❌ Failed to start services: {e}")
+                    return False
+            else:
+                print("❌ Failed to start services")
+                return False
 
     def get_testagent_url(self) -> str:
         """Discover the testagent URL by querying its dynamically assigned host port."""
