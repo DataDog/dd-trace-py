@@ -46,8 +46,8 @@ class DDWaf(WAF):
         ruleset_json_str: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
-        metrics,
-    ):
+        metrics: Any,
+    ) -> None:
         # avoid circular import
 
         self.report_error = metrics._set_waf_error_log
@@ -207,7 +207,7 @@ class DDWaf(WAF):
     def initialized(self) -> bool:
         return bool(self._handle)
 
-    def __del__(self):
+    def __del__(self) -> None:
         if hasattr(self, "_default_ruleset"):
             ddwaf_object_free(self._default_ruleset)
 
