@@ -121,7 +121,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.36.0
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.43.0
         ports:
             - "127.0.0.1::8126"
         volumes:
@@ -206,7 +206,7 @@ services:
         working_dir: /home/bits/project/
         volumes:
           - ddagent:/tmp/ddagent
-          - ./.cache:/home/bits/.cache
+          - ${DD_TEST_CACHE_DIR:-./.cache}:/home/bits/.cache
           - ./:/home/bits/project
 
     localstack:
