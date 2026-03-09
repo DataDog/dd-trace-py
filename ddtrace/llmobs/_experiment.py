@@ -121,9 +121,10 @@ def _validate_evaluator_name(name: str) -> None:
         raise TypeError("Evaluator name must be a string")
     if not name:
         raise ValueError("Evaluator name cannot be empty")
-    if not re.match(r"^[a-zA-Z0-9_]+$", name):
+    if not re.match(r"^[a-zA-Z0-9_-]+$", name):
         raise ValueError(
-            f"Evaluator name '{name}' is invalid. Name must contain only alphanumeric characters and underscores."
+            f"Evaluator name '{name}' is invalid."
+            " Name must contain only alphanumeric characters, underscores, and hyphens."
         )
 
 
@@ -248,6 +249,14 @@ class BaseEvaluator(ABC):
                  or an EvaluatorResult object containing the value plus additional metadata
         """
         raise NotImplementedError("Subclasses must implement the evaluate method")
+
+    def _build_publish_payload(
+        self,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        raise NotImplementedError("This evaluator does not support publishing.")
 
 
 class BaseSummaryEvaluator(ABC):

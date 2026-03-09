@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
@@ -209,7 +210,7 @@ class ddwaf_object(ctypes.Structure):
         log.debug("ddwaf_object struct: unknown object type: %s", repr(type(self.type)))
         return None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return repr(self.struct)
 
 
@@ -273,7 +274,7 @@ class ddwaf_config(ctypes.Structure):
         max_string_length: int = 0,
         key_regex: bytes = b"",
         value_regex: bytes = b"",
-        free_fn=ddwaf_object_free,
+        free_fn: Callable[[ddwaf_object], None] = ddwaf_object_free,
     ) -> None:
         self.limits.max_container_size = max_container_size
         self.limits.max_container_depth = max_container_depth
@@ -311,7 +312,7 @@ ddwaf_init = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_object_p, ddwaf_config_p, ddwa
 )
 
 
-def py_ddwaf_init(ruleset_map: ddwaf_object, config, info) -> ddwaf_handle_capsule:
+def py_ddwaf_init(ruleset_map: ddwaf_object, config: ddwaf_config, info: ddwaf_object) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_init(ruleset_map, config, info), ddwaf_destroy)
 
 

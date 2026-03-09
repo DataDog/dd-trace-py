@@ -38,7 +38,7 @@ def track_login_failure(
     user_id: t.Any = None,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track a failed user login event.
 
@@ -58,7 +58,7 @@ def track_signup(
     success: bool = True,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track a user signup event.
 
@@ -78,7 +78,7 @@ def track_user(
     session_id: t.Optional[str] = None,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track an authenticated user.
 
@@ -132,7 +132,7 @@ def track_user_id(
     session_id: t.Optional[str] = None,
     metadata: t.Optional[dict[str, t.Any]] = None,
     _auto: bool = False,
-):
+) -> None:
     """
     Track an authenticated user with only user id.
 
@@ -178,7 +178,7 @@ def track_user_id(
                 raise BlockingException(_get_blocked())
 
 
-def track_custom_event(event_name: str, metadata: dict[str, t.Any]):
+def track_custom_event(event_name: str, metadata: dict[str, t.Any]) -> None:
     """
     Track a custom user event.
 
