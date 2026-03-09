@@ -42,9 +42,9 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.version import __version__
 
 
