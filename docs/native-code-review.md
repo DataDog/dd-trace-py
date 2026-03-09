@@ -197,7 +197,6 @@ stale data to the next user.
 - What integer type is used for sizes/counts? Can it overflow for realistic
   workloads? Prefer `size_t`.
 - When an object is returned to a pool/cache, is all its state cleared?
-- Has this been tested with AddressSanitizer (ASan)?
 
 ### Historical examples
 
