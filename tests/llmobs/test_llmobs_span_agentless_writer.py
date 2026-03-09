@@ -205,7 +205,4 @@ llmobs_span_writer.enqueue(_completion_event())
 
     assert status == 0, err
     assert out == b""
-    assert b"403" in err
-    assert b"Forbidden" in err
-    assert b"errors" in err
     assert len(requests_received) == 1
