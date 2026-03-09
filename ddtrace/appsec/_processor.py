@@ -19,8 +19,8 @@ from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._constants import WAF_DATA_NAMES
-from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
+from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
@@ -97,7 +97,7 @@ class AppSecSpanProcessor(SpanProcessor):
             cls._instance = None
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return self._ddwaf is not None
 
     def __post_init__(self) -> None:
@@ -150,7 +150,7 @@ class AppSecSpanProcessor(SpanProcessor):
 
         self._update_required()
 
-    def _update_required(self):
+    def _update_required(self) -> None:
         if self._ddwaf is None:
             return
         self._addresses_to_keep.clear()
@@ -238,7 +238,6 @@ class AppSecSpanProcessor(SpanProcessor):
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
 
-        _asm_request_context.add_context_callback(self.metrics._set_waf_request_metrics)
         if headers is not None:
             _asm_request_context.set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
             _asm_request_context.set_waf_address(
