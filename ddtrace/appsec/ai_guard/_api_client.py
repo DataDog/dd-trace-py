@@ -10,6 +10,8 @@ from typing import Union
 
 from ddtrace import config
 from ddtrace.appsec._constants import AI_GUARD
+from ddtrace.appsec._trace_utils import _aiguard_manual_keep
+from ddtrace.internal import core
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import ai_guard_config
@@ -283,7 +285,9 @@ class AIGuardClient:
                         ("error", "false"),
                     )
                 )
-
+                root_span = core.get_root_span()
+                if root_span:
+                    _aiguard_manual_keep(root_span)
                 if should_block:
                     span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
                     raise AIGuardAbortError(action=action, reason=reason, tags=tags)
