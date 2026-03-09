@@ -349,6 +349,24 @@ def test_set_attribute_large_int():
     assert s._get_attribute("key") == 2**63
 
 
+def test_set_attribute_nan():
+    s = Span(name="test.span")
+    s._set_attribute("key", float("nan"))
+    assert s._get_numeric_attribute("key") is None
+
+
+def test_set_attribute_inf():
+    s = Span(name="test.span")
+    s._set_attribute("key", float("inf"))
+    assert s._get_numeric_attribute("key") is None
+
+
+def test_set_attribute_neg_inf():
+    s = Span(name="test.span")
+    s._set_attribute("key", float("-inf"))
+    assert s._get_numeric_attribute("key") is None
+
+
 def test_set_attribute_overwrites_string_with_number():
     s = Span(name="test.span")
     s._set_attribute("key", "hello")

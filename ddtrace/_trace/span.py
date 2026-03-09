@@ -334,6 +334,9 @@ class Span(SpanData):
             if key in self._metrics:
                 del self._metrics[key]
         elif isinstance(value, (int, float)):
+            if math.isnan(value) or math.isinf(value):
+                log.debug("ignoring not real attribute %s:%s", key, value)
+                return
             self._metrics[key] = value
             if key in self._meta:
                 del self._meta[key]
