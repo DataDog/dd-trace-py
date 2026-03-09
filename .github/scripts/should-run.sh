@@ -39,6 +39,7 @@ is_ignored() {
     [[ "$f" == benchmarks/* ]] && return 0
     [[ "$f" == ".gitignore" ]] && return 0
     [[ "$f" == ".gitattributes" ]] && return 0
+    [[ "$f" == hooks/* ]] && return 0
     # scripts/** is ignored, except download-s3-wheels.sh
     [[ "$f" == "scripts/download-s3-wheels.sh" ]] && return 1
     [[ "$f" == scripts/* ]] && return 0
