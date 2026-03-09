@@ -14,93 +14,128 @@ globs:
 
 # Native Code Review Checklist
 
-When reviewing C/C++/Rust/Cython code, verify these rules. Each exists
-because its violation caused production crashes. For detailed context,
-examples, and CPython version tables, see `docs/native-code-review.md`. For
-IAST taint tracking code, also consult `.cursor/rules/iast.mdc`.
+Use this file as the front-page checklist for native-code review. Keep it fast.
+For examples, incident history, and version tables, see
+`docs/native-code-review.md`. For IAST taint tracking code, also consult
+`.cursor/rules/iast.mdc`.
 
-## Review dimensions
+## Fast Review Workflow
 
-**GIL and finalization:** Every call to `PyGILState_Ensure`,
-`PyEval_RestoreThread`, or `PyEval_SaveThread` must be preceded by a
-`py_is_finalizing()` check. RAII wrappers must track whether the operation
-completed (e.g., a boolean flag tracking success) so destructors don't operate
-on uninitialized state. On glibc, `pthread_exit` during finalization throws
-`abi::__forced_unwind` — C++ thread bodies need `try/catch` that re-throws.
-On musl (Alpine), `pthread_exit` uses `longjmp` instead — the catch won't
-fire, making `py_is_finalizing()` the only defense. Rust `extern "C"`
-boundaries abort on foreign exceptions — Rust code needs its own finalization
-check before re-acquiring the GIL.
+1. Grep the diff for trigger symbols before reading line-by-line.
+2. If a trigger matches, inspect the related helper/lifecycle code outside the
+   diff (`_after_fork`, thread entry points, RAII wrappers, allocator hooks,
+   `extern "C"` shims).
+3. Require evidence, not only "tests pass". Record one short conclusion for
+   each applicable section in the review or PR.
+4. If safety depends on wheel behavior, conditional compilation, or pinned
+   native dependency behavior, add `HUMAN-CHECK:` with the exact missing
+   artifact still needing verification.
 
-**Fork safety:** After `fork()`, all synchronization primitives (mutexes,
-condition variables, rwlocks, Events) inherited from the parent are in an
-undefined state (POSIX). In the child process, recreate them from scratch —
-never operate on inherited primitives. In the parent process, reset state
-without destroying the object to preserve references held by other threads. When adding `pthread_atfork`
-handlers, verify the full execution order — a handler can free state that a
-later handler needs. Prefer centralized handlers over many independent ones.
+## Trigger Symbols To Grep First
 
-**Object lifetime across threads:** When passing a Python object to a native
-thread, call `Py_INCREF` before `std::thread` creation, not inside the thread
-lambda. Otherwise there is a window between thread start and refcount increment
-where the object can be deallocated. After a thread signals completion (sets a
-flag or notifies a condition variable), it must not call `Py_DECREF` or any
-Python API — callers of `join()` may already be using the object.
+- GIL/finalization: `PyGILState_Ensure`, `PyEval_RestoreThread`,
+  `PyEval_SaveThread`, `AllowThreads`, `take_gil`, `detach`
+- Fork/threading: `fork(`, `pthread_atfork`, `_before_fork`, `_after_fork`,
+  `_after_fork_child`, `std::thread`, `mutex`, `condition_variable`, `join`
+- Python object lifetime: `Py_INCREF`, `Py_DECREF`, raw `PyObject*` capture,
+  completion flags
+- Allocator/hooks: `malloc`, `calloc`, `realloc`, `free`, memalloc, traceback
+  collection, frame walking
+- FFI/unwind: `extern "C"`, Rust FFI shims, `noexcept`, `catch(...)`
+- Native iteration/build: linked-list traversal, `#ifdef`, new headers,
+  packaging/build scripts, pinned dependency version changes
 
-**Memory safety in native code:** Code inside `malloc`/`free`/`realloc` hooks
-must not call any Python C API function that can trigger allocation or GC.
-`Py_INCREF` is safe; `Py_DECREF` is not (can trigger `__del__` chains).
-`PyFrame_GetBack`, `PyFrame_GetCode`, `PyUnicode_AsUTF8AndSize`, and
-`PyObject_CallObject` all allocate. Use direct struct field reads instead. If
-GC is disabled via preprocessor macros, flag for human verification that the
-compiled output actually contains the disable call. Use `size_t` for
-sizes/counts to avoid integer overflow. Clear all state when returning objects
-to pools or caches.
+## Immediate Stop Conditions
 
-**FFI exception propagation:** C++ exceptions cannot cross Rust `extern "C"` or
-CPython C boundaries. A `try/catch` in C++ code above a Rust call will never
-catch exceptions thrown inside the Rust code. Functions returning pointers to
-mutex-protected data create data races after the lock is released — return
-copies instead.
+1. Never call `PyGILState_Ensure` or `PyEval_RestoreThread` without a
+   `py_is_finalizing()` check.
+2. Never rely on C++ `catch(__forced_unwind&)` as the only protection;
+   `py_is_finalizing()` is mandatory, especially on musl/Alpine.
+3. Never operate on inherited synchronization primitives in the child after
+   `fork()`; recreate them from scratch.
+4. Never pass a Python object to a thread without `Py_INCREF` before thread
+   creation.
+5. Never call allocating or GC-triggering Python APIs from allocator hooks.
+6. Never assume C++ exceptions can cross Rust `extern "C"` or CPython C
+   boundaries.
+7. Never loop over CPython internal linked structures without a hard upper
+   bound.
+8. Never assume in-tree behavior proves wheel behavior, or that upstream docs
+   prove pinned-version behavior.
 
-**Unbounded iteration:** Loops over CPython internal linked lists (interpreters,
-greenlets, stack chunks) must have a hard upper bound. Corrupted or cyclic
-structures cause infinite loops, often while holding a lock. Instrumentation
-code must not call functions that can re-enter the instrumented primitive
-(e.g., `LOG.debug()` from a lock profiler hook can acquire a lock, triggering
-infinite recursion).
+## Version And Platform Watchouts
 
-**Build and release validation:** Preprocessor-conditional fixes can be silently
-dead code if the defining header is not included. Changes to build layout,
-linking, or conditional compilation must be verified on actual release wheels —
-in-tree builds may not reproduce wheel-specific issues. Flag for human
-verification.
+- CPython 3.12 through 3.13.7 can crash during finalization when `take_gil()`
+  forces `pthread_exit()`. CPython 3.13.8+ usually hangs instead.
+- On glibc, `pthread_exit()` can surface as `abi::__forced_unwind` through C++
+  frames and must be re-thrown.
+- On musl/Alpine, `pthread_exit()` uses `longjmp`, so the C++ catch will not
+  fire.
+- Rust `extern "C"` boundaries do not allow foreign exceptions to propagate.
+- Review against pinned versions: `pyproject.toml` for supported Python,
+  `src/native/Cargo.toml` for libdatadog, `setup.py` for libddwaf.
 
-**Dependency version awareness:** Never assume behavior of CPython APIs,
-libdatadog, or libddwaf based on documentation alone — read the source code
-for the pinned version as ground truth. CPython internal APIs and struct
-layouts change between versions; check `pyproject.toml` `requires-python` for
-the supported range. For libdatadog, check the pinned version in
-`src/native/Cargo.toml`. For libddwaf, check the pinned version in `setup.py`.
-Verify behavior against that version's source, not the latest.
+## Review Dimensions
 
-**Validating fixes:** Test fixes with all features enabled simultaneously
-(tracing + profiling + AppSec) since fork interactions between features cause
-crashes that single-feature tests miss. Verify that tests actually exercise the
-fixed code path — a test that passes both with and without the fix is not
-valid. If a fix uses conditional compilation, flag for human verification that
-the compiled output contains the fix.
+**GIL and finalization**
+- Applies when code acquires/releases the GIL, wraps it in RAII helpers, or
+  lets background threads touch Python during shutdown.
+- Verify `py_is_finalizing()` before each acquisition/restore, a re-throwing
+  `catch(abi::__forced_unwind&)` where glibc unwind can cross C++ frames, and
+  an explicit success flag in wrappers that can skip initialization.
+- Evidence: point to the guard site and the unwind-safe frame; if Rust
+  reacquires the GIL, show the Rust-side guard too.
 
-## The "Never" list
+**Fork safety**
+- Applies when code changes mutexes, condition variables, events, rwlocks,
+  background workers, or `pthread_atfork` handlers.
+- Verify child-side recovery recreates synchronization primitives, parent-side
+  recovery resets state without replacing referenced objects, and fork-handler
+  order is safe end-to-end.
+- Evidence: name the child reset path and parent reset path. Add
+  `HUMAN-CHECK:` if safety depends on runtime environment behavior.
 
-1. Never call `PyGILState_Ensure`/`PyEval_RestoreThread` without a `py_is_finalizing()` check AND a `try/catch(__forced_unwind&)` safety net
-2. Never operate on synchronization primitives (mutexes, condition variables, rwlocks, Events) inherited from the parent in a child process after fork — recreate them from scratch
-3. Never pass a Python object to a thread via raw pointer without `Py_INCREF` BEFORE thread creation
-4. Never call `Py_DECREF`, `PyFrame_GetBack`, or any allocating API from inside an allocator hook
-5. Never assume C++ exceptions can propagate through Rust `extern "C"` or CPython C boundaries
-6. Never leave RAII state members uninitialized when the constructor conditionally skips — use a tracking flag
-7. Never assume pre-fork thread joins complete — threads may be stuck in blocking I/O without timeouts
-8. Never loop over CPython internal linked lists without a hard upper bound
-9. Never assume a preprocessor fix works without verifying the compiled output
-10. Never assume in-tree build behavior matches release wheel behavior
-11. Never assume behavior of CPython, libdatadog, or libddwaf APIs — read the source code for the pinned version as ground truth
+**Object lifetime across threads**
+- Applies when a `PyObject*` or Python-owned object crosses a native thread
+  boundary.
+- Verify `Py_INCREF` happens before thread creation, ownership transfer is
+  explicit, and no Python API use continues after the thread signals
+  completion.
+- Evidence: identify where the reference is acquired, transferred, and
+  released.
+
+**Memory safety in native code**
+- Applies when code runs inside allocator hooks or modifies native buffers,
+  arrays, pools, or caches.
+- Verify allocator-hook code does not allocate, trigger GC, or release the GIL;
+  prefer direct struct reads; use `size_t`-class sizing; clear pooled state on
+  reuse.
+- Unsafe examples: `Py_DECREF`, `PyFrame_GetBack`, `PyFrame_GetCode`,
+  `PyUnicode_AsUTF8AndSize`, `PyObject_CallObject`.
+- Evidence: call out the hook-safe APIs relied on. Add `HUMAN-CHECK:` if the
+  fix depends on compiled output or wheel inspection.
+
+**FFI exception propagation**
+- Applies when code crosses C, C++, Rust, or Python ABI boundaries.
+- Verify failures/unwind are contained on each side of the boundary and that
+  functions do not return pointers into data protected by a lock that has
+  already been released.
+- Evidence: identify the ABI boundary and how errors are contained.
+
+**Unbounded iteration and re-entrancy**
+- Applies when code walks CPython internal linked structures or instruments code
+  while holding locks.
+- Verify every walk has a hard upper bound and instrumentation cannot re-enter
+  the instrumented primitive.
+- Evidence: state the bound and the re-entrancy defense.
+
+**Build, version, and fix validation**
+- Applies when the fix depends on `#ifdef`, header inclusion, wheel layout,
+  linker behavior, or pinned CPython/libdatadog/libddwaf behavior.
+- Verify the change is not dead code, assumptions match supported/pinned
+  versions, and tests actually execute the fixed path. Combined feature sets
+  (tracing + profiling + AppSec) matter for shared native paths.
+- Evidence: note the version range or pinned version reviewed, and name the
+  test/runtime scenario that proves the fixed path executed. Add
+  `HUMAN-CHECK:` if only wheel-level or platform-specific validation can prove
+  the change.
