@@ -57,7 +57,6 @@ parser.add_argument(
 parser.add_argument(
     "--ddtrace-flavor",
     choices=supported_flavors,
-    action="append",
     default="",
     required=False,
 )
