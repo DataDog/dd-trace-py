@@ -100,11 +100,11 @@ If you frequently rebuild native extensions or deploy to multiple containers, co
 
     cargo install sccache
 
-For the build system to locate `sccache`, either ensure its path is in your `PATH` environment variable or set the `SCCACHE` environment variable to its location:
+For the build system to locate `sccache`, either ensure its path is in your `PATH` environment variable or set the `SCCACHE_PATH` (or `SCCACHE`) environment variable to its location:
 
 .. code-block:: bash
 
-    export SCCACHE=/home/doe/.cargo/bin/sccache
+    export SCCACHE_PATH=/home/doe/.cargo/bin/sccache
 
 Additionally, enable `sccache` by setting the `DD_USE_SCCACHE` environment variable:
 

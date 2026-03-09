@@ -15,6 +15,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 from typing import cast
+import urllib.parse
 
 import ddtrace
 from ddtrace import config
@@ -122,6 +123,7 @@ from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
+from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -1127,6 +1129,27 @@ class LLMObs(Service):
         llmobs_ctx = task_data.get("llmobs_ctx")
         if llmobs_ctx is not None:
             self._llmobs_context_provider.activate(llmobs_ctx)
+
+    @classmethod
+    def publish_evaluator(
+        cls,
+        evaluator: BaseEvaluator,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, str]:
+        if not cls._instance or not cls._instance.enabled:
+            raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
+
+        evaluation_payload = evaluator._build_publish_payload(
+            ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
+        )
+
+        cls._instance._dne_client.publish_custom_evaluator(evaluation_payload)
+
+        base_url = _get_base_url()
+        query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app.strip()})
+        return {"ui_url": f"{base_url}/llm/evaluations/custom?{query}"}
 
     @classmethod
     def pull_dataset(

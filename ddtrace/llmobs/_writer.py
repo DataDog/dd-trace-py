@@ -23,6 +23,7 @@ from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
@@ -352,6 +353,21 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+        try:
+            return self._request_with_retry(method, path, body, timeout)
+        except RetryError as e:
+            # Return the last response if all retries were exhausted on 5xx
+            if isinstance(e.args[0], Response):
+                return e.args[0]
+            raise
+
+    @fibonacci_backoff_with_jitter(
+        attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
+        # Retries on 5xx server errors and connection failures, returns immediately on 2xx/4xx
+        initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
+        until=lambda result: isinstance(result, Response) and result.status < 500,
+    )
+    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
@@ -370,6 +386,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             return Response.from_http_response(resp)
         finally:
             conn.close()
+
+    def publish_custom_evaluator(self, evaluation: dict[str, Any]):
+        path = "/api/unstable/llm-obs/v1/config/evaluators/custom"
+        resp = self.request(
+            "PUT", path, body={"data": {"type": "evaluator_config", "attributes": {"evaluation": evaluation}}}
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to publish evaluator {evaluation['eval_name']}: {resp.status}")
 
     def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
         headers = {
