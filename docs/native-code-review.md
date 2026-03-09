@@ -406,8 +406,8 @@ features that crash when combined with other features under fork.
    CPython C boundaries
 6. **Never** leave RAII state members uninitialized when the constructor
    conditionally skips — use a tracking flag
-7. **Never** assume `_before_fork` join completes — check for timeout handling
-   when threads may be stuck in blocking I/O
+7. **Never** assume pre-fork thread joins complete — threads may be stuck in
+   blocking I/O without timeouts
 8. **Never** loop over CPython internal linked lists without a hard upper bound
 9. **Never** assume a preprocessor fix works without verifying the compiled
    output
