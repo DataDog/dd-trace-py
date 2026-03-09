@@ -49,6 +49,8 @@ def configure_ddtrace_logger() -> None:
     ddtrace_logger = logging.getLogger("ddtrace")
     if get_config("DD_TRACE_LOG_STREAM_HANDLER", True, asbool):
         ddtrace_logger.addHandler(logging.StreamHandler())
+        # propagate=False avoids writing to user/root handlers that may be closed at atexit
+        ddtrace_logger.propagate = False
 
     _configure_ddtrace_debug_logger(ddtrace_logger)
     _configure_ddtrace_file_logger(ddtrace_logger)
