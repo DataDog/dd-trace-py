@@ -8,7 +8,6 @@ from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
-from ddtrace.appsec._asm_request_context import _WAF_CALL
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -16,6 +15,7 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 import ddtrace.constants as constants
 from ddtrace.ext import http
 from ddtrace.internal import logger as ddlogger
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.service import Service
 from ddtrace.internal.settings.asm import config as asm_config
 
@@ -103,7 +103,7 @@ class APIManager(Service):
     def _start_service(self) -> None:
         self._asm_context.add_context_callback(self._schema_callback, global_callback=True)
 
-    def _should_collect_schema(self, env: ASM_Environment, priority: int) -> Optional[bool]:
+    def _should_collect_schema(self, env: ASM_Environment, priority: NumericType) -> Optional[bool]:
         """
         Rate limit per route.
 
@@ -152,7 +152,7 @@ class APIManager(Service):
         self._hashtable[end_point_hash] = current_time
         return True
 
-    def _schema_callback(self, env):
+    def _schema_callback(self, env: ASM_Environment) -> None:
         if env.span is None or not asm_config._api_security_feature_active:
             return
         root = env.entry_span
@@ -163,11 +163,13 @@ class APIManager(Service):
         try:
             # check both current span and root span for sampling priority
             # if sampling has not yet run for the span, we default to treating it as sampled
+            priorities: tuple[NumericType, ...]
             if root.context.sampling_priority is None and env.span.context.sampling_priority is None:
                 priorities = (1,)
             else:
                 priorities = (root.context.sampling_priority or 0, env.span.context.sampling_priority or 0)
             # if any of them is set to USER_KEEP or USER_REJECT, we should respect it
+            priority: NumericType
             if constants.USER_KEEP in priorities:
                 priority = constants.USER_KEEP
             elif constants.USER_REJECT in priorities:
@@ -176,7 +178,7 @@ class APIManager(Service):
                 priority = max(priorities)
             should_collect = self._should_collect_schema(env, priority)
             if should_collect is None:
-                self._metrics._report_api_security(False, 0)
+                self._metrics._report_api_security(False, 0, env.framework)
                 return
             if not should_collect:
                 return
@@ -197,13 +199,15 @@ class APIManager(Service):
                 value = transform(value)
             waf_payload[address] = value
 
-        callback = env.callbacks[_WAF_CALL]
-        result = callback(waf_payload)
+        waf_callable = env.waf_callable
+        if waf_callable is None:
+            return
+        result = waf_callable(waf_payload)
         if result is None:
             return
         nb_schemas = 0
         for meta, schema in result.api_security.items():
-            b64_gzip_content = b""
+            b64_gzip_content = ""
             try:
                 b64_gzip_content = base64.b64encode(
                     gzip.compress(json.dumps(schema, separators=(",", ":")).encode())
@@ -216,7 +220,7 @@ class APIManager(Service):
                 extra = {"product": "appsec", "exec_limit": 6, "more_info": f":schema_failure:{meta}"}
                 log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
         env.api_security_reported = nb_schemas
-        self._metrics._report_api_security(True, nb_schemas)
+        self._metrics._report_api_security(True, nb_schemas, env.framework)
 
         # If we have a schema and APM tracing is disabled, force keep the trace
         if nb_schemas > 0 and not asm_config._apm_tracing_enabled:

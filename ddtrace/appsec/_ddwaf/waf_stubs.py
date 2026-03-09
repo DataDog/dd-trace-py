@@ -11,6 +11,7 @@ from typing import Union
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.internal._unpatched import threading_Lock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
 
@@ -46,6 +47,12 @@ class ddwaf_context_capsule(Generic[T]):
         self.ctx = ctx
         self.free_fn = free_fn
         self.rc_products: str = ""
+        # AIDEV-NOTE: This lock serializes concurrent ddwaf_run calls on the same context.
+        # ctypes foreign function calls release the Python GIL, allowing thread pool workers
+        # (run_in_executor) to call the WAF simultaneously with the event loop thread when both
+        # inherit the same ddwaf_context via contextvars propagation. libddwaf's ddwaf_context
+        # is not thread-safe for concurrent runs, so we must serialize them here.
+        self._lock: threading_Lock = threading_Lock()
 
     def __del__(self):
         if self.ctx:
@@ -95,10 +102,6 @@ class WAF(ABC):
 
     @abstractmethod
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
-        pass
-
-    @abstractmethod
-    def _at_request_end(self):
         pass
 
     @abstractmethod

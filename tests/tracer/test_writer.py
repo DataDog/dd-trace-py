@@ -992,6 +992,75 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
             writer.flush_queue(raise_exc=True)
 
 
+def test_periodic_thread_uds_callback_unblocks_with_timeout():
+    import os
+    import socket
+    import tempfile
+    import threading
+
+    from ddtrace.internal._threads import PeriodicThread
+    from ddtrace.internal.uds import UDSHTTPConnection
+
+    sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
+    sock_path = os.path.join(sock_dir, "blackhole.sock")
+    server_ready = threading.Event()
+    server_stop = threading.Event()
+    callback_started = threading.Event()
+    callback_done = threading.Event()
+
+    def _blackhole_server():
+        srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        conn = None
+        try:
+            srv.bind(sock_path)
+            srv.listen(1)
+            server_ready.set()
+            conn, _ = srv.accept()
+            # Keep the connection open and never send a response so the client
+            # can only make progress via its socket timeout.
+            while not server_stop.wait(0.05):
+                pass
+        finally:
+            if conn is not None:
+                conn.close()
+            srv.close()
+
+    def _callback():
+        callback_started.set()
+        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        try:
+            conn.request("GET", "/")
+            conn.getresponse().read()
+        except Exception:
+            # Timeout (or an equivalent network error path) is expected.
+            pass
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            callback_done.set()
+
+    server_thread = threading.Thread(target=_blackhole_server, daemon=True)
+    server_thread.start()
+    assert server_ready.wait(timeout=2)
+
+    worker = PeriodicThread(interval=60.0, target=_callback, name="repro:UDSForkTimeout", no_wait_at_start=True)
+    worker.start()
+    assert callback_started.wait(timeout=2)
+
+    try:
+        assert callback_done.wait(timeout=5)
+    finally:
+        server_stop.set()
+        worker.stop()
+        worker.join(timeout=1.0)
+        server_thread.join(timeout=1.0)
+        if os.path.exists(sock_path):
+            os.unlink(sock_path)
+        os.rmdir(sock_dir)
+
+
 @pytest.mark.parametrize("writer_class", (AgentWriter, CIVisibilityWriter, NativeWriter))
 def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
     with (
@@ -1446,31 +1515,34 @@ def test_agentless_writer_enabled():
 
         writer.flush_queue()
 
-    assert mock_put.call_count == 1
-    payload1_json = json.loads(mock_put.call_args_list[0][0][0])
-    assert "spans" in payload1_json
-    spans = payload1_json["spans"]
-    assert len(spans) == 4
-    # root1
-    assert spans[0]["name"] == "root1"
-    assert spans[0]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
-    assert spans[0]["span_id"] == "{:016x}".format(root1.span_id)
-    assert spans[0]["parent_id"] == "0000000000000000"
-    # child1
-    assert spans[1]["name"] == "child1"
-    assert spans[1]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
-    assert spans[1]["span_id"] == "{:016x}".format(child1.span_id)
-    assert spans[1]["parent_id"] == "{:016x}".format(root1.span_id)
-    # child2
-    assert spans[2]["name"] == "child2"
-    assert spans[2]["trace_id"] == "{:016x}".format(root1._trace_id_64bits)
-    assert spans[2]["span_id"] == "{:016x}".format(child2.span_id)
-    assert spans[2]["parent_id"] == "{:016x}".format(root1.span_id)
-    # root2
-    assert spans[3]["name"] == "root2"
-    assert spans[3]["trace_id"] == "{:016x}".format(root2._trace_id_64bits)
-    assert spans[3]["span_id"] == "{:016x}".format(root2.span_id)
-    assert spans[3]["parent_id"] == "0000000000000000"
+    # Each trace is sent as a separate payload
+    assert mock_put.call_count == 2
+    all_payloads = [json.loads(call[0][0]) for call in mock_put.call_args_list]
+
+    # Find the payload for each trace by matching trace_id across all spans
+    trace1_id = "{:016x}".format(root1._trace_id_64bits)
+    trace2_id = "{:016x}".format(root2._trace_id_64bits)
+    trace1_payload = next(p for p in all_payloads if all(s["trace_id"] == trace1_id for s in p["spans"]))
+    trace2_payload = next(p for p in all_payloads if all(s["trace_id"] == trace2_id for s in p["spans"]))
+
+    # trace1: root1, child1, child2
+    assert "spans" in trace1_payload
+    assert len(trace1_payload["spans"]) == 3
+    trace1_spans = {s["name"]: s for s in trace1_payload["spans"]}
+    assert set(trace1_spans.keys()) == {"root1", "child1", "child2"}
+    assert trace1_spans["root1"]["span_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["root1"]["parent_id"] == "0000000000000000"
+    assert trace1_spans["child1"]["span_id"] == "{:016x}".format(child1.span_id)
+    assert trace1_spans["child1"]["parent_id"] == "{:016x}".format(root1.span_id)
+    assert trace1_spans["child2"]["span_id"] == "{:016x}".format(child2.span_id)
+    assert trace1_spans["child2"]["parent_id"] == "{:016x}".format(root1.span_id)
+
+    # trace2: root2 only
+    assert "spans" in trace2_payload
+    assert len(trace2_payload["spans"]) == 1
+    assert trace2_payload["spans"][0]["name"] == "root2"
+    assert trace2_payload["spans"][0]["span_id"] == "{:016x}".format(root2.span_id)
+    assert trace2_payload["spans"][0]["parent_id"] == "0000000000000000"
 
     headers = mock_put.call_args_list[0][0][1]
     assert headers["Content-Type"] == "application/json"
