@@ -84,7 +84,7 @@ what to check for each:
 |-----------|----|--------------|
 | GIL & finalization | §1 | Is every GIL acquire/release/restore guarded by `py_is_finalizing()`? |
 | Fork safety | §2 | Are child-side primitives recreated, parent-side only reset? |
-| Object lifetime | §3 | Is `Py_INCREF` before thread creation, `Py_DECREF` only with safe context? |
+| Object lifetime | §3 | Are `PyObject*` refs passed to threads incref'd before `std::thread` creation? |
 | Allocator hooks | §4 | Does hook code avoid all allocating/GC-triggering APIs? |
 | FFI boundaries | §5 | Are exceptions/unwind contained on each side of every ABI boundary? |
 | Unbounded iteration | §6 | Does every linked-list walk have a hard upper bound? |
