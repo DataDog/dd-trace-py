@@ -543,9 +543,10 @@ def test_base_tool_invoke_non_json_serializable_config(langchain_core):
 
 @pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
 def test_streamed_chat_model_with_no_output(langchain_openai, openai_url):
-    from openai import APITimeoutError
     from unittest import mock
+
     import httpx
+    from openai import APITimeoutError
 
     chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
