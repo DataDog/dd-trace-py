@@ -120,6 +120,24 @@ def _on_start_response_blocked(ctx, flask_config, response_headers, status):
     trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
 
 
+def _make_block_response():
+    """Build a blocked response as a tuple (body, status, headers).
+
+    Returning a tuple avoids Flask's error handling (handle_exception,
+    handle_http_exception) which would create extra spans without
+    fingerprint tags.
+    """
+    from ddtrace.internal.utils import get_blocked as _get_blocked
+
+    block_config = _get_blocked()
+    ctype = block_config.content_type if block_config else "application/json"
+    block_id = block_config.block_id if block_config else "(default)"
+    status = block_config.status_code if block_config else 403
+    if block_config and block_config.type == "none":
+        return b"", status, {"location": block_config.location}
+    return http_utils._get_blocked_template(ctype, block_id), status, {"content-type": ctype}
+
+
 def _on_wrapped_view(kwargs):
     callback_block = None
     # if Appsec is enabled, we can try to block as we have the path parameters at that point
@@ -129,7 +147,7 @@ def _on_wrapped_view(kwargs):
             set_waf_address(REQUEST_PATH_PARAMS, kwargs)
         call_waf_callback()
         if is_blocked():
-            callback_block = block_request
+            callback_block = _make_block_response
     return callback_block
 
 
