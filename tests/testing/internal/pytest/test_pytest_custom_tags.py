@@ -116,6 +116,11 @@ class TestCustomTags:
         test_original_names = {event["content"]["meta"]["test.original_name"] for event in test_events}
         assert test_original_names == {"test_foo"}
 
+        # test.parameterized_name equals current test.name
+        for event in test_events:
+            meta = event["content"]["meta"]
+            assert meta["test.parameterized_name"] == meta["test.name"]
+
     def test_test_original_name_tag_not_added_when_originalname_is_none(self, pytester: Pytester) -> None:
         """When originalname is None, the test.original_name tag must not be set."""
         pytester.makepyfile(
@@ -145,6 +150,8 @@ class TestCustomTags:
         test_events = [event for event in event_capture.events_by_type("test")]
         assert len(test_events) == 1
         assert "test.original_name" not in test_events[0]["content"]["meta"]
+        # test.parameterized_name is set (same value as test.name)
+        assert test_events[0]["content"]["meta"]["test.parameterized_name"] == "test_foo"
 
     def test_custom_test_module_and_suite_hooks(self, pytester: Pytester) -> None:
         """Test that module and suite names can be overridden by hooks, and test name keeps the default value."""

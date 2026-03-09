@@ -342,6 +342,9 @@ class TestOptPlugin:
             if test_original_name := _get_test_original_name(item):
                 test.tags[TestTag.TEST_ORIGINAL_NAME] = test_original_name
 
+            # Store current test name as parameterized_name (same as test.name)
+            test.tags[TestTag.TEST_PARAMETERIZED_NAME] = test.name
+
             # Set test location (use "unknown" path if none found, 0 is default for missing line info)
             test.set_location(path=relative_path or "unknown", start_line=start_line)
 
