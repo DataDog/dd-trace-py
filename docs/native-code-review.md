@@ -487,28 +487,3 @@ def __dealloc__(self):
         self.ptr = NULL
 ```
 
----
-
-## Quick Reference: The "Never" List
-
-1. **Never** call `PyGILState_Ensure`/`PyEval_RestoreThread` without a
-   `py_is_finalizing()` check AND a `try/catch(__forced_unwind&)` safety net
-2. **Never** operate on synchronization primitives (mutexes, condition variables,
-   rwlocks, Events) inherited from the parent in a child process after fork —
-   recreate them from scratch
-3. **Never** pass a Python object to a thread via raw pointer without
-   `Py_INCREF` BEFORE thread creation
-4. **Never** call `Py_DECREF`, `PyFrame_GetBack`, or any allocating API from
-   inside an allocator hook
-5. **Never** assume C++ exceptions can propagate through Rust `extern "C"` or
-   CPython C boundaries
-6. **Never** leave RAII state members uninitialized when the constructor
-   conditionally skips — use a tracking flag
-7. **Never** assume pre-fork thread joins complete — threads may be stuck in
-   blocking I/O without timeouts
-8. **Never** loop over CPython internal linked lists without a hard upper bound
-9. **Never** assume a preprocessor fix works without verifying the compiled
-   output
-10. **Never** assume in-tree build behavior matches release wheel behavior
-11. **Never** assume behavior of CPython, libdatadog, or libddwaf APIs — read
-    the source code for the pinned version as ground truth
