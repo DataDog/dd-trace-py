@@ -1,13 +1,15 @@
 ---
 description: Native code (C/C++/Rust/Cython) review checklist for dd-trace-py
 globs:
-  - "**/ddtrace/internal/_threads.cpp"
-  - "**/ddtrace/profiling/collector/_memalloc*"
-  - "**/ddtrace/internal/datadog/profiling/**"
-  - "**/src/native/**"
+  - "**/*.c"
+  - "**/*.cc"
+  - "**/*.cpp"
+  - "**/*.h"
+  - "**/*.hh"
+  - "**/*.hpp"
+  - "**/*.rs"
   - "**/*.pyx"
   - "**/*.pxd"
-  - "**/*.rs"
 ---
 
 # Native Code Review Checklist

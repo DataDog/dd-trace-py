@@ -63,7 +63,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 |--------|-------|-------|
 | Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
 | IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/` |
-| Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `ddtrace/internal/_threads.cpp`, `ddtrace/profiling/collector/_memalloc*`, `ddtrace/internal/datadog/profiling/`, `src/native/`, `*.pyx`, `*.pxd`, `*.rs` |
+| Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
 | Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
 | Linting | `.cursor/rules/linting.mdc` | — |
 | Testing | `.cursor/rules/testing.mdc` | — |
