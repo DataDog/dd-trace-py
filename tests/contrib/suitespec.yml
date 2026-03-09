@@ -115,6 +115,8 @@ components:
     - ddtrace/contrib/internal/loguru/*
   mako:
     - ddtrace/contrib/internal/mako/*
+  mlflow:
+    - ddtrace/contrib/internal/mlflow/*
   mariadb:
     - ddtrace/contrib/internal/mariadb/*
   molten:
@@ -868,6 +870,18 @@ suites:
       - '@tracing'
       - '@mako'
       - tests/contrib/mako/*
+    runner: riot
+    snapshot: true
+  mlflow:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mlflow'
+      - tests/contrib/mlflow/*
+      - tests/snapshots/tests.contrib.mlflow.*
     runner: riot
     snapshot: true
   mariadb:

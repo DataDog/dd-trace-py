@@ -450,6 +450,27 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "mlflow",
+        "integration": "mlflow",
+        "minimum_tracer_supported": "2.11.4",
+        "max_tracer_supported": "3.10.0",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "mlflow-skinny",
+        "integration": "mlflow",
+        "minimum_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.0",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "mlflow-tracing",
+        "integration": "mlflow",
+        "minimum_tracer_supported": "3.10.0",
+        "max_tracer_supported": "3.10.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "molten",
         "integration": "molten",
         "minimum_tracer_supported": "1.0.2",

@@ -27,6 +27,8 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
@@ -1385,6 +1387,74 @@ def _on_httpx_send_completed(
         _finish_span(ctx, exc_info)
 
 
+def _on_mlflow_new_run(ctx: core.ExecutionContext, run_id: str, active_run_spans):
+    span = ctx.span
+
+    span._set_tag_str(MLFLOW_RUN_ID_TAG, run_id)
+    active_run_spans[run_id] = span
+
+
+def _on_mlflow_end_run(
+    run_id: str,
+    step_id: int,
+    active_run_spans,
+    active_step_spans,
+    run_exc_info: Optional[Any] = None,
+    end_run_exc_info: Optional[Any] = None,
+):
+    # The user did not provide a step, we end the one we created artificially
+    if step_id == 0:
+        _on_mlflow_end_step(run_id, step_id, active_step_spans, run_exc_info=run_exc_info)
+    else:
+        step_span: Span = active_step_spans.pop(run_id, None)
+        if step_span:
+            step_span.resource = "mflow.tail"
+            step_span.finish()
+
+    span = active_run_spans.pop(run_id, None)
+    if span:
+        # we prioritize error happening during the run instead of when trying
+        # to end the job
+        if run_exc_info is not None and run_exc_info[0] is not None:
+            span.set_exc_info(*run_exc_info)
+        elif end_run_exc_info is not None and end_run_exc_info[0] is not None:
+            span.set_exc_info(*end_run_exc_info)
+        span.finish()
+
+
+def _on_mlflow_new_step(run_id: str, active_step_spans):
+    new_step_span = tracer.trace(
+        "mlflow.step",
+        service=config.mlflow.get("service", config.mlflow._default_service),
+        span_type=SpanTypes.WORKER,
+    )
+    new_step_span._set_tag_str(COMPONENT, config.mlflow.integration_name)
+    new_step_span._set_tag_str(SPAN_KIND, SpanKind.INTERNAL)
+    active_step_spans[run_id] = new_step_span
+
+
+def _on_mlflow_end_step(run_id: str, step_id: int, active_step_spans, run_exc_info: Optional[Any] = None):
+    step_span: Span = active_step_spans.pop(run_id, None)
+    if step_span:
+        step_span._set_tag_str(MLFLOW_STEP_TAG, str(step_id))
+        if run_exc_info is not None:
+            step_span.set_exc_info(*run_exc_info)
+        step_span.finish()
+
+
+def _on_mlflow_log(run_id: str, log_type: str, active_step_spans, key_value: tuple[str, Any]):
+    step_span: Optional[Span] = active_step_spans.get(run_id, None)
+    if step_span:
+        if log_type == "metrics":
+            step_span.set_metric(f"mlflow.{log_type}.{key_value[0]}", key_value[1])
+        else:
+            try:
+                step_span._set_tag_str(f"mlflow.{log_type}.{key_value[0]}", str(key_value[1]))
+            except Exception:  # nosec B110
+                # If the value cannot be stringified, skip setting the tag
+                pass
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1468,6 +1538,12 @@ def listen():
     core.on("rq.queue.enqueue_job", _propagate_context)
     core.on("molten.router.match", _on_router_match)
 
+    core.on("mlflow.new.run", _on_mlflow_new_run)
+    core.on("mlflow.end.run", _on_mlflow_end_run)
+    core.on("mlflow.new.step", _on_mlflow_new_step)
+    core.on("mlflow.end.step", _on_mlflow_end_step)
+    core.on("mlflow.log", _on_mlflow_log)
+
     for context_name in (
         # web frameworks
         "aiohttp.request",
@@ -1528,6 +1604,7 @@ def listen():
         "aiokafka.send",
         "aiokafka.getone",
         "aiokafka.getmany",
+        "mlflow.run",
     ):
         core.on(f"context.started.{context_name}", _start_span)
     core.on("context.started.httpx.request", _on_httpx_request_start)

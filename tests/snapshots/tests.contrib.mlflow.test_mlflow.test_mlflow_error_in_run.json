@@ -1,0 +1,52 @@
+[[
+  {
+    "name": "mflow.run",
+    "service": "tests.contrib.mlflow",
+    "resource": "mflow.run",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69ae9df200000000",
+      "component": "mlflow",
+      "error.message": "this is an error",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/tests/contrib/mlflow/test_mlflow.py\", line 58, in test_mlflow_error_in_run\n    raise ValueError(\"this is an error\")\nValueError: this is an error\n",
+      "error.type": "builtins.ValueError",
+      "language": "python",
+      "mlflow.run_id": "a13aad839c2b4503b271d83dd978d09b",
+      "runtime-id": "046e54cf641a4dafa4bef737835c4249",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 15900080618,
+    "start": 1773051378695378554
+  },
+     {
+       "name": "mlflow.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "mlflow.step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 1,
+       "meta": {
+         "component": "mlflow",
+         "error.message": "this is an error",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/tests/contrib/mlflow/test_mlflow.py\", line 58, in test_mlflow_error_in_run\n    raise ValueError(\"this is an error\")\nValueError: this is an error\n",
+         "error.type": "builtins.ValueError",
+         "mlflow.run_id": "a13aad839c2b4503b271d83dd978d09b",
+         "mlflow.step": "0",
+         "span.kind": "internal"
+       },
+       "duration": 34945083,
+       "start": 1773051394559633589
+     }]]

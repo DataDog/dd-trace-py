@@ -1,0 +1,122 @@
+[[
+  {
+    "name": "mflow.run",
+    "service": "tests.contrib.mlflow",
+    "resource": "mflow.run",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69aea07700000000",
+      "component": "mlflow",
+      "language": "python",
+      "mlflow.run_id": "d71a41648f344783a064c80a73e372bf",
+      "mlflow.run_name": "parent",
+      "runtime-id": "f261b407a27b4f6f877e4f1d6fb4f6e4",
+      "span.kind": "internal"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 605.0
+    },
+    "duration": 1296926334,
+    "start": 1773052023264521963
+  },
+     {
+       "name": "mlflow.step",
+       "service": "tests.contrib.mlflow",
+       "resource": "mlflow.step",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "error": 0,
+       "meta": {
+         "component": "mlflow",
+         "mlflow.params.p": "1",
+         "mlflow.run_id": "d71a41648f344783a064c80a73e372bf",
+         "mlflow.step": "0",
+         "span.kind": "internal"
+       },
+       "duration": 1057899417,
+       "start": 1773052023503477338
+     },
+        {
+          "name": "mflow.run",
+          "service": "tests.contrib.mlflow",
+          "resource": "mflow.run",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "worker",
+          "error": 0,
+          "meta": {
+            "component": "mlflow",
+            "mlflow.run_id": "3b65916796b0432d970d81aa4d87edc6",
+            "mlflow.run_name": "child_1",
+            "span.kind": "internal"
+          },
+          "duration": 777869875,
+          "start": 1773052023560564213
+        },
+           {
+             "name": "mlflow.step",
+             "service": "tests.contrib.mlflow",
+             "resource": "mlflow.step",
+             "trace_id": 0,
+             "span_id": 5,
+             "parent_id": 3,
+             "type": "worker",
+             "error": 0,
+             "meta": {
+               "component": "mlflow",
+               "mlflow.params.c1": "10",
+               "mlflow.run_id": "3b65916796b0432d970d81aa4d87edc6",
+               "mlflow.step": "0",
+               "span.kind": "internal"
+             },
+             "duration": 203359959,
+             "start": 1773052024134993338
+           },
+        {
+          "name": "mflow.run",
+          "service": "tests.contrib.mlflow",
+          "resource": "mflow.run",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "worker",
+          "error": 0,
+          "meta": {
+            "component": "mlflow",
+            "mlflow.run_id": "4cd40356a70740c6807d76e4bea9b1e4",
+            "mlflow.run_name": "child_2",
+            "span.kind": "internal"
+          },
+          "duration": 212804417,
+          "start": 1773052024338579963
+        },
+           {
+             "name": "mlflow.step",
+             "service": "tests.contrib.mlflow",
+             "resource": "mlflow.step",
+             "trace_id": 0,
+             "span_id": 6,
+             "parent_id": 4,
+             "type": "worker",
+             "error": 0,
+             "meta": {
+               "component": "mlflow",
+               "mlflow.params.c2": "20",
+               "mlflow.run_id": "4cd40356a70740c6807d76e4bea9b1e4",
+               "mlflow.step": "0",
+               "span.kind": "internal"
+             },
+             "duration": 19644459,
+             "start": 1773052024531663713
+           }]]
