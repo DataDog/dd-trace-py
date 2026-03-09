@@ -36,5 +36,11 @@ class traceback_t
  * Limited by the backend's maximum accepted frame count */
 #define TRACEBACK_MAX_NFRAME 600
 
+/* Hard cap on raw frame-chain traversal.
+ * Keep this separate from TRACEBACK_MAX_NFRAME so skipped or malformed frames
+ * cannot leave the allocator-hook walk effectively unbounded. Set above the
+ * backend frame limit while still keeping allocator-hook traversal finite. */
+#define TRACEBACK_MAX_WALKED_NFRAME 1024
+
 /* The maximum number of traceback samples we can store in the heap profiler */
 #define TRACEBACK_ARRAY_MAX_COUNT UINT16_MAX
