@@ -1,5 +1,7 @@
 #include <echion/stack_chunk.h>
 
+#include <internal/pycore_frame.h>
+
 #if PY_VERSION_HEX >= 0x030b0000
 
 // ----------------------------------------------------------------------------
@@ -66,7 +68,7 @@ StackChunk::update_with_depth(_PyStackChunk* chunk_addr, size_t depth)
 
 // ----------------------------------------------------------------------------
 void*
-StackChunk::resolve(void* address, size_t object_size)
+StackChunk::resolve(void* address)
 {
     // If data is not properly initialized, simply return the address
     if (!is_valid()) {
@@ -77,18 +79,30 @@ StackChunk::resolve(void* address, size_t object_size)
     // A race condition during copying can cause the header's size field to be larger
     // than what was actually copied, leading to out-of-bounds access and SEGV.
     //
-    // We check that the ENTIRE object (address + object_size) fits within the
-    // copied buffer, not just the start address. Without this, a frame near the
+    // We check that the ENTIRE _PyInterpreterFrame fits within the copied
+    // buffer, not just the start address. Without this, a frame near the
     // end of the chunk would pass the bounds check but subsequent field accesses
     // (e.g. ->owner, ->instr_ptr) would read past the buffer (heap-buffer-overflow).
+    constexpr size_t frame_object_size = sizeof(_PyInterpreterFrame);
     auto origin_char = reinterpret_cast<char*>(origin);
     auto address_char = reinterpret_cast<char*>(address);
-    if (address_char >= origin_char && address_char + object_size <= origin_char + copied_size) {
-        return data.data() + (address_char - origin_char);
+
+    // Check if the address falls within this chunk's copied range
+    if (address_char >= origin_char && address_char < origin_char + copied_size) {
+        // Address is in this chunk. Verify the full object fits.
+        if (address_char + frame_object_size <= origin_char + copied_size) {
+            return data.data() + (address_char - origin_char);
+        }
+        // The object starts in this chunk but extends past what we copied.
+        // Return nullptr to signal that this frame cannot be safely read.
+        // We must NOT fall through to copy_type on the original address because
+        // the chunk memory may have been modified by the target thread since our
+        // snapshot, leading to stale pointers and SIGSEGV.
+        return nullptr;
     }
 
     if (previous)
-        return previous->resolve(address, object_size);
+        return previous->resolve(address);
 
     return address;
 }
