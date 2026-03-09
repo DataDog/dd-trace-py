@@ -103,7 +103,7 @@ def _on_httpx_request_ended(ctx: ExecutionContext, exc_info) -> None:
     }
 
     if ctx.get_item(APPSEC_SSRF_ANALYZE_BODY_KEY):
-        response = ctx.get_item("response")
+        response = event.response
         if response is not None:
             try:
                 addresses["DOWN_RES_BODY"] = response.json()

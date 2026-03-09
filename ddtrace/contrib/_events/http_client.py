@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import MutableMapping
 from typing import Optional
 from typing import Protocol
@@ -23,6 +24,8 @@ log = get_logger(__name__)
 class _HttpClientResponse(Protocol):
     headers: MutableMapping[str, str]
     status_code: int
+
+    def json(self) -> Any: ...
 
 
 class HttpClientEvents(Enum):
@@ -53,6 +56,7 @@ class HttpClientRequestEvent(TracingEvent):
             self.http_operation, protocol="http", direction=SpanDirection.OUTBOUND
         )
 
-    def set_response_data(self, response: _HttpClientResponse) -> None:
-        self.response_headers = response.headers
+    def set_response(self, response: _HttpClientResponse) -> None:
+        self.response = response
         self.response_status_code = response.status_code
+        self.response_headers = response.headers
