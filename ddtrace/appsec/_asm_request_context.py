@@ -480,7 +480,7 @@ def get_headers_case_sensitive() -> bool:
     return get_value(_WAF_ADDRESSES, SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES_CASE, False)  # type : ignore
 
 
-def set_block_request_callable(_callable: Optional[Callable[[], Any]], *_: Any) -> None:
+def set_block_request_callable(callable: Optional[Callable[[], None]]) -> None:
     """
     Sets a callable that could be use to do a best-effort to block the request. If
     the callable need any params, like headers, they should be curried with
