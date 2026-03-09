@@ -543,6 +543,11 @@ class Config(object):
         self._runtime_metrics_runtime_id_enabled = _get_config(
             ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
         )
+
+        self._runtime_coverage_enabled = _get_config("DD_RUNTIME_COVERAGE_ENABLED", False, asbool)
+        self._runtime_coverage_output_dir = _get_config("DD_RUNTIME_COVERAGE_OUTPUT_DIR", "/tmp")
+        self._runtime_coverage_flush_interval = _get_config("DD_RUNTIME_COVERAGE_FLUSH_INTERVAL", 300.0, float)
+        self._runtime_coverage_workspace_path = _get_config("DD_RUNTIME_COVERAGE_WORKSPACE_PATH", "")
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
         )
