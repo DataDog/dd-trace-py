@@ -48,21 +48,20 @@ code, also consult `.cursor/rules/iast.mdc`.
 Any of these is an immediate blocker:
 
 1. `PyGILState_Ensure`, `PyEval_RestoreThread`, or `PyEval_SaveThread` without
-   a `py_is_finalizing()` check before the call
-2. GIL operations in C++ code reachable from glibc `pthread_exit()` without a
-   `try/catch(abi::__forced_unwind&)` that re-throws
-3. Operating on inherited sync primitives in child after `fork()` instead of
+   a `py_is_finalizing()` check before the call. On glibc, also add
+   `try/catch(abi::__forced_unwind&)` that re-throws as a TOCTTOU safety net.
+2. Operating on inherited sync primitives in child after `fork()` instead of
    recreating from scratch
-4. Capturing `PyObject*` in a thread lambda without `Py_INCREF` **before**
+3. Capturing `PyObject*` in a thread lambda without `Py_INCREF` **before**
    `std::thread` creation — there is a race between thread start and the
    lambda body running where the object can be deallocated
-5. Calling `Py_DECREF`, `PyFrame_GetBack`, or any allocating API inside an
+4. Calling `Py_DECREF`, `PyFrame_GetBack`, or any allocating API inside an
    allocator hook
-6. Assuming C++ exceptions propagate through Rust `extern "C"` or CPython C
+5. Assuming C++ exceptions propagate through Rust `extern "C"` or CPython C
    boundaries
-7. Looping over CPython internal linked lists without a hard upper bound
-8. Assuming in-tree build behavior matches release wheel behavior
-9. Assuming CPython/libdatadog/libddwaf behavior without reading the pinned
+6. Looping over CPython internal linked lists without a hard upper bound
+7. Assuming in-tree build behavior matches release wheel behavior
+8. Assuming CPython/libdatadog/libddwaf behavior without reading the pinned
    version's source
 
 ## Key Version/Platform Facts
