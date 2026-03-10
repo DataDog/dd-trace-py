@@ -61,7 +61,6 @@ def uwsgi(
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
-    monkeypatch.setenv("DD_TRACE_DEBUG", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
 
@@ -74,7 +73,7 @@ def uwsgi(
         "--wsgi-file",
         uwsgi_app,
         "--import",
-        "ddtrace.auto",
+        "ddtrace.profiling.auto",
     ]
 
     try:
@@ -246,61 +245,22 @@ def test_uwsgi_threads_processes_primary(
     - --enable-threads: satisfies the threading requirement
     - --master: enables the master process that manages workers
     - --processes 2: spawns 2 worker processes
+    - --py-call-uwsgi-fork-hooks: ensures uwsgidecorators.postfork hooks fire in workers
 
     With --master, the profiler can register postfork hooks via uwsgidecorators.postfork()
     to restart the profiler in each worker after fork. The test verifies that:
     - Both workers start successfully
     - Each worker independently collects wall-time samples
     - Profiles are written with each worker's PID suffix
-
-    Note: --py-call-uwsgi-fork-hooks is NOT used here because ddtrace.auto registers
-    ddtrace_after_in_child via both os.register_at_fork and uwsgidecorators.postfork.
-    With --py-call-uwsgi-fork-hooks, both mechanisms fire, causing forksafe callbacks
-    to run twice (double product start/restart). uwsgidecorators.postfork alone is sufficient.
     """
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--master", "--processes", "2")
-
-    # Capture ALL stdout lines while looking for worker PIDs
-    all_lines: list[bytes] = []
-    worker_pids: list[int] = []
-    started = 0
-    while True:
-        assert proc.stdout is not None
-        line = proc.stdout.readline()
-        all_lines.append(line)
-        if line == b"":
-            break
-        elif b"WSGI app 0 (mountpoint='') ready" in line:
-            started += 1
-        else:
-            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode(errors="replace"))
-            if m:
-                worker_pids.append(int(m.group(1)))
-        if len(worker_pids) == 2 and started == 1:
-            break
-
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--py-call-uwsgi-fork-hooks")
+    worker_pids: list[int] = _get_worker_pids(proc.stdout, 2)
     # Give some time to child to actually startup
     time.sleep(3)
-
-    # Forcefully terminate all processes
     os.killpg(proc.pid, signal.SIGTERM)
-
     assert proc.wait() == 0
-
-    # Debug: print ALL stdout
-    remaining_stdout = proc.stdout.read() if proc.stdout else b""
-    all_output = b"".join(all_lines) + remaining_stdout
-    print(f"\n=== FULL STDOUT ({len(all_output)} bytes) ===")
-    print(all_output.decode(errors="replace"))
-    print("=== END STDOUT ===")
-    print(f"\n=== FILES IN {tmp_path} ===")
-    for f in tmp_path.iterdir():
-        print(f"  {f.name} ({f.stat().st_size} bytes)")
-    print(f"=== ALL PPROF-LIKE FILES: {glob.glob(str(tmp_path) + '/**', recursive=True)} ===")
-    print(f"=== WORKER PIDS: {worker_pids} ===")
-
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
