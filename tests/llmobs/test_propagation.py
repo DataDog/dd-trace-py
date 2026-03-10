@@ -12,7 +12,7 @@ from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_llmobs_parent_id
 from ddtrace.llmobs._utils import _get_llmobs_trace_id
-from tests.llmobs._utils import llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_ml_app
 
 
 @pytest.fixture
@@ -232,7 +232,7 @@ print(json.dumps(headers))
     with llmobs_no_ml_app.workflow("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert _get_llmobs_parent_id(span) == int(headers["_DD_LLMOBS_SPAN_ID"])
-        assert llmobs_ml_app(span) == "test-app"  # should have been propagated
+        assert get_llmobs_ml_app(span) == "test-app"  # should have been propagated
         assert _get_llmobs_trace_id(span) == int(headers["_DD_LLMOBS_TRACE_ID"])
 
 
@@ -269,7 +269,7 @@ print(json.dumps(headers))
             assert str(span.parent_id) == headers["x-datadog-parent-id"]
             assert _get_llmobs_parent_id(span) is None
             assert _get_llmobs_parent_id(llm_span) == int(headers["_DD_LLMOBS_SPAN_ID"])
-            assert llmobs_ml_app(llm_span) == "test-app"  # should be the one set by `llmobs` fixture
+            assert get_llmobs_ml_app(llm_span) == "test-app"  # should be the one set by `llmobs` fixture
 
 
 def test_activate_distributed_headers_for_local_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -300,7 +300,7 @@ print(json.dumps(headers))
     headers = json.loads(stdout.decode())
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model") as llm_span:
-        assert llmobs_ml_app(llm_span) == "local-ml-app"
+        assert get_llmobs_ml_app(llm_span) == "local-ml-app"
 
 
 def test_activate_distributed_headers_for_twice_propagated_ml_app(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -334,7 +334,7 @@ print(json.dumps(headers))
 
     llmobs.activate_distributed_headers(headers)
     with llmobs.llm(name="llm_model") as llm_span:
-        assert llmobs_ml_app(llm_span) == "twice-propagated-ml-app"
+        assert get_llmobs_ml_app(llm_span) == "twice-propagated-ml-app"
 
 
 def test_activate_distributed_headers_does_not_propagate_if_no_llmobs_spans(
@@ -367,7 +367,7 @@ print(json.dumps(headers))
     with llmobs.task("LLMObs span") as span:
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert _get_llmobs_parent_id(span) is None
-        assert llmobs_ml_app(span) == "test-app"
+        assert get_llmobs_ml_app(span) == "test-app"
 
 
 def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):

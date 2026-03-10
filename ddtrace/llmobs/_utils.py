@@ -333,12 +333,6 @@ def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: 
     _annotate_llmobs_span_data(span, span_links=current_span_links)
 
 
-def get_span_links(span: Span) -> list[_SpanLink]:
-    llmobs_data = _get_llmobs_data_metastruct(span)
-    current_span_links: list[_SpanLink] = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
-    return current_span_links
-
-
 def _get_parent_prompt(span: Span) -> Optional[Prompt]:
     # Check parent for prompt inheritance
     parent_span = _get_nearest_llmobs_ancestor(span)
@@ -382,6 +376,85 @@ def _get_llmobs_trace_id(span: Span) -> Optional[int]:
     llmobs_data = _get_llmobs_data_metastruct(span)
     trace_id = llmobs_data.get(LLMOBS_STRUCT.TRACE_ID)
     return trace_id
+
+
+def get_span_links(span: Span) -> list[_SpanLink]:
+    llmobs_data = _get_llmobs_data_metastruct(span)
+    current_span_links: list[_SpanLink] = llmobs_data.get(LLMOBS_STRUCT.SPAN_LINKS) or []
+    return current_span_links
+
+
+def get_llmobs_tags(span: Span) -> Optional[dict[str, str]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
+
+
+def get_llmobs_metrics(span: Span) -> Optional[dict[str, Any]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
+
+
+def get_llmobs_session_id(span: Span) -> Optional[str]:
+    """Return the session_id stored directly on this span (no ancestor propagation)."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
+
+
+def get_llmobs_ml_app(span: Span) -> Optional[str]:
+    """Return the ml_app stored directly on this span (no ancestor/config propagation)."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP)
+
+
+def get_llmobs_span_links(span: Span) -> Optional[list]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS)
+
+
+def get_llmobs_input(span: Span) -> _MetaIO:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {})
+
+
+def get_llmobs_input_value(span: Span) -> Optional[str]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.VALUE)
+
+
+def get_llmobs_input_messages(span: Span) -> Optional[list]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.MESSAGES)
+
+
+def get_llmobs_input_documents(span: Span) -> Optional[list]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
+
+
+def get_llmobs_input_prompt(span: Span) -> Optional[Any]:
+    return get_llmobs_input(span).get(LLMOBS_STRUCT.PROMPT)
+
+
+def get_llmobs_output(span: Span) -> _MetaIO:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {})
+
+
+def get_llmobs_output_value(span: Span) -> Optional[str]:
+    output_data = get_llmobs_output(span)
+    if not isinstance(output_data, dict):
+        return None
+    return output_data.get(LLMOBS_STRUCT.VALUE)
+
+
+def get_llmobs_output_messages(span: Span) -> Optional[list]:
+    return get_llmobs_output(span).get(LLMOBS_STRUCT.MESSAGES)
+
+
+def get_llmobs_output_documents(span: Span) -> Optional[list]:
+    return get_llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
+
+
+def get_llmobs_model_name(span: Span) -> Optional[str]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME)
+
+
+def get_llmobs_model_provider(span: Span) -> Optional[str]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER)
+
+
+def get_llmobs_metadata(span: Span) -> Optional[dict[str, Any]]:
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA)
 
 
 def _annotate_llmobs_span_data(

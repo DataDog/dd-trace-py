@@ -123,12 +123,12 @@ from ddtrace.llmobs._utils import _is_evaluation_span
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
 from ddtrace.llmobs._utils import enforce_message_role
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import get_span_links
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
-from ddtrace.llmobs._writer import LLMObsSpanData
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -502,7 +502,7 @@ class LLMObs(Service):
             if span_event and span_kind == "llm" and not _is_evaluation_span(span) and self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
-    def _apply_user_span_processor(self, llmobs_span: LLMObsSpan, llmobs_data: LLMObsSpanData) -> Optional[LLMObsSpan]:
+    def _apply_user_span_processor(self, span: Span, llmobs_span: LLMObsSpan) -> Optional[LLMObsSpan]:
         """Run the user span processor.
 
         Returns the possibly mutated span, or None if the span should be dropped.
@@ -512,7 +512,7 @@ class LLMObs(Service):
             return llmobs_span
         error = False
         try:
-            llmobs_span._tags = cast(dict[str, str], llmobs_data.get(LLMOBS_STRUCT.TAGS, {}))
+            llmobs_span._tags = get_llmobs_tags(span) or {}
             result = self._user_span_processor(llmobs_span)
             if result is None:
                 return None
@@ -550,7 +550,7 @@ class LLMObs(Service):
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
         llmobs_span, input_type, output_type = _build_llmobs_span(span_kind, llmobs_input, llmobs_output)
-        user_processed_span = self._apply_user_span_processor(llmobs_span, llmobs_data)
+        user_processed_span = self._apply_user_span_processor(span, llmobs_span)
         if user_processed_span is None:
             return None
         llmobs_span = user_processed_span
