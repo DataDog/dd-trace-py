@@ -843,6 +843,224 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
 
+    # ------------------------------------------------------------------
+    # Eval Tuning API methods
+    # ------------------------------------------------------------------
+
+    _EVAL_TUNING_BASE = "/api/unstable/llm-obs/v1/eval-tuning"
+
+    def eval_tuning_project_create(
+        self, name: str, dataset_id: str, description: str = ""
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects"
+        body: JSONType = {
+            "data": {
+                "type": "eval_tuning_projects",
+                "attributes": {"name": name, "dataset_id": dataset_id, "description": description},
+            }
+        }
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create eval tuning project: {resp.status} {resp.get_json()}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_project_get(self, project_id: str) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get eval tuning project {project_id}: {resp.status}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_project_list(self) -> list[dict[str, Any]]:
+        path = f"{self._EVAL_TUNING_BASE}/projects"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to list eval tuning projects: {resp.status}")
+        return [item["attributes"] for item in resp.get_json()["data"]]
+
+    def eval_tuning_project_delete(self, project_id: str) -> None:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}"
+        resp = self.request("DELETE", path)
+        if resp.status not in (200, 204):
+            raise ValueError(f"Failed to delete eval tuning project {project_id}: {resp.status}")
+
+    def eval_tuning_project_export(self, project_id: str) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/export"
+        resp = self.request("POST", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to export eval tuning project {project_id}: {resp.status}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_judge_config_create(
+        self, project_id: str, config_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/judge-configs"
+        body: JSONType = {"data": {"type": "judge_configs", "attributes": config_data}}
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create judge config: {resp.status} {resp.get_json()}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_judge_config_get_current(self, project_id: str) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/judge-configs/current"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get current judge config: {resp.status}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_training_example_create(
+        self, project_id: str, record_id: str
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/training-examples"
+        body: JSONType = {"data": {"type": "training_examples", "attributes": {"record_id": record_id}}}
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create training example: {resp.status} {resp.get_json()}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_training_example_delete(self, project_id: str, example_id: str) -> None:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/training-examples/{example_id}"
+        resp = self.request("DELETE", path)
+        if resp.status not in (200, 204):
+            raise ValueError(f"Failed to delete training example {example_id}: {resp.status}")
+
+    def eval_tuning_training_examples_list(self, project_id: str) -> list[dict[str, Any]]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/training-examples"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to list training examples: {resp.status}")
+        return [item["attributes"] for item in resp.get_json()["data"]]
+
+    def eval_tuning_class_config_create(
+        self, project_id: str, config_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/class-config"
+        body: JSONType = {"data": {"type": "class_configs", "attributes": config_data}}
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create class config: {resp.status} {resp.get_json()}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_alignment_config_create(
+        self, project_id: str, config_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/alignment-config"
+        body: JSONType = {"data": {"type": "alignment_configs", "attributes": config_data}}
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create alignment config: {resp.status} {resp.get_json()}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_split_create(
+        self, project_id: str, split_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/splits"
+        body: JSONType = {"data": {"type": "splits", "attributes": split_data}}
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create dataset split: {resp.status} {resp.get_json()}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_split_get(self, project_id: str) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/splits"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get dataset split: {resp.status}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_iteration_create(
+        self, project_id: str, judge_config_id: str
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/iterations"
+        body: JSONType = {
+            "data": {"type": "iterations", "attributes": {"judge_config_id": judge_config_id}}
+        }
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create iteration: {resp.status} {resp.get_json()}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_iteration_update(
+        self, project_id: str, iteration_id: str, status: str
+    ) -> None:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/iterations/{iteration_id}"
+        body: JSONType = {"data": {"type": "iterations", "attributes": {"status": status}}}
+        resp = self.request("PATCH", path, body)
+        if resp.status != 200:
+            logger.debug("Failed to update iteration status to %s: %s", status, resp.status)
+
+    def eval_tuning_iterations_list(self, project_id: str) -> list[dict[str, Any]]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/iterations"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to list iterations: {resp.status}")
+        return [item["attributes"] for item in resp.get_json()["data"]]
+
+    def eval_tuning_iteration_results(
+        self, project_id: str, iteration_id: str
+    ) -> list[dict[str, Any]]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/iterations/{iteration_id}/results"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get iteration results: {resp.status}")
+        return resp.get_json()["data"]
+
+    def eval_tuning_iteration_disagreements(
+        self, project_id: str, iteration_id: str
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/iterations/{iteration_id}/disagreements"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get iteration disagreements: {resp.status}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_iterations_compare(
+        self, project_id: str, iteration_id_1: str, iteration_id_2: str
+    ) -> dict[str, Any]:
+        path = (
+            f"{self._EVAL_TUNING_BASE}/projects/{project_id}"
+            f"/iterations/compare/{iteration_id_1}/{iteration_id_2}"
+        )
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to compare iterations: {resp.status}")
+        return resp.get_json()["data"]["attributes"]
+
+    def eval_tuning_history_create(
+        self, project_id: str, records: list[dict[str, Any]]
+    ) -> None:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/history"
+        body: JSONType = {"data": {"type": "history_records", "attributes": {"records": records}}}
+        resp = self.request("POST", path, body)
+        if resp.status not in (200, 202):
+            logger.debug("Failed to persist history records: %s", resp.status)
+
+    def eval_tuning_metrics_create(
+        self,
+        project_id: str,
+        iteration_id: str,
+        values: dict[str, Any],
+        class_config_id: Optional[str] = None,
+        alignment_config_id: Optional[str] = None,
+    ) -> dict[str, Any]:
+        path = f"{self._EVAL_TUNING_BASE}/projects/{project_id}/metrics"
+        body: JSONType = {
+            "data": {
+                "type": "metrics_records",
+                "attributes": {
+                    "iteration_id": iteration_id,
+                    "values": values,
+                    "class_config_id": class_config_id,
+                    "alignment_config_id": alignment_config_id,
+                },
+            }
+        }
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            logger.debug("Failed to persist metrics: %s", resp.status)
+            return {}
+        return resp.get_json().get("data", {}).get("attributes", {})
+
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""

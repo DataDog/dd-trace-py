@@ -1473,6 +1473,82 @@ class LLMObs(Service):
         )
 
     @classmethod
+    def eval_tuning_project(
+        cls,
+        name: str,
+        dataset: Dataset,
+        project_name: Optional[str] = None,
+        description: str = "",
+    ) -> "EvalTuningProject":
+        """Create an eval tuning project for iteratively calibrating an LLM judge.
+
+        An eval tuning project manages the full lifecycle of judge calibration:
+        configuring judges, splitting datasets, running iterations, computing
+        agreement metrics, and optionally running prompt optimization.
+
+        :param name: Name of the eval tuning project.
+        :param dataset: The dataset containing scenarios with human labels. Create with
+            ``LLMObs.create_dataset()`` or ``LLMObs.pull_dataset()``.
+        :param project_name: LLMObs project name for organizing experiments. Defaults to
+            the project name set in ``LLMObs.enable()``.
+        :param description: Optional project description.
+        :return: EvalTuningProject object for managing the tuning workflow.
+        :raises ValueError: If LLMObs is not enabled.
+
+        Example::
+
+            from ddtrace.llmobs import LLMObs
+            from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+            from ddtrace.llmobs._evaluators.metrics import ClassConfig, AlignmentConfig
+
+            LLMObs.enable(...)
+            dataset = LLMObs.pull_dataset("my_labeled_dataset")
+
+            project = LLMObs.eval_tuning_project(
+                name="judge_calibration",
+                dataset=dataset,
+                project_name="my_project",
+            )
+
+            # Configure the judge
+            project.init_judge(
+                model="gpt-4o",
+                provider="openai",
+                prompt="Rate the quality: {{output_data}}",
+                structured_output=ScoreStructuredOutput(
+                    description="Quality score",
+                    min_score=0, max_score=100, reasoning=True,
+                ),
+            )
+
+            # Configure scoring and alignment
+            project.set_class_config(ClassConfig(output_type="score", pass_thresholds=[50]))
+            project.set_alignment_config(
+                AlignmentConfig(output_type="score", alignment_thresholds=[10, 20])
+            )
+
+            # Split and iterate
+            project.split_dataset(train_ratio=0.3, dev_ratio=0.3, test_ratio=0.4)
+            iteration = project.run_iteration(splits=["train", "dev"])
+            metrics = project.calc_metrics(iteration.id)
+        """
+        if not cls._instance or not cls._instance.enabled:
+            raise ValueError(
+                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+                "before creating an eval tuning project."
+            )
+
+        from ddtrace.llmobs._eval_tuning import EvalTuningProject
+
+        return EvalTuningProject(
+            name=name,
+            dataset=dataset,
+            project_name=project_name or cls._project_name,
+            _llmobs_instance=cls._instance,
+            description=description,
+        )
+
+    @classmethod
     def experiment(
         cls,
         name: str,
