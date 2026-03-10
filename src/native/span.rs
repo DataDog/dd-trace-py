@@ -1,7 +1,5 @@
 use pyo3::{
-    types::{
-        PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple,
-    },
+    types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
     Bound, IntoPyObject, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
