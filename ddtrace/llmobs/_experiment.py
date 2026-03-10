@@ -627,7 +627,7 @@ def _is_function_evaluator(evaluator: Any) -> bool:
 
 if BaseMetric is not None and BaseConversationalMetric is not None:
 
-    def _deep_eval_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
         """Wrapper to run deep eval evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The deep eval evaluator to run
@@ -700,7 +700,7 @@ if BaseMetric is not None and BaseConversationalMetric is not None:
 
 else:
 
-    def _deep_eval_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+    def _deep_eval_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking.
 
         :param evaluator: The deep eval evaluator to run
@@ -722,28 +722,81 @@ if PydanticEvaluator is not None:
         :return: A callable function that can be used as an evaluator
         """
         def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:                
+            if self._llmobs_instance is None:
+                duration = None
+            else:
+                duration = self._llmobs_instance._current_span().duration
             evalContext = EvaluatorContext(
                 name="",
                 inputs=input_data,
                 expected_output=expected_output,
                 output=output_data,
-                duration=self.span.duration, #wrong but dont worry about it for now,
-                # _span_tree=None
+                duration=duration,
+                metadata=None,
+                _span_tree=None,
+                attributes=None,
+                metrics=None,
                 )
             
             if asyncio.iscoroutinefunction(evaluator.evaluate):
-                if is_async:
-                    result = await evaluator.evaluate(evalContext)
+                try: 
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    result = asyncio.run(evaluator.evaluate(evalContext))
                 else:
-                    try: 
-                        asyncio.get_running_loop()
-                    except RuntimeError:
-                        result = asyncio.run(evaluator.evaluate(evalContext))
-                    else:
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                            _result = pool.submit(asyncio.run, evaluator.evaluate(evalContext))
-                            result = _result.result()
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        _result = pool.submit(asyncio.run, evaluator.evaluate(evalContext))
+                        result = _result.result()
+            else:
+                result = evaluator.evaluate(evalContext)
+            
+            _eval_result = cast(EvaluatorOutput, result)
+            eval_result = EvaluatorResult(
+                value=None,
+                reasoning=None,
+                assessment=None,
+            )
+            if isinstance(_eval_result, EvaluationScalar):
+                eval_result.value = _eval_result
+                if isinstance(_eval_result, bool):
+                    eval_result.assessment = "pass" if _eval_result else "fail"
+            elif isinstance(_eval_result, EvaluationReason):
+                eval_result.value = _eval_result.value
+                eval_result.reasoning = _eval_result.reason
+                if isinstance(_eval_result.assessment, bool):
+                    eval_result.assessment = "pass" if _eval_result.value else "fail"
+            else:
+                eval_result.value = eval_result
+            
+            return eval_result
+        
+        wrapped_evaluator.__name__ = getattr(evaluator, "name", evaluator.get_default_evaluation_name())
+        return wrapped_evaluator    
+    def _pydantic_async_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+        :param evaluator: The pydantic evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+        async def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:                
+            if self._llmobs_instance is None:
+                duration = None
+            else:
+                duration = self._llmobs_instance._current_span().duration
+            evalContext = EvaluatorContext(
+                name="",
+                inputs=input_data,
+                expected_output=expected_output,
+                output=output_data,
+                duration=duration,
+                metadata=None,
+                _span_tree=None,
+                attributes=None,
+                metrics=None,
+            )
+
+            result = await evaluator.evaluate_async(evalContext)
             
             _eval_result = cast(EvaluatorOutput, result)
             eval_result = EvaluatorResult(
@@ -768,7 +821,10 @@ if PydanticEvaluator is not None:
         wrapped_evaluator.__name__ = getattr(evaluator, "name", evaluator.get_default_evaluation_name())
         return wrapped_evaluator
 else:
-    def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+    def _pydantic_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
+    def _pydantic_async_evaluator_wrapper(evaluator: Any) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 

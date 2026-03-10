@@ -124,6 +124,7 @@ from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._experiment import _is_pydantic_evaluator
@@ -1606,7 +1607,7 @@ class LLMObs(Service):
                 evaluators_list[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
                 continue
             if _is_pydantic_evaluator(evaluator):
-                evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, is_async=True)
+                evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator)
                 continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
