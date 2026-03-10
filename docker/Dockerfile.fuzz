@@ -33,7 +33,7 @@ RUN apt-get update \
     ninja-build \
     curl \
   && rm -rf /var/lib/apt/lists/* \
-  && python3 -m pip install setuptools_rust cython requests --break-system-packages
+  && python3 -m pip install setuptools_rust cython requests "setuptools-scm<9" --break-system-packages
 
 # Install Rust toolchain (needed to build _native / libdatadog)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

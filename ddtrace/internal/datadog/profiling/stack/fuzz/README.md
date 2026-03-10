@@ -12,6 +12,9 @@ and orchestrated by [fuzzydog](https://datadoghq.atlassian.net/wiki/spaces/fuzzi
 | `fuzz_echion_strings` | `StringTable::key()` (PyUnicode) and `pybytes_to_bytes_and_size()` (PyBytes) |
 | `fuzz_echion_mirrors` | `MirrorSet::create()` — PySetObject header reading, size bounds, table iteration |
 | `fuzz_echion_stacks` | Full frame/stack unwinding: `unwind_frame` (chain walk) and `unwind_python_stack` (from PyThreadState) |
+| `fuzz_echion_tasks` | `GenInfo::create` (coroutine await chains) and `TaskInfo::create` (task headers, name resolution, waiter chains) |
+| `fuzz_echion_long` | `pylong_to_llong` — PyLong object parsing (compact/multi-digit) from remote memory (3.12+) |
+| `fuzz_echion_interp` | `for_each_interp` — interpreter linked-list traversal, cycle detection, iteration bounds |
 
 ## Build the Docker image
 
