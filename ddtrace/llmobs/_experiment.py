@@ -36,6 +36,11 @@ except ImportError:
     BaseMetric = None
     BaseConversationalMetric = None
 
+try:
+    from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
+except ImportError:
+    PydanticEvaluator = None
+
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -531,6 +536,16 @@ else:
         BaseAsyncEvaluator,
     ]
 
+if PydanticEvaluator is not None:
+    EvaluatorType: TypeAlias = Union[
+        EvaluatorType,
+        PydanticEvaluator,
+    ]
+    AsyncEvaluatorType: TypeAlias = Union[
+        AsyncEvaluatorType,
+        PydanticEvaluator,
+    ]
+
 # Summary evaluator types
 SummaryEvaluatorType = Union[
     Callable[
@@ -577,6 +592,16 @@ def _is_deep_eval_evaluator(evaluator: Any) -> bool:
         return False
     return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
 
+def _is_pydantic_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic evaluator (inherits from PydanticEvaluator).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a pydantic evaluator, False otherwise
+    """
+    if PydanticEvaluator is None:
+        return False
+    return isinstance(evaluator, PydanticEvaluator)
+
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -597,6 +622,7 @@ def _is_function_evaluator(evaluator: Any) -> bool:
         not isinstance(evaluator, BaseEvaluator)
         and not isinstance(evaluator, BaseSummaryEvaluator)
         and not _is_deep_eval_evaluator(evaluator)
+        and not _is_pydantic_evaluator(evaluator)
     )
 
 
@@ -687,6 +713,127 @@ else:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
+if PydanticEvaluator is not None:
+
+    def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+        """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+        :param evaluator: The pydantic evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+        from pydantic_evals.test_case import Case, Dataset
+
+        def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+        ) -> EvaluatorResult:
+            """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+            :param input_data: The input data
+            :param output_data: The output data
+            :param expected_output: The expected output
+            :return: An EvaluatorResult containing the score, reasoning, and assessment
+            """
+            dataset = Dataset(
+                name="dataset",
+                inputs=str(input_data),
+                expected_output=str(expected_output),
+                evaluators=[evaluator],
+            )
+            def _task():
+                return str(output_data)
+            complete_report = dataset.evaluate(_task, repeat=1)
+            eval_report = complete_report.cases[0]
+
+            eval_result = EvaluatorResult(value=None, reasoning=None, assessment=None, metadata=None)
+            if len(eval_report.scores) == 1:
+                eval_score = eval_report.scores[0]
+                eval_result.value = eval_score.value
+                eval_result.reasoning = eval_score.reason
+                # missing assessment because an assessment has not been defined for the evaluator
+                eval_result.metadata = eval_score.metadata
+            if len(eval_report.assertions) == 1:
+                eval_assertion = eval_report.assertions[0][evaluator.name]
+                if eval_result.value is None:
+                    eval_result.value = eval_assertion.value
+                if eval_result.reasoning is None:
+                    eval_result.reasoning = eval_assertion.reason
+                eval_result.assessment = eval_assertion.value
+                if isattribute(eval_assertion, "metadata"):
+                    eval_result.metadata = eval_assertion.metadata
+            return eval_result
+
+
+        wrapped_evaluator.__name__ = getattr(evaluator, "name", evaluator.get_default_evaluation_name())
+        return wrapped_evaluator
+
+    def _pydantic_async_evaluator_wrapper(evaluator: Any) -> Any:
+        """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+        :param evaluator: The pydantic evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+        from pydantic_evals.test_case import Case, Dataset
+
+        def wrapped_evaluator(
+            input_data: dict[str, Any],
+            output_data: Any,
+            expected_output: Optional[JSONType] = None,
+        ) -> EvaluatorResult:
+            """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+            :param input_data: The input data
+            :param output_data: The output data
+            :param expected_output: The expected output
+            :return: An EvaluatorResult containing the score, reasoning, and assessment
+            """
+            dataset = Dataset(
+                name="dataset",
+                inputs=str(input_data),
+                expected_output=str(expected_output),
+                evaluators=[evaluator],
+            )
+            def _task():
+                return str(output_data)
+            complete_report = await dataset.evaluate_async(_task, repeat=1)
+            eval_report = complete_report.cases[0]
+
+            eval_result = EvaluatorResult(value=None, reasoning=None, assessment=None, metadata=None)
+            if len(eval_report.scores) == 1:
+                eval_score = eval_report.scores[0]
+                eval_result.value = eval_score.value
+                eval_result.reasoning = eval_score.reason
+                # missing assessment because an assessment has not been defined for the evaluator
+                eval_result.metadata = eval_score.metadata
+            if len(eval_report.assertions) == 1:
+                eval_assertion = eval_report.assertions[0][evaluator.name]
+                if eval_result.value is None:
+                    eval_result.value = eval_assertion.value
+                if eval_result.reasoning is None:
+                    eval_result.reasoning = eval_assertion.reason
+                eval_result.assessment = eval_assertion.value
+                if isattribute(eval_assertion, "metadata"):
+                    eval_result.metadata = eval_assertion.metadata
+            return eval_result
+
+
+        wrapped_evaluator.__name__ = getattr(evaluator, "name", evaluator.get_default_evaluation_name())
+        return wrapped_evaluator
+
+else:
+
+    def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking.
+
+        :param evaluator: The pydantic evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+        return evaluator
+
+    def _pydantic_async_evaluator_wrapper(evaluator: Any) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
 
 class Project(TypedDict):
     name: str
