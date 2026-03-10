@@ -209,7 +209,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
         completion_tokens_details = _get_attr(token_usage, "completion_tokens_details", {})
         if completion_tokens_details:
             reasoning_tokens = _get_attr(completion_tokens_details, "reasoning_tokens", None)
-            if reasoning_tokens:
+            if reasoning_tokens is not None:
                 metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_tokens
 
         # Extract cache read tokens from litellm's normalized prompt_tokens_details
