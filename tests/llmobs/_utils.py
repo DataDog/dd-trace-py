@@ -161,9 +161,11 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
-    integration = (llmobs_tags(span) or {}).get("integration")
-    if integration:
-        expected_tags.append("integration:{}".format(integration))
+    span_llmobs_tags = llmobs_tags(span) or {}
+    if span_llmobs_tags.get("integration"):
+        expected_tags.append("integration:{}".format(span_llmobs_tags["integration"]))
+    if span_llmobs_tags.get("decorator"):
+        expected_tags.append("decorator:{}".format(span_llmobs_tags["decorator"]))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -258,10 +260,12 @@ def _expected_llmobs_llm_span_event(
         meta_dict.pop("input")
     if not meta_dict["output"]:
         meta_dict.pop("output")
-    if model_name is not None:
-        meta_dict.update({"model_name": model_name})
-    if model_provider is not None:
-        meta_dict.update({"model_provider": model_provider})
+    if span_kind in ("llm", "embedding"):
+        meta_dict["model_name"] = model_name if model_name is not None else ""
+        meta_dict["model_provider"] = (model_provider or "custom").lower()
+    elif model_name is not None:
+        meta_dict["model_name"] = model_name
+        meta_dict["model_provider"] = (model_provider or "custom").lower()
     if tool_definitions is not None:
         meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
@@ -366,15 +370,15 @@ def _llmobs_base_span_event(
         "status": "error" if error else "ok",
         "meta": _Meta(span=_SpanField(kind=span_kind)),
         "metrics": {},
+        "session_id": session_id or "",
         "tags": expected_tags,
+        "span_links": [],
         "_dd": {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
             "apm_trace_id": format_trace_id(span.trace_id),
         },
     }
-    if session_id:
-        span_event["session_id"] = session_id
     if error:
         span_event["meta"]["error"] = _ErrorField(type=error, message=error_message or "", stack=error_stack or "")
     if span_links:
