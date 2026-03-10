@@ -301,6 +301,10 @@ class TestRunner:
             return True
         except subprocess.CalledProcessError:
             if "testagent" in services:
+                # NOTE: When falling back to a random port, snapshot tests that
+                # hardcode localhost:9126 in their URLs (e.g., in test code or
+                # snapshot files) may fail. This only happens for the second+
+                # concurrent worktree; the first always gets port 9126.
                 print("⚠️  Port conflict detected, retrying testagent with a random port...")
                 os.environ["TESTAGENT_HOST_PORT"] = "0"
                 try:
