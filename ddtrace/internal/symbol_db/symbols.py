@@ -611,8 +611,6 @@ def is_module_included(module: ModuleType) -> bool:
 class SymbolDatabaseUploader(BaseModuleWatchdog):
     __file_number_limit__: int = 10000
 
-    shallow: bool = True
-
     def __init__(self) -> None:
         super().__init__()
 
@@ -627,8 +625,6 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
     def _process_unseen_loaded_modules(self) -> None:
         # Look for all the modules that are already imported when this is
         # installed and upload the symbols that are marked for inclusion.
-        recursive = not self.shallow
-
         for name, module in list(sys.modules.items()):
             if self._processed_files_count >= self.__file_number_limit__:
                 log.debug("[PID %d] SymDB: Reached file limit of %d", os.getpid(), self.__file_number_limit__)
@@ -651,7 +647,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
                 continue
 
             try:
-                scope = Scope.from_module(module, recursive)
+                scope = Scope.from_module(module, recursive=True)
             except Exception:
                 log.debug("Cannot get symbol scope for module %s", module.__name__, exc_info=True)
                 continue
@@ -670,7 +666,7 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
             log.debug("[PID %d] SymDB: Excluding imported module %s from symbol database", os.getpid(), module.__name__)
             return
 
-        if (scope := Scope.from_module(module, recursive=not self.shallow)) is not None:
+        if (scope := Scope.from_module(module, recursive=True)) is not None:
             self._context.add_scope(scope)
             self._processed_files_count += 1
 
@@ -690,6 +686,5 @@ class SymbolDatabaseUploader(BaseModuleWatchdog):
         instance._update_called = True
 
     @classmethod
-    def install(cls, shallow: bool = True) -> None:
-        cls.shallow = shallow
+    def install(cls) -> None:
         return super().install()
