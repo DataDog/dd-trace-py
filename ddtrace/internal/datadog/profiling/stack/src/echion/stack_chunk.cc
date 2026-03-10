@@ -1,8 +1,10 @@
 #include <echion/stack_chunk.h>
 
-#include <internal/pycore_frame.h>
-
 #if PY_VERSION_HEX >= 0x030b0000
+
+#if PY_VERSION_HEX >= 0x030e0000
+#include <internal/pycore_interpframe_structs.h>
+#endif
 
 // ----------------------------------------------------------------------------
 Result<void>
