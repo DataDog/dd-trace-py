@@ -77,6 +77,16 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
     # bypassing Python sanity checks. We need to handle this case properly.
     # The proper way to handle that is to allow to register a callback function to run in the subprocess at their
     # startup, and warn the caller that this is the master process and that (probably) nothing should be done.
+    # DEBUG: temporary debug output to understand check_uwsgi behavior with --import
+    import sys
+
+    print(
+        f"DEBUG check_uwsgi: numproc={uwsgi.numproc}, worker_id={uwsgi.worker_id()}, "
+        f"lazy-apps={uwsgi.opt.get('lazy-apps')}, master={uwsgi.opt.get('master')}, "
+        f"worker_callback={worker_callback}",
+        file=sys.stderr,
+        flush=True,
+    )
     if uwsgi.numproc > 1 and not uwsgi.opt.get("lazy-apps") and uwsgi.worker_id() == 0:
         if not uwsgi.opt.get("master"):
             # Having multiple workers without the master process is not supported:
@@ -91,6 +101,7 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
             except ImportError:
                 raise uWSGIConfigError("Running under uwsgi but uwsgidecorators cannot be imported")
             uwsgidecorators.postfork(worker_callback)
+            print(f"DEBUG check_uwsgi: registered postfork hook: {worker_callback}", file=sys.stderr, flush=True)
 
         if atexit is not None:
             original_atexit = getattr(uwsgi, "atexit", None)
