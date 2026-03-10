@@ -713,8 +713,10 @@ else:
         return evaluator
 
 if PydanticEvaluator is not None:
-    from pydantic_evals.evaluators import EvaluatorContext, EvaluatorOutput
-    from pydantic_evals.evaluators.evaluator import EvaluationScalar, EvaluationReason
+    from pydantic_evals.evaluators import EvaluatorContext as PydanticEvaluatorContext
+    from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
+    from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
+    from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
     def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
@@ -726,7 +728,7 @@ if PydanticEvaluator is not None:
                 duration = None
             else:
                 duration = self._llmobs_instance._current_span().duration
-            evalContext = EvaluatorContext(
+            evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
                 expected_output=expected_output,
@@ -751,17 +753,17 @@ if PydanticEvaluator is not None:
             else:
                 result = evaluator.evaluate(evalContext)
             
-            _eval_result = cast(EvaluatorOutput, result)
+            _eval_result = cast(PydanticEvaluatorOutput, result)
             eval_result = EvaluatorResult(
                 value=None,
                 reasoning=None,
                 assessment=None,
             )
-            if isinstance(_eval_result, EvaluationScalar):
+            if isinstance(_eval_result, PydanticEvaluationScalar):
                 eval_result.value = _eval_result
                 if isinstance(_eval_result, bool):
                     eval_result.assessment = "pass" if _eval_result else "fail"
-            elif isinstance(_eval_result, EvaluationReason):
+            elif isinstance(_eval_result, PydanticEvaluationReason):
                 eval_result.value = _eval_result.value
                 eval_result.reasoning = _eval_result.reason
                 if isinstance(_eval_result.assessment, bool):
@@ -784,7 +786,7 @@ if PydanticEvaluator is not None:
                 duration = None
             else:
                 duration = self._llmobs_instance._current_span().duration
-            evalContext = EvaluatorContext(
+            evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
                 expected_output=expected_output,
@@ -798,17 +800,17 @@ if PydanticEvaluator is not None:
 
             result = await evaluator.evaluate_async(evalContext)
             
-            _eval_result = cast(EvaluatorOutput, result)
+            _eval_result = cast(PydanticEvaluatorOutput, result)
             eval_result = EvaluatorResult(
                 value=None,
                 reasoning=None,
                 assessment=None,
             )
-            if isinstance(_eval_result, EvaluationScalar):
+            if isinstance(_eval_result, PydanticEvaluationScalar):
                 eval_result.value = _eval_result
                 if isinstance(_eval_result, bool):
                     eval_result.assessment = "pass" if _eval_result else "fail"
-            elif isinstance(_eval_result, EvaluationReason):
+            elif isinstance(_eval_result, PydanticEvaluationReason):
                 eval_result.value = _eval_result.value
                 eval_result.reasoning = _eval_result.reason
                 if isinstance(_eval_result.assessment, bool):
