@@ -141,7 +141,8 @@ def _on_content_block_start_chunk(chunk, message):
             chunk_content_block_text = _get_attr(chunk_content_block, "text", "")
             message["content"].append({"type": "text", "text": chunk_content_block_text})
         elif chunk_content_block_type == "thinking":
-            message["content"].append({"type": "thinking", "thinking": ""})
+            chunk_content_block_thinking = _get_attr(chunk_content_block, "thinking", "")
+            message["content"].append({"type": "thinking", "thinking": chunk_content_block_thinking})
         elif chunk_content_block_type == "tool_use":
             chunk_content_block_name = _get_attr(chunk_content_block, "name", "")
             message["content"].append({"type": "tool_use", "name": chunk_content_block_name, "input": ""})
