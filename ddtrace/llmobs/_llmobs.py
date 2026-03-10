@@ -1802,8 +1802,9 @@ class LLMObs(Service):
             model_provider=model_provider,
             session_id=session_id or _get_session_id(span),
             ml_app=ml_app,
-            tags={"decorator": str(int(_decorator))},
         )
+        if _decorator:
+            _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         log.debug(
             "Starting LLMObs span: %s, span_kind: %s, ml_app: %s",
             name,
