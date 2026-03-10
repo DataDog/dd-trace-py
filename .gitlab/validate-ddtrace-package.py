@@ -51,7 +51,7 @@ def build_expected_set(version: str) -> set[tuple[str, str, str]]:
             expected.add((version, py_tag, platform, "slim"))
         # Add win_arm64 for Python 3.11+
         if py_tag in WIN_ARM64_PYTHON_TAGS:
-            expected.add((version, py_tag, "win_arm64"))
+            expected.add((version, py_tag, "win_arm64", ""))
     return expected
 
 
