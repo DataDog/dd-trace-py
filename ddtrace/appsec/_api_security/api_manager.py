@@ -3,6 +3,8 @@ import collections
 import gzip
 import json
 import time
+from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Union
 
@@ -37,21 +39,21 @@ class TooLargeSchemaException(Exception):
     pass
 
 
-def path_param_transform(v):
+def path_param_transform(v: Any) -> Union[dict, list]:
     if isinstance(v, (list, tuple)):
         return list(v)
     return dict(v)
 
 
 class APIManager(Service):
-    BLOCK_COLLECTED = [
+    BLOCK_COLLECTED: list[tuple[str, str, Optional[Callable[[Any], Any]]]] = [
         ("REQUEST_HEADERS_NO_COOKIES", API_SECURITY.REQUEST_HEADERS_NO_COOKIES, dict),
         ("REQUEST_COOKIES", API_SECURITY.REQUEST_COOKIES, dict),
         ("REQUEST_QUERY", API_SECURITY.REQUEST_QUERY, dict),
         ("REQUEST_PATH_PARAMS", API_SECURITY.REQUEST_PATH_PARAMS, path_param_transform),
         ("REQUEST_BODY", API_SECURITY.REQUEST_BODY, None),
     ]
-    COLLECTED = BLOCK_COLLECTED + [
+    COLLECTED: list[tuple[str, str, Optional[Callable[[Any], Any]]]] = BLOCK_COLLECTED + [
         ("RESPONSE_HEADERS_NO_COOKIES", API_SECURITY.RESPONSE_HEADERS_NO_COOKIES, dict),
         ("RESPONSE_BODY", API_SECURITY.RESPONSE_BODY, lambda f: f() if callable(f) else f),
     ]
@@ -178,7 +180,7 @@ class APIManager(Service):
                 priority = max(priorities)
             should_collect = self._should_collect_schema(env, priority)
             if should_collect is None:
-                self._metrics._report_api_security(False, 0)
+                self._metrics._report_api_security(False, 0, env.framework)
                 return
             if not should_collect:
                 return
@@ -220,7 +222,7 @@ class APIManager(Service):
                 extra = {"product": "appsec", "exec_limit": 6, "more_info": f":schema_failure:{meta}"}
                 log.warning(API_SECURITY_LOGS, extra=extra, exc_info=True)
         env.api_security_reported = nb_schemas
-        self._metrics._report_api_security(True, nb_schemas)
+        self._metrics._report_api_security(True, nb_schemas, env.framework)
 
         # If we have a schema and APM tracing is disabled, force keep the trace
         if nb_schemas > 0 and not asm_config._apm_tracing_enabled:

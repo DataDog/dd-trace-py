@@ -96,7 +96,7 @@ class Event:
 
     It can be used with core.dispatch_event(Event()).
 
-    Every child class should be a @dataclass
+    Every child class should be annotated with @dataclass
     """
 
     event_name: ClassVar[str]

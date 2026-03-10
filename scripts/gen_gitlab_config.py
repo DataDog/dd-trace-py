@@ -440,6 +440,11 @@ def gen_pre_checks() -> None:
         paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
     )
     check(
+        name="Spelling",
+        command="hatch run lint:spelling",
+        paths={"*"},
+    )
+    check(
         name="Security",
         command="hatch run lint:security",
         paths={"docker*", "ddtrace/*", "hatch.toml"},
