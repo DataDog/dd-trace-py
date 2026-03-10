@@ -10,7 +10,9 @@ import ddtrace.appsec._ddwaf as ddwaf
 def build_schema(obj):
     with open(constants.DEFAULT.RULES, "br") as f_apisec:
         rules = f_apisec.read()
-    waf = ddwaf.DDWaf(rules, b"", b"", _metrics)
+    waf_module = ddwaf.waf_module()
+    assert waf_module is not None, "DDWAF module failed to load"
+    waf = waf_module(rules, b"", b"", _metrics)
     ctx = waf._at_request_start()
     if ctx is None:
         raise RuntimeError("Failed to create WAF context")

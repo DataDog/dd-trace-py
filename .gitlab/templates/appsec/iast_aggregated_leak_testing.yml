@@ -1,0 +1,20 @@
+"appsec/iast_aggregated_leak_testing":
+  stage: appsec
+  extends: .cached_testrunner
+  timeout: 50m
+  needs: []
+  variables:
+    DD_IAST_ENABLED: "true"
+    _DD_IAST_PATCH_MODULES: "benchmarks.,tests.appsec.,scripts.iast."
+    DD_FAST_BUILD: "0"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.10", "3.11", "3.12"]
+  before_script:
+    - !reference [.cached_testrunner, before_script]
+    - python${{PYTHON_VERSION}} -m pip install -e . -r tests/appsec/iast_aggregated_memcheck/requirements.txt
+  script:
+    - uname -a
+    - python${{PYTHON_VERSION}} -m pip freeze
+    # We use --no-cov due to a pytest-cov problem with eval https://github.com/pytest-dev/pytest-cov/issues/676
+    - python${{PYTHON_VERSION}} -m pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py

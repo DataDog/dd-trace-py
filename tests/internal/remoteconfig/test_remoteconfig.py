@@ -140,7 +140,8 @@ def test_remote_config_register_auto_enable(remote_config_worker):
     with override_global_config(dict(_remote_config_enabled=True)):
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
-        remoteconfig_poller.register("LIVE_DEBUGGER", mock_callback)
+        remoteconfig_poller.register_callback("LIVE_DEBUGGER", mock_callback)
+        remoteconfig_poller.enable_product("LIVE_DEBUGGER")
 
         assert remoteconfig_poller.status == ServiceStatus.RUNNING
         assert remoteconfig_poller._client._product_callbacks["LIVE_DEBUGGER"] is not None
@@ -158,7 +159,7 @@ def test_remote_config_register_validate_rc_disabled(remote_config_worker):
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
     with override_global_config(dict(_remote_config_enabled=False)):
-        remoteconfig_poller.register("LIVE_DEBUGGER", MockCallback())
+        remoteconfig_poller.register_callback("LIVE_DEBUGGER", MockCallback())
 
         assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -668,8 +669,8 @@ def test_callback_error_isolation():
         callback_calls["PRODUCT_B"].append(payloads)
 
     # Register both products
-    rc_client.register_product("PRODUCT_A", failing_callback)
-    rc_client.register_product("PRODUCT_B", working_callback)
+    rc_client.register_callback("PRODUCT_A", failing_callback)
+    rc_client.register_callback("PRODUCT_B", working_callback)
 
     # Create payloads for both products
     payloads = [

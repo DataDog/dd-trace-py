@@ -1,6 +1,7 @@
 #include "sampler.hpp"
 
 #include "constants.hpp"
+#include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -163,7 +164,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
     // Re-installing here ensures our handler is active when the sampling thread runs.
     // Only do this once to avoid overwriting g_old_segv with our own handler.
     static std::once_flag segv_handler_once;
-    if (use_alternative_copy_memory()) {
+    if (fast_copy_active) {
         std::call_once(segv_handler_once, init_segv_catcher);
     }
 
@@ -171,8 +172,22 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    // Track upload sequence to clear ephemeral string table entries periodically.
+    // We clear every 25 uploads (~25 minutes at default 60s intervals) to avoid
+    // churning entries for long-lived tasks while still bounding growth.
+    uint64_t last_cleared_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+    constexpr uint64_t ephemeral_clear_interval = 25;
+
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        // Clear ephemeral string table entries (task names, greenlet names) periodically.
+        // Safe because strings are copied into StringArena during sample construction.
+        auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+        if (current_upload_seq - last_cleared_upload_seq >= ephemeral_clear_interval) {
+            last_cleared_upload_seq = current_upload_seq;
+            echion->string_table().clear_ephemeral();
+        }
+
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
@@ -189,6 +204,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
+        Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
+        Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
+
+        // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
+        auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
+        if (copy_errors > 0) {
+            Sample::profile_borrow().stats().add_copy_memory_error_count(copy_errors);
+        }
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -297,7 +320,7 @@ Sampler::restart_after_fork()
 }
 
 static void
-_stack_postfork_cleanup()
+stack_postfork_cleanup()
 {
     // Update PID in Echion
     _set_pid(getpid());
@@ -310,10 +333,10 @@ _stack_postfork_cleanup()
 }
 
 void
-_stack_atfork_child()
+stack_atfork_child()
 {
     // Clean up Sampler state, do not start the Sampler yet.
-    _stack_postfork_cleanup();
+    stack_postfork_cleanup();
 
     // Restart the sampler if it was running before fork.
     Sampler::get().restart_after_fork();
@@ -323,7 +346,7 @@ __attribute__((constructor)) void
 stack_init()
 {
     // At just do start-of-process cleanup (e.g., set PID)
-    _stack_postfork_cleanup();
+    stack_postfork_cleanup();
 }
 
 void
@@ -331,8 +354,8 @@ Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
     // Run the cleanup to ensure that we're tracking the correct process.
-    _stack_postfork_cleanup();
-    pthread_atfork(nullptr, nullptr, _stack_atfork_child);
+    stack_postfork_cleanup();
+    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void
@@ -476,7 +499,19 @@ Sampler::untrack_greenlet(uintptr_t greenlet_id)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    echion->greenlet_info_map().erase(greenlet_id);
+    auto& greenlet_info_map = echion->greenlet_info_map();
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end()) {
+        // Remove the greenlet's name string from the string table
+        // to prevent unbounded growth of the String Table.
+
+        // NOTE: This locks the String Table. If nested locks are required, always
+        // ensure that the greenlet_info_map is locked first before locking the
+        // String Table to avoid deadlocks.
+        echion->string_table().erase(entry->second->name);
+        greenlet_info_map.erase(entry);
+    }
+
     echion->greenlet_parent_map().erase(greenlet_id);
     echion->greenlet_thread_map().erase(greenlet_id);
 }

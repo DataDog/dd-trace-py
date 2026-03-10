@@ -119,7 +119,8 @@ def test_remote_config_client_steps(mock_send_request, mock_write):
         rc_client = SyncRemoteConfigClient()
 
         # Register callback directly (new architecture)
-        rc_client.register_product("ASM_FEATURES", _mock_appsec_callback)
+        rc_client.register_callback("ASM_FEATURES", _mock_appsec_callback)
+        rc_client.enable_product("ASM_FEATURES")
         rc_client.add_capabilities(Capabilities)
         capabilities = rc_client._encode_capabilities(Capabilities.TEST)
 
@@ -842,7 +843,7 @@ def test_remote_config_client_callback_error(mock_send_request):
 
     rc_client = SyncRemoteConfigClient()
     mock_callback = mock.mock.MagicMock()
-    rc_client.register_product("ASM_FEATURES", callback_with_exception)
+    rc_client.register_callback("ASM_FEATURES", callback_with_exception)
 
     with override_global_config(dict(_remote_config_enabled=False)):
         # 0.

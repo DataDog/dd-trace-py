@@ -119,18 +119,19 @@ def test_data_streams_kafka_offset_monitoring_messages(dsm_processor, non_auto_c
     _message = _read_single_message(consumer)  # noqa: F841
 
     assert len(buckets) == 1
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] > 0
     first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
     assert first_offset
     assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
         == first_offset
     )
 
     _message = _read_single_message(consumer)  # noqa: F841
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == first_offset + 1
     assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
         == first_offset + 1
     )
 
@@ -156,20 +157,21 @@ def test_data_streams_kafka_offset_monitoring_offsets(dsm_processor, non_auto_co
 
     _message = _read_single_message(consumer)  # noqa: F841
 
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] > 0
     first_offset = consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset
     assert first_offset > 0
     assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
         == first_offset
     )
 
     _message = _read_single_message(consumer)  # noqa: F841
     assert consumer.committed([TopicPartition(kafka_topic, 0)])[0].offset == first_offset + 1
     assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
+        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)]
         == first_offset + 1
     )
 
@@ -183,8 +185,9 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
                 return message
 
     PAYLOAD = bytes("data streams", encoding="utf-8")
+    # Only produce one message to avoid race: with two messages, auto-commit can batch both
+    # before the test checks, causing offset 2 instead of expected 1.
     producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
-    producer.produce(kafka_topic, PAYLOAD, key="test_key_2")
     producer.flush()
 
     buckets = dsm_processor._buckets
@@ -192,7 +195,8 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     _message = _read_single_message(consumer)  # noqa: F841
 
     assert len(buckets) == 1
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] > 0
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] > 0
 
     def _wait_for_auto_commit_and_fetch_offset(timeout=5.0):
         start_time = time.time()
@@ -212,10 +216,12 @@ def test_data_streams_kafka_offset_monitoring_auto_commit(dsm_processor, consume
     # Auto commit is enabled so we want to wait for the commit event to fire
     first_offset = _wait_for_auto_commit_and_fetch_offset()
     assert first_offset is not None, "Auto-commit did not complete within 5 seconds"
-    assert (
-        list(buckets.values())[0].latest_commit_offsets[ConsumerPartitionKey("test_group", kafka_topic, 0)]
-        == first_offset
-    )
+    dsm_offset = list(buckets.values())[0].latest_commit_offsets[
+        ConsumerPartitionKey("test_group", kafka_topic, 0, cluster_id)
+    ]
+    # DSM tracks offsets at poll time while the broker commits asynchronously,
+    # so the DSM offset may be >= the broker's reported committed offset.
+    assert dsm_offset >= first_offset
 
 
 def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, producer, empty_kafka_topic):
@@ -234,7 +240,41 @@ def test_data_streams_kafka_produce_api_compatibility(dsm_processor, consumer, p
 
     buckets = dsm_processor._buckets
     assert len(buckets) == 1
-    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0)] == 5
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
+    assert list(buckets.values())[0].latest_produce_offsets[PartitionKey(kafka_topic, 0, cluster_id)] == 5
+
+
+def test_data_streams_kafka_offset_backlog_has_cluster_id(
+    dsm_processor, non_auto_commit_consumer, producer, kafka_topic
+):
+    """Verify that serialized backlog entries include kafka_cluster_id tag for both produce and commit offsets."""
+    PAYLOAD = bytes("cluster id backlog test", encoding="utf-8")
+    consumer = non_auto_commit_consumer
+
+    producer.produce(kafka_topic, PAYLOAD, key="test_key_1")
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll()
+        if message:
+            consumer.commit(asynchronous=False, message=message)
+
+    cluster_id = getattr(producer, "_dd_cluster_id", "") or ""
+    if not cluster_id:
+        pytest.skip("Test broker does not provide cluster_id")
+
+    serialized = dsm_processor._serialize_buckets()
+    assert len(serialized) >= 1
+    backlogs = serialized[0].get("Backlogs", [])
+    commit_backlogs = [b for b in backlogs if "type:kafka_commit" in b["Tags"]]
+    produce_backlogs = [b for b in backlogs if "type:kafka_produce" in b["Tags"]]
+    assert len(commit_backlogs) >= 1, "Expected at least one kafka_commit backlog entry"
+    assert len(produce_backlogs) >= 1, "Expected at least one kafka_produce backlog entry"
+    for cb in commit_backlogs:
+        assert "kafka_cluster_id:" + cluster_id in cb["Tags"]
+    for pb in produce_backlogs:
+        assert "kafka_cluster_id:" + cluster_id in pb["Tags"]
 
 
 def test_data_streams_default_context_propagation(consumer, producer, kafka_topic):

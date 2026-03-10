@@ -15,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "8c86fdebd50a46ca9eccb1c8323b6295040db04b"
+  SYSTEM_TESTS_REF: "f65241afd4c85b958e114bae5317645c9a6ade30"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v96371602-f288245-profiling_native"
@@ -56,6 +56,20 @@ include:
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
   - local: ".gitlab/fuzz.yml"
+
+"pipeline variables":
+  stage: .pre
+  tags: [ "arch:amd64" ]
+  script:
+    - |
+      echo "CURRENT_YEAR=$(date +%Y)" >> pipeline_variables.env
+      echo "CURRENT_MONTH=$(date +%-m)" >> pipeline_variables.env
+      echo "CURRENT_WEEK=$(date +%-V)" >> pipeline_variables.env
+      echo "CURRENT_BIWEEK=$(( $(date +%-V) / 2 ))" >> pipeline_variables.env
+      cat pipeline_variables.env
+  artifacts:
+    reports:
+      dotenv: pipeline_variables.env
 
 tests-gen:
   stage: tests
@@ -160,6 +174,18 @@ microbenchmarks:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
+
+apm-sdk-benchmarks:
+  stage: benchmarks
+  when: manual
+  allow_failure: true
+  needs:
+    - job: "upload all"
+  trigger:
+    project: DataDog/apm-reliability/apm-sdks-benchmarks
+    branch: main
+  variables:
+    TARGET_REF: $CI_PIPELINE_ID
 
 macrobenchmarks:
   stage: benchmarks
@@ -427,8 +453,12 @@ publish-lib-init-pinned-tags:
       artifacts: true
 
 configure_system_tests:
+  needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+
+system_tests:
+  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
 
 deploy_to_reliability_env:
   needs: []
@@ -450,6 +480,41 @@ deploy_to_di_backend:manual:
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
 
+# Trigger profiling correctness tests with just-built wheels.
+# Runs the prof-correctness test suite (Python scenarios) against the wheels
+# uploaded to S3 for this commit.
+prof-correctness:
+  stage: shared-pipeline
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: ["arch:amd64"]
+  needs:
+    - job: "upload all"
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - changes:
+        - .gitlab-ci.yml
+        - ddtrace/internal/datadog/profiling/**/*
+        - ddtrace/profiling/**/*
+        - src/native/**/*
+    - when: manual
+      allow_failure: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+      fi
+    - |
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
+      # Trigger pipeline, but do not wait for the job to complete
+      gh workflow run downstream-python.yml \
+        --repo DataDog/prof-correctness \
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
   needs: []
@@ -463,7 +528,7 @@ lib_injection_tests:
     - export PYENV_ROOT="${HOME}/.pyenv"
     - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
     - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
-    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
+    - for i in 1 2 3; do PYENV_GIT_TAG=v2.6.17 curl -sSf https://pyenv.run | bash && break; echo "pyenv install attempt $i failed, retrying..."; sleep 5; [ "$i" -eq 3 ] && { echo "Failed to install pyenv after 3 attempts"; exit 1; }; done
     - pyenv --version
     - pyenv install ${PYTHON} && pyenv global ${PYTHON}
     - python --version
@@ -495,7 +560,11 @@ lib_injection_tests:
     - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
 
-# Run on every PR (only if profiling files changed)
+# Run on PRs where files in the native Profiling build graph changed.
+# build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests
+# via CMake, so Rust, C/C++, Cython, and CMake files should all trigger it.
+# Extension-based patterns keep Python and docs out automatically; non-extension
+# build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
   extends: .profiling_native_base
   rules:
@@ -503,10 +572,31 @@ profiling_native:
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
         - .gitlab-ci.yml
-        - ddtrace/internal/datadog/profiling/**/*
-        - ddtrace/profiling/**/*
-        - src/native/**/*
-        - tests/profiling/**/*
+        # Native source files by extension (C, C++, Cython, CMake modules)
+        - ddtrace/internal/datadog/profiling/**/*.cpp
+        - ddtrace/internal/datadog/profiling/**/*.cc
+        - ddtrace/internal/datadog/profiling/**/*.h
+        - ddtrace/internal/datadog/profiling/**/*.hpp
+        - ddtrace/internal/datadog/profiling/**/*.pyx
+        - ddtrace/internal/datadog/profiling/**/*.cmake
+        - ddtrace/profiling/**/*.cpp
+        - ddtrace/profiling/**/*.cc
+        - ddtrace/profiling/**/*.h
+        - ddtrace/profiling/**/*.hpp
+        - ddtrace/profiling/**/*.pyx
+        # Build/test config files (not matchable by extension alone)
+        - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
+        - ddtrace/internal/datadog/profiling/**/*.sh
+        - ddtrace/internal/datadog/profiling/**/*.supp
+        - ddtrace/profiling/**/CMakeLists.txt
+        # Rust source (build_standalone.sh compiles Rust first; CMake links
+        # against generated FFI headers from src/native/target/.../include/)
+        - src/native/**/*.rs
+        - src/native/**/*.toml
+        - src/native/**/Cargo.lock
+        # Top-level build config
+        - setup.py
+        - pyproject.toml
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]

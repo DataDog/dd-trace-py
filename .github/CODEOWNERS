@@ -109,6 +109,7 @@ tests/internal/symbol_db/           @DataDog/debugger-python
 # ASM
 .cursor/rules/appsec.mdc            @DataDog/asm-python
 .cursor/rules/iast.mdc              @DataDog/asm-python
+.gitlab/templates/appsec            @DataDog/asm-python
 .gitlab/tests/appsec.yml            @DataDog/asm-python
 benchmarks/appsec*                  @DataDog/asm-python
 benchmarks/bm/iast_utils*           @DataDog/asm-python
@@ -162,10 +163,12 @@ ddtrace/contrib/internal/langgraph                            @DataDog/ml-observ
 ddtrace/contrib/internal/crewai                               @DataDog/ml-observability
 ddtrace/contrib/internal/openai_agents                        @DataDog/ml-observability
 ddtrace/contrib/internal/litellm                              @DataDog/ml-observability
+ddtrace/contrib/internal/mlflow                               @DataDog/ml-observability
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/internal/ray                                  @DataDog/ml-observability
 ddtrace/contrib/internal/mcp                                  @DataDog/ml-observability
 ddtrace/contrib/internal/vllm                                 @DataDog/ml-observability
+ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
@@ -184,10 +187,12 @@ tests/contrib/langgraph                                       @DataDog/ml-observ
 tests/contrib/crewai                                          @DataDog/ml-observability
 tests/contrib/openai_agents                                   @DataDog/ml-observability
 tests/contrib/litellm                                         @DataDog/ml-observability
+tests/contrib/mlflow                                          @DataDog/ml-observability
 tests/contrib/pydantic_ai                                     @DataDog/ml-observability
 tests/contrib/ray                                             @DataDog/ml-observability
 tests/contrib/mcp                                             @DataDog/ml-observability
 tests/contrib/vllm                                            @DataDog/ml-observability
+tests/contrib/claude_agent_sdk                                @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability

@@ -440,6 +440,11 @@ def gen_pre_checks() -> None:
         paths={"docker*", "*.py", "*.pyi", "hatch.toml", "mypy.ini"},
     )
     check(
+        name="Spelling",
+        command="hatch run lint:spelling",
+        paths={"*"},
+    )
+    check(
         name="Security",
         command="hatch run lint:security",
         paths={"docker*", "ddtrace/*", "hatch.toml"},
@@ -567,8 +572,44 @@ def gen_debugger_exploration() -> None:
         f.write(template("debugging/exploration"))
 
 
+def gen_appsec_iast_aggregated_leak_testing() -> None:
+    """Generate the cached testrunner job.
+
+    We need to generate this dynamically from a template because
+    we don't use riot to execute the tests
+    """
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            ".gitlab/templates/appsec/iast_aggregated_leak_testing.yml",
+            "tests/appsec/iast_aggregated_memcheck/*",
+            "ddtrace/appsec/_iast/**",
+        }
+    ):
+        return
+
+    with TESTS_GEN.open("a") as f:
+        f.write(template("appsec/iast_aggregated_leak_testing"))
+
+
 def gen_detect_global_locks() -> None:
     """Generate the global lock detection job."""
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            "ddtrace/*",
+            "setup.py",
+            "setup.cfg",
+            "pyproject.toml",
+            "src/native/*",
+            "scripts/global-lock-detection.py",
+            ".gitlab/templates/detect-global-locks.yml",
+        }
+    ):
+        return
+
     with TESTS_GEN.open("a") as f:
         f.write(template("detect-global-locks"))
 
