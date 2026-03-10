@@ -8,7 +8,8 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib._events.httpx import HttpxRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
@@ -95,7 +96,7 @@ async def _wrapped_async_send(
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(
-        HttpxRequestEvent(
+        HttpClientRequestEvent(
             http_operation="http.request",
             service=_get_service_name(req),
             component=config.httpx.integration_name,
@@ -105,7 +106,8 @@ async def _wrapped_async_send(
             url=httpx_url_to_str(req.url),
             query=req.url.query,
             target_host=req.url.host,
-        )
+        ),
+        context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
     ) as ctx:
         resp = None
         try:
@@ -113,7 +115,7 @@ async def _wrapped_async_send(
             return resp
         finally:
             if resp is not None:
-                event: HttpxRequestEvent = ctx.event
+                event: HttpClientRequestEvent = ctx.event
                 event.set_response(resp)
 
 
@@ -123,7 +125,7 @@ def _wrapped_sync_send(
     req: httpx.Request = get_argument_value(args, kwargs, 0, "request")  # type: ignore
 
     with core.context_with_event(
-        HttpxRequestEvent(
+        HttpClientRequestEvent(
             component=config.httpx.integration_name,
             http_operation="http.request",
             service=_get_service_name(req),
@@ -133,7 +135,8 @@ def _wrapped_sync_send(
             url=httpx_url_to_str(req.url),
             query=req.url.query,
             target_host=req.url.host,
-        )
+        ),
+        context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
     ) as ctx:
         resp = None
         try:
@@ -141,7 +144,7 @@ def _wrapped_sync_send(
             return resp
         finally:
             if resp is not None:
-                event: HttpxRequestEvent = ctx.event
+                event: HttpClientRequestEvent = ctx.event
                 event.set_response(resp)
 
 

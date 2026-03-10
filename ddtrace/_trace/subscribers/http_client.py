@@ -4,8 +4,8 @@ from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
-from ddtrace.contrib._events.httpx import HttpxRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
@@ -21,7 +21,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     Adding a feature here applies to every HTTP client integration.
     """
 
-    event_names = (HttpClientRequestEvent.event_name, HttpxRequestEvent.event_name)
+    event_names = (HttpClientRequestEvent.event_name, HttpClientEvents.HTTPX_REQUEST.value)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:

@@ -30,6 +30,7 @@ class _HttpClientResponse(Protocol):
 
 class HttpClientEvents(Enum):
     HTTP_REQUEST = "http.client.request"
+    HTTPX_REQUEST = "httpx.request"
 
 
 @dataclass

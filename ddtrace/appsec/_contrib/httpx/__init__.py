@@ -6,7 +6,8 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._common_module_patches import _get_rasp_capability
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.contrib._events.httpx import HttpxRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientEvents
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.httpx.utils import httpx_url_to_str
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -93,7 +94,7 @@ def _on_httpx_request_ended(ctx: ExecutionContext, exc_info) -> None:
     if not _get_rasp_capability("ssrf"):
         return
 
-    event: HttpxRequestEvent = ctx.event
+    event: HttpClientRequestEvent = ctx.event
     if event.response_status_code is None or (300 <= event.response_status_code < 400):
         return
 
@@ -119,5 +120,5 @@ def _on_httpx_request_ended(ctx: ExecutionContext, exc_info) -> None:
 def listen():
     core.on("context.started.httpx.client._send_single_request", _on_httpx_client_send_single_request_started)
     core.on("context.ended.httpx.client._send_single_request", _on_httpx_client_send_single_request_ended)
-    core.on("context.started.httpx.request", _on_httpx_request_started)
-    core.on("context.ended.httpx.request", _on_httpx_request_ended)
+    core.on(f"context.started.{HttpClientEvents.HTTPX_REQUEST.value}", _on_httpx_request_started)
+    core.on(f"context.ended.{HttpClientEvents.HTTPX_REQUEST.value}", _on_httpx_request_ended)
