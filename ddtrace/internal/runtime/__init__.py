@@ -1,3 +1,4 @@
+import os
 import typing as t
 import uuid
 
@@ -6,6 +7,7 @@ from .. import forksafe
 
 __all__ = [
     "get_runtime_id",
+    "get_parent_runtime_id",
 ]
 
 
@@ -14,7 +16,10 @@ def _generate_runtime_id() -> str:
 
 
 _RUNTIME_ID: str = _generate_runtime_id()
-_ANCESTOR_RUNTIME_ID: t.Optional[str] = None
+# Seeded from env vars when this process was spawned (multiprocessing spawn/forkserver).
+# For fork-based processes these are set by _set_runtime_id() via the forksafe hook.
+_ANCESTOR_RUNTIME_ID: t.Optional[str] = os.environ.get("_DD_ROOT_SESSION_ID") or None
+_PARENT_RUNTIME_ID: t.Optional[str] = os.environ.get("_DD_PARENT_SESSION_ID") or None
 # IMPORTANT: Do not change t.Set to set until minimum Python version is 3.11+
 # Module-level set[...] in Python 3.10 affects import timing. See packages.py for details.
 _ON_RUNTIME_ID_CHANGE: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
@@ -31,12 +36,13 @@ def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
 
 @forksafe.register
 def _set_runtime_id():
-    global _RUNTIME_ID, _ANCESTOR_RUNTIME_ID
+    global _RUNTIME_ID, _ANCESTOR_RUNTIME_ID, _PARENT_RUNTIME_ID
 
     # Save the runtime ID of the common ancestor of all processes.
     if _ANCESTOR_RUNTIME_ID is None:
         _ANCESTOR_RUNTIME_ID = _RUNTIME_ID
 
+    _PARENT_RUNTIME_ID = _RUNTIME_ID
     _RUNTIME_ID = _generate_runtime_id()
     for cb in _ON_RUNTIME_ID_CHANGE:
         cb(_RUNTIME_ID)
@@ -58,3 +64,12 @@ def get_ancestor_runtime_id() -> t.Optional[str]:
     ancestor process.
     """
     return _ANCESTOR_RUNTIME_ID
+
+
+def get_parent_runtime_id() -> t.Optional[str]:
+    """Return the runtime ID of the parent process.
+
+    Set after a fork or when seeded from the ``_DD_PARENT_SESSION_ID`` environment
+    variable (multiprocessing spawn/forkserver). Returns ``None`` in the root process.
+    """
+    return _PARENT_RUNTIME_ID
