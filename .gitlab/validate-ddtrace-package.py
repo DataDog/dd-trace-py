@@ -103,7 +103,7 @@ def parse_actual_wheels(wheels_dir: str) -> tuple[set[tuple[str, str, str, str]]
     for wheel_file in sorted(Path(wheels_dir).glob("*.whl")):
         try:
             name, version, build, tags = parse_wheel_filename(wheel_file.name)
-            flavor = name.replace("ddtrace", "").replace("_", "")
+            flavor = name.replace("ddtrace", "")
             # Extract python tag - all tags should have the same interpreter
             py_tag = next(iter(tags)).interpreter
 
@@ -199,7 +199,7 @@ def main() -> None:
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
-    print(f"  - {len(SLIM_PLATFORMS)} platforms with ddtrace_slim builds")
+    print(f"  - {len(SLIM_PLATFORMS)} platforms with ddtraceslim builds")
     print()
 
     # Phase 5: Set Comparison
