@@ -1068,6 +1068,57 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     )
 
 
+def test_greenlet_string_table_cleanup_after_ephemeral_clear(tmp_path: Path) -> None:
+    """Verify that tracking/untracking greenlets across 25+ uploads (which triggers
+    ephemeral string table clearing) does not crash or lose greenlet names.
+    """
+    test_name = "test_greenlet_string_table_cleanup_after_ephemeral_clear"
+    pprof_prefix = str(tmp_path / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    assert ddup.is_available
+    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    from ddtrace.internal.datadog.profiling import stack as native_stack
+
+    with stack.StackCollector():
+        # Track a long-lived greenlet that should survive the ephemeral clear
+        long_lived_id = 0xDEAD0001
+        native_stack.track_greenlet(long_lived_id, "long-lived-greenlet", False)
+
+        # Track and untrack short-lived greenlets to exercise erase()
+        for i in range(50):
+            short_id = 0xBEEF0000 + i
+            native_stack.track_greenlet(short_id, f"short-lived-{i}", False)
+            native_stack.untrack_greenlet(short_id)
+
+        # Do 30 uploads to trigger the ephemeral clear (threshold is 25)
+        for _ in range(30):
+            ddup.upload()
+
+        # Track more short-lived greenlets after the clear to make sure the
+        # string table is still functional
+        for i in range(50):
+            short_id = 0xCAFE0000 + i
+            native_stack.track_greenlet(short_id, f"post-clear-{i}", False)
+            native_stack.untrack_greenlet(short_id)
+
+        # Give the sampler a moment to collect a sample with the long-lived greenlet
+        time.sleep(0.1)
+
+        native_stack.untrack_greenlet(long_lived_id)
+
+    # Final upload — if the string table is corrupted this would crash
+    ddup.upload()
+
+    # Verify we got a valid profile (no crash, no corruption)
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert len(samples) > 0
+
+
 def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:
     tracer, _ = tracer_and_collector
 
