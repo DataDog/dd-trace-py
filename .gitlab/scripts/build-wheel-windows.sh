@@ -16,8 +16,9 @@ PYTHON_VERSION=${PYTHON_VERSION:?PYTHON_VERSION is required}
 WINDOWS_ARCH=${WINDOWS_ARCH:-amd64}
 
 case "$WINDOWS_ARCH" in
-    x86)   UV_PYTHON_PLATFORM="windows-x86";    VC_ARCH="x64_x86" ;;
-    amd64) UV_PYTHON_PLATFORM="windows-x86_64"; VC_ARCH="amd64"   ;;
+    x86)   UV_PYTHON_PLATFORM="windows-x86";    VC_ARCH="x64_x86"   ;;
+    amd64) UV_PYTHON_PLATFORM="windows-x86_64"; VC_ARCH="amd64"     ;;
+    arm64) UV_PYTHON_PLATFORM="windows-x86_64"; VC_ARCH="x64_arm64" ;;
     *)     echo "ERROR: Unsupported WINDOWS_ARCH=$WINDOWS_ARCH" >&2; exit 1 ;;
 esac
 export UV_PYTHON="cpython-${PYTHON_VERSION}-${UV_PYTHON_PLATFORM}"
@@ -94,6 +95,9 @@ setup_rust() {
   if [[ "$WINDOWS_ARCH" == x86 ]]; then
     rustup target add i686-pc-windows-msvc
   fi
+  if [[ "$WINDOWS_ARCH" == arm64 ]]; then
+    rustup target add aarch64-pc-windows-msvc
+  fi
   rustc --version
   section_end "install_rust"
 }
@@ -167,6 +171,55 @@ print(f'cp{ver}-{plat}')
   printf '@if errorlevel 1 exit /b 1\r\n' >> "${build_bat}"
   printf '@set DISTUTILS_USE_SDK=1\r\n' >> "${build_bat}"
   printf '@set MSSdk=1\r\n' >> "${build_bat}"
+  if [[ "$WINDOWS_ARCH" == arm64 ]]; then
+    printf '@set _PYTHON_HOST_PLATFORM=win-arm64\r\n' >> "${build_bat}"
+    printf '@set CARGO_BUILD_TARGET=aarch64-pc-windows-msvc\r\n' >> "${build_bat}"
+    # Tell pyo3-ffi's build script the target Python version so it can
+    # compile the correct FFI bindings when cross-compiling.
+    printf '@set PYO3_CROSS_PYTHON_VERSION=%s\r\n' "${PYTHON_VERSION}" >> "${build_bat}"
+    # ring requires clang by name in PATH to compile ARM64 GAS assembly.
+    # clang-cl.exe and clang.exe are the same LLVM binary; argv[0] picks mode.
+    # IMPORTANT: %PATH% contains "(x86)" — setting PATH inside a cmd.exe
+    # (...) block causes ") was unexpected" errors.  All PATH modifications
+    # must be on standalone lines, never inside blocks.
+    printf '@set "PATH=C:\\Program Files\\LLVM\\bin;%%PATH%%"\r\n' >> "${build_bat}"
+    printf '@set "_CF=0"\r\n' >> "${build_bat}"
+    printf '@where clang >nul 2>&1 && set "_CF=1"\r\n' >> "${build_bat}"
+    # If clang.exe absent from choco LLVM bin, copy clang-cl.exe → clang.exe
+    printf '@if "%%_CF%%"=="0" if exist "C:\\Program Files\\LLVM\\bin\\clang-cl.exe" copy /y "C:\\Program Files\\LLVM\\bin\\clang-cl.exe" "%%TEMP%%\\clang.exe" >nul 2>&1\r\n' >> "${build_bat}"
+    # Fallback: search VS LLVM tree (%%VCINSTALLDIR%% set by vcvarsall)
+    printf '@if "%%_CF%%"=="0" for /f "delims=" %%%%F in ('"'"'dir /s /b "%%VCINSTALLDIR%%Tools\\Llvm\\clang-cl.exe" 2^>nul'"'"') do copy /y "%%%%F" "%%TEMP%%\\clang.exe" >nul 2>&1\r\n' >> "${build_bat}"
+    # Add TEMP to PATH only if we created clang.exe there (standalone line = safe)
+    printf '@if "%%_CF%%"=="0" if exist "%%TEMP%%\\clang.exe" set "PATH=%%TEMP%%;%%PATH%%"\r\n' >> "${build_bat}"
+    printf '@where clang 2>nul && echo clang: OK || echo WARNING: clang not found - ring ARM64 build will fail\r\n' >> "${build_bat}"
+    # Ensure ARM64 MSVC lib dir is in LIB so link.exe finds legacy_stdio_definitions.lib
+    # and other CRT libs.  vcvarsall x64_arm64 should set this, but the ARM64 component
+    # may install under a different MSVC toolset version than VCToolsInstallDir points to.
+    # Strategy 1: use VCToolsInstallDir directly (fast path, works when versions match).
+    # Strategy 2: search all MSVC versions under VCINSTALLDIR for lib\arm64 (fallback).
+    printf '@if defined VCToolsInstallDir set "LIB=%%VCToolsInstallDir%%lib\\arm64;%%LIB%%"\r\n' >> "${build_bat}"
+    printf '@if defined VCINSTALLDIR for /d %%%%V in ("%%VCINSTALLDIR%%Tools\\MSVC\\*") do @if exist "%%%%V\\lib\\arm64" set "LIB=%%%%V\\lib\\arm64;%%LIB%%"\r\n' >> "${build_bat}"
+    printf '@echo LIB (first entry): %%LIB:~0,120%%\r\n' >> "${build_bat}"
+    # Strategy 3: Windows SDK ARM64 libs (ucrt\arm64, um\arm64).
+    # The Windows SDK is always present on VS Build Tools runners and provides
+    # ucrt.lib (UCRTBASE), kernel32.lib, etc. for ARM64.
+    printf '@for /d %%%%V in ("C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\*") do @if exist "%%%%V\\ucrt\\arm64" set "LIB=%%%%V\\ucrt\\arm64;%%%%V\\um\\arm64;%%LIB%%"\r\n' >> "${build_bat}"
+    # Generate ARM64 import libs for Python DLLs (python3XX.dll → python3XX.lib).
+    # The ARM64 MSVC CRT is now provided by the real VS toolset (either pre-installed
+    # or downloaded via download_arm64_msvc()), so no --crt-output-dir is needed here.
+    printf '"%s" "%s\\scripts\\generate_arm64_importlib.py"\r\n' \
+      "${python_exe_win}" "${project_dir_win}" >> "${build_bat}"
+    printf '@if errorlevel 1 exit /b 1\r\n' >> "${build_bat}"
+    # If the ARM64 cross-compiler (HostX64/arm64/cl.exe) is absent even after the
+    # CDN download (e.g. version mismatch or extraction issue), fall back to clang-cl.
+    # clang-cl supports --target=aarch64-pc-windows-msvc for cross-compilation and
+    # is already installed for the ring crate's ARM64 GAS assembly.
+    printf '@if defined VCToolsInstallDir if not exist "%%VCToolsInstallDir%%bin\\HostX64\\arm64\\cl.exe" echo ARM64 cl.exe not found - using clang-cl as cross-compiler\r\n' >> "${build_bat}"
+    printf '@if defined VCToolsInstallDir if not exist "%%VCToolsInstallDir%%bin\\HostX64\\arm64\\cl.exe" set "CC_aarch64_pc_windows_msvc=clang-cl"\r\n' >> "${build_bat}"
+    printf '@if defined VCToolsInstallDir if not exist "%%VCToolsInstallDir%%bin\\HostX64\\arm64\\cl.exe" set "CXX_aarch64_pc_windows_msvc=clang-cl"\r\n' >> "${build_bat}"
+    printf '@if defined VCToolsInstallDir if not exist "%%VCToolsInstallDir%%bin\\HostX64\\arm64\\cl.exe" set "CFLAGS_aarch64_pc_windows_msvc=--target=aarch64-pc-windows-msvc"\r\n' >> "${build_bat}"
+    printf '@if defined VCToolsInstallDir if not exist "%%VCToolsInstallDir%%bin\\HostX64\\arm64\\cl.exe" set "CXXFLAGS_aarch64_pc_windows_msvc=--target=aarch64-pc-windows-msvc"\r\n' >> "${build_bat}"
+  fi
   printf 'uv build --wheel --python "%s" --out-dir "%s" "%s"\r\n' \
     "${python_exe_win}" "${built_wheel_dir_win}" "${project_dir_win}" >> "${build_bat}"
 
@@ -181,6 +234,181 @@ print(f'cp{ver}-{plat}')
   fi
 
   section_end "build_wheel_function"
+}
+
+# ── ARM64 MSVC toolset download from VS CDN ───────────────────────────────────
+# Called when the VS installer modify fails to add ARM64 tools.
+# Downloads Microsoft.VisualCpp.Tools.HostX64.TargetARM64 and
+# Microsoft.VisualCpp.CRT.ARM64.Desktop directly from the VS 2022 CDN and
+# extracts them into the existing VS installation directory.
+# Exits 1 if any download or extraction step fails.
+download_arm64_msvc() {
+  local vs_path_unix="$1"
+  local vs_path_win
+  vs_path_win=$(cygpath -w "${vs_path_unix}" 2>/dev/null || echo "${vs_path_unix//\//\\}")
+  echo "=== Downloading ARM64 MSVC toolset from VS CDN ==="
+
+  local ps_script="${WORK_DIR}/download_arm64_msvc.ps1"
+  local ps_script_win
+  ps_script_win=$(cygpath -w "${ps_script}")
+
+  cat > "${ps_script}" << 'PSEOF'
+param([string]$VsPath)
+$ErrorActionPreference = "Stop"
+
+Write-Host "VS install path: $VsPath"
+
+# Step 1: Fetch VS 2022 channel manifest
+Write-Host "Fetching VS 2022 channel manifest..."
+$channel = Invoke-RestMethod -Uri "https://aka.ms/vs/17/release/channel" -UseBasicParsing
+
+# Step 2: Find full catalog URL
+$manifestItem = $channel.channelItems | Where-Object { $_.id -eq "Microsoft.VisualStudio.Manifests.VisualStudio" }
+if (-not $manifestItem) {
+    Write-Error "Could not find Microsoft.VisualStudio.Manifests.VisualStudio in channel items"
+    exit 1
+}
+$catalogUrl = $manifestItem.payloads[0].url
+Write-Host "Catalog URL: $catalogUrl"
+
+# Step 3: Download catalog (may be ~50-100 MB)
+Write-Host "Downloading VS catalog (this may take a few minutes)..."
+$catalogPath = Join-Path $env:TEMP "vs17_catalog.json"
+Invoke-WebRequest -Uri $catalogUrl -OutFile $catalogPath -UseBasicParsing
+Write-Host "Catalog downloaded: $([math]::Round((Get-Item $catalogPath).Length / 1MB, 1)) MB"
+$catalog = Get-Content $catalogPath -Raw | ConvertFrom-Json
+Write-Host "Catalog has $($catalog.packages.Count) packages"
+
+# Step 4: Find ARM64 packages by exact ID, with pattern fallback
+$targetIds = @(
+    "Microsoft.VisualCpp.Tools.HostX64.TargetARM64",
+    "Microsoft.VisualCpp.CRT.ARM64.Desktop"
+)
+$armPkgs = $catalog.packages | Where-Object {
+    $_.id -in $targetIds -and $_.payloads -and $_.payloads.Count -gt 0
+}
+if ($armPkgs.Count -eq 0) {
+    Write-Host "Exact IDs not found; falling back to pattern match..."
+    $armPkgs = $catalog.packages | Where-Object {
+        $_.id -match "VisualCpp.*ARM64" -and $_.payloads -and $_.payloads.Count -gt 0
+    }
+}
+Write-Host "Found $($armPkgs.Count) ARM64 package(s):"
+$armPkgs | ForEach-Object { Write-Host "  $($_.id)  (payloads: $($_.payloads.Count))" }
+if ($armPkgs.Count -eq 0) {
+    Write-Error "No ARM64 packages found in VS catalog"
+    exit 1
+}
+
+# Discover installed MSVC version
+$msvcRoot = Join-Path $VsPath "VC\Tools\MSVC"
+if (-not (Test-Path $msvcRoot)) {
+    Write-Error "MSVC root not found: $msvcRoot"
+    exit 1
+}
+$msvcVer = (Get-ChildItem $msvcRoot -Directory | Sort-Object Name -Descending | Select-Object -First 1).Name
+$msvcVerDir = Join-Path $msvcRoot $msvcVer
+Write-Host "Target MSVC version dir: $msvcVerDir"
+
+# Step 5: Download, extract, and install each package
+$tempBase = Join-Path $env:TEMP "arm64_msvc_dl"
+New-Item -ItemType Directory -Path $tempBase -Force | Out-Null
+
+foreach ($pkg in $armPkgs) {
+    Write-Host ""
+    Write-Host "=== Package: $($pkg.id) ==="
+
+    # Prefer ZIP/VSIX payload; fall back to first payload
+    $payload = $pkg.payloads | Where-Object { $_.fileName -match '\.(vsix|zip)$' } | Select-Object -First 1
+    if (-not $payload) { $payload = $pkg.payloads[0] }
+
+    $sizeMB = if ($payload.size) { [math]::Round($payload.size / 1MB, 1) } else { "?" }
+    Write-Host "  Payload: $($payload.fileName) ($sizeMB MB)"
+
+    $pkgSafeId = $pkg.id -replace '[^a-zA-Z0-9_.-]', '_'
+    $pkgDir = Join-Path $tempBase $pkgSafeId
+    New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
+
+    $downloadPath = Join-Path $pkgDir "payload.vsix"
+    Write-Host "  Downloading..."
+    Invoke-WebRequest -Uri $payload.url -OutFile $downloadPath -UseBasicParsing
+
+    $extractDir = Join-Path $pkgDir "extracted"
+    Write-Host "  Extracting..."
+    try {
+        Expand-Archive -Path $downloadPath -DestinationPath $extractDir -Force
+    } catch {
+        Write-Host "  Expand-Archive failed: $_ — trying ZipFile API..."
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::ExtractToDirectory($downloadPath, $extractDir)
+    }
+
+    # Log top-level structure for diagnostics
+    Write-Host "  Extracted top-level:"
+    Get-ChildItem $extractDir -Depth 1 | ForEach-Object { Write-Host "    $($_.Name)" }
+
+    # Copy ARM64 bin/ (cross-compiler tools)
+    $arm64BinSrc = Get-ChildItem $extractDir -Recurse -Directory |
+        Where-Object { $_.FullName -match "HostX64\\arm64$" } |
+        Select-Object -First 1
+    if ($arm64BinSrc) {
+        $arm64BinDst = Join-Path $msvcVerDir "bin\HostX64\arm64"
+        Write-Host "  Copying ARM64 bin: $($arm64BinSrc.FullName) -> $arm64BinDst"
+        New-Item -ItemType Directory -Path $arm64BinDst -Force | Out-Null
+        Copy-Item -Path "$($arm64BinSrc.FullName)\*" -Destination $arm64BinDst -Recurse -Force
+        Write-Host "  ARM64 bin copy done ($((Get-ChildItem $arm64BinDst).Count) items)"
+    }
+
+    # Copy ARM64 lib/ (CRT static libs)
+    $arm64LibSrc = Get-ChildItem $extractDir -Recurse -Directory |
+        Where-Object { $_.FullName -match "\\lib\\arm64$" } |
+        Select-Object -First 1
+    if ($arm64LibSrc) {
+        $arm64LibDst = Join-Path $msvcVerDir "lib\arm64"
+        Write-Host "  Copying ARM64 lib: $($arm64LibSrc.FullName) -> $arm64LibDst"
+        New-Item -ItemType Directory -Path $arm64LibDst -Force | Out-Null
+        Copy-Item -Path "$($arm64LibSrc.FullName)\*" -Destination $arm64LibDst -Recurse -Force
+        Write-Host "  ARM64 lib copy done ($((Get-ChildItem $arm64LibDst -Filter '*.lib').Count) .lib files)"
+    }
+
+    if (-not $arm64BinSrc -and -not $arm64LibSrc) {
+        Write-Host "  WARNING: No ARM64 bin/ or lib/ directories found in $extractDir"
+        Write-Host "  Full extracted tree (depth 4):"
+        Get-ChildItem $extractDir -Recurse -Depth 4 | ForEach-Object {
+            Write-Host "    $($_.FullName.Replace($extractDir, ''))"
+        }
+    }
+
+    # Free disk space
+    Remove-Item $downloadPath -Force -ErrorAction SilentlyContinue
+}
+
+# Verification
+Write-Host ""
+Write-Host "=== Verification ==="
+$arm64LibDir = Join-Path $msvcVerDir "lib\arm64"
+$arm64BinDir = Join-Path $msvcVerDir "bin\HostX64\arm64"
+if (Test-Path $arm64LibDir) {
+    $libCount = (Get-ChildItem $arm64LibDir -Filter "*.lib").Count
+    Write-Host "ARM64 lib: $arm64LibDir ($libCount .lib files)"
+    Get-ChildItem $arm64LibDir -Filter "*.lib" | Select-Object -First 10 |
+        ForEach-Object { Write-Host "  $($_.Name)" }
+} else {
+    Write-Host "ARM64 lib dir: NOT FOUND at $arm64LibDir"
+}
+if (Test-Path $arm64BinDir) {
+    Write-Host "ARM64 bin: $arm64BinDir (cl.exe: $(Test-Path (Join-Path $arm64BinDir 'cl.exe')))"
+} else {
+    Write-Host "ARM64 bin dir: NOT FOUND at $arm64BinDir (clang-cl fallback will be used)"
+}
+if (-not (Test-Path $arm64LibDir)) {
+    Write-Error "ARM64 CRT libs not installed — download/extraction failed"
+    exit 1
+}
+Write-Host "ARM64 MSVC toolset download complete."
+PSEOF
+
+  powershell.exe -ExecutionPolicy ByPass -File "${ps_script_win}" -VsPath "${vs_path_win}"
 }
 
 # ── MSVC setup ────────────────────────────────────────────────────────────────
@@ -287,6 +515,122 @@ setup_msvc() {
     fi
   done
 
+  if [[ -z "${found_arch}" && "${VC_ARCH}" == "x64_arm64" ]]; then
+    echo "ARM64 cross-tools not found — adding VC.Tools.ARM64 component..."
+    local vs_setup="C:/Program Files (x86)/Microsoft Visual Studio/Installer/setup.exe"
+    local arm64_bat arm64_bat_win vs_setup_win vs_path_win
+    arm64_bat="${WORK_DIR}/add_arm64_tools.bat"
+    arm64_bat_win=$(cygpath -w "${arm64_bat}")
+    vs_setup_win=$(cygpath -w "$vs_setup" 2>/dev/null || echo "$vs_setup")
+    vs_path_win=$(cygpath -w "$vs_path_unix" 2>/dev/null || echo "$vs_path")
+    # --noUpdateInstaller prevents the VS installer from trying to update itself
+    # before modifying the installation.  Without it, the self-update network
+    # request may fail on restricted runners and abort the whole operation.
+    printf '"%s" modify --installPath "%s" --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --includeRecommended --quiet --wait --norestart --noUpdateInstaller\r\n' \
+      "${vs_setup_win}" "${vs_path_win}" > "${arm64_bat}"
+    # VS installer exit codes are unreliable; check for the lib directory instead.
+    cmd.exe //c "${arm64_bat_win}" || true
+    # List MSVC lib directories for diagnostics
+    echo "=== MSVC lib directories after ARM64 component install ==="
+    local msvc_root="${vs_path_unix}/VC/Tools/MSVC"
+    for ver_dir in "${msvc_root}"/*/; do
+      echo "  ${ver_dir}lib/: $(ls "${ver_dir}lib/" 2>/dev/null | tr '\n' ' ' || echo '(empty/missing)')"
+    done
+    # Verify ARM64 lib directory was actually created
+    local arm64_lib_found=false
+    for ver_dir in "${msvc_root}"/*/; do
+      if [[ -d "${ver_dir}lib/arm64" ]]; then
+        arm64_lib_found=true
+        break
+      fi
+    done
+    if [[ "$arm64_lib_found" != "true" ]]; then
+      echo "VS component install did not produce lib\\arm64 — attempting VS CDN download..."
+      echo "  Installed MSVC versions: $(ls "${msvc_root}" 2>/dev/null | tr '\n' ' ')" >&2
+      download_arm64_msvc "${vs_path_unix}"
+      # Re-verify after CDN download
+      arm64_lib_found=false
+      for ver_dir in "${msvc_root}"/*/; do
+        if [[ -d "${ver_dir}lib/arm64" ]]; then
+          arm64_lib_found=true
+          break
+        fi
+      done
+      if [[ "$arm64_lib_found" != "true" ]]; then
+        echo "ERROR: ARM64 CRT libs still missing after VS CDN download attempt" >&2
+        echo "  ARM64 cross-compilation cannot proceed without MSVC ARM64 CRT libs." >&2
+        echo "  Fix: pre-install Microsoft.VisualStudio.Component.VC.Tools.ARM64 on the runner image." >&2
+        exit 1
+      fi
+      echo "ARM64 CRT libs successfully installed from VS CDN"
+    fi
+    # Re-probe after installing ARM64 tools
+    for try_arch in "${arches_to_try[@]}"; do
+      printf '@call "%s" %s > NUL 2>&1\r\n@if errorlevel 1 exit /b 1\r\n@where cl.exe > NUL 2>&1\r\n' \
+        "${vcvarsall_win}" "${try_arch}" > "${probe_bat}"
+      if cmd.exe //c "${probe_bat_win}" > /dev/null 2>&1; then
+        found_arch="${try_arch}"
+        echo "vcvarsall arch: ${found_arch} (ok after installing ARM64 tools)"
+        break
+      fi
+    done
+  fi
+
+  # ── ARM64 CRT lib verification (always runs when targeting ARM64) ─────────────
+  # vcvarsall x64_arm64 may succeed (finding x64 cl.exe) even when the ARM64
+  # component is not installed.  It adds lib\arm64 to LIB unconditionally, but
+  # the directory may be empty or absent.  The linker then fails with LNK1181
+  # (cannot open legacy_stdio_definitions.lib) because that is a static lib that
+  # only exists in a real ARM64 toolset install — it cannot be generated from a DLL.
+  # This check runs regardless of found_arch to catch that case.
+  if [[ "${VC_ARCH}" == "x64_arm64" ]]; then
+    local msvc_root_arm64="${vs_path_unix}/VC/Tools/MSVC"
+    local arm64_crt_ok=false
+    for ver_dir in "${msvc_root_arm64}"/*/; do
+      if ls "${ver_dir}lib/arm64/"*.lib >/dev/null 2>&1; then
+        arm64_crt_ok=true
+        break
+      fi
+    done
+    if [[ "$arm64_crt_ok" != "true" ]]; then
+      echo "ARM64 CRT libs not found in lib/arm64 — downloading from VS CDN..."
+      download_arm64_msvc "${vs_path_unix}"
+      arm64_crt_ok=false
+      for ver_dir in "${msvc_root_arm64}"/*/; do
+        if ls "${ver_dir}lib/arm64/"*.lib >/dev/null 2>&1; then
+          arm64_crt_ok=true
+          break
+        fi
+      done
+      if [[ "$arm64_crt_ok" != "true" ]]; then
+        echo "ERROR: ARM64 CRT libs still missing after VS CDN download attempt" >&2
+        exit 1
+      fi
+      echo "ARM64 CRT libs successfully installed from VS CDN"
+    else
+      echo "ARM64 CRT libs OK (lib/arm64 has .lib files)"
+    fi
+  fi
+
+  # ── Ensure LLVM/Clang for ARM64 cross-compilation ───────────────────────────
+  # ring (a Rust crypto crate) uses clang by name to compile ARM64 GAS assembly.
+  # CC_* env vars don't help — ring calls cc::Build::compiler("clang") directly.
+  # Ensure clang.exe is installed via choco; the bat file also adds its path.
+  if [[ "${VC_ARCH}" == "x64_arm64" ]]; then
+    local llvm_bin="/c/Program Files/LLVM/bin"
+    if [[ ! -f "${llvm_bin}/clang.exe" ]]; then
+      echo "clang not found — installing LLVM via PowerShell download..."
+      local llvm_version="19.1.7"
+      local llvm_installer_win="C:\\llvm-installer.exe"
+      powershell.exe -NoProfile -Command \
+        "Invoke-WebRequest -Uri 'https://github.com/llvm/llvm-project/releases/download/llvmorg-${llvm_version}/LLVM-${llvm_version}-win64.exe' -OutFile '${llvm_installer_win}'"
+      # /S = silent, /D= sets install dir (must be last arg, no quotes around path)
+      cmd.exe //c "${llvm_installer_win} /S /D=C:\\Program Files\\LLVM" || true
+      rm -f "$(cygpath -u "${llvm_installer_win}")" 2>/dev/null || true
+    fi
+    echo "clang present: $([[ -f "${llvm_bin}/clang.exe" ]] && echo yes || echo no)"
+  fi
+
   if [[ -z "${found_arch}" ]]; then
     echo "ERROR: no working vcvarsall arch found (tried: ${arches_to_try[*]})" >&2
     # Show vcvarsall output for diagnostics
@@ -371,7 +715,7 @@ debug_system_info() {
 
   echo ""
   echo "=== Key tools ==="
-  for tool in choco winget cmake ninja git curl powershell.exe uv rustc cargo cl.exe; do
+  for tool in choco winget cmake ninja git curl powershell.exe uv rustc cargo cl.exe clang; do
     local path
     path=$(command -v "$tool" 2>/dev/null || where.exe "$tool" 2>/dev/null | head -1 | tr -d '\r' || true)
     if [[ -n "$path" ]]; then
@@ -413,9 +757,24 @@ debug_system_info() {
       echo "  cl.exe (x64):  ${sample_cl:-NOT FOUND}"
       sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1)
       echo "  cl.exe (x86):  ${sample_cl:-NOT FOUND}"
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/arm64/cl.exe 2>/dev/null | head -1 || true)
+      echo "  cl.exe (arm64 cross): ${sample_cl:-NOT FOUND}"
+      local armasm64
+      armasm64=$(ls "${vc_tools_dir}"/*/bin/Hostx64/arm64/armasm64.exe 2>/dev/null | head -1 || true)
+      echo "  armasm64.exe: ${armasm64:-NOT FOUND}"
     else
       echo "  VC/Tools/MSVC: NOT FOUND at ${vc_tools_dir}"
       echo "  (VS shell may be installed but VCTools workload is missing)"
+    fi
+    local llvm_dir="${vs_path_unix}/VC/Tools/Llvm"
+    if [[ -d "$llvm_dir" ]]; then
+      echo "  VC/Tools/Llvm: $(ls "$llvm_dir" 2>/dev/null | tr '\n' ' ')"
+      local clang_path
+      for clang_path in "${llvm_dir}/x64/bin/clang.exe" "${llvm_dir}/bin/clang.exe"; do
+        [[ -f "$clang_path" ]] && echo "  clang.exe: ${clang_path}" && break
+      done
+    else
+      echo "  VC/Tools/Llvm: NOT FOUND"
     fi
 
     echo "  Installed packages (workloads/components via vswhere):"
@@ -506,7 +865,10 @@ setup_rust
 build_wheel
 repair_wheel
 finalize
-test_wheel
+# ARM64 binaries cannot execute on the x64 runner — skip smoke test
+if [[ "$WINDOWS_ARCH" != "arm64" ]]; then
+  test_wheel
+fi
 
 if command -v sccache &>/dev/null; then
   sccache --show-stats || true
