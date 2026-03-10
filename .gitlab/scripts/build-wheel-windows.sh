@@ -16,8 +16,9 @@ PYTHON_VERSION=${PYTHON_VERSION:?PYTHON_VERSION is required}
 WINDOWS_ARCH=${WINDOWS_ARCH:-amd64}
 
 case "$WINDOWS_ARCH" in
-    x86)   UV_PYTHON_PLATFORM="windows-x86";    VC_ARCH="x64_x86" ;;
-    amd64) UV_PYTHON_PLATFORM="windows-x86_64"; VC_ARCH="amd64"   ;;
+    x86)   UV_PYTHON_PLATFORM="windows-x86";    VC_ARCH="x64_x86"   ;;
+    amd64) UV_PYTHON_PLATFORM="windows-x86_64"; VC_ARCH="amd64"     ;;
+    arm64) UV_PYTHON_PLATFORM="windows-x86_64"; VC_ARCH="x64_arm64" ;;
     *)     echo "ERROR: Unsupported WINDOWS_ARCH=$WINDOWS_ARCH" >&2; exit 1 ;;
 esac
 export UV_PYTHON="cpython-${PYTHON_VERSION}-${UV_PYTHON_PLATFORM}"
@@ -94,6 +95,9 @@ setup_rust() {
   if [[ "$WINDOWS_ARCH" == x86 ]]; then
     rustup target add i686-pc-windows-msvc
   fi
+  if [[ "$WINDOWS_ARCH" == arm64 ]]; then
+    rustup target add aarch64-pc-windows-msvc
+  fi
   rustc --version
   section_end "install_rust"
 }
@@ -147,12 +151,15 @@ print(f'cp{ver}-{plat}')
   echo "Building wheel for Python ${PYTHON_VER} (log: ${BUILD_LOG})"
 
   local build_bat build_bat_win vcvarsall_win built_wheel_dir_win project_dir_win python_exe_win
+  local crt_stub_dir crt_stub_dir_win
   build_bat="${WORK_DIR}/build.bat"
   build_bat_win=$(cygpath -w "${build_bat}")
   vcvarsall_win=$(cygpath -w "${VCVARSALL_PATH}")
   built_wheel_dir_win=$(cygpath -w "${BUILT_WHEEL_DIR}")
   project_dir_win=$(cygpath -w "${PROJECT_DIR}")
   python_exe_win=$(cygpath -w "${PYTHON_EXE}")
+  crt_stub_dir="${WORK_DIR}/arm64_crt_stubs"
+  crt_stub_dir_win=$(cygpath -w "${crt_stub_dir}")
 
   # The batch file calls vcvarsall (activating MSVC env for this process only),
   # then runs uv build.  The MSVC env never leaks into the parent bash session.
@@ -167,6 +174,66 @@ print(f'cp{ver}-{plat}')
   printf '@if errorlevel 1 exit /b 1\r\n' >> "${build_bat}"
   printf '@set DISTUTILS_USE_SDK=1\r\n' >> "${build_bat}"
   printf '@set MSSdk=1\r\n' >> "${build_bat}"
+  if [[ "$WINDOWS_ARCH" == arm64 ]]; then
+    printf '@set _PYTHON_HOST_PLATFORM=win-arm64\r\n' >> "${build_bat}"
+    printf '@set CARGO_BUILD_TARGET=aarch64-pc-windows-msvc\r\n' >> "${build_bat}"
+    # Tell pyo3-ffi's build script the target Python version so it can
+    # compile the correct FFI bindings when cross-compiling.
+    printf '@set PYO3_CROSS_PYTHON_VERSION=%s\r\n' "${PYTHON_VERSION}" >> "${build_bat}"
+    # ring requires clang by name in PATH to compile ARM64 GAS assembly.
+    # clang-cl.exe and clang.exe are the same LLVM binary; argv[0] picks mode.
+    # IMPORTANT: %PATH% contains "(x86)" — setting PATH inside a cmd.exe
+    # (...) block causes ") was unexpected" errors.  All PATH modifications
+    # must be on standalone lines, never inside blocks.
+    printf '@set "PATH=C:\\Program Files\\LLVM\\bin;%%PATH%%"\r\n' >> "${build_bat}"
+    printf '@set "_CF=0"\r\n' >> "${build_bat}"
+    printf '@where clang >nul 2>&1 && set "_CF=1"\r\n' >> "${build_bat}"
+    # If clang.exe absent from choco LLVM bin, copy clang-cl.exe → clang.exe
+    printf '@if "%%_CF%%"=="0" if exist "C:\\Program Files\\LLVM\\bin\\clang-cl.exe" copy /y "C:\\Program Files\\LLVM\\bin\\clang-cl.exe" "%%TEMP%%\\clang.exe" >nul 2>&1\r\n' >> "${build_bat}"
+    # Fallback: search VS LLVM tree (%%VCINSTALLDIR%% set by vcvarsall)
+    printf '@if "%%_CF%%"=="0" for /f "delims=" %%%%F in ('"'"'dir /s /b "%%VCINSTALLDIR%%Tools\\Llvm\\clang-cl.exe" 2^>nul'"'"') do copy /y "%%%%F" "%%TEMP%%\\clang.exe" >nul 2>&1\r\n' >> "${build_bat}"
+    # Add TEMP to PATH only if we created clang.exe there (standalone line = safe)
+    printf '@if "%%_CF%%"=="0" if exist "%%TEMP%%\\clang.exe" set "PATH=%%TEMP%%;%%PATH%%"\r\n' >> "${build_bat}"
+    printf '@where clang 2>nul && echo clang: OK || echo WARNING: clang not found - ring ARM64 build will fail\r\n' >> "${build_bat}"
+    # Ensure ARM64 MSVC lib dir is in LIB so link.exe finds legacy_stdio_definitions.lib
+    # and other CRT libs.  vcvarsall x64_arm64 should set this, but the ARM64 component
+    # may install under a different MSVC toolset version than VCToolsInstallDir points to.
+    # Strategy 1: use VCToolsInstallDir directly (fast path, works when versions match).
+    # Strategy 2: search all MSVC versions under VCINSTALLDIR for lib\arm64 (fallback).
+    printf '@if defined VCToolsInstallDir set "LIB=%%VCToolsInstallDir%%lib\\arm64;%%LIB%%"\r\n' >> "${build_bat}"
+    printf '@if defined VCINSTALLDIR for /d %%%%V in ("%%VCINSTALLDIR%%Tools\\MSVC\\*") do @if exist "%%%%V\\lib\\arm64" set "LIB=%%%%V\\lib\\arm64;%%LIB%%"\r\n' >> "${build_bat}"
+    printf '@echo LIB (first entry): %%LIB:~0,120%%\r\n' >> "${build_bat}"
+    # Strategy 3: if the MSVC ARM64 CRT libs are still missing (lib\arm64 not installed),
+    # create minimal ARM64 import lib stubs using lib.exe /machine:ARM64.
+    # A pure Rust cdylib does not call MSVC CRT functions directly (it uses Windows Heap
+    # API and Rust's own compiler_builtins), so the linker only needs to OPEN these files
+    # without resolving any symbols from them.  An empty import lib satisfies that.
+    #
+    # We use a temp sentinel file as a flag to avoid Windows batch delayed-expansion issues.
+    # Def files are written from bash here; lib.exe runs inside the batch file after vcvarsall.
+    mkdir -p "${crt_stub_dir}"
+    # Each def declares a minimal import lib pointing to the real DLL name.
+    # The LIBRARY name must match what the linker records in the import table (DLL name).
+    printf 'LIBRARY MSVCRT\r\nEXPORTS\r\n'                     > "${crt_stub_dir}/msvcrt.def"
+    printf 'LIBRARY VCRUNTIME140\r\nEXPORTS\r\n'               > "${crt_stub_dir}/vcruntime.def"
+    printf 'LIBRARY _legacy_stdio_stub\r\nEXPORTS\r\n'         > "${crt_stub_dir}/legacy_stdio_definitions.def"
+    printf 'LIBRARY _legacy_stdio_wide_stub\r\nEXPORTS\r\n'    > "${crt_stub_dir}/legacy_stdio_wide_specifiers.def"
+    printf 'LIBRARY _oldnames_stub\r\nEXPORTS\r\n'             > "${crt_stub_dir}/oldnames.def"
+    # Batch: use a temp file as the found-flag (avoids setlocal ENABLEDELAYEDEXPANSION).
+    printf '@del /f /q "%%TEMP%%\\_arm64_crt_found.txt" 2>nul\r\n' >> "${build_bat}"
+    printf '@if defined VCToolsInstallDir if exist "%%VCToolsInstallDir%%lib\\arm64\\msvcrt.lib" echo 1>"%%TEMP%%\\_arm64_crt_found.txt"\r\n' >> "${build_bat}"
+    printf '@if defined VCINSTALLDIR for /d %%%%V in ("%%VCINSTALLDIR%%Tools\\MSVC\\*") do @if exist "%%%%V\\lib\\arm64\\msvcrt.lib" echo 1>"%%TEMP%%\\_arm64_crt_found.txt"\r\n' >> "${build_bat}"
+    printf '@if not exist "%%TEMP%%\\_arm64_crt_found.txt" echo ARM64 MSVC CRT not found — creating stub libs for linker compatibility\r\n' >> "${build_bat}"
+    for _crt in msvcrt vcruntime legacy_stdio_definitions legacy_stdio_wide_specifiers oldnames; do
+      printf '@if not exist "%%TEMP%%\\_arm64_crt_found.txt" lib /nologo /machine:ARM64 /def:"%s" /out:"%s"\r\n' \
+        "${crt_stub_dir_win}\\${_crt}.def" "${crt_stub_dir_win}\\${_crt}.lib" >> "${build_bat}"
+    done
+    printf '@if not exist "%%TEMP%%\\_arm64_crt_found.txt" set "LIB=%%LIB%%;%s"\r\n' "${crt_stub_dir_win}" >> "${build_bat}"
+    printf '@if not exist "%%TEMP%%\\_arm64_crt_found.txt" echo ARM64 CRT stub libs created and added to LIB\r\n' >> "${build_bat}"
+    printf '"%s" "%s\\scripts\\generate_arm64_importlib.py"\r\n' \
+      "${python_exe_win}" "${project_dir_win}" >> "${build_bat}"
+    printf '@if errorlevel 1 exit /b 1\r\n' >> "${build_bat}"
+  fi
   printf 'uv build --wheel --python "%s" --out-dir "%s" "%s"\r\n' \
     "${python_exe_win}" "${built_wheel_dir_win}" "${project_dir_win}" >> "${build_bat}"
 
@@ -287,6 +354,68 @@ setup_msvc() {
     fi
   done
 
+  if [[ -z "${found_arch}" && "${VC_ARCH}" == "x64_arm64" ]]; then
+    echo "ARM64 cross-tools not found — adding VC.Tools.ARM64 component..."
+    local vs_setup="C:/Program Files (x86)/Microsoft Visual Studio/Installer/setup.exe"
+    local arm64_bat arm64_bat_win vs_setup_win vs_path_win
+    arm64_bat="${WORK_DIR}/add_arm64_tools.bat"
+    arm64_bat_win=$(cygpath -w "${arm64_bat}")
+    vs_setup_win=$(cygpath -w "$vs_setup" 2>/dev/null || echo "$vs_setup")
+    vs_path_win=$(cygpath -w "$vs_path_unix" 2>/dev/null || echo "$vs_path")
+    printf '"%s" modify --installPath "%s" --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --includeRecommended --quiet --wait --norestart\r\n' \
+      "${vs_setup_win}" "${vs_path_win}" > "${arm64_bat}"
+    cmd.exe //c "${arm64_bat_win}" || true
+    # Diagnostic: list MSVC lib directories to verify ARM64 CRT libs exist
+    echo "=== MSVC lib directories after ARM64 component install ==="
+    local msvc_root="${vs_path_unix}/VC/Tools/MSVC"
+    for ver_dir in "${msvc_root}"/*/; do
+      echo "  ${ver_dir}lib/: $(ls "${ver_dir}lib/" 2>/dev/null | tr '\n' ' ' || echo '(empty/missing)')"
+    done
+    # Verify ARM64 lib directory was actually created
+    local arm64_lib_found=false
+    for ver_dir in "${msvc_root}"/*/; do
+      if [[ -d "${ver_dir}lib/arm64" ]]; then
+        arm64_lib_found=true
+        break
+      fi
+    done
+    if [[ "$arm64_lib_found" != "true" ]]; then
+      echo "ERROR: lib/arm64 still not found after VC.Tools.ARM64 install — ARM64 CRT missing"
+      echo "  Installed MSVC versions: $(ls "${msvc_root}" 2>/dev/null | tr '\n' ' ')"
+      echo "  This likely means the VS component install didn't include ARM64 runtime libraries."
+      echo "  Try pre-installing on the runner image with: --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --includeRecommended"
+    fi
+    # Re-probe after installing ARM64 tools
+    for try_arch in "${arches_to_try[@]}"; do
+      printf '@call "%s" %s > NUL 2>&1\r\n@if errorlevel 1 exit /b 1\r\n@where cl.exe > NUL 2>&1\r\n' \
+        "${vcvarsall_win}" "${try_arch}" > "${probe_bat}"
+      if cmd.exe //c "${probe_bat_win}" > /dev/null 2>&1; then
+        found_arch="${try_arch}"
+        echo "vcvarsall arch: ${found_arch} (ok after installing ARM64 tools)"
+        break
+      fi
+    done
+  fi
+
+  # ── Ensure LLVM/Clang for ARM64 cross-compilation ───────────────────────────
+  # ring (a Rust crypto crate) uses clang by name to compile ARM64 GAS assembly.
+  # CC_* env vars don't help — ring calls cc::Build::compiler("clang") directly.
+  # Ensure clang.exe is installed via choco; the bat file also adds its path.
+  if [[ "${VC_ARCH}" == "x64_arm64" ]]; then
+    local llvm_bin="/c/Program Files/LLVM/bin"
+    if [[ ! -f "${llvm_bin}/clang.exe" ]]; then
+      echo "clang not found — installing LLVM via PowerShell download..."
+      local llvm_version="19.1.7"
+      local llvm_installer_win="C:\\llvm-installer.exe"
+      powershell.exe -NoProfile -Command \
+        "Invoke-WebRequest -Uri 'https://github.com/llvm/llvm-project/releases/download/llvmorg-${llvm_version}/LLVM-${llvm_version}-win64.exe' -OutFile '${llvm_installer_win}'"
+      # /S = silent, /D= sets install dir (must be last arg, no quotes around path)
+      cmd.exe //c "${llvm_installer_win} /S /D=C:\\Program Files\\LLVM" || true
+      rm -f "$(cygpath -u "${llvm_installer_win}")" 2>/dev/null || true
+    fi
+    echo "clang present: $([[ -f "${llvm_bin}/clang.exe" ]] && echo yes || echo no)"
+  fi
+
   if [[ -z "${found_arch}" ]]; then
     echo "ERROR: no working vcvarsall arch found (tried: ${arches_to_try[*]})" >&2
     # Show vcvarsall output for diagnostics
@@ -371,7 +500,7 @@ debug_system_info() {
 
   echo ""
   echo "=== Key tools ==="
-  for tool in choco winget cmake ninja git curl powershell.exe uv rustc cargo cl.exe; do
+  for tool in choco winget cmake ninja git curl powershell.exe uv rustc cargo cl.exe clang; do
     local path
     path=$(command -v "$tool" 2>/dev/null || where.exe "$tool" 2>/dev/null | head -1 | tr -d '\r' || true)
     if [[ -n "$path" ]]; then
@@ -413,9 +542,24 @@ debug_system_info() {
       echo "  cl.exe (x64):  ${sample_cl:-NOT FOUND}"
       sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/x86/cl.exe 2>/dev/null | head -1)
       echo "  cl.exe (x86):  ${sample_cl:-NOT FOUND}"
+      sample_cl=$(ls "${vc_tools_dir}"/*/bin/Hostx64/arm64/cl.exe 2>/dev/null | head -1 || true)
+      echo "  cl.exe (arm64 cross): ${sample_cl:-NOT FOUND}"
+      local armasm64
+      armasm64=$(ls "${vc_tools_dir}"/*/bin/Hostx64/arm64/armasm64.exe 2>/dev/null | head -1 || true)
+      echo "  armasm64.exe: ${armasm64:-NOT FOUND}"
     else
       echo "  VC/Tools/MSVC: NOT FOUND at ${vc_tools_dir}"
       echo "  (VS shell may be installed but VCTools workload is missing)"
+    fi
+    local llvm_dir="${vs_path_unix}/VC/Tools/Llvm"
+    if [[ -d "$llvm_dir" ]]; then
+      echo "  VC/Tools/Llvm: $(ls "$llvm_dir" 2>/dev/null | tr '\n' ' ')"
+      local clang_path
+      for clang_path in "${llvm_dir}/x64/bin/clang.exe" "${llvm_dir}/bin/clang.exe"; do
+        [[ -f "$clang_path" ]] && echo "  clang.exe: ${clang_path}" && break
+      done
+    else
+      echo "  VC/Tools/Llvm: NOT FOUND"
     fi
 
     echo "  Installed packages (workloads/components via vswhere):"
@@ -506,7 +650,10 @@ setup_rust
 build_wheel
 repair_wheel
 finalize
-test_wheel
+# ARM64 binaries cannot execute on the x64 runner — skip smoke test
+if [[ "$WINDOWS_ARCH" != "arm64" ]]; then
+  test_wheel
+fi
 
 if command -v sccache &>/dev/null; then
   sccache --show-stats || true

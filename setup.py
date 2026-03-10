@@ -113,6 +113,22 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
+# Cross-compilation support: when _PYTHON_HOST_PLATFORM is set (e.g. "win-arm64"),
+# override CURRENT_ARCH and EXT_SUFFIX to match the target platform.
+CURRENT_ARCH = platform.machine()
+_host_platform = os.environ.get("_PYTHON_HOST_PLATFORM", "")
+if _host_platform and CURRENT_OS == "Windows":
+    _platform_arch_map = {"win-arm64": "ARM64", "win-amd64": "AMD64", "win32": "x86"}
+    _cross_arch = _platform_arch_map.get(_host_platform)
+    if _cross_arch and _cross_arch.lower() != platform.machine().lower():
+        CURRENT_ARCH = _cross_arch
+        # Fix EXT_SUFFIX: replace host platform tag with target platform tag
+        _orig_suffix = sysconfig.get_config_var("EXT_SUFFIX") or ""
+        _orig_plat = sysconfig.get_platform().replace("-", "_")  # e.g. "win_amd64"
+        _cross_plat = _host_platform.replace("-", "_")            # e.g. "win_arm64"
+        if _orig_plat in _orig_suffix:
+            sysconfig._CONFIG_VARS["EXT_SUFFIX"] = _orig_suffix.replace(_orig_plat, _cross_plat)
+
 LIBDDWAF_VERSION = "1.30.1"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
@@ -470,7 +486,9 @@ class LibraryDownload:
                 elif arch in ["x64", "arm64"] and not is_64_bit_python():
                     continue  # Skip 64-bit builds on 32-bit Python
                 elif arch == "arm64" and platform.machine().lower() not in ["arm64", "aarch64"]:
-                    continue  # Skip ARM64 builds on non-ARM64 machines
+                    # Allow cross-compilation when _PYTHON_HOST_PLATFORM targets arm64
+                    if not os.environ.get("_PYTHON_HOST_PLATFORM", "").endswith("arm64"):
+                        continue  # Skip ARM64 builds on non-ARM64 machines
                 elif arch == "x64" and platform.machine().lower() not in ["amd64", "x86_64"]:
                     continue  # Skip x64 builds on non-x64 machines
 
@@ -645,11 +663,18 @@ class CustomBuildExt(build_ext):
 
         library = self.output_dir / native_name
 
-        # Determine the Rust source binary path - need to handle different architectures
-        rust_source = NATIVE_CRATE / "target" / "release" / f"lib_native{self.suffix}"
+        # Determine the Rust source binary path - need to handle different architectures.
+        # When CARGO_BUILD_TARGET is set (cross-compilation), cargo places output in a
+        # subdirectory named after the target triple, e.g. target/aarch64-pc-windows-msvc/release/.
+        _cargo_target = os.environ.get("CARGO_BUILD_TARGET", "")
+        if _cargo_target:
+            _release_dir = CARGO_TARGET_DIR / _cargo_target / "release"
+        else:
+            _release_dir = CARGO_TARGET_DIR / "release"
+        rust_source = _release_dir / f"lib_native{self.suffix}"
         if not rust_source.exists():
             # Fallback to generic .so extension for cross-platform compatibility
-            rust_source = NATIVE_CRATE / "target" / "release" / "lib_native.so"
+            rust_source = _release_dir / "lib_native.so"
 
         # Check if we need to run the Rust build by checking if sources are newer than the destination
         should_build = True
@@ -931,7 +956,8 @@ class CustomBuildExt(build_ext):
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
-            arch = platform.machine().lower()
+            # Use CURRENT_ARCH (respects cross-compilation via _PYTHON_HOST_PLATFORM)
+            arch = CURRENT_ARCH.lower()
             if arch in ("amd64", "x86_64"):
                 cmake_arch = "x64"
             elif arch in ("x86", "i386", "i686"):
