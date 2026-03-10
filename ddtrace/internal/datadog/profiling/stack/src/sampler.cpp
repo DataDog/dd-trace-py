@@ -502,8 +502,12 @@ Sampler::untrack_greenlet(uintptr_t greenlet_id)
     auto& greenlet_info_map = echion->greenlet_info_map();
     auto entry = greenlet_info_map.find(greenlet_id);
     if (entry != greenlet_info_map.end()) {
-        // Remove the greenlet's name string from the string table to prevent
-        // unbounded growth of String Table.
+        // Remove the greenlet's name string from the string table
+        // to prevent unbounded growth of the String Table.
+        
+        // NOTE: This locks the String Table. If nested locks are required, always
+        // ensure that the greenlet_info_map is locked first before locking the
+        // String Table to avoid deadlocks.
         echion->string_table().erase(entry->second->name);
         greenlet_info_map.erase(entry);
     }
