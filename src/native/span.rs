@@ -1,35 +1,57 @@
 use pyo3::{
     types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
-    Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
+    Bound, IntoPyObject, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
 
 use crate::py_string::{PyBackedString, PyTraceData};
+use crate::span_event::{SpanEvent, SpanEventAttributes};
 use libdd_trace_utils::span::SpanText;
 
-#[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
-pub struct SpanEventData {}
+/// Extract PyBackedString from Python object, falling back to empty string on error.
+///
+/// Used for required properties (like `name`) which must always have a value.
+/// Invalid types (int, float, list, etc.) are silently converted to "" rather than raising an error.
+#[inline(always)]
+pub(crate) fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
+    obj.extract::<PyBackedString>().unwrap_or_default()
+}
 
-#[pyo3::pymethods]
-impl SpanEventData {
-    #[new]
-    #[pyo3(signature =(
-        *_py_args,
-        **_py_kwargs,
-    ))]
-    pub fn __new__(_py_args: &Bound<'_, PyTuple>, _py_kwargs: Option<&Bound<'_, PyDict>>) -> Self {
-        Self::default()
-    }
+/// Extract PyBackedString from Python object, falling back to None on error.
+///
+/// Used for optional properties (like `service`) which can be None.
+/// Invalid types (int, float, list, etc.) are silently converted to None rather than raising an error.
+#[inline(always)]
+fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
+    let py = obj.py();
+    obj.extract::<PyBackedString>()
+        .unwrap_or_else(|_| PyBackedString::py_none(py))
+}
 
-    pub fn __init__(
-        &mut self,
-        _name: &Bound<'_, PyAny>,
-        _attributes: Option<&Bound<'_, PyAny>>,
-        _time_unix_nano: Option<u64>,
-    ) -> PyResult<()> {
-        Ok(())
-    }
+/// Extract i64 from Python object, falling back to 0 on error.
+/// Accepts int or float (truncated).
+#[inline(always)]
+fn extract_i64_or_default(obj: &Bound<'_, PyAny>) -> i64 {
+    obj.extract::<i64>()
+        .or_else(|_| obj.extract::<f64>().map(|f| f as i64))
+        .unwrap_or(0)
+}
+
+/// Extract i32 from Python object, falling back to 0 on error.
+/// Note: Python bool subclasses int, so bools extract as 0/1 automatically.
+#[inline(always)]
+fn extract_i32_or_default(obj: &Bound<'_, PyAny>) -> i32 {
+    obj.extract::<i32>().unwrap_or(0)
+}
+
+/// Get wall clock time in nanoseconds since Unix epoch.
+/// Uses SystemTime for wall clock (matches Python's time.time_ns()).
+#[inline(always)]
+pub(crate) fn wall_clock_ns() -> i64 {
+    SystemTime::UNIX_EPOCH
+        .elapsed()
+        .map(|d| d.as_nanos() as i64)
+        .unwrap_or(0)
 }
 
 #[pyo3::pyclass(name = "SpanLinkData", module = "ddtrace.internal._native", subclass)]
@@ -91,52 +113,6 @@ impl SpanData {
         self.data.trace_id = id;
         self._trace_id_py = None;
     }
-}
-
-/// Extract PyBackedString from Python object, falling back to empty string on error.
-///
-/// Used for required properties (like `name`) which must always have a value.
-/// Invalid types (int, float, list, etc.) are silently converted to "" rather than raising an error.
-#[inline(always)]
-fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
-    obj.extract::<PyBackedString>().unwrap_or_default()
-}
-
-/// Extract PyBackedString from Python object, falling back to None on error.
-///
-/// Used for optional properties (like `service`) which can be None.
-/// Invalid types (int, float, list, etc.) are silently converted to None rather than raising an error.
-#[inline(always)]
-fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
-    let py = obj.py();
-    obj.extract::<PyBackedString>()
-        .unwrap_or_else(|_| PyBackedString::py_none(py))
-}
-
-/// Extract i64 from Python object, falling back to 0 on error.
-/// Accepts int or float (truncated).
-#[inline(always)]
-fn extract_i64_or_default(obj: &Bound<'_, PyAny>) -> i64 {
-    obj.extract::<i64>()
-        .or_else(|_| obj.extract::<f64>().map(|f| f as i64))
-        .unwrap_or(0)
-}
-
-/// Extract i32 from Python object, falling back to 0 on error.
-/// Note: Python bool subclasses int, so bools extract as 0/1 automatically.
-#[inline(always)]
-fn extract_i32_or_default(obj: &Bound<'_, PyAny>) -> i32 {
-    obj.extract::<i32>().unwrap_or(0)
-}
-
-/// Get wall clock time in nanoseconds since Unix epoch.
-/// Uses SystemTime for wall clock (matches Python's time.time_ns()).
-#[inline(always)]
-fn wall_clock_ns() -> i64 {
-    SystemTime::UNIX_EPOCH
-        .elapsed()
-        .map(|d| d.as_nanos() as i64)
-        .unwrap_or(0)
 }
 
 #[pyo3::pymethods]
@@ -507,7 +483,10 @@ impl SpanData {
 
 pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpanLinkData>()?;
-    m.add_class::<SpanEventData>()?;
+    m.add_class::<SpanEvent>()?;
+    m.add_class::<SpanEventAttributes>()?;
     m.add_class::<SpanData>()?;
+    // Register SpanEventAttributes as a collections.abc.Mapping
+    pyo3::types::PyMapping::register::<SpanEventAttributes>(m.py())?;
     Ok(())
 }
