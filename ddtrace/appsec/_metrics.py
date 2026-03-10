@@ -4,6 +4,7 @@ from ddtrace.appsec import _constants
 from ddtrace.appsec._deduplications import deduplication
 from ddtrace.appsec._utils import DDWaf_info
 from ddtrace.appsec._utils import Telemetry_result
+from ddtrace.appsec._utils import _observator
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -55,7 +56,7 @@ def _set_waf_error_log(msg: str, version: str, action: str, error_level: bool = 
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _set_waf_updates_metric(info: DDWaf_info, success: bool):
+def _set_waf_updates_metric(info: DDWaf_info, success: bool) -> None:
     try:
         tags: tuple[tuple[str, str], ...] = (
             ("event_rules_version", info.version or UNKNOWN_VERSION),
@@ -70,7 +71,7 @@ def _set_waf_updates_metric(info: DDWaf_info, success: bool):
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _set_waf_init_metric(info: DDWaf_info, success: bool):
+def _set_waf_init_metric(info: DDWaf_info, success: bool) -> None:
     try:
         tags: tuple[tuple[str, str], ...] = (
             ("event_rules_version", info.version or UNKNOWN_VERSION),
@@ -104,7 +105,7 @@ TAGS_CONTAINER_SIZE = (("truncation_reason", "2"),)
 TAGS_CONTAINER_DEPTH = (("truncation_reason", "4"),)
 
 
-def _report_waf_truncations(observator):
+def _report_waf_truncations(observator: _observator) -> None:
     try:
         bitfield = 0
         if observator.string_length is not None:
@@ -134,7 +135,7 @@ def _report_waf_truncations(observator):
         logger.warning(WARNING_TAGS.TELEMETRY_METRICS, extra=extra, exc_info=True)
 
 
-def _report_waf_run_error(error: int, rule_version: str, rule_type: typing.Optional[str]):
+def _report_waf_run_error(error: int, rule_version: str, rule_type: typing.Optional[str]) -> None:
     """used for waf run errors"""
     try:
         if rule_type is None:

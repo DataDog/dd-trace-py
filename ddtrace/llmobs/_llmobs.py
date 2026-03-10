@@ -15,6 +15,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Union
 from typing import cast
+import urllib.parse
 
 import ddtrace
 from ddtrace import config
@@ -95,6 +96,7 @@ from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
+from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -886,6 +888,27 @@ class LLMObs(Service):
             self._llmobs_context_provider.activate(llmobs_ctx)
 
     @classmethod
+    def publish_evaluator(
+        cls,
+        evaluator: BaseEvaluator,
+        ml_app: str,
+        eval_name: Optional[str] = None,
+        variable_mapping: Optional[dict[str, str]] = None,
+    ) -> dict[str, str]:
+        if not cls._instance or not cls._instance.enabled:
+            raise ValueError("LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)`")
+
+        evaluation_payload = evaluator._build_publish_payload(
+            ml_app=ml_app, eval_name=eval_name, variable_mapping=variable_mapping
+        )
+
+        cls._instance._dne_client.publish_custom_evaluator(evaluation_payload)
+
+        base_url = _get_base_url()
+        query = urllib.parse.urlencode({"evalName": evaluation_payload["eval_name"], "applicationName": ml_app.strip()})
+        return {"ui_url": f"{base_url}/llm/evaluations/custom?{query}"}
+
+    @classmethod
     def pull_dataset(
         cls,
         dataset_name: str,
@@ -920,7 +943,7 @@ class LLMObs(Service):
         :param description: The description of the dataset.
         :param records: Optional records to initialize the dataset with.
         :param deduplicate:
-            Wether to deduplicate the records or not. If bulk_upload is True, deduplication occurs
+            Whether to deduplicate the records or not. If bulk_upload is True, deduplication occurs
             within the uploaded data, not existing data already stored on the sever.
         :param bulk_upload:
             - True:
@@ -948,7 +971,7 @@ class LLMObs(Service):
                     num_batches,
                     batch_size,
                 )
-                create_new_version = True  # wether the server should attempt to bump the data version or not
+                create_new_version = True  # whether the server should attempt to bump the data version or not
                 for record_batch in _batched(records, batch_size):
                     for record in record_batch:
                         ds.append(record)

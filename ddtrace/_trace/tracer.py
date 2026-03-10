@@ -579,6 +579,7 @@ class Tracer(object):
         if span._parent is not None and active is not span._parent:
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
+        # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
 
         # Only call span processors if the tracer is enabled (even if APM opted out)

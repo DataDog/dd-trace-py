@@ -1,3 +1,9 @@
+from collections.abc import Mapping
+from typing import Any
+from typing import Optional
+from typing import Union
+
+from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.internal import core
@@ -13,20 +19,20 @@ logger = get_logger(__name__)
 
 
 def _on_set_http_meta(
-    span,
-    request_ip,
-    raw_uri,
-    route,
-    method,
-    request_headers,
-    request_cookies,
-    parsed_query,
-    request_path_params,
-    request_body,
-    status_code,
-    response_headers,
-    response_cookies,
-):
+    span: Span,
+    request_ip: Optional[str],
+    raw_uri: Optional[str],
+    route: Optional[str],
+    method: Optional[str],
+    request_headers: Optional[Mapping[str, Optional[str]]],
+    request_cookies: Optional[dict[str, str]],
+    parsed_query: Optional[Mapping[str, Any]],
+    request_path_params: Optional[Mapping[str, Any]],
+    request_body: Any,
+    status_code: Optional[Union[int, str]],
+    response_headers: Optional[Mapping[str, Optional[str]]],
+    response_cookies: Optional[Mapping[str, str]],
+) -> None:
     if asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types:
         # avoid circular import
         from ddtrace.appsec._asm_request_context import set_waf_address
@@ -51,22 +57,18 @@ def _on_set_http_meta(
                 set_waf_address(k, v)
 
 
-def _on_telemetry_periodic():
+def _on_telemetry_periodic() -> None:
     try:
-        telemetry.telemetry_writer.add_configurations(
-            [
-                (
-                    APPSEC.ENV,
-                    int(asm_config._asm_enabled),
-                    asm_config.asm_enabled_origin,
-                )
-            ]
+        telemetry.telemetry_writer.add_configuration(
+            APPSEC.ENV,
+            int(asm_config._asm_enabled),
+            asm_config.asm_enabled_origin,
         )
     except Exception:
         logger.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
 
 
-def listen():
+def listen() -> None:
     core.on("telemetry.periodic", _on_telemetry_periodic)
 
     core.on("set_http_meta_for_asm", _on_set_http_meta)
