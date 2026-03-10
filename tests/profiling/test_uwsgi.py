@@ -269,6 +269,16 @@ def test_uwsgi_threads_processes_primary(
     os.killpg(proc.pid, signal.SIGTERM)
 
     assert proc.wait() == 0
+
+    # Debug: print remaining stdout and list files in tmp_path
+    remaining_stdout = proc.stdout.read() if proc.stdout else b""
+    print(f"\n=== REMAINING STDOUT ===\n{remaining_stdout.decode(errors='replace')}\n=== END STDOUT ===")
+    print(f"\n=== FILES IN {tmp_path} ===")
+    for f in tmp_path.iterdir():
+        print(f"  {f.name} ({f.stat().st_size} bytes)")
+    print(f"=== ALL PPROF FILES: {glob.glob(str(tmp_path / '*.pprof*'))} ===")
+    print(f"=== WORKER PIDS: {worker_pids} ===")
+
     for pid in worker_pids:
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
