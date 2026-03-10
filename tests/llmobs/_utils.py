@@ -90,6 +90,14 @@ def llmobs_input_messages(span):
     return llmobs_input(span).get(LLMOBS_STRUCT.MESSAGES)
 
 
+def llmobs_input_documents(span):
+    return llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
+
+
+def llmobs_input_prompt(span):
+    return llmobs_input(span).get(LLMOBS_STRUCT.PROMPT)
+
+
 def llmobs_output(span):
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {})
 
@@ -100,6 +108,10 @@ def llmobs_output_value(span):
 
 def llmobs_output_messages(span):
     return llmobs_output(span).get(LLMOBS_STRUCT.MESSAGES)
+
+
+def llmobs_output_documents(span):
+    return llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
 
 
 def llmobs_session_id(span):
@@ -126,6 +138,10 @@ def llmobs_metrics(span):
     return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
 
 
+def llmobs_span_links(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS)
+
+
 def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     if tags is None:
         tags = {}
@@ -145,9 +161,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
-    llmobs_data = _get_llmobs_data_metastruct(span)
-    llmobs_tags = llmobs_data.get(LLMOBS_STRUCT.TAGS)
-    integration = llmobs_tags.get("integration")
+    integration = (llmobs_tags(span) or {}).get("integration")
     if integration:
         expected_tags.append("integration:{}".format(integration))
     if tags:

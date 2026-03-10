@@ -7,10 +7,9 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
-from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from tests.llmobs._utils import llmobs_input_prompt
 from tests.utils import override_global_config
 
 
@@ -306,12 +305,7 @@ class TestPrompts:
 
         with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(name="Alice")):
             with LLMObs.llm(model_name="test-model", name="test") as span:
-                prompt_data = (
-                    _get_llmobs_data_metastruct(span)
-                    .get(LLMOBS_STRUCT.META, {})
-                    .get(LLMOBS_STRUCT.INPUT, {})
-                    .get(LLMOBS_STRUCT.PROMPT)
-                )
+                prompt_data = llmobs_input_prompt(span)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "v1"
                 assert prompt_data["label"] == "production"
@@ -329,12 +323,7 @@ class TestPrompts:
 
         with LLMObs.annotation_context(prompt=prompt.to_annotation_dict(name="Alice")):
             with LLMObs.llm(model_name="test-model", name="test") as span:
-                prompt_data = (
-                    _get_llmobs_data_metastruct(span)
-                    .get(LLMOBS_STRUCT.META, {})
-                    .get(LLMOBS_STRUCT.INPUT, {})
-                    .get(LLMOBS_STRUCT.PROMPT)
-                )
+                prompt_data = llmobs_input_prompt(span)
                 assert prompt_data["id"] == "greeting"
                 assert prompt_data["version"] == "fallback"
                 assert prompt_data["variables"] == {"name": "Alice"}

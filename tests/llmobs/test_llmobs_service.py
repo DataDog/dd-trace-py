@@ -11,7 +11,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
@@ -20,7 +19,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
-from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import _get_llmobs_trace_id
 from ddtrace.llmobs._utils import _get_span_kind
 from ddtrace.llmobs._utils import mark_as_evaluation_span
@@ -29,18 +27,20 @@ from ddtrace.trace import Context
 from tests.llmobs._utils import _expected_llmobs_eval_metric_event
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.llmobs._utils import llmobs_input
+from tests.llmobs._utils import llmobs_input_documents
 from tests.llmobs._utils import llmobs_input_messages
+from tests.llmobs._utils import llmobs_input_prompt
 from tests.llmobs._utils import llmobs_input_value
 from tests.llmobs._utils import llmobs_metadata
 from tests.llmobs._utils import llmobs_metrics
 from tests.llmobs._utils import llmobs_ml_app
 from tests.llmobs._utils import llmobs_model_name
 from tests.llmobs._utils import llmobs_model_provider
-from tests.llmobs._utils import llmobs_output
+from tests.llmobs._utils import llmobs_output_documents
 from tests.llmobs._utils import llmobs_output_messages
 from tests.llmobs._utils import llmobs_output_value
 from tests.llmobs._utils import llmobs_session_id
+from tests.llmobs._utils import llmobs_span_links
 from tests.llmobs._utils import llmobs_tags
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -589,13 +589,13 @@ def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")
-        documents = llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
+        documents = llmobs_input_documents(span)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with llmobs.retrieval() as span:
         llmobs.annotate(span=span, output_data="test_document_text")
-        documents = llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
+        documents = llmobs_output_documents(span)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -604,13 +604,13 @@ def test_annotate_document_str(llmobs):
 def test_annotate_document_dict(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data={"text": "test_document_text"})
-        documents = llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
+        documents = llmobs_input_documents(span)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
     with llmobs.retrieval() as span:
         llmobs.annotate(span=span, output_data={"text": "test_document_text"})
-        documents = llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
+        documents = llmobs_output_documents(span)
         assert documents
         assert len(documents) == 1
         assert documents[0]["text"] == "test_document_text"
@@ -622,7 +622,7 @@ def test_annotate_document_list(llmobs):
             span=span,
             input_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = llmobs_input(span).get(LLMOBS_STRUCT.DOCUMENTS)
+        documents = llmobs_input_documents(span)
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -635,7 +635,7 @@ def test_annotate_document_list(llmobs):
             span=span,
             output_data=[{"text": "test_document_text"}, {"text": "text", "name": "name", "score": 0.9, "id": "id"}],
         )
-        documents = llmobs_output(span).get(LLMOBS_STRUCT.DOCUMENTS)
+        documents = llmobs_output_documents(span)
         assert documents
         assert len(documents) == 2
         assert documents[0]["text"] == "test_document_text"
@@ -794,7 +794,7 @@ def test_annotate_prompt_dict(llmobs):
                 "id": "test_prompt",
             },
         )
-        assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT) == {
+        assert llmobs_input_prompt(span) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -819,7 +819,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
                 "rag_query_variables": ["user_input"],
             },
         )
-        assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT) == {
+        assert llmobs_input_prompt(span) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -844,7 +844,7 @@ def test_annotate_prompt_typed_dict(llmobs):
                 rag_query_variables=["user_input"],
             ),
         )
-        assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT) == {
+        assert llmobs_input_prompt(span) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
             "version": "1.0.0",
@@ -876,7 +876,7 @@ def test_annotate_prompt_wrong_type(llmobs):
 def test_annotate_linked_spans(llmobs):
     with llmobs.llm(model_name="test_model") as span:
         llmobs.annotate(span=span, _linked_spans=[{"span_id": "123", "trace_id": "456"}])
-        assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS) == [
+        assert llmobs_span_links(span) == [
             {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}}
         ]
 
@@ -1365,7 +1365,7 @@ def test_annotation_context_modifies_prompt(llmobs):
     prompt = {"template": "test_template"}
     with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT) == {
+            assert llmobs_input_prompt(span) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
                 "ml_app": "unnamed-ml-app",
                 "template": "test_template",
@@ -1379,7 +1379,7 @@ def test_annotation_context_prompt_includes_ml_app(llmobs):
     prompt = {"template": "test_template"}
     with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT, {}).get("ml_app") == "unnamed-ml-app"
+            assert (llmobs_input_prompt(span) or {}).get("ml_app") == "unnamed-ml-app"
 
 
 def test_annotation_context_modifies_name(llmobs):
@@ -1392,7 +1392,7 @@ def test_annotation_context_modifies_span_links(llmobs):
     with llmobs.annotation_context(_linked_spans=[{"span_id": "123", "trace_id": "456"}]):
         with llmobs.llm(model_name="test_model") as span:
             llmobs.annotate(span=span, _linked_spans=[{"span_id": "abc", "trace_id": "def"}])
-            assert _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SPAN_LINKS) == [
+            assert llmobs_span_links(span) == [
                 {"span_id": "123", "trace_id": "456", "attributes": {"from": "output", "to": "input"}},
                 {"span_id": "abc", "trace_id": "def", "attributes": {"from": "output", "to": "input"}},
             ]
@@ -1409,7 +1409,7 @@ def test_annotation_context_finished_context_does_not_modify_prompt(llmobs):
     with llmobs.annotation_context(prompt={"template": "test_template"}):
         pass
     with llmobs.llm(name="test_agent", model_name="test") as span:
-        assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT) is None
+        assert llmobs_input_prompt(span) is None
 
 
 def test_annotation_context_finished_context_does_not_modify_name(llmobs):
@@ -1610,7 +1610,7 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
     prompt = {"template": "test_template"}
     async with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
-            assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT) == {
+            assert llmobs_input_prompt(span) == {
                 "id": "unnamed-ml-app_unnamed-prompt",
                 "ml_app": "unnamed-ml-app",
                 "template": "test_template",
@@ -1637,7 +1637,7 @@ async def test_annotation_context_async_finished_context_does_not_modify_prompt(
     async with llmobs.annotation_context(prompt={"template": "test_template"}):
         pass
     with llmobs.llm(name="test_agent", model_name="test") as span:
-        assert llmobs_input(span).get(LLMOBS_STRUCT.PROMPT) is None
+        assert llmobs_input_prompt(span) is None
 
 
 async def test_annotation_context_finished_context_async_does_not_modify_name(llmobs):
@@ -2252,10 +2252,7 @@ class TestBuildSpanEventFromMetaStructE2E:
 
     def test_error_span(self, llmobs, llmobs_events):
         with pytest.raises(ValueError):
-            with llmobs.llm(name="test_error") as span:
-                _annotate_llmobs_span_data(
-                    span,
-                )
+            with llmobs.llm(name="test_error"):
                 raise ValueError("something went wrong")
         assert len(llmobs_events) == 1
         event = llmobs_events[0]
