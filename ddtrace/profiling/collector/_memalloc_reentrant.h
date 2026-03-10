@@ -21,31 +21,19 @@ extern MEMALLOC_TLS bool _MEMALLOC_ON_THREAD;
 
 #ifdef MEMALLOC_ASSERT_ON_REENTRY
 static inline void
-_memalloc_abort_reentry(const char* message, size_t message_len)
-{
-    if (message_len > 0) {
-        (void)!write(STDERR_FILENO, message, message_len);
-    }
-    std::abort();
-}
-
-template<size_t N>
-static inline void
-_memalloc_abort_reentry(const char (&message)[N])
-{
-    _memalloc_abort_reentry(message, N - 1);
-}
-
-static inline void
 _memalloc_abort_malloc_reentry(void)
 {
-    _memalloc_abort_reentry("[memalloc] FATAL: reentrant allocator hook detected: malloc -> malloc\n");
+    static constexpr char msg[] = "[memalloc] FATAL: reentrant allocator hook detected: malloc -> malloc\n";
+    (void)!write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    std::abort();
 }
 
 static inline void
 _memalloc_abort_free_reentry(void)
 {
-    _memalloc_abort_reentry("[memalloc] FATAL: reentrant allocator hook detected: malloc -> free\n");
+    static constexpr char msg[] = "[memalloc] FATAL: reentrant allocator hook detected: malloc -> free\n";
+    (void)!write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    std::abort();
 }
 #endif // MEMALLOC_ASSERT_ON_REENTRY
 
