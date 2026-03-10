@@ -117,6 +117,16 @@ def _enrich_tags(tags) -> dict[str, str]:
     return tags
 
 
+def _validate_non_negative(value: t.Union[int, float]) -> None:
+    if value < 0:
+        raise ValueError("value must be non negative")
+
+
+def _validate_percentage(value: float) -> None:
+    if value <= 0 or value > 100:
+        raise ValueError("value must be greater than 0 and lesser or equal to 100")
+
+
 class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
@@ -177,6 +187,7 @@ class ProfilingConfig(DDConfig):
         float,
         "upload_interval",
         default=60.0,
+        validator=_validate_non_negative,
         help_type="Float",
         help="The interval in seconds to wait before flushing out recorded events",
     )
@@ -185,6 +196,7 @@ class ProfilingConfig(DDConfig):
         float,
         "capture_pct",
         default=1.0,
+        validator=_validate_percentage,
         help_type="Float",
         help="The percentage of events that should be captured (e.g. memory "
         "allocation). Greater values reduce the program execution speed. Must be "
@@ -195,6 +207,7 @@ class ProfilingConfig(DDConfig):
         int,
         "max_frames",
         default=64,
+        validator=_validate_non_negative,
         help_type="Integer",
         help="The maximum number of frames to capture in stack execution tracing",
     )
@@ -211,6 +224,7 @@ class ProfilingConfig(DDConfig):
         float,
         "max_time_usage_pct",
         default=1.0,
+        validator=_validate_percentage,
         help_type="Float",
         help="The percentage of maximum time the stack profiler can use when computing "
         "statistics. Must be greater than 0 and lesser or equal to 100",
@@ -220,6 +234,7 @@ class ProfilingConfig(DDConfig):
         int,
         "api_timeout_ms",
         default=10000,
+        validator=_validate_non_negative,
         help_type="Integer",
         help="The timeout in milliseconds before dropping events if the HTTP API does not reply",
     )
@@ -254,6 +269,7 @@ class ProfilingConfig(DDConfig):
         int,
         "sample_pool_capacity",
         default=4,
+        validator=_validate_non_negative,
         help_type="Integer",
         help="The number of Sample objects to keep in the pool for reuse. "
         "Increasing this can reduce the overhead from frequently allocating "
@@ -325,6 +341,7 @@ class ProfilingConfigMemory(DDConfig):
         int,
         "events_buffer",
         default=16,
+        validator=_validate_non_negative,
         help_type="Integer",
         help="",
     )
