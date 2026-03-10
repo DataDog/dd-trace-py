@@ -717,17 +717,13 @@ if PydanticEvaluator is not None:
     from pydantic_evals.evaluators import EvaluatorOutput as PydanticEvaluatorOutput
     from pydantic_evals.evaluators.evaluator import EvaluationScalar as PydanticEvaluationScalar
     from pydantic_evals.evaluators.evaluator import EvaluationReason as PydanticEvaluationReason
-    def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The pydantic evaluator to run
         :return: A callable function that can be used as an evaluator
         """
-        def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:                
-            if self._llmobs_instance is None:
-                duration = None
-            else:
-                duration = self._llmobs_instance._current_span().duration
+        def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None, duration: Optional[float] = None) -> EvaluatorResult:                
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -775,17 +771,13 @@ if PydanticEvaluator is not None:
         
         wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
         return wrapped_evaluator    
-    def _pydantic_async_evaluator_wrapper(evaluator: Any) -> Any:
+    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
         :param evaluator: The pydantic evaluator to run
         :return: A callable function that can be used as an evaluator
         """
         async def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:                
-            if self._llmobs_instance is None:
-                duration = None
-            else:
-                duration = self._llmobs_instance._current_span().duration
             evalContext = PydanticEvaluatorContext(
                 name="",
                 inputs=input_data,
@@ -823,10 +815,10 @@ if PydanticEvaluator is not None:
         wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
         return wrapped_evaluator
 else:
-    def _pydantic_evaluator_wrapper(evaluator: Any) -> Any:
+    def _pydantic_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
-    def _pydantic_async_evaluator_wrapper(evaluator: Any) -> Any:
+    def _pydantic_async_evaluator_wrapper(evaluator: Any, duration: Optional[float] = None) -> Any:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
