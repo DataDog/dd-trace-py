@@ -1,7 +1,8 @@
 import json
 from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Optional
+import typing  # noqa:F401
 
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
 from ddtrace.internal.threads import RLock
@@ -193,6 +194,8 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             return self._size
 
     def put(self, item) -> None:
+        item = typing.cast(list["Span"], item)
+
         if not item:
             return
 
@@ -201,7 +204,6 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             # Root and top-level are normally set by the Agent; set them here for trace views.
             item[0]._meta["_dd.compute_stats"] = "1"
             encoded_trace = _json_dumps_bytes([self._item_to_dict(span) for span in item])
-
             item_size = len(encoded_trace)
             if item_size > self.max_item_size:
                 raise BufferItemTooLarge(item_size)

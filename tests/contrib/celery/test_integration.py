@@ -889,7 +889,14 @@ celery_app.worker_main(["worker", "--loglevel=info"])
         close_fds=True,
     )
     try:
-        time.sleep(1)
+        # Wait for the worker to be ready instead of a fixed sleep to avoid flakiness on slow CI machines.
+        # app.control.inspect().active() returns a dict when at least one worker is connected, None otherwise.
+        _inspect_app = celery.Celery(broker=BROKER_URL, backend=BACKEND_URL)
+        max_wait = 15
+        waited = 0
+        while _inspect_app.control.inspect(timeout=1).active() is None and waited < max_wait:
+            time.sleep(0.5)
+            waited += 0.5
         _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(producer_code, env=env, timeout=30)
         assert status == 0, stderr.decode() if stderr else "producer failed"
     finally:
