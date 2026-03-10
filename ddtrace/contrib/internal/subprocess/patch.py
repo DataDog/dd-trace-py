@@ -16,6 +16,7 @@ from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.runtime import get_runtime_propagation_envs
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.threads import RLock
@@ -86,22 +87,39 @@ def should_trace_subprocess():
 
 
 def patch() -> list[str]:
-    """Patch subprocess and os functions to enable security monitoring.
+    """Patch subprocess and os functions to enable security monitoring and process lineage.
 
-    This function instruments various subprocess and os functions to provide
-    security monitoring capabilities for AAP (Application Attack Protection).
+    Popen.__init__ is always patched for session lineage injection so that exec-based
+    child processes receive lineage env vars whenever ddtrace is active, independent of
+    whether ASM is enabled. Opt out via DD_TRACE_SUBPROCESS_ENABLED=false.
 
-    Note:
-        Patching always occurs because AAP can be enabled dynamically via remote config.
-        Already patched functions are skipped.
+    Popen.wait is also always patched alongside Popen.__init__ to complete span
+    lifecycle tracking, though _traced_subprocess_wait is a no-op without ASM.
+
+    os.system, os.fork, and os._spawnvef are ASM-specific and only patched when ASM
+    modules are loaded. AAP can be enabled dynamically via remote config, so
+    already-patched functions are skipped.
     """
+    import subprocess  # nosec
+
     patched: list[str] = []
+
+    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
+    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
+    if should_patch_Popen_init or should_patch_Popen_wait:
+        Pin().onto(subprocess)
+        # We store the parameters on __init__ in the context and set the tags on wait
+        # (where all the Popen objects eventually arrive, unless killed before it)
+        if should_patch_Popen_init:
+            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
+        if should_patch_Popen_wait:
+            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
+        patched.append("subprocess")
 
     if not asm_config._load_modules:
         return patched
 
     import os  # nosec
-    import subprocess  # nosec
 
     should_patch_system = not trace_utils.iswrapped(os.system)
     should_patch_fork = (not trace_utils.iswrapped(os.fork)) if hasattr(os, "fork") else False
@@ -118,18 +136,6 @@ def patch() -> list[str]:
             # all os.spawn* variants eventually use this one:
             trace_utils.wrap(os, "_spawnvef", _traced_osspawn(os))
         patched.append("os")
-
-    should_patch_Popen_init = not trace_utils.iswrapped(subprocess.Popen.__init__)
-    should_patch_Popen_wait = not trace_utils.iswrapped(subprocess.Popen.wait)
-    if should_patch_Popen_init or should_patch_Popen_wait:
-        Pin().onto(subprocess)
-        # We store the parameters on __init__ in the context and set the tags on wait
-        # (where all the Popen objects eventually arrive, unless killed before it)
-        if should_patch_Popen_init:
-            trace_utils.wrap(subprocess, "Popen.__init__", _traced_subprocess_init(subprocess))
-        if should_patch_Popen_wait:
-            trace_utils.wrap(subprocess, "Popen.wait", _traced_subprocess_wait(subprocess))
-        patched.append("subprocess")
 
     return patched
 
@@ -558,11 +564,18 @@ def _traced_osspawn(module, pin, wrapped, instance, args, kwargs):
 def _traced_subprocess_init(module, pin, wrapped, instance, args, kwargs):
     """Traced wrapper for subprocess.Popen.__init__ method.
 
-    Note:
-        Only instruments when AAP is enabled and WAF bypass is not active.
-        Stores command details in context for later use by _traced_subprocess_wait.
-        Creates a span that will be completed by the wait() method.
+    Always injects session lineage env vars (_DD_ROOT_PY_SESSION_ID, _DD_PARENT_PY_SESSION_ID)
+    into the child's environment so exec-based child processes can reconstruct process
+    lineage. Disabled via DD_TRACE_SUBPROCESS_ENABLED=false. Thread-safe: copies the
+    env dict rather than mutating os.environ.
+
+    When ASM is active, also stores command details in context for _traced_subprocess_wait
+    to complete the span.
     """
+    env = dict(kwargs["env"] if kwargs.get("env") is not None else os.environ)
+    env.update(get_runtime_propagation_envs())
+    kwargs["env"] = env
+
     if should_trace_subprocess():
         try:
             cmd_args = args[0] if len(args) else kwargs["args"]

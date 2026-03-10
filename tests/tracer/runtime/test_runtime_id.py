@@ -84,9 +84,7 @@ def test_ancestor_runtime_id():
     from ddtrace.internal import runtime
 
     ancestor_runtime_id = runtime.get_runtime_id()
-
     assert ancestor_runtime_id is not None
-    assert runtime.get_ancestor_runtime_id() is None
 
     child = os.fork()
 

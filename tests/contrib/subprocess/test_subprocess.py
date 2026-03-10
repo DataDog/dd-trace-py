@@ -335,7 +335,8 @@ def test_ossystem_noappsec(tracer, test_spans):
         patch()
         assert not hasattr(os.system, "__wrapped__")
         assert not hasattr(os._spawnvef, "__wrapped__")
-        assert not hasattr(subprocess.Popen.__init__, "__wrapped__")
+        # Popen.__init__ is always wrapped for session lineage injection, even without ASM
+        assert hasattr(subprocess.Popen.__init__, "__wrapped__")
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
@@ -877,6 +878,46 @@ def test_subprocess_error_propagation_nested(tracer, config):
         # Test nested subprocess with timeout
         with pytest.raises(subprocess.TimeoutExpired):
             subprocess.run(["python", "-c", "import subprocess; subprocess.run(['sleep', '10'])"], timeout=0.1)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    parametrize={"DD_TRACE_SUBPROCESS_ENABLED": [None, "true", "false"]},
+)
+def test_subprocess_session_lineage_env_vars():
+    """Session lineage env vars are propagated to child processes when enabled."""
+    import os
+    import subprocess
+    import sys
+
+    from ddtrace.internal.runtime import get_runtime_id
+
+    result = subprocess.run(
+        [
+            "ddtrace-run",
+            sys.executable,
+            "-c",
+            "import os;"
+            "from ddtrace.internal.runtime import get_parent_runtime_id;"
+            "from ddtrace.internal.runtime import get_ancestor_runtime_id;"
+            "print(get_parent_runtime_id());"
+            "print(get_ancestor_runtime_id())",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    subp_parent_id, subp_root_id = result.stdout.strip().splitlines()
+
+    runtime_id = get_runtime_id()
+    propagation_enabled = os.environ.get("DD_TRACE_SUBPROCESS_ENABLED") in ("true", None)
+
+    if propagation_enabled:
+        assert subp_root_id == runtime_id
+        assert subp_parent_id == runtime_id
+    else:
+        assert subp_parent_id == "None"
+        assert subp_root_id == "None"
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
