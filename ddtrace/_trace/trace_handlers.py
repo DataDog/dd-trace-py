@@ -1348,7 +1348,6 @@ def _on_pubsub_send_start(
     span._set_tag_str(MESSAGING_SYSTEM, "pubsub")
     span._set_tag_str(MESSAGING_DESTINATION_NAME, topic_id)
     span._set_tag_str(MESSAGING_OPERATION, "send")
-    span._set_tag_str("operation", "gcp.pubsub.send")
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if config.google_cloud_pubsub.distributed_tracing_enabled:
