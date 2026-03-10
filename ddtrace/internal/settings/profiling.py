@@ -6,6 +6,7 @@ import os
 import typing as t
 
 from envier import Env
+from envier import validators
 
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
@@ -122,11 +123,6 @@ def _validate_non_negative(value: t.Union[int, float]) -> None:
         raise ValueError("value must be non negative")
 
 
-def _validate_percentage(value: float) -> None:
-    if value <= 0 or value > 100:
-        raise ValueError("value must be greater than 0 and lesser or equal to 100")
-
-
 class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
@@ -196,11 +192,11 @@ class ProfilingConfig(DDConfig):
         float,
         "capture_pct",
         default=1.0,
-        validator=_validate_percentage,
+        validator=validators.range(0, 100),
         help_type="Float",
         help="The percentage of events that should be captured (e.g. memory "
         "allocation). Greater values reduce the program execution speed. Must be "
-        "greater than 0 lesser or equal to 100",
+        "between 0 and 100",
     )
 
     max_frames = DDConfig.v(
@@ -224,10 +220,12 @@ class ProfilingConfig(DDConfig):
         float,
         "max_time_usage_pct",
         default=1.0,
-        validator=_validate_percentage,
+        validator=validators.range(0, 100),
         help_type="Float",
-        help="The percentage of maximum time the stack profiler can use when computing "
-        "statistics. Must be greater than 0 and lesser or equal to 100",
+        help=(
+            "The percentage of maximum time the stack profiler can use when computing "
+            "statistics. Must be between 0 and 100"
+        ),
     )
 
     api_timeout_ms = DDConfig.v(
@@ -244,8 +242,10 @@ class ProfilingConfig(DDConfig):
         "timeline_enabled",
         default=True,
         help_type="Boolean",
-        help="Whether to add timestamp information to captured samples.  Adds a small amount of "
-        "overhead to the profiler, but enables the use of the Timeline view in the UI.",
+        help=(
+            "Whether to add timestamp information to captured samples.  Adds a small amount of "
+            "overhead to the profiler, but enables the use of the Timeline view in the UI."
+        ),
     )
 
     tags = DDConfig.v(
@@ -271,9 +271,11 @@ class ProfilingConfig(DDConfig):
         default=4,
         validator=_validate_non_negative,
         help_type="Integer",
-        help="The number of Sample objects to keep in the pool for reuse. "
-        "Increasing this can reduce the overhead from frequently allocating "
-        "and deallocating Sample objects.",
+        help=(
+            "The number of Sample objects to keep in the pool for reuse. "
+            "Increasing this can reduce the overhead from frequently allocating "
+            "and deallocating Sample objects."
+        ),
     )
 
 
@@ -321,8 +323,10 @@ class ProfilingConfigLock(DDConfig):
         "name_inspect_dir",
         default=True,
         help_type="Boolean",
-        help="Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
-        "With this enabled, the profiler finds the name of locks that are attributes of an object.",
+        help=(
+            "Whether to inspect the ``dir()`` of local and global variables to find the name of the lock. "
+            "With this enabled, the profiler finds the name of locks that are attributes of an object."
+        ),
     )
 
 
