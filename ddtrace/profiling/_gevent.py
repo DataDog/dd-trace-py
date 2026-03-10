@@ -140,7 +140,7 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         try:
             if origin_id in _tracked_greenlets and greenlet.dead.__get__(origin):
                 _untrack_greenlet_by_id(origin_id)
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     if _original_greenlet_tracer is not None:
