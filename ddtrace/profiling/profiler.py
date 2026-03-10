@@ -101,6 +101,7 @@ class Profiler(object):
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
 
         self._profiler.start()
+        Profiler._active_instance = self
 
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
