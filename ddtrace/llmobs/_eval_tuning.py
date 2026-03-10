@@ -12,9 +12,7 @@ import random
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
-from typing import Literal
 from typing import Optional
-from typing import Sequence
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -26,7 +24,6 @@ from ddtrace.llmobs._evaluators.llm_judge import StructuredOutput
 from ddtrace.llmobs._evaluators.metrics import AlignmentConfig
 from ddtrace.llmobs._evaluators.metrics import BiasEvaluator
 from ddtrace.llmobs._evaluators.metrics import ClassConfig
-from ddtrace.llmobs._evaluators.metrics import ConsistencyEvaluator
 from ddtrace.llmobs._evaluators.metrics import CorrelationEvaluator
 from ddtrace.llmobs._evaluators.metrics import DisagreementEvaluator
 from ddtrace.llmobs._evaluators.metrics import MAEEvaluator
@@ -539,6 +536,10 @@ class EvalTuningProject:
         # Iteration tracking
         self._iterations: list[IterationResult] = []
 
+        # API-assigned IDs for configs (captured when persisted)
+        self._class_config_api_id: Optional[str] = None
+        self._alignment_config_api_id: Optional[str] = None
+
         # Prompt version counter
         self._prompt_version = 0
 
@@ -587,6 +588,13 @@ class EvalTuningProject:
         :param client_options: Optional provider-specific client config.
         :return: The created JudgeConfig.
         """
+        if "{{expected_output}}" in prompt or "{{expected_output." in prompt:
+            log.warning(
+                "Judge prompt contains {{expected_output}} which resolves to the human label. "
+                "This leaks the ground truth to the judge and will produce artificially high agreement. "
+                "Use {{output_data.field_name}} to reference the data being judged instead."
+            )
+
         self._prompt_version = 1
         prompt_version = PromptVersion(id="", version=1, content=prompt)
 
@@ -752,6 +760,14 @@ class EvalTuningProject:
     # Class and alignment config
     # ------------------------------------------------------------------
 
+    @property
+    def _class_config_id(self) -> Optional[str]:
+        return self._class_config_api_id
+
+    @property
+    def _alignment_config_id(self) -> Optional[str]:
+        return self._alignment_config_api_id
+
     def set_class_config(self, class_config: ClassConfig) -> ClassConfig:
         """Set the pass/fail classification config for metrics computation.
 
@@ -760,12 +776,13 @@ class EvalTuningProject:
         """
         self._class_config = class_config
 
-        # Persist via API
+        # Persist via API and capture returned ID
         if self._llmobs_instance and self._id:
-            self._llmobs_instance._dne_client.eval_tuning_class_config_create(
+            resp = self._llmobs_instance._dne_client.eval_tuning_class_config_create(
                 project_id=self._id,
                 config_data=class_config.to_dict(),
             )
+            self._class_config_api_id = resp.get("id")
 
         log.info("Set class config: output_type=%s", class_config.output_type)
         return class_config
@@ -778,12 +795,13 @@ class EvalTuningProject:
         """
         self._alignment_config = alignment_config
 
-        # Persist via API
+        # Persist via API and capture returned ID
         if self._llmobs_instance and self._id:
-            self._llmobs_instance._dne_client.eval_tuning_alignment_config_create(
+            resp = self._llmobs_instance._dne_client.eval_tuning_alignment_config_create(
                 project_id=self._id,
                 config_data=alignment_config.to_dict(),
             )
+            self._alignment_config_api_id = resp.get("id")
 
         log.info("Set alignment config: output_type=%s", alignment_config.output_type)
         return alignment_config
@@ -895,9 +913,9 @@ class EvalTuningProject:
             evaluators.append(BiasEvaluator(judge_name=judge_name))
             evaluators.append(CorrelationEvaluator(judge_name=judge_name))
 
-        # Add consistency evaluator if num_runs > 1
-        if self._judge_config and self._judge_config.num_runs > 1:
-            evaluators.append(ConsistencyEvaluator(judge_name=judge_name))
+        # NOTE: Consistency is computed post-hoc in calc_metrics() using
+        # ExperimentResult["runs"], not as a summary evaluator, because the
+        # experiment framework runs summary evaluators per-run independently.
 
         # Add TPR/TNR if class config is set
         if self._class_config is not None:
@@ -1074,6 +1092,19 @@ class EvalTuningProject:
         function simply passes through the input data so the judge evaluator
         can score it.
 
+        Because of this passthrough, in the judge prompt template:
+        - ``{{output_data}}`` resolves to the dataset record's ``input_data``
+        - ``{{expected_output}}`` resolves to the human label (ground truth)
+        - ``{{input_data}}`` also resolves to the dataset record's ``input_data``
+
+        Users should reference their data fields via ``{{output_data.field_name}}``
+        (e.g., ``{{output_data.response}}``, ``{{output_data.agent_conclusions}}``).
+
+        .. warning::
+            Do NOT use ``{{expected_output}}`` in the judge prompt — it contains
+            the human label that the judge is being calibrated against. Including
+            it would leak the answer to the judge.
+
         :return: A task function compatible with the experiment framework.
         """
 
@@ -1123,14 +1154,37 @@ class EvalTuningProject:
     # Metrics
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _unwrap_metric_value(eval_data: Any) -> Any:
+        """Unwrap a metric value from the experiment framework's envelope.
+
+        Summary evaluators return dicts like ``{"value": 0.5, "count": 10}``.
+        The experiment framework wraps this in ``{"value": {"value": 0.5, "count": 10}, "error": None}``.
+        This method extracts the inner scalar value from the double nesting.
+
+        :param eval_data: Raw evaluation data from summary_evaluations.
+        :return: The unwrapped scalar value, or the original value if not nested.
+        """
+        if not isinstance(eval_data, dict):
+            return eval_data
+        inner = eval_data.get("value")
+        # Double-nested: {"value": {"value": 0.5, "count": 10}, "error": None}
+        if isinstance(inner, dict) and "value" in inner:
+            return inner["value"]
+        # Single-nested: {"value": 0.5, "error": None}
+        if inner is not None:
+            return inner
+        return eval_data
+
     def calc_metrics(self, iteration_id: str) -> dict[str, Any]:
         """Calculate agreement metrics for a completed iteration.
 
-        Extracts metrics from the iteration's experiment summary evaluations
-        and persists them as a MetricsRecord.
+        Extracts metrics from the iteration's experiment summary evaluations,
+        computes consistency across runs (if num_runs > 1), and persists the
+        results as a MetricsRecord.
 
         :param iteration_id: ID of the iteration to calculate metrics for.
-        :return: Dict of metric name to value.
+        :return: Dict of split name to metric values.
         :raises ValueError: If iteration not found or not completed.
         """
         iteration = self._find_iteration(iteration_id)
@@ -1141,13 +1195,18 @@ class EvalTuningProject:
 
         for split_name, results in iteration.experiment_results.items():
             summary_evals = results.get("summary_evaluations", {})
-            split_metrics = {}
+            split_metrics: dict[str, Any] = {}
             for eval_name, eval_data in summary_evals.items():
-                if isinstance(eval_data, dict) and "value" in eval_data:
-                    split_metrics[eval_name] = eval_data["value"]
-                else:
-                    split_metrics[eval_name] = eval_data
+                split_metrics[eval_name] = self._unwrap_metric_value(eval_data)
             all_metrics[split_name] = split_metrics
+
+        # Compute consistency post-hoc from cross-run data (if num_runs > 1)
+        if self._judge_config and self._judge_config.num_runs > 1:
+            from ddtrace.llmobs._evaluators.metrics import compute_consistency
+
+            for split_name, results in iteration.experiment_results.items():
+                consistency = compute_consistency(results, judge_name="judge")
+                all_metrics.setdefault(split_name, {})["consistency"] = consistency.get("value")
 
         # Persist via API
         if self._llmobs_instance and self._id:
@@ -1155,10 +1214,8 @@ class EvalTuningProject:
                 project_id=self._id,
                 iteration_id=iteration_id,
                 values=all_metrics,
-                class_config_id=getattr(self._class_config, "id", None) if hasattr(self._class_config, "id") else None,
-                alignment_config_id=(
-                    getattr(self._alignment_config, "id", None) if hasattr(self._alignment_config, "id") else None
-                ),
+                class_config_id=self._class_config_id,
+                alignment_config_id=self._alignment_config_id,
             )
 
         iteration.metrics = all_metrics
@@ -1262,19 +1319,26 @@ class EvalTuningProject:
 
     @staticmethod
     def _get_metric_value(metrics: dict[str, Any], key: str) -> Optional[float]:
-        """Extract a metric value from the nested metrics dict.
+        """Extract a scalar metric value from the nested metrics dict.
 
-        :param metrics: Metrics dict structured as {split: {metric_name: value}}.
+        :param metrics: Metrics dict structured as ``{split: {metric_name: value}}``.
         :param key: Metric name to look up.
-        :return: The metric value, or None.
+        :return: The float metric value, or None if not found or not numeric.
         """
         # Prefer dev metrics for comparison
         for split in ["dev", "train"]:
             split_metrics = metrics.get(split, {})
-            if isinstance(split_metrics, dict) and key in split_metrics:
-                val = split_metrics[key]
-                if isinstance(val, (int, float)):
-                    return float(val)
+            if not isinstance(split_metrics, dict) or key not in split_metrics:
+                continue
+            val = split_metrics[key]
+            # Direct scalar
+            if isinstance(val, (int, float)) and not isinstance(val, bool):
+                return float(val)
+            # Dict with inner "value" key (e.g. from evaluators returning {"value": x, "count": n})
+            if isinstance(val, dict) and "value" in val:
+                inner = val["value"]
+                if isinstance(inner, (int, float)) and not isinstance(inner, bool):
+                    return float(inner)
         return None
 
     def _find_iteration(self, iteration_id: str) -> IterationResult:
@@ -1335,15 +1399,11 @@ class EvalTuningProject:
             "model_name": self._judge_config.model,
         }
 
-        # Determine dataset and split settings
-        dataset = self._dataset
-        dataset_split: Union[bool, tuple[float, ...]] = False
-        if self._split_metadata:
-            dataset_split = (
-                self._split_metadata.train_ratio,
-                self._split_metadata.dev_ratio,
-                self._split_metadata.test_ratio,
-            )
+        # Use pre-split train dataset if available, so PO optimizes only on
+        # train data. The user can then run a new iteration on dev to validate.
+        # This avoids re-splitting the dataset (which could produce different
+        # splits than EvalTuningProject.split_dataset() computed).
+        dataset = self._train_ds if self._train_ds is not None else self._dataset
 
         optimization = PromptOptimization(
             name=f"{self.name}_po",
@@ -1358,7 +1418,7 @@ class EvalTuningProject:
             labelization_function=None,
             _llmobs_instance=self._llmobs_instance,
             max_iterations=max_iterations,
-            dataset_split=dataset_split,
+            dataset_split=False,
         )
 
         result = optimization.run(jobs=jobs)

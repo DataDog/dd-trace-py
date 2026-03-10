@@ -12,7 +12,7 @@ from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
 from ddtrace.llmobs._evaluators.metrics import AlignmentConfig
 from ddtrace.llmobs._evaluators.metrics import BiasEvaluator
 from ddtrace.llmobs._evaluators.metrics import ClassConfig
-from ddtrace.llmobs._evaluators.metrics import ConsistencyEvaluator
+from ddtrace.llmobs._evaluators.metrics import compute_consistency
 from ddtrace.llmobs._evaluators.metrics import CorrelationEvaluator
 from ddtrace.llmobs._evaluators.metrics import DisagreementEvaluator
 from ddtrace.llmobs._evaluators.metrics import MAEEvaluator
@@ -42,7 +42,7 @@ __all__ = [
     "BooleanStructuredOutput",
     "CategoricalStructuredOutput",
     "ClassConfig",
-    "ConsistencyEvaluator",
+    "compute_consistency",
     "CorrelationEvaluator",
     "DisagreementEvaluator",
     "EvaluatorContext",

@@ -246,7 +246,12 @@ class AlignmentConfig:
             return None
 
         if self.output_type == "score":
-            if not isinstance(judge_value, (int, float)) or not isinstance(human_value, (int, float)):
+            if (
+                not isinstance(judge_value, (int, float))
+                or isinstance(judge_value, bool)
+                or not isinstance(human_value, (int, float))
+                or isinstance(human_value, bool)
+            ):
                 return None
             delta = abs(float(judge_value) - float(human_value))
             for i, threshold in enumerate(self.alignment_thresholds):
@@ -474,48 +479,57 @@ class TNREvaluator(BaseSummaryEvaluator):
         return {"value": true_negatives / actual_negatives, "count": len(pairs)}
 
 
-class ConsistencyEvaluator(BaseSummaryEvaluator):
-    """Score consistency across multiple runs of the same scenario.
+def compute_consistency(
+    experiment_result: Any,
+    judge_name: str = "judge",
+    score_key: Optional[str] = None,
+) -> dict[str, Any]:
+    """Compute score consistency across multiple runs of the same scenario.
 
-    When an experiment is run with num_runs > 1, this measures the average
-    standard deviation of judge scores across runs for each scenario.
-    Lower values indicate more consistent judging.
+    This is a standalone function (not a BaseSummaryEvaluator) because the
+    experiment framework runs summary evaluators independently per run, so a
+    summary evaluator never sees cross-run data. This function operates on the
+    full ``ExperimentResult`` which contains all runs.
 
-    This evaluator expects evaluation_results to contain lists of scores
-    per scenario (one per run). If only single-run data is available,
-    consistency is reported as 0 (perfectly consistent by default).
+    Measures the average standard deviation of judge scores across runs for
+    each scenario. Lower values indicate more consistent judging.
+
+    :param experiment_result: An ``ExperimentResult`` dict containing a ``runs`` key.
+    :param judge_name: Name of the judge evaluator in evaluation results.
+    :param score_key: Key to extract score from judge result dicts (None if scalar).
+    :return: Dict with ``value`` (avg std dev), ``count`` (scenarios measured),
+        and ``per_scenario`` (dict of record_id to std dev).
     """
+    runs = experiment_result.get("runs", [])
+    if len(runs) < 2:
+        return {"value": 0.0, "count": 0, "per_scenario": {}}
 
-    def __init__(
-        self,
-        judge_name: str,
-        score_key: Optional[str] = None,
-    ) -> None:
-        super().__init__(name="consistency")
-        self._judge_name = judge_name
-        self._score_key = score_key
+    # Collect scores per scenario (record_id) across runs
+    scores_by_scenario: dict[str, list[float]] = {}
+    for run in runs:
+        for row in run.rows:
+            record_id = row.get("record_id", "")
+            judge_eval = row.get("evaluations", {}).get(judge_name, {})
+            raw_value = judge_eval.get("value") if isinstance(judge_eval, dict) else judge_eval
+            score = _extract_numeric(raw_value, score_key)
+            if score is not None:
+                if record_id not in scores_by_scenario:
+                    scores_by_scenario[record_id] = []
+                scores_by_scenario[record_id].append(score)
 
-    def evaluate(self, context: SummaryEvaluatorContext) -> JSONType:
-        judge_results = context.evaluation_results.get(self._judge_name, [])
-        if not judge_results:
-            return {"value": None, "count": 0}
+    # Compute std dev per scenario
+    per_scenario: dict[str, float] = {}
+    for record_id, scores in scores_by_scenario.items():
+        if len(scores) >= 2:
+            mean = sum(scores) / len(scores)
+            variance = sum((s - mean) ** 2 for s in scores) / len(scores)
+            per_scenario[record_id] = math.sqrt(variance)
 
-        # If results are lists (multi-run), compute std dev per scenario
-        stddevs = []
-        for result in judge_results:
-            if isinstance(result, list):
-                scores = [_extract_numeric(r, self._score_key) for r in result]
-                valid_scores = [s for s in scores if s is not None]
-                if len(valid_scores) >= 2:
-                    mean = sum(valid_scores) / len(valid_scores)
-                    variance = sum((s - mean) ** 2 for s in valid_scores) / len(valid_scores)
-                    stddevs.append(math.sqrt(variance))
-            # Single-run: consistency is perfect (no variance)
+    if not per_scenario:
+        return {"value": 0.0, "count": 0, "per_scenario": {}}
 
-        if not stddevs:
-            return {"value": 0.0, "count": len(judge_results)}
-
-        return {"value": sum(stddevs) / len(stddevs), "count": len(stddevs)}
+    avg_stddev = sum(per_scenario.values()) / len(per_scenario)
+    return {"value": avg_stddev, "count": len(per_scenario), "per_scenario": per_scenario}
 
 
 class DisagreementEvaluator(BaseSummaryEvaluator):
