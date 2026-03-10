@@ -953,10 +953,7 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
-        try:
-            self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
-        except (ValueError, TypeError):
-            self._task_accepts_metadata = False
+        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._summary_evaluators = list(summary_evaluators) if summary_evaluators else []
