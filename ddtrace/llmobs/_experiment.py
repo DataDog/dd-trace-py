@@ -65,15 +65,8 @@ NonNoneJSONType = Union[str, int, float, bool, list[JSONType], dict[str, JSONTyp
 ConfigType = dict[str, JSONType]
 DatasetRecordInputType = dict[str, NonNoneJSONType]
 
-MetadataType = dict[str, JSONType]
-TaskType = Union[
-    Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType],
-    Callable[[DatasetRecordInputType, Optional[ConfigType], MetadataType], JSONType],
-]
-AsyncTaskType = Union[
-    Callable[[DatasetRecordInputType, Optional[ConfigType]], Awaitable[JSONType]],
-    Callable[[DatasetRecordInputType, Optional[ConfigType], MetadataType], Awaitable[JSONType]],
-]
+TaskType = Callable[..., JSONType]
+AsyncTaskType = Callable[..., Awaitable[JSONType]]
 
 
 class EvaluatorResult:
