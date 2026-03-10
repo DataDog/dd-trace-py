@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "b0cc7f71-b2eb-4a6e-94b1-d7f52b655969",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of France?"}, "expected_output": {"answer": "Paris"}, "metadata": null, "tags":
+      ["env:prod", "version:1.0"]}], "update_records": [], "delete_records": [], "deduplicate":
+      true, "create_new_version": true}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '357'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/b0cc7f71-b2eb-4a6e-94b1-d7f52b655969/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"aa4c3e92-ab00-4b68-9e33-2673fe80f484","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"canonical_id":"de9b5273-f4e5-4883-8bd3-5facd8401041","created_at":"2026-02-20T06:29:24.815652767Z","dataset_id":"b0cc7f71-b2eb-4a6e-94b1-d7f52b655969","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"tags":["env:prod","version:1.0"],"updated_at":"2026-02-20T06:29:24.815652767Z","version":1}}]}'
+    headers:
+      content-length:
+      - '477'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 06:29:24 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

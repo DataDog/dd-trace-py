@@ -1,5 +1,3 @@
-from typing import Dict
-
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -42,7 +40,7 @@ def get_version() -> str:
     return VERSION
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"algoliasearch": ">=2.6.3"}
 
 

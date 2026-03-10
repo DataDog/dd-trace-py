@@ -6,11 +6,7 @@ import re
 import shlex
 from shlex import join
 from typing import Callable  # noqa:F401
-from typing import Deque  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 from typing import cast  # noqa:F401
 
@@ -19,10 +15,10 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.forksafe import RLock
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.threads import RLock
 from ddtrace.trace import tracer
 
 
@@ -39,12 +35,12 @@ def get_version() -> str:
     return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"subprocess": "*"}
 
 
-_STR_CALLBACKS: Dict[str, Callable[[str], None]] = {}
-_LST_CALLBACKS: Dict[str, Callable[[Union[List[str], str]], None]] = {}
+_STR_CALLBACKS: dict[str, Callable[[str], None]] = {}
+_LST_CALLBACKS: dict[str, Callable[[Union[list[str], str]], None]] = {}
 
 
 def add_str_callback(name: str, callback: Callable[[str], None]):
@@ -66,7 +62,7 @@ def del_str_callback(name: str):
     _STR_CALLBACKS.pop(name, None)
 
 
-def add_lst_callback(name: str, callback: Callable[[Union[List[str], str]], None]):
+def add_lst_callback(name: str, callback: Callable[[Union[list[str], str]], None]):
     """Add a callback function for list commands.
 
     Args:
@@ -89,7 +85,7 @@ def should_trace_subprocess():
     return not asm_config._bypass_instrumentation_for_waf and asm_config._asm_enabled
 
 
-def patch() -> List[str]:
+def patch() -> list[str]:
     """Patch subprocess and os functions to enable security monitoring.
 
     This function instruments various subprocess and os functions to provide
@@ -99,7 +95,7 @@ def patch() -> List[str]:
         Patching always occurs because AAP can be enabled dynamically via remote config.
         Already patched functions are skipped.
     """
-    patched: List[str] = []
+    patched: list[str] = []
 
     if not asm_config._load_modules:
         return patched
@@ -148,10 +144,10 @@ class SubprocessCmdLineCacheEntry:
     """
 
     binary: Optional[str] = None
-    arguments: Optional[List] = None
+    arguments: Optional[list] = None
     truncated: bool = False
-    env_vars: Optional[List] = None
-    as_list: Optional[List] = None
+    env_vars: Optional[list] = None
+    as_list: Optional[list] = None
     as_string: Optional[str] = None
 
 
@@ -164,8 +160,8 @@ class SubprocessCmdLine:
     """
 
     # This catches the computed values into a SubprocessCmdLineCacheEntry object
-    _CACHE: Dict[str, SubprocessCmdLineCacheEntry] = {}
-    _CACHE_DEQUE: Deque[str] = collections.deque()
+    _CACHE: dict[str, SubprocessCmdLineCacheEntry] = {}
+    _CACHE_DEQUE: collections.deque[str] = collections.deque()
     _CACHE_MAXSIZE = 32
     _CACHE_LOCK = RLock()
 
@@ -225,7 +221,7 @@ class SubprocessCmdLine:
     ]
     _COMPILED_ENV_VAR_REGEXP = re.compile(r"\b[A-Z_]+=\w+")
 
-    def __init__(self, shell_args: Union[str, List[str]], shell: bool = False) -> None:
+    def __init__(self, shell_args: Union[str, list[str]], shell: bool = False) -> None:
         """
         For shell=True, the shell_args is parsed to extract environment variables,
         binary, and arguments. For shell=False, the first element is the binary
@@ -247,7 +243,7 @@ class SubprocessCmdLine:
             if isinstance(shell_args, str):
                 tokens = shlex.split(shell_args)
             else:
-                tokens = cast(List[str], shell_args)
+                tokens = cast(list[str], shell_args)
 
             # Extract previous environment variables, scrubbing all the ones not
             # in ENV_VARS_ALLOWLIST
@@ -270,7 +266,7 @@ class SubprocessCmdLine:
         """Extract and scrub environment variables from shell command tokens.
 
         Args:
-            tokens: List of command tokens to process
+            tokens: list of command tokens to process
 
         Side effects:
             Updates self.env_vars, self.binary, and self.arguments
@@ -389,11 +385,11 @@ class SubprocessCmdLine:
         msg = ' "4kB argument truncated by %d characters"' % oversize
         return str_[0 : -(oversize + len(msg))] + msg
 
-    def _as_list_and_string(self) -> Tuple[List[str], str]:
+    def _as_list_and_string(self) -> tuple[list[str], str]:
         """Generate both list and string representations of the command.
 
         Returns:
-            Tuple[List[str], str]: (command_as_list, command_as_string)
+            tuple[list[str], str]: (command_as_list, command_as_string)
 
         Note:
             The string representation may be truncated if it exceeds size limits.
@@ -408,7 +404,7 @@ class SubprocessCmdLine:
         """Get the command as a list of strings.
 
         Returns:
-            List[str]: Command represented as list of arguments
+            list[str]: Command represented as list of arguments
 
         Note:
             Result is cached for performance. Includes environment variables,

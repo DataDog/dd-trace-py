@@ -118,6 +118,7 @@ def test_selenium_chrome_pytest_rum_enabled(_http_server, testdir, git_repo):
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
     )
@@ -169,6 +170,7 @@ def test_selenium_chrome_pytest_rum_disabled(_http_server, testdir, git_repo):
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
     )
@@ -223,6 +225,7 @@ def test_selenium_chrome_pytest_unpatch_does_not_record_selenium_tags(_http_serv
                 CI_PROJECT_DIR=str(testdir.tmpdir),
                 DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                 _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                DD_PYTEST_USE_NEW_PLUGIN="false",
             )
         ),
     )

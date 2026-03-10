@@ -4,20 +4,7 @@
 
 #pragma once
 
-#if defined PL_LINUX
-#include <ctime>
-#elif defined PL_DARWIN
-#include <mach/clock.h>
-#include <mach/mach.h>
-
-inline clock_serv_t cclock;
-#endif
-
 typedef unsigned long microsecond_t;
 
 #define TS_TO_MICROSECOND(ts) ((ts).tv_sec * 1e6 + (ts).tv_nsec / 1e3)
 #define TV_TO_MICROSECOND(tv) ((tv).seconds * 1e6 + (tv).microseconds)
-
-// ----------------------------------------------------------------------------
-microsecond_t
-gettime();

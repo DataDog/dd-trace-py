@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: "------------boundary------\r\nContent-Disposition: form-data; name=\"file\";
+      filename=\"tmp.csv\"\r\nContent-Type: text/csv\r\n\r\ninput,expected_output,metadata\r\n\"{\"\"in0\"\":
+      \"\"r0v1\"\", \"\"in1\"\": \"\"r0v2\"\", \"\"in2\"\": \"\"r0v3\"\"}\",\"{\"\"out0\"\":
+      \"\"r0v4\"\", \"\"out1\"\": \"\"r0v5\"\"}\",\"{\"\"m0\"\": \"\"r0v6\"\"}\"\r\n\"{\"\"in0\"\":
+      \"\"r1v1\"\", \"\"in1\"\": \"\"r1v2\"\", \"\"in2\"\": \"\"r1v3\"\"}\",\"{\"\"out0\"\":
+      \"\"r1v4\"\", \"\"out1\"\": \"\"r1v5\"\"}\",\"{\"\"m0\"\": \"\"r1v6\"\"}\"\r\n\r\n------------boundary--------\r\n"
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '433'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - multipart/form-data; boundary=----------boundary------
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/79dc8a68-9dd7-4f99-8ee0-c42b59059432/records/upload?deduplicate=True
+  response:
+    body:
+      string: '{"data":{"id":"e4e596ed-22fc-4358-8bfa-56d7178c32bb","type":"dataset_version","attributes":{"dataset_id":"79dc8a68-9dd7-4f99-8ee0-c42b59059432","last_used":"2026-02-20T04:44:08.747967189Z","version_number":1}}}'
+    headers:
+      content-length:
+      - '210'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 04:44:08 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

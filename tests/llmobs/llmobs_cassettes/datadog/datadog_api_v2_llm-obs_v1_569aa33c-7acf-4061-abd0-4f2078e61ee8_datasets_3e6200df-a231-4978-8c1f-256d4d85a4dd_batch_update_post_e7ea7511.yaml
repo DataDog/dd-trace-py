@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "3e6200df-a231-4978-8c1f-256d4d85a4dd",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of Sealand?"}, "expected_output": null, "metadata": null}], "update_records":
+      [], "delete_records": [], "deduplicate": true, "create_new_version": true}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '306'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/3e6200df-a231-4978-8c1f-256d4d85a4dd/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"e927dd73-2d5b-4fa1-907a-8102fa5d05aa","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"canonical_id":"f207dd19-be3d-4031-807d-5a13c8943027","created_at":"2026-02-20T04:45:35.245119068Z","dataset_id":"3e6200df-a231-4978-8c1f-256d4d85a4dd","input":{"prompt":"What
+        is the capital of Sealand?"},"tags":[],"updated_at":"2026-02-20T04:45:35.245119068Z","version":2}}]}'
+    headers:
+      content-length:
+      - '417'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 04:45:35 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

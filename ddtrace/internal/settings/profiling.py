@@ -14,6 +14,7 @@ from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._core import ValueSource
 from ddtrace.internal.telemetry import report_configuration
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -70,22 +71,22 @@ def _check_for_stack_available():
     return (stack.failure_msg, stack.is_available)
 
 
-def _parse_profiling_enabled(raw: str) -> bool:
-    # Try to derive whether we're enabled via DD_INJECTION_ENABLED
-    # - Are we injected (DD_INJECTION_ENABLED set)
-    # - Is profiling enabled ("profiler" in the list)
-    if os.environ.get("DD_INJECTION_ENABLED") is not None:
-        for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
-            if tok.strip().lower() == "profiler":
-                return True
+def _injection_enabled_has_profiler() -> bool:
+    """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
+    injection_enabled = os.environ.get("DD_INJECTION_ENABLED")
+    if injection_enabled is None:
+        return False
 
-    # This is the normal check
-    raw_lc = raw.lower()
-    if raw_lc in ("1", "true", "yes", "on", "auto"):
+    return any(tok.strip().lower() == "profiler" for tok in injection_enabled.split(","))
+
+
+def _parse_profiling_enabled(raw: str) -> bool:
+    # DD_INJECTION_ENABLED=...,profiler,... takes precedence over the env var value.
+    if _injection_enabled_has_profiler():
         return True
 
-    # If it wasn't enabled, then disable it
-    return False
+    raw_lc = raw.lower()
+    return raw_lc in ("1", "true", "yes", "on", "auto")
 
 
 def _update_git_metadata_tags(tags):
@@ -104,7 +105,7 @@ def _update_git_metadata_tags(tags):
     return tags
 
 
-def _enrich_tags(tags) -> t.Dict[str, str]:
+def _enrich_tags(tags) -> dict[str, str]:
     tags = {
         k: compat.ensure_text(v, "utf-8")
         for k, v in itertools.chain(
@@ -129,6 +130,16 @@ class ProfilingConfig(DDConfig):
         help_type="Boolean",
         help="Enable Datadog profiling when using ``ddtrace-run``",
     )
+
+    def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
+        super().__init__(*args, **kwargs)
+
+        # When DD_PROFILING_ENABLED is not set, envier uses the default value directly
+        # without invoking the parser. This means the DD_INJECTION_ENABLED check in
+        # _parse_profiling_enabled is skipped, so we apply it here as a post-init step.
+        if not self.enabled and _injection_enabled_has_profiler():
+            self.enabled = True
+            self._value_source["DD_PROFILING_ENABLED"] = ValueSource.ENV_VAR
 
     agentless = DDConfig.v(
         bool,
@@ -269,6 +280,14 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    uvloop = DDConfig.v(
+        bool,
+        "uvloop",
+        default=True,
+        help_type="Boolean",
+        help="Whether to enable uvloop support for async profiling",
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
@@ -379,10 +398,10 @@ if not ddup_is_available:
 stack_failure_msg, stack_is_available = _check_for_stack_available()
 if config.stack.enabled and not stack_is_available:  # pyright: ignore[reportAttributeAccessIssue]
     msg = stack_failure_msg or "stack not available"
-    logger.warning("Failed to load stack module (%s), falling back to v1 stack sampler", msg)
+    logger.warning("Failed to load stack module (%s), disabling stack profiling", msg)
     telemetry_writer.add_log(
         TELEMETRY_LOG_LEVEL.ERROR,
-        "Failed to load stack module (%s), disabling profiling" % msg,
+        "Failed to load stack module (%s), disabling stack profiling" % msg,
     )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 

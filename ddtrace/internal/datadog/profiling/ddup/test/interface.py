@@ -7,7 +7,6 @@ from pathlib import Path
 import sys
 from typing import Callable
 from typing import Optional
-from typing import Type
 from typing import Union
 from unittest.mock import MagicMock
 
@@ -130,7 +129,7 @@ def SampleTestSimple():
 
 
 def SampleTest(
-    value: int, name: StringType, exc_type: Optional[Type[Exception]], lineno: int, span: Optional[Span]
+    value: int, name: StringType, exc_type: Optional[type[Exception]], lineno: int, span: Optional[Span]
 ) -> Callable[[], None]:
     def test() -> None:
         try:

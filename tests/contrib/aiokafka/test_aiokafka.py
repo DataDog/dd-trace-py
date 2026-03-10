@@ -89,11 +89,13 @@ async def test_send_multiple_servers():
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=["meta.error.stack"])
-async def test_send_and_wait_failure():
+@pytest.mark.snapshot(ignores=["meta.error.stack", "meta.error.message"])
+async def test_send_and_wait_failure(test_spans):
     async with producer_ctx([BOOTSTRAP_SERVERS]) as producer:
         with pytest.raises(MessageSizeTooLargeError):
             await producer.send_and_wait("nonexistent_topic", value=b"x" * (10 * 1024 * 1024), key=KEY)
+            spans = test_spans.pop()
+            assert spans[0].meta["error.message"].startswith("[Error 10] MessageSizeTooLargeError: ")
 
 
 @pytest.mark.asyncio

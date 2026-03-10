@@ -5,30 +5,14 @@
 
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <variant>
 
 namespace Datadog {
 
+// UploaderBuilder provides static methods to configure and build an Uploader.
+// Configuration state is stored in the ProfilerState singleton.
 class UploaderBuilder
 {
-    using ExporterTagset = std::unordered_map<std::string, std::string>;
-
-    // Building parameters
-    static inline std::string dd_env;
-    static inline std::string service;
-    static inline std::string version;
-    static inline std::string runtime{ g_runtime_name };
-    static inline std::string runtime_id;
-    static inline std::string process_id;
-    static inline std::string runtime_version;
-    static inline std::string profiler_version;
-    static inline std::string url{ "http://localhost:8126" };
-    static inline ExporterTagset user_tags{};
-    static inline std::string output_filename{ "" };
-    static inline uint64_t max_timeout_ms{ g_default_max_timeout_ms };
-    static inline std::string process_tags;
-
     static constexpr std::string_view language{ g_language_name };
     static constexpr std::string_view family{ g_language_name };
 
@@ -48,8 +32,6 @@ class UploaderBuilder
     static void set_max_timeout_ms(uint64_t _max_timeout_ms);
 
     static std::variant<Uploader, std::string> build();
-
-    static void postfork_child();
 };
 
 } // namespace Datadog

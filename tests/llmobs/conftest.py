@@ -172,7 +172,7 @@ def llmobs_env():
     return {
         "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
-        "DD_LLMOBS_PROJECT_NAME": "test-project",
+        "DD_LLMOBS_PROJECT_NAME": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean"),
     }
 
 
@@ -244,7 +244,7 @@ def llmobs_backend(_llmobs_backend):
 
 @pytest.fixture
 def llmobs_enable_opts():
-    yield {"project_name": "test-project"}
+    yield {"project_name": os.environ.get("DD_LLMOBS_PROJECT_NAME", "test-project-clean")}
 
 
 @pytest.fixture

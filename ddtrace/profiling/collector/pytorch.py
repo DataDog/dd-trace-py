@@ -1,9 +1,9 @@
-from __future__ import absolute_import
+from __future__ import annotations
 
 import abc
 import logging
 import random
-import typing
+from typing import Any
 
 import wrapt
 
@@ -20,38 +20,34 @@ LOG = logging.getLogger(__name__)
 class _WrappedTorchProfiler(wrapt.ObjectProxy):
     def __init__(
         self,
-        wrapped: typing.Any,
-        tracer: typing.Optional[Tracer],
+        wrapped: Any,
+        tracer: Tracer | None,
     ) -> None:
         wrapt.ObjectProxy.__init__(self, wrapped)
-        self.on_trace_ready = handle_torch_trace
+        self.on_trace_ready = _handle_torch_trace
         self._self_tracer = tracer
 
 
 class MLProfilerCollector(collector.CaptureSamplerCollector):
     """Record ML framework (i.e. pytorch) profiler usage."""
 
+    PROFILED_TORCH_CLASS: type
+
     def __init__(self) -> None:
         super().__init__()
-        self.tracer: typing.Union[Tracer, None] = None
+        self.tracer: Tracer | None = None
         # Holds the pytorch profiler object which is wrapped by this class
-        self._original: typing.Any = None
+        self._original: Any = None
 
     @abc.abstractmethod
-    def _get_patch_target(self):
-        # type: (...) -> typing.Any
+    def _get_patch_target(self) -> Any:
         pass
 
     @abc.abstractmethod
-    def _set_patch_target(
-        self,
-        value,  # type: typing.Any
-    ):
-        # type: (...) -> None
+    def _set_patch_target(self, value: Any) -> None:
         pass
 
-    def _start_service(self):
-        # type: (...) -> None
+    def _start_service(self) -> None:
         """Start collecting framework profiler usage."""
         try:
             import torch
@@ -61,14 +57,12 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
         self.patch()
         super()._start_service()  # type: ignore[safe-super]
 
-    def _stop_service(self):
-        # type: (...) -> None
+    def _stop_service(self) -> None:
         """Stop collecting framework profiler usage."""
         super()._stop_service()  # type: ignore[safe-super]
         self.unpatch()
 
-    def patch(self):
-        # type: (...) -> None
+    def patch(self) -> None:
         """Patch the module for tracking profiling data."""
         # We only patch the profile call from the `torch.profiler` module.
         self._original = self._get_patch_target()
@@ -82,8 +76,7 @@ class MLProfilerCollector(collector.CaptureSamplerCollector):
 
         self._set_patch_target(wrapt.FunctionWrapper(self._original, profiler_init))
 
-    def unpatch(self):
-        # type: (...) -> None
+    def unpatch(self) -> None:
         """Unpatch the torch.profiler module for tracking profiling data."""
         self._set_patch_target(self._original)
 
@@ -93,30 +86,26 @@ class TorchProfilerCollector(MLProfilerCollector):
 
     PROFILED_TORCH_CLASS = _WrappedTorchProfiler
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-    def _get_patch_target(self):
-        # type: (...) -> typing.Any
+    def _get_patch_target(self) -> Any:
         return self._torch_module.profiler.profile
 
-    def _set_patch_target(
-        self,
-        value,  # type: typing.Any
-    ):
-        # type: (...) -> None
+    def _set_patch_target(self, value: Any) -> None:
         self._torch_module.profiler.profile = value
 
 
-def handle_torch_trace(prof):
+def _handle_torch_trace(prof: Any) -> None:
     NANOS_PER_MICROSECOND = 1e3
-    LOG.debug("handle_torch_trace called")
+    LOG.debug("_handle_torch_trace called")
     events = prof.events()
     if len(events) == 0:
         return
 
     # need an upper bound of events collected, can be adjusted based on profile size.
-    # Sadly, there is no way AFAICT to tell the PyTorch profiler itself to limit the num of samples.
+    # There is no way for us to ask the PyTorch profiler to limit the num of samples
+    # (it is adjusted through the Schedule set by the user).
     # We truncate to keep the uploaded profile to a reasonable size.
     # For now, experiment with a default of 1_000_000 if nothing is set.
     # TODO, better values here.
@@ -150,14 +139,11 @@ def handle_torch_trace(prof):
             handle.push_cputime(int(e.cpu_time * NANOS_PER_MICROSECOND), e.count)
 
         # gpu time sample - both device_time and cuda_time are in microseconds
-        if hasattr(e, "device_time") and e.device_time > 0:
+        # device_time is the modern API; cuda_time is deprecated and only used on older PyTorch
+        gpu_time = getattr(e, "device_time", None) or getattr(e, "cuda_time", None)
+        if gpu_time is not None and gpu_time > 0:
             data_added = True
-            time_elapsed = int(e.device_time * NANOS_PER_MICROSECOND)
-            handle.push_gpu_gputime(time_elapsed, e.count)
-        elif hasattr(e, "cuda_time") and e.cuda_time > 0:
-            data_added = True
-            time_elapsed = int(e.cuda_time * NANOS_PER_MICROSECOND)
-            handle.push_gpu_gputime(time_elapsed, e.count)
+            handle.push_gpu_gputime(int(gpu_time * NANOS_PER_MICROSECOND), e.count)
 
         # gpu flops sample
         if e.flops is not None and e.flops > 0:
@@ -165,13 +151,11 @@ def handle_torch_trace(prof):
             handle.push_gpu_flops(e.flops, e.count)
 
         # GPU memory usage
-        # earlier versions of torch use cuda_memory_usage, recent versions use device_memory_usage
-        if hasattr(e, "device_memory_usage") and e.device_memory_usage is not None and e.device_memory_usage > 0:
+        # device_memory_usage is the modern API; cuda_memory_usage is deprecated
+        gpu_memory = getattr(e, "device_memory_usage", None) or getattr(e, "cuda_memory_usage", None)
+        if gpu_memory is not None and gpu_memory > 0:
             data_added = True
-            handle.push_gpu_memory(e.device_memory_usage, e.count)
-        elif hasattr(e, "cuda_memory_usage") and e.cuda_memory_usage is not None and e.cuda_memory_usage > 0:
-            data_added = True
-            handle.push_gpu_memory(e.cuda_memory_usage, e.count)
+            handle.push_gpu_memory(gpu_memory, e.count)
 
         # If there is data, flush it to the profile.
         # Otherwise, do nothing and the sample object will be dropped when it goes out of scope

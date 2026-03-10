@@ -12,12 +12,12 @@ class LibraryCapabilities:
     }
 
     def __init__(self, **capabilities: t.Optional[str]):
-        self._tags: t.Dict[str, str] = {}
+        self._tags: dict[str, str] = {}
 
         for capability, version in capabilities.items():
             if version is not None:
                 tag = LibraryCapabilities.TAGS[capability]
                 self._tags[tag] = version
 
-    def tags(self) -> t.Dict[str, str]:
+    def tags(self) -> dict[str, str]:
         return self._tags

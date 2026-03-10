@@ -1,5 +1,3 @@
-import typing as t
-
 import _pytest
 import pytest
 
@@ -34,7 +32,7 @@ class _RETRY_OUTCOMES:
     FINAL_SKIPPED = "dd_fix_final_skipped"
 
 
-_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
+_FINAL_OUTCOMES: dict[TestStatus, str] = {
     TestStatus.PASS: PYTEST_STATUS.PASSED,
     TestStatus.FAIL: PYTEST_STATUS.FAILED,
     TestStatus.SKIP: PYTEST_STATUS.SKIPPED,
@@ -44,7 +42,7 @@ _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 def attempt_to_fix_handle_retries(
     test_id: TestId,
     item: pytest.Item,
-    test_reports: t.Dict[str, pytest_TestReport],
+    test_reports: dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):

@@ -1,7 +1,6 @@
 import ipaddress
 import logging
 import re
-from typing import Tuple
 from urllib import parse
 
 from ddtrace import config
@@ -114,7 +113,7 @@ def _parse_rpc_repr_string(rpc_string, module):
     return code, details
 
 
-def is_otlp_export(metadata: Tuple) -> bool:
+def is_otlp_export(metadata: tuple) -> bool:
     """
     Determine if a gRPC channel is submitting data to the OpenTelemetry OTLP exporter.
     """

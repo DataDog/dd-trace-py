@@ -6,9 +6,9 @@ import os
 from re import Match
 import sys
 from typing import Any
+from typing import Generator
 from typing import Iterator
 from typing import Literal  # noqa:F401
-from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -39,8 +39,8 @@ class Constant_Class(type):
     def __setattr__(self, __name: str, __value: Any) -> None:
         raise TypeError("Constant class does not support item assignment: %s.%s" % (self.__name__, __name))
 
-    def __iter__(self) -> Iterator[Tuple[str, Any]]:
-        def aux():
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
+        def aux() -> Generator[tuple[str, Any], Any, None]:
             for t in self.__dict__.items():
                 if not t[0].startswith("_"):
                     yield t

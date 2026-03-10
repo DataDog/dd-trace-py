@@ -33,8 +33,8 @@ METRICS_TO_PYTEST_BENCHMARK_ATTRS = {
 
 @dataclass
 class BenchmarkData:
-    tags: t.Dict[str, str]
-    metrics: t.Dict[str, float]
+    tags: dict[str, str]
+    metrics: dict[str, float]
 
 
 def get_benchmark_tags_and_metrics(item: pytest.Item) -> t.Optional[BenchmarkData]:

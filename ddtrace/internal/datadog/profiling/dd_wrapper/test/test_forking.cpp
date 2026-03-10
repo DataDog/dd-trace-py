@@ -29,6 +29,7 @@ profile_in_child(unsigned int num_threads, unsigned int run_time_ns, std::atomic
     done.store(true);
     join_samplers(new_threads, done);
     ddup_upload();
+    ddup_cleanup();
     std::exit(0);
 }
 
@@ -120,10 +121,8 @@ sample_in_threads_and_fork(unsigned int num_threads, unsigned int sleep_time_ns)
     waitpid(pid, &status, 0);
     ddup_upload();
     join_pthread_samplers(thread_handles, done);
-    if (!is_exit_normal(status)) {
-        std::exit(1);
-    }
-    std::exit(0);
+    ddup_cleanup();
+    std::exit(is_exit_normal(status) ? 0 : 1);
 }
 
 TEST(ForkDeathTest, SampleInThreadsAndForkNormal)

@@ -3,9 +3,6 @@ from collections import defaultdict
 from itertools import chain
 import logging
 from threading import RLock
-from typing import DefaultDict
-from typing import Dict
-from typing import List
 from typing import Optional
 
 from ddtrace._trace.sampler import DatadogSampler
@@ -46,7 +43,7 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         """Processes a trace.
 
         ``None`` can be returned to prevent the trace from being further
@@ -58,7 +55,7 @@ class TraceProcessor(metaclass=abc.ABCMeta):
 class SpanProcessor(metaclass=abc.ABCMeta):
     """A Processor is used to process spans as they are created and finished by a tracer."""
 
-    __processors__: List["SpanProcessor"] = []
+    __processors__: list["SpanProcessor"] = []
 
     def __init__(self) -> None:
         """Default post initializer which logs the representation of the
@@ -120,7 +117,7 @@ class TraceSamplingProcessor(TraceProcessor):
     def __init__(
         self,
         compute_stats_enabled: bool,
-        single_span_rules: List[SpanSamplingRule],
+        single_span_rules: list[SpanSamplingRule],
         apm_opt_out: bool,
     ):
         super(TraceSamplingProcessor, self).__init__()
@@ -147,7 +144,7 @@ class TraceSamplingProcessor(TraceProcessor):
             self.sampler._rate_limit_always_on = False
         self._apm_opt_out = value
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         if trace:
             chunk_root = trace[0]
 
@@ -213,7 +210,7 @@ class TopLevelSpanProcessor(SpanProcessor):
 class ServiceNameProcessor(TraceProcessor):
     """Processor that adds the service name to the globalconfig."""
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         for span in trace:
             if span.service:
                 config._add_extra_service(span.service)
@@ -232,7 +229,7 @@ class TraceTagsProcessor(TraceProcessor):
         if main_package:
             chunk_root._set_tag_str("_dd.python_main_package", main_package)
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         if not trace:
             return trace
 
@@ -255,8 +252,10 @@ class TraceTagsProcessor(TraceProcessor):
             if p_tags := process_tags.process_tags:
                 span._set_tag_str(PROCESS_TAGS, p_tags)
             # for 128 bit trace ids
-            if span.trace_id > MAX_UINT_64BITS:
-                trace_id_hob = _get_64_highest_order_bits_as_hex(span.trace_id)
+            # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+            trace_id = span.trace_id
+            if trace_id > MAX_UINT_64BITS:
+                trace_id_hob = _get_64_highest_order_bits_as_hex(trace_id)
                 span._set_tag_str(HIGHER_ORDER_TRACE_ID_BITS, trace_id_hob)
 
             if LAST_DD_PARENT_ID_KEY in span._meta and span._parent is not None:
@@ -269,11 +268,11 @@ class TraceTagsProcessor(TraceProcessor):
 class _Trace:
     __slots__ = ("spans", "num_finished")
 
-    def __init__(self, spans: Optional[List[Span]] = None, num_finished: int = 0):
-        self.spans: List[Span] = spans if spans is not None else []
+    def __init__(self, spans: Optional[list[Span]] = None, num_finished: int = 0):
+        self.spans: list[Span] = spans if spans is not None else []
         self.num_finished: int = num_finished
 
-    def remove_finished(self) -> List[Span]:
+    def remove_finished(self) -> list[Span]:
         # perf: Avoid Span.finished which is a computed property and has function call overhead
         #       so check Span.duration_ns manually.
         finished = [s for s in self.spans if s.duration_ns is not None]
@@ -305,8 +304,8 @@ class SpanAggregator(SpanProcessor):
         self,
         partial_flush_enabled: bool,
         partial_flush_min_spans: int,
-        dd_processors: Optional[List[TraceProcessor]] = None,
-        user_processors: Optional[List[TraceProcessor]] = None,
+        dd_processors: Optional[list[TraceProcessor]] = None,
+        user_processors: Optional[list[TraceProcessor]] = None,
     ):
         # Set partial flushing
         self.partial_flush_enabled = partial_flush_enabled
@@ -321,11 +320,11 @@ class SpanAggregator(SpanProcessor):
         self.service_name_processor = ServiceNameProcessor()
         self.writer = create_trace_writer(response_callback=self._agent_response_callback)
         # Initialize the trace buffer and lock
-        self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
+        self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
         # Track telemetry span metrics by span api
         # ex: otel api, opentracing api, datadog api
-        self._span_metrics: Dict[str, DefaultDict] = {
+        self._span_metrics: dict[str, defaultdict] = {
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
         }
@@ -346,8 +345,10 @@ class SpanAggregator(SpanProcessor):
         )
 
     def on_span_start(self, span: Span) -> None:
+        # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+        trace_id = span.trace_id
         with self._lock:
-            trace = self._traces[span.trace_id]
+            trace = self._traces[trace_id]
             trace.spans.append(span)
             integration_name = span._meta.get(COMPONENT, span._span_api)
 
@@ -356,15 +357,17 @@ class SpanAggregator(SpanProcessor):
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
+        # PERF: cache trace_id to avoid repeated Rust property calls (each call allocates a new Python int)
+        trace_id = span.trace_id
         # Acquire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._span_metrics["spans_finished"][integration_name] += 1
 
-            if span.trace_id not in self._traces:
+            if trace_id not in self._traces:
                 return
 
-            trace = self._traces[span.trace_id]
+            trace = self._traces[trace_id]
             trace.num_finished += 1
             num_buffered = len(trace.spans)
             is_trace_complete = trace.num_finished >= num_buffered
@@ -372,7 +375,7 @@ class SpanAggregator(SpanProcessor):
             should_partial_flush = False
             if is_trace_complete:
                 finished = trace.spans
-                del self._traces[span.trace_id]
+                del self._traces[trace_id]
                 # perf: Flush span finish metrics to the telemetry writer after the trace is complete
                 self._queue_span_count_metrics("spans_finished", "integration_name")
             elif self.partial_flush_enabled and num_finished >= self.partial_flush_min_spans:
@@ -482,7 +485,7 @@ class SpanAggregator(SpanProcessor):
 
     def reset(
         self,
-        user_processors: Optional[List[TraceProcessor]] = None,
+        user_processors: Optional[list[TraceProcessor]] = None,
         compute_stats: Optional[bool] = None,
         apm_opt_out: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,

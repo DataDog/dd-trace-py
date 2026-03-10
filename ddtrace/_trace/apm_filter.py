@@ -1,5 +1,4 @@
 import os
-from typing import List
 from typing import Optional
 
 from ddtrace._trace.processor import TraceProcessor
@@ -16,7 +15,7 @@ class APMTracingEnabledFilter(TraceProcessor):
         super().__init__()
         self._apm_tracing_enabled = asbool(os.getenv("DD_APM_TRACING_ENABLED", "true"))
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         if not self._apm_tracing_enabled:
             return None
         return trace

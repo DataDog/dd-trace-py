@@ -118,25 +118,27 @@ def expected_llmobs_tool_span_events_agent_run(
         input_value="Say hello",
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
         metadata={
-            "agent_manifest": {
-                "description": "Test agent for ADK integration testing",
-                "framework": "Google ADK",
-                "instructions": "You are a helpful test agent. You can: "
-                "(1) call tools using the provided "
-                "functions, (2) execute Python code "
-                "blocks when they are provided to you. "
-                "When you see ```python code blocks, "
-                "execute them using your code execution "
-                "capability. Always be helpful and use "
-                "your available capabilities.",
-                "model": "gemini-2.5-pro",
-                "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
-                "name": "test_agent",
-                "session_management": {"session_id": "test-session", "user_id": "test-user"},
-                "tools": [
-                    {"description": "A tiny search tool stub.", "name": "search_docs"},
-                    {"description": "Simple arithmetic tool.", "name": "multiply"},
-                ],
+            "_dd": {
+                "agent_manifest": {
+                    "description": "Test agent for ADK integration testing",
+                    "framework": "Google ADK",
+                    "instructions": "You are a helpful test agent. You can: "
+                    "(1) call tools using the provided "
+                    "functions, (2) execute Python code "
+                    "blocks when they are provided to you. "
+                    "When you see ```python code blocks, "
+                    "execute them using your code execution "
+                    "capability. Always be helpful and use "
+                    "your available capabilities.",
+                    "model": "gemini-2.5-pro",
+                    "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
+                    "name": "test_agent",
+                    "session_management": {"session_id": "test-session", "user_id": "test-user"},
+                    "tools": [
+                        {"description": "A tiny search tool stub.", "name": "search_docs"},
+                        {"description": "Simple arithmetic tool.", "name": "multiply"},
+                    ],
+                }
             }
         },
         output_value=mock.ANY,
@@ -163,25 +165,27 @@ def expected_llmobs_agent_span_event_with_tools(llmobs_event, agent_span, tool_s
         input_value="Can you search for information about recurring revenue?",
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_adk"},
         metadata={
-            "agent_manifest": {
-                "description": "Test agent for ADK integration testing",
-                "framework": "Google ADK",
-                "instructions": "You are a helpful test agent. You can: "
-                "(1) call tools using the provided "
-                "functions, (2) execute Python code "
-                "blocks when they are provided to you. "
-                "When you see ```python code blocks, "
-                "execute them using your code execution "
-                "capability. Always be helpful and use "
-                "your available capabilities.",
-                "model": "gemini-2.5-pro",
-                "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
-                "name": "test_agent",
-                "session_management": {"session_id": "test-session", "user_id": "test-user"},
-                "tools": [
-                    {"description": "A tiny search tool stub.", "name": "search_docs"},
-                    {"description": "Simple arithmetic tool.", "name": "multiply"},
-                ],
+            "_dd": {
+                "agent_manifest": {
+                    "description": "Test agent for ADK integration testing",
+                    "framework": "Google ADK",
+                    "instructions": "You are a helpful test agent. You can: "
+                    "(1) call tools using the provided "
+                    "functions, (2) execute Python code "
+                    "blocks when they are provided to you. "
+                    "When you see ```python code blocks, "
+                    "execute them using your code execution "
+                    "capability. Always be helpful and use "
+                    "your available capabilities.",
+                    "model": "gemini-2.5-pro",
+                    "model_configuration": '{"arbitrary_types_allowed": true, "extra": "forbid"}',
+                    "name": "test_agent",
+                    "session_management": {"session_id": "test-session", "user_id": "test-user"},
+                    "tools": [
+                        {"description": "A tiny search tool stub.", "name": "search_docs"},
+                        {"description": "Simple arithmetic tool.", "name": "multiply"},
+                    ],
+                }
             }
         },
         output_value=mock.ANY,

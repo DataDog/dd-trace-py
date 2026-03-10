@@ -1,10 +1,11 @@
 use pyo3::{
     types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
-    Bound, PyAny, PyResult, Python,
+    Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
 };
 use std::time::SystemTime;
 
-use crate::py_string::PyBackedString;
+use crate::py_string::{PyBackedString, PyTraceData};
+use libdd_trace_utils::span::SpanText;
 
 #[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
@@ -71,7 +72,25 @@ impl SpanLinkData {
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
-    data: libdd_trace_utils::span::Span<PyBackedString>,
+    data: libdd_trace_utils::span::v04::Span<PyTraceData>,
+    span_api: PyBackedString,
+    /// Lazy Python int cache for the `trace_id` getter.
+    /// Populated on first read; invalidated on every write to `data.trace_id`.
+    /// `data.trace_id` is always the source of truth.
+    _trace_id_py: Option<Py<PyAny>>,
+}
+
+impl SpanData {
+    /// Set `data.trace_id` and invalidate `_trace_id_py`.
+    ///
+    /// **All writes to `data.trace_id` must go through this method** to keep `_trace_id_py`
+    /// consistent. Bypassing it leaves a stale cached Python int that silently returns the
+    /// old value on the next `span.trace_id` read.
+    #[inline(always)]
+    fn set_trace_id_native(&mut self, id: u128) {
+        self.data.trace_id = id;
+        self._trace_id_py = None;
+    }
 }
 
 /// Extract PyBackedString from Python object, falling back to empty string on error.
@@ -130,10 +149,13 @@ impl SpanData {
         service=None,
         resource=None,
         span_type=None,
-        trace_id=None,     // placeholder for Span.__init__ positional arg
-        span_id=None,      // placeholder for Span.__init__ positional arg
-        parent_id=None,    // placeholder for Span.__init__ positional arg
+        trace_id=None,
+        span_id=None,
+        parent_id=None,
         start=None,
+        context=None,      // placeholder for Span.__init__ positional arg
+        on_finish=None,    // placeholder for Span.__init__ positional arg
+        span_api=None,
         *args,
         **kwargs
     ))]
@@ -143,10 +165,13 @@ impl SpanData {
         service: Option<&Bound<'p, PyAny>>,
         resource: Option<&Bound<'p, PyAny>>,
         span_type: Option<&Bound<'p, PyAny>>,
-        trace_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
-        span_id: Option<&Bound<'p, PyAny>>,  // placeholder, not used
-        parent_id: Option<&Bound<'p, PyAny>>, // placeholder, not used
-        start: Option<&Bound<'p, PyAny>>,    // USED: in seconds (float or int)
+        trace_id: Option<&Bound<'p, PyAny>>,
+        span_id: Option<&Bound<'p, PyAny>>,
+        parent_id: Option<&Bound<'p, PyAny>>,
+        start: Option<&Bound<'p, PyAny>>,
+        context: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        on_finish: Option<&Bound<'p, PyAny>>, // placeholder, not used
+        span_api: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
@@ -167,6 +192,10 @@ impl SpanData {
         span.data.r#type = span_type
             .map(|obj| extract_backed_string_or_none(obj))
             .unwrap_or_else(|| PyBackedString::py_none(py));
+        // Initialize parent_id: None or invalid → 0 (no parent), Some(int) → parent_id
+        span.data.parent_id = parent_id
+            .and_then(|obj| obj.extract::<u64>().ok())
+            .unwrap_or(0);
         // Handle start parameter: None means capture current time, otherwise convert seconds to nanoseconds
         span.data.start = match start {
             None => wall_clock_ns(), // Common case: native time capture
@@ -180,6 +209,53 @@ impl SpanData {
         };
         // Set duration to -1 (our sentinel for "not set")
         span.data.duration = -1;
+        // Initialize span_id from parameter or generate random
+        span.data.span_id = span_id
+            .and_then(|obj| obj.extract::<u64>().ok())
+            .unwrap_or_else(crate::rand::rand64bits);
+        // Initialize trace_id: use provided value, or generate based on 128-bit mode config.
+        // When auto-generating, reads the Rust-owned AtomicBool set by Python Config.__init__:
+        //   enabled  → generate_128bit_trace_id() (SystemTime upper bits + random lower bits)
+        //   disabled → rand64bits() cast to u128   (random 64-bit value, upper bits zero)
+        // The stored value is always the full intended ID; no masking is applied on reads.
+        //
+        // Optimization: when the caller passes a Python int, we seed `_trace_id_py` with it
+        // directly.  This avoids allocating a brand-new PyLong when `span.trace_id` is first
+        // read — the caller's object is already alive and can be reused.
+        let trace_id_cached = match trace_id {
+            Some(obj) => match obj.extract::<u128>() {
+                Ok(id) => {
+                    span.set_trace_id_native(id);
+                    // Seed the cache with the caller-provided Python int.
+                    Some(obj.clone().unbind())
+                }
+                Err(_) => {
+                    // Invalid type — fall through to auto-generation.
+                    let id = if crate::config::get_128_bit_trace_id_enabled() {
+                        crate::rand::generate_128bit_trace_id()
+                    } else {
+                        crate::rand::rand64bits() as u128
+                    };
+                    span.set_trace_id_native(id);
+                    None
+                }
+            },
+            None => {
+                let id = if crate::config::get_128_bit_trace_id_enabled() {
+                    crate::rand::generate_128bit_trace_id()
+                } else {
+                    crate::rand::rand64bits() as u128
+                };
+                span.set_trace_id_native(id);
+                None
+            }
+        };
+        // Override the None left by set_trace_id_native with the pre-seeded cache (if any).
+        span._trace_id_py = trace_id_cached;
+        // Initialize span_api: use provided value or default to "datadog"
+        span.span_api = span_api
+            .map(|obj| extract_backed_string_or_default(obj))
+            .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         span
     }
 
@@ -292,6 +368,60 @@ impl SpanData {
         self.data.error = extract_i32_or_default(value);
     }
 
+    // span_id property
+    #[getter]
+    #[inline(always)]
+    fn get_span_id(&self) -> u64 {
+        self.data.span_id
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_span_id(&mut self, value: &Bound<'_, PyAny>) {
+        // Extract u64, silently ignore invalid types (keep existing value)
+        if let Ok(id) = value.extract::<u64>() {
+            self.data.span_id = id;
+        }
+    }
+
+    // trace_id property - returns the stored trace_id as-is
+    #[getter]
+    #[inline(always)]
+    fn get_trace_id<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyAny> {
+        // Lazy-init: create the Python int on first read, reuse on subsequent reads.
+        // Invalidated (set to None) on every write to data.trace_id.
+        // data.trace_id is always the source of truth; _trace_id_py is purely a Python-side cache.
+        if self._trace_id_py.is_none() {
+            let val = self.data.trace_id;
+            // SAFETY: u128 can always be converted to a Python int
+            self._trace_id_py = Some(
+                val.into_pyobject(py)
+                    .expect("u128 into_pyobject")
+                    .into_any()
+                    .unbind(),
+            );
+        }
+        // SAFETY: guaranteed Some above
+        self._trace_id_py.as_ref().unwrap().bind(py).clone()
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_trace_id(&mut self, value: &Bound<'_, PyAny>) {
+        // Extract u128, silently ignore invalid types (keep existing value)
+        if let Ok(id) = value.extract::<u128>() {
+            self.set_trace_id_native(id);
+        }
+    }
+
+    // _trace_id_64bits property - always returns lower 64 bits
+    #[getter]
+    #[inline(always)]
+    #[allow(non_snake_case)]
+    fn get__trace_id_64bits(&self) -> u64 {
+        (self.data.trace_id & 0xFFFF_FFFF_FFFF_FFFF) as u64
+    }
+
     // finished property (native for performance - avoids Python property hop)
     #[getter]
     #[inline(always)]
@@ -338,6 +468,40 @@ impl SpanData {
             .map(|s| (s * 1e9) as i64)
             .or_else(|_| value.extract::<i64>().map(|s| s * 1_000_000_000))
             .unwrap_or(-1);
+    }
+
+    // parent_id property
+    // Returns None if parent_id is 0 (no parent), else returns the value
+    #[getter]
+    #[inline(always)]
+    fn get_parent_id(&self) -> Option<u64> {
+        if self.data.parent_id == 0 {
+            None
+        } else {
+            Some(self.data.parent_id)
+        }
+    }
+
+    #[setter]
+    #[inline(always)]
+    fn set_parent_id(&mut self, value: Option<&Bound<'_, PyAny>>) {
+        self.data.parent_id = match value {
+            None => 0,
+            Some(obj) => obj.extract::<u64>().unwrap_or(self.data.parent_id),
+        };
+    }
+
+    // _span_api property
+    #[getter(_span_api)]
+    #[inline(always)]
+    fn get_span_api<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
+        self.span_api.as_py(py)
+    }
+
+    #[setter(_span_api)]
+    #[inline(always)]
+    fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
+        self.span_api = extract_backed_string_or_default(value);
     }
 }
 

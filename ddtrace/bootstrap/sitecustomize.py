@@ -38,7 +38,7 @@ try:
         index = sys.path.index(bootstrap_dir)
         del sys.path[index]
 
-        # Cache this module under it's fully qualified package name
+        # Cache this module under its fully qualified package name
         ddtrace_sitecustomize = sys.modules.pop("sitecustomize", None)
         if "ddtrace.bootstrap.sitecustomize" not in sys.modules and ddtrace_sitecustomize is not None:
             sys.modules["ddtrace.bootstrap.sitecustomize"] = ddtrace_sitecustomize

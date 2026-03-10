@@ -6,8 +6,6 @@ import threading
 import time
 from typing import TYPE_CHECKING
 from typing import Generator
-from typing import List
-from typing import Tuple
 from unittest.mock import patch
 import uuid
 
@@ -88,8 +86,7 @@ def test_collect_truncate() -> None:
     assert len(samples) > 0
     for sample in samples:
         # stack adds one extra frame for "%d frames omitted" message
-        # Also, it allows max_nframes + 1 frames, so we add 2 here.
-        assert len(sample.location_id) <= max_nframes + 2, len(sample.location_id)
+        assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
 
 
 def test_stack_locations(tmp_path: Path) -> None:
@@ -174,7 +171,7 @@ def test_push_span(tmp_path: Path, tracer: Tracer) -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
 
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -229,7 +226,7 @@ def test_push_span_unregister_thread(tmp_path: Path, monkeypatch: MonkeyPatch, t
 
         profile = pprof_utils.parse_newest_profile(output_filename)
         samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-        samples: List[Sample] = []
+        samples: list[Sample] = []
         for sample in samples_with_span_id:
             locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
             if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -278,7 +275,7 @@ def test_push_non_web_span(tmp_path: Path, tracer: Tracer) -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -327,7 +324,7 @@ def test_push_span_none_span_type(tmp_path: Path, tracer: Tracer) -> None:
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for sample in samples_with_span_id:
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.filename.endswith("test_stack.py") for location in locations):
@@ -563,7 +560,8 @@ def _fib(n: int) -> int:
 
 
 @pytest.mark.skipif(
-    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION, reason=f"gevent is not compatible with Python {sys.version_info}"
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess(ddtrace_run=True)
 def test_collect_gevent_thread_task() -> None:
@@ -646,6 +644,80 @@ def test_collect_gevent_thread_task() -> None:
     )
 
 
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_gevent_task_started_before_profiler",
+    ),
+    err=None,
+)
+def test_collect_gevent_task_started_before_profiler() -> None:
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import threading
+    import time
+
+    import gevent
+
+    should_stop = threading.Event()
+
+    def pre_started_greenlet_task() -> None:
+        # Keep this greenlet alive long enough to be sampled after profiler start.
+        while not should_stop.is_set():
+            start = time.time()
+            while time.time() - start < 0.01:
+                pass
+            gevent.sleep(0)
+
+    # Start a named greenlet before profiler startup (remote-enable scenario).
+    pre_started_greenlet_name = "pre-started-before-profiler"
+    pre_started_greenlet = gevent.spawn(pre_started_greenlet_task)
+    pre_started_greenlet.name = pre_started_greenlet_name
+    gevent.sleep(0.05)
+
+    # Import profiler modules after gevent patching and greenlet creation
+    from ddtrace.profiling import profiler
+    from tests.profiling.collector import pprof_utils
+
+    p = profiler.Profiler()
+    p.start()
+
+    try:
+        gevent.sleep(1.0)
+    finally:
+        should_stop.set()
+        pre_started_greenlet.join(timeout=2)
+        p.stop()
+
+    output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    assert len(samples) > 0
+
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=pre_started_greenlet_name,
+            locations=[
+                pprof_utils.StackLocation(
+                    function_name=pre_started_greenlet_task.__name__,
+                    filename="test_stack.py",
+                    line_no=-1,
+                )
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
+
+
 def test_repr() -> None:
     test_collector._test_repr(
         stack.StackCollector,
@@ -653,7 +725,7 @@ def test_repr() -> None:
     )
 
 
-# Tests from tests/profiling/collector/test_stack.py (v1)
+# Tests from tests/profiling/collector/test_stack.py
 # Function to use for stress-test of polling
 MAX_FN_NUM = 30
 FN_TEMPLATE = """def _f{num}():
@@ -712,7 +784,7 @@ def test_stress_threads_run_as_thread(tmp_path: Path) -> None:
 @pytest.fixture
 def tracer_and_collector(
     tracer: Tracer, request: FixtureRequest, tmp_path: Path
-) -> Generator[Tuple[Tracer, stack.StackCollector], None, None]:
+) -> Generator[tuple[Tracer, stack.StackCollector], None, None]:
     test_name = get_original_test_name(request)
     pprof_prefix = str(tmp_path / test_name)
 
@@ -901,7 +973,102 @@ def test_collect_nested_span_id(tmp_path: Path, tracer: Tracer, request: Fixture
     )
 
 
-def test_stress_trace_collection(tracer_and_collector: Tuple[Tracer, stack.StackCollector]) -> None:
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gevent_greenlet_switch_not_blocked_by_profiler",
+    ),
+    out=None,
+    err=None,
+)
+def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
+    """Verify that profiler sampling does not block greenlet switches as the
+    number of tracked greenlets grows.
+
+    Before the fix, unwind_greenlets() held greenlet_info_map_lock for the
+    entire stack unwinding of ALL tracked greenlets.  Every greenlet switch
+    calls update_greenlet_frame() under the same lock, so more tracked
+    greenlets meant longer lock hold and more switch blocking.
+
+    This test measures greenlet-switch wall time with zero vs many idle
+    tracked greenlets (each with deep stacks) while the profiler samples
+    aggressively.  The ratio (many / zero) isolates lock-contention scaling
+    from general profiler overhead.
+
+    With the fix the lock is only held for a fast snapshot, so the ratio
+    stays close to 1.  Without the fix it grows with N.
+    """
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import time
+
+    import gevent
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling import profiler
+
+    N_ACTIVE = 20
+    SWITCHES = 200
+    N_IDLE_HIGH = 2000
+    STACK_DEPTH = 50
+    MAX_SCALING_RATIO = 3.0
+    MEASURE_TIMEOUT = 30  # generous timeout to prevent CI hangs
+
+    def active_worker() -> None:
+        for _ in range(SWITCHES):
+            gevent.sleep(0)
+
+    def _idle_deep(depth: int) -> None:
+        if depth > 0:
+            _idle_deep(depth - 1)
+        else:
+            gevent.sleep(1000)
+
+    def idle_greenlet() -> None:
+        _idle_deep(STACK_DEPTH)
+
+    def measure(n_idle: int) -> float:
+        idles = [gevent.spawn(idle_greenlet) for _ in range(n_idle)]
+        gevent.sleep(0.1)  # let them start and get tracked
+
+        actives = [gevent.spawn(active_worker) for _ in range(N_ACTIVE)]
+        t0 = time.monotonic()
+        try:
+            gevent.joinall(actives, timeout=MEASURE_TIMEOUT)
+            elapsed = time.monotonic() - t0
+            assert all(g.dead for g in actives), "active workers did not finish within timeout"
+        finally:
+            gevent.killall(actives, timeout=5)
+            gevent.killall(idles, timeout=5)
+            gevent.sleep(0)  # let the hub process kills before next measurement
+        return elapsed
+
+    p = profiler.Profiler()
+    p.start()
+    stack.set_interval(0.005)  # 5ms (minimum allowed) for aggressive sampling
+    stack.set_adaptive_sampling(False)
+    try:
+        measure(0)  # warm up
+        t_low = min(measure(0) for _ in range(3))
+        t_high = min(measure(N_IDLE_HIGH) for _ in range(3))
+    finally:
+        p.stop()
+
+    ratio = t_high / t_low if t_low > 0 else 1.0
+
+    assert ratio < MAX_SCALING_RATIO, (
+        f"Greenlet switch time scaled {ratio:.1f}x when adding {N_IDLE_HIGH} "
+        f"tracked greenlets (low={t_low:.4f}s, high={t_high:.4f}s). "
+        f"This indicates greenlet_info_map_lock contention during sampling."
+    )
+
+
+def test_stress_trace_collection(tracer_and_collector: tuple[Tracer, stack.StackCollector]) -> None:
     tracer, _ = tracer_and_collector
 
     def _trace() -> None:

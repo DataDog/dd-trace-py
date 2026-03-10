@@ -19,10 +19,10 @@ _gevent_wait: t.Callable[..., t.Any] = gevent.wait
 _gevent_iwait: t.Callable[..., t.Any] = gevent.iwait
 
 # Global package state
-_tracked_greenlets: t.Set[int] = set()
+_tracked_greenlets: set[int] = set()
 _original_greenlet_tracer: t.Optional[t.Callable[[str, t.Any], None]] = None
-_greenlet_parent_map: t.Dict[int, int] = {}
-_parent_greenlet_count: t.Dict[int, int] = {}
+_greenlet_parent_map: dict[int, int] = {}
+_parent_greenlet_count: dict[int, int] = {}
 
 FRAME_NOT_SET: bool = False  # Sentinel for when the frame is not set
 
@@ -64,9 +64,12 @@ def update_greenlet_frame(greenlet_id: int, frame: t.Union[FrameType, bool, None
 
 
 def greenlet_tracer(event: str, args: t.Any) -> None:
+    # Greenlets that already exist when profiling is enabled are discovered lazily.
+    # We only start tracking them once a post-patch "switch"/"throw" event is observed.
+    # A greenlet that exits before switching again may not be tracked.
     if event in {"switch", "throw"}:
         # This tracer function runs in the context of the target
-        origin, target = t.cast(t.Tuple[_Greenlet, _Greenlet], args)
+        origin, target = t.cast(tuple[_Greenlet, _Greenlet], args)
 
         if (origin_id := thread.get_ident(origin)) not in _tracked_greenlets:
             try:
@@ -189,6 +192,17 @@ def wait_wrapper(original: t.Callable[..., t.Any]) -> t.Callable[..., t.Any]:
         return original(*args, **kwargs)
 
     return _
+
+
+def get_current_greenlet_task() -> tuple[t.Optional[int], t.Optional[str], t.Optional[FrameType]]:
+    current_greenlet = gevent.getcurrent()
+    task_id = thread.get_ident(current_greenlet)
+    # Import locally to avoid eager import order interactions.
+    from ddtrace.profiling import _threading
+
+    task_name = _threading.get_thread_name(task_id)
+    frame = t.cast(t.Optional[FrameType], current_greenlet.gr_frame)
+    return task_id, task_name, frame
 
 
 def patch() -> None:

@@ -1,10 +1,7 @@
 from enum import Enum
 from typing import Any
-from typing import Dict
-from typing import List
 from typing import Literal
 from typing import Optional
-from typing import Type
 from typing import TypeVar
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
@@ -41,7 +38,7 @@ class PyConfigurator:
         :param file: The path to the managed file to override.
         """
         ...
-    def get_configuration(self) -> List[Dict[str, str]]:
+    def get_configuration(self) -> list[dict[str, str]]:
         """
         Retrieve the on-disk configuration.
         :return: A list of dictionaries containing the configuration:
@@ -72,7 +69,7 @@ class StacktraceCollection:
 class CrashtrackerConfiguration:
     def __init__(
         self,
-        additional_files: List[str],
+        additional_files: list[str],
         create_alt_stack: bool,
         use_alt_stack: bool,
         timeout_ms: int,
@@ -84,15 +81,15 @@ class CrashtrackerConfiguration:
 class CrashtrackerReceiverConfig:
     def __init__(
         self,
-        args: List[str],
-        env: Dict[str, str],
+        args: list[str],
+        env: dict[str, str],
         path_to_receiver_binary: str,
         stderr_filename: Optional[str],
         stdout_filename: Optional[str],
     ): ...
 
 class CrashtrackerMetadata:
-    def __init__(self, library_name: str, library_version: str, family: str, tags: Dict[str, str]): ...
+    def __init__(self, library_name: str, library_version: str, family: str, tags: dict[str, str]): ...
 
 class CrashtrackerStatus:
     NotInitialized: "CrashtrackerStatus"
@@ -165,11 +162,10 @@ class TraceExporter:
         Initialize a TraceExporter.
         """
         ...
-    def send(self, data: bytes, trace_count: int) -> str:
+    def send(self, data: bytes) -> str:
         """
         Send a trace payload to the Agent.
         :param data: The msgpack encoded trace payload to send.
-        :param trace_count: The number of traces in the data payload.
         """
         ...
     def shutdown(self, timeout_ns: int) -> None:
@@ -514,6 +510,31 @@ class ffe:
         def __init__(self, config_bytes: bytes) -> None: ...
         def resolve_value(self, flag_key: str, expected_type: ffe.FlagType, context: dict) -> ffe.ResolutionDetails: ...
 
+class native_flare:
+    class ListeningError(Exception): ...
+    class LockError(Exception): ...
+    class ParsingError(Exception): ...
+    class SendError(Exception): ...
+    class ZipError(Exception): ...
+
+    class FlareAction:
+        def __repr__(self) -> str: ...
+        def is_send(self) -> bool: ...
+        def is_set(self) -> bool: ...
+        def is_unset(self) -> bool: ...
+        @property
+        def level(self) -> Optional[str]: ...
+        @property
+        def case_id(self) -> Optional[str]: ...
+        @staticmethod
+        def none_action() -> native_flare.FlareAction: ...
+
+    class TracerFlareManager:
+        def __init__(self, agent_url: str) -> None: ...
+        def handle_remote_config_data(self, data: Any, product: str) -> native_flare.FlareAction: ...
+        def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
+        def set_current_log_level(self, level: str) -> None: ...
+
 class SpanData:
     name: str
     service: Optional[str]
@@ -522,25 +543,33 @@ class SpanData:
     start_ns: int
     duration_ns: Optional[int]  # None when not set (duration == -1 sentinel)
     error: int
+    span_id: int
+    trace_id: int
+    _trace_id_64bits: int
     start: float  # Convenience property: start_ns / 1e9 (in seconds)
     duration: Optional[float]  # Convenience property: duration_ns / 1e9 (in seconds)
+    parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
+    _span_api: str
 
     def __new__(
-        cls: Type[_SpanDataT],
+        cls: type[_SpanDataT],
         name: str,
         service: Optional[str] = None,
         resource: Optional[str] = None,
         span_type: Optional[str] = None,
-        trace_id: Optional[int] = None,  # placeholder for Span.__init__
-        span_id: Optional[int] = None,  # placeholder for Span.__init__
-        parent_id: Optional[int] = None,  # placeholder for Span.__init__
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        parent_id: Optional[int] = None,
         start: Optional[float] = None,
+        context: Optional[Any] = None,  # placeholder for Span.__init__
+        on_finish: Optional[Any] = None,  # placeholder for Span.__init__
+        span_api: Optional[str] = None,
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
 class SpanEventData:
-    def __init__(self, name: str, attributes: Optional[Dict[str, Any]], time_unix_nano: Optional[int]): ...
+    def __init__(self, name: str, attributes: Optional[dict[str, Any]], time_unix_nano: Optional[int]): ...
 
 class SpanLinkData:
     def __init__(
@@ -549,6 +578,22 @@ class SpanLinkData:
         span_id: int,
         tracestate: Optional[str] = None,
         flags: Optional[int] = None,
-        attributes: Optional[Dict[str, str]] = None,
+        attributes: Optional[dict[str, str]] = None,
         _dropped_attributes: int = 0,
     ): ...
+
+def seed() -> None: ...
+def rand64bits() -> int: ...
+def generate_128bit_trace_id() -> int: ...
+
+class config:
+    """Native config module for tracer configuration managed in Rust."""
+
+    @staticmethod
+    def get_128_bit_trace_id_enabled() -> bool:
+        """Return whether 128-bit trace ID generation is enabled."""
+        ...
+    @staticmethod
+    def set_128_bit_trace_id_enabled(val: bool) -> None:
+        """Set whether 128-bit trace ID generation is enabled."""
+        ...

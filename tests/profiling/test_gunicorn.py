@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import pathlib
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -37,7 +38,7 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 RunGunicornFunc: TypeAlias = Callable[..., subprocess.Popen[bytes]]
 
 
-def _run_gunicorn(*args: str) -> subprocess.Popen[bytes]:
+def _run_gunicorn(*args: str, app: str = "tests.profiling.gunicorn-app:app") -> subprocess.Popen[bytes]:
     cmd = (
         [
             "ddtrace-run",
@@ -52,7 +53,7 @@ def _run_gunicorn(*args: str) -> subprocess.Popen[bytes]:
             os.path.dirname(__file__),
         ]
         + list(args)
-        + ["tests.profiling.gunicorn-app:app"]
+        + [app]
     )
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -67,6 +68,18 @@ def gunicorn(monkeypatch: pytest.MonkeyPatch) -> Generator[RunGunicornFunc, None
 
 def _get_worker_pids(stdout: str) -> list[int]:
     return [int(_) for _ in re.findall(r"Booting worker with pid: (\d+)", stdout)]
+
+
+def _get_profile_files(filename_prefix: str) -> list[pathlib.Path]:
+    prefix = pathlib.Path(filename_prefix)
+    return sorted(prefix.parent.glob(prefix.name + ".*.pprof"))
+
+
+def _get_profile_pid(profile_file: pathlib.Path) -> int:
+    # pprof file format: <prefix>.<pid>.<counter>.pprof
+    _, pid, _, ext = profile_file.name.rsplit(".", 3)
+    assert ext == "pprof"
+    return int(pid)
 
 
 def _test_gunicorn(
@@ -134,7 +147,7 @@ def _test_gunicorn(
         # when run on GitLab CI. We need to match either of these two.
         filename_regex = r"^(?:__init__\.py|gunicorn-app\.py)$"
 
-        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=12)
+        expected_location = pprof_utils.StackLocation(function_name="fib", filename=filename_regex, line_no=9)
 
         pprof_utils.assert_profile_has_sample(
             profile,
@@ -151,3 +164,110 @@ def test_gunicorn(
 ) -> None:
     args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
     _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args)
+
+
+def test_gunicorn_profile_export_count_two_workers(
+    gunicorn: RunGunicornFunc,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    filename = str(tmp_path / "gunicorn-count.pprof")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
+
+    args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
+    proc = gunicorn("-w", "2", *args, app="tests.profiling.gunicorn_count_app:app")
+    time.sleep(5)
+
+    if proc.poll() is not None:
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        pytest.fail(f"Gunicorn failed to start: {output}")
+
+    try:
+        for _ in range(4):
+            with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+                assert f.getcode() == 200
+    except Exception as e:
+        proc.terminate()
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        pytest.fail(f"Failed to make request to gunicorn server {e}: {output}")
+    finally:
+        proc.terminate()
+
+    assert proc.stdout is not None
+    output = proc.stdout.read().decode()
+    worker_pids = _get_worker_pids(output)
+    assert len(worker_pids) == 2, output
+
+    try:
+        assert proc.wait(timeout=5) == 0, output
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Failed to terminate gunicorn process: {output}")
+
+    profile_files = _get_profile_files(filename)
+    exported_pids = {_get_profile_pid(p) for p in profile_files}
+    expected_pids = {proc.pid, *worker_pids}
+
+    assert exported_pids == expected_pids, [str(p) for p in profile_files]
+    assert len(profile_files) == 3, [str(p) for p in profile_files]
+
+
+def test_gunicorn_profile_export_count_two_workers_flush_false(
+    gunicorn: RunGunicornFunc,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    filename = str(tmp_path / "gunicorn-count-flush-false.pprof")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED", "0")
+
+    args: tuple[str, ...] = ("-k", "gevent") if TESTING_GEVENT else ()
+    proc = subprocess.Popen(
+        [
+            "ddtrace-run",
+            "gunicorn",
+            "--bind",
+            "127.0.0.1:7644",
+            "--worker-tmp-dir",
+            "/dev/shm",
+            "-c",
+            os.path.dirname(__file__) + "/gunicorn.conf.py",
+            "--chdir",
+            os.path.dirname(__file__),
+            "-w",
+            "2",
+            *args,
+            "tests.profiling.gunicorn_count_app:app",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+    time.sleep(5)
+    if proc.poll() is not None:
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        pytest.fail(f"Gunicorn failed to start: {output}")
+
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+            assert f.getcode() == 200
+    except Exception as e:
+        os.killpg(proc.pid, signal.SIGKILL)
+        assert proc.stdout is not None
+        output = proc.stdout.read().decode()
+        pytest.fail(f"Failed to make request to gunicorn server {e}: {output}")
+
+    os.killpg(proc.pid, signal.SIGKILL)
+    assert proc.stdout is not None
+    output = proc.stdout.read().decode()
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pytest.fail(f"Failed to kill gunicorn process group: {output}")
+
+    profile_files = _get_profile_files(filename)
+    assert profile_files == [], [str(p) for p in profile_files]

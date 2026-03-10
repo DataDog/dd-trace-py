@@ -41,7 +41,7 @@ class Profile
     ValueIndex val_idx{};
 
     // Configuration for the pprof exporter
-    std::vector<ddog_prof_ValueType> samplers{};
+    std::vector<ddog_prof_SampleType> samplers{};
 
     // The profile object is initialized here as a skeleton object, but it
     // cannot be used until it's initialized by libdatadog
@@ -56,6 +56,7 @@ class Profile
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
     bool reset_profile();
+    void cleanup();
     void postfork_child();
 
     // Getters
@@ -67,6 +68,6 @@ class Profile
     const ValueIndex& val();
 
     // collect
-    bool collect(const ddog_prof_Sample& sample, int64_t endtime_ns);
+    bool collect(const ddog_prof_Sample2& sample, int64_t endtime_ns);
 };
 } // namespace Datadog

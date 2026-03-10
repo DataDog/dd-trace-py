@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Length
+      : - '0'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: GET
+    uri: https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/79dc8a68-9dd7-4f99-8ee0-c42b59059432/records
+  response:
+    body:
+      string: '{"data":[{"id":"715e2d0e-f3b2-4e28-a5a5-347b75c9b7fd","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-20T04:44:08.730772Z","dataset_id":"79dc8a68-9dd7-4f99-8ee0-c42b59059432","expected_output":{"out0":"r0v4","out1":"r0v5"},"input":{"in0":"r0v1","in1":"r0v2","in2":"r0v3"},"metadata":{"m0":"r0v6"},"updated_at":"2026-02-20T04:44:08.730772Z"}},{"id":"b6afedc5-6f08-4408-a8a4-dd423bd128c6","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"canonical_id":"00000000-0000-0000-0000-000000000000","created_at":"2026-02-20T04:44:08.730772Z","dataset_id":"79dc8a68-9dd7-4f99-8ee0-c42b59059432","expected_output":{"out0":"r1v4","out1":"r1v5"},"input":{"in0":"r1v1","in1":"r1v2","in2":"r1v3"},"metadata":{"m0":"r1v6"},"updated_at":"2026-02-20T04:44:08.730772Z"}}],"meta":{"after":""}}'
+    headers:
+      content-length:
+      - '926'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 04:44:11 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

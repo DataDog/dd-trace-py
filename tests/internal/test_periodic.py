@@ -2,6 +2,7 @@ import ctypes
 import os
 import platform
 from threading import Event
+from threading import Thread
 from time import monotonic
 from time import sleep
 
@@ -150,6 +151,7 @@ def test_forksafe_awakeable_periodic_service():
         # child: check that the thread has been restarted and the state has been
         # reset
         assert not queue
+
         awake_me.awake()
         periodic_ran.wait(timeout=5)  # Wait for periodic() to complete
         assert queue
@@ -162,27 +164,67 @@ def test_forksafe_awakeable_periodic_service():
     assert exit_code == 42
 
 
-def test_periodic_after_fork_no_restart():
-    """Test that PeriodicThread.start() is safe to call after _after_fork().
+def test_periodic_service_no_immediate_run_after_fork():
+    periodic_ran = Event()
 
-    This prevents crashes when external libraries (like uvloop) call fork and
-    try to restart threads before our forksafe handlers run.
+    class EveryMinute(periodic.PeriodicService):
+        def periodic(self):
+            periodic_ran.set()
+
+    # Use a long interval so periodic() can only run on an explicit wakeup.
+    service = EveryMinute(60)
+    service.start()
+
+    try:
+        assert service._worker is not None
+
+        # Simulate fork stop/restart around the worker.
+        service._worker._before_fork()
+        service._worker.join()
+        service._worker._after_fork()
+
+        # Prefork stop wakeup must not trigger a synthetic run after restart.
+        assert not periodic_ran.wait(timeout=0.5)
+
+        # A real wakeup after restart must still run periodic().
+        service._worker.awake()
+        assert periodic_ran.wait(timeout=1)
+    finally:
+        service.stop()
+        service.join()
+
+
+def test_periodic_thread_preserves_awake_during_restart_window():
+    """Ensure awake() isn't lost while a periodic thread is paused for fork.
+
+    The fork-safe runtime stops periodic threads before fork and restarts them
+    afterwards. A stop wakeup from that path should not trigger an immediate
+    periodic() run after restart, but a real awake() call made during this
+    restart window must still be honored.
     """
+    periodic_ran = Event()
+    awake_done = Event()
 
     def _run_periodic():
-        pass
+        periodic_ran.set()
 
-    t = periodic.PeriodicThread(0.1, _run_periodic)
+    t = periodic.PeriodicThread(60, _run_periodic)
     t.start()
+    t._before_fork()
+    t.join()
 
-    # Simulate what happens in a child process after fork
+    awaker = Thread(target=lambda: (t.awake(), awake_done.set()))
+    awaker.start()
+
+    # Simulate thread restart after fork in parent.
     t._after_fork()
 
-    # This should not crash or create a new thread
-    t.start()  # Should be a no-op
+    assert awake_done.wait(timeout=1), "awake() should complete after restart"
+    assert periodic_ran.wait(timeout=1), "periodic() should run for the awake request"
 
-    # Verify thread is marked as after_fork
-    assert t._is_after_fork is True
+    t.stop()
+    t.join()
+    awaker.join(timeout=1)
 
 
 def test_timer():

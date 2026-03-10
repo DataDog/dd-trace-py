@@ -746,12 +746,12 @@ Test Visibility
 
    DD_PYTEST_USE_NEW_PLUGIN:
      type: Boolean
-     default: False
+     default: True
 
      description: |
         Configures the ``CIVisibility`` service to use a new version of the ``pytest`` plugin. This new version uses an
         independent span writer for Test Optimization (similar to the ``DD_CIVISIBILITY_USE_BETA_WRITER`` option), and
-        also contains performance and memory usage improvements. The new version is currently experimental.
+        also contains performance and memory usage improvements.
 
      version_added:
         v4.3.0:

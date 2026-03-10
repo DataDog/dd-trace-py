@@ -1,5 +1,4 @@
 import os
-import signal
 
 import pytest
 
@@ -384,85 +383,29 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     assert sorted_configs[3]["origin"] == "code"
 
 
-@pytest.mark.parametrize("use_ddtrace_run", [True, False])
-@pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
-def test_signal_shutdown_sends_app_closing(test_agent_session, use_ddtrace_run, signum, tmpdir):
-    """
-    Regression test: Ensure app-closing telemetry event is sent when a process
-    receives SIGTERM or SIGINT signals.
-    """
-    import subprocess
-    import sys
-
-    code = """
-import time
-
-import ddtrace  # enables telemetry
-
-try:
-    print("READY", flush=True)
-    # Busy loop waiting to get killed by parent
-    while True:
-        time.sleep(0.1)
-except KeyboardInterrupt:
-    # Don't crash on SIGINT
-    pass
-"""
+@pytest.mark.parametrize("collect_dependencies", [True, False])
+def test_extended_heartbeat_sent(collect_dependencies, ddtrace_run_python_code_in_subprocess, test_agent_session):
+    """Assert at least one extended heartbeat is sent when the extended heartbeat interval has elapsed."""
 
     env = os.environ.copy()
-    env.update(
-        {
-            # Queue app-started immediately during TelemetryWriter init
-            "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
-            # High interval to prevent auto-flush during test
-            "DD_TELEMETRY_HEARTBEAT_INTERVAL": "3600",
-        }
-    )
+    env["_DD_TELEMETRY_EXTENDED_HEARTBEAT_INTERVAL"] = "1"
+    env["DD_TELEMETRY_LOG_COLLECTION_ENABLED"] = "0.1"
+    env["DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED"] = str(collect_dependencies)
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
-    # Write code to temp file
-    pyfile = tmpdir.join("test_signal_shutdown_telemetry.py")
-    pyfile.write(code)
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess("import time; time.sleep(1.5)", env=env)
+    assert status == 0, stderr
+    assert stderr == b""
 
-    # Build command
-    cmd = [sys.executable, str(pyfile)]
-    if use_ddtrace_run:
-        cmd = ["ddtrace-run"] + cmd
+    extended_events = test_agent_session.get_events("app-extended-heartbeat")
+    assert len(extended_events) >= 1
 
-    # Start subprocess
-    proc = subprocess.Popen(
-        cmd,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    assert extended_events[0]["payload"]["configurations"] is not None
+    configurations = test_agent_session.get_configurations()
+    assert configurations == extended_events[0]["payload"]["configurations"]
 
-    try:
-        # Wait for READY signal
-        ready = False
-        while True:
-            line = proc.stdout.readline()
-            if not line:
-                break
-            if b"READY" in line:
-                ready = True
-                break
-
-        assert ready, f"Subprocess did not signal ready. stderr: {proc.stderr.read().decode()}"
-
-        # Send the signal
-        os.kill(proc.pid, signum)
-
-        # Wait for process to exit (telemetry writer shutdown timeout is configurable, allow extra time)
-        proc.wait(timeout=10)
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait()
-
-    # Validate app-closing event was sent
-    app_closing = test_agent_session.get_events("app-closing")
-    assert len(app_closing) == 1, f"Expected 1 app-closing event, got {len(app_closing)}"
-
-    # Validate app-started was also sent (sanity check that telemetry is working)
-    app_started = test_agent_session.get_events("app-started")
-    assert len(app_started) >= 1, f"Expected at least 1 app-started event, got {len(app_started)}"
+    if collect_dependencies:
+        assert "dependencies" in extended_events[0]["payload"]
+        assert len(extended_events[0]["payload"]["dependencies"]) > 0, extended_events[0]["payload"]
+    else:
+        assert "dependencies" not in extended_events[0]["payload"]

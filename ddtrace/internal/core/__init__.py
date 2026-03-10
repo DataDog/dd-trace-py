@@ -103,17 +103,18 @@ import logging
 import types
 import typing
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
+from typing import Generic
 from typing import Optional  # noqa:F401
 
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
+from .event_hub import dispatch_event  # noqa:F401
 from .event_hub import dispatch_with_results  # noqa:F401
 from .event_hub import has_listeners  # noqa:F401
 from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
+from .events import EventType
 
 
 if typing.TYPE_CHECKING:
@@ -132,13 +133,20 @@ log = logging.getLogger(__name__)
 ROOT_CONTEXT_ID = "__root"
 
 
-class ExecutionContext(object):
-    __slots__ = ("identifier", "_data", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+class ExecutionContext(Generic[EventType]):
+    __slots__ = ("identifier", "_data", "_event", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
-    def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
+    def __init__(
+        self,
+        identifier: str,
+        parent: Optional["ExecutionContext"] = None,
+        event: Optional["EventType"] = None,
+        **kwargs,
+    ) -> None:
         self.identifier: str = identifier
-        self._data: Dict[str, Any] = {}
-        self._suppress_exceptions: List[type] = []
+        self._data: dict[str, Any] = {}
+        self._event: Optional["EventType"] = event
+        self._suppress_exceptions: list[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
@@ -209,11 +217,11 @@ class ExecutionContext(object):
             raise KeyError
         return value
 
-    def find_items(self, data_keys: List[str]) -> List[Optional[Any]]:
+    def find_items(self, data_keys: list[str]) -> list[Optional[Any]]:
         """Find multiple items by their keys, traversing up the context tree for each key."""
         return [self.find_item(key) for key in data_keys]
 
-    def get_items(self, data_keys: List[str]) -> List[Optional[Any]]:
+    def get_items(self, data_keys: list[str]) -> list[Optional[Any]]:
         """Return multiple items by their keys, only in the local context."""
         return [self.get_item(key) for key in data_keys]
 
@@ -225,7 +233,7 @@ class ExecutionContext(object):
             raise ValueError("Cannot overwrite ExecutionContext data key '%s'", data_key)
         return self.set_item(data_key, data_value)
 
-    def set_items(self, keys_values: Dict[str, Optional[Any]]) -> None:
+    def set_items(self, keys_values: dict[str, Optional[Any]]) -> None:
         for data_key, data_value in keys_values.items():
             self.set_item(data_key, data_value)
 
@@ -254,7 +262,12 @@ class ExecutionContext(object):
     @property
     def span(self) -> "Span":
         if self._inner_span is None:
-            log.warning("No span found in ExecutionContext %s", self.identifier)
+            log.warning(
+                "No span found in %s. "
+                "This may indicate the context.started event handler did not set a span. "
+                "Creating fallback 'default' span.",
+                self,
+            )
             self._inner_span = tracer.current_span() or tracer.trace("default")  # type: ignore
         return self._inner_span
 
@@ -263,6 +276,12 @@ class ExecutionContext(object):
         self._inner_span = value
         if "span_key" in self._data:
             self._data[self._data["span_key"]] = value
+
+    @property
+    def event(self) -> EventType:
+        if self._event is None:
+            raise ValueError("No event provided in context")
+        return self._event
 
 
 def __getattr__(name):
@@ -273,7 +292,9 @@ def __getattr__(name):
     raise AttributeError
 
 
-_CURRENT_CONTEXT = contextvars.ContextVar("ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID))
+_CURRENT_CONTEXT: contextvars.ContextVar[ExecutionContext] = contextvars.ContextVar(
+    "ExecutionContext_var", default=ExecutionContext(ROOT_CONTEXT_ID)
+)
 _CONTEXT_CLASS = ExecutionContext
 
 
@@ -285,6 +306,10 @@ def _reset_context():
 
 def context_with_data(identifier, parent=None, **kwargs):
     return _CONTEXT_CLASS(identifier, parent=(parent or _CURRENT_CONTEXT.get()), **kwargs)
+
+
+def context_with_event(event: "EventType", parent=None) -> ExecutionContext[EventType]:
+    return _CONTEXT_CLASS(event.event_name, parent=(parent or _CURRENT_CONTEXT.get()), event=event)
 
 
 def add_suppress_exception(exc_type: type) -> None:
@@ -301,12 +326,12 @@ def get_item(data_key: str, default: Optional[Any] = None) -> Any:
     return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
 
 
-def find_items(data_keys: List[str]) -> List[Optional[Any]]:
+def find_items(data_keys: list[str]) -> list[Optional[Any]]:
     """Find multiple items by their keys, traversing up the context tree for each key."""
     return _CURRENT_CONTEXT.get().find_items(data_keys)
 
 
-def get_items(data_keys: List[str]) -> List[Optional[Any]]:
+def get_items(data_keys: list[str]) -> list[Optional[Any]]:
     """Return multiple items by their keys, only in the local context."""
     return _CURRENT_CONTEXT.get().get_items(data_keys)
 
@@ -320,7 +345,7 @@ def set_item(data_key: str, data_value: Optional[Any]) -> None:
     _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
-def set_items(keys_values: Dict[str, Optional[Any]]) -> None:
+def set_items(keys_values: dict[str, Optional[Any]]) -> None:
     _CURRENT_CONTEXT.get().set_items(keys_values)
 
 

@@ -56,18 +56,18 @@ TChildClass = t.TypeVar("TChildClass", bound="TestItem[t.Any, t.Any]")
 
 class TestItem(t.Generic[TParentClass, TChildClass]):
     __test__ = False
-    ChildClass: t.Type[TChildClass]
+    ChildClass: type[TChildClass]
 
     def __init__(self, name: str, parent: TParentClass):
         self.name = name
-        self.children: t.Dict[str, TChildClass] = {}
+        self.children: dict[str, TChildClass] = {}
         self.start_ns: t.Optional[int] = None
         self.duration_ns: t.Optional[int] = None
         self.parent: TParentClass = parent
         self.item_id = _gen_item_id()
         self.status: t.Optional[TestStatus] = None
-        self.tags: t.Dict[str, str] = {}
-        self.metrics: t.Dict[str, t.Union[int, float]] = {}
+        self.tags: dict[str, str] = {}
+        self.metrics: dict[str, t.Union[int, float]] = {}
         self.service: str = DEFAULT_SERVICE_NAME
 
     def seconds_so_far(self) -> float:
@@ -108,7 +108,7 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
         self.service = service
 
     def _get_status_from_children(self) -> TestStatus:
-        status_counts: t.Dict[TestStatus, int] = defaultdict(lambda: 0)
+        status_counts: dict[TestStatus, int] = defaultdict(lambda: 0)
         total_count = 0
 
         for child in self.children.values():
@@ -128,7 +128,7 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
     def set_final_tags(self) -> None:
         pass
 
-    def get_or_create_child(self, name: str) -> t.Tuple[TChildClass, bool]:
+    def get_or_create_child(self, name: str) -> tuple[TChildClass, bool]:
         created = False
 
         if name not in self.children:
@@ -139,10 +139,10 @@ class TestItem(t.Generic[TParentClass, TChildClass]):
 
         return self.children[name], created
 
-    def set_tags(self, tags: t.Dict[str, str]) -> None:
+    def set_tags(self, tags: dict[str, str]) -> None:
         self.tags.update(tags)
 
-    def set_metrics(self, metrics: t.Dict[str, float]) -> None:
+    def set_metrics(self, metrics: dict[str, float]) -> None:
         self.metrics.update(metrics)
 
 
@@ -208,7 +208,7 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def __init__(self, name: str, parent: TestSuite) -> None:
         super().__init__(name=name, parent=parent)
 
-        self.test_runs: t.List[TestRun] = []
+        self.test_runs: list[TestRun] = []
 
         self.suite = parent
         self.module = self.suite.parent
@@ -249,7 +249,7 @@ class Test(TestItem["TestSuite", "TestRun"]):
     def set_parameters(self, parameters: str) -> None:
         self.tags[TestTag.PARAMETERS] = parameters
 
-    def set_codeowners(self, owners: t.List[str]) -> None:
+    def set_codeowners(self, owners: list[str]) -> None:
         self.tags[TestTag.CODEOWNERS] = json.dumps(owners)
 
     def is_new(self) -> bool:

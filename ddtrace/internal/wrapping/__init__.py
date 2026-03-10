@@ -3,11 +3,9 @@ from types import CodeType
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Dict
 from typing import Generator
 from typing import Optional
 from typing import Protocol
-from typing import Tuple
 from typing import cast
 
 import bytecode as bc
@@ -26,13 +24,13 @@ class WrappedFunction(Protocol):
     """A wrapped function."""
 
     __dd_wrapped__: Optional[FunctionType] = None
-    __dd_wrappers__: Optional[Dict[Any, Any]] = None
+    __dd_wrappers__: Optional[dict[Any, Any]] = None
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         pass
 
 
-Wrapper = Callable[[FunctionType, Tuple[Any], Dict[str, Any]], Any]
+Wrapper = Callable[[FunctionType, tuple[Any], dict[str, Any]], Any]
 
 
 def _add(lineno: int) -> Instr:

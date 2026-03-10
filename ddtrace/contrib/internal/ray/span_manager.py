@@ -4,9 +4,7 @@ from itertools import chain
 import sys
 import threading
 import time
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ray.dashboard.modules.job.common import JobInfo
@@ -18,8 +16,8 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 
 from .constants import DD_PARTIAL_VERSION
 from .constants import DD_WAS_LONG_RUNNING
@@ -64,11 +62,11 @@ def long_running_ray_span(
 
 class RaySpanManager:
     def __init__(self) -> None:
-        self._timers: Dict[str, threading.Timer] = {}
+        self._timers: dict[str, threading.Timer] = {}
         # {submission_id: {(trace_id, span_id): Span}}
-        self._job_spans: Dict[str, Dict[Tuple[int, int], Span]] = {}
+        self._job_spans: dict[str, dict[tuple[int, int], Span]] = {}
         # {submission_id: (Span)}
-        self._root_spans: Dict[str, Span] = {}
+        self._root_spans: dict[str, Span] = {}
         self._lock = Lock()
         self._is_shutting_down: bool = False
 

@@ -1,5 +1,3 @@
-from typing import Dict
-
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
@@ -38,14 +36,13 @@ QUEUE_NAME = "queue.name"
 JOB_FUNC_NAME = "job.func_name"
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     import rq
 
     return str(getattr(rq, "__version__", ""))
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"rq": ">=1.8"}
 
 
