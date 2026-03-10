@@ -43,7 +43,7 @@ struct module_state
     inline bool is_finalizing() const noexcept
     {
         // Our atexit handler fires first (stopping threads before VM sets its
-        // finalizing flag). The at_exit barrier is set as extra assurance. 
+        // finalizing flag). The at_exit barrier is set as extra assurance.
         // The py_is_finalizing macro is a fallback for cases where the atexit
         // handler never ran (e.g. uWSGI --skip-atexit).
         return at_exit.load(std::memory_order_acquire) || py_is_finalizing();
