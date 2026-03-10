@@ -65,7 +65,7 @@ def enable_appsec_rc() -> None:
     asm_config._rc_client_id = remoteconfig_poller._client.id
 
 
-def disable_appsec_rc():
+def disable_appsec_rc() -> None:
     # only used to avoid data leaks between tests
     for product_name in APPSEC_PRODUCTS:
         remoteconfig_poller.unregister_callback(product_name)
@@ -150,7 +150,7 @@ def _update_asm_features(payload_list: Sequence[Payload], cache: dict[str, dict[
     return res
 
 
-def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str, Any]] = {}):
+def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str, Any]] = {}) -> None:
     """This callback updates appsec enabled in tracer and config instances following this logic:
     ```
     | DD_APPSEC_ENABLED | RC Enabled | Result   |
@@ -174,7 +174,7 @@ def _process_asm_features(payload_list: list[Payload], cache: dict[str, dict[str
         asm_config._auto_user_instrumentation_rc_mode = result["auto_user_instrum"].get("mode", None)
 
 
-def disable_asm():
+def disable_asm() -> None:
     if asm_config._asm_enabled:
         from ddtrace.appsec._processor import AppSecSpanProcessor
 
@@ -189,7 +189,7 @@ def disable_asm():
         tracer.configure(appsec_enabled=False)
 
 
-def enable_asm():
+def enable_asm() -> None:
     if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
 
