@@ -25,10 +25,11 @@ def test_context_set_and_reset():
         assert _asm_request_context.get_ip() == _TEST_IP
         assert _asm_request_context.get_headers() == _TEST_HEADERS
         assert _asm_request_context.get_headers_case_sensitive()
-        assert _asm_request_context.get_value("callbacks", "block") is not None
+        env = _asm_request_context.get_active_asm_context()
+        assert env is not None and env.block_callable is not None
     assert _asm_request_context.get_ip() is None
     assert _asm_request_context.get_headers() == {}
-    assert _asm_request_context.get_value("callbacks", "block") is None
+    assert _asm_request_context.get_active_asm_context() is None
     assert not _asm_request_context.get_headers_case_sensitive()
     with asm_context(
         ip_addr=_TEST_IP,
@@ -64,8 +65,10 @@ def test_call_block_callable_noargs():
 
     with asm_context(config=config_asm):
         _asm_request_context.set_block_request_callable(_callable)
-        assert _asm_request_context.get_value("callbacks", "block")() == 42
-    assert not _asm_request_context.get_value("callbacks", "block")
+        env = _asm_request_context.get_active_asm_context()
+        assert env is not None and env.block_callable is not None
+        assert env.block_callable() == 42
+    assert _asm_request_context.get_active_asm_context() is None
 
 
 def test_call_block_callable_curried():
@@ -102,11 +105,13 @@ def test_asm_request_context_manager():
         assert _asm_request_context.get_ip() == _TEST_IP
         assert _asm_request_context.get_headers() == _TEST_HEADERS
         assert _asm_request_context.get_headers_case_sensitive()
-        assert _asm_request_context.get_value("callbacks", "block")() == 42
+        env = _asm_request_context.get_active_asm_context()
+        assert env is not None and env.block_callable is not None
+        assert env.block_callable() == 42
 
     assert _asm_request_context.get_ip() is None
     assert _asm_request_context.get_headers() == {}
-    assert _asm_request_context.get_value("callbacks", "block") is None
+    assert _asm_request_context.get_active_asm_context() is None
     assert not _asm_request_context.get_headers_case_sensitive()
 
 
