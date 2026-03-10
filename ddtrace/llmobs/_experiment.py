@@ -37,6 +37,11 @@ except ImportError:
     BaseMetric = None
     BaseConversationalMetric = None
 
+try:
+    from pydantic_evals.evaluators import Evaluator as PydanticEvaluator
+except ImportError:
+    PydanticEvaluator = None
+
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -531,6 +536,15 @@ else:
         ],
         BaseAsyncEvaluator,
     ]
+if PydanticEvaluator is not None:
+    EvaluatorType = Union[
+        EvaluatorType,
+        PydanticEvaluator,
+    ]
+    AsyncEvaluatorType = Union[
+        AsyncEvaluatorType,
+        PydanticEvaluator,
+    ]
 
 # Summary evaluator types
 SummaryEvaluatorType = Union[
@@ -578,6 +592,15 @@ def _is_deep_eval_evaluator(evaluator: Any) -> bool:
         return False
     return isinstance(evaluator, BaseMetric) or isinstance(evaluator, BaseConversationalMetric)
 
+def _is_pydantic_evaluator(evaluator: Any) -> bool:
+    """Check if an evaluator is a pydantic evaluator (inherits from PydanticEvaluator).
+
+    :param evaluator: The evaluator to check
+    :return: True if it's a pydantic evaluator, False otherwise
+    """
+    if PydanticEvaluator is None:
+        return False
+    return isinstance(evaluator, PydanticEvaluator)
 
 def _is_class_summary_evaluator(evaluator: Any) -> bool:
     """Check if an evaluator is a class-based summary evaluator (inherits from BaseSummaryEvaluator).
@@ -598,6 +621,7 @@ def _is_function_evaluator(evaluator: Any) -> bool:
         not isinstance(evaluator, BaseEvaluator)
         and not isinstance(evaluator, BaseSummaryEvaluator)
         and not _is_deep_eval_evaluator(evaluator)
+        and not _is_pydantic_evaluator(evaluator)
     )
 
 
@@ -688,6 +712,57 @@ else:
         """Dummy wrapper; should never be called but used to satisfy type checking."""
         return evaluator
 
+if PydanticEvaluator is not None:
+    from pydantic_evals.evaluators import EvaluatorContext, EvaluatorOutput
+    from pydantic_evals.evaluators.evaluate import EvaluationScalar, EvaluationReason
+    def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+        """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
+
+        :param evaluator: The pydantic evaluator to run
+        :return: A callable function that can be used as an evaluator
+        """
+        def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
+            result = evaluator.evaluate(EvaluatorContext(
+                name="",
+                inputs=input_data,
+                expected_output=expected_output,
+                output=output_data,
+                duration=self.span.duration, #wrong but dont worry about it for now,
+                # _span_tree=None
+                ))
+            
+            if inspect.iscoroutine(result):
+                if is_async:
+                    await result
+                else:
+                    get_event_loop().run_until_complete(result)
+            
+            _eval_result = cast(EvaluatorOutput, result)
+            eval_result = EvaluatorResult(
+                value=None,
+                reasoning=None,
+                assessment=None,
+            )
+            if isinstance(_eval_result, EvaluationScalar):
+                eval_result.value = _eval_result
+                if isinstance(_eval_result, bool):
+                    eval_result.assessment = "pass" if _eval_result else "fail"
+            elif isinstance(_eval_result, EvaluationReason):
+                eval_result.value = _eval_result.value
+                eval_result.reasoning = _eval_result.reason
+                if isinstance(_eval_result.assessment, bool):
+                    eval_result.assessment = "pass" if _eval_result.value else "fail"
+            else:
+                eval_result.value = eval_result
+            
+            return eval_result
+        
+        wrapped_evaluator.__name__ = getattr(evaluator, "name", evaluator.get_default_evaluation_name())
+        return wrapped_evaluator
+else:
+    def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
+        """Dummy wrapper; should never be called but used to satisfy type checking."""
+        return evaluator
 
 class Project(TypedDict):
     name: str

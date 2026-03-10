@@ -123,8 +123,10 @@ from ddtrace.llmobs._experiment import SyncExperiment
 from ddtrace.llmobs._experiment import TaskType
 from ddtrace.llmobs._experiment import _deep_eval_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _deep_eval_evaluator_wrapper
+from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _get_base_url
 from ddtrace.llmobs._experiment import _is_deep_eval_evaluator
+from ddtrace.llmobs._experiment import _is_pydantic_evaluator
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
 from ddtrace.llmobs._prompt_optimization import validate_dataset_split
@@ -236,6 +238,9 @@ def _validate_evaluator_signature(evaluator: Any, is_async: bool) -> None:
         return
 
     if _is_deep_eval_evaluator(evaluator):
+        return
+
+    if _is_pydantic_evaluator(evaluator):
         return
 
     if not callable(evaluator):
@@ -1519,6 +1524,9 @@ class LLMObs(Service):
             if _is_deep_eval_evaluator(evaluator):
                 evaluators_list[idx] = _deep_eval_evaluator_wrapper(evaluator)
                 continue
+            if _is_pydantic_evaluator(evaluator):
+                evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, is_async=False)
+                continue
         if summary_evaluators and not all(
             callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
             for summary_evaluator in summary_evaluators
@@ -1596,6 +1604,9 @@ class LLMObs(Service):
             _validate_evaluator_signature(evaluator, is_async=True)
             if _is_deep_eval_evaluator(evaluator):
                 evaluators_list[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
+                continue
+            if _is_pydantic_evaluator(evaluator):
+                evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, is_async=True)
                 continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
