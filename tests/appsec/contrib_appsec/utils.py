@@ -135,7 +135,7 @@ class Contrib_TestClass_For_Threats:
     #         if interface.tracer._appsec_processor:
     #             interface.printer(
     #                 f"""ASM enabled: {asm_config._asm_enabled}
-    # {ddtrace.appsec._ddwaf.version()}
+    # {ddtrace.appsec._ddwaf.version}
     # {interface.tracer._appsec_processor._ddwaf.info}
     # {asm_config._asm_libddwaf}
     # """
@@ -200,7 +200,6 @@ class Contrib_TestClass_For_Threats:
             assert len(args_list) == 1
             assert ("waf_timeout", "true") in args_list[0][4]
 
-    @pytest.mark.xfail_interface("tornado")
     def test_api_endpoint_discovery(self, interface: Interface, find_resource):
         """Check that API endpoint discovery works in the framework.
 
@@ -216,6 +215,13 @@ class Contrib_TestClass_For_Threats:
                 path = path[1:-1]
             path = re.sub(r"<int:[a-z_]+>|\{[a-z_]+:int\}", "123", path)
             path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
+            # Tornado regex patterns (from regex.pattern, ending with $)
+            if path.endswith("$"):
+                path = path[:-1]
+            path = re.sub(r"\(\?P<[a-z_]+>\\d\+\)", "123", path)
+            path = re.sub(r"\(\?P<[a-z_]+>\[[^\]]+\]\+?\)", "abczx", path)
+            path = re.sub(r"\(\\d\+\)", "123", path)
+            path = re.sub(r"\(\[[^\]]+\]\+?\)", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
             return path if path.startswith("/") else ("/" + path)

@@ -1,0 +1,46 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
+      ["7cb8c026-5fe2-44e9-bdf6-be9128648870"]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '119'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
+  response:
+    body:
+      string: '{"data":[{"id":"7cb8c026-5fe2-44e9-bdf6-be9128648870","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2026-02-20T04:44:04.959807Z","current_version":1,"dataset_type":"user","deleted_at":"2026-02-20T04:44:07.885621Z","description":"A
+        good csv dataset","name":"test-dataset-good-csv-1","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","updated_at":"2026-02-20T04:44:05.17122Z"}}]}'
+    headers:
+      content-length:
+      - '434'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 20 Feb 2026 04:44:07 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

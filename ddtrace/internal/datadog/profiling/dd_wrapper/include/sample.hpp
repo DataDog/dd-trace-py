@@ -14,8 +14,10 @@
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
+// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct name
 struct _frame;
 typedef struct _frame PyFrameObject;
+// NOLINTEND(bugprone-reserved-identifier)
 
 namespace Datadog {
 
@@ -147,6 +149,11 @@ class Sample
                     uint64_t address,        // for ddog_prof_Location
                     int64_t line             // for ddog_prof_Location
     );
+
+    // Explicitly mark that one or more frames were dropped without attempting to push them.
+    // This is useful for callers that perform their own frame-limit checks and want to
+    // record dropped frames without going through push_frame().
+    void incr_dropped_frames(size_t count = 1);
 
     // Push an entire PyFrameObject chain to the sample.
     // This walks the frame chain and pushes each frame in leaf-to-root order.

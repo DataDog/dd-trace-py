@@ -26,6 +26,7 @@ from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.encoding import AgentlessTraceJSONEncoder
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
@@ -225,6 +226,48 @@ class TestEncoders(TestCase):
                 assert "client.testing" == items[i][j]["name"]
                 assert isinstance(items[i][j]["span_id"], str)
                 assert items[i][j]["span_id"] == "0000000000AAAAAA"
+
+    def test_encode_traces_json_agentless(self):
+        span = Span(
+            name="span1", trace_id=0x12341234567890ABCDEF, span_id=0x1234567890ABCDEF, service="svc", resource="/r"
+        )
+        span.set_tag("tag1", "value1")
+        span.set_tag("manual.keep")
+        span.set_metric("munir.metric", 1.0)
+        span.set_link(trace_id=3, span_id=4)
+        span.error = 1
+        span.start_ns = 1771941568700091000
+        span.duration_ns = 1000000000
+
+        span.span_type = SpanTypes.WEB
+        span._set_struct_tag("payload", {"key": "value"})
+        encoder = AgentlessTraceJSONEncoder(1 << 11, 1 << 11)
+        encoder.put([span])
+        encoded_traces = encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(payload_bytes, n_traces)] = encoded_traces
+        data = json.loads(payload_bytes.decode("utf-8"))
+
+        assert data == {
+            "spans": [
+                {
+                    "trace_id": "1234567890abcdef",
+                    "parent_id": "0000000000000000",
+                    "span_id": "1234567890abcdef",
+                    "service": "svc",
+                    "resource": "/r",
+                    "name": "span1",
+                    "error": 1,
+                    "start": 1771941568700091000,
+                    "duration": 1000000000,
+                    "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
+                    "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
+                    "type": "web",
+                    "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
+                    "meta_struct": {"payload": {"key": "value"}},
+                }
+            ]
+        }
 
 
 def test_encode_meta_struct():
@@ -825,9 +868,10 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     assert encoder.size == len(encoder.encode()[0][0])
 
 
-def test_encoder_buffer_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_size_limit(encoder_cls):
     buffer_size = 1 << 10
-    encoder = MsgpackEncoderV05(buffer_size, buffer_size)
+    encoder = encoder_cls(buffer_size, buffer_size)
 
     trace = [Span(name="test")]
     encoder.put(trace)
@@ -846,20 +890,16 @@ def test_encoder_buffer_size_limit_v05():
         encoder.put(trace)
 
 
-def test_encoder_buffer_item_size_limit_v05():
+@pytest.mark.parametrize("encoder_cls", [MsgpackEncoderV05, AgentlessTraceJSONEncoder])
+def test_encoder_buffer_item_size_limit(encoder_cls):
     max_item_size = 1 << 10
-    encoder = MsgpackEncoderV05(max_item_size << 1, max_item_size)
+    encoder = encoder_cls(max_item_size << 1, max_item_size)
 
     span = Span(name="test")
-    trace = [span]
-    encoder.put(trace)
-    base_size = encoder.size
-    encoder.put(trace)
-
-    trace_size = encoder.size - base_size
-
+    encoder.put([span])
     with pytest.raises(BufferItemTooLarge):
-        encoder.put([span] * (int(max_item_size / trace_size) + 2))
+        span.set_tag("test", "a" * (max_item_size + 1))
+        encoder.put([span])
 
 
 def test_custom_msgpack_encode_v05():
@@ -939,41 +979,6 @@ def test_list_string_table():
 @contextlib.contextmanager
 def _value():
     yield "value"
-
-
-@pytest.mark.parametrize(
-    "data",
-    [
-        {"trace_id": "trace_id"},
-        # {"span_id": "span_id"},  # Now handled gracefully by Rust (generates random ID)
-        # {"parent_id": "parent_id"},  # Now handled gracefully by Rust (invalid types ignored)
-        # {"service": True},  # Now handled gracefully by Rust (converts to None)
-        # {"resource": 50},  # Now handled gracefully by Rust (falls back to name or "")
-        # {"name": [1, 2, 3]},  # Now handled gracefully by Rust (converts to "")
-        # {"span_type": 100},  # Now handled gracefully by Rust (converts to None)
-        # {"start_ns": []},  # Now handled gracefully by Rust (falls back to 0)
-        # {"duration_ns": {}},  # Now handled gracefully by Rust (falls back to -1/None)
-    ],
-)
-def test_encoding_invalid_data_raises(data):
-    """Test that invalid data types for certain fields raise during encoding.
-
-    Note: name, service, resource, span_id, parent_id, start_ns, and duration_ns are now validated
-    at the Rust layer and convert invalid types gracefully, so they no longer raise during encoding.
-    """
-    encoder = MsgpackEncoderV04(1 << 20, 1 << 20)
-
-    span = Span(name="test")
-    for key, value in data.items():
-        setattr(span, key, value)
-
-    trace = [span]
-    with pytest.raises(RuntimeError) as e:
-        encoder.put(trace)
-
-    assert e.match(r"failed to pack span: Span\(name="), e
-    encoded_traces = encoder.encode()
-    assert (not encoded_traces) or (encoded_traces[0][0] is None)
 
 
 @pytest.mark.parametrize(

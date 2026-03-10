@@ -62,20 +62,17 @@ def wrap_prompt_if_async_iterable(args, kwargs):
     return args, kwargs, None
 
 
-def handle_streamed_response(integration, resp, args, kwargs, span, operation, pin, instance=None):
+def handle_streamed_response(integration, resp, args, kwargs, span, operation, instance=None):
     return make_traced_stream(
         resp,
-        ClaudeAgentSdkAsyncStreamHandler(
-            integration, span, args, kwargs, operation=operation, pin=pin, instance=instance
-        ),
+        ClaudeAgentSdkAsyncStreamHandler(integration, span, args, kwargs, operation=operation, instance=instance),
     )
 
 
 class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
-    def __init__(self, integration, span, args, kwargs, operation, pin, instance=None):
+    def __init__(self, integration, span, args, kwargs, operation, instance=None):
         super().__init__(integration, span, args, kwargs)
         self.operation = operation
-        self.pin = pin
         self.instance = instance
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
@@ -100,7 +97,6 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 tool_input = getattr(block, "input", {})
 
                 tool_span = self.integration.trace(
-                    self.pin,
                     tool_name,
                     submit_to_llmobs=True,
                     span_name=f"claude_agent_sdk.tool.{tool_name}",

@@ -5,74 +5,64 @@ on:
     branches:
       - main
       - mq-working-branch-*
-  merge_group:
-  pull_request:
-    paths-ignore:
-      # CI config (GitLab / editor / AI tooling)
-      - '.gitlab-ci.yml'
-      - '.gitlab/**'
-      - '.cursor/**'
-      - '.claude/**'
-      # Documentation and legal
-      - 'docs/**'
-      - 'releasenotes/**'
-      - '*.md'
-      - '*.rst'
-      - 'LICENSE*'
-      - 'NOTICE'
-      # Tests, benchmarks, scripts (not packaged into the wheel)
-      - 'tests/**'
-      - 'benchmarks/**'
-      - 'scripts/**'
-      # Git/repo config
-      - '.gitignore'
-      - '.gitattributes'
+  pull_request: {}
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
 
 jobs:
-  build-wheels:
+  should-run:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - python-version: '3.11'
-            cp-version: 'cp311'
-          - python-version: '3.12'
-            cp-version: 'cp312'
-          - python-version: '3.13'
-            cp-version: 'cp313'
-          - python-version: '3.14'
-            cp-version: 'cp314'
-    env:
-      CIBW_BUILD: ${{ matrix.cp-version }}-manylinux_x86_64
-      CIBW_BEFORE_ALL_LINUX: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"
-      CIBW_ENVIRONMENT: "PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=12 CARGO_BUILD_JOBS=12"
-      CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check if relevant paths changed
+        id: check
+        run: |
+          .github/scripts/should-run.sh "${{ github.event_name }}" \
+            "${{ github.event.pull_request.base.sha }}"
+
+  download-s3-wheels:
+    needs: [should-run]
+    if: needs.should-run.outputs.run == 'true' && (github.event_name != 'schedule' || github.event.repository.fork == false)
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.13"
+      - name: Resolve commit SHA
+        id: resolve-sha
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Build wheels
-        uses: pypa/cibuildwheel@298ed2fb2c105540f5ed055e8a6ad78d82dd3a7e # v3.3.1
+      - name: Download wheels from S3
+        run: |
+          bash scripts/download-s3-wheels.sh \
+            "${{ steps.resolve-sha.outputs.sha }}" \
+            ./wheels \
+            manylinux2014_x86_64
 
       - name: Upload artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: wheels-${{ matrix.cp-version }}-manylinux_x86_64
-          path: ./wheelhouse/*.whl
+          name: wheels-manylinux_x86_64
+          path: ./wheels/*.whl
 
   system-tests-build-weblog:
     needs:
-      - build-wheels
+      - download-s3-wheels
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -100,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
+          ref: 'f65241afd4c85b958e114bae5317645c9a6ade30'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -153,7 +143,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
+          ref: 'f65241afd4c85b958e114bae5317645c9a6ade30'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -256,6 +246,10 @@ jobs:
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE_API_SECURITY
 
+      - name: Run APPSEC_API_SECURITY
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_API_SECURITY
+
       - name: Run IAST_STANDALONE
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh IAST_STANDALONE
@@ -344,7 +338,7 @@ jobs:
 
   parametric:
     needs:
-      - build-wheels
+      - download-s3-wheels
     runs-on: ubuntu-latest
     env:
       TEST_LIBRARY: python
@@ -358,7 +352,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '8c86fdebd50a46ca9eccb1c8323b6295040db04b'
+          ref: 'f65241afd4c85b958e114bae5317645c9a6ade30'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -387,7 +381,7 @@ jobs:
 
   serverless-system-tests-build-layer:
     runs-on: ubuntu-latest
-    needs: [build-wheels]
+    needs: [download-s3-wheels]
     steps:
       - name: Checkout datadog-lambda-python
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -398,12 +392,12 @@ jobs:
       - name: Download wheel to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: wheels-cp313-manylinux_x86_64
+          name: wheels-manylinux_x86_64
           path: artifacts/
 
       - name: Build datadog_lambda layer
         run: |
-          wheel_path=$(find ./artifacts -name "*.whl" | head -n 1)
+          wheel_path=$(find ./artifacts -name "*cp313*manylinux*.whl" | head -n 1)
           ARCH=amd64 PYTHON_VERSION=3.13 DD_TRACE_WHEEL=$wheel_path ./scripts/build_layers.sh
 
       - name: Upload layer artifact
@@ -428,7 +422,7 @@ jobs:
 
   integration-frameworks-combine-wheels:
     runs-on: ubuntu-latest
-    needs: [build-wheels]
+    needs: [download-s3-wheels]
     steps:
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -444,6 +438,7 @@ jobs:
           path: binaries/
 
   integration-frameworks-system-tests:
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
     uses: DataDog/system-tests/.github/workflows/system-tests.yml@24e9cf965f7ddb28d7e7a29c29c78f390c509521
@@ -460,13 +455,22 @@ jobs:
     name: system-tests finished
     runs-on: ubuntu-latest
     needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
-    if: success() || failure()
+    if: always()
     steps:
       - name: Print results
         run: |
           echo "parametric: ${{ needs.parametric.result }}"
           echo "system-tests: ${{ needs.system-tests.result }}"
           echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
-      - name: Fail if any dependency failed
-        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
+          echo "integration-frameworks-system-tests: ${{ needs.integration-frameworks-system-tests.result }}"
+      - name: Fail if any dependency failed or was cancelled
+        if: |
+          needs.parametric.result == 'failure' ||
+          needs.parametric.result == 'cancelled' ||
+          needs.system-tests.result == 'failure' ||
+          needs.system-tests.result == 'cancelled' ||
+          needs.serverless-system-tests.result == 'failure' ||
+          needs.serverless-system-tests.result == 'cancelled' ||
+          needs.integration-frameworks-system-tests.result == 'failure' ||
+          needs.integration-frameworks-system-tests.result == 'cancelled'
         run: exit 1

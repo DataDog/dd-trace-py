@@ -23,6 +23,7 @@ from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
@@ -35,11 +36,14 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._experiment import ConfigType
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
+from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
@@ -51,12 +55,29 @@ from ddtrace.version import __version__
 logger = get_logger(__name__)
 
 
+class LLMObsSpanData(TypedDict, total=False):
+    """Structure of LLMObs span data attached to APM spans."""
+
+    name: str
+    parent_id: str
+    trace_id: str
+    ml_app: str
+    session_id: str
+    tags: dict[str, str]
+    metrics: dict[str, Any]
+    span_links: list[_SpanLink]
+    config: ConfigType
+    is_evaluation_span: bool
+    meta: _Meta
+
+
 class _LLMObsSpanEventOptional(TypedDict, total=False):
     session_id: str
     service: str
     status_message: str
     collection_errors: list[str]
     span_links: list[_SpanLink]
+    config: ConfigType
 
 
 class LLMObsSpanEvent(_LLMObsSpanEventOptional):
@@ -99,12 +120,23 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     score_value: float
     boolean_value: bool
     json_value: dict[str, JSONType]
+    status: str
     error: Optional[dict[str, str]]
     tags: list[str]
     experiment_id: str
     reasoning: str
     assessment: str
     metadata: dict[str, JSONType]
+    eval_source_type: str
+
+
+class EvaluatorInferResponse(TypedDict, total=False):
+    """Response from the evaluator_infer API endpoint."""
+
+    value: JSONType
+    assessment: Optional[str]
+    reasoning: Optional[str]
+    status: Optional[str]
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -333,6 +365,21 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+        try:
+            return self._request_with_retry(method, path, body, timeout)
+        except RetryError as e:
+            # Return the last response if all retries were exhausted on 5xx
+            if isinstance(e.args[0], Response):
+                return e.args[0]
+            raise
+
+    @fibonacci_backoff_with_jitter(
+        attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
+        # Retries on 5xx server errors and connection failures, returns immediately on 2xx/4xx
+        initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
+        until=lambda result: isinstance(result, Response) and result.status < 500,
+    )
+    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
@@ -351,6 +398,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             return Response.from_http_response(resp)
         finally:
             conn.close()
+
+    def publish_custom_evaluator(self, evaluation: dict[str, Any]):
+        path = "/api/unstable/llm-obs/v1/config/evaluators/custom"
+        resp = self.request(
+            "PUT", path, body={"data": {"type": "evaluator_config", "attributes": {"evaluation": evaluation}}}
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to publish evaluator {evaluation['eval_name']}: {resp.status}")
 
     def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
         headers = {
@@ -422,6 +477,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             latest_version=curr_version,
             version=curr_version,
             _dne_client=self,
+            filter_tags=None,
         )
 
     @staticmethod
@@ -437,29 +493,34 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if "metadata" in record:
             metadata = {} if record["metadata"] is None else record["metadata"]
 
-        rj: JSONType = {
+        rj: dict[str, JSONType] = {
             "input": cast(dict[str, JSONType], record.get("input_data")),
             "expected_output": expected_output,
             "metadata": metadata,
         }
 
         if is_update:
-            rj["id"] = record["record_id"]  # type: ignore
+            rj["id"] = cast(UpdatableDatasetRecord, record)["record_id"]
+        else:
+            tags = record.get("tags")
+            if tags:
+                rj["tags"] = cast(JSONType, tags)
 
         return rj
 
     def dataset_batch_update(
         self,
         dataset_id: str,
+        project_id: str,
         insert_records: list[DatasetRecordRaw],
         update_records: list[UpdatableDatasetRecord],
         delete_record_ids: list[str],
         deduplicate: bool = True,
         create_new_version: bool = True,
-    ) -> tuple[int, list[str]]:
+    ) -> tuple[int, list[str], list[Optional[str]]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
         urs: JSONType = [self._get_record_json(r, True) for r in update_records]
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
+        path = f"/api/v2/llm-obs/v1/{project_id}/datasets/{dataset_id}/batch_update"
         body: JSONType = {
             "data": {
                 "type": "datasets",
@@ -475,17 +536,23 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         }
         resp = self.request("POST", path, body)
         if resp.status != 200:
-            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}")  # nosec
+            raise ValueError(
+                f"Failed to update dataset {dataset_id}: {resp.status}, {resp.reason}, {resp.body}"  # nosec B608
+            )
         response_data = resp.get_json()
         data = response_data["data"]
 
-        # FIXME: we don't get version numbers in responses to deletion requests
         new_version = data[0]["attributes"]["version"] if data else -1
         new_record_ids: list[str] = [r["id"] for r in data] if data else []
-        return new_version, new_record_ids
+        new_canonical_ids: list[Optional[str]] = [r["attributes"].get("canonical_id") for r in data] if data else []
+        return new_version, new_record_ids, new_canonical_ids
 
     def dataset_get_with_records(
-        self, dataset_name: str, project_name: Optional[str] = None, version: Optional[int] = None
+        self,
+        dataset_name: str,
+        project_name: Optional[str] = None,
+        version: Optional[int] = None,
+        tags: Optional[list[str]] = None,
     ) -> Dataset:
         project = self.project_create_or_get(project_name)
         project_id = project.get("_id")
@@ -493,7 +560,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "getting records with project ID %s for %s, version: %s", project_id, project_name, str(version) or "latest"
         )
 
-        path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
+        path = f"/api/v2/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
             raise ValueError(
@@ -509,7 +576,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_description = data[0]["attributes"].get("description", "")
         dataset_id = data[0]["id"]
 
-        list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        list_base_path = f"/api/v2/llm-obs/v1/{project_id}/datasets/{dataset_id}/records"
 
         has_next_page = True
         class_records: list[DatasetRecord] = []
@@ -520,6 +587,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 url_options["filter[version]"] = version
 
             list_path = f"{list_base_path}?{urllib.parse.urlencode(url_options, safe='[]')}"
+            if tags:
+                for tag in tags:
+                    list_path += f"&filter[tags]={tag}"
             logger.debug("list records page %d, request path=%s", page_num, list_path)
             resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
@@ -531,14 +601,15 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
             for record in records_data.get("data", []):
                 attrs = record.get("attributes", {})
-                class_records.append(
-                    {
-                        "record_id": record["id"],
-                        "input_data": attrs["input"],
-                        "expected_output": attrs.get("expected_output"),
-                        "metadata": attrs.get("metadata", {}),
-                    }
-                )
+                dataset_record: DatasetRecord = {
+                    "record_id": record["id"],
+                    "canonical_id": attrs.get("canonical_id"),
+                    "input_data": attrs["input"],
+                    "expected_output": attrs.get("expected_output"),
+                    "metadata": attrs.get("metadata", {}),
+                    "tags": attrs.get("tags", []),
+                }
+                class_records.append(dataset_record)
             next_cursor = records_data.get("meta", {}).get("after")
 
             url_options = {}
@@ -556,6 +627,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             latest_version=curr_version,
             version=version or curr_version,
             _dne_client=self,
+            filter_tags=tags,
         )
 
     def dataset_bulk_upload(self, dataset_id: str, records: list[DatasetRecord], deduplicate: bool = True):
@@ -646,6 +718,67 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
         return project
 
+    def experiment_get(self, id: str, tag_overrides: Optional[dict[str, str]] = None) -> "Experiment":  # noqa: A002
+        path = f"/api/v2/llm-obs/v1/experiments?filter[id]={id}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get experiment with ID {id}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        experiments = response_data.get("data", [])
+        if len(experiments) < 1:
+            raise ValueError(f"No experiments found for ID {id}")
+        experiment = experiments[0]["attributes"]
+        project_id = experiment["project_id"]
+        dataset_id = experiment["dataset_id"]
+
+        tags: list[str] = experiment["metadata"].get("tags", [])
+        tags_dict: dict[str, str] = {}
+        for tag in tags:
+            kv = tag.split(":", 1)
+            if len(kv) == 2:
+                tags_dict[kv[0]] = kv[1]
+
+        if tag_overrides:
+            tags_dict.update(tag_overrides)
+
+        # TODO[gh] attempt to find the project & dataset name through tags if possible,
+        # temporary hack to avoid extra API calls
+        project_name = tags_dict.get("project_name", project_id)
+        dataset_name = tags_dict.get("dataset_name", dataset_id)
+
+        project = Project(name=project_name, _id=project_id)
+
+        dataset = Dataset(
+            name=dataset_name,
+            project=project,
+            dataset_id=dataset_id,
+            records=[],
+            # TODO[gh] need to fully pull dataset for this to be accurate, not critical for now
+            description="",
+            # TODO[gh] this may be incorrect
+            latest_version=experiment["dataset_version"],
+            version=experiment["dataset_version"],
+            _dne_client=self,
+        )
+
+        experiment_obj = Experiment(
+            name=experiment["experiment"],
+            task=Experiment._NO_OP_TASK,
+            dataset=dataset,
+            evaluators=[],
+            project_name=project_name,
+            tags=tags_dict,
+            description=experiment["description"],
+            config=experiment.get("config", {}),
+            _llmobs_instance=None,
+            runs=experiment["run_count"],
+            is_distributed=True,
+        )
+        experiment_obj._run_name = experiment["name"]
+        experiment_obj._id = id
+        experiment_obj._project_id = project_id
+        return experiment_obj
+
     def experiment_create(
         self,
         name: str,
@@ -656,6 +789,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         tags: Optional[list[str]] = None,
         description: Optional[str] = None,
         runs: Optional[int] = 1,
+        ensure_unique: bool = True,
     ) -> tuple[str, str]:
         path = "/api/unstable/llm-obs/v1/experiments"
         resp = self.request(
@@ -672,7 +806,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                         "dataset_version": dataset_version,
                         "config": exp_config or {},
                         "metadata": {"tags": cast(JSONType, tags or [])},
-                        "ensure_unique": True,
+                        "ensure_unique": ensure_unique,
                         "run_count": runs,
                     },
                 }
@@ -684,6 +818,33 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_id = response_data["data"]["id"]
         experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
         return experiment_id, experiment_run_name
+
+    def experiment_update(
+        self,
+        experiment_id: str,
+        status: Optional[str] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}"
+        attributes: dict[str, JSONType] = {}
+        if status is not None:
+            attributes["status"] = status
+        if error is not None:
+            attributes["error"] = error
+        if not attributes:
+            return
+        resp = self.request(
+            "PATCH",
+            path,
+            body={
+                "data": {
+                    "type": "experiments",
+                    "attributes": attributes,
+                }
+            },
+        )
+        if resp.status != 200:
+            logger.warning("Failed to update experiment %s status: %s", experiment_id, resp.status)
 
     def experiment_eval_post(
         self, experiment_id: str, events: list[LLMObsExperimentEvalMetricEvent], tags: list[str]
@@ -709,6 +870,50 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
+
+    def evaluator_infer(
+        self,
+        eval_name: str,
+        context: dict[str, Any],
+    ) -> EvaluatorInferResponse:
+        """Call backend to run inference on a LLM-as-Judge evaluator.
+
+        :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog
+        :param context: The evaluation context
+        :return: EvaluatorInferResponse with status, value, assessment, and reasoning
+        :raises RemoteEvaluatorError: If backend returns an evaluation error (structured error with
+            type/message/recommended_resolution)
+        :raises RuntimeError: If HTTP request fails and no structured error info is available
+        """
+        path = f"/api/unstable/llm-obs/v1/evaluators/{eval_name}/infer"
+        body: JSONType = {"data": {"type": "evaluator_inference", "attributes": {"context": context}}}
+
+        resp = self.request("POST", path, body)
+        response_data = resp.get_json() or {}
+
+        attributes = response_data.get("data", {}).get("attributes", {})
+
+        if resp.status != 200:
+            error_details = attributes.get("error", {})
+            if error_details:
+                raise RemoteEvaluatorError(
+                    f"Remote evaluator '{eval_name}' failed: {error_details.get('message', f'HTTP {resp.status}')}",
+                    status=attributes.get("status", "ERROR"),
+                    backend_error=error_details,
+                )
+            error_msg = f"HTTP {resp.status}"
+            if "errors" in response_data and response_data["errors"]:
+                error = response_data["errors"][0]
+                if isinstance(error, dict):
+                    error_msg = error.get("detail") or error.get("title") or error_msg
+            raise RuntimeError(f"Failed to call evaluator '{eval_name}': {error_msg}")
+
+        return {
+            "value": attributes.get("value"),
+            "assessment": attributes.get("assessment"),
+            "reasoning": attributes.get("reasoning"),
+            "status": attributes.get("status"),
+        }
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

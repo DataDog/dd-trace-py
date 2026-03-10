@@ -623,7 +623,7 @@ class TestOptPlugin:
                 ("dd_retry_outcome", call_report.outcome),
                 ("dd_retry_reason", retry_handler.get_pretty_name()),
             ]
-            call_report.outcome = "dd_retry"
+            call_report.outcome = "rerun"
             return True
 
         return False
@@ -653,7 +653,7 @@ class TestOptPlugin:
     def pytest_report_teststatus(self, report: pytest.TestReport) -> t.Optional[_ReportTestStatus]:
         if retry_outcome := _get_user_property(report, "dd_retry_outcome"):
             retry_reason = _get_user_property(report, "dd_retry_reason")
-            return ("dd_retry", "R", f"RETRY {retry_outcome.upper()} ({retry_reason})")
+            return ("rerun", "R", f"RETRY {retry_outcome.upper()} ({retry_reason})")
 
         if _get_user_property(report, "dd_quarantined"):
             if report.when == TestPhase.TEARDOWN:
@@ -724,7 +724,7 @@ class TestOptPlugin:
         """
         Modify terminal summary before letting pytest emit it.
 
-        During the test session, all retry attempt reports are logged with a 'dd_retry' category. We remove this
+        During the test session, all retry attempt reports are logged with a 'rerun' category. We remove this
         category here so it doesn't show up in the final stat counts.
 
         To make the extra failed reports collected during retries (see `get_extra_failed_report` for details) show up
@@ -732,8 +732,8 @@ class TestOptPlugin:
         the failed reports. After they have been shown by pytest, we undo the change so that the final count of failed
         tests is not affected.
         """
-        # Do not show dd_retry in final stats.
-        terminalreporter.stats.pop("dd_retry", None)
+        # Do not show rerun in final stats.
+        terminalreporter.stats.pop("rerun", None)
 
         original_failed_reports = terminalreporter.stats.get("failed", [])
 

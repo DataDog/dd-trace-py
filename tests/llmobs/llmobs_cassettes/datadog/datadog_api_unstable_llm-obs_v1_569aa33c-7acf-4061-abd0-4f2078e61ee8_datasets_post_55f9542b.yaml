@@ -16,13 +16,13 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.5
+      - python-requests/2.32.3
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets
   response:
     body:
-      string: '{"data":{"id":"ac406d6c-27a1-4faa-9c12-b494c4e3c521","type":"datasets","attributes":{"author":{"id":"a9af4515-bc2f-11f0-9c2b-4a5a6f125af3"},"created_at":"2026-02-18T06:04:42.956116551Z","current_version":0,"description":"A
-        good pipe separated csv dataset","name":"test-dataset-good-csv-pipe","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","updated_at":"2026-02-18T06:04:42.956116551Z"}}}'
+      string: '{"data":{"id":"79dc8a68-9dd7-4f99-8ee0-c42b59059432","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2026-02-20T04:44:08.517516332Z","current_version":0,"description":"A
+        good pipe separated csv dataset","name":"test-dataset-good-csv-pipe","project_id":"569aa33c-7acf-4061-abd0-4f2078e61ee8","updated_at":"2026-02-20T04:44:08.517516332Z"}}}'
     headers:
       content-length:
       - '392'
@@ -31,7 +31,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 18 Feb 2026 06:04:42 GMT
+      - Fri, 20 Feb 2026 04:44:08 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
