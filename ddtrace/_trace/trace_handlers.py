@@ -1353,6 +1353,7 @@ def _on_pubsub_send_start(
     if config.google_cloud_pubsub.distributed_tracing_enabled:
         headers = {}
         HTTPPropagator.inject(span.context, headers)
+        # publish(**attrs) passes extra kwargs as Pub/Sub message attributes.
         kwargs.update({k: str(v) for k, v in headers.items()})
 
 
