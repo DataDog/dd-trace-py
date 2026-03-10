@@ -88,8 +88,8 @@ class Profiler(object):
         """
         atexit.unregister(self.stop)
         try:
-            self._profiler.stop(flush)
             with Profiler._active_lock:
+                self._profiler.stop(flush)
                 if Profiler._active_instance is self:
                     Profiler._active_instance = None
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
