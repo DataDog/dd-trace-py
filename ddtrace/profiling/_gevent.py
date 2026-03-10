@@ -130,8 +130,18 @@ def greenlet_tracer(event: str, args: t.Any) -> None:
         #   machinery and is only cleared when the greenlet truly finishes.
         #
         # See also: https://github.com/gevent/gevent/pull/2166 (upstream fix)
-        if origin_id in _tracked_greenlets and greenlet.dead.__get__(origin):
-            _untrack_greenlet_by_id(origin_id)
+        #
+        # AIDEV-NOTE: greenlet.dead.__get__ is a C-level tp_getset descriptor.
+        # Any unhandled exception here causes the greenlet runtime to silently
+        # uninstall this tracer (see greenlet's TGreenlet.cpp g_calltrace and
+        # test_tracing.py::test_b_exception_disables_tracing). We catch
+        # Exception broadly because the C extension can raise arbitrary
+        # exception types.
+        try:
+            if origin_id in _tracked_greenlets and greenlet.dead.__get__(origin):
+                _untrack_greenlet_by_id(origin_id)
+        except Exception:
+            pass
 
     if _original_greenlet_tracer is not None:
         _original_greenlet_tracer(event, args)
