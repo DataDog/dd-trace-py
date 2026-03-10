@@ -146,12 +146,29 @@ setup_msvc() {
     vswhere=$(where.exe vswhere.exe 2>/dev/null | head -1 | tr -d '\r') || true
   fi
   if [[ -z "${vswhere:-}" || ! -f "$vswhere" ]]; then
-    echo "ERROR: vswhere.exe not found — is Visual Studio Build Tools installed?" >&2
-    echo "Searched: ${vswhere_candidates[*]}" >&2
-    echo "Also tried: where.exe vswhere.exe" >&2
-    echo "Listing C:/Program Files (x86)/Microsoft Visual Studio (if present):" >&2
-    ls "C:/Program Files (x86)/Microsoft Visual Studio/" 2>/dev/null || echo "  (not found)" >&2
-    exit 1
+    echo "VS Build Tools not found. Attempting installation via Chocolatey..."
+    echo "  (this is slow ~10-20 min; pre-install on runner image to avoid this)"
+    if ! command -v choco &>/dev/null; then
+      echo "ERROR: choco not found — cannot auto-install VS Build Tools" >&2
+      echo "Searched: ${vswhere_candidates[*]}" >&2
+      echo "Listing C:/Program Files (x86)/Microsoft Visual Studio (if present):" >&2
+      ls "C:/Program Files (x86)/Microsoft Visual Studio/" 2>/dev/null || echo "  (not found)" >&2
+      exit 1
+    fi
+    choco install visualstudio2022buildtools \
+      --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait" \
+      -y --no-progress
+    # Re-locate vswhere after installation
+    for candidate in "${vswhere_candidates[@]}"; do
+      if [[ -f "$candidate" ]]; then
+        vswhere="$candidate"
+        break
+      fi
+    done
+    if [[ -z "${vswhere:-}" || ! -f "$vswhere" ]]; then
+      echo "ERROR: vswhere.exe still not found after VS Build Tools install" >&2
+      exit 1
+    fi
   fi
   echo "Found vswhere.exe: $vswhere"
 
@@ -224,10 +241,13 @@ setup_vcredist_x86() {
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+# setup_msvc must run before setup_vcredist_x86 and setup_python so that:
+#   - vswhere is available for setup_vcredist_x86 to copy x86 CRT DLLs into SysWOW64
+#   - the 32-bit CRT DLLs are present before uv inspects the x86 Python interpreter
 setup_env
+setup_msvc
 setup_vcredist_x86
 setup_python
-setup_msvc
 setup_rust
 build_wheel
 repair_wheel
