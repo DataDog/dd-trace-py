@@ -15,7 +15,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "dec99dfb2cda089a20036dcef710aab1cd17660b"
+  SYSTEM_TESTS_REF: "f65241afd4c85b958e114bae5317645c9a6ade30"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v96371602-f288245-profiling_native"
@@ -174,6 +174,18 @@ microbenchmarks:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
+
+apm-sdk-benchmarks:
+  stage: benchmarks
+  when: manual
+  allow_failure: true
+  needs:
+    - job: "upload all"
+  trigger:
+    project: DataDog/apm-reliability/apm-sdks-benchmarks
+    branch: main
+  variables:
+    TARGET_REF: $CI_PIPELINE_ID
 
 macrobenchmarks:
   stage: benchmarks

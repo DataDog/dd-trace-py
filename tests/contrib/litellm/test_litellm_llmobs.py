@@ -1,6 +1,8 @@
 import pytest
 
 from ddtrace._monkey import patch
+from ddtrace.contrib.internal.litellm.patch import get_version
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
@@ -481,6 +483,40 @@ class TestLLMObsLiteLLM:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["name"] == "OpenAI.createChatCompletion" if not stream else "litellm.request"
+
+    def test_completion_anthropic_token_metrics(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+        """Test that cache token metrics (cache_read, cache_write) are captured for Anthropic models via litellm."""
+        if stream or n > 1:
+            pytest.skip("Anthropic cassette is non-streamed, single-choice only")
+
+        is_new_litellm = parse_version(get_version()) >= (1, 74, 15)
+        cassette_name = "completion_anthropic{}.yaml".format("_v1_74_15" if is_new_litellm else "")
+
+        with request_vcr.use_cassette(cassette_name):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = litellm.completion(
+                model="anthropic/claude-sonnet-4-5-20250929",
+                messages=messages,
+            )
+            output_messages, token_metrics = parse_response(resp)
+
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="claude-sonnet-4-5-20250929",
+            model_provider="anthropic",
+            input_messages=messages,
+            output_messages=output_messages,
+            metadata={},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+
+        # Verify cache token metrics are present
+        event_metrics = llmobs_events[0]["metrics"]
+        assert "cache_read_input_tokens" in event_metrics
+        assert "cache_write_input_tokens" in event_metrics
 
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
