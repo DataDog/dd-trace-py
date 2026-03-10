@@ -159,20 +159,17 @@ def _on_content_block_delta_chunk(chunk, message):
             chunk_thinking_text = _get_attr(delta_block, "thinking", "")
             if chunk_thinking_text:
                 message["content"][-1]["thinking"] += chunk_thinking_text
-            return message
-
-        if delta_type == "signature_delta":
+        elif delta_type == "signature_delta":
             # Signature is for internal verification only; skip it.
-            return message
-
-        chunk_content_text = _get_attr(delta_block, "text", "")
-        if chunk_content_text:
-            message["content"][-1]["text"] += chunk_content_text
-
-        chunk_content_json = _get_attr(delta_block, "partial_json", "")
-        if chunk_content_json and delta_type == "input_json_delta":
-            # we have a json content block, most likely a tool input dict
-            message["content"][-1]["input"] += chunk_content_json
+            pass
+        elif delta_type == "input_json_delta":
+            chunk_content_json = _get_attr(delta_block, "partial_json", "")
+            if chunk_content_json:
+                message["content"][-1]["input"] += chunk_content_json
+        else:
+            chunk_content_text = _get_attr(delta_block, "text", "")
+            if chunk_content_text:
+                message["content"][-1]["text"] += chunk_content_text
     return message
 
 
