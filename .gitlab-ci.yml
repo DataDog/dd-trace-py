@@ -528,7 +528,7 @@ lib_injection_tests:
     - export PYENV_ROOT="${HOME}/.pyenv"
     - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
     - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
-    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
+    - for i in 1 2 3; do PYENV_GIT_TAG=v2.6.17 curl -sSf https://pyenv.run | bash && break; echo "pyenv install attempt $i failed, retrying..."; sleep 5; [ "$i" -eq 3 ] && { echo "Failed to install pyenv after 3 attempts"; exit 1; }; done
     - pyenv --version
     - pyenv install ${PYTHON} && pyenv global ${PYTHON}
     - python --version
