@@ -714,7 +714,7 @@ else:
 
 if PydanticEvaluator is not None:
     from pydantic_evals.evaluators import EvaluatorContext, EvaluatorOutput
-    from pydantic_evals.evaluators.evaluate import EvaluationScalar, EvaluationReason
+    from pydantic_evals.evaluators.evaluator import EvaluationScalar, EvaluationReason
     def _pydantic_evaluator_wrapper(evaluator: Any, is_async: bool = False) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
 
@@ -771,7 +771,7 @@ if PydanticEvaluator is not None:
             
             return eval_result
         
-        wrapped_evaluator.__name__ = getattr(evaluator, "name", evaluator.get_default_evaluation_name())
+        wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
         return wrapped_evaluator    
     def _pydantic_async_evaluator_wrapper(evaluator: Any) -> Any:
         """Wrapper to run pydantic evaluators and convert their result to an EvaluatorResult.
@@ -818,7 +818,7 @@ if PydanticEvaluator is not None:
             
             return eval_result
         
-        wrapped_evaluator.__name__ = getattr(evaluator, "name", evaluator.get_default_evaluation_name())
+        wrapped_evaluator.__name__ = evaluator.get_default_evaluation_name()
         return wrapped_evaluator
 else:
     def _pydantic_evaluator_wrapper(evaluator: Any) -> Any:
