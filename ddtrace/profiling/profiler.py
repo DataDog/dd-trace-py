@@ -20,6 +20,7 @@ from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
+from ddtrace.internal.threads import Lock
 from ddtrace.profiling import collector
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -40,25 +41,37 @@ class Profiler(object):
 
     """
 
+    _active_instance: Optional["Profiler"] = None
+    _active_lock = Lock()
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
 
     def start(self) -> None:
         """Start the profiler."""
+        with Profiler._active_lock:
+            active = Profiler._active_instance
+            if active is not None and active is not self and active._profiler.status == service.ServiceStatus.RUNNING:
+                LOG.error(
+                    "A profiler is already running. Only one profiler instance can be active at a time. "
+                    "The second profiler will not be started."
+                )
+                return
 
-        try:
-            uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
-        except uwsgi.uWSGIMasterProcess:
-            # Do nothing in master, the profiler will be started in each worker via _start_on_fork
-            return
-        except uwsgi.uWSGIConfigDeprecationWarning:
-            LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
-            # Turn off profiling in this case, this is mostly for
-            # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
-            # or --lazy. See uwsgi.check_uwsgi() for details.
-            return
+            try:
+                uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
+            except uwsgi.uWSGIMasterProcess:
+                # Do nothing in master, the profiler will be started in each worker via _start_on_fork
+                return
+            except uwsgi.uWSGIConfigDeprecationWarning:
+                LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
+                # Turn off profiling in this case, this is mostly for
+                # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
+                # or --lazy. See uwsgi.check_uwsgi() for details.
+                return
 
-        self._profiler.start()
+            self._profiler.start()
+            Profiler._active_instance = self
 
         atexit.register(self.stop)
 
@@ -76,6 +89,9 @@ class Profiler(object):
         atexit.unregister(self.stop)
         try:
             self._profiler.stop(flush)
+            with Profiler._active_lock:
+                if Profiler._active_instance is self:
+                    Profiler._active_instance = None
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.

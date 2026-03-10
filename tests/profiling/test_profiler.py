@@ -19,6 +19,12 @@ from ddtrace.profiling.collector import threading
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT") or False
 
 
+@pytest.fixture(autouse=True)
+def _reset_profiler_active_instance():
+    yield
+    profiler.Profiler._active_instance = None
+
+
 def test_status():
     p = profiler.Profiler()
     assert repr(p.status) == "<ServiceStatus.STOPPED: 'stopped'>"
@@ -432,3 +438,44 @@ def test_gevent_patched_after_manual_profiler_start_when_profiling_disabled():
         assert gevent.hub.spawn_raw.__module__ == "ddtrace.profiling._gevent"
     finally:
         p.stop(flush=False)
+
+
+def test_only_one_profiler_allowed(caplog: pytest.LogCaptureFixture) -> None:
+    """Starting a second profiler while one is running should log an error and not start."""
+    p1 = profiler.Profiler()
+    p2 = profiler.Profiler()
+
+    p1.start()
+    assert profiler.Profiler._active_instance is p1
+
+    with caplog.at_level(logging.ERROR, logger="ddtrace.profiling.profiler"):
+        p2.start()
+
+    assert "A profiler is already running" in caplog.text
+    assert profiler.Profiler._active_instance is p1
+
+    p1.stop(flush=False)
+
+
+def test_stop_then_start_new_profiler() -> None:
+    """After stopping the first profiler, a new one should be startable."""
+    p1 = profiler.Profiler()
+    p1.start()
+    p1.stop(flush=False)
+
+    assert profiler.Profiler._active_instance is None
+
+    p2 = profiler.Profiler()
+    p2.start()
+    assert profiler.Profiler._active_instance is p2
+    p2.stop(flush=False)
+
+
+def test_same_profiler_restart_allowed() -> None:
+    """Restarting the same profiler instance (stop then start) should work."""
+    p = profiler.Profiler()
+    p.start()
+    p.stop(flush=False)
+    p.start()
+    assert profiler.Profiler._active_instance is p
+    p.stop(flush=False)
