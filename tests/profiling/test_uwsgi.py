@@ -294,7 +294,7 @@ def test_uwsgi_threads_processes_primary(
     all_output = b"".join(all_lines) + remaining_stdout
     print(f"\n=== FULL STDOUT ({len(all_output)} bytes) ===")
     print(all_output.decode(errors="replace"))
-    print(f"=== END STDOUT ===")
+    print("=== END STDOUT ===")
     print(f"\n=== FILES IN {tmp_path} ===")
     for f in tmp_path.iterdir():
         print(f"  {f.name} ({f.stat().st_size} bytes)")
