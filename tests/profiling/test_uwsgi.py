@@ -61,6 +61,7 @@ def uwsgi(
     # Do not ignore profiler so we have samples in the output pprof
     monkeypatch.setenv("DD_PROFILING_IGNORE_PROFILER", "0")
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
+    monkeypatch.setenv("DD_TRACE_DEBUG", "1")
     # Do not use pytest tmpdir fixtures which generate directories longer than allowed for a socket file name
     socket_name = str(tmp_path / "uwsgi.sock")
 
@@ -260,7 +261,25 @@ def test_uwsgi_threads_processes_primary(
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     proc = uwsgi("--enable-threads", "--master", "--processes", "2")
-    worker_pids = _get_worker_pids(proc.stdout, 2)
+
+    # Capture ALL stdout lines while looking for worker PIDs
+    all_lines: list[bytes] = []
+    worker_pids: list[int] = []
+    started = 0
+    while True:
+        assert proc.stdout is not None
+        line = proc.stdout.readline()
+        all_lines.append(line)
+        if line == b"":
+            break
+        elif b"WSGI app 0 (mountpoint='') ready" in line:
+            started += 1
+        else:
+            m = re.match(r"^spawned uWSGI worker \d+ .*\(pid: (\d+),", line.decode(errors="replace"))
+            if m:
+                worker_pids.append(int(m.group(1)))
+        if len(worker_pids) == 2 and started == 1:
+            break
 
     # Give some time to child to actually startup
     time.sleep(3)
@@ -270,13 +289,16 @@ def test_uwsgi_threads_processes_primary(
 
     assert proc.wait() == 0
 
-    # Debug: print remaining stdout and list files in tmp_path
+    # Debug: print ALL stdout
     remaining_stdout = proc.stdout.read() if proc.stdout else b""
-    print(f"\n=== REMAINING STDOUT ===\n{remaining_stdout.decode(errors='replace')}\n=== END STDOUT ===")
+    all_output = b"".join(all_lines) + remaining_stdout
+    print(f"\n=== FULL STDOUT ({len(all_output)} bytes) ===")
+    print(all_output.decode(errors="replace"))
+    print(f"=== END STDOUT ===")
     print(f"\n=== FILES IN {tmp_path} ===")
     for f in tmp_path.iterdir():
         print(f"  {f.name} ({f.stat().st_size} bytes)")
-    print(f"=== ALL PPROF FILES: {glob.glob(str(tmp_path / '*.pprof*'))} ===")
+    print(f"=== ALL PPROF-LIKE FILES: {glob.glob(str(tmp_path) + '/**', recursive=True)} ===")
     print(f"=== WORKER PIDS: {worker_pids} ===")
 
     for pid in worker_pids:
