@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import itertools
 
 from azure.cosmos import CosmosClient
 import pytest
@@ -13,17 +14,20 @@ SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
+METHODS = ["create_item", "read_item", "upsert_item", "delete_item"]
 
 params = [
     (
-        f"{'async_' if a else ''}cosmos_tracing",
-        (
-            {
-                "IS_ASYNC": str(a),
-            },
-        ),
+        f"{m}{'_async' if a else ''}",
+        {
+            "METHOD": m,
+            "IS_ASYNC": str(a),
+        },
     )
-    for a in ASYNC_OPTIONS
+    for m, a in itertools.product(
+        METHODS,
+        ASYNC_OPTIONS,
+    )
 ]
 
 param_ids, param_values = zip(*params)
@@ -58,21 +62,29 @@ def test_cosmos_error():
         connection_verify=False
     )
 
-    try:
-        database = client.create_database(DB_NAME)
-    except exceptions.CosmosResourceExistsError:
-        database = client.get_database_client(DB_NAME)
+    database = client.create_database_if_not_exists(DB_NAME)
 
-    try:
-        container = database.create_container(
+    container = database.create_container_if_not_exists(
             id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
-        )
-    except exceptions.CosmosResourceExistsError:
-        container = database.get_container_client(CONTAINER_NAME)
+    )
+
+    container.upsert_item(
+        {
+            "id": "item1",
+            "productName": "Widget",
+            "productModel": "Model 1",
+        }
+    )
 
     try:
-        cosmos_client.send_batch(EventData(body='{"body":"test message"}'))
-    except TypeError as e:
+        container.create_item(
+            {
+                "id": "item1",
+                "productName": "Widget",
+                "productModel": "Model 1",
+            }
+        )
+    except azure_cosmos.CosmosResourceExistsError as e:
         assert str(e) == "'EventData' object is not iterable"
     finally:
         cosmos_client.close()

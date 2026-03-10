@@ -9,18 +9,22 @@ import pytest
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
+METHODS = ["create_item", "read_item", "upsert_item", "delete_item"]
 
 params = [
     (
-        f"{'async_' if a else ''}cosmos_tracing",
-        (
-            {
-                "IS_ASYNC": str(a),
-            },
-        ),
+        f"{m}{'_async' if a else ''}",
+        {
+            "METHOD": m,
+            "IS_ASYNC": str(a),
+        },
     )
-    for a in ASYNC_OPTIONS
+    for m, a in itertools.product(
+        METHODS,
+        ASYNC_OPTIONS,
+    )
 ]
+
 
 param_ids, param_values = zip(*params)
 
@@ -68,11 +72,11 @@ def azure_functions_client(request):
 
 
 @pytest.mark.parametrize(
-    "azure_functions_client, payload_type",
+    "azure_functions_client",
     param_values,
     ids=param_ids,
     indirect=["azure_functions_client"],
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_cosmos_trigger(azure_functions_client: Client, payload_type) -> None:
-    assert azure_functions_client.post(f"/api/sendevent{payload_type}", headers=DEFAULT_HEADERS).status_code == 200
+def test_cosmos_trigger(azure_functions_client: Client) -> None:
+    assert azure_functions_client.post(f"/api/{method}", headers=DEFAULT_HEADERS).status_code == 200

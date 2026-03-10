@@ -8,53 +8,99 @@ CONNECTION_STRING = "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf
 DB_NAME = "db.1"
 CONTAINER_NAME = "container.1"
 
-def run_test():
-    return
+def run_test(container, method):
+    match method:
+        case "create_item":
+            container.create_item(
+                {
+                    "id": "item1",
+                    "productName": "Widget",
+                    "productModel": "Model 1",
+                }
+            )
+        case "read_item":
+            container.read_item("item1", partition_key="Widget")
+        case "upsert_item":
+            container.upsert_item(
+                    {
+                        "id": "item1",
+                        "productName": "Widget",
+                        "productModel": "Model X",
+                    }
+                )
+        case "delete_item":
+            for item in container.query_items(
+                query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
+                enable_cross_partition_query=True,
+            ):
+                container.delete_item(item["id"], partition_key="Widget")
+
+
+def run_test_async(container, method):
+        match method:
+            case "create_item":
+                await container.create_item(
+                    {
+                        "id": "item1",
+                        "productName": "Widget",
+                        "productModel": "Model 1",
+                    }
+                )
+            case "read_item":
+                await container.read_item("item1", partition_key="Widget")
+            case "upsert_item":
+                await container.upsert_item(
+                        {
+                            "id": "item1",
+                            "productName": "Widget",
+                            "productModel": "Model X",
+                        }
+                    )
+            case "delete_item":
+                async for item in container.query_items(
+                    query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
+                    enable_cross_partition_query=True,
+                ):
+                    await container.delete_item(item["id"], partition_key="Widget")
 
 
 @pytest.mark.asyncio
 async def test_common():
     is_async = os.environ.get("IS_ASYNC") == "True"
+    method = os.environ.get("METHOD")
 
     if is_async:
+        cosmos_client = azure_cosmos_aio.CosmosClient.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
+        )
+
+        database = await cosmos_client.create_database_if_not_exists(DB_NAME)
+        container = await database.create_container_if_not_exists(CONTAINER_NAME, partition_key=PartitionKey(path="/productName"))
+
+        try:
+            await run_test_async(
+                container,
+                method,
+            )
+        finally:
+            await cosmos_client.close()
+    else:
         cosmos_client = azure_cosmos.CosmosClient.from_connection_string(
             CONNECTION_STRING,
             connection_verify=False
         )
-        (consumer_client, event_handler, receive_task) = await create_event_handler_async()
-        try:
-            await run_test_async(
-                producer_client,
-                event_handler,
-                method,
-                message_payload_type,
-                distributed_tracing_enabled,
-                batch_links_enabled,
-            )
-        finally:
-            await producer_client.close()
-            await close_event_handler_async(consumer_client, receive_task)
-    else:
-        producer_client = EventHubProducerClient.from_connection_string(
-            conn_str=CONNECTION_STRING,
-            eventhub_name=EVENTHUB_NAME,
-            buffered_mode=buffered_mode,
-            on_error=on_error,
-            on_success=on_success,
-        )
-        (consumer_client, event_handler, thread) = create_event_handler()
+
+        database = cosmos_client.create_database_if_not_exists(DB_NAME)
+        container = database.create_container_if_not_exists(CONTAINER_NAME, partition_key=PartitionKey(path="/productName"))
+
         try:
             run_test(
-                producer_client,
-                event_handler,
+                container,
                 method,
-                message_payload_type,
-                distributed_tracing_enabled,
-                batch_links_enabled,
             )
         finally:
-            producer_client.close()
-            close_event_handler(consumer_client, thread)
+            cosmos_client.close()
 
 
 if __name__ == "__main__":

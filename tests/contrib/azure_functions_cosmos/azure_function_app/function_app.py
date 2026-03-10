@@ -3,57 +3,37 @@ import time
 import json
 import logging
 
-# from azure.cosmos.aio import CosmosClient
 import os
 import ddtrace.auto
-from ddtrace import patch
-# Ensure critical integrations are patched even if auto-instrumentation ordering changes.
-patch(
-    requests=True,
-    azure_functions=True,
-    azure_cosmos=True,
-)
+
 
 from azure.cosmos import CosmosClient, exceptions, PartitionKey
+from azure.cosmos.aio import CosmosClient as CosmosClientAio
 import azure.cosmos as cosmos
+
+
+CONNECTION_STRING = "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
+DB_NAME = "db.1"
+CONTAINER_NAME = "container.1"
 
 app = func.FunctionApp()
 
-client = CosmosClient(
-    url="http://localhost:8081",
-    credential=(
-        "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
-    ),
-    connection_verify=False
-)
 
+@app.route(route="create_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
+def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
+    if os.getenv("IS_ASYNC") == "True":
+        client = CosmosClientAio.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
+        )
 
-# create/get database
-DATABASE_NAME = "wheeee"
-try:
-    database = client.create_database(DATABASE_NAME)
-except exceptions.CosmosResourceExistsError:
-    database = client.get_database_client(DATABASE_NAME)
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
 
-# create/get container
-CONTAINER_NAME = "yippee"
-try:
-    container = database.create_container(
-        id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
-    )
-except exceptions.CosmosResourceExistsError:
-    container = database.get_container_client(CONTAINER_NAME)
-
-
-
-@app.route(route="HttpExample", auth_level=func.AuthLevel.FUNCTION)
-async def HttpExample(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("Python HTTP trigger function processed a request.")
-
-    try:
-        # create data
-        for i in range(1, 20):
-            container.create_item(
+        async for i in range(1, 5):
+            await container.create_item(
                 {
                     "id": "item{0}".format(i),
                     "productName": "Widget",
@@ -61,87 +41,149 @@ async def HttpExample(req: func.HttpRequest) -> func.HttpResponse:
                 }
             )
 
-        # read data
-        for i in range(1, 20):
-            response = container.read_item(item="{0}".format(i), partition_key="Widget")
-            print(response)
+    else:
+        client = CosmosClient.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
+        )
 
-        # update data
-        for i in range(10, 20):
-            container.upsert_item(
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
+
+        for i in range(1, 5):
+            container.create_item(
                 {
                     "id": "item{0}".format(i),
                     "productName": "Widget",
-                    "productModel": "Model {0}".format(i + 30),
+                    "productModel": "Model {0}".format(i),
+                }
+            )
+    
+    return func.HttpResponse("Hello Datadog!")
+
+@app.route(route="read_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
+def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
+    if os.getenv("IS_ASYNC") == "True":
+        client = CosmosClientAio.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
+        )
+
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
+
+        async for i in range(1, 5):
+            await container.read_item(
+                {
+                    "id": "item{0}".format(i),
+                    , partition_key="Widget"
                 }
             )
 
-        # delete data
-        for item in container.query_items(
-            query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"',
-            enable_cross_partition_query=True,
-        ):
-            container.delete_item(item["id"], partition_key="Widget")
-
-
-        response = "Success: "
-        return func.HttpResponse(response, status_code=200)
-
-    except Exception as e:
-        logging.error(f"Error: {str(e)}")
-        return func.HttpResponse(f"Error: {str(e)}", status_code=500)
-
-
-"""async def AsyncHelper(url, key):
-    client = CosmosClient(
-            url="http://localhost:8081",
-            credential=(
-                "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
-            ),
+    else:
+        client = CosmosClient.from_connection_string(
+            CONNECTION_STRING,
             connection_verify=False
         )
+
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
+
+        for i in range(1, 5):
+            container.read_item(
+                {
+                    "id": "item{0}".format(i),
+                    , partition_key="Widget"
+                }
+            )
     
-    DATABASE_NAME = 'nyoom'
-    CONTAINER_NAME = 'beep'
-    try:
-        database = await client.create_database(DATABASE_NAME)
-    except exceptions.CosmosResourceExistsError:
-        database = client.get_database_client(DATABASE_NAME)
+    return func.HttpResponse("Hello Datadog!")
 
-    # create/get container
-    try:
-        container = await database.create_container(id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName"))
-    except exceptions.CosmosResourceExistsError:
-        container = database.get_container_client(CONTAINER_NAME)
-    except exceptions.CosmosHttpResponseError:
-        raise
 
-    print("hihi")
-    for i in range(10):
-        await container.upsert_item({
-                'id': 'item{0}'.format(i),
-                'productName': 'Widget',
-                'productModel': 'Model {0}'.format(i)
-            }
+@app.route(route="upsert_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
+def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
+    if os.getenv("IS_ASYNC") == "True":
+        client = CosmosClientAio.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
         )
 
-    print("here")
-    results = container.query_items(
-            query='SELECT * FROM products p WHERE p.productModel = "Model 3"')
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
 
-    async for item in container.query_items(
-            query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"'):
-        await container.delete_item(item['id'], partition_key='Widget')
+        async for i in range(1, 5):
+             await container.upsert_item(
+                        {
+                            "id": "item{0}".format(i),
+                            "productName": "Widget",
+                            "productModel": "Model {0}".format(i + 1),
+                        }
+                    )
 
-    # iterates on "results" iterator to asynchronously create a complete list of the actual query results
-    print("there")
-    item_list = []
-    async for item in results:
-        print(json.dumps(item, indent=True))
-        item_list.append(item)
-    print("where")
-    # Asynchronously creates a complete list of the actual query results. This code performs the same action as the for-loop example above.
-    item_list = [item async for item in results]
+    else:
+        client = CosmosClient.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
+        )
 
-    await client.close()
-"""
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
+
+        for i in range(1, 5):
+            container.upsert_item(
+                        {
+                            "id": "item{0}".format(i),
+                            "productName": "Widget",
+                            "productModel": "Model {0}".format(i + 1),
+                        }
+                    )
+    
+    return func.HttpResponse("Hello Datadog!")
+
+@app.route(route="delete_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
+def DeleteItem(req: func.HttpRequest) -> func.HttpResponse:
+    if os.getenv("IS_ASYNC") == "True":
+        client = CosmosClientAio.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
+        )
+
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
+
+        async for item in container.query_items(
+                    query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"',
+                    enable_cross_partition_query=True,
+                ):
+                    await container.delete_item(item["id"], partition_key="Widget")
+
+    else:
+        client = CosmosClient.from_connection_string(
+            CONNECTION_STRING,
+            connection_verify=False
+        )
+
+        database = client.create_database_if_not_exists(DATABASE_NAME)
+        container = database.create_container_if_not_exists(
+                id=CONTAINER_NAME, partition_key=PartitionKey(path="/productName")
+            )
+
+        for item in container.query_items(
+                    query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"',
+                    enable_cross_partition_query=True,
+                ):
+                    container.delete_item(item["id"], partition_key="Widget")
+    
+    return func.HttpResponse("Hello Datadog!")
