@@ -99,9 +99,16 @@ class Profiler(object):
 
     def _start_on_fork(self) -> None:
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
+        with Profiler._active_lock:
+            if Profiler._active_instance is not None:
+                LOG.error(
+                    "A profiler is already running. Only one profiler instance can be active at a time. "
+                    "The second profiler will not be started."
+                )
+                return
 
-        self._profiler.start()
-        Profiler._active_instance = self
+            self._profiler.start()
+            Profiler._active_instance = self
 
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
