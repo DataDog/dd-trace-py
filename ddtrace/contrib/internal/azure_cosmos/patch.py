@@ -49,7 +49,7 @@ def _patch(azure_cosmos_module):
 
     if azure_cosmos_module.__name__ == "azure.cosmos.aio":
         Pin().onto(azure_cosmos_module)
-        _w("azure.cosmos.aio", "_asynchronous_request.AsynchronousRequest", _patch_asynchrous_request)
+        _w("azure.cosmos.aio", "_asynchronous_request.AsynchronousRequest", _patch_asynchronous_request)
     else:
         Pin().onto(azure_cosmos_module)
         _w("azure.cosmos", "_synchronized_request.SynchronizedRequest", _patched_synchronized_request)
@@ -72,38 +72,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
         service=trace_utils.ext_service(pin, config.azure_cosmos),
         span_type=SpanTypes.COSMOS,
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-        span._set_tag_str(db.SYSTEM, "cosmosdb")
-        span._set_tag_str(COMPONENT, config.azure_cosmos.integration_name)
-        span._set_tag_str(net.TARGET_HOST, client.url_connection)
-        span._set_tag_str(http.USER_AGENT, client._user_agent)
-        connection_mode = client.connection_policy.ConnectionMode
-        if connection_mode == 0:
-            span._set_tag_str("cosmosdb.connection.mode", "gateway")
-        else:
-            span._set_tag_str("cosmosdb.connection.mode", "other")
-    
-        idx=(request.url).find("/dbs")
-        if idx !=-1:
-            resource_link = (request.url)[idx:]
-        else:
-            resource_link = request.url
-
-        span.resource = request_params.operation_type +  " " + resource_link
-        if (span.resource == "Create /dbs" and request_data['id']):
-            span._set_tag_str(db.NAME, request_data['id'])
-
-        if resource_link:
-            if resource_link.startswith("/") and len(resource_link) > 1:
-                resource_link = resource_link[1:]
-
-            parts = resource_link.split("/")
-
-            if (parts and parts[0].lower() == "dbs" and len(parts) >= 2):
-                span._set_tag_str(db.NAME, parts[1])
-                if len(parts) >= 4:
-                    if parts[2].lower() == "colls":
-                        span._set_tag_str("cosmosdb.container", parts[3])
+        _build_span_tags(span, client, request_params, request, request_data)
 
         try:
             result = wrapped(*args, **kwargs)
@@ -132,7 +101,7 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
             
 
 
-async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
+async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
     pin = Pin.get_from(azure_cosmos_aio)
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
@@ -143,48 +112,17 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
     request_data = get_argument_value(args, kwargs, 6, "request_data")
 
     if (request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1):
-        return wrapped(*args, **kwargs)
+        return await wrapped(*args, **kwargs)
 
     with tracer.trace(
         "cosmosdb.query",
         service=trace_utils.ext_service(pin, config.azure_cosmos),
         span_type=SpanTypes.COSMOS,
     ) as span:
-        span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-        span._set_tag_str(db.SYSTEM, "cosmosdb")
-        span._set_tag_str(COMPONENT, config.azure_cosmos.integration_name)
-        span._set_tag_str(net.TARGET_HOST, client.url_connection)
-        span._set_tag_str(http.USER_AGENT, client._user_agent)
-        connection_mode = client.connection_policy.ConnectionMode
-        if connection_mode == 0:
-            span._set_tag_str("cosmosdb.connection.mode", "gateway")
-        else:
-            span._set_tag_str("cosmosdb.connection.mode", "other")
-    
-        idx=(request.url).find("/dbs")
-        if idx !=-1:
-            resource_link = (request.url)[idx:]
-        else:
-            resource_link = request.url
-
-        span.resource = request_params.operation_type +  " " + resource_link
-        if (span.resource == "Create /dbs" and request_data['id']):
-            span._set_tag_str(db.NAME, request_data['id'])
-
-        if resource_link:
-            if resource_link.startswith("/") and len(resource_link) > 1:
-                resource_link = resource_link[1:]
-
-            parts = resource_link.split("/")
-
-            if (parts and parts[0].lower() == "dbs" and len(parts) >= 2):
-                span._set_tag_str(db.NAME, parts[1])
-                if len(parts) >= 4:
-                    if parts[2].lower() == "colls":
-                        span._set_tag_str("cosmosdb.container", parts[3])
+        _build_span_tags(span, client, request_params, request, request_data)
         
         try:
-            result = wrapped(*args, **kwargs)
+            result = await wrapped(*args, **kwargs)
             (res, headers) = result
 
             sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
@@ -207,6 +145,40 @@ async def _patch_asynchrous_request(wrapped, instance, args, kwargs):
                 span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
             span.set_tag(http.STATUS_CODE, 412)
             raise e
+
+def _build_span_tags(span, client, request_params, request, request_data):
+    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span._set_tag_str(db.SYSTEM, "cosmosdb")
+    span._set_tag_str(COMPONENT, config.azure_cosmos.integration_name)
+    span._set_tag_str(net.TARGET_HOST, client.url_connection)
+    span._set_tag_str(http.USER_AGENT, client._user_agent)
+    connection_mode = client.connection_policy.ConnectionMode
+    if connection_mode == 0:
+        span._set_tag_str("cosmosdb.connection.mode", "gateway")
+    else:
+        span._set_tag_str("cosmosdb.connection.mode", "other")
+
+    idx=(request.url).find("/dbs")
+    if idx !=-1:
+        resource_link = (request.url)[idx:]
+    else:
+        resource_link = request.url
+
+    span.resource = request_params.operation_type +  " " + resource_link
+    if (span.resource == "Create /dbs" and (request_data.get('id') is not None)):
+        span._set_tag_str(db.NAME, request_data['id'])
+
+    if resource_link:
+        if resource_link.startswith("/") and len(resource_link) > 1:
+            resource_link = resource_link[1:]
+
+        parts = resource_link.split("/")
+
+        if (parts and parts[0].lower() == "dbs" and len(parts) >= 2):
+            span._set_tag_str(db.NAME, parts[1])
+            if len(parts) >= 4:
+                if parts[2].lower() == "colls":
+                    span._set_tag_str("cosmosdb.container", parts[3])
 
 
 def unpatch():

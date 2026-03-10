@@ -1,3 +1,6 @@
+import os
+import pytest
+
 import azure.cosmos as azure_cosmos
 import azure.cosmos.aio as azure_cosmos_aio
 
@@ -14,7 +17,7 @@ async def test_common():
     is_async = os.environ.get("IS_ASYNC") == "True"
 
     if is_async:
-        producer_client = azure_cosmos.CosmosClient.from_connection_string(
+        cosmos_client = azure_cosmos.CosmosClient.from_connection_string(
             CONNECTION_STRING,
             connection_verify=False
         )
