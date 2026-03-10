@@ -33,8 +33,8 @@
 struct module_state
 {
     // At-exit barrier to avoid making Python VM calls during or after shutdown.
-    // Set by the atexit handler before stopping threads, giving an earlier and
-    // more controlled signal than py_is_finalizing().
+    // Set by the atexit handler after stopping threads, giving an extra
+    // safety net before py_is_finalizing() is set by the VM.
     std::atomic<bool> at_exit{ false };
 
     // Mapping of active periodic thread IDs to their PeriodicThread objects.
