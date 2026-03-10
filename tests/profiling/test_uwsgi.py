@@ -244,7 +244,6 @@ def test_uwsgi_threads_processes_primary(
     This is the standard production configuration for multi-worker uwsgi:
     - --enable-threads: satisfies the threading requirement
     - --master: enables the master process that manages workers
-    - --py-call-uwsgi-fork-hooks: ensures Python fork hooks are called after fork
     - --processes 2: spawns 2 worker processes
 
     With --master, the profiler can register postfork hooks via uwsgidecorators.postfork()
@@ -252,10 +251,15 @@ def test_uwsgi_threads_processes_primary(
     - Both workers start successfully
     - Each worker independently collects wall-time samples
     - Profiles are written with each worker's PID suffix
+
+    Note: --py-call-uwsgi-fork-hooks is NOT used here because ddtrace.auto registers
+    ddtrace_after_in_child via both os.register_at_fork and uwsgidecorators.postfork.
+    With --py-call-uwsgi-fork-hooks, both mechanisms fire, causing forksafe callbacks
+    to run twice (double product start/restart). uwsgidecorators.postfork alone is sufficient.
     """
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
-    proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
+    proc = uwsgi("--enable-threads", "--master", "--processes", "2")
     worker_pids = _get_worker_pids(proc.stdout, 2)
 
     # Give some time to child to actually startup
