@@ -282,7 +282,7 @@ memalloc_get_lineno(memalloc_frame_t* frame, PyCodeObject* code)
 
 #endif // _PY311_AND_LATER
 
-    return lineno > 0 ? (int)lineno : 0;
+    return lineno > 0 ? static_cast<int>(lineno) : 0;
 }
 
 /* Return the best available function name for a code object.
