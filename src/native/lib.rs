@@ -11,6 +11,7 @@ mod log;
 mod py_string;
 mod rand;
 mod span;
+mod span_event;
 mod tracer_flare;
 
 use pyo3::prelude::*;
