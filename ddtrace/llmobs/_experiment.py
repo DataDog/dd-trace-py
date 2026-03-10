@@ -743,7 +743,7 @@ if PydanticEvaluator is not None:
             )
             def _task():
                 return str(output_data)
-            complete_report = dataset.evaluate(_task, repeat=1)
+            complete_report = dataset.evaluate_sync(_task, repeat=1)
             eval_report = complete_report.cases[0]
 
             eval_result = EvaluatorResult(value=None, reasoning=None, assessment=None, metadata=None)
@@ -796,7 +796,7 @@ if PydanticEvaluator is not None:
             )
             def _task():
                 return str(output_data)
-            complete_report = await dataset.evaluate_async(_task, repeat=1)
+            complete_report = await dataset.evaluate(_task, repeat=1)
             eval_report = complete_report.cases[0]
 
             eval_result = EvaluatorResult(value=None, reasoning=None, assessment=None, metadata=None)
