@@ -194,6 +194,7 @@ loopback
 macOS
 mako
 mariadb
+memalloc
 memcached
 metadata
 microservices
@@ -266,6 +267,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+reentrant
 redis
 rediscluster
 renderer
