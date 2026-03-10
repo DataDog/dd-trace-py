@@ -70,10 +70,11 @@ impl SpanLinkData {
 }
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
 pub struct SpanData {
     data: libdd_trace_utils::span::v04::Span<PyTraceData>,
     span_api: PyBackedString,
+    meta: Py<PyDict>,
+    metrics: Py<PyDict>,
     /// Lazy Python int cache for the `trace_id` getter.
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
@@ -176,7 +177,15 @@ impl SpanData {
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
     ) -> Self {
-        let mut span = Self::default();
+        let mut span = SpanData {
+            data: Default::default(),
+            span_api: span_api
+                .map(|obj| extract_backed_string_or_default(obj))
+                .unwrap_or_else(|| PyBackedString::from_static_str("datadog")),
+            meta: PyDict::new(py).unbind(),
+            metrics: PyDict::new(py).unbind(),
+            _trace_id_py: None,
+        };
         span.set_name(name);
         match service {
             Some(obj) => span.set_service(obj),
@@ -252,10 +261,6 @@ impl SpanData {
         };
         // Override the None left by set_trace_id_native with the pre-seeded cache (if any).
         span._trace_id_py = trace_id_cached;
-        // Initialize span_api: use provided value or default to "datadog"
-        span.span_api = span_api
-            .map(|obj| extract_backed_string_or_default(obj))
-            .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
         span
     }
 
@@ -503,6 +508,7 @@ impl SpanData {
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
     }
+
 }
 
 pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
