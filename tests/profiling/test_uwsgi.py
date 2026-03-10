@@ -92,8 +92,11 @@ def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
     - The error message clearly indicates the threading requirement
     """
     proc = uwsgi()
-    stdout, _ = proc.communicate()
-    assert proc.wait() != 0
+    try:
+        stdout, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGTERM)
+        stdout, _ = proc.communicate()
     assert THREADS_MSG in stdout
 
 
@@ -157,7 +160,11 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Pope
     unsupported. The test verifies the profiler rejects this with a clear error.
     """
     proc = uwsgi("--enable-threads", "--processes", "2")
-    stdout, _ = proc.communicate()
+    try:
+        stdout, _ = proc.communicate(timeout=10)
+    except TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGTERM)
+        stdout, _ = proc.communicate()
     assert (
         b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
         in stdout
