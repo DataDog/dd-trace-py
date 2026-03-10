@@ -276,14 +276,13 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
-rust_features = []
+rust_features = ["stats"]
 if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
     rust_features.append("profiling")
     if not SLIM_BUILD:
         rust_features.append("crashtracker")
 if not SLIM_BUILD:
     rust_features.append("ffe")
-    rust_features.append("stats")
 
 
 class PatchedDistribution(Distribution):
