@@ -95,7 +95,9 @@ def test_uwsgi_threads_disabled(uwsgi: Callable[..., subprocess.Popen[bytes]]):
     try:
         stdout, _ = proc.communicate(timeout=10)
     except TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGTERM)
+        # With --import, the error is printed but uwsgi keeps running.
+        # Force-kill the entire process group since we only need to check stdout.
+        os.killpg(proc.pid, signal.SIGKILL)
         stdout, _ = proc.communicate()
     assert THREADS_MSG in stdout
 
@@ -163,7 +165,10 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Pope
     try:
         stdout, _ = proc.communicate(timeout=10)
     except TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGTERM)
+        # With --import, the error is printed but uwsgi keeps running with
+        # child processes. Without --master, SIGTERM may not propagate cleanly
+        # to children, so use SIGKILL to force-kill the entire process group.
+        os.killpg(proc.pid, signal.SIGKILL)
         stdout, _ = proc.communicate()
     assert (
         b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
