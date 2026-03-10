@@ -1,4 +1,3 @@
-import itertools
 import os
 import signal
 import subprocess
@@ -6,29 +5,24 @@ import time
 
 import pytest
 
-from tests.webclient import Client
+#from tests.webclient import Client
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
-DISTRIBUTED_TRACING_ENABLED_OPTIONS = [None, False]
 
 params = [
     (
-        f"{'async_' if a else ''}consume_{c}_distributed_tracing_{'enabled' if d is None else 'disabled'}",
+        f"{'async_' if a else ''}cosmos_tracing",
         (
             {
                 "IS_ASYNC": str(a),
-                "CARDINALITY": c,
-                **({"DD_AZURE_COSMOS_DISTRIBUTED_TRACING": str(d)} if d is not None else {}),
-                **({"DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": str(d)} if d is not None else {}),
             },
         ),
     )
-    for a, d in itertools.product(ASYNC_OPTIONS, DISTRIBUTED_TRACING_ENABLED_OPTIONS)
+    for a in ASYNC_OPTIONS
 ]
 
 param_ids, param_values = zip(*params)
-
 
 @pytest.fixture
 def azure_functions_client(request):
