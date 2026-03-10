@@ -23,10 +23,10 @@ interactions:
     uri: https://api.datadoghq.com/api/v2/llm-obs/v1/569aa33c-7acf-4061-abd0-4f2078e61ee8/datasets/2d747c1c-3969-4f00-9e39-8899dfb9ca2c/batch_update
   response:
     body:
-      string: '{"data":[]}'
+      string: '{"data":[{"id":"7b62d428-8435-405e-bf29-4606f6b3df84","type":"datasets","attributes":{"version":2}}]}'
     headers:
       content-length:
-      - '11'
+      - '101'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
