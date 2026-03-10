@@ -4,6 +4,7 @@ import asyncio
 from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
+import inspect
 import re
 import sys
 import time
@@ -65,8 +66,8 @@ ConfigType = dict[str, JSONType]
 DatasetRecordInputType = dict[str, NonNoneJSONType]
 ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
-TaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], JSONType]
-AsyncTaskType = Callable[[DatasetRecordInputType, Optional[ConfigType]], Awaitable[JSONType]]
+TaskType = Callable[..., JSONType]
+AsyncTaskType = Callable[..., Awaitable[JSONType]]
 
 
 class EvaluatorResult:
@@ -1084,6 +1085,7 @@ class Experiment:
     ) -> None:
         self.name = name
         self._task = task
+        self._task_accepts_metadata = "metadata" in inspect.signature(task).parameters
         self._dataset = dataset
         self._evaluators = list(evaluators)
         self._summary_evaluators = list(summary_evaluators) if summary_evaluators else []
@@ -1584,12 +1586,16 @@ class Experiment:
                     tags["dataset_record_canonical_id"] = canonical_id
                 output_data = None
                 last_exc_info = None
+                record_metadata = record.get("metadata", {})
+                task_args: list = [input_data, self._config]
+                if self._task_accepts_metadata:
+                    task_args.append(record_metadata)
                 for attempt in range(1 + max_retries):
                     try:
                         if asyncio.iscoroutinefunction(self._task):
-                            output_data = await self._task(input_data, self._config)
+                            output_data = await self._task(*task_args)
                         else:
-                            output_data = await asyncio.to_thread(self._task, input_data, self._config)
+                            output_data = await asyncio.to_thread(self._task, *task_args)
                         last_exc_info = None
                         break
                     except Exception as e:
