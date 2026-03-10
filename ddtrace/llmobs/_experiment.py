@@ -721,21 +721,29 @@ if PydanticEvaluator is not None:
         :param evaluator: The pydantic evaluator to run
         :return: A callable function that can be used as an evaluator
         """
-        def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:
-            result = evaluator.evaluate(EvaluatorContext(
+        def wrapped_evaluator(input_data: dict[str, Any], output_data: Any, expected_output: Optional[JSONType] = None) -> EvaluatorResult:                
+            evalContext = EvaluatorContext(
                 name="",
                 inputs=input_data,
                 expected_output=expected_output,
                 output=output_data,
                 duration=self.span.duration, #wrong but dont worry about it for now,
                 # _span_tree=None
-                ))
+                )
             
-            if inspect.iscoroutine(result):
+            if asyncio.iscoroutinefunction(evaluator.evaluate):
                 if is_async:
-                    await result
+                    result = await evaluator.evaluate(evalContext)
                 else:
-                    get_event_loop().run_until_complete(result)
+                    try: 
+                        asyncio.get_running_loop()
+                    except RuntimeError:
+                        result = asyncio.run(evaluator.evaluate(evalContext))
+                    else:
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                            _result = pool.submit(asyncio.run, evaluator.evaluate(evalContext))
+                            result = _result.result()
             
             _eval_result = cast(EvaluatorOutput, result)
             eval_result = EvaluatorResult(
