@@ -127,6 +127,11 @@ def extract_output_from_chunk(chunk, output_messages, token_metrics, role, is_co
                 "total_tokens": chunk["usage"]["total_tokens"],
             }
         )
+        completion_tokens_details = chunk["usage"].get("completion_tokens_details")
+        if completion_tokens_details:
+            reasoning_tokens = getattr(completion_tokens_details, "reasoning_tokens", None)
+            if reasoning_tokens is not None:
+                token_metrics["reasoning_output_tokens"] = reasoning_tokens
 
     return output_messages, token_metrics, role
 
@@ -188,7 +193,7 @@ def parse_response(resp, is_completion=False):
     completion_tokens_details = getattr(resp.usage, "completion_tokens_details", None)
     if completion_tokens_details:
         reasoning_tokens = getattr(completion_tokens_details, "reasoning_tokens", None)
-        if reasoning_tokens:
+        if reasoning_tokens is not None:
             token_metrics["reasoning_output_tokens"] = reasoning_tokens
     return output_messages, token_metrics
 
