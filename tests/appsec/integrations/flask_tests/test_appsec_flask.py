@@ -2,6 +2,7 @@ import pytest
 
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
+from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.sqlite3.patch import patch
 from ddtrace.ext import http
 from ddtrace.internal import constants
@@ -70,8 +71,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER)
             assert resp.status_code == 403
-            assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, "default")
             root_span = self.pop_spans()[0]
+            triggers = get_triggers(root_span)
+            assert triggers is not None
+            block_id = triggers[0].get("security_response_id", "default")
+            assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_JSON, block_id)
             assert root_span.get_tag(http.STATUS_CODE) == "403"
             assert root_span.get_tag(http.URL) == "http://localhost/checkuser/%s" % _BLOCKED_USER
             assert root_span.get_tag(http.METHOD) == "GET"
@@ -82,7 +86,11 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
             resp = self.client.get("/checkuser/%s" % _BLOCKED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 403
-            assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_HTML, "default")
+            root_span = self.pop_spans()[0]
+            triggers = get_triggers(root_span)
+            assert triggers is not None
+            block_id = triggers[0].get("security_response_id", "default")
+            assert get_response_body(resp) == _format_template(constants.BLOCKED_RESPONSE_HTML, block_id)
 
             resp = self.client.get("/checkuser/%s" % _ALLOWED_USER, headers={"Accept": "text/html"})
             assert resp.status_code == 200
