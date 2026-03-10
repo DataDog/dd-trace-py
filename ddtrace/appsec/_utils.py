@@ -7,9 +7,8 @@ import logging
 import typing
 from typing import Any
 from typing import Optional
-from typing import Union
-
 from typing import TypedDict
+from typing import Union
 
 from ddtrace._trace._inferred_proxy import SUPPORTED_PROXY_SPAN_NAMES
 from ddtrace._trace.span import Span
