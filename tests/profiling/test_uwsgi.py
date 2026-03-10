@@ -73,7 +73,7 @@ def uwsgi(
         "--wsgi-file",
         uwsgi_app,
         "--import",
-        "ddtrace.profiling.auto",
+        "ddtrace.auto",
     ]
 
     try:
