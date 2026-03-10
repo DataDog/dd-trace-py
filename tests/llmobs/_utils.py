@@ -74,6 +74,58 @@ def get_bedrock_vcr():
     )
 
 
+def llmobs_tags(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.TAGS)
+
+
+def llmobs_input(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.INPUT, {})
+
+
+def llmobs_input_value(span):
+    return llmobs_input(span).get(LLMOBS_STRUCT.VALUE)
+
+
+def llmobs_input_messages(span):
+    return llmobs_input(span).get(LLMOBS_STRUCT.MESSAGES)
+
+
+def llmobs_output(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {})
+
+
+def llmobs_output_value(span):
+    return llmobs_output(span).get(LLMOBS_STRUCT.VALUE)
+
+
+def llmobs_output_messages(span):
+    return llmobs_output(span).get(LLMOBS_STRUCT.MESSAGES)
+
+
+def llmobs_session_id(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
+
+
+def llmobs_ml_app(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP)
+
+
+def llmobs_model_name(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_NAME)
+
+
+def llmobs_model_provider(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.MODEL_PROVIDER)
+
+
+def llmobs_metadata(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.METADATA)
+
+
+def llmobs_metrics(span):
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.METRICS)
+
+
 def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
     if tags is None:
         tags = {}
