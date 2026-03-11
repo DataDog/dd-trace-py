@@ -288,33 +288,11 @@ download_dependency_wheels:
         .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
       fi
 
-# Upload Linux debug symbol packages to S3 alongside wheels
-"upload debug symbols to s3":
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/mirror/amazon/aws-cli:2.4.29
-  stage: package
-  variables:
-    BUCKET: dd-trace-py-builds
-  needs:
-    - job: "build linux"
-      artifacts: true
-  script:
-    - |
-      set -euo pipefail
-
-      .gitlab/scripts/upload-debug-symbols-to-s3.sh "${CI_COMMIT_SHA}"
-      .gitlab/scripts/upload-debug-symbols-to-s3.sh "${CI_PIPELINE_ID}"
-
-      # Upload to branch path (only for main/release branches)
-      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
-        .gitlab/scripts/upload-debug-symbols-to-s3.sh "${CI_COMMIT_BRANCH}"
-      fi
-
 # Upload ELF debug symbols to the Datadog symbols backend for crashtracker symbolication.
 # Runs automatically on releases/RCs, available as manual trigger for other pipelines.
 "upload debug symbols to backend":
   stage: release
-  image: registry.ddbuild.io/images/mirror/python:3.12.0
+  image: registry.ddbuild.io/images/mirror/node:20
   tags: ["arch:amd64"]
   needs:
     - job: "build linux"
@@ -332,9 +310,6 @@ download_dependency_wheels:
       echo "13ee8a87756aa61027bd87985d4da4dee7ac777a36410321b03621a943cf030e awscliv2.zip" | sha256sum --check
       unzip awscliv2.zip
       ./aws/install
-    - |
-      curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-      apt-get install -y nodejs
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
 # Extract package version from pyproject.toml and save to dotenv artifact

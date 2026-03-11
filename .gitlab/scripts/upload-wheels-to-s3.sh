@@ -53,3 +53,12 @@ echo "Uploaded to ${S3_PATH}/:"
 echo "  Index:    ${S3_BASE_URL}/${INDEX_FILE}"
 echo "  Download: ${S3_BASE_URL}/${DOWNLOAD_FILE}"
 echo "  Install:  ${S3_BASE_URL}/${INSTALL_FILE}"
+
+# Upload debug symbol packages if present
+DEBUG_SYMBOLS=(debugwheelhouse/*.zip)
+if [ ${#DEBUG_SYMBOLS[@]} -gt 0 ]; then
+  echo "Uploading ${#DEBUG_SYMBOLS[@]} debug symbol package(s) to s3://${BUCKET}/${S3_PATH}/debug-symbols/"
+  for symbol_pkg in "${DEBUG_SYMBOLS[@]}"; do
+    aws s3 cp "$symbol_pkg" "s3://${BUCKET}/${S3_PATH}/debug-symbols/$(basename "$symbol_pkg")"
+  done
+fi
