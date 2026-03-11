@@ -60,9 +60,10 @@ RUN find /src -path '*/fuzz/build.sh' -type f | while IFS= read -r script; do \
       (cd "$(dirname "$script")" && bash "$script"); \
     done
 
-# Copy built binaries to /fuzzer/builds/
-RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /tmp/fuzz/build/fuzz_binaries.txt \
+  && cp /tmp/fuzz/build/fuzz/lsan.supp /fuzzer/builds/lsan.supp \
   && ls -la /fuzzer/builds/
+
+ENV LSAN_OPTIONS="suppressions=/fuzzer/builds/lsan.supp"
 
 CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read", \
      "--type", "libfuzzer", \

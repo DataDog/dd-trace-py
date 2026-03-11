@@ -76,6 +76,9 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
       -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
   && cmake --build "${BUILD_DIR}" -j
 
+# Copy LSan suppression file next to the binaries so it can be referenced at runtime
+cp "${SCRIPT_DIR}/lsan.supp" "${BUILD_DIR}/fuzz/lsan.supp"
+
 # Register the built binaries in the manifest file for the CI infrastructure to discover
 for TARGET in $FUZZ_TARGETS; do
     BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
