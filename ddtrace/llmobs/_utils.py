@@ -26,7 +26,6 @@ from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
-from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
@@ -232,30 +231,13 @@ def _is_evaluation_span(span: Span) -> bool:
 
 
 def _get_ml_app(span: Span) -> Optional[str]:
-    """
-    Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
-    Default to the global config LLMObs ML app name otherwise.
-    """
-    current: Optional[Span] = span
-    while current:
-        llmobs_data = _get_llmobs_data_metastruct(current)
-        ml_app = llmobs_data.get(LLMOBS_STRUCT.ML_APP)
-        if ml_app is not None:
-            return ml_app
-        current = _get_nearest_llmobs_ancestor(current)
-    return span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
+    """Return the ML app name for a span, falling back to global config."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) or config._llmobs_ml_app or config.service
 
 
 def _get_session_id(span: Span) -> Optional[str]:
-    """Return the session ID for a given span, by checking the span's nearest LLMObs span ancestor."""
-    current: Optional[Span] = span
-    while current:
-        llmobs_data = _get_llmobs_data_metastruct(current)
-        session_id = llmobs_data.get(LLMOBS_STRUCT.SESSION_ID)
-        if session_id is not None:
-            return session_id
-        current = _get_nearest_llmobs_ancestor(current)
-    return None
+    """Return the session ID stored directly on this span."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
 
 
 def _unserializable_default_repr(obj):

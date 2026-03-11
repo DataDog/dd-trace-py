@@ -15,6 +15,7 @@ from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._llmobs import SUPPORTED_LLMOBS_INTEGRATIONS
@@ -218,16 +219,12 @@ def test_service_enable_does_not_override_global_patch_config(llmobs_patch, monk
 
 def test_start_span_with_no_ml_app_defaults_to_service_name(llmobs_no_ml_app):
     with llmobs_no_ml_app.task() as span:
-        pass
-
-    assert get_llmobs_ml_app(span) == "tests.llmobs"
+        assert get_llmobs_ml_app(span) == "tests.llmobs"
 
 
 def test_start_span_empty_ml_app_defaults_to_service_name(llmobs_empty_ml_app):
     with llmobs_empty_ml_app.task() as span:
-        pass
-
-    assert get_llmobs_ml_app(span) == "tests.llmobs"
+        assert get_llmobs_ml_app(span) == "tests.llmobs"
 
 
 def test_start_span_without_ml_app_does_noop():
@@ -260,6 +257,30 @@ def test_ml_app_propagated_precedence(llmobs, tracer):
 def test_ml_app_uses_global_as_default(llmobs):
     with llmobs.workflow() as span:
         assert get_llmobs_ml_app(span) == "unnamed-ml-app"
+
+
+def test_start_span_writes_ml_app_to_context_meta(llmobs):
+    with llmobs.workflow(ml_app="my-app") as span:
+        assert span.context._meta.get(PROPAGATED_ML_APP_KEY) == "my-app"
+
+
+def test_start_span_writes_session_id_to_context_meta(llmobs):
+    with llmobs.workflow(session_id="test-session") as span:
+        assert span.context._meta.get(PROPAGATED_SESSION_ID_KEY) == "test-session"
+
+
+def test_child_span_inherits_ml_app_from_context_meta(llmobs):
+    with llmobs.workflow(ml_app="my-app"):
+        with llmobs.task() as child:
+            assert get_llmobs_ml_app(child) == "my-app"
+            assert child.context._meta.get(PROPAGATED_ML_APP_KEY) == "my-app"
+
+
+def test_child_span_inherits_session_id_from_context_meta(llmobs):
+    with llmobs.workflow(session_id="test-session"):
+        with llmobs.task() as child:
+            assert get_llmobs_session_id(child) == "test-session"
+            assert child.context._meta.get(PROPAGATED_SESSION_ID_KEY) == "test-session"
 
 
 def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
@@ -1911,16 +1932,16 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
             value="high",
             ml_app="dummy",
         )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="dummy",
-            span_id=str(span.span_id),
-            trace_id=format_trace_id(_get_llmobs_trace_id(span)),
-            label="toxicity",
-            metric_type="categorical",
-            categorical_value="high",
+        mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+            _expected_llmobs_eval_metric_event(
+                ml_app="dummy",
+                span_id=str(span.span_id),
+                trace_id=format_trace_id(_get_llmobs_trace_id(span)),
+                label="toxicity",
+                metric_type="categorical",
+                categorical_value="high",
+            )
         )
-    )
 
 
 def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs_eval_metric_writer):
@@ -1941,16 +1962,16 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
         llmobs.submit_evaluation(
             span=llmobs.export_span(span), label="sentiment", metric_type="score", value=0.9, ml_app="dummy"
         )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            span_id=str(span.span_id),
-            trace_id=format_trace_id(_get_llmobs_trace_id(span)),
-            label="sentiment",
-            metric_type="score",
-            score_value=0.9,
-            ml_app="dummy",
+        mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+            _expected_llmobs_eval_metric_event(
+                span_id=str(span.span_id),
+                trace_id=format_trace_id(_get_llmobs_trace_id(span)),
+                label="sentiment",
+                metric_type="score",
+                score_value=0.9,
+                ml_app="dummy",
+            )
         )
-    )
 
 
 def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llmobs_eval_metric_writer):
@@ -2166,16 +2187,16 @@ def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmo
             value=False,
             ml_app="dummy",
         )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            span_id=str(span.span_id),
-            trace_id=format_trace_id(_get_llmobs_trace_id(span)),
-            label="is_toxic",
-            metric_type="boolean",
-            boolean_value=False,
-            ml_app="dummy",
+        mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+            _expected_llmobs_eval_metric_event(
+                span_id=str(span.span_id),
+                trace_id=format_trace_id(_get_llmobs_trace_id(span)),
+                label="is_toxic",
+                metric_type="boolean",
+                boolean_value=False,
+                ml_app="dummy",
+            )
         )
-    )
 
 
 def test_submit_evaluation_incorrect_boolean_value_type_raises_error(llmobs, mock_llmobs_logs):

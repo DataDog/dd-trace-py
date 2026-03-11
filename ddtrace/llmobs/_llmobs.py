@@ -71,6 +71,7 @@ from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_ID_KEY
+from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._context import LLMObsContextProvider
@@ -473,6 +474,7 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
+            self._propagate_trace_details(span)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -1802,6 +1804,13 @@ class LLMObs(Service):
             return context
         return None
 
+    def _propagate_trace_details(self, span: Span) -> None:
+        """Inherit ml_app and session_id from context._meta onto the new span."""
+        ml_app = span.context._meta.get(PROPAGATED_ML_APP_KEY)
+        session_id = span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
+        if ml_app or session_id:
+            _annotate_llmobs_span_data(span, ml_app=ml_app or None, session_id=session_id or None)
+
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
         llmobs_parent = self._llmobs_context_provider.active()
@@ -1838,19 +1847,17 @@ class LLMObs(Service):
         if not self.enabled:
             return span
 
-        ml_app = ml_app if ml_app is not None else _get_ml_app(span)
-        if ml_app is None:
-            raise ValueError(
-                "ml_app is required for sending LLM Observability data. "
-                "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
-                "before running your application."
-            )
+        # override values to context._meta so child spans inherit them via _propagate_trace_details
+        if ml_app is not None:
+            span.context._meta[PROPAGATED_ML_APP_KEY] = ml_app
+        if session_id is not None:
+            span.context._meta[PROPAGATED_SESSION_ID_KEY] = session_id
         _annotate_llmobs_span_data(
             span,
             kind=operation_kind,
             model_name=model_name,
             model_provider=model_provider,
-            session_id=session_id or _get_session_id(span),
+            session_id=session_id,
             ml_app=ml_app,
         )
         if _decorator:
