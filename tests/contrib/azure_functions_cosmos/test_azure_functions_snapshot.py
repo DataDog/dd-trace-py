@@ -1,12 +1,13 @@
+import itertools
 import os
 import signal
 import subprocess
 import time
-import itertools
 
 import pytest
 
 from tests.webclient import Client
+
 
 SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
@@ -29,6 +30,7 @@ params = [
 
 
 param_ids, param_values = zip(*params)
+
 
 @pytest.fixture
 def azure_functions_client(request):

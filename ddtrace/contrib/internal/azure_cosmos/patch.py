@@ -3,20 +3,21 @@ import azure.cosmos.aio as azure_cosmos_aio
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.internal.schema import schematize_service_name
 from ddtrace._trace.pin import Pin
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import trace_utils
 from ddtrace.ext import db
-from ddtrace.ext import net
 from ddtrace.ext import http
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
+
 
 log = get_logger(__name__)
 
@@ -42,6 +43,7 @@ def patch():
     for azure_cosmos_module in (azure_cosmos, azure_cosmos_aio):
         _patch(azure_cosmos_module)
 
+
 def _patch(azure_cosmos_module):
     if getattr(azure_cosmos_module, "_datadog_patch", False):
         return
@@ -54,6 +56,7 @@ def _patch(azure_cosmos_module):
         Pin().onto(azure_cosmos_module)
         _w("azure.cosmos", "_synchronized_request.SynchronizedRequest", _patched_synchronized_request)
 
+
 def _patched_synchronized_request(wrapped, instance, args, kwargs):
     pin = Pin.get_from(azure_cosmos)
     if not pin or not pin.enabled():
@@ -64,9 +67,9 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
     request = get_argument_value(args, kwargs, 5, "request")
     request_data = get_argument_value(args, kwargs, 6, "request_data")
 
-    if (request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1):
+    if request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1:
         return wrapped(*args, **kwargs)
-    
+
     with tracer.trace(
         "cosmosdb.query",
         service=trace_utils.ext_service(pin, config.azure_cosmos),
@@ -98,20 +101,19 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
                 span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
             span.set_tag(http.STATUS_CODE, 412)
             raise e
-            
 
 
 async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
     pin = Pin.get_from(azure_cosmos_aio)
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
-    
+
     client = get_argument_value(args, kwargs, 0, "client")
     request_params = get_argument_value(args, kwargs, 1, "request_params")
     request = get_argument_value(args, kwargs, 5, "request")
     request_data = get_argument_value(args, kwargs, 6, "request_data")
 
-    if (request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1):
+    if request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1:
         return await wrapped(*args, **kwargs)
 
     with tracer.trace(
@@ -120,7 +122,7 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
         span_type=SpanTypes.COSMOS,
     ) as span:
         _build_span_tags(span, client, request_params, request, request_data)
-        
+
         try:
             result = await wrapped(*args, **kwargs)
             (res, headers) = result
@@ -146,6 +148,7 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
             span.set_tag(http.STATUS_CODE, 412)
             raise e
 
+
 def _build_span_tags(span, client, request_params, request, request_data):
     span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span._set_tag_str(db.SYSTEM, "cosmosdb")
@@ -158,15 +161,19 @@ def _build_span_tags(span, client, request_params, request, request_data):
     else:
         span._set_tag_str("cosmosdb.connection.mode", "other")
 
-    idx=(request.url).find("/dbs")
-    if idx !=-1:
+    idx = (request.url).find("/dbs")
+    if idx != -1:
         resource_link = (request.url)[idx:]
     else:
         resource_link = request.url
 
-    span.resource = request_params.operation_type +  " " + resource_link
-    if (span.resource == "Create /dbs" and (request_data.get('id') is not None)):
-        span._set_tag_str(db.NAME, request_data['id'])
+    span.resource = request_params.operation_type + " " + resource_link
+    if (
+        request_params.operation_type == "Create"
+        and request_params.resource_type == "database"
+        and (request_data.get("id") is not None)
+    ):
+        span._set_tag_str(db.NAME, request_data["id"])
 
     if resource_link:
         if resource_link.startswith("/") and len(resource_link) > 1:
@@ -174,7 +181,7 @@ def _build_span_tags(span, client, request_params, request, request_data):
 
         parts = resource_link.split("/")
 
-        if (parts and parts[0].lower() == "dbs" and len(parts) >= 2):
+        if parts and parts[0].lower() == "dbs" and len(parts) >= 2:
             span._set_tag_str(db.NAME, parts[1])
             if len(parts) >= 4:
                 if parts[2].lower() == "colls":
@@ -185,12 +192,13 @@ def unpatch():
     for azure_cosmos_module in (azure_cosmos, azure_cosmos_aio):
         _unpatch(azure_cosmos_module)
 
+
 def _unpatch(azure_cosmos_module):
     if not getattr(azure_cosmos_module, "_datadog_patch", False):
         return
     azure_cosmos_module._datadog_patch = False
 
     if azure_cosmos_module.__name__ == "azure.cosmos.aio":
-        _u("azure.cosmos.aio", "_asynchronous_request.AsynchronousRequest")
+        _u(azure_cosmos_module._asynchronous_request, "AsynchronousRequest")
     else:
-        _u("azure.cosmos", "_synchronized_request.SynchronizedRequest")
+        _u(azure_cosmos_module._synchronized_request, "SynchronizedRequest")

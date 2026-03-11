@@ -1,0 +1,307 @@
+[[
+  {
+    "name": "requests.request",
+    "service": "requests",
+    "resource": "GET /",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27100000000",
+      "component": "requests",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8081/",
+      "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "3d02c136b5d1480d8fec430e8770e557",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52151.0
+    },
+    "duration": 4310084,
+    "start": 1773261425324812170
+  }],
+[
+  {
+    "name": "requests.request",
+    "service": "requests",
+    "resource": "GET /",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27100000000",
+      "component": "requests",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://127.0.0.1:8081/",
+      "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "3d02c136b5d1480d8fec430e8770e557",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52151.0
+    },
+    "duration": 2378000,
+    "start": 1773261425334556920
+  }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "azure_cosmos",
+    "resource": "Read /dbs/db.azure_cosmos_sync/",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27100000000",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "db.name": "db.azure_cosmos_sync",
+      "db.system": "cosmosdb",
+      "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "3d02c136b5d1480d8fec430e8770e557",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52151.0
+    },
+    "duration": 4477500,
+    "start": 1773261425333427670
+  },
+     {
+       "name": "requests.request",
+       "service": "requests",
+       "resource": "GET /dbs/db.azure_cosmos_sync/",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "requests",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://127.0.0.1:8081/dbs/db.azure_cosmos_sync/",
+         "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 1789708,
+       "start": 1773261425335978004
+     }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "azure_cosmos",
+    "resource": "Read /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27100000000",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "cosmosdb.container": "container.azure_cosmos_sync",
+      "db.name": "db.azure_cosmos_sync",
+      "db.system": "cosmosdb",
+      "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "3d02c136b5d1480d8fec430e8770e557",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52151.0
+    },
+    "duration": 2315459,
+    "start": 1773261425338225045
+  },
+     {
+       "name": "requests.request",
+       "service": "requests",
+       "resource": "GET /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/",
+       "trace_id": 3,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "requests",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.url": "http://127.0.0.1:8081/dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/",
+         "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 1587208,
+       "start": 1773261425338838129
+     }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "azure_cosmos",
+    "resource": "SqlQuery /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27100000000",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "cosmosdb.container": "container.azure_cosmos_sync",
+      "db.name": "db.azure_cosmos_sync",
+      "db.system": "cosmosdb",
+      "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "3d02c136b5d1480d8fec430e8770e557",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52151.0
+    },
+    "duration": 3708083,
+    "start": 1773261425340886754
+  },
+     {
+       "name": "requests.request",
+       "service": "requests",
+       "resource": "POST /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
+       "trace_id": 4,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "requests",
+         "http.method": "POST",
+         "http.status_code": "200",
+         "http.url": "http://127.0.0.1:8081/dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/",
+         "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 2595208,
+       "start": 1773261425341932004
+     }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "azure_cosmos",
+    "resource": "Delete /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
+    "trace_id": 5,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27100000000",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "cosmosdb.container": "container.azure_cosmos_sync",
+      "db.name": "db.azure_cosmos_sync",
+      "db.system": "cosmosdb",
+      "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "3d02c136b5d1480d8fec430e8770e557",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52151.0
+    },
+    "duration": 2319750,
+    "start": 1773261425345002962
+  },
+     {
+       "name": "requests.request",
+       "service": "requests",
+       "resource": "DELETE /dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
+       "trace_id": 5,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "requests",
+         "http.method": "DELETE",
+         "http.status_code": "204",
+         "http.url": "http://127.0.0.1:8081/dbs/db.azure_cosmos_sync/colls/container.azure_cosmos_sync/docs/item1/",
+         "http.useragent": "azsdk-python-cosmos/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "metrics": {
+         "_dd.measured": 1.0,
+         "_dd.top_level": 1.0
+       },
+       "duration": 1668541,
+       "start": 1773261425345595379
+     }]]

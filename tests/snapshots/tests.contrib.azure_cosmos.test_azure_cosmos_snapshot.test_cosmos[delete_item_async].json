@@ -1,0 +1,306 @@
+[[
+  {
+    "name": "aiohttp.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "aiohttp.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27200000000",
+      "component": "aiohttp_client",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://localhost:8081/",
+      "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "de13c8a6096e4a3db0315b935a73bb38",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52165.0
+    },
+    "duration": 12524292,
+    "start": 1773261426769096254
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "TCPConnector.connect",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "69b1d27200000000",
+         "component": "aiohttp"
+       },
+       "duration": 3333583,
+       "start": 1773261426774000671
+     }],
+[
+  {
+    "name": "aiohttp.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "aiohttp.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27200000000",
+      "component": "aiohttp_client",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.status_msg": "OK",
+      "http.url": "http://127.0.0.1:8081/",
+      "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "127.0.0.1",
+      "runtime-id": "de13c8a6096e4a3db0315b935a73bb38",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52165.0
+    },
+    "duration": 2159125,
+    "start": 1773261426786432671
+  },
+     {
+       "name": "TCPConnector.connect",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "TCPConnector.connect",
+       "trace_id": 1,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "69b1d27200000000",
+         "component": "aiohttp"
+       },
+       "duration": 513208,
+       "start": 1773261426787655963
+     }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "azure_cosmos",
+    "resource": "Read /dbs/db.azure_cosmos_async/",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27200000000",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "db.name": "db.azure_cosmos_async",
+      "db.system": "cosmosdb",
+      "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "de13c8a6096e4a3db0315b935a73bb38",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52165.0
+    },
+    "duration": 4073542,
+    "start": 1773261426785349463
+  },
+     {
+       "name": "aiohttp.request",
+       "service": "azure_cosmos",
+       "resource": "aiohttp.request",
+       "trace_id": 2,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "aiohttp_client",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.status_msg": "OK",
+         "http.url": "http://127.0.0.1:8081/dbs/db.azure_cosmos_async/",
+         "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "duration": 3484084,
+       "start": 1773261426785788671
+     },
+        {
+          "name": "TCPConnector.connect",
+          "service": "azure_cosmos",
+          "resource": "TCPConnector.connect",
+          "trace_id": 2,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "ddtrace_subprocess_dir",
+            "_dd.p.tid": "69b1d27200000000",
+            "component": "aiohttp"
+          },
+          "duration": 385375,
+          "start": 1773261426787882213
+        }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "azure_cosmos",
+    "resource": "Read /dbs/db.azure_cosmos_async/colls/container.azure_cosmos_async/",
+    "trace_id": 3,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27200000000",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "cosmosdb.container": "container.azure_cosmos_async",
+      "db.name": "db.azure_cosmos_async",
+      "db.system": "cosmosdb",
+      "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "de13c8a6096e4a3db0315b935a73bb38",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52165.0
+    },
+    "duration": 2534541,
+    "start": 1773261426789679380
+  },
+     {
+       "name": "aiohttp.request",
+       "service": "azure_cosmos",
+       "resource": "aiohttp.request",
+       "trace_id": 3,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "aiohttp_client",
+         "http.method": "GET",
+         "http.status_code": "200",
+         "http.status_msg": "OK",
+         "http.url": "http://127.0.0.1:8081/dbs/db.azure_cosmos_async/colls/container.azure_cosmos_async/",
+         "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "duration": 2159875,
+       "start": 1773261426789883338
+     },
+        {
+          "name": "TCPConnector.connect",
+          "service": "azure_cosmos",
+          "resource": "TCPConnector.connect",
+          "trace_id": 3,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "ddtrace_subprocess_dir",
+            "_dd.p.tid": "69b1d27200000000",
+            "component": "aiohttp"
+          },
+          "duration": 51333,
+          "start": 1773261426790848713
+        }],
+[
+  {
+    "name": "cosmosdb.query",
+    "service": "azure_cosmos",
+    "resource": "SqlQuery /dbs/db.azure_cosmos_async/colls/container.azure_cosmos_async/docs/",
+    "trace_id": 4,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "cosmosdb",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69b1d27200000000",
+      "component": "azure_cosmos",
+      "cosmosdb.connection.mode": "gateway",
+      "cosmosdb.container": "container.azure_cosmos_async",
+      "db.name": "db.azure_cosmos_async",
+      "db.system": "cosmosdb",
+      "error.message": "_request() got an unexpected keyword argument 'enable_cross_partition_query'",
+      "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/azure_cosmos/patch.py\", line 127, in _patch_asynchronous_request\n    result = await wrapped(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/cosmos/aio/_asynchronous_request.py\", line 197, in AsynchronousRequest\n    return await _retry_utility_async.ExecuteAsync(\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/cosmos/aio/_retry_utility_async.py\", line 129, in ExecuteAsync\n    result = await ExecuteFunctionAsync(function, global_endpoint_manager, *args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/cosmos/aio/_retry_utility_async.py\", line 290, in ExecuteFunctionAsync\n    return await function(*args, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/cosmos/aio/_asynchronous_request.py\", line 122, in _Request\n    response = await _PipelineRunFunction(\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/cosmos/aio/_asynchronous_request.py\", line 166, in _PipelineRunFunction\n    return await pipeline_client._pipeline.run(request, **kwargs)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 229, in run\n    return await first_node.send(pipeline_request)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 77, in send\n    response = await self.next.send(request)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 77, in send\n    response = await self.next.send(request)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 77, in send\n    response = await self.next.send(request)\n  [Previous line repeated 1 more time]\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/cosmos/aio/_retry_utility_async.py\", line 323, in send\n    response = await self.next.send(request)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 77, in send\n    response = await self.next.send(request)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 77, in send\n    response = await self.next.send(request)\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 77, in send\n    response = await self.next.send(request)\n  [Previous line repeated 1 more time]\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/_base_async.py\", line 111, in send\n    await self._sender.send(request.http_request, **request.context.options),\n  File \"/home/bits/project/.riot/venv_py3923_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_azurecosmos~4146_pytest-asyncio0237_aiohttp/lib/python3.9/site-packages/azure/core/pipeline/transport/_aiohttp.py\", line 346, in send\n    result = await self.session.request(  # type: ignore\n  File \"/home/bits/project/ddtrace/contrib/internal/trace_utils_async.py\", line 36, in wrapper\n    return await func(mod, pin, wrapped, instance, args, kwargs)\n  File \"/home/bits/project/ddtrace/contrib/internal/aiohttp/patch.py\", line 119, in _traced_clientsession_request\n    resp: aiohttp.ClientResponse = await func(*args, **kwargs)\nTypeError: _request() got an unexpected keyword argument 'enable_cross_partition_query'\n",
+      "error.type": "builtins.TypeError",
+      "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+      "language": "python",
+      "out.host": "http://localhost:8081/",
+      "runtime-id": "de13c8a6096e4a3db0315b935a73bb38",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 52165.0
+    },
+    "duration": 3246042,
+    "start": 1773261426792926421
+  },
+     {
+       "name": "aiohttp.request",
+       "service": "azure_cosmos",
+       "resource": "aiohttp.request",
+       "trace_id": 4,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "http",
+       "error": 1,
+       "meta": {
+         "_dd.base_service": "ddtrace_subprocess_dir",
+         "component": "aiohttp_client",
+         "error.message": "_request() got an unexpected keyword argument 'enable_cross_partition_query'",
+         "error.stack": "Traceback (most recent call last):\n  File \"/home/bits/project/ddtrace/contrib/internal/aiohttp/patch.py\", line 119, in _traced_clientsession_request\n    resp: aiohttp.ClientResponse = await func(*args, **kwargs)\nTypeError: _request() got an unexpected keyword argument 'enable_cross_partition_query'\n",
+         "error.type": "builtins.TypeError",
+         "http.method": "POST",
+         "http.url": "http://127.0.0.1:8081/dbs/db.azure_cosmos_async/colls/container.azure_cosmos_async/docs/",
+         "http.useragent": "azsdk-python-cosmos-async/4.14.6 Python/3.9.23 (Linux-6.12.65-linuxkit-x86_64-with-glibc2.41)",
+         "out.host": "127.0.0.1",
+         "span.kind": "client"
+       },
+       "duration": 1223250,
+       "start": 1773261426793602713
+     }]]
