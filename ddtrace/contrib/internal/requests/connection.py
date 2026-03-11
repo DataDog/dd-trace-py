@@ -89,11 +89,15 @@ def _wrap_send(func, instance, args, kwargs):
     if pin:
         cfg = pin._config
 
-    service = (
-        hostname
-        if (cfg["split_by_domain"] and hostname)
-        else cfg.get("service", cfg.get("service_name", trace_utils.ext_service(None, config.requests)))
-    )
+    service = None
+    if cfg["split_by_domain"] and hostname:
+        service = hostname
+    if service is None:
+        service = cfg.get("service", None)
+    if service is None:
+        service = cfg.get("service_name", None)
+    if service is None:
+        service = trace_utils.ext_service(None, config.requests)
 
     operation_name = schematize_url_operation("requests.request", protocol="http", direction=SpanDirection.OUTBOUND)
     with tracer.trace(operation_name, service=service, resource=f"{method} {path}", span_type=SpanTypes.HTTP) as span:
