@@ -1,7 +1,6 @@
 import asyncio
 import functools
 from typing import Callable  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 import grpc
@@ -34,8 +33,7 @@ from ddtrace.trace import tracer
 log = get_logger(__name__)
 
 
-def create_aio_client_interceptors(pin, host, port):
-    # type: (Pin, str, int) -> Tuple[aio.ClientInterceptor, ...]
+def create_aio_client_interceptors(pin: Pin, host: str, port: int) -> tuple[aio.ClientInterceptor, ...]:
     return (
         _UnaryUnaryClientInterceptor(pin, host, port),
         _UnaryStreamClientInterceptor(pin, host, port),
@@ -54,10 +52,8 @@ def _handle_add_callback(call, callback):
         callback(call)
 
 
-def _done_callback_unary(span, code, details):
-    # type: (Span, grpc.StatusCode, str) -> Callable[[aio.Call], None]
-    def func(call):
-        # type: (aio.Call) -> None
+def _done_callback_unary(span: Span, code: grpc.StatusCode, details: str) -> Callable[[aio.Call], None]:
+    def func(call: aio.Call) -> None:
         try:
             span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(code))
 
@@ -70,10 +66,8 @@ def _done_callback_unary(span, code, details):
     return func
 
 
-def _done_callback_stream(span):
-    # type: (Span) -> Callable[[aio.Call], None]
-    def func(call):
-        # type: (aio.Call) -> None
+def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
+    def func(call: aio.Call) -> None:
         try:
             if call.done():
                 # check to ensure code and details are not already set, in which case this span
@@ -100,15 +94,13 @@ def _done_callback_stream(span):
     return func
 
 
-def _handle_error(span, code, details):
-    # type: (Span, grpc.StatusCode, str) -> None
+def _handle_error(span: Span, code: grpc.StatusCode, details: str) -> None:
     span.error = 1
     span._set_tag_str(ERROR_MSG, details)
     span._set_tag_str(ERROR_TYPE, str(code))
 
 
-def _handle_rpc_error(span, rpc_error):
-    # type: (Span, aio.AioRpcError) -> None
+def _handle_rpc_error(span: Span, rpc_error: aio.AioRpcError) -> None:
     code = str(rpc_error.code())
     span.error = 1
     span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
@@ -122,8 +114,7 @@ def _handle_rpc_error(span, rpc_error):
     span.finish()
 
 
-async def _handle_cancelled_error(call, span):
-    # type: (aio.Call, Span) -> None
+async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
     code = str(await call.code())
     span.error = 1
     span._set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
@@ -138,9 +129,9 @@ class _ClientInterceptor:
         self._host = host
         self._port = port
 
-    def _intercept_client_call(self, method_kind, client_call_details):
-        # type: (str, aio.ClientCallDetails) -> Tuple[Span, aio.ClientCallDetails]
-
+    def _intercept_client_call(
+        self, method_kind: str, client_call_details: aio.ClientCallDetails
+    ) -> tuple[Span, aio.ClientCallDetails]:
         method_as_str = client_call_details.method.decode()
         span = tracer.trace(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
@@ -216,8 +207,7 @@ class _ClientInterceptor:
         self,
         continuation: Callable[[], Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]],
         span: Span,
-    ):
-        # type: (...) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]
+    ) -> Union[aio.StreamUnaryCall, aio.UnaryUnaryCall]:
         try:
             call = await continuation()
             code = await call.code()

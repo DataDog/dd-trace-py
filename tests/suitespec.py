@@ -1,22 +1,25 @@
 from functools import cache
 from pathlib import Path
-import typing as t
 
 from ruamel.yaml import YAML  # noqa
 
 
 TESTS = Path(__file__).parents[1] / "tests"
+BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
+SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 
 
 def _collect_suitespecs() -> dict:
-    # Recursively search for suitespec.yml in TESTS
     suitespec = {"components": {}, "suites": {}}
 
-    for s in TESTS.rglob("suitespec.yml"):
-        try:
-            namespace = ".".join(s.relative_to(TESTS).parts[:-1]) or None
-        except IndexError:
-            namespace = None
+    specfiles = []
+    for root, ns_prefix in SEARCH_ROOTS:
+        for f in root.rglob("suitespec.yml"):
+            specfiles.append((f, root, ns_prefix))
+
+    for s, root, ns_prefix in specfiles:
+        path_parts = s.relative_to(root).parts[:-1]
+        namespace = "::".join(path_parts) if path_parts else ns_prefix or None
         with YAML() as yaml:
             data = yaml.load(s)
             suites = data.get("suites", {})
@@ -36,7 +39,7 @@ SUITESPEC = _collect_suitespecs()
 
 
 @cache
-def get_patterns(suite: str) -> t.Set[str]:
+def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
@@ -72,11 +75,11 @@ def get_patterns(suite: str) -> t.Set[str]:
     return {_.format(suite=suite.replace("::", ".")) for _ in resolve(suite_patterns)}
 
 
-def get_suites() -> t.Dict[str, dict]:
+def get_suites() -> dict[str, dict]:
     """Get the list of suites."""
     return SUITESPEC["suites"]
 
 
-def get_components() -> t.Dict[str, t.List[str]]:
+def get_components() -> dict[str, list[str]]:
     """Get the list of jobs."""
     return SUITESPEC.get("components", {})

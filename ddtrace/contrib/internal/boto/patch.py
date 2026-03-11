@@ -1,6 +1,5 @@
 import inspect
 import os
-from typing import Dict
 
 from boto import __version__
 import boto.connection
@@ -50,12 +49,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return __version__
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"boto": "*"}
 
 

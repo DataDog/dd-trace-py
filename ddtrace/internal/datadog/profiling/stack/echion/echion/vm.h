@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 
@@ -58,6 +59,11 @@ is_truthy(const char* s);
 
 bool
 use_alternative_copy_memory();
+
+// Whether safe_copy was actually set to the memcpy-based wrapper.
+// This can be false even when use_alternative_copy_memory returns true,
+// e.g. when init_segv_catcher fails.
+inline bool fast_copy_active = false;
 
 #if defined PL_LINUX
 // Some checks are done at static initialization, so use this to read them at runtime
@@ -143,6 +149,7 @@ init_safe_copy()
     if (use_alternative_copy_memory()) {
         if (init_segv_catcher() == 0) {
             safe_copy = safe_memcpy_wrapper;
+            fast_copy_active = true;
             return;
         }
 
@@ -179,6 +186,9 @@ copy_memory(proc_ref_t proc_ref, const void* addr, ssize_t len, void* buf);
 #endif
 
 inline pid_t pid = 0;
+
+// Number of copy_memory errors since last drain (thread-safe, incremented from the sampling thread)
+inline std::atomic<size_t> g_copy_memory_error_count{ 0 };
 
 void
 _set_pid(pid_t _pid);

@@ -108,3 +108,19 @@ class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientB
         ):
             settings = client.fetch_known_tests(read_from_cache=False)
             assert settings is None
+
+    def test_civisibility_api_client_known_tests_paginated(self):
+        client = self._get_test_client()
+        response_page_1 = _get_tests_api_response(
+            {"module1": {"suite1.py": ["test1"]}},
+            page_info={"cursor": "page-2", "size": 1, "has_next": True},
+        )
+        response_page_2 = _get_tests_api_response(
+            {"module1": {"suite1.py": ["test2"]}},
+            page_info={"cursor": None, "size": 1, "has_next": False},
+        )
+
+        with mock.patch.object(client, "_do_request", side_effect=[response_page_1, response_page_2]):
+            assert client.fetch_known_tests(read_from_cache=False) == set(
+                _make_fqdn_test_ids([("module1", "suite1.py", "test1"), ("module1", "suite1.py", "test2")])
+            )

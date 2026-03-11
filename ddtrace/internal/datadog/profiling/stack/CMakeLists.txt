@@ -69,7 +69,6 @@ add_library(
     src/echion/strings.cc
     src/echion/tasks.cc
     src/echion/threads.cc
-    src/echion/timing.cc
     src/echion/vm.cc
     src/sampler.cpp
     src/stack.cpp

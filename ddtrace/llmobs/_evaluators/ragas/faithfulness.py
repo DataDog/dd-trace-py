@@ -1,8 +1,6 @@
 import json
 import math
-from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
@@ -70,7 +68,7 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
             ragas_faithfulness_instance.llm = self.ragas_dependencies.llm_factory()
         return ragas_faithfulness_instance
 
-    def evaluate(self, span_event: dict) -> Tuple[Union[float, str], Optional[dict]]:
+    def evaluate(self, span_event: dict) -> tuple[Union[float, str], Optional[dict]]:
         """
         Performs a faithfulness evaluation on a span event, returning either
             - faithfulness score (float) OR
@@ -145,7 +143,7 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
                     },
                 )
 
-    def _create_statements(self, question: str, answer: str) -> Optional[List[str]]:
+    def _create_statements(self, question: str, answer: str) -> Optional[list[str]]:
         with self.llmobs_service.workflow("dd-ragas.create_statements"):
             self.llmobs_service.annotate(
                 input_data={"question": question, "answer": answer},
@@ -165,11 +163,11 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
             self.llmobs_service.annotate(
                 output_data=statements,
             )
-            if not isinstance(statements, List):
+            if not isinstance(statements, list):
                 return None
             return statements
 
-    def _create_verdicts(self, context: str, statements: List[str]):
+    def _create_verdicts(self, context: str, statements: list[str]):
         """
         Returns: `StatementFaithfulnessAnswers` model detailing which statements are faithful to the context
         """
@@ -223,7 +221,7 @@ class RagasFaithfulnessEvaluator(BaseRagasEvaluator):
                 question=question, answer=answer, sentences=sentences
             )
 
-    def _create_natural_language_inference_prompt(self, context_str: str, statements: List[str]):
+    def _create_natural_language_inference_prompt(self, context_str: str, statements: list[str]):
         # Returns: `ragas.llms.PromptValue` object
         with self.llmobs_service.task("dd-ragas.create_natural_language_inference_prompt"):
             prompt_value = self.ragas_faithfulness_instance.nli_statements_message.format(

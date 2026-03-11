@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: A bug where the Stack Profiler could loop infinitely (and allocate large amounts of memory,
+    leading to crashes) when sampling ``asyncio`` Tasks has been fixed.

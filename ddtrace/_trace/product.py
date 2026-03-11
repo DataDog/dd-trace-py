@@ -76,7 +76,7 @@ class APMCapabilities(enum.IntFlag):
     APM_TRACING_SAMPLE_RULES = 1 << 29
 
 
-def _remove_invalid_rules(rc_rules: t.List) -> t.List:
+def _remove_invalid_rules(rc_rules: list) -> list:
     """Remove invalid sampling rules from the given list"""
     # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
     new_rc_rules = []

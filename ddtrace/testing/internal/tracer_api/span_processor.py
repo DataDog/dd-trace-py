@@ -11,7 +11,7 @@ class TestOptSpanProcessor(TraceFilter):
     def __init__(self, writer: TestOptWriter) -> None:
         self.writer = writer
 
-    def process_trace(self, trace: t.List[Span]) -> t.Optional[t.List[Span]]:
+    def process_trace(self, trace: list[Span]) -> t.Optional[list[Span]]:
         for span in trace:
             if span.parent_id is None:
                 continue

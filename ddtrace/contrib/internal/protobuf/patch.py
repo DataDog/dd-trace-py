@@ -1,5 +1,3 @@
-from typing import Dict
-
 from google import protobuf
 from google.protobuf.internal import builder
 import wrapt
@@ -21,12 +19,11 @@ config._add(
 _WRAPPED_MESSAGE_CLASSES = []
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(protobuf, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"protobuf": "*"}
 
 

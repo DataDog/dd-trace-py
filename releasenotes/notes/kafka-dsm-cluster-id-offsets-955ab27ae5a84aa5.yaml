@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    data_streams: Add ``kafka_cluster_id`` tag to Kafka offset/backlog tracking for confluent-kafka.
+    Previously, cluster ID was only included in DSM checkpoint edge tags (produce/consume) but missing
+    from offset commit and produce offset backlogs. This ensures correct attribution of backlog data
+    to specific Kafka clusters when multiple clusters share topic names.

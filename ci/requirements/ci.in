@@ -1,0 +1,32 @@
+# CI Dependencies
+#
+# This file lists all packages used in CI workflows.
+# Maintain this file manually when adding/removing CI dependencies.
+#
+# To regenerate ci.txt with locked versions:
+#   scripts/update-ci-dependencies
+#
+# Each package should have a version constraint for safety.
+# Example: package>=1.0,<2
+
+# GitHub Actions workflows
+PyYAML
+cibuildwheel>=3.1.0
+codeowners
+ddtrace
+docutils
+hatch==1.14.2
+packaging
+pip-tools==7.5.2
+pip<25.3
+reno
+requests
+riot==0.20.1
+torch
+wrapt==1.16.0
+
+# GitLab CI (for reference - GitLab uses explicit versions)
+cmarkgfm>=2024,<2025.10.20
+readme-renderer[md]>=44.0,<45
+twine>=5.0,<7
+packaging>=24.0,<26

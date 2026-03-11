@@ -32,12 +32,11 @@ import sys
 from types import FunctionType
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
+from typing import Collection
 from typing import Mapping
 from typing import Optional
-from typing import Tuple
 from typing import Union
+from typing import cast
 
 from bytecode import BinaryOp
 from bytecode import Bytecode
@@ -51,7 +50,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.safety import _isinstance
 
 
-DDASTType = Union[Dict[str, Any], Dict[str, List[Any]], Any]
+DDASTType = Union[dict[str, Any], dict[str, list[Any]], Any]
 
 log = get_logger(__name__)
 
@@ -60,7 +59,7 @@ def _is_identifier(name: str) -> bool:
     return isinstance(name, str) and name.isidentifier()
 
 
-def short_circuit_instrs(op: str, label: Label) -> List[Instr]:
+def short_circuit_instrs(op: str, label: Label) -> list[Instr]:
     value = "FALSE" if op == "and" else "TRUE"
     if PY >= (3, 13):
         return [Instr("COPY", 1), Instr("TO_BOOL"), Instr(f"POP_JUMP_IF_{value}", label), Instr("POP_TOP")]
@@ -104,22 +103,22 @@ def get_local(_locals: Mapping[str, Any], name: str) -> Any:
 
 
 class DDCompiler:
-    def __init__(self):
+    def __init__(self) -> None:
         self._lambda_level = 0
 
     @classmethod
-    def __getmember__(cls, o, a):
+    def __getmember__(cls, o: Any, a: str) -> Any:
         return object.__getattribute__(o, a)
 
     @classmethod
-    def __index__(cls, o, i):
+    def __index__(cls, o: Any, i: Any) -> Any:
         return safe_getitem(o, i)
 
     @classmethod
-    def __ref__(cls, x):
+    def __ref__(cls, x: Any) -> Any:
         return x
 
-    def _make_function(self, instrs: List[Instr], args: Tuple[str, ...], name: str) -> FunctionType:
+    def _make_function(self, instrs: list[Instr], args: tuple[str, ...], name: str) -> FunctionType:
         abstract_code = Bytecode([*instrs, Instr("RETURN_VALUE")])
 
         abstract_code.argcount = len(args)
@@ -142,7 +141,7 @@ class DDCompiler:
             assert self._lambda_level > 0  # nosec
             self._lambda_level -= 1
 
-    def _compile_direct_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_direct_predicate(self, ast: DDASTType) -> Optional[list[Instr]]:
         # direct_predicate       =>  {"<direct_predicate_type>": <predicate>}
         # direct_predicate_type  =>  not | isEmpty | isDefined
         if not isinstance(ast, dict):
@@ -171,7 +170,7 @@ class DDCompiler:
 
         return value
 
-    def _compile_arg_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_arg_predicate(self, ast: DDASTType) -> Optional[list[Instr]]:
         # arg_predicate       =>  {"<arg_predicate_type>": [<argument_list>]}
         # arg_predicate_type  =>  eq | ne | gt | ge | lt | le | any | all | and | or
         #                            | startsWith | endsWith | contains | matches
@@ -217,9 +216,11 @@ class DDCompiler:
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
-            def coll_iter(it, cond, _locals):
+            def coll_iter(
+                it: Collection, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
+            ) -> Any:
                 if _isinstance(it, dict):
-                    return f(cond(k, k, v, _locals) for k, v in it.items())
+                    return f(cond(k, k, v, _locals) for k, v in cast(dict, it).items())
                 return f(cond(e, None, None, _locals) for e in it)
 
             return self._call_function(coll_iter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
@@ -244,7 +245,7 @@ class DDCompiler:
 
         return None
 
-    def _compile_direct_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_direct_operation(self, ast: DDASTType) -> Optional[list[Instr]]:
         # direct_opearation  =>  {"<direct_op_type>": <value_source>}
         # direct_op_type     =>  len | count | ref
         if not isinstance(ast, dict):
@@ -274,7 +275,7 @@ class DDCompiler:
 
         return None
 
-    def _call_function(self, func: Callable, *args: List[Instr]) -> List[Instr]:
+    def _call_function(self, func: Callable, *args: list[Instr]) -> list[Instr]:
         if PY >= (3, 13):
             return [Instr("LOAD_CONST", func), Instr("PUSH_NULL")] + list(chain(*args)) + [Instr("CALL", len(args))]
         if PY >= (3, 12):
@@ -288,7 +289,7 @@ class DDCompiler:
 
         return [Instr("LOAD_CONST", func)] + list(chain(*args)) + [Instr("CALL_FUNCTION", len(args))]
 
-    def _compile_arg_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_arg_operation(self, ast: DDASTType) -> Optional[list[Instr]]:
         # arg_operation  =>  {"<arg_op_type>": [<argument_list>]}
         # arg_op_type    =>  filter | substring | getmember | index | instanceof
         if not isinstance(ast, dict):
@@ -322,9 +323,11 @@ class DDCompiler:
             if ca is None:
                 raise ValueError("Invalid argument: %r" % a)
 
-            def coll_filter(it, cond, _locals):
+            def coll_filter(
+                it: Any, cond: Callable[[Any, Any, Any, dict[str, Any]], bool], _locals: dict[str, Any]
+            ) -> Any:
                 if _isinstance(it, dict):
-                    return type(it)({k: v for k, v in it.items() if cond(k, k, v, _locals)})
+                    return type(it)({k: v for k, v in cast(dict, it).items() if cond(k, k, v, _locals)})
                 return type(it)(e for e in it if cond(e, None, None, _locals))
 
             return self._call_function(coll_filter, ca, [Instr("LOAD_CONST", fb)], [Instr("LOAD_FAST", "_locals")])
@@ -362,22 +365,22 @@ class DDCompiler:
 
         return None
 
-    def _compile_operation(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_operation(self, ast: DDASTType) -> Optional[list[Instr]]:
         # operation  =>  <direct_operation> | <arg_operation>
         return self._compile_direct_operation(ast) or self._compile_arg_operation(ast)
 
-    def _compile_literal(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_literal(self, ast: DDASTType) -> Optional[list[Instr]]:
         # literal  =>  <number> | true | false | "string" | null
         if not (isinstance(ast, (str, int, float, bool, Decimal)) or ast is None):
             return None
 
         return [Instr("LOAD_CONST", ast)]
 
-    def _compile_value_source(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_value_source(self, ast: DDASTType) -> Optional[list[Instr]]:
         # value_source  =>  <literal> | <operation>
         return self._compile_operation(ast) or self._compile_literal(ast)
 
-    def _compile_predicate(self, ast: DDASTType) -> Optional[List[Instr]]:
+    def _compile_predicate(self, ast: DDASTType) -> Optional[list[Instr]]:
         # predicate  =>  <direct_predicate> | <arg_predicate> | <value_source>
         return (
             self._compile_direct_predicate(ast) or self._compile_arg_predicate(ast) or self._compile_value_source(ast)
@@ -396,13 +399,13 @@ dd_compile = DDCompiler().compile
 class DDExpressionEvaluationError(Exception):
     """Thrown when an error occurs while evaluating a dsl expression."""
 
-    def __init__(self, dsl, e):
+    def __init__(self, dsl: str, e: Exception) -> None:
         super().__init__('Failed to evaluate expression "%s": %s' % (dsl, str(e)))
         self.dsl = dsl
         self.error = str(e)
 
 
-def _invalid_expression(_):
+def _invalid_expression(_: Any) -> None:
     """Forces probes with invalid expression/conditions to never trigger.
 
     Any signs of invalid conditions in logs is an indication of a problem with

@@ -1,7 +1,6 @@
 import os
 import time
 import typing as t
-from typing import Dict
 
 from wrapt.importer import when_imported
 
@@ -157,7 +156,7 @@ def get_version() -> str:
         return ""
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"selenium": "*"}
 
 

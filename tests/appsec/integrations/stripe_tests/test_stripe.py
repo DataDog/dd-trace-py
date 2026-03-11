@@ -2,7 +2,6 @@ import json
 import os
 import time
 from typing import Any
-from typing import Dict
 from unittest.mock import MagicMock
 
 import pytest
@@ -216,7 +215,7 @@ def test_stripe_checkout_session_create(
 def test_stripe_checkout_session_ignore_setup(
     request, tracer: Tracer, stripe_vcr, stripe_session_create, monkeypatch, payload
 ):
-    import ddtrace.appsec._handlers as handlers
+    import ddtrace.appsec._contrib.stripe.handlers as handlers
 
     waf_callback = MagicMock(wraps=handlers.call_waf_callback)
     monkeypatch.setattr(handlers, "call_waf_callback", waf_callback)
@@ -303,7 +302,7 @@ def _build_webhook_signature(payload, secret):
     return payload_json, header
 
 
-def include_webhook(path: str) -> Dict[str, Any]:
+def include_webhook(path: str) -> dict[str, Any]:
     directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webhooks")
     with open(os.path.join(directory, path)) as file:
         return json.loads(file.read())

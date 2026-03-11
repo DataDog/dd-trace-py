@@ -1,7 +1,6 @@
 from collections import ChainMap
 from enum import Enum
 import os
-from typing import Dict
 from typing import Optional
 
 from envier import Env
@@ -27,9 +26,9 @@ class DDConfig(Env):
 
     def __init__(
         self,
-        source: Optional[Dict[str, str]] = None,
+        source: Optional[dict[str, str]] = None,
         parent: Optional["Env"] = None,
-        dynamic: Optional[Dict[str, str]] = None,
+        dynamic: Optional[dict[str, str]] = None,
     ) -> None:
         self.fleet_source = FLEET_CONFIG
         self.local_source = LOCAL_CONFIG

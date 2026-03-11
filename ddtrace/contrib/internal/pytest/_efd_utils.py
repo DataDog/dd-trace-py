@@ -1,5 +1,3 @@
-import typing as t
-
 import _pytest
 import pytest
 
@@ -38,7 +36,7 @@ class _EFD_RETRY_OUTCOMES:
 
 _EFD_FLAKY_OUTCOME = "flaky"
 
-_FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
+_FINAL_OUTCOMES: dict[EFDTestStatus, str] = {
     EFDTestStatus.ALL_PASS: PYTEST_STATUS.PASSED,
     EFDTestStatus.ALL_FAIL: PYTEST_STATUS.FAILED,
     EFDTestStatus.ALL_SKIP: PYTEST_STATUS.SKIPPED,
@@ -49,7 +47,7 @@ _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
 def efd_handle_retries(
     test_id: TestId,
     item: pytest.Item,
-    test_reports: t.Dict[str, pytest_TestReport],
+    test_reports: dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
@@ -110,7 +108,7 @@ def efd_handle_retries(
     item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
-def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:
+def efd_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> list[pytest_TestReport]:
     return terminalreporter.getreports(_EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED)
 
 
@@ -147,8 +145,8 @@ def _efd_write_report_for_status(
     status_key: str,
     status_text: str,
     report_outcome: str,
-    raw_strings: t.List[str],
-    markedup_strings: t.List[str],
+    raw_strings: list[str],
+    markedup_strings: list[str],
     color: str,
     delete_reports: bool = True,
 ):
@@ -177,8 +175,8 @@ def _efd_prepare_attempts_strings(
     terminalreporter: _pytest.terminal.TerminalReporter,
     reports_key: str,
     reports_text: str,
-    raw_strings: t.List[str],
-    markedup_strings: t.List[str],
+    raw_strings: list[str],
+    markedup_strings: list[str],
     color: str,
     bold: bool = False,
 ):

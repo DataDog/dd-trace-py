@@ -130,6 +130,13 @@ CherryPy
 .. automodule:: ddtrace.contrib.cherrypy
 
 
+.. _claude_agent_sdk:
+
+Claude Agent SDK
+^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.claude_agent_sdk
+
+
 .. _consul:
 
 Consul

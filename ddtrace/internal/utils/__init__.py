@@ -1,9 +1,6 @@
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Protocol  # noqa:F401
-from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 
 
@@ -15,8 +12,8 @@ class ArgumentError(Exception):
 
 
 def get_argument_value(
-    args: Union[Tuple[Any], List[Any]],
-    kwargs: Dict[str, Any],
+    args: Union[tuple[Any], list[Any]],
+    kwargs: dict[str, Any],
     pos: int,
     kw: str,
     optional: bool = False,
@@ -47,13 +44,13 @@ def get_argument_value(
 
 
 def set_argument_value(
-    args: Tuple[Any, ...],
-    kwargs: Dict[str, Any],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
     pos: int,
     kw: str,
     value: Any,
     override_unset: bool = False,
-) -> Tuple[Tuple[Any, ...], Dict[str, Any]]:
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """
     Returns a new args, kwargs with the given value updated
     :param args: Positional arguments
@@ -73,10 +70,13 @@ def set_argument_value(
     return args, kwargs
 
 
-def _get_metas_to_propagate(context):
-    # type: (Any) -> List[Tuple[str, str]]
-    # Using list comprehension for improved performance and memory efficiency
-    return [(k, v) for k, v in context._meta.items() if isinstance(k, str) and k.startswith("_dd.p.")]
+def _get_metas_to_propagate(context: Any) -> list[tuple[str, str]]:
+    if context is None:
+        return []
+    # Snapshot items to avoid "dictionary changed size during iteration" when
+    # context._meta is mutated by another thread (e.g. tracer.sample()). See #16523.
+    items = list(context._meta.items())
+    return [(k, v) for k, v in items if isinstance(k, str) and k.startswith("_dd.p.")]
 
 
 class Block_config(Protocol):
@@ -104,7 +104,7 @@ def get_blocked() -> Optional[Block_config]:
     return None
 
 
-def set_blocked(block_settings: Optional[Dict[str, Any]] = None) -> None:
+def set_blocked(block_settings: Optional[dict[str, Any]] = None) -> None:
     # local imports to avoid circular dependency
     from ddtrace.internal import core
     from ddtrace.internal.constants import STATUS_403_TYPE_AUTO

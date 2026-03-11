@@ -1,7 +1,5 @@
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict
-from typing import List
 from typing import TypedDict  # noqa:F401
 
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
@@ -18,20 +16,20 @@ class TestVisibilityCoverageData:
     __test__ = False
 
     def __init__(self) -> None:
-        self._coverage_data: Dict[Path, CoverageLines] = defaultdict(CoverageLines)
+        self._coverage_data: dict[Path, CoverageLines] = defaultdict(CoverageLines)
 
     def __bool__(self):
         return bool(self._coverage_data)
 
-    def get_data(self) -> Dict[Path, CoverageLines]:
+    def get_data(self) -> dict[Path, CoverageLines]:
         return self._coverage_data
 
-    def add_covered_files(self, covered_files: Dict[Path, CoverageLines]):
+    def add_covered_files(self, covered_files: dict[Path, CoverageLines]):
         """Add coverage segments to the coverage data"""
         for file_path, covered_lines in covered_files.items():
             self._coverage_data[file_path.absolute()].update(covered_lines)
 
-    def _build_payload(self, root_dir: Path) -> List[CoverageFilePayload]:
+    def _build_payload(self, root_dir: Path) -> list[CoverageFilePayload]:
         """Generate a Test Visibility coverage payload"""
         coverage_data = []
         for file_path, covered_lines in self._coverage_data.items():
@@ -46,5 +44,5 @@ class TestVisibilityCoverageData:
             coverage_data.append(file_payload)
         return coverage_data
 
-    def build_payload(self, root_dir: Path) -> Dict[str, List[CoverageFilePayload]]:
+    def build_payload(self, root_dir: Path) -> dict[str, list[CoverageFilePayload]]:
         return {"files": self._build_payload(root_dir)}

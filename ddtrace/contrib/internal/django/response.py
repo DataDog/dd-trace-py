@@ -2,9 +2,7 @@ import functools
 from types import FunctionType
 from types import ModuleType
 from typing import Any
-from typing import Dict
 from typing import Optional
-from typing import Tuple
 from typing import cast
 
 # This module should only be imported after django is imported
@@ -50,7 +48,7 @@ config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     url: Optional[str] = None
-    metadata: Dict[str, str] = {}
+    metadata: dict[str, str] = {}
     query: str = ""
     try:
         metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
@@ -74,7 +72,7 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
     raise PermissionDenied()
 
 
-def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
+def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 
     This is the main entry point for requests.
@@ -177,7 +175,7 @@ def traced_get_response(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[
 
 
 async def traced_get_response_async(
-    func: FunctionType, instance: object, args: Tuple[Any, ...], kwargs: Dict[str, Any]
+    func: FunctionType, instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 

@@ -15,10 +15,10 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "107798bd55a6d4ca247b88d01a1316549b8bafe9"
+  SYSTEM_TESTS_REF: "f65241afd4c85b958e114bae5317645c9a6ade30"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
-  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v90830366-2b17cbb-profiling_native"
+  PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v96371602-f288245-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
 
@@ -46,6 +46,7 @@ workflow:
     - when: always
 
 include:
+  - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -56,17 +57,33 @@ include:
   - local: ".gitlab/native.yml"
   - local: ".gitlab/fuzz.yml"
 
+"pipeline variables":
+  stage: .pre
+  tags: [ "arch:amd64" ]
+  script:
+    - |
+      echo "CURRENT_YEAR=$(date +%Y)" >> pipeline_variables.env
+      echo "CURRENT_MONTH=$(date +%-m)" >> pipeline_variables.env
+      echo "CURRENT_WEEK=$(date +%-V)" >> pipeline_variables.env
+      echo "CURRENT_BIWEEK=$(( $(date +%-V) / 2 ))" >> pipeline_variables.env
+      cat pipeline_variables.env
+  artifacts:
+    reports:
+      dotenv: pipeline_variables.env
+
 tests-gen:
   stage: tests
   extends: .testrunner
   variables:
     UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
   script:
     - |
       echo "UNPIN_DEPENDENCIES: ${UNPIN_DEPENDENCIES:-}"
+      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD:-}"
     - |
       if [ -z ${GH_TOKEN} ]
       then
@@ -78,12 +95,15 @@ tests-gen:
   artifacts:
     paths:
       - .gitlab/tests-gen.yml
+      - .gitlab/benchmarks/microbenchmarks-gen.yml
+      - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
 run-tests-trigger:
  stage: tests
  needs: [ tests-gen ]
  variables:
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+   NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
  rules:
    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
@@ -101,8 +121,7 @@ serverless lambda tests:
     project: DataDog/datadog-lambda-python
     strategy: depend
     branch: main
-  needs:
-    - job: "upload all"
+  needs: []
   variables:
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID
     UPSTREAM_PROJECT_URL: $CI_PROJECT_URL
@@ -134,6 +153,7 @@ serverless lambda tests:
 microbenchmarks:
   stage: benchmarks
   needs:
+    - job: tests-gen
     - job: "build linux"
       parallel:
         matrix:
@@ -146,12 +166,26 @@ microbenchmarks:
       allow_failure: true
     - allow_failure: false
   trigger:
-    include: .gitlab/benchmarks/microbenchmarks.yml
+    include:
+      - artifact: .gitlab/benchmarks/microbenchmarks-gen.yml
+        job: tests-gen
     strategy: depend
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
     DD_DISABLE_VPA: true
+
+apm-sdk-benchmarks:
+  stage: benchmarks
+  when: manual
+  allow_failure: true
+  needs:
+    - job: "upload all"
+  trigger:
+    project: DataDog/apm-reliability/apm-sdks-benchmarks
+    branch: main
+  variables:
+    TARGET_REF: $CI_PIPELINE_ID
 
 macrobenchmarks:
   stage: benchmarks
@@ -259,21 +293,59 @@ check_requirements_lockfiles:
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
+check_ci_dependencies:
+  stage: tests
+  needs: []
+  extends: .testrunner
+  script:
+    - scripts/check-ci-dependencies
+
 codeowners:
   stage: tests
   needs: []
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   script:
+    # Validate that each file entry only exists once in CODEOWNERS to prevent confusion about ownership.
+    # The file is evaluated from top to bottom where the last match wins, so duplicate entries can lead to unexpected owners being assigned.
+    # Normalize patterns before checking for duplicates:
+    #   - Remove trailing slashes (tests/tracer and tests/tracer/ are equivalent)
+    #   - Remove leading ./ (./path and path are equivalent)
+    #   - Collapse multiple consecutive slashes (path//file becomes path/file)
+    - |
+        # All non-comment/empty lines from .github/CODEOWNERS
+        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
+          # Remove any leading `./` in the line
+          sed 's|^\./||' | \
+          # Remove any duplicate `/`, e.g. `//` -> `/`
+          sed -E 's|/+|/|g' | \
+          # Remove any trailing `/`
+          sed 's:/*$::' | \
+          # Sort and return only duplicate entries
+          sort | uniq -d > /tmp/duplicate_codeowners.txt
+        if [ -s /tmp/duplicate_codeowners.txt ]; then
+            echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
+            cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
+            echo ""
+            echo "Each file pattern should only be listed once to ensure clear ownership."
+            echo "Normalization applied: removed trailing slashes, leading './', and collapsed multiple slashes."
+            echo "Please remove duplicates from .github/CODEOWNERS."
+            exit 1
+        fi
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - export CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA)
+    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
+    # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
-      if [ ! -z "$CHANGED_FILES" ]; then
-        ./codeowners "$CHANGED_FILES"
+      > /tmp/changed_files.txt
+      while IFS= read -r f; do
+        [ -f "$f" ] && echo "$f" >> /tmp/changed_files.txt
+      done < /tmp/changed_all.txt
+    - |
+      if [ -s /tmp/changed_files.txt ]; then
         echo '```' > codeowners.txt
-        echo "$(./codeowners $CHANGED_FILES)" >> codeowners.txt
+        xargs ./codeowners < /tmp/changed_files.txt | tee -a codeowners.txt
         echo '```' >> codeowners.txt
       fi
     - |
@@ -331,7 +403,13 @@ detect_circular_imports:
 
 
 package-oci:
-  needs: [ "ddtrace package", download_dependency_wheels ]
+  needs:
+    - job: "package version"
+      artifacts: true
+    - job: "build linux"
+      artifacts: true
+    - job: "download_dependency_wheels"
+      artifacts: true
 
 promote-oci-to-prod:
   stage: release
@@ -375,8 +453,12 @@ publish-lib-init-pinned-tags:
       artifacts: true
 
 configure_system_tests:
+  needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+
+system_tests:
+  needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
 
 deploy_to_reliability_env:
   needs: []
@@ -398,6 +480,41 @@ deploy_to_di_backend:manual:
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
 
+# Trigger profiling correctness tests with just-built wheels.
+# Runs the prof-correctness test suite (Python scenarios) against the wheels
+# uploaded to S3 for this commit.
+prof-correctness:
+  stage: shared-pipeline
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: ["arch:amd64"]
+  needs:
+    - job: "upload all"
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - changes:
+        - .gitlab-ci.yml
+        - ddtrace/internal/datadog/profiling/**/*
+        - ddtrace/profiling/**/*
+        - src/native/**/*
+    - when: manual
+      allow_failure: true
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  script:
+    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+      fi
+    - |
+      echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA}"
+      # Trigger pipeline, but do not wait for the job to complete
+      gh workflow run downstream-python.yml \
+        --repo DataDog/prof-correctness \
+        -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
+
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
   needs: []
@@ -411,7 +528,7 @@ lib_injection_tests:
     - export PYENV_ROOT="${HOME}/.pyenv"
     - export PATH="${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${PATH}"
     - apt-get update && apt install build-essential zlib1g-dev libssl-dev curl git -y
-    - PYENV_GIT_TAG=v2.6.17 curl https://pyenv.run | bash
+    - for i in 1 2 3; do PYENV_GIT_TAG=v2.6.17 curl -sSf https://pyenv.run | bash && break; echo "pyenv install attempt $i failed, retrying..."; sleep 5; [ "$i" -eq 3 ] && { echo "Failed to install pyenv after 3 attempts"; exit 1; }; done
     - pyenv --version
     - pyenv install ${PYTHON} && pyenv global ${PYTHON}
     - python --version
@@ -443,7 +560,11 @@ lib_injection_tests:
     - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
 
-# Run on every PR (only if profiling files changed)
+# Run on PRs where files in the native Profiling build graph changed.
+# build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests
+# via CMake, so Rust, C/C++, Cython, and CMake files should all trigger it.
+# Extension-based patterns keep Python and docs out automatically; non-extension
+# build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
   extends: .profiling_native_base
   rules:
@@ -451,10 +572,31 @@ profiling_native:
     - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
         - .gitlab-ci.yml
-        - ddtrace/internal/datadog/profiling/**/*
-        - ddtrace/profiling/**/*
-        - src/native/**/*
-        - tests/profiling/**/*
+        # Native source files by extension (C, C++, Cython, CMake modules)
+        - ddtrace/internal/datadog/profiling/**/*.cpp
+        - ddtrace/internal/datadog/profiling/**/*.cc
+        - ddtrace/internal/datadog/profiling/**/*.h
+        - ddtrace/internal/datadog/profiling/**/*.hpp
+        - ddtrace/internal/datadog/profiling/**/*.pyx
+        - ddtrace/internal/datadog/profiling/**/*.cmake
+        - ddtrace/profiling/**/*.cpp
+        - ddtrace/profiling/**/*.cc
+        - ddtrace/profiling/**/*.h
+        - ddtrace/profiling/**/*.hpp
+        - ddtrace/profiling/**/*.pyx
+        # Build/test config files (not matchable by extension alone)
+        - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
+        - ddtrace/internal/datadog/profiling/**/*.sh
+        - ddtrace/internal/datadog/profiling/**/*.supp
+        - ddtrace/profiling/**/CMakeLists.txt
+        # Rust source (build_standalone.sh compiles Rust first; CMake links
+        # against generated FFI headers from src/native/target/.../include/)
+        - src/native/**/*.rs
+        - src/native/**/*.toml
+        - src/native/**/Cargo.lock
+        # Top-level build config
+        - setup.py
+        - pyproject.toml
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]

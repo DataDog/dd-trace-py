@@ -50,9 +50,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import List
 from typing import Optional
-from typing import Tuple
 
 
 __version__ = "0.5.7"
@@ -100,7 +98,7 @@ def _dirmatch(path: str, matchwith: str) -> bool:
     return False
 
 
-def _virtualenv_sys(venv_path: str) -> Tuple[str, List[str]]:
+def _virtualenv_sys(venv_path: str) -> tuple[str, list[str]]:
     """Obtain Python version and sys.path information from a virtualenv.
 
     Args:
@@ -109,7 +107,7 @@ def _virtualenv_sys(venv_path: str) -> Tuple[str, List[str]]:
     Returns:
         A tuple containing:
             - Python version as a string (e.g., "3.9")
-            - List of sys.path entries (excluding empty strings)
+            - list of sys.path entries (excluding empty strings)
 
     Raises:
         AssertionError: If the subprocess fails or returns no output.
@@ -159,7 +157,7 @@ def clone_virtualenv(src_dir: str, dst_dir: str) -> None:
     logger.info("fixing scripts in bin...")
     fixup_scripts(src_dir, dst_dir, version)
 
-    def has_old(s: List[str]) -> bool:
+    def has_old(s: list[str]) -> bool:
         return any(i for i in s if _dirmatch(i, src_dir))
 
     if has_old(sys_path):
@@ -370,11 +368,11 @@ def _replace_symlink(filename: str, newtarget: str) -> None:
     os.rename(tmpfn, filename)
 
 
-def fixup_syspath_items(syspath: List[str], old_dir: str, new_dir: str) -> None:
+def fixup_syspath_items(syspath: list[str], old_dir: str, new_dir: str) -> None:
     """Fix path references in .pth and .egg-link files within sys.path directories.
 
     Args:
-        syspath: List of sys.path entries to process.
+        syspath: list of sys.path entries to process.
         old_dir: Path to the original virtual environment.
         new_dir: Path to the cloned virtual environment.
     """

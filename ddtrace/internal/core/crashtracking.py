@@ -2,15 +2,14 @@ import importlib.util
 import os
 import platform
 import sys
-from typing import Dict
 from typing import Optional
 
 from ddtrace import config
 from ddtrace import version
 from ddtrace.internal import forksafe
+from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.process_tags import process_tags
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -35,7 +34,7 @@ except ImportError:
     is_available = False
 
 
-def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
+def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
     tags = {
         "language": "python",
         "runtime": "CPython",
@@ -61,8 +60,8 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     library_version = version.__version__
     if library_version:
         tags["library_version"] = library_version
-    if process_tags:
-        tags["process_tags"] = process_tags
+    if p_tags := process_tags.process_tags:
+        tags["process_tags"] = p_tags
 
     for k, v in crashtracker_config.tags.items():
         if k and v:
@@ -84,7 +83,7 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
     return tags
 
 
-def _get_args(additional_tags: Optional[Dict[str, str]]):
+def _get_args(additional_tags: Optional[dict[str, str]]):
     # Instead of searching PATH for the receiver binary, invoke the receiver script
     # directly with the current Python interpreter. This is more reliable and doesn't
     # depend on PATH configuration.
@@ -169,7 +168,7 @@ def is_started() -> bool:
     return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
-def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
+def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
     if not is_available:
         return False
     if not crashtracker_config.enabled:

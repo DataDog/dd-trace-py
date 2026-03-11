@@ -1,6 +1,7 @@
 """Tests for LLMJudge evaluator."""
 
 import json
+from unittest import mock
 
 import pytest
 
@@ -8,8 +9,26 @@ from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
 from ddtrace.llmobs._evaluators.llm_judge import ScoreStructuredOutput
+from ddtrace.llmobs._evaluators.llm_judge import _create_azure_openai_client
+from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
+from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from tests.llmobs._utils import get_azure_openai_vcr
+from tests.llmobs._utils import get_bedrock_vcr
+from tests.llmobs._utils import get_vertexai_vcr
+
+
+BEDROCK_CLIENT_OPTIONS = {
+    "aws_access_key_id": "testing",
+    "aws_secret_access_key": "testing",
+    "region_name": "us-east-1",
+}
+
+
+@pytest.fixture(scope="session")
+def bedrock_vcr():
+    yield get_bedrock_vcr()
 
 
 class TestStructuredOutputTypes:
@@ -28,10 +47,13 @@ class TestStructuredOutputTypes:
         assert schema["properties"]["score_eval"]["maximum"] == 1.0
 
     def test_categorical_output_schema(self):
-        output = CategoricalStructuredOutput("Sentiment", categories=["pos", "neg"])
+        output = CategoricalStructuredOutput(categories={"pos": "Positive sentiment", "neg": "Negative sentiment"})
         schema = output.to_json_schema()
         assert output.label == "categorical_eval"
-        assert schema["properties"]["categorical_eval"]["enum"] == ["pos", "neg"]
+        assert schema["properties"]["categorical_eval"]["anyOf"] == [
+            {"const": "pos", "description": "Positive sentiment"},
+            {"const": "neg", "description": "Negative sentiment"},
+        ]
 
 
 class TestLLMJudge:
@@ -115,7 +137,8 @@ class TestLLMJudge:
             model="test-model",
             user_prompt="Classify: {{output_data}}",
             structured_output=CategoricalStructuredOutput(
-                "Sentiment", categories=["positive", "negative"], pass_values=["positive"]
+                categories={"positive": "Positive sentiment", "negative": "Negative sentiment"},
+                pass_values=["positive"],
             ),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="Great!"))
@@ -124,7 +147,6 @@ class TestLLMJudge:
         assert result.assessment == "pass"
 
     def test_custom_json_schema_output(self):
-        """Test structured_output with a custom JSON schema dict."""
         custom_schema = {
             "type": "object",
             "properties": {
@@ -137,7 +159,6 @@ class TestLLMJudge:
         }
 
         def mock_client(provider, messages, json_schema, model, model_params):
-            # Verify the custom schema is passed through
             assert json_schema == custom_schema
             return json.dumps({"summary": "Test summary", "keywords": ["a", "b"], "reasoning": "Because"})
 
@@ -212,8 +233,615 @@ class TestLLMJudge:
             client=mock_client,
             model="test-model",
             user_prompt="Evaluate: {{output_data}}",
-            structured_output=BooleanStructuredOutput("Check"),  # No pass_when, reasoning=False
+            structured_output=BooleanStructuredOutput("Check"),
         )
         result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
         assert result.assessment is None
         assert result.reasoning is None
+
+
+class TestLLMJudgePublish:
+    @staticmethod
+    def _mock_publish_backend(monkeypatch, llmobs):
+        mock_publish = mock.Mock(return_value=mock.Mock(status=200))
+        monkeypatch.setattr(llmobs._instance._dne_client, "publish_custom_evaluator", mock_publish)
+        return mock_publish
+
+    @pytest.mark.parametrize(
+        "provider,expected_provider,expects_wrapped_schema",
+        [
+            ("openai", "openai", True),
+            ("azure_openai", "azure_openai", True),
+            ("anthropic", "anthropic", False),
+            ("vertexai", "vertex_ai", False),
+            ("bedrock", "amazon_bedrock", False),
+        ],
+    )
+    def test_publish_provider_mapping_and_schema_format(
+        self, provider, expected_provider, expects_wrapped_schema, monkeypatch, llmobs
+    ):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider=provider,
+            user_prompt="Evaluate: {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            model_params={"temperature": 0.2},
+            name="quality_eval",
+        )
+
+        with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
+            result = llmobs.publish_evaluator(judge, ml_app="test-app")
+
+        assert result["ui_url"] == (
+            "https://app.datadoghq.com/llm/evaluations/custom?evalName=quality_eval&applicationName=test-app"
+        )
+
+        payload = mock_publish.call_args.args[0]
+        assert payload["eval_name"] == "quality_eval"
+        app_payload = payload["applications"][0]
+
+        assert app_payload["application_name"] == "test-app"
+        assert app_payload["enabled"] is False
+        assert app_payload["integration_provider"] == expected_provider
+        assert app_payload["model_provider"] == expected_provider
+        assert set(app_payload) == {
+            "application_name",
+            "enabled",
+            "integration_provider",
+            "model_provider",
+            "byop_config",
+        }
+
+        byop_config = app_payload["byop_config"]
+        assert byop_config["inference_params"] == {"temperature": 0.2}
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"pass_when": True}
+        assert byop_config["prompt_template"] == [
+            {"role": "system", "content": ""},
+            {"role": "user", "content": "Evaluate: {{output_data}}"},
+        ]
+
+        output_schema = byop_config["output_schema"]
+        if expects_wrapped_schema:
+            assert output_schema["name"] == "boolean_eval"
+            assert output_schema["strict"] is True
+            assert output_schema["schema"]["properties"]["boolean_eval"]["type"] == "boolean"
+        else:
+            assert output_schema["properties"]["boolean_eval"]["type"] == "boolean"
+
+    def test_publish_score_output_includes_threshold_assessment_criteria(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Score: {{output_data}}",
+            structured_output=ScoreStructuredOutput(
+                "Quality",
+                min_score=0.0,
+                max_score=1.0,
+                min_threshold=0.3,
+                max_threshold=0.8,
+            ),
+            name="score_eval_publish",
+        )
+
+        llmobs.publish_evaluator(judge, ml_app="test-app")
+        payload = mock_publish.call_args.args[0]
+        byop_config = payload["applications"][0]["byop_config"]
+
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"min_threshold": 0.3, "max_threshold": 0.8}
+
+    def test_publish_categorical_output_includes_pass_values_assessment_criteria(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Classify: {{output_data}}",
+            structured_output=CategoricalStructuredOutput(
+                categories={
+                    "positive": "Positive sentiment",
+                    "negative": "Negative sentiment",
+                },
+                pass_values=["positive"],
+            ),
+            name="categorical_eval_publish",
+        )
+
+        llmobs.publish_evaluator(judge, ml_app="test-app")
+        payload = mock_publish.call_args.args[0]
+        byop_config = payload["applications"][0]["byop_config"]
+
+        assert byop_config["parsing_type"] == "structured_output"
+        assert byop_config["assessment_criteria"] == {"pass_values": ["positive"]}
+
+    @pytest.mark.parametrize(
+        "model,expected_model_name",
+        [
+            ("  gpt-4o  ", "gpt-4o"),
+            (None, None),
+            ("   ", None),
+        ],
+    )
+    def test_publish_sends_model_name_only_when_present(self, model, expected_model_name, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            model=model,
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="model_eval",
+        )
+
+        llmobs.publish_evaluator(judge, ml_app="my-app")
+        app_payload = mock_publish.call_args.args[0]["applications"][0]
+
+        assert app_payload["model_provider"] == app_payload["integration_provider"]
+        if expected_model_name is None:
+            assert "model_name" not in app_payload
+        else:
+            assert app_payload["model_name"] == expected_model_name
+
+    def test_publish_variable_mapping_replaces_prompt_placeholders(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            system_prompt="System sees {{input_data}}",
+            user_prompt=(
+                "Input {{input_data}} Output {{output_data}} Expected {{expected_output}} "
+                "Metadata {{metadata.customer_id}}"
+            ),
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="mapping_eval",
+        )
+
+        llmobs.publish_evaluator(
+            judge,
+            ml_app="test-app",
+            variable_mapping={"input_data": "span_input", "output_data": "span_output"},
+        )
+
+        payload = mock_publish.call_args.args[0]
+        prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
+
+        assert prompt_template[0]["content"] == "System sees {{input_data}}"
+        assert prompt_template[1]["content"] == (
+            "Input {{span_input}} Output {{span_output}} Expected {{expected_output}} Metadata {{metadata.customer_id}}"
+        )
+
+    def test_publish_variable_mapping_does_not_chain_replacements(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Input {{input_data}} Output {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+            name="mapping_eval",
+        )
+
+        llmobs.publish_evaluator(
+            judge,
+            ml_app="test-app",
+            variable_mapping={"input_data": "output_data", "output_data": "span_output"},
+        )
+
+        payload = mock_publish.call_args.args[0]
+        prompt_template = payload["applications"][0]["byop_config"]["prompt_template"]
+
+        assert prompt_template[1]["content"] == "Input {{output_data}} Output {{span_output}}"
+
+    def test_publish_custom_schema_uses_json_parsing_and_encoded_url(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+
+        custom_schema = {
+            "type": "object",
+            "properties": {
+                "grade": {"type": "string"},
+                "reasoning": {"type": "string"},
+            },
+            "required": ["grade"],
+            "additionalProperties": False,
+        }
+
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="vertexai",
+            user_prompt="Grade {{output_data}}",
+            structured_output=custom_schema,
+            name="json_eval",
+        )
+
+        with mock.patch("ddtrace.llmobs._llmobs._get_base_url", return_value="https://app.datadoghq.com"):
+            result = llmobs.publish_evaluator(judge, ml_app="my app")
+
+        assert result["ui_url"] == (
+            "https://app.datadoghq.com/llm/evaluations/custom?evalName=json_eval&applicationName=my+app"
+        )
+
+        payload = mock_publish.call_args.args[0]
+        app_payload = payload["applications"][0]
+        assert app_payload["integration_provider"] == "vertex_ai"
+        assert app_payload["byop_config"]["parsing_type"] == "json"
+        assert app_payload["byop_config"]["output_schema"] == custom_schema
+        assert "assessment_criteria" not in app_payload["byop_config"]
+
+    def test_publish_requires_ml_app(self, llmobs):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="ml_app"):
+            llmobs.publish_evaluator(judge, ml_app="   ")
+
+    def test_publish_requires_structured_output(self, llmobs):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=None,
+        )
+        with pytest.raises(ValueError, match="structured_output"):
+            llmobs.publish_evaluator(judge, ml_app="my-app")
+
+    def test_publish_requires_llmobs_enabled(self, monkeypatch, llmobs):
+        monkeypatch.setattr(llmobs, "enabled", False)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="LLMObs is not enabled"):
+            llmobs.publish_evaluator(judge, ml_app="my-app")
+
+    def test_publish_validates_eval_name_format(self, monkeypatch, llmobs):
+        self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+            name="valid_name",
+        )
+        with pytest.raises(ValueError, match="Evaluator name .* is invalid"):
+            llmobs.publish_evaluator(judge, ml_app="my-app", eval_name="invalid name!")
+
+    def test_publish_accepts_hyphenated_eval_name(self, monkeypatch, llmobs):
+        mock_publish = self._mock_publish_backend(monkeypatch, llmobs)
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+            name="fallback",
+        )
+        llmobs.publish_evaluator(judge, ml_app="my-app", eval_name="hyphen-name")
+        payload = mock_publish.call_args.args[0]
+        assert payload["eval_name"] == "hyphen-name"
+
+    def test_publish_validates_variable_mapping(self, llmobs):
+        judge = LLMJudge(
+            client=lambda *args, **kwargs: "",
+            provider="openai",
+            user_prompt="Evaluate {{output_data}}",
+            structured_output=BooleanStructuredOutput("Correctness"),
+        )
+        with pytest.raises(ValueError, match="variable_mapping keys"):
+            llmobs.publish_evaluator(judge, ml_app="my-app", variable_mapping={"": "span_output"})
+
+        with pytest.raises(ValueError, match="variable_mapping values"):
+            llmobs.publish_evaluator(judge, ml_app="my-app", variable_mapping={"output_data": "   "})
+
+
+AZURE_OPENAI_CLIENT_OPTIONS = {
+    "api_key": "testing",
+    "azure_endpoint": "https://test.openai.azure.com",
+    "api_version": "2024-10-21",
+    "azure_deployment": "gpt-4o",
+}
+
+VERTEXAI_CLIENT_OPTIONS = {
+    "project": "test-project",
+    "location": "us-central1",
+    "credentials": mock.MagicMock(),
+}
+
+
+@pytest.fixture(scope="session")
+def azure_openai_vcr():
+    yield get_azure_openai_vcr()
+
+
+@pytest.fixture(scope="session")
+def vertexai_vcr():
+    yield get_vertexai_vcr()
+
+
+class TestAzureOpenAIClient:
+    def test_missing_api_key_raises(self, monkeypatch):
+        monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        with pytest.raises(ValueError, match="Azure OpenAI API key not provided"):
+            _create_azure_openai_client()
+
+    def test_missing_endpoint_raises(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.delenv("AZURE_OPENAI_ENDPOINT", raising=False)
+        with pytest.raises(ValueError, match="Azure OpenAI endpoint not provided"):
+            _create_azure_openai_client()
+
+    def test_missing_openai_package_raises(self, monkeypatch):
+        monkeypatch.setenv("AZURE_OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+        with mock.patch.dict("sys.modules", {"openai": None}):
+            with pytest.raises(ImportError, match="openai package required"):
+                _create_azure_openai_client()
+
+    def test_client_call(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_boolean.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {"boolean_eval": {"type": "boolean"}},
+                    "required": ["boolean_eval"],
+                    "additionalProperties": False,
+                },
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        assert result == '{"boolean_eval": true}'
+
+    def test_client_call_with_score_schema(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_score.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "score_eval": {"type": "number", "minimum": 1, "maximum": 10, "description": "Score"},
+                    },
+                    "required": ["score_eval"],
+                    "additionalProperties": False,
+                },
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
+
+    def test_client_call_with_categorical_schema(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_categorical.yaml"):
+            client = _create_azure_openai_client(AZURE_OPENAI_CLIENT_OPTIONS)
+            result = client(
+                provider="azure_openai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "categorical_eval": {
+                            "type": "string",
+                            "anyOf": [
+                                {"const": "positive", "description": "Positive sentiment"},
+                                {"const": "negative", "description": "Negative sentiment"},
+                            ],
+                        },
+                    },
+                    "required": ["categorical_eval"],
+                    "additionalProperties": False,
+                },
+                model="gpt-4o",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"
+
+    def test_llmjudge_with_azure_openai_provider(self, azure_openai_vcr):
+        with azure_openai_vcr.use_cassette("azure_openai_chat_completion_boolean.yaml"):
+            judge = LLMJudge(
+                provider="azure_openai",
+                model="gpt-4o",
+                user_prompt="Evaluate: {{output_data}}",
+                structured_output=BooleanStructuredOutput("Correctness", pass_when=True),
+                client_options=AZURE_OPENAI_CLIENT_OPTIONS,
+            )
+            result = judge.evaluate(EvaluatorContext(input_data={}, output_data="test"))
+        assert isinstance(result, EvaluatorResult)
+        assert result.value is True
+        assert result.assessment == "pass"
+
+
+class TestVertexAIClient:
+    def test_missing_credentials_raises(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+        with mock.patch("google.auth.default", side_effect=Exception("no credentials")):
+            with pytest.raises(ValueError, match="Google Cloud credentials not provided"):
+                _create_vertexai_client()
+
+    def test_project_from_default_credentials(self, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+        monkeypatch.delenv("GCLOUD_PROJECT", raising=False)
+        mock_credentials = mock.MagicMock()
+        with (
+            mock.patch("google.auth.default", return_value=(mock_credentials, "adc-project")),
+            mock.patch("vertexai.init") as mock_init,
+        ):
+            _create_vertexai_client()
+            mock_init.assert_called_once_with(
+                project="adc-project", location="us-central1", credentials=mock_credentials
+            )
+
+    def test_explicit_project_overrides_adc(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "env-project")
+        mock_credentials = mock.MagicMock()
+        with (
+            mock.patch("google.auth.default", return_value=(mock_credentials, "adc-project")),
+            mock.patch("vertexai.init") as mock_init,
+        ):
+            _create_vertexai_client()
+            mock_init.assert_called_once_with(
+                project="env-project", location="us-central1", credentials=mock_credentials
+            )
+
+    @staticmethod
+    def _patch_vertexai_init_rest():
+        """Patch vertexai.init to force REST transport so VCR can intercept HTTP calls."""
+        import vertexai
+
+        original_init = vertexai.init
+
+        def patched_init(**kwargs):
+            kwargs["api_transport"] = "rest"
+            return original_init(**kwargs)
+
+        return mock.patch("vertexai.init", side_effect=patched_init)
+
+    def test_client_call(self, vertexai_vcr):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_boolean.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {"boolean_eval": {"type": "boolean"}},
+                    "required": ["boolean_eval"],
+                    "additionalProperties": False,
+                },
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        assert result == '{"boolean_eval": true}'
+
+    def test_client_call_with_score_schema(self, vertexai_vcr):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_score.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "score_eval": {"type": "number", "minimum": 1, "maximum": 10, "description": "Score"},
+                    },
+                    "required": ["score_eval"],
+                    "additionalProperties": False,
+                },
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
+
+    def test_client_call_with_categorical_schema(self, vertexai_vcr):
+        with self._patch_vertexai_init_rest(), vertexai_vcr.use_cassette("vertexai_generate_content_categorical.yaml"):
+            client = _create_vertexai_client(VERTEXAI_CLIENT_OPTIONS)
+            result = client(
+                provider="vertexai",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "categorical_eval": {
+                            "type": "string",
+                            "anyOf": [
+                                {"const": "positive", "description": "Positive sentiment"},
+                                {"const": "negative", "description": "Negative sentiment"},
+                            ],
+                        },
+                    },
+                    "required": ["categorical_eval"],
+                    "additionalProperties": False,
+                },
+                model="gemini-1.5-pro",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"
+
+
+class TestBedrockClient:
+    def test_missing_package_raises(self):
+        with mock.patch.dict("sys.modules", {"boto3": None}):
+            with pytest.raises(ImportError, match="boto3 package required"):
+                _create_bedrock_client()
+
+    def test_client_call(self, bedrock_vcr):
+        with bedrock_vcr.use_cassette("bedrock_converse_boolean.yaml"):
+            client = _create_bedrock_client(BEDROCK_CLIENT_OPTIONS)
+            result = client(
+                provider="bedrock",
+                messages=[{"role": "system", "content": "Judge"}, {"role": "user", "content": "test"}],
+                json_schema={"type": "object", "properties": {"eval": {"type": "boolean"}}, "required": ["eval"]},
+                model="anthropic.claude-3-sonnet-20240229-v1:0",
+                model_params={"temperature": 0.5, "max_tokens": 1024},
+            )
+
+        assert result == '{"eval": true}'
+
+    def test_schema_strips_minimum_maximum(self, bedrock_vcr):
+        with bedrock_vcr.use_cassette("bedrock_converse_score.yaml"):
+            client = _create_bedrock_client(BEDROCK_CLIENT_OPTIONS)
+            result = client(
+                provider="bedrock",
+                messages=[{"role": "user", "content": "rate this"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "score_eval": {
+                            "type": "number",
+                            "description": "Quality score",
+                            "minimum": 1,
+                            "maximum": 10,
+                        }
+                    },
+                    "required": ["score_eval"],
+                },
+                model="anthropic.claude-3-sonnet-20240229-v1:0",
+                model_params=None,
+            )
+
+        parsed = json.loads(result)
+        assert parsed["score_eval"] == 8
+
+    def test_schema_strips_type_from_anyof(self, bedrock_vcr):
+        with bedrock_vcr.use_cassette("bedrock_converse_categorical.yaml"):
+            client = _create_bedrock_client(BEDROCK_CLIENT_OPTIONS)
+            result = client(
+                provider="bedrock",
+                messages=[{"role": "user", "content": "classify this"}],
+                json_schema={
+                    "type": "object",
+                    "properties": {
+                        "categorical_eval": {
+                            "type": "string",
+                            "anyOf": [
+                                {"const": "positive", "description": "Positive sentiment"},
+                                {"const": "negative", "description": "Negative sentiment"},
+                            ],
+                        }
+                    },
+                    "required": ["categorical_eval"],
+                },
+                model="anthropic.claude-3-sonnet-20240229-v1:0",
+                model_params=None,
+            )
+
+        parsed = json.loads(result)
+        assert parsed["categorical_eval"] == "positive"

@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ddtrace"
-version = "4.4.0rc4"
+version = "4.6.0rc3"
 description = "Datadog APM client library"
 readme = "README.md"
 license = { text = "LICENSE.BSD3" }
@@ -60,6 +60,9 @@ ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext
 
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.testing.internal.pytest.entry_point"
+
+[project.entry-points.'mlflow.request_header_provider']
+datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
 
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
@@ -149,7 +152,9 @@ exclude = [
     "tests/coverage/included_path/py39_line_numbers.py",
     "tests/appsec/iast/fixtures/ast/str/non_utf8_content.py",
     "tests/appsec/iast/fixtures/aspects/str/non_utf8_content.py",
-    "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py"
+    "tests/lib-injection/dd-lib-python-init-test-protobuf-old/addressbook_pb2.py",
+    "tests/appsec/iast/aspects/test_template_string_aspect.py",  # Python 3.14+ syntax (t-strings)
+    "benchmarks/bm/iast_fixtures/template_strings.py",  # Python 3.14+ syntax (t-strings)
 ]
 lint.ignore = [
     "A003",
@@ -192,6 +197,7 @@ lint.select = [
     "G",
     "I",
     "PLW0244",  # redefined-slots-in-subclass
+    "UP006",  # non-pep585-annotation (use builtin generics like list instead of typing.List)
     "W",
 ]
 lint.unfixable =[

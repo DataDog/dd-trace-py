@@ -1,6 +1,7 @@
 #include "sampler.hpp"
 
 #include "constants.hpp"
+#include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "thread_span_links.hpp"
 
@@ -154,13 +155,16 @@ Sampler::adapt_sampling_interval()
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
+    // Mark thread as running
+    thread_running.store(true);
+
     // Re-install SIGSEGV/SIGBUS handlers here, after Python initialization.
     // The handlers may have been installed during static init, but Python or
     // libraries (faulthandler, Django, FastAPI) can overwrite them afterwards.
     // Re-installing here ensures our handler is active when the sampling thread runs.
     // Only do this once to avoid overwriting g_old_segv with our own handler.
     static std::once_flag segv_handler_once;
-    if (use_alternative_copy_memory()) {
+    if (fast_copy_active) {
         std::call_once(segv_handler_once, init_segv_catcher);
     }
 
@@ -168,8 +172,22 @@ Sampler::sampling_thread(const uint64_t seq_num)
     auto sample_time_prev = steady_clock::now();
     auto interval_adjust_time_prev = sample_time_prev;
 
+    // Track upload sequence to clear ephemeral string table entries periodically.
+    // We clear every 25 uploads (~25 minutes at default 60s intervals) to avoid
+    // churning entries for long-lived tasks while still bounding growth.
+    uint64_t last_cleared_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+    constexpr uint64_t ephemeral_clear_interval = 25;
+
     auto* const runtime = &_PyRuntime;
     while (seq_num == thread_seq_num.load()) {
+        // Clear ephemeral string table entries (task names, greenlet names) periodically.
+        // Safe because strings are copied into StringArena during sample construction.
+        auto current_upload_seq = ProfilerState::get().upload_seq.load(std::memory_order_relaxed);
+        if (current_upload_seq - last_cleared_upload_seq >= ephemeral_clear_interval) {
+            last_cleared_upload_seq = current_upload_seq;
+            echion->string_table().clear_ephemeral();
+        }
+
         auto sample_time_now = steady_clock::now();
         auto wall_time_us = duration_cast<microseconds>(sample_time_now - sample_time_prev).count();
         sample_time_prev = sample_time_now;
@@ -186,6 +204,14 @@ Sampler::sampling_thread(const uint64_t seq_num)
 
         Sample::profile_borrow().stats().increment_sampling_event_count();
         Sample::profile_borrow().stats().set_string_table_count(echion->string_table().size());
+        Sample::profile_borrow().stats().set_string_table_ephemeral_count(echion->string_table().ephemeral_size());
+        Sample::profile_borrow().stats().set_fast_copy_memory_enabled(fast_copy_active);
+
+        // Drain copy_memory errors accumulated since the last sampling cycle into ProfilerStats
+        auto copy_errors = g_copy_memory_error_count.exchange(0, std::memory_order_relaxed);
+        if (copy_errors > 0) {
+            Sample::profile_borrow().stats().add_copy_memory_error_count(copy_errors);
+        }
 
         if (do_adaptive_sampling) {
             // Adjust the sampling interval at most every second
@@ -206,6 +232,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
         // systems.
         std::this_thread::sleep_until(sample_time_now + microseconds(sample_interval_us.load()));
     }
+
+    // Signal that the thread is exiting
+    {
+        std::lock_guard<std::mutex> lock(thread_exit_mutex);
+        thread_running.store(false);
+    }
+    thread_exit_cv.notify_all();
 }
 
 void
@@ -233,6 +266,12 @@ Sampler::postfork_child()
 {
     // Clear stale task/greenlet entries from parent process.
     // No lock needed: only one thread exists in child immediately after fork.
+
+    // The sampling thread from the parent doesn't exist in the child.
+    // Reset the flag so stop() doesn't wait for a non-existent thread.
+    thread_running.store(false);
+    new (&thread_exit_mutex) std::mutex();
+    new (&thread_exit_cv) std::condition_variable();
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
@@ -271,30 +310,52 @@ Sampler::postfork_child()
 }
 
 void
-_stack_atfork_child()
+Sampler::restart_after_fork()
 {
-    // The only thing we need to do at fork is to propagate the PID to echion
-    // so we don't even reveal this function to the user
+    // Restart the sampler if it was running before fork.
+    // Odd thread_seq_num means the sampler was started and not stopped.
+    if (thread_seq_num.load() & 1) {
+        start();
+    }
+}
+
+static void
+stack_postfork_cleanup()
+{
+    // Update PID in Echion
     _set_pid(getpid());
+
+    // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
     ThreadSpanLinks::postfork_child();
 
-    // Clear renderer caches to avoid using stale interned IDs
+    // Clear Sampler state (reset locks, clear mappings, etc.)
     Sampler::get().postfork_child();
 }
 
-__attribute__((constructor)) void
-_stack_init()
+void
+stack_atfork_child()
 {
-    _stack_atfork_child();
+    // Clean up Sampler state, do not start the Sampler yet.
+    stack_postfork_cleanup();
+
+    // Restart the sampler if it was running before fork.
+    Sampler::get().restart_after_fork();
+}
+
+__attribute__((constructor)) void
+stack_init()
+{
+    // At just do start-of-process cleanup (e.g., set PID)
+    stack_postfork_cleanup();
 }
 
 void
 Sampler::one_time_setup()
 {
     // It is unlikely, but possible, that the caller has forked since application startup, but before starting echion.
-    // Run the atfork handler to ensure that we're tracking the correct process
-    _stack_atfork_child();
-    pthread_atfork(nullptr, nullptr, _stack_atfork_child);
+    // Run the cleanup to ensure that we're tracking the correct process.
+    stack_postfork_cleanup();
+    pthread_atfork(nullptr, nullptr, stack_atfork_child);
 }
 
 void
@@ -351,9 +412,12 @@ Sampler::start()
     // We might as well get the default stack size and use that
     rlimit stack_sz = {};
     getrlimit(RLIMIT_STACK, &stack_sz);
-    if (create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num) == 0) {
+    auto thread_id = create_thread_with_stack(stack_sz.rlim_cur, this, ++thread_seq_num);
+    if (thread_id == 0) {
         return false;
     }
+
+    pthread_detach(thread_id);
 #else
     try {
         std::thread t(&Sampler::sampling_thread, this, ++thread_seq_num);
@@ -369,8 +433,16 @@ void
 Sampler::stop()
 {
     // Modifying the thread sequence number will cause the sampling thread to exit when it completes
-    // a sampling loop.  Currently there is no mechanism to force stuck threads, should they get locked.
+    // a sampling loop.
     ++thread_seq_num;
+
+    // Wait for the sampling thread to actually exit (with timeout to avoid hanging forever)
+    std::unique_lock<std::mutex> lock(thread_exit_mutex);
+    constexpr auto timeout = std::chrono::seconds(3);
+    bool exited = thread_exit_cv.wait_for(lock, timeout, [this]() { return !thread_running.load(); });
+    if (!exited) {
+        std::cerr << "Failed to stop sampling thread after timeout, exiting forcefully." << std::endl;
+    }
 }
 
 void
@@ -427,7 +499,19 @@ Sampler::untrack_greenlet(uintptr_t greenlet_id)
 {
     const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
 
-    echion->greenlet_info_map().erase(greenlet_id);
+    auto& greenlet_info_map = echion->greenlet_info_map();
+    auto entry = greenlet_info_map.find(greenlet_id);
+    if (entry != greenlet_info_map.end()) {
+        // Remove the greenlet's name string from the string table
+        // to prevent unbounded growth of the String Table.
+
+        // NOTE: This locks the String Table. If nested locks are required, always
+        // ensure that the greenlet_info_map is locked first before locking the
+        // String Table to avoid deadlocks.
+        echion->string_table().erase(entry->second->name);
+        greenlet_info_map.erase(entry);
+    }
+
     echion->greenlet_parent_map().erase(greenlet_id);
     echion->greenlet_thread_map().erase(greenlet_id);
 }
@@ -450,5 +534,14 @@ Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
     if (entry != greenlet_info_map.end()) {
         // Update the frame of the greenlet
         entry->second->frame = frame;
+    }
+}
+
+void
+Sampler::set_uvloop_mode(uintptr_t thread_id, bool value)
+{
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
+        it->second->using_uvloop = value;
     }
 }

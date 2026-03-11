@@ -1,6 +1,6 @@
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:I001
-from typing import Dict
+from typing import Union
 
 import asyncpg
 import wrapt
@@ -28,8 +28,6 @@ from ddtrace.trace import tracer
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Union  # noqa:F401
-
     from asyncpg.prepared_stmt import PreparedStatement  # noqa:F401
 
 
@@ -52,12 +50,11 @@ def get_version() -> str:
     return getattr(asyncpg, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"asyncpg": ">=0.23.0"}
 
 
-def _get_connection_tags(conn):
-    # type: (asyncpg.Connection) -> Dict[str, str]
+def _get_connection_tags(conn: asyncpg.Connection) -> dict[str, str]:
     addr = conn._addr
     params = conn._params
     host = port = ""
@@ -151,7 +148,7 @@ async def _traced_query(pin, method, query, args, kwargs):
 
 @with_traced_module
 async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
-    state = get_argument_value(args, kwargs, 0, "state")  # type: Union[str, PreparedStatement]
+    state: Union[str, "PreparedStatement"] = get_argument_value(args, kwargs, 0, "state")
     query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
     return await _traced_query(pin, func, query, args, kwargs)
 
@@ -162,8 +159,7 @@ def _patch(asyncpg: ModuleType) -> None:
         wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
 
 
-def patch():
-    # type: () -> None
+def patch() -> None:
     import asyncpg
 
     if getattr(asyncpg, "_datadog_patch", False):
@@ -181,8 +177,7 @@ def _unpatch(asyncpg: ModuleType) -> None:
         unwrap(asyncpg.protocol.Protocol, method)
 
 
-def unpatch():
-    # type: () -> None
+def unpatch() -> None:
     import asyncpg
 
     if not getattr(asyncpg, "_datadog_patch", False):

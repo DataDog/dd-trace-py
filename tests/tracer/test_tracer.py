@@ -29,8 +29,6 @@ from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.contrib.internal.trace_utils import set_user
 from ddtrace.ext import user
-import ddtrace.internal  # noqa: F401
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.trace import Context
@@ -1082,10 +1080,10 @@ def test_enable():
 @pytest.mark.subprocess(
     err=b"Shutting down tracer with 2 spans. "
     b"These spans will not be sent to Datadog: "
-    b"trace_id=123 parent_id=0 span_id=456 name=unfinished_span1 "
-    b"resource=my_resource1 started=46121775360.0 sampling_priority=2, "
+    b"trace_id=123 parent_id=None span_id=456 name=unfinished_span1 "
+    b"resource=my_resource1 started=1234567890.0 sampling_priority=2, "
     b"trace_id=123 parent_id=456 span_id=666 name=unfinished_span2 "
-    b"resource=my_resource1 started=167232131231.0 sampling_priority=2\n"
+    b"resource=my_resource1 started=1987654321.0 sampling_priority=2\n"
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
@@ -1099,12 +1097,12 @@ def test_unfinished_span_warning_log():
     span1.trace_id = 123
     span1.parent_id = 0
     span1.span_id = 456
-    span1.start = 46121775360
+    span1.start = 1234567890  # Fri Feb 13 2009 23:31:30 GMT (realistic Unix timestamp)
     span1.set_tag(MANUAL_KEEP_KEY)
     span2.trace_id = 123
     span2.parent_id = 456
     span2.span_id = 666
-    span2.start = 167232131231
+    span2.start = 1987654321  # Wed Oct 17 2033 11:32:01 GMT (future but realistic)
     span2.set_tag(MANUAL_KEEP_KEY)
 
 
@@ -1137,10 +1135,6 @@ def test_runtime_id_parent_only(tracer):
     assert isinstance(rtid, str)
 
 
-@pytest.mark.skipif(
-    PYTHON_VERSION_INFO >= (3, 12),
-    reason="This test runs in a multithreaded process, using os.fork() may cause deadlocks in child processes",
-)
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_runtime_id_fork():
     import os
@@ -1255,7 +1249,7 @@ def test_early_exit(tracer, test_spans):
     ]
     mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
-    assert s2.parent_id is s1.span_id
+    assert s2.parent_id == s1.span_id
 
     traces = test_spans.pop_traces()
     assert len(traces) == 1

@@ -23,7 +23,7 @@ variables:
       unzip awscliv2.zip
       ./aws/install
     - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
-    - python -m pip install twine
+    - pip install -r ci/requirements/ci.txt
     - python -m twine check --strict pywheels/*
   script:
     - python -m twine upload --repository ${PYPI_REPOSITORY} pywheels/*

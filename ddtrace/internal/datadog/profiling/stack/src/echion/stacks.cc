@@ -9,7 +9,7 @@ void
 FrameStack::render(EchionSampler& echion)
 {
     auto& renderer = echion.renderer();
-    for (auto it = this->rbegin(); it != this->rend(); ++it) {
+    for (auto it = this->begin(); it != this->end(); ++it) {
 #if PY_VERSION_HEX >= 0x030c0000
         if ((*it).get().is_entry)
             // This is a shim frame so we skip it.

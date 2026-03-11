@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Dict
 from typing import Optional
 from typing import Union
 
@@ -39,7 +38,7 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
 
 
 def _create_and_attach_iast_report_to_span(
-    req_span: "Span", existing_data: Optional[Union[str, Dict[str, Any]]], merge: bool = False
+    req_span: "Span", existing_data: Optional[Union[str, dict[str, Any]]], merge: bool = False
 ):
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
     if merge and existing_data is not None and report_data is not None:

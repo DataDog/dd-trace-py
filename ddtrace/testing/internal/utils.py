@@ -47,9 +47,9 @@ class TestContext(t.Protocol):
     span_id: int
     trace_id: int
 
-    def get_tags(self) -> t.Dict[str, str]: ...
+    def get_tags(self) -> dict[str, str]: ...
 
-    def get_metrics(self) -> t.Dict[str, float]: ...
+    def get_metrics(self) -> dict[str, float]: ...
 
 
 class PlainTestContext(TestContext):
@@ -57,10 +57,10 @@ class PlainTestContext(TestContext):
         self.span_id = span_id or _gen_item_id()
         self.trace_id = trace_id or _gen_item_id()
 
-    def get_tags(self) -> t.Dict[str, str]:
+    def get_tags(self) -> dict[str, str]:
         return {}
 
-    def get_metrics(self) -> t.Dict[str, float]:
+    def get_metrics(self) -> dict[str, float]:
         return {}
 
 
@@ -70,10 +70,10 @@ class DDTraceTestContext(TestContext):
         self.span_id = span.span_id % (1 << 64)
         self._span = span
 
-    def get_tags(self) -> t.Dict[str, str]:
+    def get_tags(self) -> dict[str, str]:
         # DEV: in ddtrace < 4.x, key names can be bytes.
         return {ensure_text(k): v for k, v in self._span.get_tags().items()}
 
-    def get_metrics(self) -> t.Dict[str, float]:
+    def get_metrics(self) -> dict[str, float]:
         # DEV: in ddtrace < 4.x, key names can be bytes.
         return {ensure_text(k): v for k, v in self._span.get_metrics().items()}

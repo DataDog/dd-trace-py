@@ -3,18 +3,14 @@ import logging
 import os
 from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Mapping
 from typing import Optional
-from typing import Type
 from typing import Union
 from typing import cast
 
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
-from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
@@ -47,33 +43,28 @@ class Profiler(object):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
 
-    def start(self, stop_on_exit: bool = True, profile_children: bool = True) -> None:
-        """Start the profiler.
+    def start(self) -> None:
+        """Start the profiler."""
 
-        :param stop_on_exit: Whether to stop the profiler and flush the profile on exit.
-        :param profile_children: Whether to start a profiler in child processes.
-        """
-
-        if profile_children:
-            try:
-                uwsgi.check_uwsgi(self._restart_on_fork, atexit=self.stop if stop_on_exit else None)
-            except uwsgi.uWSGIMasterProcess:
-                # Do nothing, the start() method will be called in each worker subprocess
-                return
-            except uwsgi.uWSGIConfigDeprecationWarning:
-                LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
-                # Turn off profiling in this case, this is mostly for
-                # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
-                # or --lazy. See uwsgi.check_uwsgi() for details.
-                return
+        try:
+            uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
+        except uwsgi.uWSGIMasterProcess:
+            # Do nothing in master, the profiler will be started in each worker via _start_on_fork
+            return
+        except uwsgi.uWSGIConfigDeprecationWarning:
+            LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
+            # Turn off profiling in this case, this is mostly for
+            # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
+            # or --lazy. See uwsgi.check_uwsgi() for details.
+            return
 
         self._profiler.start()
 
-        if stop_on_exit:
-            atexit.register(self.stop)
+        atexit.register(self.stop)
 
-        if profile_children:
-            forksafe.register(self._restart_on_fork)
+        # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
+        # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
+        # For uWSGI, _start_on_fork is registered via uwsgidecorators.postfork() in check_uwsgi().
 
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
 
@@ -90,15 +81,9 @@ class Profiler(object):
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
 
-    def _restart_on_fork(self) -> None:
-        # Be sure to stop the parent first, since it might have to e.g. unpatch functions
-        # Do not flush data as we don't want to have multiple copies of the parent profile exported.
-        try:
-            self._profiler.stop(flush=False, join=False)
-        except service.ServiceStatusError:
-            # This can happen in uWSGI mode: the children won't have the _profiler started from the master process
-            pass
-        self._profiler = self._profiler.copy()
+    def _start_on_fork(self) -> None:
+        """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
+
         self._profiler.start()
 
     def __getattr__(self, key: str) -> Any:
@@ -115,7 +100,7 @@ class _ProfilerInstance(service.Service):
     def __init__(
         self,
         service: Optional[str] = None,
-        tags: Optional[Dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
         env: Optional[str] = None,
         version: Optional[str] = None,
         tracer: Any = ddtrace.tracer,
@@ -130,7 +115,7 @@ class _ProfilerInstance(service.Service):
         super().__init__()
         # User-supplied values
         self.service: Optional[str] = service if service is not None else config.service
-        self.tags: Dict[str, str] = tags if tags is not None else profiling_config.tags
+        self.tags: dict[str, str] = tags if tags is not None else profiling_config.tags
         self.env: Optional[str] = env if env is not None else config.env
         self.version: Optional[str] = version if version is not None else config.version
         self.tracer: Any = tracer
@@ -145,8 +130,8 @@ class _ProfilerInstance(service.Service):
         # Non-user-supplied values
         # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.
         #       This is because its snapshot method cannot be static.
-        self._collectors: List[collector.Collector | memalloc.MemoryCollector] = []
-        self._collectors_on_import: Optional[List[tuple[str, Callable[[Any], None]]]] = None
+        self._collectors: list[collector.Collector | memalloc.MemoryCollector] = []
+        self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
 
@@ -200,7 +185,7 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_collector(collector_class: Type[collector.Collector]) -> None:
+            def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
                     col = collector_class(tracer=self.tracer)
 
@@ -235,7 +220,7 @@ class _ProfilerInstance(service.Service):
 
         if self._pytorch_collector_enabled:
 
-            def start_collector(collector_class: Type[collector.Collector]) -> None:
+            def start_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
                     col = collector_class()
 
@@ -265,7 +250,7 @@ class _ProfilerInstance(service.Service):
 
         self._build_default_exporters()
 
-        scheduler_class: Type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
+        scheduler_class: type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
             scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
         )
 
@@ -314,6 +299,7 @@ class _ProfilerInstance(service.Service):
 
         :param flush: Flush a last profile.
         """
+        LOG.debug("Stopping profiler")
         # Prevent doing more initialisation now that we are shutting down.
         if self._lock_collector_enabled and self._collectors_on_import:
             for module, hook in self._collectors_on_import:

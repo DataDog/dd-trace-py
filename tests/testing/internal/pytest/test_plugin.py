@@ -5,7 +5,6 @@ Integration tests are in tests/test_integration.py.
 """
 
 import os
-import typing as t
 from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -22,6 +21,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
+from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
@@ -404,7 +404,7 @@ class TestReportGeneration:
 
         result = plugin.pytest_report_teststatus(mock_report)
 
-        assert result == ("dd_retry", "R", "RETRY FAILED (Auto Test Retries)")
+        assert result == ("rerun", "R", "RETRY FAILED (Auto Test Retries)")
 
     def test_pytest_report_teststatus_quarantined(self) -> None:
         """Test report status for quarantined tests in call phase."""
@@ -628,6 +628,20 @@ class TestHelperFunctions:
 
         result = _get_test_parameters_json(mock_item)
         assert result is None
+
+    def test_get_test_original_name_uses_originalname(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = "test_example"
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) == "test_example"
+
+    def test_get_test_original_name_falls_back_to_none(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = None
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) is None
 
     def test_encode_test_parameter_simple(self) -> None:
         """Test _encode_test_parameter with simple values."""
@@ -1054,7 +1068,7 @@ class TestReportAndLoggingMethods:
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
         assert result is True
-        assert mock_report.outcome == "dd_retry"
+        assert mock_report.outcome == "rerun"
         expected_properties = [("dd_retry_outcome", "failed"), ("dd_retry_reason", "Test Handler")]
         assert mock_report.user_properties == expected_properties
 
@@ -1064,7 +1078,7 @@ class TestReportAndLoggingMethods:
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         mock_handler = Mock()
-        reports: t.Dict[str, Mock] = {}
+        reports: dict[str, Mock] = {}
 
         result = plugin._mark_test_report_as_retry(reports, mock_handler, "call")
 
@@ -1087,7 +1101,7 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should only mark call report
-        assert mock_call_report.outcome == "dd_retry"
+        assert mock_call_report.outcome == "rerun"
 
     def test_mark_test_reports_as_retry_setup_fallback(self) -> None:
         """Test _mark_test_reports_as_retry falls back to setup when call missing."""
@@ -1106,7 +1120,7 @@ class TestReportAndLoggingMethods:
         plugin._mark_test_reports_as_retry(reports, mock_handler)
 
         # Should mark setup report
-        assert mock_setup_report.outcome == "dd_retry"
+        assert mock_setup_report.outcome == "rerun"
 
 
 class TestQuarantineHandling:

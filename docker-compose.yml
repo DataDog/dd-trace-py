@@ -121,9 +121,9 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.36.0
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.43.0
         ports:
-            - "127.0.0.1:9126:8126"
+            - "127.0.0.1:${TESTAGENT_HOST_PORT:-9126}:8126"
         volumes:
             - ./tests/snapshots:/snapshots
             - ./tests/llmobs/llmobs_cassettes:/cassettes
@@ -201,12 +201,13 @@ services:
           CYTHON_CACHE_DIR: "/home/bits/.cache/cython"
           DD_USE_SCCACHE: "1"
           SCCACHE_DIR: "/home/bits/.cache/sccache"
+          DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
         network_mode: host
         userns_mode: host
         working_dir: /home/bits/project/
         volumes:
           - ddagent:/tmp/ddagent
-          - ./.cache:/home/bits/.cache
+          - ${DD_TEST_CACHE_DIR:-./.cache}:/home/bits/.cache
           - ./:/home/bits/project
 
     localstack:
