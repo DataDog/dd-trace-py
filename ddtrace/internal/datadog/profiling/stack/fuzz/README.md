@@ -1,7 +1,7 @@
-# Stack v2 / Echion Fuzz Targets
+# Stack Profiler / Echion Fuzz Targets
 
-Fuzz targets for the stack v2 profiler's echion-based unwinder.
-All targets are built with **libFuzzer + ASAN + UBSAN** inside a Docker image
+Fuzz targets for the Python stack profiler unwinder (echion).
+All targets are built with **libFuzzer + ASan + UBSan** inside a Docker image
 and orchestrated by [fuzzydog](https://datadoghq.atlassian.net/wiki/spaces/fuzzing).
 
 ## Targets
@@ -25,21 +25,25 @@ docker build -f docker/Dockerfile.fuzz --build-arg PYTHON_IMAGE_TAG=3.12.0 -t dd
 ## Run with fuzzydog
 
 The default CMD runs `fuzz_echion_remote_read` via fuzzydog.
-`FUZZYDOG_AUTH_TOKEN` must be set in the environment:
+`FUZZYDOG_AUTH_TOKEN` must be set in the environment.
 
 ```bash
+export FUZZYDOG_AUTH_TOKEN=$(ddtool auth token security-fuzzing-platform --datacenter=us1.ddbuild.io)
+
 docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz
 ```
 
 To run a specific target, override the command:
 
 ```bash
+export FUZZYDOG_AUTH_TOKEN=$(ddtool auth token security-fuzzing-platform --datacenter=us1.ddbuild.io)
+
 docker run --rm -it -e FUZZYDOG_AUTH_TOKEN ddtrace-py-stackv2-fuzz \
     fuzzydog fuzzer run dd-trace-py-local fuzz_echion_strings \
     --type libfuzzer --team profiling-python \
     --build-path /fuzzer/builds/ \
     --skip-dl-build --skip-dl-inputs \
-    --slack-channel fuzzing-ops \
+    --slack-channel profiling-python-ops \
     --repository-url https://github.com/DataDog/dd-trace-py
 ```
 
