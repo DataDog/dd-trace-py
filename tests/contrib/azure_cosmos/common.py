@@ -34,7 +34,6 @@ def run_test(container, method):
     elif method == "delete_item":
         for item in container.query_items(
             query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
-            enable_cross_partition_query=True,
         ):
             container.delete_item(item["id"], partition_key="Widget")
 
@@ -61,7 +60,6 @@ async def run_test_async(container, method):
     elif method == "delete_item":
         async for item in container.query_items(
             query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
-            enable_cross_partition_query=True,
         ):
             await container.delete_item(item["id"], partition_key="Widget")
 

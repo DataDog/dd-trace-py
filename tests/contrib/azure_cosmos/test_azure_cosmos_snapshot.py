@@ -5,11 +5,14 @@ from pathlib import Path
 import azure.cosmos as azure_cosmos
 import pytest
 
+from ddtrace.contrib.internal.azure_cosmos.patch import patch
+from ddtrace.contrib.internal.azure_cosmos.patch import unpatch
+
 
 CONNECTION_STRING = "AccountEndpoint=http://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==;"
 DB_NAME = "db.azure_cosmos_error"
 CONTAINER_NAME = "container.azure_cosmos_error"
-SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
+SNAPSHOT_IGNORES = ["meta.http.useragent", "meta.error.stack"]
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
@@ -31,11 +34,12 @@ params = [
 
 param_ids, param_values = zip(*params)
 
-"""@pytest.fixture(autouse=True)
+
+@pytest.fixture(autouse=True)
 def patch_azure_cosmos():
     patch()
     yield
-    unpatch()"""
+    unpatch()
 
 
 @pytest.mark.parametrize(
@@ -54,7 +58,7 @@ async def test_cosmos(ddtrace_run_python_code_in_subprocess, env_vars):
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
 
-'''
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_cosmos_error():
     cosmos_client = azure_cosmos.CosmosClient.from_connection_string(CONNECTION_STRING, connection_verify=False)
@@ -81,8 +85,10 @@ def test_cosmos_error():
                 "productModel": "Model 1",
             }
         )
-    except azure_cosmos.exceptions.CosmosResourceExistsError:
-        pass
-        # assert str(e) == "(None) The document already exists in the collection.
-        # \n Code: None \n Message: The document already exists in the collection."
-'''
+    except azure_cosmos.exceptions.CosmosResourceExistsError as e:
+        for item in container.query_items(
+            query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 1"',
+        ):
+            container.delete_item(item["id"], partition_key="Widget")
+
+        assert "The document already exists in the collection" in str(e)
