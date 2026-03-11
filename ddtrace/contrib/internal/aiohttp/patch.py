@@ -9,6 +9,8 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import extract_netloc_and_query_info_from_url
+from ddtrace.contrib.internal.trace_utils import maybe_set_service_source_tag
+from ddtrace.contrib.internal.trace_utils import set_service_source_tag
 from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module as with_traced_module_sync
@@ -93,6 +95,8 @@ async def _traced_clientsession_request(aiohttp, pin, func, instance, args, kwar
     ) as span:
         if config.aiohttp_client.split_by_domain:
             span.service = url.host
+
+        maybe_set_service_source_tag(span, config.aiohttp)
 
         if pin._config["distributed_tracing"]:
             HTTPPropagator.inject(span.context, headers)

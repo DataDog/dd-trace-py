@@ -382,6 +382,12 @@ def ext_service(pin: Optional[Pin], int_config: "IntegrationConfig", default: Op
 def maybe_set_service_source_tag(span: Span, int_config: Union["IntegrationConfig", dict]) -> None:
     if span.service == int_config.get("_default_service"):
         span.set_tag("_dd.svc.src", getattr(int_config, "integration_name", "true"))
+    elif int_config.get("split_by_domain", False):
+        span.set_tag("_dd.svc.src", "opt.split_by_domain")
+
+
+def set_service_source_tag(span: Span, value: str) -> None:
+    span.set_tag("_dd.svc.src", value)
 
 
 def set_http_meta(
