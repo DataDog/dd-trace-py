@@ -46,10 +46,12 @@ class Profiler(object):
     def start(self) -> None:
         """Start the profiler."""
 
+        LOG.debug("[dd.profiling] Profiler.start: called")
         try:
             uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
         except uwsgi.uWSGIMasterProcess:
             # Do nothing in master, the profiler will be started in each worker via _start_on_fork
+            LOG.debug("[dd.profiling] Profiler.start: uWSGI master process, deferring to worker")
             return
         except uwsgi.uWSGIConfigDeprecationWarning:
             LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
@@ -58,7 +60,13 @@ class Profiler(object):
             # or --lazy. See uwsgi.check_uwsgi() for details.
             return
 
-        self._profiler.start()
+        LOG.debug("[dd.profiling] Profiler.start: calling _profiler.start()")
+        try:
+            self._profiler.start()
+        except Exception:
+            LOG.error("[dd.profiling] Profiler.start: _profiler.start() raised an exception", exc_info=True)
+            raise
+        LOG.debug("[dd.profiling] Profiler.start: _profiler.start() succeeded")
 
         atexit.register(self.stop)
 
@@ -174,13 +182,25 @@ class _ProfilerInstance(service.Service):
         ddup.start()
 
     def __post_init__(self) -> None:
+        LOG.debug(
+            "[dd.profiling] __post_init__: env detection: AWS_LAMBDA_FUNCTION_NAME=%r, "
+            "WEBSITE_SITE_NAME=%r, FUNCTIONS_WORKER_RUNTIME=%r, "
+            "K_SERVICE=%r, FUNCTION_TARGET=%r, FUNCTION_NAME=%r, GCP_PROJECT=%r",
+            os.environ.get("AWS_LAMBDA_FUNCTION_NAME"),
+            os.environ.get("WEBSITE_SITE_NAME"),
+            os.environ.get("FUNCTIONS_WORKER_RUNTIME"),
+            os.environ.get("K_SERVICE"),
+            os.environ.get("FUNCTION_TARGET"),
+            os.environ.get("FUNCTION_NAME"),
+            os.environ.get("GCP_PROJECT"),
+        )
         if self._stack_collector_enabled:
-            LOG.debug("Profiling collector (stack) enabled")
+            LOG.debug("[dd.profiling] __post_init__: stack collector enabled")
             try:
                 self._collectors.append(stack.StackCollector(tracer=self.tracer))
-                LOG.debug("Profiling collector (stack) initialized")
+                LOG.debug("[dd.profiling] __post_init__: stack collector initialized")
             except Exception:
-                LOG.error("Failed to start stack collector, disabling.", exc_info=True)
+                LOG.error("[dd.profiling] __post_init__: failed to initialize stack collector, disabling", exc_info=True)
 
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
@@ -253,6 +273,11 @@ class _ProfilerInstance(service.Service):
         scheduler_class: type[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = (
             scheduler.ServerlessScheduler if self._lambda_function_name else scheduler.Scheduler
         )
+        LOG.debug(
+            "[dd.profiling] __post_init__: scheduler selected: %s (lambda_function_name=%r)",
+            scheduler_class.__name__,
+            self._lambda_function_name,
+        )
 
         self._scheduler = scheduler_class(
             before_flush=self._collectors_snapshot,
@@ -279,20 +304,28 @@ class _ProfilerInstance(service.Service):
 
     def _start_service(self) -> None:
         """Start the profiler."""
+        n_collectors = len(self._collectors)
+        LOG.debug("[dd.profiling] _start_service: starting %d collector(s)", n_collectors)
         collectors = []
         for col in self._collectors:
             try:
                 col.start()
             except collector.CollectorUnavailable:
-                LOG.debug("Collector %r is unavailable, disabling", col)
+                LOG.debug("[dd.profiling] _start_service: collector %r unavailable, disabling", col)
             except Exception:
-                LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                LOG.error("[dd.profiling] _start_service: failed to start collector %r, disabling", col, exc_info=True)
             else:
+                LOG.debug("[dd.profiling] _start_service: collector %r started", col)
                 collectors.append(col)
         self._collectors = collectors
+        LOG.debug("[dd.profiling] _start_service: %d/%d collector(s) started successfully", len(collectors), n_collectors)
 
         if self._scheduler is not None:
+            LOG.debug("[dd.profiling] _start_service: starting scheduler %r", self._scheduler)
             self._scheduler.start()
+            LOG.debug("[dd.profiling] _start_service: scheduler started")
+        else:
+            LOG.debug("[dd.profiling] _start_service: no scheduler configured")
 
     def _stop_service(self, flush: bool = True, join: bool = True) -> None:
         """Stop the profiler.
