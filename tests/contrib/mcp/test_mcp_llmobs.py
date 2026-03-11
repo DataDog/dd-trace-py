@@ -435,3 +435,53 @@ def test_intent_capture_disabled_by_default(mcp_setup, test_spans, llmobs_events
 
     # Verify telemetry property is NOT injected when intent capture is disabled
     assert "telemetry" not in schema.get("properties", {}), f"telemetry should not be in properties: {schema}"
+
+
+def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
+    """Regression: llmobs_set_tags must run AFTER await func(), not before.
+
+    Before the fix, llmobs_set_tags ran synchronously before ``await func(*args, **kwargs)``.
+    This widened the race window in which the MCP session's ``_receive_loop`` could exit and
+    close ``_write_stream``, causing ``anyio.ClosedResourceError`` instead of a clean
+    cancellation (see TASK_MCP_CLOSED_RESOURCE_ERROR.md).
+
+    The fix wraps ``await func(...)`` in a try/finally so that llmobs_set_tags is called
+    AFTER the response is sent.  This test verifies:
+    1. ``func`` (i.e. ``respond``) is called before ``llmobs_set_tags``.
+    2. ``llmobs_set_tags`` still runs even when ``func`` raises ``ClosedResourceError``.
+    """
+    import anyio
+
+    from ddtrace.contrib.internal.mcp.patch import traced_request_responder_respond
+
+    call_order = []
+
+    async def mock_func_raises_closed_resource(*args, **kwargs):
+        call_order.append("func")
+        raise anyio.ClosedResourceError()
+
+    mock_instance = mock.MagicMock()
+    mock_instance._dd_span = mock.MagicMock()
+
+    original_llmobs_set_tags = mcp_setup._datadog_integration.llmobs_set_tags
+
+    def tracking_llmobs_set_tags(*args, **kwargs):
+        call_order.append("llmobs_set_tags")
+
+    mcp_setup._datadog_integration.llmobs_set_tags = tracking_llmobs_set_tags
+
+    async def run():
+        try:
+            await traced_request_responder_respond(
+                mock_func_raises_closed_resource, mock_instance, (mock.MagicMock(),), {}
+            )
+        except anyio.ClosedResourceError:
+            pass
+
+    asyncio.run(run())
+    mcp_setup._datadog_integration.llmobs_set_tags = original_llmobs_set_tags
+
+    assert call_order == ["func", "llmobs_set_tags"], (
+        "llmobs_set_tags must run after func (in finally block), not before it. "
+        f"Actual call order: {call_order}"
+    )
