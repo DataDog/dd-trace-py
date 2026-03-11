@@ -6,12 +6,12 @@
 #
 # Required GitLab CI/CD variables (set as masked variables in project settings):
 #   DD_PUBLIC_SYMBOL_API_KEY  — Datadog prod API key for symbol uploads
-#   DD_PREPROD_API_KEY        — Datadog preprod API key for symbol uploads
+#   DD_PREPROD_SYMBOL_API_KEY        — Datadog preprod API key for symbol uploads
 
 set -euo pipefail
 
-if [ -z "${DD_PUBLIC_SYMBOL_API_KEY:-}" ] && [ -z "${DD_PREPROD_API_KEY:-}" ]; then
-  echo "ERROR: At least one of DD_PUBLIC_SYMBOL_API_KEY or DD_PREPROD_API_KEY must be set" >&2
+if [ -z "${DD_PUBLIC_SYMBOL_API_KEY:-}" ] && [ -z "${DD_PREPROD_SYMBOL_API_KEY:-}" ]; then
+  echo "ERROR: At least one of DD_PUBLIC_SYMBOL_API_KEY or DD_PREPROD_SYMBOL_API_KEY must be set" >&2
   exit 1
 fi
 
@@ -57,14 +57,14 @@ else
 fi
 
 # Upload to preprod
-if [ -n "${DD_PREPROD_API_KEY:-}" ]; then
+if [ -n "${DD_PREPROD_SYMBOL_API_KEY:-}" ]; then
   echo "Uploading debug symbols to preprod (datad0g.com)..."
-  DATADOG_API_KEY="${DD_PREPROD_API_KEY}" \
+  DATADOG_API_KEY="${DD_PREPROD_SYMBOL_API_KEY}" \
     DATADOG_SITE="datad0g.com" \
     DD_BETA_COMMANDS_ENABLED=1 \
     datadog-ci elf-symbols upload "${SYMBOLS_DIR}"
 else
-  echo "DD_PREPROD_API_KEY not set, skipping preprod upload"
+  echo "DD_PREPROD_SYMBOL_API_KEY not set, skipping preprod upload"
 fi
 
 echo "Debug symbol upload complete"
