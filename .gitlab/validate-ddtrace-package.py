@@ -38,7 +38,7 @@ BASE_PLATFORMS = [
     "win32",
     "win_amd64",
 ]
-SLIM_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
+SLIM_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p and "x86" in p]
 
 
 def build_expected_set(version: str) -> set[tuple[str, str, str]]:
