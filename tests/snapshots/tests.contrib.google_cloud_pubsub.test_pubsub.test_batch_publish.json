@@ -40,7 +40,6 @@
          "messaging.message_id": "2",
          "messaging.operation": "send",
          "messaging.system": "pubsub",
-         "operation": "gcp.pubsub.send",
          "span.kind": "producer"
        },
        "metrics": {
@@ -68,7 +67,6 @@
          "messaging.message_id": "3",
          "messaging.operation": "send",
          "messaging.system": "pubsub",
-         "operation": "gcp.pubsub.send",
          "span.kind": "producer"
        },
        "metrics": {
@@ -96,7 +94,6 @@
          "messaging.message_id": "4",
          "messaging.operation": "send",
          "messaging.system": "pubsub",
-         "operation": "gcp.pubsub.send",
          "span.kind": "producer"
        },
        "metrics": {

@@ -42,7 +42,6 @@
          "messaging.destination.name": "nonexistent-topic",
          "messaging.operation": "send",
          "messaging.system": "pubsub",
-         "operation": "gcp.pubsub.send",
          "span.kind": "producer"
        },
        "metrics": {

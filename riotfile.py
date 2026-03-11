@@ -3234,7 +3234,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(max_version="3.12"),
                     pkgs={
-                        "google-cloud-pubsub": ["==2.18.0", latest],
+                        "google-cloud-pubsub": ["==2.10.0", latest],
                     },
                 ),
                 Venv(

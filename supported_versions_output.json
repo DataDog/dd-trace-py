@@ -332,7 +332,7 @@
     {
         "dependency": "google-cloud-pubsub",
         "integration": "google_cloud_pubsub",
-        "minimum_tracer_supported": "2.18.0",
+        "minimum_tracer_supported": "2.10.0",
         "max_tracer_supported": "2.35.0",
         "auto-instrumented": true
     },

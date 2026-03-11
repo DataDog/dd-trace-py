@@ -414,7 +414,7 @@ integrations:
   - google-cloud-pubsub
   tested_versions_by_dependency:
     google-cloud-pubsub:
-      min: 2.18.0
+      min: 2.10.0
       max: 2.35.0
 
 - integration_name: google_genai
