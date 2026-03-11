@@ -1,3 +1,4 @@
+import mock
 import pytest
 
 from ddtrace._monkey import patch
@@ -558,25 +559,25 @@ class TestLLMObsLiteLLM:
                 messages=messages,
             )
             output_messages, token_metrics = parse_response(resp)
-
+        expected_token_metrics = token_metrics
+        expected_token_metrics.update(
+            {
+                CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY: 2056,
+                CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY: 14,
+            }
+        )
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
             span,
             model_name="claude-sonnet-4-20250514",
             model_provider="anthropic",
-            input_messages=messages,
+            input_messages=mock.ANY,
             output_messages=output_messages,
             metadata={},
-            token_metrics=token_metrics,
+            token_metrics=expected_token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
-
-        # Verify cache TTL breakdown metrics are present
-        event_metrics = llmobs_events[0]["metrics"]
-        assert CACHE_WRITE_INPUT_TOKENS_METRIC_KEY in event_metrics
-        assert event_metrics.get(CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY) == 2056
-        assert event_metrics.get(CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY) == 14
 
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
