@@ -4,9 +4,6 @@ import pytest
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
@@ -503,6 +500,9 @@ class TestLLMObsLiteLLM:
                 messages=messages,
             )
             output_messages, token_metrics = parse_response(resp)
+        # Cassettes have cache_creation_input_tokens=2, all attributed to 5m TTL
+        token_metrics["ephemeral_1h_input_tokens"] = 0
+        token_metrics["ephemeral_5m_input_tokens"] = 2
 
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
@@ -559,13 +559,9 @@ class TestLLMObsLiteLLM:
                 messages=messages,
             )
             output_messages, token_metrics = parse_response(resp)
-        expected_token_metrics = token_metrics
-        expected_token_metrics.update(
-            {
-                CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY: 2056,
-                CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY: 14,
-            }
-        )
+        token_metrics["ephemeral_1h_input_tokens"] = 2056
+        token_metrics["ephemeral_5m_input_tokens"] = 14
+
         span = test_spans.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -575,7 +571,7 @@ class TestLLMObsLiteLLM:
             input_messages=mock.ANY,
             output_messages=output_messages,
             metadata={},
-            token_metrics=expected_token_metrics,
+            token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
