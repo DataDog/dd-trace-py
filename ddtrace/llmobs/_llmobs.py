@@ -1949,6 +1949,7 @@ class LLMObs(Service):
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
+            ff_prompt_serving=cls._ff_prompt_serving,
         )
 
     @classmethod
