@@ -83,19 +83,8 @@ class Profiler(object):
 
     def _start_on_fork(self) -> None:
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
-        # DEBUG: temporary debug output
-        import os
-        import sys
 
-        print(f"DEBUG _start_on_fork called in pid={os.getpid()}", file=sys.stderr, flush=True)
-        try:
-            self._profiler.start()
-            print(
-                f"DEBUG _start_on_fork: profiler started successfully in pid={os.getpid()}", file=sys.stderr, flush=True
-            )
-        except Exception as e:
-            print(f"DEBUG _start_on_fork: profiler start FAILED in pid={os.getpid()}: {e}", file=sys.stderr, flush=True)
-            raise
+        self._profiler.start()
 
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)

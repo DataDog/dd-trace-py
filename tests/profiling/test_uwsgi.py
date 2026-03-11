@@ -255,24 +255,17 @@ def test_uwsgi_threads_processes_primary(
     """
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--py-call-uwsgi-fork-hooks")
     worker_pids: list[int] = _get_worker_pids(proc.stdout, 2)
     # Give some time to child to actually startup
     time.sleep(3)
-    os.killpg(proc.pid, signal.SIGTERM)
+    # Use proc.terminate() (not os.killpg) so the master can gracefully shut down workers,
+    # allowing them to flush profiles via uwsgi.atexit before exiting.
+    proc.terminate()
     assert proc.wait() == 0
-
-    # DEBUG: print remaining stdout for debugging
-    remaining = proc.stdout.read() if proc.stdout else b""
-    print(f"\nDEBUG remaining stdout ({len(remaining)} bytes):")
-    print(remaining.decode(errors="replace"))
-    print(f"DEBUG files in {tmp_path}: {[f.name for f in tmp_path.iterdir()]}")
-    print(f"DEBUG worker_pids: {worker_pids}")
-
     for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        assert len(samples) > 0
+        _wait_for_profile_samples(filename, pid, "wall-time")
 
 
 def test_uwsgi_threads_processes_primary_lazy_apps(
