@@ -156,10 +156,11 @@ def _convert_strands_messages(
 
 
 class AIGuardStrandsIntegration:
-    """Shared AI Guard evaluation logic for Strands Agents. AIGuardStrandsIntegration is the shared base class holding all
-     AI Guard evaluation logic.  AIGuardStrandsPlugin (Plugin API) and
-     AIGuardStrandsHookProvider (legacy HookProvider API) are thin wrappers that
-     wire lifecycle events to the ``_on_*_base`` methods defined here.
+    """Shared AI Guard evaluation logic for Strands Agents.
+
+    ``AIGuardStrandsPlugin`` (Plugin API) and ``AIGuardStrandsHookProvider``
+    (legacy HookProvider API) are thin wrappers that wire lifecycle events
+    to the ``_on_*_base`` methods defined here.
 
     Subclasses only need to forward Strands lifecycle events to the
     ``_on_*_base`` methods.  This class is **not** intended for direct use.
@@ -234,6 +235,42 @@ class AIGuardStrandsIntegration:
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
 
+    def _build_tool_call_messages(self, event: _BeforeToolCallEvent | _AfterToolCallEvent) -> tuple[list[Message], str]:
+        """Build AI Guard messages for a tool call event.
+
+        Extracts the tool_use fields from the event, converts the agent's
+        conversation history, and appends an assistant message representing the
+        pending (or executed) tool call.
+
+        :returns: ``(ai_guard_messages, tool_name)``
+        """
+        logger.debug("AIGuard event: %s", event)
+        logger.debug("AIGuard agent: %s", event.agent)
+        if event.agent:
+            logger.debug("AIGuard message: %s", event.agent.messages)
+
+        tool_use = event.tool_use
+        tool_name = tool_use.get("name", "")
+        tool_use_id = tool_use.get("toolUseId", "")
+        tool_input = tool_use.get("input", {})
+
+        ai_guard_messages = _convert_strands_messages(event.agent.messages)
+        ai_guard_messages.append(
+            Message(
+                role="assistant",
+                tool_calls=[
+                    ToolCall(
+                        id=tool_use_id,
+                        function=Function(
+                            name=tool_name,
+                            arguments=try_format_json(tool_input),
+                        ),
+                    )
+                ],
+            )
+        )
+        return ai_guard_messages, tool_name
+
     def _on_before_tool_call_base(self, event: _BeforeToolCallEvent) -> None:
         """Evaluate a tool call before execution.
 
@@ -243,31 +280,7 @@ class AIGuardStrandsIntegration:
         """
         tool_name = ""
         try:
-            logger.debug("AIGuard event: %s", event)
-            logger.debug("AIGuard agent: %s", event.agent)
-            if event.agent:
-                logger.debug("AIGuard message: %s", event.agent.messages)
-            tool_use = event.tool_use
-            tool_name = tool_use.get("name", "")
-            tool_use_id = tool_use.get("toolUseId", "")
-            tool_input = tool_use.get("input", {})
-
-            messages = event.agent.messages
-            ai_guard_messages = _convert_strands_messages(messages)
-            ai_guard_messages.append(
-                Message(
-                    role="assistant",
-                    tool_calls=[
-                        ToolCall(
-                            id=tool_use_id,
-                            function=Function(
-                                name=tool_name,
-                                arguments=try_format_json(tool_input),
-                            ),
-                        )
-                    ],
-                )
-            )
+            ai_guard_messages, tool_name = self._build_tool_call_messages(event)
             result = self._client.evaluate(ai_guard_messages, Options(block=True))
             logger.debug("AIGuard client evaluate result: %s", result)
         except AIGuardAbortError as e:
@@ -286,41 +299,15 @@ class AIGuardStrandsIntegration:
         """
         tool_name = ""
         try:
-            logger.debug("AIGuard event: %s", event)
-            logger.debug("AIGuard agent: %s", event.agent)
-            if event.agent:
-                logger.debug("AIGuard message: %s", event.agent.messages)
-            tool_use = event.tool_use
-            tool_name = tool_use.get("name", "")
-            tool_use_id = tool_use.get("toolUseId", "")
-            tool_input = tool_use.get("input", {})
-            tool_result = event.result
-
-            messages = event.agent.messages
-            ai_guard_messages = _convert_strands_messages(messages)
-
-            # Append the tool call (assistant message)
-            ai_guard_messages.append(
-                Message(
-                    role="assistant",
-                    tool_calls=[
-                        ToolCall(
-                            id=tool_use_id,
-                            function=Function(
-                                name=tool_name,
-                                arguments=try_format_json(tool_input),
-                            ),
-                        )
-                    ],
-                )
-            )
+            ai_guard_messages, tool_name = self._build_tool_call_messages(event)
 
             # Append the tool result
+            tool_use_id = event.tool_use.get("toolUseId", "")
             ai_guard_messages.append(
                 Message(
                     role="tool",
                     tool_call_id=tool_use_id,
-                    content=_tool_result_text(tool_result),
+                    content=_tool_result_text(event.result),
                 )
             )
 
