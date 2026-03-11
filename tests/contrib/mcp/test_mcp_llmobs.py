@@ -482,6 +482,5 @@ def test_llmobs_set_tags_runs_after_respond_not_before(mcp_setup):
     mcp_setup._datadog_integration.llmobs_set_tags = original_llmobs_set_tags
 
     assert call_order == ["func", "llmobs_set_tags"], (
-        "llmobs_set_tags must run after func (in finally block), not before it. "
-        f"Actual call order: {call_order}"
+        f"llmobs_set_tags must run after func (in finally block), not before it. Actual call order: {call_order}"
     )
