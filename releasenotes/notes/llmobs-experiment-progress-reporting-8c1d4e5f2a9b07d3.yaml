@@ -1,0 +1,5 @@
+features:
+  - |
+    LLM Observability: adds INFO-level progress logging during experiment task
+    execution, evaluator runs, dataset push operations, and dataset record
+    fetching.

@@ -868,6 +868,17 @@ class Dataset:
                 )
             )
 
+        new_count = len(self._new_records_by_record_id)
+        updated_count = len(self._updated_record_ids_to_new_fields)
+        deleted_count = len(self._deleted_record_ids)
+        logger.info(
+            "Dataset '%s': pushing %d new, %d updated, %d deleted records",
+            self.name,
+            new_count,
+            updated_count,
+            deleted_count,
+        )
+
         data_changed = False
         delta_size = self._estimate_delta_size()
         if bulk_upload or (bulk_upload is None and delta_size > self.BATCH_UPDATE_THRESHOLD):
@@ -1653,6 +1664,8 @@ class Experiment:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         subset_dataset = self._get_subset_dataset(sample_size)
+        total_records = len(subset_dataset)
+        logger.info("Experiment '%s': running task on %d records", self.name, total_records)
 
         semaphore = asyncio.Semaphore(jobs)
         coros = [
@@ -1660,6 +1673,8 @@ class Experiment:
             for idx_record in enumerate(subset_dataset)
         ]
         results = await asyncio.gather(*coros, return_exceptions=True)
+
+        logger.info("Experiment '%s': task execution complete (%d records)", self.name, total_records)
 
         task_results: list[TaskResult] = []
         for result in results:
@@ -1692,6 +1707,12 @@ class Experiment:
         max_retries: int = 0,
         retry_delay: Callable[[int], float] = lambda attempt: 0.1 * (attempt + 1),
     ) -> list[EvaluationResult]:
+        logger.info(
+            "Experiment '%s': evaluating %d rows with %d evaluator(s)",
+            self.name,
+            len(task_results),
+            len(self._evaluators),
+        )
         semaphore = asyncio.Semaphore(jobs)
 
         async def _evaluate_row(idx: int, task_result: TaskResult) -> dict[str, dict[str, JSONType]]:
