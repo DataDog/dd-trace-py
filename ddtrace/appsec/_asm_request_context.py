@@ -30,6 +30,7 @@ from ddtrace.internal.settings.asm import config as asm_config
 if TYPE_CHECKING:
     from ddtrace.appsec._utils import DDWaf_info
     from ddtrace.appsec._utils import DDWaf_result
+    from ddtrace.appsec._utils import WafEvent
 
 logger = ddlogger.get_logger(__name__)
 
@@ -115,7 +116,7 @@ class ASM_Environment:
         self.block_callable: Optional[Callable[[], None]] = None
         self.telemetry: Telemetry_result = Telemetry_result()
         self.addresses_sent: set[str] = set()
-        self.waf_triggers: list[dict[str, Any]] = []
+        self.waf_triggers: "list[WafEvent]" = []
         self.blocked: Optional[Block_config] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
@@ -579,7 +580,7 @@ def get_waf_telemetry_results() -> Optional[Telemetry_result]:
     return None
 
 
-def store_waf_results_data(data: list[dict[str, Any]]) -> None:
+def store_waf_results_data(data: "list[WafEvent]") -> None:
     if not data:
         return
     env = _get_asm_context()
