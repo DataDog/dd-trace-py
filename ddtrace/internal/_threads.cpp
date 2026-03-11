@@ -308,91 +308,6 @@ class Event
 };
 
 // ----------------------------------------------------------------------------
-/**
- * Module-level atexit handler: sets the at_exit flag so all threads stop making
- * Python VM calls.
- */
-static PyObject*
-_threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
-{
-    module_state* state = (module_state*)PyModule_GetState(module);
-
-    // Stop and join all running periodic threads. We snapshot the values first
-    // to avoid mutation of the dict during iteration (threads remove themselves
-    // from periodic_threads when they stop).
-    if (state != nullptr && state->periodic_threads != NULL) {
-        PyObject* threads = PyDict_Values(state->periodic_threads);
-        if (threads != NULL) {
-            Py_ssize_t n = PyList_Size(threads);
-            for (Py_ssize_t i = 0; i < n; i++) {
-                PyObject* thread = PyList_GET_ITEM(threads, i);
-                PyObject* result = PyObject_CallMethod(thread, "_atexit", NULL);
-                if (result == NULL)
-                    PyErr_Clear();
-                else
-                    Py_DECREF(result);
-            }
-            Py_DECREF(threads);
-        }
-    }
-
-    // Set the at_exit flag so that threads stop making Python VM calls. We do
-    // this after we have stopped all threads to avoid potential deadlocks where
-    // a thread has acquired the GIL but not released it because the VM shuts
-    // down in the middle of its work.
-    if (state != nullptr)
-        state->at_exit.store(true, std::memory_order_release);
-
-    Py_RETURN_NONE;
-}
-
-// ----------------------------------------------------------------------------
-static int
-_threads_traverse(PyObject* module, visitproc visit, void* arg)
-{
-    module_state* state = (module_state*)PyModule_GetState(module);
-    if (state != nullptr)
-        Py_VISIT(state->periodic_threads);
-    return 0;
-}
-
-// ----------------------------------------------------------------------------
-static int
-_threads_clear(PyObject* module)
-{
-    module_state* state = (module_state*)PyModule_GetState(module);
-    if (state != nullptr)
-        Py_CLEAR(state->periodic_threads);
-    return 0;
-}
-
-// ----------------------------------------------------------------------------
-static void
-_threads_free(void* module)
-{
-    _threads_clear((PyObject*)module);
-}
-
-// ----------------------------------------------------------------------------
-static PyMethodDef _threads_methods[] = {
-    { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
-    { NULL, NULL, 0, NULL } /* Sentinel */
-};
-
-// ----------------------------------------------------------------------------
-static struct PyModuleDef threadsmodule = {
-    PyModuleDef_HEAD_INIT,
-    "_threads",           /* name of module */
-    NULL,                 /* module documentation, may be NULL */
-    sizeof(module_state), /* size of per-interpreter state of the module */
-    _threads_methods,
-    NULL,              /* m_slots */
-    _threads_traverse, /* m_traverse */
-    _threads_clear,    /* m_clear */
-    _threads_free,     /* m_free */
-};
-
-// ----------------------------------------------------------------------------
 typedef struct periodic_thread
 {
     PyObject_HEAD
@@ -423,6 +338,10 @@ typedef struct periodic_thread
 
     std::unique_ptr<std::thread> _thread;
 } PeriodicThread;
+
+// Pointer to the module definition, needed for module state lookup
+// in PeriodicThread_init. Set during PyInit__threads.
+static PyModuleDef* threadsmodule_ptr = NULL;
 
 // ----------------------------------------------------------------------------
 static PyMemberDef PeriodicThread_members[] = {
@@ -476,7 +395,7 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
     // Look up this interpreter's module state. PyState_FindModule searches the
     // current interpreter, so each sub-interpreter gets its own module_state.
-    PyObject* mod = PyState_FindModule(&threadsmodule);
+    PyObject* mod = PyState_FindModule(threadsmodule_ptr);
     if (mod == NULL) {
         PyErr_SetString(PyExc_RuntimeError, "_threads module not initialized");
         return -1;
@@ -727,19 +646,6 @@ PeriodicThread_join(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-PeriodicThread__atexit(PeriodicThread* self, PyObject* Py_UNUSED(args))
-{
-    if (PeriodicThread_stop(self, NULL) == NULL)
-        return NULL;
-
-    if (PeriodicThread_join(self, NULL, NULL) == NULL)
-        return NULL;
-
-    Py_RETURN_NONE;
-}
-
-// ----------------------------------------------------------------------------
-static PyObject*
 PeriodicThread__after_fork(PeriodicThread* self, PyObject* Py_UNUSED(args))
 {
     // In the child process the parent's thread no longer exists. Detach before
@@ -843,7 +749,6 @@ static PyMethodDef PeriodicThread_methods[] = {
     { "stop", (PyCFunction)PeriodicThread_stop, METH_NOARGS, "Stop the thread" },
     { "join", (PyCFunction)PeriodicThread_join, METH_VARARGS | METH_KEYWORDS, "Join the thread" },
     /* Private */
-    { "_atexit", (PyCFunction)PeriodicThread__atexit, METH_NOARGS, "Stop the thread at exit" },
     { "_after_fork", (PyCFunction)PeriodicThread__after_fork, METH_NOARGS, "Refresh the thread after fork" },
     { "_before_fork", (PyCFunction)PeriodicThread__before_fork, METH_NOARGS, "Prepare the thread for fork" },
     { NULL, NULL, 0, NULL } /* Sentinel */
@@ -864,6 +769,112 @@ static PyTypeObject PeriodicThreadType = {
 };
 
 // ----------------------------------------------------------------------------
+/**
+ * Module-level atexit handler: sets the at_exit flag so all threads stop making
+ * Python VM calls.
+ */
+static PyObject*
+_threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
+{
+    module_state* state = (module_state*)PyModule_GetState(module);
+
+    // Stop and join all running periodic threads. We snapshot the values first
+    // to avoid mutation of the dict during iteration (threads remove themselves
+    // from periodic_threads when they stop).
+    if (state != nullptr && state->periodic_threads != NULL) {
+        PyObject* threads = PyDict_Values(state->periodic_threads);
+        if (threads != NULL) {
+            Py_ssize_t n = PyList_Size(threads);
+
+            // Send the stop signal to all threads.
+            for (Py_ssize_t i = 0; i < n; i++) {
+                PyObject* thread = PyList_GET_ITEM(threads, i);
+                if (thread == NULL) {
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to get periodic thread from state");
+                    break;
+                }
+                PyObject* result = PeriodicThread_stop((PeriodicThread*)thread, NULL);
+                if (result == NULL)
+                    PyErr_Clear();
+                else
+                    Py_DECREF(result);
+            }
+
+            // Join all threads.
+            for (Py_ssize_t i = 0; i < n; i++) {
+                PyObject* thread = PyList_GET_ITEM(threads, i);
+                if (thread == NULL) {
+                    PyErr_SetString(PyExc_RuntimeError, "Failed to get periodic thread from state");
+                    break;
+                }
+                PyObject* result = PeriodicThread_join((PeriodicThread*)thread, NULL, NULL);
+                if (result == NULL)
+                    PyErr_Clear();
+                else
+                    Py_DECREF(result);
+            }
+
+            Py_DECREF(threads);
+        }
+    }
+
+    // Set the at_exit flag so that threads stop making Python VM calls. We do
+    // this after we have stopped all threads to avoid potential deadlocks where
+    // a thread has acquired the GIL but not released it because the VM shuts
+    // down in the middle of its work.
+    if (state != nullptr)
+        state->at_exit.store(true, std::memory_order_release);
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static int
+_threads_traverse(PyObject* module, visitproc visit, void* arg)
+{
+    module_state* state = (module_state*)PyModule_GetState(module);
+    if (state != nullptr)
+        Py_VISIT(state->periodic_threads);
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+static int
+_threads_clear(PyObject* module)
+{
+    module_state* state = (module_state*)PyModule_GetState(module);
+    if (state != nullptr)
+        Py_CLEAR(state->periodic_threads);
+    return 0;
+}
+
+// ----------------------------------------------------------------------------
+static void
+_threads_free(void* module)
+{
+    _threads_clear((PyObject*)module);
+}
+
+// ----------------------------------------------------------------------------
+static PyMethodDef _threads_methods[] = {
+    { "_at_exit", _threads_at_exit, METH_NOARGS, "Signal that Python is exiting" },
+    { NULL, NULL, 0, NULL } /* Sentinel */
+};
+
+// ----------------------------------------------------------------------------
+static struct PyModuleDef threadsmodule = {
+    PyModuleDef_HEAD_INIT,
+    "_threads",           /* name of module */
+    NULL,                 /* module documentation, may be NULL */
+    sizeof(module_state), /* size of per-interpreter state of the module */
+    _threads_methods,
+    NULL,              /* m_slots */
+    _threads_traverse, /* m_traverse */
+    _threads_clear,    /* m_clear */
+    _threads_free,     /* m_free */
+};
+
+// ----------------------------------------------------------------------------
 PyMODINIT_FUNC
 PyInit__threads(void)
 {
@@ -872,7 +883,8 @@ PyInit__threads(void)
     if (PyType_Ready(&PeriodicThreadType) < 0)
         return NULL;
 
-    m = PyModule_Create(&threadsmodule);
+    threadsmodule_ptr = &threadsmodule;
+    m = PyModule_Create(threadsmodule_ptr);
     if (m == NULL)
         return NULL;
 
