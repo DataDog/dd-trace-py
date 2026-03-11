@@ -3674,12 +3674,6 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                    pkgs={
-                        "flask": "~=2.2",
-                    },
-                ),
-                Venv(
                     pys=select_pys(),
                     pkgs={
                         "flask": "~=2.2",
