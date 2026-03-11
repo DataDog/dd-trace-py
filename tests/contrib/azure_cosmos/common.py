@@ -36,32 +36,34 @@ def run_test(container, method):
                 container.delete_item(item["id"], partition_key="Widget")
 
 
-def run_test_async(container, method):
-        match method:
-            case "create_item":
-                await container.create_item(
+async def run_test_async(container, method):
+    match method:
+        case "create_item":
+            await container.create_item(
+                {
+                    "id": "item1",
+                    "productName": "Widget",
+                    "productModel": "Model 1",
+                }
+            )
+        case "read_item":
+            await container.read_item("item1", partition_key="Widget")
+        case "upsert_item":
+            await container.upsert_item(
                     {
                         "id": "item1",
                         "productName": "Widget",
-                        "productModel": "Model 1",
+                        "productModel": "Model X",
                     }
                 )
-            case "read_item":
-                await container.read_item("item1", partition_key="Widget")
-            case "upsert_item":
-                await container.upsert_item(
-                        {
-                            "id": "item1",
-                            "productName": "Widget",
-                            "productModel": "Model X",
-                        }
-                    )
-            case "delete_item":
-                async for item in container.query_items(
-                    query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
-                    enable_cross_partition_query=True,
-                ):
-                    await container.delete_item(item["id"], partition_key="Widget")
+        case "delete_item":
+            async for item in container.query_items(
+                query='SELECT * FROM mycontainer p WHERE p.productModel = "Model X"',
+                enable_cross_partition_query=True,
+            ):
+                await container.delete_item(item["id"], partition_key="Widget")
+
+    
 
 
 @pytest.mark.asyncio
@@ -70,21 +72,19 @@ async def test_common():
     method = os.environ.get("METHOD")
 
     if is_async:
-        cosmos_client = azure_cosmos_aio.CosmosClient.from_connection_string(
-            CONNECTION_STRING,
-            connection_verify=False
-        )
+        async with azure_cosmos_aio.CosmosClient.from_connection_string(
+                CONNECTION_STRING,
+                connection_verify=False
+            ) as cosmos_client:
 
-        database = await cosmos_client.create_database_if_not_exists(DB_NAME)
-        container = await database.create_container_if_not_exists(CONTAINER_NAME, partition_key=PartitionKey(path="/productName"))
+            database = await cosmos_client.create_database_if_not_exists(DB_NAME)
+            container = await database.create_container_if_not_exists(CONTAINER_NAME, partition_key=PartitionKey(path="/productName"))
 
-        try:
-            await run_test_async(
-                container,
-                method,
-            )
-        finally:
-            await cosmos_client.close()
+            try:
+                await run_test_async(
+                    container,
+                    method,
+                )
     else:
         cosmos_client = azure_cosmos.CosmosClient.from_connection_string(
             CONNECTION_STRING,

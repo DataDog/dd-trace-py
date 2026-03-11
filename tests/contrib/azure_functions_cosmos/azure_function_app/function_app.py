@@ -20,7 +20,7 @@ app = func.FunctionApp()
 
 
 @app.route(route="create_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
-def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
+async def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         client = CosmosClientAio.from_connection_string(
             CONNECTION_STRING,
@@ -40,6 +40,8 @@ def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
                     "productModel": "Model {0}".format(i),
                 }
             )
+        
+        await client.close()
 
     else:
         client = CosmosClient.from_connection_string(
@@ -64,7 +66,7 @@ def CreateItem(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
 
 @app.route(route="read_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
-def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
+async def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         client = CosmosClientAio.from_connection_string(
             CONNECTION_STRING,
@@ -83,6 +85,8 @@ def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
                     , partition_key="Widget"
                 }
             )
+
+        await client.close()
 
     else:
         client = CosmosClient.from_connection_string(
@@ -107,7 +111,7 @@ def ReadItem(req: func.HttpRequest) -> func.HttpResponse:
 
 
 @app.route(route="upsert_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
-def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
+async def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         client = CosmosClientAio.from_connection_string(
             CONNECTION_STRING,
@@ -128,6 +132,7 @@ def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
                         }
                     )
 
+        await client.close()
     else:
         client = CosmosClient.from_connection_string(
             CONNECTION_STRING,
@@ -151,7 +156,7 @@ def UpsertItem(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
 
 @app.route(route="delete_item", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
-def DeleteItem(req: func.HttpRequest) -> func.HttpResponse:
+async def DeleteItem(req: func.HttpRequest) -> func.HttpResponse:
     if os.getenv("IS_ASYNC") == "True":
         client = CosmosClientAio.from_connection_string(
             CONNECTION_STRING,
@@ -164,10 +169,12 @@ def DeleteItem(req: func.HttpRequest) -> func.HttpResponse:
             )
 
         async for item in container.query_items(
-                    query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"',
-                    enable_cross_partition_query=True,
-                ):
-                    await container.delete_item(item["id"], partition_key="Widget")
+                query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"',
+                enable_cross_partition_query=True,
+            ):
+                await container.delete_item(item["id"], partition_key="Widget")
+
+        await client.close()
 
     else:
         client = CosmosClient.from_connection_string(
@@ -181,9 +188,9 @@ def DeleteItem(req: func.HttpRequest) -> func.HttpResponse:
             )
 
         for item in container.query_items(
-                    query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"',
-                    enable_cross_partition_query=True,
-                ):
-                    container.delete_item(item["id"], partition_key="Widget")
+                query='SELECT * FROM mycontainer p WHERE p.productModel = "Model 2"',
+                enable_cross_partition_query=True,
+            ):
+                container.delete_item(item["id"], partition_key="Widget")
     
     return func.HttpResponse("Hello Datadog!")

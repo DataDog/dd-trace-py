@@ -2,11 +2,13 @@ import os
 import signal
 import subprocess
 import time
+import itertools
 
 import pytest
 
-#from tests.webclient import Client
+from tests.webclient import Client
 
+SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
 ASYNC_OPTIONS = [False, True]
 METHODS = ["create_item", "read_item", "upsert_item", "delete_item"]
@@ -31,6 +33,8 @@ param_ids, param_values = zip(*params)
 @pytest.fixture
 def azure_functions_client(request):
     env_vars = getattr(request, "param", {})
+    print(request)
+    print(env_vars)
 
     # Copy the env to get the correct PYTHONPATH and such
     # from the virtualenv.
@@ -72,11 +76,11 @@ def azure_functions_client(request):
 
 
 @pytest.mark.parametrize(
-    "azure_functions_client",
+    "azure_functions_client, method",
     param_values,
     ids=param_ids,
     indirect=["azure_functions_client"],
 )
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_cosmos_trigger(azure_functions_client: Client) -> None:
+def test_cosmos_trigger(azure_functions_client: Client, method) -> None:
     assert azure_functions_client.post(f"/api/{method}", headers=DEFAULT_HEADERS).status_code == 200
