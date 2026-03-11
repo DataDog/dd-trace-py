@@ -4,21 +4,17 @@ import mlflow
 from mlflow.tracking import fluent as mlflow_fluent
 from wrapt import wrap_function_wrapper as _w
 
-import ddtrace
 from ddtrace import config
-from ddtrace._trace.processor import SpanProcessor
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.mlflow.constants import LOG_ATTR_MLFLOW_RUN_ID
-from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
-from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.formats import asbool
 
 
 MLFLOW_ACTIVE_RUN_SPANS = {}
@@ -26,21 +22,19 @@ MLFLOW_ACTIVE_STEP_SPANS = {}
 MLFLOW_CURRENT_STEPS = {}
 
 
-class _MLflowRunIDSpanProcessor(SpanProcessor):
-    def on_span_start(self, span):
-        run_id = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
-        if run_id:
-            span._set_tag_str(MLFLOW_RUN_ID_TAG, str(run_id))
-
-    def on_span_finish(self, span):
-        pass
+def _on_span_start(span):
+    # this function is tracing specific but having it here prevents dispatching another event
+    run_id = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
+    if run_id:
+        span._set_tag_str(MLFLOW_RUN_ID_TAG, str(run_id))
 
 
 config._add(
     "mlflow",
-    {
-        "_default_service": schematize_service_name("mlflow"),
-    },
+    dict(
+        _default_service=schematize_service_name("mlflow"),
+        trace_run_tags=_get_config("DD_TRACE_MLFLOW_RUN_TAGS", default=False, modifier=asbool),
+    ),
 )
 
 
@@ -49,37 +43,26 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"mlflow": "*"}
+    return {"mlflow": ">=2.11.4"}
 
 
 def _traced_start_run(wrapped, instance, args, kwargs):
     experiment_id = get_argument_value(args, kwargs, 1, "experiment_id", True)
     run_name = get_argument_value(args, kwargs, 2, "run_name", True)
     run_tags = get_argument_value(args, kwargs, 5, "tags", True) or {}
-    normalized_tags = {COMPONENT: config.mlflow.integration_name, SPAN_KIND: SpanKind.INTERNAL}
-    for key, value in run_tags.items():
-        try:
-            normalized_tags[key] = str(value)
-        except Exception:  # nosec B112
-            continue
-
-    if experiment_id is not None:
-        normalized_tags[MLFLOW_EXPERIMENT_ID_TAG] = str(experiment_id)
-    if run_name is not None:
-        normalized_tags[MLFLOW_RUN_NAME_TAG] = str(run_name)
 
     with core.context_with_data(
         "mlflow.run",
-        span_name="mflow.run",
+        span_name="run",
         service=config.mlflow.get("service", config.mlflow._default_service),
         span_type=SpanTypes.WORKER,
-        tags=normalized_tags,
     ) as ctx:
         run = wrapped(*args, **kwargs)
         run_id = run.info.run_id
 
         MLFLOW_CURRENT_STEPS[run_id] = 0
-        core.dispatch("mlflow.new.run", (ctx, run_id, MLFLOW_ACTIVE_RUN_SPANS))
+        # we use a different event than mflow.run because we cannot now the run_id before
+        core.dispatch("mlflow.new.run", (ctx, run_id, experiment_id, run_name, run_tags, MLFLOW_ACTIVE_RUN_SPANS))
         core.dispatch("mlflow.new.step", (run_id, MLFLOW_ACTIVE_STEP_SPANS))
 
         return run
@@ -121,7 +104,7 @@ def _traced_log_param(wrapped, instance, args, kwargs):
     key = get_argument_value(args, kwargs, 0, "key")
     value = get_argument_value(args, kwargs, 1, "value")
 
-    core.dispatch("mlflow.log", (run_id, "params", MLFLOW_ACTIVE_STEP_SPANS, (key, value)))
+    core.dispatch("mlflow.log", (run_id, MLflowLogType.PARAMS, MLFLOW_ACTIVE_STEP_SPANS, (key, value)))
 
     return wrapped(*args, **kwargs)
 
@@ -141,7 +124,7 @@ def _traced_log_metric(wrapped, instance, args, kwargs):
     value = get_argument_value(args, kwargs, 1, "value")
     step = get_argument_value(args, kwargs, 2, "step", True)
 
-    core.dispatch("mlflow.log", (run_id, "metrics", MLFLOW_ACTIVE_STEP_SPANS, (key, value)))
+    core.dispatch("mlflow.log", (run_id, MLflowLogType.METRICS, MLFLOW_ACTIVE_STEP_SPANS, (key, value)))
 
     if step is not None:
         MLFLOW_CURRENT_STEPS[run_id] = step
@@ -151,11 +134,8 @@ def _traced_log_metric(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def _traced_get_log_correlation_context(wrapped, instance, args, kwargs):
-    log_context = wrapped(*args, **kwargs)
+def _mlflow_log_correlation_context(log_context):
     log_context[LOG_ATTR_MLFLOW_RUN_ID] = getattr(getattr(mlflow.active_run(), "info", None), "run_id", None)
-
-    return log_context
 
 
 def patch():
@@ -172,13 +152,9 @@ def patch():
 
     _w(mlflow, "log_metric", _traced_log_metric)
     _w(mlflow, "log_param", _traced_log_param)
-    _w(ddtrace.tracer, "get_log_correlation_context", _traced_get_log_correlation_context)
 
-    # Tag all spans with run_id
-    processor = _MLflowRunIDSpanProcessor()
-    processor.register()
-
-    mlflow._datadog_run_id_span_processor = processor
+    core.on("trace.log_correlation_context", _mlflow_log_correlation_context)
+    core.on("trace.span_start", _on_span_start)
 
 
 def unpatch():
@@ -192,13 +168,9 @@ def unpatch():
     _u(mlflow_fluent, "end_run")
     _u(mlflow, "log_metric")
     _u(mlflow, "log_param")
-    _u(ddtrace.tracer, "get_log_correlation_context")
 
-    # Remove processor
-    processor = getattr(mlflow, "_datadog_run_id_span_processor", None)
-    if processor is not None:
-        processor.unregister()
-        delattr(mlflow, "_datadog_run_id_span_processor")
+    core.reset_listeners("trace.log_correlation_context", _mlflow_log_correlation_context)
+    core.reset_listeners("trace.span_start", _on_span_start)
 
     # Empty global dict
     MLFLOW_ACTIVE_RUN_SPANS.clear()

@@ -27,8 +27,11 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 
 # from ddtrace.internal.utils import _copy_trace_level_tags
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_EXPERIMENT_ID_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_ID_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLFLOW_RUN_NAME_TAG
 from ddtrace.contrib.internal.mlflow.constants import MLFLOW_STEP_TAG
+from ddtrace.contrib.internal.mlflow.constants import MLflowLogType
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
@@ -1387,8 +1390,29 @@ def _on_httpx_send_completed(
         _finish_span(ctx, exc_info)
 
 
-def _on_mlflow_new_run(ctx: core.ExecutionContext, run_id: str, active_run_spans):
+def _on_mlflow_new_run(
+    ctx: core.ExecutionContext,
+    run_id: str,
+    experiment_id: str,
+    run_name: str,
+    run_tags: dict[str, Any],
+    active_run_spans,
+):
     span = ctx.span
+
+    span._set_tag_str(COMPONENT, config.mlflow.integration_name)
+    span._set_tag_str(SPAN_KIND, SpanKind.INTERNAL)
+    if experiment_id:
+        span._set_tag_str(MLFLOW_EXPERIMENT_ID_TAG, experiment_id)
+    if run_name:
+        span._set_tag_str(MLFLOW_RUN_NAME_TAG, run_name)
+
+    if run_tags and config.mlflow.trace_run_tags:
+        for key, value in run_tags.items():
+            try:
+                span._set_tag_str(key, str(value))
+            except Exception:  # nosec B112
+                continue
 
     span._set_tag_str(MLFLOW_RUN_ID_TAG, run_id)
     active_run_spans[run_id] = span
@@ -1424,7 +1448,7 @@ def _on_mlflow_end_run(
 
 def _on_mlflow_new_step(run_id: str, active_step_spans):
     new_step_span = tracer.trace(
-        "mlflow.step",
+        "run.step",
         service=config.mlflow.get("service", config.mlflow._default_service),
         span_type=SpanTypes.WORKER,
     )
@@ -1445,7 +1469,7 @@ def _on_mlflow_end_step(run_id: str, step_id: int, active_step_spans, run_exc_in
 def _on_mlflow_log(run_id: str, log_type: str, active_step_spans, key_value: tuple[str, Any]):
     step_span: Optional[Span] = active_step_spans.get(run_id, None)
     if step_span:
-        if log_type == "metrics":
+        if log_type == MLflowLogType.METRICS:
             step_span.set_metric(f"mlflow.{log_type}.{key_value[0]}", key_value[1])
         else:
             try:

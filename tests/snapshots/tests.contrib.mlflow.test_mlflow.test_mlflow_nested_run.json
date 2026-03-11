@@ -1,8 +1,8 @@
 [[
   {
-    "name": "mflow.run",
+    "name": "run",
     "service": "tests.contrib.mlflow",
-    "resource": "mflow.run",
+    "resource": "run",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,12 +10,12 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69aea07700000000",
+      "_dd.p.tid": "69b1461000000000",
       "component": "mlflow",
       "language": "python",
-      "mlflow.run_id": "d71a41648f344783a064c80a73e372bf",
+      "mlflow.run_id": "857b366d7d6a44d0a59ef1273d294fa3",
       "mlflow.run_name": "parent",
-      "runtime-id": "f261b407a27b4f6f877e4f1d6fb4f6e4",
+      "runtime-id": "00c5ae6586e749afa643c7d3f002dd8d",
       "span.kind": "internal"
     },
     "metrics": {
@@ -24,13 +24,13 @@
       "_sampling_priority_v1": 1.0,
       "process_id": 605.0
     },
-    "duration": 1296926334,
-    "start": 1773052023264521963
+    "duration": 2095201084,
+    "start": 1773225488180208762
   },
      {
-       "name": "mlflow.step",
+       "name": "run.step",
        "service": "tests.contrib.mlflow",
-       "resource": "mlflow.step",
+       "resource": "run.step",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -38,18 +38,18 @@
        "error": 0,
        "meta": {
          "component": "mlflow",
-         "mlflow.params.p": "1",
-         "mlflow.run_id": "d71a41648f344783a064c80a73e372bf",
+         "mlflow.MLflowLogType.PARAMS.p": "1",
+         "mlflow.run_id": "857b366d7d6a44d0a59ef1273d294fa3",
          "mlflow.step": "0",
          "span.kind": "internal"
        },
-       "duration": 1057899417,
-       "start": 1773052023503477338
+       "duration": 334454375,
+       "start": 1773225489940875180
      },
         {
-          "name": "mflow.run",
+          "name": "run",
           "service": "tests.contrib.mlflow",
-          "resource": "mflow.run",
+          "resource": "run",
           "trace_id": 0,
           "span_id": 3,
           "parent_id": 2,
@@ -57,17 +57,17 @@
           "error": 0,
           "meta": {
             "component": "mlflow",
-            "mlflow.run_id": "3b65916796b0432d970d81aa4d87edc6",
+            "mlflow.run_id": "dc20c4beb2694609a58d8e1ab0efbc77",
             "mlflow.run_name": "child_1",
             "span.kind": "internal"
           },
-          "duration": 777869875,
-          "start": 1773052023560564213
+          "duration": 80934792,
+          "start": 1773225489972486013
         },
            {
-             "name": "mlflow.step",
+             "name": "run.step",
              "service": "tests.contrib.mlflow",
-             "resource": "mlflow.step",
+             "resource": "run.step",
              "trace_id": 0,
              "span_id": 5,
              "parent_id": 3,
@@ -75,18 +75,18 @@
              "error": 0,
              "meta": {
                "component": "mlflow",
-               "mlflow.params.c1": "10",
-               "mlflow.run_id": "3b65916796b0432d970d81aa4d87edc6",
+               "mlflow.MLflowLogType.PARAMS.c1": "10",
+               "mlflow.run_id": "dc20c4beb2694609a58d8e1ab0efbc77",
                "mlflow.step": "0",
                "span.kind": "internal"
              },
-             "duration": 203359959,
-             "start": 1773052024134993338
+             "duration": 35372709,
+             "start": 1773225490017234721
            },
         {
-          "name": "mflow.run",
+          "name": "run",
           "service": "tests.contrib.mlflow",
-          "resource": "mflow.run",
+          "resource": "run",
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 2,
@@ -94,17 +94,17 @@
           "error": 0,
           "meta": {
             "component": "mlflow",
-            "mlflow.run_id": "4cd40356a70740c6807d76e4bea9b1e4",
+            "mlflow.run_id": "2c3d1f913b704b8e9013d754a715838c",
             "mlflow.run_name": "child_2",
             "span.kind": "internal"
           },
-          "duration": 212804417,
-          "start": 1773052024338579963
+          "duration": 209702500,
+          "start": 1773225490056470346
         },
            {
-             "name": "mlflow.step",
+             "name": "run.step",
              "service": "tests.contrib.mlflow",
-             "resource": "mlflow.step",
+             "resource": "run.step",
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
@@ -112,11 +112,11 @@
              "error": 0,
              "meta": {
                "component": "mlflow",
-               "mlflow.params.c2": "20",
-               "mlflow.run_id": "4cd40356a70740c6807d76e4bea9b1e4",
+               "mlflow.MLflowLogType.PARAMS.c2": "20",
+               "mlflow.run_id": "2c3d1f913b704b8e9013d754a715838c",
                "mlflow.step": "0",
                "span.kind": "internal"
              },
-             "duration": 19644459,
-             "start": 1773052024531663713
+             "duration": 20594375,
+             "start": 1773225490245472346
            }]]
