@@ -69,7 +69,12 @@ suites:
   iast_aggregated_leak_testing:
     pattern: ^iast_aggregated_leak_testing$
     paths:
-      - ddtrace/appsec/_iast/**
+      # AIDEV-NOTE: Keep both _iast globs. `fnmatch` needs the top-level `*`
+      # pattern to cover files directly under `_iast/`, while the Python 3.10
+      # pathlib glob used by `lint:suitespec-check` only sees nested files via
+      # `**/*` and reports a bare `/**` pattern as unmatched.
+      - ddtrace/appsec/_iast/*
+      - ddtrace/appsec/_iast/**/*
       - tests/appsec/iast_aggregated_memcheck/*
     runner: riot
     timeout: 30m
