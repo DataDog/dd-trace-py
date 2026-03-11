@@ -35,6 +35,8 @@ Parameters:
   (``BeforeModelCallEvent``, ``AfterModelCallEvent``) always raise.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from strands.hooks import AfterModelCallEvent as _AfterModelCallEvent
@@ -43,8 +45,15 @@ from strands.hooks import BeforeModelCallEvent as _BeforeModelCallEvent
 from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
 from strands.hooks import HookProvider as _StrandsHookProvider
 from strands.hooks import HookRegistry as _StrandsHookRegistry
-from strands.plugins import Plugin as _StrandsPlugin
-from strands.plugins import hook
+
+
+try:
+    from strands.plugins import Plugin as _StrandsPlugin
+    from strands.plugins import hook
+
+    _HAS_PLUGIN_API = True
+except ImportError:
+    _HAS_PLUGIN_API = False
 
 from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
@@ -323,38 +332,42 @@ class AIGuardStrandsIntegration:
             logger.debug("Failed to evaluate tool result", exc_info=True)
 
 
-class AIGuardStrandsPlugin(AIGuardStrandsIntegration, _StrandsPlugin):
-    """AI Guard security plugin for Strands Agents.
+if _HAS_PLUGIN_API:
 
-    Uses the Strands ``Plugin`` API with ``@hook`` decorators.  Pass an
-    instance via the ``plugins`` parameter::
+    class AIGuardStrandsPlugin(AIGuardStrandsIntegration, _StrandsPlugin):
+        """AI Guard security plugin for Strands Agents.
 
-        agent = Agent(plugins=[AIGuardStrandsPlugin()])
-    """
+        Uses the Strands ``Plugin`` API with ``@hook`` decorators.  Pass an
+        instance via the ``plugins`` parameter::
 
-    name = "ai-guard"
+            agent = Agent(plugins=[AIGuardStrandsPlugin()])
 
-    def __init__(self, *, detailed_error: bool = False, raise_error_on_tool_calls: bool = False):
-        _StrandsPlugin.__init__(self)
-        AIGuardStrandsIntegration.__init__(
-            self, detailed_error=detailed_error, raise_error_on_tool_calls=raise_error_on_tool_calls
-        )
+        Requires ``strands-agents>=1.29.0``.
+        """
 
-    @hook
-    def on_before_model_call(self, event: _BeforeModelCallEvent) -> None:
-        self._on_before_model_call_base(event)
+        name = "ai-guard"
 
-    @hook
-    def on_after_model_call(self, event: _AfterModelCallEvent) -> None:
-        self._on_after_model_call_base(event)
+        def __init__(self, *, detailed_error: bool = False, raise_error_on_tool_calls: bool = False):
+            _StrandsPlugin.__init__(self)
+            AIGuardStrandsIntegration.__init__(
+                self, detailed_error=detailed_error, raise_error_on_tool_calls=raise_error_on_tool_calls
+            )
 
-    @hook
-    def on_before_tool_call(self, event: _BeforeToolCallEvent) -> None:
-        self._on_before_tool_call_base(event)
+        @hook
+        def on_before_model_call(self, event: _BeforeModelCallEvent) -> None:
+            self._on_before_model_call_base(event)
 
-    @hook
-    def on_after_tool_call(self, event: _AfterToolCallEvent) -> None:
-        self._on_after_tool_call_base(event)
+        @hook
+        def on_after_model_call(self, event: _AfterModelCallEvent) -> None:
+            self._on_after_model_call_base(event)
+
+        @hook
+        def on_before_tool_call(self, event: _BeforeToolCallEvent) -> None:
+            self._on_before_tool_call_base(event)
+
+        @hook
+        def on_after_tool_call(self, event: _AfterToolCallEvent) -> None:
+            self._on_after_tool_call_base(event)
 
 
 class AIGuardStrandsHookProvider(AIGuardStrandsIntegration, _StrandsHookProvider):
