@@ -36,7 +36,7 @@ GEVENT_COMPATIBLE_WITH_PYTHON_VERSION = os.getenv("DD_PROFILE_TEST_GEVENT", Fals
 
 
 def _main_thread_has_native_id() -> bool:
-    """True if main thread has native_id (False for _DummyThread under gevent)."""
+    """True if main thread has native_id (False for _DummyThread which lacks _native_id)."""
     return getattr(threading.main_thread(), "native_id", None) is not None
 
 
@@ -96,7 +96,7 @@ def test_collect_truncate() -> None:
 
 def test_stack_locations(tmp_path: Path) -> None:
     if not _main_thread_has_native_id():
-        pytest.skip("Main thread is _DummyThread (gevent); thread name correlation unreliable")
+        pytest.skip("Main thread is _DummyThread (no native_id); thread name correlation unreliable")
     test_name = "test_stack_locations"
     pprof_prefix = str(tmp_path / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
@@ -622,7 +622,7 @@ def test_collect_gevent_thread_task() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
-    # thread_name correlation is unreliable when main thread is _DummyThread (gevent)
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
     expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
@@ -712,7 +712,7 @@ def test_collect_gevent_task_started_before_profiler() -> None:
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
-    # thread_name correlation is unreliable when main thread is _DummyThread (gevent)
+    # thread_name correlation is unreliable when main thread is _DummyThread (no native_id)
     expected_thread_name = "MainThread" if _main_thread_has_native_id() else None
     pprof_utils.assert_profile_has_sample(
         profile,
