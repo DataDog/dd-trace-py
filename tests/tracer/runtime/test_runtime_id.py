@@ -89,19 +89,21 @@ def test_ancestor_runtime_id():
 
     from ddtrace.internal import runtime
 
+    ancestor_runtime_id = runtime.get_runtime_id()
+
+    assert ancestor_runtime_id is not None
     assert runtime.get_ancestor_runtime_id() is None
-    main_runtime_id = runtime.get_runtime_id()
     child = os.fork()
 
     if child == 0:
-        assert main_runtime_id != runtime.get_runtime_id()
-        assert main_runtime_id == runtime.get_ancestor_runtime_id()
+        assert ancestor_runtime_id != runtime.get_runtime_id()
+        assert ancestor_runtime_id == runtime.get_ancestor_runtime_id()
 
         child = os.fork()
 
         if child == 0:
-            assert main_runtime_id != runtime.get_runtime_id()
-            assert main_runtime_id == runtime.get_ancestor_runtime_id()
+            assert ancestor_runtime_id != runtime.get_runtime_id()
+            assert ancestor_runtime_id == runtime.get_ancestor_runtime_id()
             os._exit(42)
 
         _, status = os.waitpid(child, 0)
@@ -117,7 +119,14 @@ def test_ancestor_runtime_id():
     assert runtime.get_ancestor_runtime_id() is None
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"}, err=None)
+@pytest.mark.subprocess(
+    env={
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+        "_DD_ROOT_PY_SESSION_ID": None,
+        "_DD_PARENT_PY_SESSION_ID": None,
+    },
+    err=None,
+)
 def test_parent_runtime_id():
     """get_parent_runtime_id() tracks the immediate parent process, not the root."""
     import os
