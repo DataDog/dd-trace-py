@@ -1,6 +1,17 @@
-"""AI Guard Hook Provider for AWS Strands Agents SDK.
+"""AI Guard integration for AWS Strands Agents SDK.
 
-Usage::
+Two entry points are provided:
+
+**Plugin (recommended)**::
+
+    from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin
+
+    agent = Agent(
+        model=model,
+        plugins=[AIGuardStrandsPlugin()]
+    )
+
+**HookProvider (legacy)**::
 
     from ddtrace.appsec.ai_guard import AIGuardStrandsHookProvider
 
@@ -9,7 +20,7 @@ Usage::
         hooks=[AIGuardStrandsHookProvider()]
     )
 
-The hook provider evaluates messages at key lifecycle points:
+Both classes evaluate messages at key lifecycle points:
 - ``BeforeModelCallEvent``: Scans user prompts before sending to the LLM
   (skips tool output messages already processed by ``AfterToolCallEvent``)
 - ``AfterModelCallEvent``: Scans model text responses for policy violations
@@ -32,6 +43,8 @@ from strands.hooks import BeforeModelCallEvent as _BeforeModelCallEvent
 from strands.hooks import BeforeToolCallEvent as _BeforeToolCallEvent
 from strands.hooks import HookProvider as _StrandsHookProvider
 from strands.hooks import HookRegistry as _StrandsHookRegistry
+from strands.plugins import Plugin as _StrandsPlugin
+from strands.plugins import hook
 
 from ddtrace.appsec._ai_guard.messages import try_format_json
 from ddtrace.appsec.ai_guard._api_client import AIGuardAbortError
@@ -142,34 +155,21 @@ def _convert_strands_messages(
     return result
 
 
-class AIGuardStrandsHookProvider(_StrandsHookProvider):
-    """AI Guard security hook provider for Strands Agents.
+class AIGuardStrandsIntegration:
+    """Shared AI Guard evaluation logic for Strands Agents. AIGuardStrandsIntegration is the shared base class holding all
+     AI Guard evaluation logic.  AIGuardStrandsPlugin (Plugin API) and
+     AIGuardStrandsHookProvider (legacy HookProvider API) are thin wrappers that
+     wire lifecycle events to the ``_on_*_base`` methods defined here.
 
-    Evaluates messages sent to LLMs and tool calls against Datadog AI Guard
-    security policies. When a policy violation is detected, the default behavior
-    is to replace the offending content with a blocked message.
-
-    Model call violations (``BeforeModelCallEvent`` and ``AfterModelCallEvent``)
-    always raise ``AIGuardAbortError``. Tool call violations default to replacing
-    content; set ``raise_error_on_tool_calls=True`` to raise instead.
-
-    :param detailed_error: If True, append the AI Guard reason to blocked messages.
-    :param raise_error_on_tool_calls: If True, raise ``AIGuardAbortError`` on tool call
-        violations instead of replacing output.
+    Subclasses only need to forward Strands lifecycle events to the
+    ``_on_*_base`` methods.  This class is **not** intended for direct use.
     """
 
     def __init__(self, *, detailed_error: bool = False, raise_error_on_tool_calls: bool = False):
         self._client: AIGuardClient = new_ai_guard_client()
         self._detailed_error = detailed_error
         self._raise_error_on_tool_calls = raise_error_on_tool_calls
-        logger.debug("AIGuardStrandsHookProvider initialized with client: %s", self._client)
-
-    def register_hooks(self, registry: _StrandsHookRegistry, **kwargs: Any) -> None:
-        """Register AI Guard callbacks for agent lifecycle events."""
-        registry.add_callback(_BeforeModelCallEvent, self._on_before_model_call)
-        registry.add_callback(_AfterModelCallEvent, self._on_after_model_call)
-        registry.add_callback(_AfterToolCallEvent, self._on_after_tool_call)
-        registry.add_callback(_BeforeToolCallEvent, self._on_before_tool_call)
+        logger.debug("%s initialized with client: %s", type(self).__name__, self._client)
 
     def _blocked_message(self, tool_name: str | None = None, reason: str | None = None) -> str:
         if tool_name:
@@ -180,7 +180,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
             msg += f": {reason}"
         return msg
 
-    def _on_before_model_call(self, event: _BeforeModelCallEvent) -> None:
+    def _on_before_model_call_base(self, event: _BeforeModelCallEvent) -> None:
         """Evaluate prompt messages before sending to the model.
 
         Skips tool output messages (already processed in AfterToolCall).
@@ -202,7 +202,7 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
 
-    def _on_after_model_call(self, event: _AfterModelCallEvent) -> None:
+    def _on_after_model_call_base(self, event: _AfterModelCallEvent) -> None:
         """Evaluate model response for policy violations.
 
         Only analyzes assistant text content (tool calls are analyzed
@@ -234,7 +234,50 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
         except Exception:
             logger.debug("Failed to evaluate model invocation", exc_info=True)
 
-    def _on_after_tool_call(self, event: _AfterToolCallEvent) -> None:
+    def _on_before_tool_call_base(self, event: _BeforeToolCallEvent) -> None:
+        """Evaluate a tool call before execution.
+
+        Builds the conversation history including the pending tool call
+        and evaluates it against security policies. On block: cancels the tool
+        with a descriptive message.
+        """
+        tool_name = ""
+        try:
+            logger.debug("AIGuard event: %s", event)
+            logger.debug("AIGuard agent: %s", event.agent)
+            if event.agent:
+                logger.debug("AIGuard message: %s", event.agent.messages)
+            tool_use = event.tool_use
+            tool_name = tool_use.get("name", "")
+            tool_use_id = tool_use.get("toolUseId", "")
+            tool_input = tool_use.get("input", {})
+
+            messages = event.agent.messages
+            ai_guard_messages = _convert_strands_messages(messages)
+            ai_guard_messages.append(
+                Message(
+                    role="assistant",
+                    tool_calls=[
+                        ToolCall(
+                            id=tool_use_id,
+                            function=Function(
+                                name=tool_name,
+                                arguments=try_format_json(tool_input),
+                            ),
+                        )
+                    ],
+                )
+            )
+            result = self._client.evaluate(ai_guard_messages, Options(block=True))
+            logger.debug("AIGuard client evaluate result: %s", result)
+        except AIGuardAbortError as e:
+            if self._raise_error_on_tool_calls:
+                raise
+            event.cancel_tool = self._blocked_message(tool_name=tool_name, reason=e.reason)
+        except Exception:
+            logger.debug("Failed to evaluate tool invocation", exc_info=True)
+
+    def _on_after_tool_call_base(self, event: _AfterToolCallEvent) -> None:
         """Evaluate tool result after execution.
 
         Builds the conversation history including the tool call and its result,
@@ -292,45 +335,56 @@ class AIGuardStrandsHookProvider(_StrandsHookProvider):
         except Exception:
             logger.debug("Failed to evaluate tool result", exc_info=True)
 
-    def _on_before_tool_call(self, event: _BeforeToolCallEvent) -> None:
-        """Evaluate a tool call before execution.
 
-        Builds the conversation history including the pending tool call
-        and evaluates it against security policies. On block: cancels the tool
-        with a descriptive message.
-        """
-        tool_name = ""
-        try:
-            logger.debug("AIGuard event: %s", event)
-            logger.debug("AIGuard agent: %s", event.agent)
-            if event.agent:
-                logger.debug("AIGuard message: %s", event.agent.messages)
-            tool_use = event.tool_use
-            tool_name = tool_use.get("name", "")
-            tool_use_id = tool_use.get("toolUseId", "")
-            tool_input = tool_use.get("input", {})
+class AIGuardStrandsPlugin(AIGuardStrandsIntegration, _StrandsPlugin):
+    """AI Guard security plugin for Strands Agents.
 
-            messages = event.agent.messages
-            ai_guard_messages = _convert_strands_messages(messages)
-            ai_guard_messages.append(
-                Message(
-                    role="assistant",
-                    tool_calls=[
-                        ToolCall(
-                            id=tool_use_id,
-                            function=Function(
-                                name=tool_name,
-                                arguments=try_format_json(tool_input),
-                            ),
-                        )
-                    ],
-                )
-            )
-            result = self._client.evaluate(ai_guard_messages, Options(block=True))
-            logger.debug("AIGuard client evaluate result: %s", result)
-        except AIGuardAbortError as e:
-            if self._raise_error_on_tool_calls:
-                raise
-            event.cancel_tool = self._blocked_message(tool_name=tool_name, reason=e.reason)
-        except Exception:
-            logger.debug("Failed to evaluate tool invocation", exc_info=True)
+    Uses the Strands ``Plugin`` API with ``@hook`` decorators.  Pass an
+    instance via the ``plugins`` parameter::
+
+        agent = Agent(plugins=[AIGuardStrandsPlugin()])
+    """
+
+    name = "ai-guard"
+
+    def __init__(self, *, detailed_error: bool = False, raise_error_on_tool_calls: bool = False):
+        _StrandsPlugin.__init__(self)
+        AIGuardStrandsIntegration.__init__(
+            self, detailed_error=detailed_error, raise_error_on_tool_calls=raise_error_on_tool_calls
+        )
+
+    @hook
+    def on_before_model_call(self, event: _BeforeModelCallEvent) -> None:
+        self._on_before_model_call_base(event)
+
+    @hook
+    def on_after_model_call(self, event: _AfterModelCallEvent) -> None:
+        self._on_after_model_call_base(event)
+
+    @hook
+    def on_before_tool_call(self, event: _BeforeToolCallEvent) -> None:
+        self._on_before_tool_call_base(event)
+
+    @hook
+    def on_after_tool_call(self, event: _AfterToolCallEvent) -> None:
+        self._on_after_tool_call_base(event)
+
+
+class AIGuardStrandsHookProvider(AIGuardStrandsIntegration, _StrandsHookProvider):
+    """AI Guard security hook provider for Strands Agents (legacy).
+
+    Uses the Strands ``HookProvider`` API with manual ``register_hooks``.
+    Pass an instance via the ``hooks`` parameter::
+
+        agent = Agent(hooks=[AIGuardStrandsHookProvider()])
+
+    .. note::
+        Prefer :class:`AIGuardStrandsPlugin` with ``plugins=`` for new code.
+    """
+
+    def register_hooks(self, registry: _StrandsHookRegistry, **kwargs: Any) -> None:
+        """Register AI Guard callbacks for agent lifecycle events."""
+        registry.add_callback(_BeforeModelCallEvent, self._on_before_model_call_base)
+        registry.add_callback(_AfterModelCallEvent, self._on_after_model_call_base)
+        registry.add_callback(_AfterToolCallEvent, self._on_after_tool_call_base)
+        registry.add_callback(_BeforeToolCallEvent, self._on_before_tool_call_base)

@@ -4164,7 +4164,7 @@ venv = Venv(
             name="ai_guard_strands",
             command="pytest {cmdargs} tests/appsec/ai_guard/strands_hooks/",
             pkgs={
-                "strands-agents": latest,
+                "strands-agents": ">=1.29.0",
             },
             venvs=[
                 Venv(
