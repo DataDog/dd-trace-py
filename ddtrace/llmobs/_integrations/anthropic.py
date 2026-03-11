@@ -127,6 +127,10 @@ class AnthropicIntegration(BaseLLMIntegration):
                         # Store a placeholder for potentially enormous binary image data.
                         input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
 
+                    elif _get_attr(block, "type", None) == "thinking":
+                        thinking_text = _get_attr(block, "thinking", "")
+                        input_messages.append(Message(content=str(thinking_text), role="reasoning"))
+
                     elif _get_attr(block, "type", None) == "tool_use":
                         text = _get_attr(block, "text", None)
                         input_data = _get_attr(block, "input", "")
@@ -181,6 +185,10 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         elif isinstance(content, list):
             for completion in content:
+                if _get_attr(completion, "type", None) == "thinking":
+                    thinking_text = _get_attr(completion, "thinking", "")
+                    output_messages.append(Message(content=str(thinking_text), role="reasoning"))
+                    continue
                 text = _get_attr(completion, "text", None)
                 if isinstance(text, str):
                     output_messages.append(Message(content=text, role=str(role)))
