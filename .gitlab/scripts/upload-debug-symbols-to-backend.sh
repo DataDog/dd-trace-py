@@ -14,10 +14,6 @@ set -euo pipefail
 DD_PUBLIC_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-public-symbol-api-key" --with-decryption --query "Parameter.Value" --out text)
 DD_PREPROD_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-preprod-symbol-api-key" --with-decryption --query "Parameter.Value" --out text)
 
-# Install datadog-ci standalone binary (no Node.js required)
-curl -L --fail "https://github.com/DataDog/datadog-ci/releases/latest/download/datadog-ci_linux-x64" --output "/usr/local/bin/datadog-ci"
-chmod +x /usr/local/bin/datadog-ci
-
 # Create a temporary directory to extract debug symbols
 SYMBOLS_DIR=$(mktemp -d)
 trap "rm -rf '${SYMBOLS_DIR}'" EXIT
