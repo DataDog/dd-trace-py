@@ -118,11 +118,6 @@ def _enrich_tags(tags) -> dict[str, str]:
     return tags
 
 
-def _validate_non_negative(value: t.Union[int, float]) -> None:
-    if value < 0:
-        raise ValueError("value must be non negative")
-
-
 class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
@@ -183,7 +178,7 @@ class ProfilingConfig(DDConfig):
         float,
         "upload_interval",
         default=60.0,
-        validator=_validate_non_negative,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Float",
         help="The interval in seconds to wait before flushing out recorded events",
     )
@@ -203,7 +198,7 @@ class ProfilingConfig(DDConfig):
         int,
         "max_frames",
         default=64,
-        validator=_validate_non_negative,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="The maximum number of frames to capture in stack execution tracing",
     )
@@ -232,7 +227,7 @@ class ProfilingConfig(DDConfig):
         int,
         "api_timeout_ms",
         default=10000,
-        validator=_validate_non_negative,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="The timeout in milliseconds before dropping events if the HTTP API does not reply",
     )
@@ -269,7 +264,7 @@ class ProfilingConfig(DDConfig):
         int,
         "sample_pool_capacity",
         default=4,
-        validator=_validate_non_negative,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help=(
             "The number of Sample objects to keep in the pool for reuse. "
@@ -345,7 +340,7 @@ class ProfilingConfigMemory(DDConfig):
         int,
         "events_buffer",
         default=16,
-        validator=_validate_non_negative,
+        validator=validators.range(0, t.cast(int, float("inf"))),
         help_type="Integer",
         help="",
     )
