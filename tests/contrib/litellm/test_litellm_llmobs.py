@@ -3,6 +3,9 @@ import pytest
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.litellm.utils import async_consume_stream_aiter
 from tests.contrib.litellm.utils import async_consume_stream_anext
@@ -517,6 +520,63 @@ class TestLLMObsLiteLLM:
         event_metrics = llmobs_events[0]["metrics"]
         assert "cache_read_input_tokens" in event_metrics
         assert "cache_write_input_tokens" in event_metrics
+
+    def test_completion_anthropic_cache_1h_ttl(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+        """Test that 1h cache TTL breakdown metrics are captured for Anthropic models via litellm."""
+        if stream or n > 1:
+            pytest.skip("Anthropic cassette is non-streamed, single-choice only")
+        if parse_version(get_version()) < (1, 77, 3):
+            pytest.skip("cache_creation_token_details not available until litellm 1.77.3")
+
+        large_system_prompt = "Hardware engineering best practices guide: " + "farewell " * 1024
+
+        with request_vcr.use_cassette("completion_anthropic_cache_write_1h_ttl.yaml"):
+            messages = [
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": large_system_prompt,
+                            "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                        }
+                    ],
+                    "role": "system",
+                },
+                {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "What are the key principles for designing scalable systems?",
+                            "cache_control": {"type": "ephemeral", "ttl": "5m"},
+                        }
+                    ],
+                    "role": "user",
+                },
+            ]
+            resp = litellm.completion(
+                model="anthropic/claude-sonnet-4-20250514",
+                messages=messages,
+            )
+            output_messages, token_metrics = parse_response(resp)
+
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="claude-sonnet-4-20250514",
+            model_provider="anthropic",
+            input_messages=messages,
+            output_messages=output_messages,
+            metadata={},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+
+        # Verify cache TTL breakdown metrics are present
+        event_metrics = llmobs_events[0]["metrics"]
+        assert CACHE_WRITE_INPUT_TOKENS_METRIC_KEY in event_metrics
+        assert event_metrics.get(CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY) == 2056
+        assert event_metrics.get(CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY) == 14
 
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
