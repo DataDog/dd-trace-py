@@ -380,6 +380,8 @@ class TestTag:
     TEST_FRAMEWORK_VERSION = "test.framework_version"
     TEST_SESSION_NAME = "test_session.name"
     TEST_NAME = "test.name"
+    TEST_ORIGINAL_NAME = "test.original_name"
+    TEST_PARAMETERIZED_NAME = "test.parameterized_name"
     TEST_SUITE = "test.suite"
 
     ENV = "env"
