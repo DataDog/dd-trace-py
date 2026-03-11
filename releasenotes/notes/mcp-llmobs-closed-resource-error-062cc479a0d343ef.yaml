@@ -2,11 +2,4 @@
 fixes:
   - |
     mcp: Fixes ``anyio.ClosedResourceError`` raised during MCP server session
-    teardown when the ddtrace MCP integration is enabled. The
-    ``traced_request_responder_respond`` wrapper previously called
-    ``llmobs_set_tags`` synchronously **before** ``await func(*args, **kwargs)``,
-    adding a synchronous delay that widened the race window in which the
-    session's ``_receive_loop`` could close ``_write_stream``. The response is
-    now sent first and ``llmobs_set_tags`` is called in a ``try/finally`` block
-    afterwards, matching the unpatched latency profile and ensuring telemetry
-    is still recorded on both success and failure.
+    teardown when the ddtrace MCP integration is enabled.
