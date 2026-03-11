@@ -10,9 +10,9 @@
 
 set -euo pipefail
 
-# Fetch API keys from AWS SSM
-DD_PUBLIC_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-public-symbol-api-key" --with-decryption --query "Parameter.Value" --out text)
-DD_PREPROD_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-preprod-symbol-api-key" --with-decryption --query "Parameter.Value" --out text)
+# Fetch API keys from AWS SSM (non-fatal so a missing key doesn't block the other upload)
+DD_PUBLIC_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-public-symbol-api-key" --with-decryption --query "Parameter.Value" --out text 2>/dev/null || true)
+DD_PREPROD_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-preprod-symbol-api-key" --with-decryption --query "Parameter.Value" --out text 2>/dev/null || true)
 
 # Create a temporary directory to extract debug symbols
 SYMBOLS_DIR=$(mktemp -d)
