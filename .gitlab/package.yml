@@ -292,7 +292,7 @@ download_dependency_wheels:
 # Runs automatically on releases/RCs, available as manual trigger for other pipelines.
 "upload debug symbols to backend":
   stage: release
-  image: registry.ddbuild.io/images/mirror/node:20
+  image: ${PYPI_PUBLISH_IMAGE}
   tags: ["arch:amd64"]
   needs:
     - job: "build linux"
@@ -304,12 +304,13 @@ download_dependency_wheels:
     # Manual trigger for any other pipeline
     - when: manual
       allow_failure: true
-  script:
+  before_script:
     - |
       curl -L "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.2.3.zip" -o "awscliv2.zip"
       echo "13ee8a87756aa61027bd87985d4da4dee7ac777a36410321b03621a943cf030e awscliv2.zip" | sha256sum --check
       unzip awscliv2.zip
       ./aws/install
+  script:
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh
 
 # Extract package version from pyproject.toml and save to dotenv artifact
