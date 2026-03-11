@@ -39,6 +39,7 @@ components:
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
+    - tests/snapshots/tests.contrib.celery.*
   cherrypy:
     - ddtrace/contrib/cherrypy.py
     - ddtrace/contrib/internal/cherrypy/*
@@ -118,6 +119,8 @@ components:
     - ddtrace/contrib/internal/mlflow/*
   mariadb:
     - ddtrace/contrib/internal/mariadb/*
+  mlflow:
+    - ddtrace/contrib/internal/mlflow/*
   molten:
     - ddtrace/contrib/internal/molten/*
   mongo:
@@ -898,6 +901,17 @@ suites:
       - mariadb
     snapshot: true
     venvs_per_job: 2
+  mlflow:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mlflow'
+      - tests/contrib/mlflow/*
+    runner: riot
+    snapshot: true
   molten:
     parallelism: 1
     paths:

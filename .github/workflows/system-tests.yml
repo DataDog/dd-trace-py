@@ -5,36 +5,32 @@ on:
     branches:
       - main
       - mq-working-branch-*
-  pull_request:
-    paths-ignore:
-      # CI config (GitLab / editor / AI tooling)
-      - '.gitlab-ci.yml'
-      - '.gitlab/**'
-      - '.cursor/**'
-      - '.claude/**'
-      # Documentation and legal
-      - 'docs/**'
-      - 'releasenotes/**'
-      - '*.md'
-      - '*.rst'
-      - 'LICENSE*'
-      - 'NOTICE'
-      # Tests and benchmarks (not packaged into the wheel)
-      - 'tests/**'
-      - 'benchmarks/**'
-      # Scripts, except the wheel downloader which this workflow depends on
-      - 'scripts/**'
-      - '!scripts/download-s3-wheels.sh'
-      # Git/repo config
-      - '.gitignore'
-      - '.gitattributes'
+  pull_request: {}
   workflow_dispatch: {}
   schedule:
     - cron: '00 04 * * 2-6'
 
 jobs:
+  should-run:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check if relevant paths changed
+        id: check
+        run: |
+          .github/scripts/should-run.sh "${{ github.event_name }}" \
+            "${{ github.event.pull_request.base.sha }}"
+
   download-s3-wheels:
-    if: github.event_name != 'schedule' || github.event.repository.fork == false
+    needs: [should-run]
+    if: needs.should-run.outputs.run == 'true' && (github.event_name != 'schedule' || github.event.repository.fork == false)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -94,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
+          ref: 'f65241afd4c85b958e114bae5317645c9a6ade30'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
@@ -147,7 +143,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
+          ref: 'f65241afd4c85b958e114bae5317645c9a6ade30'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -249,6 +245,10 @@ jobs:
       - name: Run APPSEC_STANDALONE_API_SECURITY
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
         run: ./run.sh APPSEC_STANDALONE_API_SECURITY
+
+      - name: Run APPSEC_API_SECURITY
+        if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
+        run: ./run.sh APPSEC_API_SECURITY
 
       - name: Run IAST_STANDALONE
         if: always() && steps.docker_load.outcome == 'success' && matrix.scenario == 'appsec-1'
@@ -352,7 +352,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'dec99dfb2cda089a20036dcef710aab1cd17660b'
+          ref: 'f65241afd4c85b958e114bae5317645c9a6ade30'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -455,13 +455,22 @@ jobs:
     name: system-tests finished
     runs-on: ubuntu-latest
     needs: [parametric, system-tests, serverless-system-tests, integration-frameworks-system-tests]
-    if: success() || failure()
+    if: always()
     steps:
       - name: Print results
         run: |
           echo "parametric: ${{ needs.parametric.result }}"
           echo "system-tests: ${{ needs.system-tests.result }}"
           echo "serverless-system-tests: ${{ needs.serverless-system-tests.result }}"
-      - name: Fail if any dependency failed
-        if: needs.parametric.result != 'success' || needs.system-tests.result != 'success' || needs.serverless-system-tests.result != 'success'
+          echo "integration-frameworks-system-tests: ${{ needs.integration-frameworks-system-tests.result }}"
+      - name: Fail if any dependency failed or was cancelled
+        if: |
+          needs.parametric.result == 'failure' ||
+          needs.parametric.result == 'cancelled' ||
+          needs.system-tests.result == 'failure' ||
+          needs.system-tests.result == 'cancelled' ||
+          needs.serverless-system-tests.result == 'failure' ||
+          needs.serverless-system-tests.result == 'cancelled' ||
+          needs.integration-frameworks-system-tests.result == 'failure' ||
+          needs.integration-frameworks-system-tests.result == 'cancelled'
         run: exit 1
