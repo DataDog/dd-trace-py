@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pydantic_ai
 import pytest
 from typing_extensions import TypedDict

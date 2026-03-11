@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from time import sleep
-
-import mock
+from unittest import mock
 
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 from ddtrace.internal.service import ServiceStatus

@@ -1,7 +1,7 @@
 import functools
 import os
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.constants import _SPAN_MEASURED_KEY

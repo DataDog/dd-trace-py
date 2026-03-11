@@ -1,8 +1,8 @@
 import json
 import logging
 import os.path
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.appsec import _asm_request_context

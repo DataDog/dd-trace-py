@@ -1,8 +1,8 @@
 from __future__ import division
 
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter

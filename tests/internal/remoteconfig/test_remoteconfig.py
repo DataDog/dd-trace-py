@@ -4,8 +4,8 @@ import datetime
 import hashlib
 import json
 import sys
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace._trace.product import _convert_rc_trace_sampling_rules

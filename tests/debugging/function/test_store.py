@@ -1,5 +1,5 @@
-import mock
-from mock.mock import call
+from unittest import mock
+from unittest.mock import call
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.discovery import undecorated

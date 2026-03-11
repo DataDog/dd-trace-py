@@ -115,7 +115,6 @@ _appsec_threats_iast_env = {
 
 venv = Venv(
     pkgs={
-        "mock": latest,
         "pytest": latest,
         "pytest-mock": latest,
         "coverage": latest,
@@ -2694,7 +2693,6 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
-                "mock": latest,
                 "flask": latest,
                 "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
@@ -2721,7 +2719,6 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-randomly": latest,
-                "mock": latest,
             },
             venvs=[
                 Venv(

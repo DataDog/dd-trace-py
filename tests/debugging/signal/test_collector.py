@@ -1,9 +1,8 @@
 import inspect
 import sys
 import threading
+from unittest import mock
 from uuid import uuid4
-
-import mock
 
 from ddtrace.debugging._probe.model import ProbeEvalTiming
 from ddtrace.debugging._signal.collector import SignalCollector

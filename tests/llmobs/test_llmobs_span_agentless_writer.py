@@ -3,8 +3,8 @@ from http.server import HTTPServer
 import os
 import threading
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL

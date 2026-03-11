@@ -1,7 +1,7 @@
 import json
+from unittest import mock
+from unittest.mock import patch as mock_patch
 
-import mock
-from mock import patch as mock_patch
 import pytest
 
 from ddtrace.llmobs import LLMObs

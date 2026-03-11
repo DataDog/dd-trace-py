@@ -2,9 +2,9 @@
 import enum
 import json
 import os
+from unittest import mock
+from unittest.mock import ANY
 
-import mock
-from mock.mock import ANY
 import pytest
 
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
