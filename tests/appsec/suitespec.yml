@@ -66,9 +66,14 @@ suites:
       - '@remoteconfig'
     retry: 2
     runner: riot
-  # Defined in .gitlab/templates/appsec/iast_aggregated_leak_testing.yml
-  # Dependent paths defined in scripts/gen_gitlab_config.py
-  # iast_aggregated_leak_testing:
+  iast_aggregated_leak_testing:
+    pattern: ^iast_aggregated_leak_testing$
+    paths:
+      - ddtrace/appsec/_iast/**
+      - tests/appsec/iast_aggregated_memcheck/*
+    runner: riot
+    timeout: 30m
+    venvs_per_job: 1
   appsec_iast_packages:
     venvs_per_job: 1
     paths:

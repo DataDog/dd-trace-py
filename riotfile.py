@@ -1402,6 +1402,25 @@ venv = Venv(
             },
         ),
         Venv(
+            name="iast_aggregated_leak_testing",
+            command="pytest --no-cov {cmdargs} tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
+            pys=["3.10", "3.11", "3.12"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "hypothesis": latest,
+                "requests": latest,
+                "pytest-asyncio": latest,
+                "anyio": latest,
+                "pydantic": latest,
+                "pydantic-settings": latest,
+            },
+            env={
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
+            },
+        ),
+        Venv(
             name="pymemcache",
             pys=select_pys(),
             pkgs={
