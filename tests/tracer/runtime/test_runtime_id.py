@@ -73,7 +73,13 @@ def test_get_runtime_id_double_fork():
     assert exit_code == 42
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(
+    env={
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+        "_DD_ROOT_PY_SESSION_ID": None,
+        "_DD_PARENT_PY_SESSION_ID": None,
+    }
+)
 def test_ancestor_runtime_id():
     """
     Check that the ancestor runtime ID is set after a fork, and that it remains
@@ -87,7 +93,6 @@ def test_ancestor_runtime_id():
 
     assert ancestor_runtime_id is not None
     assert runtime.get_ancestor_runtime_id() is None
-
     child = os.fork()
 
     if child == 0:
@@ -114,7 +119,14 @@ def test_ancestor_runtime_id():
     assert runtime.get_ancestor_runtime_id() is None
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"}, err=None)
+@pytest.mark.subprocess(
+    env={
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+        "_DD_ROOT_PY_SESSION_ID": None,
+        "_DD_PARENT_PY_SESSION_ID": None,
+    },
+    err=None,
+)
 def test_parent_runtime_id():
     """get_parent_runtime_id() tracks the immediate parent process, not the root."""
     import os
