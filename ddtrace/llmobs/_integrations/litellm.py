@@ -224,9 +224,7 @@ class LiteLLMIntegration(BaseLLMIntegration):
             cache_creation_tokens = _get_attr(prompt_tokens_details, "cache_creation_tokens", None)
             if cache_creation_tokens:
                 metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_creation_tokens
-                cache_creation_token_details = _get_attr(
-                    prompt_tokens_details, "cache_creation_token_details", None
-                )
+                cache_creation_token_details = _get_attr(prompt_tokens_details, "cache_creation_token_details", None)
                 if cache_creation_token_details is not None:
                     ephemeral_1h = _get_attr(cache_creation_token_details, "ephemeral_1h_input_tokens", None)
                     ephemeral_5m = _get_attr(cache_creation_token_details, "ephemeral_5m_input_tokens", None)
