@@ -612,3 +612,19 @@ def test_lazy_decorator():
     import tests.internal.lazy as lazy
 
     assert lazy.new_value == 42
+
+
+def test_origin_returns_none_on_oserror():
+    """origin() handles OSError from Path.resolve() on gVisor containers."""
+    from types import ModuleType
+
+    module = ModuleType("fake_module")
+    module.__file__ = "/some/path.py"
+
+    # __spec__.origin also needs to trigger OSError to cover the fallback
+    module.__spec__ = type("FakeSpec", (), {"origin": "/some/path.py"})()
+
+    with mock.patch("ddtrace.internal.module.Path") as MockPath:
+        MockPath.return_value.resolve.side_effect = FileNotFoundError
+        result = origin(module)
+    assert result is None
