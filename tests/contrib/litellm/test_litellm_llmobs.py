@@ -579,6 +579,41 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
+    def test_completion_with_reasoning(self, litellm, request_vcr, llmobs_events, test_spans, stream, n):
+        """Test that reasoning_content and reasoning_output_tokens are captured for models with reasoning."""
+        if stream or n > 1:
+            pytest.skip("Reasoning cassette is non-streamed, single-choice only")
+
+        with request_vcr.use_cassette("completion_reasoning.yaml"):
+            messages = [{"content": "Hey, what is up?", "role": "user"}]
+            resp = litellm.completion(
+                model="o3-mini",
+                messages=messages,
+            )
+            output_messages, token_metrics = parse_response(resp)
+
+        span = test_spans.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == _expected_llmobs_llm_span_event(
+            span,
+            model_name="o3-mini",
+            model_provider="openai",
+            input_messages=messages,
+            output_messages=output_messages,
+            metadata={},
+            token_metrics=token_metrics,
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
+        )
+
+        # Verify reasoning output message is present
+        event_output = llmobs_events[0]["meta"]["output"]["messages"]
+        assert any(msg.get("role") == "reasoning" for msg in event_output)
+
+        # Verify reasoning_output_tokens metric is present
+        event_metrics = llmobs_events[0]["metrics"]
+        assert "reasoning_output_tokens" in event_metrics
+        assert event_metrics["reasoning_output_tokens"] == 15
+
 
 def test_enable_llmobs_after_litellm_was_imported(run_python_code_in_subprocess):
     """

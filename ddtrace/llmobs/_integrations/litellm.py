@@ -14,6 +14,7 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -207,6 +208,11 @@ class LiteLLMIntegration(BaseLLMIntegration):
             OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
             TOTAL_TOKENS_METRIC_KEY: prompt_tokens + completion_tokens,
         }
+        completion_tokens_details = _get_attr(token_usage, "completion_tokens_details", {})
+        if completion_tokens_details:
+            reasoning_tokens = _get_attr(completion_tokens_details, "reasoning_tokens", None)
+            if reasoning_tokens is not None:
+                metrics[REASONING_OUTPUT_TOKENS_METRIC_KEY] = reasoning_tokens
 
         # Extract cache read tokens from litellm's normalized prompt_tokens_details
         prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", None)
