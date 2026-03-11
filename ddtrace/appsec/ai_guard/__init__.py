@@ -29,7 +29,7 @@ try:
 except PackageNotFoundError:
     _HAS_STRANDS = False
 
-# AIDEV-NOTE: HookProvider and Plugin are imported independently so that a
+# HookProvider and Plugin are imported independently so that a
 # missing Plugin API (strands-agents < 1.29.0) does not break the legacy
 # HookProvider import.
 _HAS_STRANDS_HOOK_PROVIDER = False
