@@ -3232,9 +3232,15 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
             venvs=[
                 Venv(
-                    pys=select_pys(max_version="3.12"),
+                    pys=select_pys(max_version="3.11"),
                     pkgs={
                         "google-cloud-pubsub": ["==2.10.0", latest],
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.12", max_version="3.12"),
+                    pkgs={
+                        "google-cloud-pubsub": ["==2.14.0", latest],
                     },
                 ),
                 Venv(
