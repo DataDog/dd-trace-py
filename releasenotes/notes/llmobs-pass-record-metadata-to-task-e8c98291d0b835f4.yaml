@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Experiment tasks can now optionally receive dataset record metadata as a third ``metadata`` parameter.
+    Tasks with the existing ``(input_data, config)`` signature continue to work unchanged.

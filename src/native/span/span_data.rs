@@ -1,83 +1,25 @@
 use pyo3::{
-    types::{PyAnyMethods as _, PyDict, PyInt, PyModule, PyModuleMethods as _, PyTuple},
-    Bound, IntoPyObject as _, Py, PyAny, PyResult, Python,
+    types::{PyAnyMethods as _, PyDict, PyTuple},
+    Bound, IntoPyObject as _, Py, PyAny, Python,
 };
-use std::time::SystemTime;
 
 use crate::py_string::{PyBackedString, PyTraceData};
-use libdd_trace_utils::span::SpanText;
+use libdd_trace_utils::span::SpanText as _;
 
-#[pyo3::pyclass(name = "SpanEventData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
-pub struct SpanEventData {}
-
-#[pyo3::pymethods]
-impl SpanEventData {
-    #[new]
-    #[pyo3(signature =(
-        *_py_args,
-        **_py_kwargs,
-    ))]
-    pub fn __new__(_py_args: &Bound<'_, PyTuple>, _py_kwargs: Option<&Bound<'_, PyDict>>) -> Self {
-        Self::default()
-    }
-
-    pub fn __init__(
-        &mut self,
-        _name: &Bound<'_, PyAny>,
-        _attributes: Option<&Bound<'_, PyAny>>,
-        _time_unix_nano: Option<u64>,
-    ) -> PyResult<()> {
-        Ok(())
-    }
-}
-
-#[pyo3::pyclass(name = "SpanLinkData", module = "ddtrace.internal._native", subclass)]
-#[derive(Default)]
-pub struct SpanLinkData {}
-
-#[pyo3::pymethods]
-impl SpanLinkData {
-    #[new]
-    #[pyo3(signature =(
-        *_py_args,
-        **_py_kwargs,
-    ))]
-    pub fn __new__(_py_args: &Bound<'_, PyTuple>, _py_kwargs: Option<&Bound<'_, PyDict>>) -> Self {
-        Self::default()
-    }
-
-    #[pyo3(signature = (
-        trace_id,
-        span_id,
-        tracestate = None,
-        flags = None,
-        attributes = None,
-        _dropped_attributes = 0,
-    ))]
-    #[allow(unused_variables)]
-    pub fn __init__<'p>(
-        &mut self,
-        trace_id: &Bound<'p, PyInt>,
-        span_id: &Bound<'p, PyInt>,
-        tracestate: Option<&Bound<'p, PyAny>>,
-        flags: Option<&Bound<'p, PyInt>>,
-        attributes: Option<&Bound<'p, PyAny>>,
-        _dropped_attributes: u32,
-    ) -> PyResult<()> {
-        Ok(())
-    }
-}
+use super::utils::{
+    extract_backed_string_or_default, extract_backed_string_or_none, extract_i32_or_default,
+    extract_i64_or_default, wall_clock_ns,
+};
 
 #[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
 #[derive(Default)]
 pub struct SpanData {
-    data: libdd_trace_utils::span::v04::Span<PyTraceData>,
-    span_api: PyBackedString,
+    pub data: libdd_trace_utils::span::v04::Span<PyTraceData>,
+    pub span_api: PyBackedString,
     /// Lazy Python int cache for the `trace_id` getter.
     /// Populated on first read; invalidated on every write to `data.trace_id`.
     /// `data.trace_id` is always the source of truth.
-    _trace_id_py: Option<Py<PyAny>>,
+    pub _trace_id_py: Option<Py<PyAny>>,
 }
 
 impl SpanData {
@@ -87,56 +29,10 @@ impl SpanData {
     /// consistent. Bypassing it leaves a stale cached Python int that silently returns the
     /// old value on the next `span.trace_id` read.
     #[inline(always)]
-    fn set_trace_id_native(&mut self, id: u128) {
+    pub fn set_trace_id_native(&mut self, id: u128) {
         self.data.trace_id = id;
         self._trace_id_py = None;
     }
-}
-
-/// Extract PyBackedString from Python object, falling back to empty string on error.
-///
-/// Used for required properties (like `name`) which must always have a value.
-/// Invalid types (int, float, list, etc.) are silently converted to "" rather than raising an error.
-#[inline(always)]
-fn extract_backed_string_or_default(obj: &Bound<'_, PyAny>) -> PyBackedString {
-    obj.extract::<PyBackedString>().unwrap_or_default()
-}
-
-/// Extract PyBackedString from Python object, falling back to None on error.
-///
-/// Used for optional properties (like `service`) which can be None.
-/// Invalid types (int, float, list, etc.) are silently converted to None rather than raising an error.
-#[inline(always)]
-fn extract_backed_string_or_none(obj: &Bound<'_, PyAny>) -> PyBackedString {
-    let py = obj.py();
-    obj.extract::<PyBackedString>()
-        .unwrap_or_else(|_| PyBackedString::py_none(py))
-}
-
-/// Extract i64 from Python object, falling back to 0 on error.
-/// Accepts int or float (truncated).
-#[inline(always)]
-fn extract_i64_or_default(obj: &Bound<'_, PyAny>) -> i64 {
-    obj.extract::<i64>()
-        .or_else(|_| obj.extract::<f64>().map(|f| f as i64))
-        .unwrap_or(0)
-}
-
-/// Extract i32 from Python object, falling back to 0 on error.
-/// Note: Python bool subclasses int, so bools extract as 0/1 automatically.
-#[inline(always)]
-fn extract_i32_or_default(obj: &Bound<'_, PyAny>) -> i32 {
-    obj.extract::<i32>().unwrap_or(0)
-}
-
-/// Get wall clock time in nanoseconds since Unix epoch.
-/// Uses SystemTime for wall clock (matches Python's time.time_ns()).
-#[inline(always)]
-fn wall_clock_ns() -> i64 {
-    SystemTime::UNIX_EPOCH
-        .elapsed()
-        .map(|d| d.as_nanos() as i64)
-        .unwrap_or(0)
 }
 
 #[pyo3::pymethods]
@@ -503,11 +399,4 @@ impl SpanData {
     fn set_span_api(&mut self, value: &Bound<'_, PyAny>) {
         self.span_api = extract_backed_string_or_default(value);
     }
-}
-
-pub fn register_native_span(m: &pyo3::Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<SpanLinkData>()?;
-    m.add_class::<SpanEventData>()?;
-    m.add_class::<SpanData>()?;
-    Ok(())
 }
