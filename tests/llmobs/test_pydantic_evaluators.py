@@ -173,3 +173,46 @@ class TestPydanticEvaluatorInExperiment:
         result = eval_results[0]["evaluations"]["simple_pydantic_eval"]
         assert result["value"] is False
         assert result["assessment"] == "fail"
+
+    @pytest.mark.asyncio
+    async def test_async_experiment_run_with_pydantic_evaluator(self, llmobs):
+        """Run an async experiment with a pydantic evaluator and assert it completes with correct results."""
+        async def async_dummytask(input_data, config):
+            return input_data.get("value", "")
+
+        dataset = Dataset(
+            name="test_dataset",
+            project={"name": "test_project", "_id": "proj_123"},
+            dataset_id="ds_123",
+            records=[
+                {
+                    "record_id": "rec_1",
+                    "input_data": {"value": "test"},
+                    "expected_output": "test",
+                    "metadata": {},
+                }
+            ],
+            description="Test dataset",
+            latest_version=1,
+            version=1,
+            _dne_client=None,
+        )
+
+        pydantic_evaluator = _make_simple_pydantic_evaluator()
+        exp = llmobs.async_experiment(
+            "test_async_experiment",
+            async_dummytask,
+            dataset,
+            [pydantic_evaluator],
+        )
+
+        run_info = _ExperimentRunInfo(0)
+        task_results = await exp._run_task(1, run=run_info, raise_errors=False)
+        eval_results = await exp._run_evaluators(task_results, raise_errors=False)
+
+        assert len(eval_results) == 1
+        assert "simple_pydantic_eval" in eval_results[0]["evaluations"]
+        result = eval_results[0]["evaluations"]["simple_pydantic_eval"]
+        assert result["error"] is None
+        assert result["value"] is True
+        assert result["assessment"] == "pass"
