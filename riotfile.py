@@ -3350,17 +3350,18 @@ venv = Venv(
                 "pandas": latest,
             },
             venvs=[
-                # Python 3.9: llmobs without deepeval (deepeval requires 3.10+ for X|None type hints)
+                # Python 3.9: llmobs without optional eval deps (deepeval/pydantic_evals require 3.10+)
                 Venv(
                     pys=["3.9"],
-                    command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py",
+                    command="pytest {cmdargs} tests/llmobs --ignore=tests/llmobs/test_deep_eval_evaluators.py --ignore=tests/llmobs/test_pydantic_evaluators.py",
                 ),
-                # Python 3.10+: llmobs with deepeval (runs all tests including test_deep_eval_evaluators.py)
+                # Python 3.10+: llmobs with deepeval and pydantic-evals (runs all tests)
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.13"),
                     command="pytest {cmdargs} tests/llmobs",
                     pkgs={
                         "deepeval": latest,
+                        "pydantic-evals": latest,
                     },
                 ),
             ],

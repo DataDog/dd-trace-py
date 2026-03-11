@@ -1526,7 +1526,10 @@ class LLMObs(Service):
                 evaluators_list[idx] = _deep_eval_evaluator_wrapper(evaluator)
                 continue
             if _is_pydantic_evaluator(evaluator):
-                evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, cls._llmobs_instance._current_span().duration_ns)
+                duration = 0
+                if cls._instance._current_span() is not None:
+                    duration = cls._instance._current_span().duration_ns
+                evaluators_list[idx] = _pydantic_evaluator_wrapper(evaluator, duration)
                 continue
         if summary_evaluators and not all(
             callable(summary_evaluator) or isinstance(summary_evaluator, BaseSummaryEvaluator)
@@ -1607,7 +1610,10 @@ class LLMObs(Service):
                 evaluators_list[idx] = _deep_eval_async_evaluator_wrapper(evaluator)
                 continue
             if _is_pydantic_evaluator(evaluator):
-                evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator, cls._llmobs_instance._current_span().duration_ns)
+                duration = 0
+                if cls._instance._current_span() is not None:
+                    duration = cls._instance._current_span().duration_ns    
+                evaluators_list[idx] = _pydantic_async_evaluator_wrapper(evaluator, duration)
                 continue
         if summary_evaluators:
             for summary_evaluator in summary_evaluators:
