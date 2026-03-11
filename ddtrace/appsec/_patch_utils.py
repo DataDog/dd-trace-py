@@ -1,6 +1,7 @@
 import ctypes
 from typing import Any
 from typing import Callable
+from typing import Optional
 
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
@@ -14,7 +15,7 @@ log = get_logger(__name__)
 _DD_ORIGINAL_ATTRIBUTES: dict[Any, Any] = {}
 
 
-def try_unwrap(module, name):
+def try_unwrap(module: Any, name: str) -> None:
     try:
         (parent, attribute, _) = resolve_path(module, name)
         if (parent, attribute) in _DD_ORIGINAL_ATTRIBUTES:
@@ -25,16 +26,22 @@ def try_unwrap(module, name):
         log.debug("ERROR unwrapping %s.%s ", module, name)
 
 
-def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable) -> None:
+def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable[..., Any]) -> None:
     @ModuleWatchdog.after_module_imported(module_name)
-    def _(module):
+    def _(module: Any) -> None:
         try:
             wrap_object(module, name, FunctionWrapper, (wrapper,))
         except (ImportError, AttributeError):
             log.debug("Module %s.%s does not exist", module_name, name)
 
 
-def wrap_object(module, name, factory, args=(), kwargs=None):
+def wrap_object(
+    module: Any,
+    name: str,
+    factory: Callable[..., Any],
+    args: tuple[Any, ...] = (),
+    kwargs: Optional[dict[str, Any]] = None,
+) -> Any:
     if kwargs is None:
         kwargs = {}
     (parent, attribute, original) = resolve_path(module, name)
@@ -44,7 +51,7 @@ def wrap_object(module, name, factory, args=(), kwargs=None):
     return wrapper
 
 
-def apply_patch(parent, attribute, replacement):
+def apply_patch(parent: Any, attribute: str, replacement: Any) -> None:
     try:
         current_attribute = getattr(parent, attribute)
         # Avoid overwriting the original function if we call this twice
@@ -60,12 +67,12 @@ def apply_patch(parent, attribute, replacement):
         patch_builtins(parent, attribute, replacement)
 
 
-def patchable_builtin(klass):
+def patchable_builtin(klass: type[Any]) -> Any:
     refs = gc.get_referents(klass.__dict__)
     return refs[0]
 
 
-def patch_builtins(klass, attr, value):
+def patch_builtins(klass: type[Any], attr: str, value: Any) -> None:
     """Based on forbiddenfruit package:
     https://github.com/clarete/forbiddenfruit/blob/master/forbiddenfruit/__init__.py#L421
     ---

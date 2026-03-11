@@ -351,6 +351,11 @@ class ProfilingConfigHeap(DDConfig):
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 
 
+def _validate_non_negative_int(value: int) -> None:
+    if value < 0:
+        raise ValueError("value must be non negative")
+
+
 class ProfilingConfigPytorch(DDConfig):
     __item__ = __prefix__ = "pytorch"
 
@@ -366,6 +371,7 @@ class ProfilingConfigPytorch(DDConfig):
         int,
         "events_limit",
         default=1_000_000,
+        validator=_validate_non_negative_int,
         help_type="Integer",
         help="How many events the PyTorch profiler records each collection",
     )
