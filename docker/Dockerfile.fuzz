@@ -15,9 +15,9 @@
 #       --slack-channel fuzzing-ops \
 #       --repository-url https://github.com/DataDog/dd-trace-py
 
-# ── Stage 1: deps — all build dependencies ───────────────────────────
+# ── Build dependencies ────────────────────────────────────────────────
 ARG PYTHON_IMAGE_TAG=3.12.0
-FROM registry.ddbuild.io/images/mirror/python:${PYTHON_IMAGE_TAG} AS deps
+FROM registry.ddbuild.io/images/mirror/python:${PYTHON_IMAGE_TAG} AS build
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -29,6 +29,7 @@ RUN apt-get update \
     git \
     libclang-rt-dev \
     lld \
+    llvm \
     make \
     ninja-build \
     curl \
@@ -49,8 +50,7 @@ RUN FUZZYDOG_VERSION=0.26.2 \
 # Standard fuzzer directory layout
 RUN mkdir -p /fuzzer/inputs /fuzzer/crashes /fuzzer/builds
 
-# ── Stage 2: build — discover, build, and package all fuzz targets ───
-FROM deps AS build
+# ── Build and package all fuzz targets ────────────────────────────────
 WORKDIR /src
 COPY . /src
 
@@ -60,6 +60,8 @@ RUN find /src -path '*/fuzz/build.sh' -type f | while IFS= read -r script; do \
       (cd "$(dirname "$script")" && bash "$script"); \
     done
 
+# Copy built binaries and LSan suppression file to /fuzzer/builds/
+RUN while IFS= read -r bin; do cp "$bin" /fuzzer/builds/; done < /fuzz_binaries.txt \
   && cp /tmp/fuzz/build/fuzz/lsan.supp /fuzzer/builds/lsan.supp \
   && ls -la /fuzzer/builds/
 
@@ -74,6 +76,9 @@ CMD ["fuzzydog", "fuzzer", "run", "dd-trace-py-local", "fuzz_echion_remote_read"
      "--slack-channel", "fuzzing-ops", \
      "--repository-url", "https://github.com/DataDog/dd-trace-py"]
 
-# ── Manifest — export the fuzz binary list for CI ─────────────────────
+# ── Manifest stage (lightweight, used by CI to extract the binary list) ──
 FROM scratch AS manifest
-COPY --from=build /tmp/fuzz/build/fuzz_binaries.txt /fuzz_binaries.txt
+COPY --from=build /fuzz_binaries.txt /fuzz_binaries.txt
+
+# ── Default stage (so `docker build` without --target still works) ──
+FROM build

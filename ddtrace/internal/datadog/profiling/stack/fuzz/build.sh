@@ -3,7 +3,7 @@ set -eo pipefail
 
 FUZZ_TARGETS="fuzz_echion_remote_read fuzz_echion_strings fuzz_echion_mirrors fuzz_echion_stacks fuzz_echion_tasks fuzz_echion_long fuzz_echion_interp"
 BUILD_DIR=/tmp/fuzz/build
-MANIFEST_FILE="${BUILD_DIR}/fuzz_binaries.txt"
+MANIFEST_FILE="/fuzz_binaries.txt"
 
 # Get the directory where this script lives, then go up one level to the stack source
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
