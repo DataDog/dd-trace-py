@@ -30,7 +30,7 @@ fi
 echo "Extracting debug symbols from ${#SYMBOL_PACKAGES[@]} package(s)"
 for pkg in "${SYMBOL_PACKAGES[@]}"; do
   echo "  Extracting: $(basename "$pkg")"
-  unzip -o "$pkg" -d "${SYMBOLS_DIR}"
+  python3 -m zipfile -e "$pkg" "${SYMBOLS_DIR}"
 done
 
 # Count extracted .debug files
