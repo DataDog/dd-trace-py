@@ -328,6 +328,11 @@ download_dependency_wheels:
       allow_failure: true
   script:
     - |
+      curl -L "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.2.3.zip" -o "awscliv2.zip"
+      echo "13ee8a87756aa61027bd87985d4da4dee7ac777a36410321b03621a943cf030e awscliv2.zip" | sha256sum --check
+      unzip awscliv2.zip
+      ./aws/install
+    - |
       curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
       apt-get install -y nodejs
     - .gitlab/scripts/upload-debug-symbols-to-backend.sh

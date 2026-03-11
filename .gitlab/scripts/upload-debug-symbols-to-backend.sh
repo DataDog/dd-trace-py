@@ -4,16 +4,15 @@
 # Extracts .debug files from debugwheelhouse/*.zip and uploads them using datadog-ci.
 # Uploads to both prod (datadoghq.com) and preprod (datad0g.com).
 #
-# Required GitLab CI/CD variables (set as masked variables in project settings):
-#   DD_PUBLIC_SYMBOL_API_KEY  — Datadog prod API key for symbol uploads
-#   DD_PREPROD_SYMBOL_API_KEY        — Datadog preprod API key for symbol uploads
+# API keys are fetched from AWS SSM (same pattern as PyPI token and quality gate keys):
+#   ci.dd-trace-py.dd-public-symbol-api-key   — Datadog prod API key for symbol uploads
+#   ci.dd-trace-py.dd-preprod-symbol-api-key   — Datadog preprod API key for symbol uploads
 
 set -euo pipefail
 
-if [ -z "${DD_PUBLIC_SYMBOL_API_KEY:-}" ] && [ -z "${DD_PREPROD_SYMBOL_API_KEY:-}" ]; then
-  echo "ERROR: At least one of DD_PUBLIC_SYMBOL_API_KEY or DD_PREPROD_SYMBOL_API_KEY must be set" >&2
-  exit 1
-fi
+# Fetch API keys from AWS SSM
+DD_PUBLIC_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-public-symbol-api-key" --with-decryption --query "Parameter.Value" --out text)
+DD_PREPROD_SYMBOL_API_KEY=$(aws ssm get-parameter --region us-east-1 --name "ci.dd-trace-py.dd-preprod-symbol-api-key" --with-decryption --query "Parameter.Value" --out text)
 
 # Install datadog-ci (same version as dd-trace-dotnet)
 npm install -g @datadog/datadog-ci@2.42.0
