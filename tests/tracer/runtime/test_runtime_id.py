@@ -73,7 +73,13 @@ def test_get_runtime_id_double_fork():
     assert exit_code == 42
 
 
-@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+@pytest.mark.subprocess(
+    env={
+        "PYTHONWARNINGS": "ignore::DeprecationWarning",
+        "_DD_ROOT_PY_SESSION_ID": None,
+        "_DD_PARENT_PY_SESSION_ID": None,
+    }
+)
 def test_ancestor_runtime_id():
     """
     Check that the ancestor runtime ID is set after a fork, and that it remains
@@ -83,20 +89,19 @@ def test_ancestor_runtime_id():
 
     from ddtrace.internal import runtime
 
-    ancestor_runtime_id = runtime.get_runtime_id()
-    assert ancestor_runtime_id is not None
-
+    assert runtime.get_ancestor_runtime_id() is None
+    main_runtime_id = runtime.get_runtime_id()
     child = os.fork()
 
     if child == 0:
-        assert ancestor_runtime_id != runtime.get_runtime_id()
-        assert ancestor_runtime_id == runtime.get_ancestor_runtime_id()
+        assert main_runtime_id != runtime.get_runtime_id()
+        assert main_runtime_id == runtime.get_ancestor_runtime_id()
 
         child = os.fork()
 
         if child == 0:
-            assert ancestor_runtime_id != runtime.get_runtime_id()
-            assert ancestor_runtime_id == runtime.get_ancestor_runtime_id()
+            assert main_runtime_id != runtime.get_runtime_id()
+            assert main_runtime_id == runtime.get_ancestor_runtime_id()
             os._exit(42)
 
         _, status = os.waitpid(child, 0)
