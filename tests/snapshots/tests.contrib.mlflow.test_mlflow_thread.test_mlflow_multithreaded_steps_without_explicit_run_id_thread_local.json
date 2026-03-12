@@ -10,21 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "69b29c5c00000000",
+      "_dd.p.tid": "69b2d61200000000",
       "component": "mlflow",
       "language": "python",
-      "mlflow.run_id": "3f9272eaa6374b09a242aa78fe1703f3",
-      "runtime-id": "97b6d0148f944d34a1e573dce9294e14",
+      "mlflow.run_id": "aa305481fa9f4f99a28d5b2551284b94",
+      "runtime-id": "b57bdaf873714211badd15a53687df1f",
       "span.kind": "internal"
     },
     "metrics": {
       "_dd.top_level": 1.0,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1.0,
-      "process_id": 619.0
+      "process_id": 661.0
     },
-    "duration": 5107624169,
-    "start": 1773313116900399302
+    "duration": 4272718961,
+    "start": 1773327890657524172
   },
      {
        "name": "run.step",
@@ -37,12 +37,12 @@
        "error": 0,
        "meta": {
          "component": "mlflow",
-         "mlflow.run_id": "3f9272eaa6374b09a242aa78fe1703f3",
+         "mlflow.run_id": "aa305481fa9f4f99a28d5b2551284b94",
          "mlflow.step": "0",
          "span.kind": "internal"
        },
-       "duration": 4101547294,
-       "start": 1773313117906430469
+       "duration": 4115998836,
+       "start": 1773327890814133547
      },
         {
           "name": "run",
@@ -55,16 +55,16 @@
           "error": 0,
           "meta": {
             "component": "mlflow",
-            "mlflow.run_id": "9d3d2bae30934e68afda8e774bd82c31",
-            "runtime-id": "97b6d0148f944d34a1e573dce9294e14",
+            "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
+            "runtime-id": "b57bdaf873714211badd15a53687df1f",
             "span.kind": "internal"
           },
           "metrics": {
             "_dd.top_level": 1.0,
-            "process_id": 619.0
+            "process_id": 661.0
           },
-          "duration": 4099394169,
-          "start": 1773313117909560594
+          "duration": 4113831377,
+          "start": 1773327890817679881
         },
            {
              "name": "run.step",
@@ -77,15 +77,15 @@
              "error": 0,
              "meta": {
                "component": "mlflow",
-               "mlflow.run_id": "9d3d2bae30934e68afda8e774bd82c31",
+               "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
                "mlflow.step": "1",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_0": 1.0
              },
-             "duration": 821104001,
-             "start": 1773313117925136344
+             "duration": 809250792,
+             "start": 1773327890842642172
            },
            {
              "name": "run.step",
@@ -98,11 +98,11 @@
              "error": 0,
              "meta": {
                "component": "mlflow",
-               "mlflow.run_id": "9d3d2bae30934e68afda8e774bd82c31",
+               "mlflow.run_id": "a824594d58a8441db8143a9929bb7248",
                "span.kind": "internal"
              },
-             "duration": 3261596751,
-             "start": 1773313118747316887
+             "duration": 3278357585,
+             "start": 1773327891653092464
            },
         {
           "name": "run",
@@ -115,16 +115,16 @@
           "error": 0,
           "meta": {
             "component": "mlflow",
-            "mlflow.run_id": "501ac9d3eb2c474496221be7bd13a36f",
-            "runtime-id": "97b6d0148f944d34a1e573dce9294e14",
+            "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
+            "runtime-id": "b57bdaf873714211badd15a53687df1f",
             "span.kind": "internal"
           },
           "metrics": {
             "_dd.top_level": 1.0,
-            "process_id": 619.0
+            "process_id": 661.0
           },
-          "duration": 2498234543,
-          "start": 1773313119510726845
+          "duration": 2512430002,
+          "start": 1773327892419091006
         },
            {
              "name": "run.step",
@@ -137,15 +137,15 @@
              "error": 0,
              "meta": {
                "component": "mlflow",
-               "mlflow.run_id": "501ac9d3eb2c474496221be7bd13a36f",
+               "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
                "mlflow.step": "3",
                "span.kind": "internal"
              },
              "metrics": {
                "mlflow.metrics.loss_1": 2.0
              },
-             "duration": 2435122626,
-             "start": 1773313119548389429
+             "duration": 2409815667,
+             "start": 1773327892460310340
            },
            {
              "name": "run.step",
@@ -158,9 +158,9 @@
              "error": 0,
              "meta": {
                "component": "mlflow",
-               "mlflow.run_id": "501ac9d3eb2c474496221be7bd13a36f",
+               "mlflow.run_id": "f659420bf11a4477ad0c13c3fc05ca37",
                "span.kind": "internal"
              },
-             "duration": 25312500,
-             "start": 1773313121983632721
+             "duration": 61208834,
+             "start": 1773327894870288299
            }]]
