@@ -43,8 +43,10 @@ cpdef get_thread_native_id(thread_id):
         return thread_id
 
 
-cpdef tuple get_thread_info(thread_id):
+cpdef tuple get_thread_info(int thread_id):
     """Return (thread_name, thread_native_id) with a single thread lookup."""
+    cdef object pt
+    cdef object thread
     try:
         pt = periodic_threads[thread_id]
         return pt.name, thread_id
