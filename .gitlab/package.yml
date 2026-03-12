@@ -218,29 +218,24 @@ variables:
     - pip install ${SDIST_FILE}
     - python ${CI_PROJECT_DIR}/tests/smoke_test.py
 
-"download windows wheels":
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
-  tags: [ "arch:amd64" ]
+"build windows":
   stage: package
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  script: |
-    if [ -z ${GH_TOKEN} ]
-    then
-      # Use dd-octo-sts to get GitHub token
-      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
-      gh auth login --with-token < token
-      rm token
-    fi
-    # Prevent git operation errors:
-    #   failed to determine base repo: failed to run git: fatal: detected dubious ownership in repository at ...
-    git config --global --add safe.directory "${CI_PROJECT_DIR}"
-    .gitlab/download-wheels-from-gh-actions.sh
+  tags: ["windows-v2:2022"]
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        WINDOWS_ARCH: ["amd64", "x86"]
+      - PYTHON_VERSION: ["3.11", "3.12", "3.13", "3.14"]
+        WINDOWS_ARCH: ["arm64"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: "6"
+    CARGO_BUILD_JOBS: "6"
+  script:
+    - bash .gitlab/scripts/build-wheel-windows.sh
   artifacts:
     paths:
       - "pywheels/*.whl"
-      - "pywheels/*.tar.gz"
+      - "debugwheelhouse/*.log"
 
 download_dependency_wheels:
   image: registry.ddbuild.io/images/mirror/python:$PYTHON_IMAGE_TAG
@@ -318,7 +313,7 @@ download_dependency_wheels:
     - "build linux"
     - "build macos"
     - "build sdist"
-    - "download windows wheels"
+    - "build windows"
     - "package version"
   script:
     - pip install 'packaging>=24.0,<26'  # ci-deps: allow
