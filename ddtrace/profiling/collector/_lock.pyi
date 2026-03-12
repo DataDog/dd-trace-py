@@ -18,9 +18,9 @@ class _ProfiledLock:
     acquired_time: typing.Optional[int]
     name: typing.Optional[str]
     is_internal: bool
-    _cached_thread_id: int
+    _cached_thread_id: typing.Optional[int]
     _cached_thread_name: typing.Optional[str]
-    _cached_thread_native_id: int
+    _cached_thread_native_id: typing.Optional[int]
 
     def __init__(
         self,
