@@ -150,7 +150,11 @@ def _set_tags_from_cursor(span, vendor, cursor):
             dsn = getattr(cursor.connection, "dsn", None)
             if dsn:
                 d = sqlx.parse_pg_dsn(dsn)
-                span._set_attribute(sqlx.DB, d.get("dbname"))
-                span._set_attribute(netx.TARGET_HOST, d.get("host"))
-                span._set_attribute(netx.SERVER_ADDRESS, d.get("host"))
+                dbname = d.get("dbname")
+                if dbname is not None:
+                    span._set_attribute(sqlx.DB, dbname)
+                host = d.get("host")
+                if host is not None:
+                    span._set_attribute(netx.TARGET_HOST, host)
+                    span._set_attribute(netx.SERVER_ADDRESS, host)
                 span.set_metric(netx.TARGET_PORT, int(d.get("port")))

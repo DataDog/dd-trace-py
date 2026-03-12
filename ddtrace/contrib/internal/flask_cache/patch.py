@@ -102,7 +102,9 @@ def get_traced_cache(tracer=None, service=DEFAULT_SERVICE, meta=None, cache_cls=
             # PERF: avoid setting via Span.set_tag
             s.set_metric(_SPAN_MEASURED_KEY, 1)
             # set span tags
-            s._set_attribute(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
+            cache_type = self.config.get("CACHE_TYPE")
+            if cache_type is not None:
+                s._set_attribute(CACHE_BACKEND, cache_type)
             s.set_tags(self._datadog_meta)
             # add connection meta if there is one
             client = _extract_client(self.cache)
