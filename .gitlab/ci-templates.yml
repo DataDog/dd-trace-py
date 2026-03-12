@@ -1,0 +1,21 @@
+# GitLab CI Templates for common setup tasks
+#
+# Usage:
+#   my_job:
+#     extends: .setup_ci_deps
+#     script:
+#       - # your commands here
+
+.setup_ci_deps:
+  # Reusable template for installing locked CI dependencies
+  variables:
+    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+  before_script:
+    - pip install -r ci/requirements/ci.txt
+  cache:
+    key:
+      files:
+        - ci/requirements/ci.txt
+    paths:
+      - ${CI_PROJECT_DIR}/.cache/pip
+    policy: pull-push

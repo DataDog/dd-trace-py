@@ -1,5 +1,4 @@
 from typing import TYPE_CHECKING
-from typing import Dict
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -22,11 +21,11 @@ class IASTEnvironment:
         self.span = span or core.get_span()
 
         self.iast_reporter: Optional["IastSpanReporter"] = None
-        self.iast_span_metrics: Dict[str, int] = {}
-        self.iast_hash_object_tracking: Dict[int, bool] = {}
+        self.iast_span_metrics: dict[str, int] = {}
+        self.iast_hash_object_tracking: dict[int, bool] = {}
         self.iast_stack_trace_reported: bool = False
-        self.vulnerability_copy_global_limit: Dict[str, int] = {}
-        self.vulnerabilities_request_limit: Dict[str, int] = {}
+        self.vulnerability_copy_global_limit: dict[str, int] = {}
+        self.vulnerabilities_request_limit: dict[str, int] = {}
         self.vulnerability_budget: int = 0
         self.is_first_vulnerability: bool = True
         self.endpoint_method: str = ""

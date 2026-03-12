@@ -5,11 +5,11 @@ import typing
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace.ext import SpanTypes
-from ddtrace.internal import forksafe
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.threads import Lock
 
 
-EndpointCountsType = typing.Dict[str, int]
+EndpointCountsType = dict[str, int]
 
 
 @dataclass(eq=False)
@@ -18,24 +18,17 @@ class EndpointCallCounterProcessor(SpanProcessor):
     # Mapping from endpoint to list of span IDs, here we use mapping from
     # endpoint to span_ids instead of mapping from span_id to endpoint to
     # avoid creating a new string object for each span id.
-    endpoint_to_span_ids: typing.Dict[str, typing.List[int]] = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
-    _endpoint_counts_lock: typing.ContextManager = field(
-        default_factory=forksafe.Lock, init=False, repr=False, compare=False
-    )
+    endpoint_to_span_ids: dict[str, list[int]] = field(default_factory=dict, init=False, repr=False, compare=False)
+    _endpoint_counts_lock: typing.ContextManager = field(default_factory=Lock, init=False, repr=False, compare=False)
     _enabled: bool = field(default=False, repr=False, compare=False)
 
-    def enable(self):
-        # type: () -> None
+    def enable(self) -> None:
         self._enabled = True
 
-    def on_span_start(self, span):
-        # type: (Span) -> None
+    def on_span_start(self, span: Span) -> None:
         pass
 
-    def on_span_finish(self, span):
-        # type: (Span) -> None
+    def on_span_finish(self, span: Span) -> None:
         if not self._enabled:
             return
         if span._local_root == span and span.span_type == SpanTypes.WEB:
@@ -47,10 +40,13 @@ class EndpointCallCounterProcessor(SpanProcessor):
                     self.endpoint_to_span_ids[resource] = []
                 self.endpoint_to_span_ids[resource].append(span_id)
 
-    def reset(self) -> typing.Tuple[EndpointCountsType, typing.Dict[str, typing.List[int]]]:
+    def reset(self) -> tuple[EndpointCountsType, dict[str, list[int]]]:
         with self._endpoint_counts_lock:
             counts = self.endpoint_counts
             self.endpoint_counts = {}
             span_ids = self.endpoint_to_span_ids
             self.endpoint_to_span_ids = {}
             return counts, span_ids
+
+    def _after_fork(self) -> None:
+        self._endpoint_counts_lock = Lock()

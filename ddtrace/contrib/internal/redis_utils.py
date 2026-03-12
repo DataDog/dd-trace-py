@@ -1,6 +1,4 @@
 from contextlib import contextmanager
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
@@ -38,7 +36,7 @@ MULTI_KEY_COMMANDS = ["MGET"]
 ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
 
 
-def determine_row_count(redis_command: str, result: Optional[Union[List, Dict, str]]) -> int:
+def determine_row_count(redis_command: str, result: Optional[Union[list, dict, str]]) -> int:
     empty_results = [b"", [], {}, None]
     # result can be an empty list / dict / string
     if result not in empty_results:
@@ -75,7 +73,7 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
         core.dispatch("redis.async_command.post", [ctx, rowcount])
 
 
-def _extract_conn_tags(conn_kwargs) -> Dict[str, str]:
+def _extract_conn_tags(conn_kwargs) -> dict[str, str]:
     try:
         conn_tags = {
             net.TARGET_HOST: conn_kwargs["host"],

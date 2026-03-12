@@ -2,7 +2,6 @@ from dataclasses import asdict
 import json
 import os
 import time
-from typing import List
 from typing import Sequence
 from uuid import UUID
 
@@ -17,7 +16,7 @@ log = get_logger(__name__)
 # It must be large enough to receive at least 2500 IPs or 2500 users to block.
 SHARED_MEMORY_SIZE = 0x100000
 
-SharedDataType = List[Payload]
+SharedDataType = list[Payload]
 
 
 class UUIDEncoder(json.JSONEncoder):

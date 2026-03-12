@@ -1,9 +1,9 @@
+from collections.abc import Callable
 import importlib
 import os
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Set
+from typing import Any
 from typing import Union
 
 from wrapt.importer import when_imported
@@ -18,12 +18,6 @@ from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-    from typing import List  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -103,6 +97,7 @@ PATCH_MODULES = {
     "aws_lambda": True,  # patch only in AWS Lambda environments
     "azure_eventhubs": True,
     "azure_functions": True,
+    "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
     "openai": True,
@@ -119,6 +114,7 @@ PATCH_MODULES = {
     "openai_agents": True,
     "ray": False,
     "protobuf": config._data_streams_enabled,
+    "claude_agent_sdk": True,
 }
 
 
@@ -159,6 +155,7 @@ _MODULES_FOR_CONTRIB = {
     "vertica": ("vertica_python",),
     "aws_lambda": ("datadog_lambda",),
     "azure_eventhubs": ("azure.eventhub",),
+    "azure_durable_functions": ("azure.durable_functions",),
     "azure_functions": ("azure.functions",),
     "azure_servicebus": ("azure.servicebus",),
     "httplib": ("http.client",),
@@ -260,8 +257,9 @@ def check_module_compatibility(
     return
 
 
-def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
-    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
+def _on_import_factory(
+    module: str, path_f: str, raise_errors: bool = True, patch_indicator: Union[bool, list[str]] = True
+) -> Callable[[Any], None]:
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -361,8 +359,7 @@ def _patch_all(**patch_modules: bool) -> None:
     patch(raise_errors=False, **modules)
 
 
-def patch(raise_errors=True, **patch_modules):
-    # type: (bool, Union[List[str], bool]) -> None
+def patch(raise_errors: bool = True, **patch_modules: Union[list[str], bool]) -> None:
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.
@@ -398,6 +395,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _get_patched_modules() -> Set[str]:
+def _get_patched_modules() -> set[str]:
     """Get the list of patched modules"""
     return _PATCHED_MODULES

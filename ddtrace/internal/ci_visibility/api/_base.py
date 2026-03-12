@@ -6,9 +6,7 @@ import json
 from pathlib import Path
 import typing
 from typing import Any
-from typing import Dict
 from typing import Generic
-from typing import List
 from typing import Optional
 from typing import TypeVar
 from typing import Union
@@ -131,7 +129,7 @@ class TestVisibilityItemBase(abc.ABC):
         name: str,
         session_settings: TestVisibilitySessionSettings,
         operation_name: str,
-        initial_tags: Optional[Dict[str, Any]] = None,
+        initial_tags: Optional[dict[str, Any]] = None,
         parent: Optional["TestVisibilityParentItem"] = None,
         resource: Optional[str] = None,
     ) -> None:
@@ -145,9 +143,9 @@ class TestVisibilityItemBase(abc.ABC):
         self._resource: Optional[str] = resource if resource is not None else operation_name
 
         self._span: Optional[Span] = None
-        self._tags: Dict[str, Any] = initial_tags if initial_tags else {}
+        self._tags: dict[str, Any] = initial_tags if initial_tags else {}
 
-        self._stash: Dict[str, Any] = {}
+        self._stash: dict[str, Any] = {}
 
         # ITR-related attributes
         self._is_itr_skipped: bool = False
@@ -156,7 +154,7 @@ class TestVisibilityItemBase(abc.ABC):
         self._is_itr_forced_run: bool = False
 
         # General purpose attributes not used by all item types
-        self._codeowners: Optional[List[str]] = []
+        self._codeowners: Optional[list[str]] = []
         self._source_file_info: Optional[TestSourceFileInfo] = None
         self._coverage_data: Optional[TestVisibilityCoverageData] = None
         self._finish_time: Optional[float] = None
@@ -363,10 +361,10 @@ class TestVisibilityItemBase(abc.ABC):
         self.__session_settings = session_settings_value
 
     @abc.abstractmethod
-    def _get_hierarchy_tags(self) -> Dict[str, str]:
+    def _get_hierarchy_tags(self) -> dict[str, str]:
         raise NotImplementedError("This method must be implemented by the subclass")
 
-    def _collect_hierarchy_tags(self) -> Dict[str, str]:
+    def _collect_hierarchy_tags(self) -> dict[str, str]:
         """Collects all tags from the item's hierarchy and returns them as a single dict"""
         tags = self._get_hierarchy_tags()
         parent = self.parent
@@ -507,14 +505,14 @@ class TestVisibilityItemBase(abc.ABC):
         self._tags[tag_name] = tag_value
 
     @_require_not_finished
-    def set_tags(self, tags: Dict[str, Any]) -> None:
+    def set_tags(self, tags: dict[str, Any]) -> None:
         for tag in tags:
             self._tags[tag] = tags[tag]
 
     def get_tag(self, tag_name: str) -> Any:
         return self._tags.get(tag_name)
 
-    def get_tags(self, tag_names: List[str]) -> Dict[str, Any]:
+    def get_tags(self, tag_names: list[str]) -> dict[str, Any]:
         tags = {}
         for tag_name in tag_names:
             tags[tag_name] = self._tags.get(tag_name)
@@ -526,7 +524,7 @@ class TestVisibilityItemBase(abc.ABC):
         del self._tags[tag_name]
 
     # @_require_not_finished
-    def delete_tags(self, tag_names: List[str]) -> None:
+    def delete_tags(self, tag_names: list[str]) -> None:
         for tag_name in tag_names:
             del self._tags[tag_name]
 
@@ -539,7 +537,7 @@ class TestVisibilityItemBase(abc.ABC):
         return None
 
     @abc.abstractmethod
-    def add_coverage_data(self, coverage_data: Dict[Path, CoverageLines]) -> None:
+    def add_coverage_data(self, coverage_data: dict[Path, CoverageLines]) -> None:
         pass
 
     @_require_span
@@ -551,7 +549,7 @@ class TestVisibilityItemBase(abc.ABC):
                 COVERAGE_TAG_NAME, self._coverage_data.build_payload(self._session_settings.workspace_path)
             )
 
-    def get_coverage_data(self) -> Optional[Dict[Path, CoverageLines]]:
+    def get_coverage_data(self) -> Optional[dict[Path, CoverageLines]]:
         if self._coverage_data is None:
             return None
         return self._coverage_data.get_data()
@@ -579,10 +577,10 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         name: str,
         session_settings: TestVisibilitySessionSettings,
         operation_name: str,
-        initial_tags: Optional[Dict[str, Any]],
+        initial_tags: Optional[dict[str, Any]],
     ) -> None:
         super().__init__(name, session_settings, operation_name, initial_tags)
-        self._children: Dict[CIDT, CITEMT] = {}
+        self._children: dict[CIDT, CITEMT] = {}
         self._distributed_children = False
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:

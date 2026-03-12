@@ -7,9 +7,8 @@ import os
 import sys
 import threading
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
-from typing import Dict
-from typing import List
 from typing import Optional
 from typing import TextIO
 import weakref
@@ -49,14 +48,12 @@ from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
+from .writer_client import AgentlessWriterClient
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Tuple  # noqa:F401
-
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -156,8 +153,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -185,8 +181,7 @@ class LogWriter(TraceWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         return
 
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
@@ -209,7 +204,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def __init__(
         self,
         intake_url: str,
-        clients: List[WriterClientBase],
+        clients: list[WriterClientBase],
         processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -219,7 +214,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         dogstatsd: Optional["DogStatsd"] = None,
         sync_mode: bool = False,
         reuse_connections: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
+        headers: Optional[dict[str, str]] = None,
         report_metrics: bool = True,
         use_gzip: bool = False,
     ) -> None:
@@ -237,11 +232,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         self._clients = clients
         self.dogstatsd = dogstatsd
-        self._metrics: Dict[str, int] = defaultdict(int)
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional[ConnectionType] = None
+        self._conn: Optional["ConnectionType"] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
@@ -273,7 +268,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             return client._intake_url
         return self.intake_url
 
-    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
         if config._health_metrics_enabled and self.dogstatsd:
@@ -302,7 +297,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn.close()
                 self._conn = None
 
-    def _put(self, data: bytes, headers: Dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
+    def _put(self, data: bytes, headers: dict[str, str], client: WriterClientBase, no_trace: bool) -> Response:
         sw = StopWatch()
         sw.start()
         with self._conn_lck:
@@ -364,9 +359,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict[str, str]:
         headers = self._headers.copy()
-        headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        headers.update({"Content-Type": client.encoder.content_type})
         if hasattr(client, "_headers"):
             headers.update(client._headers)
         return headers
@@ -386,11 +381,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
-            log_args = (
+            log_args: tuple[Any, Any, Any] = (
                 self._intake_endpoint(client),
                 response.status,
                 response.reason,
-            )  # type: Tuple[Any, Any, Any]
+            )
             # Append the payload if requested
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
@@ -411,8 +406,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client, spans=None):
-        # type: (WriterClientBase, Optional[List[Span]]) -> None
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
         if spans is None:
             return
 
@@ -545,7 +539,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
 
 class AgentResponse(object):
-    def __init__(self, rate_by_service: Dict[str, float]) -> None:
+    def __init__(self, rate_by_service: dict[str, float]) -> None:
         self.rate_by_service = rate_by_service
 
 
@@ -589,7 +583,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         sync_mode: bool = False,
         api_version: Optional[str] = None,
         reuse_connections: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
+        headers: Optional[dict[str, str]] = None,
         response_callback: Optional[Callable[[AgentResponse], None]] = None,
     ) -> None:
         if processing_interval is None:
@@ -651,7 +645,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         if headers:
             _headers.update(headers)
 
-        _headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
+        _headers.update({"Content-Type": client.encoder.content_type})
         additional_header_str = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
         if additional_header_str is not None:
             _headers.update(parse_tags_str(additional_header_str))
@@ -752,13 +746,81 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict[str, str]:
         headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         self._headers["X-Datadog-Test-Session-Token"] = token or ""
+
+
+class AgentlessTraceWriter(HTTPWriter):
+    """
+    HTTP writer for agentless JSON span intake. Used when _DD_APM_TRACING_AGENTLESS_ENABLED is true.
+    """
+
+    HTTP_METHOD = "POST"
+    # Base URL for the agentless trace JSON intake (EvP / track_type:spans).
+    INTAKE_HOST = "public-trace-http-intake.logs"
+    # Agentless payloads must be under 15 MB.
+    MAX_BUFFER_SIZE = 15 << 20  # 15 MB
+
+    def __init__(
+        self,
+        intake_url: str,
+        api_key: str,
+        processing_interval: Optional[float] = None,
+        buffer_size: Optional[int] = None,
+        max_payload_size: Optional[int] = None,
+        timeout: Optional[float] = None,
+        dogstatsd: Optional["DogStatsd"] = None,
+        report_metrics: bool = True,
+        sync_mode: bool = False,
+        reuse_connections: Optional[bool] = None,
+    ) -> None:
+        buffer_size = min(buffer_size or config._trace_writer_buffer_size, self.MAX_BUFFER_SIZE)
+        max_payload_size = max_payload_size or config._trace_writer_payload_size
+        client = AgentlessWriterClient(buffer_size, max_payload_size)
+        headers = {
+            "Content-Type": client.encoder.content_type,
+            "dd-api-key": api_key,
+            "Datadog-Meta-Lang": "python",
+            "Datadog-Meta-Lang-Version": compat.PYTHON_VERSION,
+            "Datadog-Meta-Lang-Interpreter": compat.PYTHON_INTERPRETER,
+            "Datadog-Meta-Tracer-Version": __version__,
+        }
+        super(AgentlessTraceWriter, self).__init__(
+            intake_url=intake_url,
+            clients=[client],
+            processing_interval=processing_interval,
+            buffer_size=buffer_size,
+            max_payload_size=max_payload_size,
+            timeout=timeout,
+            dogstatsd=dogstatsd,
+            sync_mode=sync_mode,
+            reuse_connections=reuse_connections,
+            headers=headers,
+            report_metrics=report_metrics,
+        )
+
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "AgentlessTraceWriter":
+        try:
+            self.stop()
+        except ServiceStatusError:
+            pass
+        return self.__class__(
+            intake_url=self.intake_url,
+            api_key=self._headers["dd-api-key"],
+            processing_interval=self._interval,
+            buffer_size=self._buffer_size,
+            max_payload_size=self._max_payload_size,
+            timeout=self._timeout,
+            dogstatsd=self.dogstatsd,
+            sync_mode=self._sync_mode,
+            reuse_connections=self._reuse_connections,
+            report_metrics=self._report_metrics,
+        )
 
 
 class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
@@ -845,15 +907,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._max_payload_size = max_payload_size
         self._test_session_token = test_session_token
 
-        # Condition variable to coordinate the flushing with forking
-        self._forking_cv = threading.Condition()
-        self._disable_flush = False
-        # Number of threads currently flushing
-        self._count_flushing = 0
-
         self._clients = [client]
         self.dogstatsd = dogstatsd
-        self._metrics: Dict[str, int] = defaultdict(int)
+        self._metrics: dict[str, int] = defaultdict(int)
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
@@ -861,28 +917,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
-        try:
-            before_fork_hook = make_weak_method_hook(self._before_fork)
-            after_fork_hook = make_weak_method_hook(self._after_fork)
-
-            forksafe.register_before_fork(before_fork_hook)
-            self._before_fork_hook = before_fork_hook
-
-            forksafe.register_after_parent(after_fork_hook)
-            self._after_fork_hook = after_fork_hook
-        except TypeError:
-            log.warning("Failed to register NativeWriter fork hook")
+        before_fork_hook = make_weak_method_hook(self.before_fork_hook)
+        self._fork_hook = before_fork_hook
+        forksafe.register_before_fork(before_fork_hook)
 
         self._exporter = self._create_exporter()
 
-    def __del__(self):
-        if self._before_fork_hook:
-            forksafe.unregister_before_fork(self._before_fork_hook)
-            self._before_fork_hook = None
+    def before_fork_hook(self):
+        """
+        This hook is used to shut down the native runtime before forking when the service is not running.
+        When the PeriodicService is running, the native runtime is shut down by the PeriodicThread logic.
+        """
+        if self.status != service.ServiceStatus.RUNNING:
+            self._exporter.stop_worker()
 
-        if self._after_fork_hook:
-            forksafe.unregister_parent(self._after_fork_hook)
-            self._after_fork_hook = None
+    def __del__(self):
+        if hasattr(self, "_fork_hook") and self._fork_hook:
+            forksafe.unregister_before_fork(self._fork_hook)
 
     def _create_exporter(self) -> native.TraceExporter:
         """
@@ -929,11 +980,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             builder.enable_health_metrics()
 
         return builder.build()
-
-    def _after_fork(self):
-        with self._forking_cv:
-            self._disable_flush = False
-            self._forking_cv.notify_all()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
@@ -1008,7 +1054,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _encoder(self):
         return self._clients[0].encoder
 
-    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
+    def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
             return
         if config._health_metrics_enabled and self.dogstatsd:
@@ -1032,11 +1078,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:
-            with self._forking_cv:
-                # postpone flush if we are forking
-                self._forking_cv.wait_for(lambda: not self._disable_flush)
-                self._count_flushing += 1
-            response_body = self._exporter.send(payload, count)
+            response_body = self._exporter.send(payload)
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
@@ -1048,11 +1090,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             else:
                 raise e
         finally:
-            with self._forking_cv:
-                self._count_flushing -= 1
-                if self._count_flushing == 0:
-                    # wake before_fork hook if it's waiting
-                    self._forking_cv.notify_all()
             self._metrics["sent_traces"] += count
 
         if self._response_cb:
@@ -1066,13 +1103,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans: Optional[List["Span"]] = None) -> None:
+    def write(self, spans: Optional[list["Span"]] = None) -> None:
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[List["Span"]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
         if spans is None:
             return
 
@@ -1180,20 +1217,21 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         # Native threads should be stopped even if the writer is not running
         finally:
             self._exporter.stop_worker()
-            if self._before_fork_hook:
-                forksafe.unregister_before_fork(self._before_fork_hook)
-                self._before_fork_hook = None
-            if self._after_fork_hook:
-                forksafe.unregister_parent(self._after_fork_hook)
-                self._after_fork_hook = None
+            if self._fork_hook:
+                forksafe.unregister_before_fork(self._fork_hook)
+                self._fork_hook = None
 
-    def _before_fork(self) -> None:
-        # Mark the writer as forking to avoid restarting threads before the fork
-        with self._forking_cv:
-            # Prevent new flush from being started
-            self._disable_flush = True
-            self._forking_cv.wait_for(lambda: self._count_flushing == 0)
-        self._exporter.stop_worker()
+    def _start_service(self, *args, **kwargs):
+        super()._start_service(*args, **kwargs)
+
+        def _before_fork(worker: periodic.PeriodicThread) -> None:
+            super(periodic.PeriodicThread, worker)._before_fork()
+            super(periodic.PeriodicThread, worker).join()
+            self._exporter.stop_worker()
+
+        assert self._worker is not None  # nosec
+
+        self._worker._before_fork = _before_fork.__get__(self._worker, type(self._worker))
 
     def on_shutdown(self):
         try:
@@ -1251,6 +1289,19 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
     if _use_log_writer():
         return LogWriter()
 
+    if config._trace_agentless_enabled:
+        if config._dd_api_key:
+            intake_url = "https://{}.{}".format(AgentlessTraceWriter.INTAKE_HOST, config._dd_site)
+            verify_url(intake_url)
+            return AgentlessTraceWriter(
+                intake_url=intake_url,
+                api_key=config._dd_api_key,
+                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+                sync_mode=_use_sync_mode(),
+                report_metrics=not asm_config._apm_opt_out,
+            )
+        log.warning("APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.")
+
     verify_url(agent_config.trace_agent_url)
 
     if config._trace_writer_native:
@@ -1264,7 +1315,7 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
             stats_opt_out=asm_config._apm_opt_out,
         )
     else:
-        headers: Dict[str, str] = {}
+        headers: dict[str, str] = {}
         if config._trace_compute_stats or asm_config._apm_opt_out:
             headers["Datadog-Client-Computed-Stats"] = "yes"
 

@@ -45,6 +45,7 @@ on:
 
 jobs:
   del_runs:
+    if: github.event_name != 'schedule' || github.event.repository.fork == false
     runs-on: ubuntu-latest
     permissions:
       actions: write

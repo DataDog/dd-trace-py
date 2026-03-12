@@ -1,5 +1,3 @@
-from typing import Dict
-
 import consul
 from wrapt import wrap_function_wrapper as _w
 
@@ -23,12 +21,11 @@ from ddtrace.trace import tracer
 _KV_FUNCS = ["put", "get", "delete"]
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(consul, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"consul": ">=1.1"}
 
 

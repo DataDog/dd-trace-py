@@ -21,6 +21,8 @@ components:
   aws_lambda:
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
+  azure_durable_functions:
+    - ddtrace/contrib/internal/azure_durable_functions/*
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
     - ddtrace/ext/azure_eventhubs.py
@@ -39,6 +41,7 @@ components:
   celery:
     - ddtrace/contrib/celery.py
     - ddtrace/contrib/internal/celery/*
+    - tests/snapshots/tests.contrib.celery.*
   cherrypy:
     - ddtrace/contrib/cherrypy.py
     - ddtrace/contrib/internal/cherrypy/*
@@ -116,6 +119,8 @@ components:
     - ddtrace/contrib/internal/mako/*
   mariadb:
     - ddtrace/contrib/internal/mariadb/*
+  mlflow:
+    - ddtrace/contrib/internal/mlflow/*
   molten:
     - ddtrace/contrib/internal/molten/*
   mongo:
@@ -375,6 +380,20 @@ suites:
     services:
       - azurite
       - azureeventhubsemulator
+  azure_durable_functions:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_durable_functions'
+      - tests/contrib/azure_durable_functions/*
+      - tests/snapshots/tests.contrib.azure_durable_functions.*
+    runner: riot
+    snapshot: true
+    services:
+      - azurite
   azure_functions:
     parallelism: 4
     paths:
@@ -884,6 +903,17 @@ suites:
       - mariadb
     snapshot: true
     venvs_per_job: 2
+  mlflow:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@mlflow'
+      - tests/contrib/mlflow/*
+    runner: riot
+    snapshot: true
   molten:
     parallelism: 1
     paths:
@@ -1042,7 +1072,7 @@ suites:
     runner: riot
     snapshot: true
   ray:
-    parallelism: 1
+    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'

@@ -132,7 +132,7 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         return retries_so_far < target_number_of_retries
 
     def get_final_status(self, test: Test) -> TestStatus:
-        status_counts: t.Dict[TestStatus, int] = defaultdict(lambda: 0)
+        status_counts: dict[TestStatus, int] = defaultdict(lambda: 0)
         total_count = 0
 
         for test_run in test.test_runs:
@@ -174,11 +174,11 @@ class AttemptToFixHandler(RetryHandler):
 
     def get_final_status(self, test: Test) -> TestStatus:
         final_status: TestStatus
-        final_tags: t.Dict[str, str] = {
+        final_tags: dict[str, str] = {
             TestTag.ATTEMPT_TO_FIX_PASSED: TAG_FALSE,
         }
 
-        status_counts: t.Dict[TestStatus, int] = defaultdict(lambda: 0)
+        status_counts: dict[TestStatus, int] = defaultdict(lambda: 0)
         total_count = 0
 
         for test_run in test.test_runs:

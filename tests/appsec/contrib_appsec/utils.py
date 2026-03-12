@@ -2,10 +2,7 @@ import itertools
 import json
 import sys
 from typing import Any
-from typing import Dict
 from typing import Generator
-from typing import List
-from typing import Tuple
 from urllib.parse import quote
 from urllib.parse import urlencode
 
@@ -51,17 +48,17 @@ class Interface:
         self.name: str = name
         self.framework = framework
         self.client = client
-        self.version: Tuple[int, ...] = ()
+        self.version: tuple[int, ...] = ()
 
     def __repr__(self):
         return f"Interface({self.name}[{self.version}] Python[{sys.version}])"
 
 
-def payload_to_xml(payload: Dict[str, str]) -> str:
+def payload_to_xml(payload: dict[str, str]) -> str:
     return "".join(f"<{k}>{v}</{k}>" for k, v in payload.items())
 
 
-def payload_to_plain_text(payload: Dict[str, str]) -> str:
+def payload_to_plain_text(payload: dict[str, str]) -> str:
     return "\n".join(f"{k}={v}" for k, v in payload.items())
 
 
@@ -89,7 +86,7 @@ class Contrib_TestClass_For_Threats:
     def status(self, response) -> int:
         raise NotImplementedError
 
-    def headers(self, response) -> Dict[str, str]:
+    def headers(self, response) -> dict[str, str]:
         raise NotImplementedError
 
     def location(self, response) -> str:
@@ -118,7 +115,7 @@ class Contrib_TestClass_For_Threats:
         assert result == [rule_id], f"result={result}, expected={[rule_id]}"
         return triggers[0].get("security_response_id", None)
 
-    def check_rules_triggered(self, rule_id: List[str], entry_span):
+    def check_rules_triggered(self, rule_id: list[str], entry_span):
         triggers = get_triggers(entry_span())
         assert triggers is not None, "no appsec struct in root span"
         result = sorted([t["rule"]["id"] for t in triggers])
@@ -138,7 +135,7 @@ class Contrib_TestClass_For_Threats:
     #         if interface.tracer._appsec_processor:
     #             interface.printer(
     #                 f"""ASM enabled: {asm_config._asm_enabled}
-    # {ddtrace.appsec._ddwaf.version()}
+    # {ddtrace.appsec._ddwaf.version}
     # {interface.tracer._appsec_processor._ddwaf.info}
     # {asm_config._asm_libddwaf}
     # """
@@ -203,7 +200,6 @@ class Contrib_TestClass_For_Threats:
             assert len(args_list) == 1
             assert ("waf_timeout", "true") in args_list[0][4]
 
-    @pytest.mark.xfail_interface("tornado")
     def test_api_endpoint_discovery(self, interface: Interface, find_resource):
         """Check that API endpoint discovery works in the framework.
 
@@ -219,6 +215,13 @@ class Contrib_TestClass_For_Threats:
                 path = path[1:-1]
             path = re.sub(r"<int:[a-z_]+>|\{[a-z_]+:int\}", "123", path)
             path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
+            # Tornado regex patterns (from regex.pattern, ending with $)
+            if path.endswith("$"):
+                path = path[:-1]
+            path = re.sub(r"\(\?P<[a-z_]+>\\d\+\)", "123", path)
+            path = re.sub(r"\(\?P<[a-z_]+>\[[^\]]+\]\+?\)", "abczx", path)
+            path = re.sub(r"\(\\d\+\)", "123", path)
+            path = re.sub(r"\(\[[^\]]+\]\+?\)", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
             return path if path.startswith("/") else ("/" + path)
@@ -305,7 +308,7 @@ class Contrib_TestClass_For_Threats:
     def test_truncation_tags(self, interface: Interface, get_entry_span_metric):
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
-            body: Dict[str, Any] = {"val": "x" * 5000}
+            body: dict[str, Any] = {"val": "x" * 5000}
             body.update({f"a_{i}": i for i in range(517)})
             response = interface.client.post(
                 "/asm/",
@@ -338,7 +341,7 @@ class Contrib_TestClass_For_Threats:
             ) as mocked,
         ):
             self.update_tracer(interface)
-            body: Dict[str, Any] = {"val": "x" * 5000}
+            body: dict[str, Any] = {"val": "x" * 5000}
             body.update({f"a_{i}": i for i in range(517)})
             response = interface.client.post(
                 "/asm/",
@@ -1640,8 +1643,7 @@ class Contrib_TestClass_For_Threats:
                 response = interface.client.get("/new_service/awesome_test")
             assert self.status(response) == 200
             assert self.body(response) == "awesome_test"
-            # only two global callbacks are expected for API Security and Nested Events
-            assert len(_asm_request_context.GLOBAL_CALLBACKS.get(_asm_request_context._CONTEXT_CALL, [])) == 1
+            assert _asm_request_context.API_SEC_CALLBACK is not None
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize("metastruct", [True, False])

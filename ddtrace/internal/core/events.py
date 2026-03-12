@@ -38,9 +38,6 @@ More specifically, this module defines dataclass-based event objects that are us
        with core.context_with_event(MyContextEvent(user_id="123")):
            pass
 
-``SpanEvent`` extends ``Event`` with mandatory span-related attributes used by tracing
-handlers.
-
 For event classes used with ``core.context_with_event(...)``, use ``event_field()``
 for every dataclass attribute:
 
@@ -62,26 +59,20 @@ from dataclasses import field
 import sys
 from typing import Any
 from typing import ClassVar
-from typing import Dict
-from typing import Optional
 from typing import TypeVar
 
 
 EventType = TypeVar("EventType", bound="Event")
 
-_PY3_9 = sys.version_info <= (3, 10)
+_PY3_9 = sys.version_info < (3, 10)
 
 
 def event_field(default: Any = MISSING, default_factory: Any = MISSING) -> Any:
     """Creates a dataclass field with special handling to ensure retro compatibility
-       as python 3.9 does not support kw_only which is required by SpanContextEvent to
-       allow a child class to have attributes without value.
-
-    Args:
-        default: Default value for the field
-        default_factory: Factory function to generate default values
+    as python 3.9 does not support kw_only which is required by TracingEvent to
+    allow a child class to have attributes without a default value.
     """
-    kwargs: Dict[str, Any] = {}
+    kwargs: dict[str, Any] = {}
     if default is not MISSING:
         kwargs["default"] = default
     if default_factory is not MISSING:
@@ -105,43 +96,7 @@ class Event:
 
     It can be used with core.dispatch_event(Event()).
 
-    Every children classes should be a @dataclass
+    Every child class should be annotated with @dataclass
     """
 
-    event_name: str = field(init=False, repr=False)
-
-
-@dataclass
-class TracingEvent(Event):
-    """TracingEvent is a specialization of Event. It enforces minimal tracing attributes
-    on any TracingEvent.
-    """
-
-    # These are typically set at class level but can be overridden per-instance
-    # via set_span_name() / set_component() to avoid race conditions.
-    # Using ClassVar so dataclass ignores them; instance override via __dict__.
-    span_name: ClassVar[str]
-    span_type: ClassVar[str]
-    span_kind: ClassVar[str]
-    component: ClassVar[str]
-
-    tags: Dict[str, str] = field(default_factory=dict, init=False)
-    _end_span: bool = field(default=True, init=False)
-
-    call_trace: bool = True
-    service: Optional[str] = None
-    distributed_context: Optional[Any] = None
-    resource: Optional[str] = None
-    measured: bool = False
-
-    def set_component(self, component):
-        """Set component as an instance attribute to avoid race conditions
-        when multiple events are constructed concurrently.
-        """
-        self.__dict__["component"] = component
-
-    def set_span_name(self, span_name):
-        """Set span_name as an instance attribute to avoid race conditions
-        when multiple events are constructed concurrently.
-        """
-        self.__dict__["span_name"] = span_name
+    event_name: ClassVar[str]

@@ -2,7 +2,6 @@ import os
 import sys
 from time import time
 from time import time_ns
-from typing import Dict
 
 import confluent_kafka
 
@@ -52,12 +51,11 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(confluent_kafka, "__version__", "")
 
 
-def _supported_versions() -> Dict[str, str]:
+def _supported_versions() -> dict[str, str]:
     return {"confluent_kafka": ">=1.9.2"}
 
 
@@ -315,6 +313,17 @@ def traced_commit(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
+    cluster_id = getattr(instance, "_dd_cluster_id", "")
+    if not cluster_id:
+        message = get_argument_value(args, kwargs, 0, "message", optional=True)
+        if message is not None and hasattr(message, "topic"):
+            cluster_id = _get_cluster_id(instance, message.topic())
+        else:
+            offsets = get_argument_value(args, kwargs, 1, "offsets", optional=True)
+            if offsets:
+                cluster_id = _get_cluster_id(instance, offsets[0].topic)
+    core.set_item("kafka_cluster_id", cluster_id)
+
     core.dispatch("kafka.commit.start", (instance, args, kwargs))
     return func(*args, **kwargs)
 
@@ -342,10 +351,10 @@ def _get_cluster_id(instance, topic):
     # Check failure cache - skip for 5 minutes if we fail
     last_failure = getattr(instance, "_dd_cluster_id_failure_time", 0)
     if time() - last_failure < 300:
-        return None
+        return ""
 
     if getattr(instance, "list_topics", None) is None:
-        return None
+        return ""
 
     try:
         cluster_metadata = instance.list_topics(topic=topic, timeout=1.0)
@@ -357,4 +366,4 @@ def _get_cluster_id(instance, topic):
         instance._dd_cluster_id_failure_time = time()
         log.debug("Failed to get Kafka cluster ID, will retry after 5 minutes")
 
-    return None
+    return ""

@@ -30,15 +30,12 @@ components:
     - ddtrace/commands/*
     - ddtrace/auto.py
   ci:
-    - ddtrace/ext/ci.py
+    - ddtrace/ext/ci/*
   codeowners:
     - ddtrace/internal/codeowners.py
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
-    - ddtrace/internal/_rand.pyi
-    - ddtrace/internal/_rand.pyx
-    - ddtrace/internal/_stdint.h
     - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
@@ -196,7 +193,7 @@ suites:
       - ddtrace/contrib/integration_registry/*
     runner: riot
   internal:
-    venvs_per_job: 3
+    venvs_per_job: 2
     paths:
       - '@core'
       - '@remoteconfig'

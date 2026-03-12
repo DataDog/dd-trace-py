@@ -37,7 +37,9 @@ def test_dispatch_event():
     core.on(TestEvent.event_name, on_event)
     core.dispatch_event(TestEvent())
 
-    assert called == [TestEvent.event_name]
+    assert called == [TestEvent.event_name], (
+        "dispatching an event should call the handler once with the event name; got %r" % (called,)
+    )
 
 
 def test_dispatch_event_using_attributes():
@@ -52,7 +54,7 @@ def test_dispatch_event_using_attributes():
     core.on(TestEventWithAttributes.event_name, on_event)
     core.dispatch_event(TestEventWithAttributes(foo="test", bar=0))
 
-    assert called == ["test", 0]
+    assert called == ["test", 0], "event attributes are wrongy populated; got %r" % (called,)
 
 
 def test_dispatch_event_missing_attribute():
@@ -68,4 +70,4 @@ def test_dispatch_event_missing_attribute():
     with pytest.raises(TypeError):
         core.dispatch_event(TestEventWithAttributes(foo="test"))
 
-    assert called == []
+    assert called == [], "event should not be dispatched when required event args are missing; got %r" % (called,)

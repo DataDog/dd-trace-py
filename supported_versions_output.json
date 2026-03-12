@@ -31,7 +31,7 @@
         "dependency": "aiokafka",
         "integration": "aiokafka",
         "minimum_tracer_supported": "0.9.0",
-        "max_tracer_supported": "0.12.0",
+        "max_tracer_supported": "0.13.0",
         "auto-instrumented": true
     },
     {
@@ -108,6 +108,20 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "azure-functions",
+        "integration": "azure_durable_functions",
+        "minimum_tracer_supported": "1.10.1",
+        "max_tracer_supported": "1.24.0",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "azure-functions-durable",
+        "integration": "azure_durable_functions",
+        "minimum_tracer_supported": "1.2.1",
+        "max_tracer_supported": "1.4.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "azure-eventhub",
         "integration": "azure_eventhubs",
         "minimum_tracer_supported": "5.12.2",
@@ -119,7 +133,7 @@
         "dependency": "azure-functions",
         "integration": "azure_functions",
         "minimum_tracer_supported": "1.10.1",
-        "max_tracer_supported": "1.23.0",
+        "max_tracer_supported": "1.24.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -167,6 +181,13 @@
         "minimum_tracer_supported": "17.0.0",
         "max_tracer_supported": "18.10.0",
         "auto-instrumented": false
+    },
+    {
+        "dependency": "claude-agent-sdk",
+        "integration": "claude_agent_sdk",
+        "minimum_tracer_supported": "0.0.23",
+        "max_tracer_supported": "0.1.29",
+        "auto-instrumented": true
     },
     {
         "dependency": "python-consul",

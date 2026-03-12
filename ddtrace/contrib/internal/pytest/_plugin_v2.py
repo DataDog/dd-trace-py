@@ -234,7 +234,7 @@ def _coverage_collector_exit(coverage_collector) -> None:
     coverage_collector.__exit__()
 
 
-def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, CoverageLines]:
+def _coverage_collector_get_covered_lines(coverage_collector) -> dict[str, CoverageLines]:
     """
     Wraps coverage collector get_covered_lines call for testing purposes
     """
@@ -272,7 +272,7 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
         record_code_coverage_empty()
         return
 
-    coverage_data: t.Dict[Path, CoverageLines] = {}
+    coverage_data: dict[Path, CoverageLines] = {}
 
     for path_str, covered_lines in test_covered_lines.items():
         coverage_data[Path(path_str).absolute()] = covered_lines

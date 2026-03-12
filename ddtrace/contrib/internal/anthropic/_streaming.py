@@ -1,7 +1,5 @@
 import json
 from typing import Any
-from typing import Dict
-from typing import Tuple
 
 import anthropic
 
@@ -95,7 +93,7 @@ def _construct_message(streamed_chunks):
     return message
 
 
-def _extract_from_chunk(chunk, message) -> Tuple[Dict[str, str], bool]:
+def _extract_from_chunk(chunk, message) -> tuple[dict[str, str], bool]:
     """Constructs a chat message dictionary from streamed chunks given chunk type"""
     TRANSFORMATIONS_BY_BLOCK_TYPE = {
         "message_start": _on_message_start_chunk,
@@ -142,6 +140,9 @@ def _on_content_block_start_chunk(chunk, message):
         if chunk_content_block_type == "text":
             chunk_content_block_text = _get_attr(chunk_content_block, "text", "")
             message["content"].append({"type": "text", "text": chunk_content_block_text})
+        elif chunk_content_block_type == "thinking":
+            chunk_content_block_thinking = _get_attr(chunk_content_block, "thinking", "")
+            message["content"].append({"type": "thinking", "thinking": chunk_content_block_thinking})
         elif chunk_content_block_type == "tool_use":
             chunk_content_block_name = _get_attr(chunk_content_block, "name", "")
             message["content"].append({"type": "tool_use", "name": chunk_content_block_name, "input": ""})
@@ -152,14 +153,23 @@ def _on_content_block_delta_chunk(chunk, message):
     # delta events contain new content for the current message.content block
     delta_block = _get_attr(chunk, "delta", "")
     if delta_block:
-        chunk_content_text = _get_attr(delta_block, "text", "")
-        if chunk_content_text:
-            message["content"][-1]["text"] += chunk_content_text
+        delta_type = _get_attr(delta_block, "type", "")
 
-        chunk_content_json = _get_attr(delta_block, "partial_json", "")
-        if chunk_content_json and _get_attr(delta_block, "type", "") == "input_json_delta":
-            # we have a json content block, most likely a tool input dict
-            message["content"][-1]["input"] += chunk_content_json
+        if delta_type == "thinking_delta":
+            chunk_thinking_text = _get_attr(delta_block, "thinking", "")
+            if chunk_thinking_text:
+                message["content"][-1]["thinking"] += chunk_thinking_text
+        elif delta_type == "signature_delta":
+            # Signature is for internal verification only; skip it.
+            pass
+        elif delta_type == "input_json_delta":
+            chunk_content_json = _get_attr(delta_block, "partial_json", "")
+            if chunk_content_json:
+                message["content"][-1]["input"] += chunk_content_json
+        else:
+            chunk_content_text = _get_attr(delta_block, "text", "")
+            if chunk_content_text:
+                message["content"][-1]["text"] += chunk_content_text
     return message
 
 

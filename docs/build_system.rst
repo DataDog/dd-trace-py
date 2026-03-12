@@ -100,11 +100,11 @@ If you frequently rebuild native extensions or deploy to multiple containers, co
 
     cargo install sccache
 
-For the build system to locate `sccache`, either ensure its path is in your `PATH` environment variable or set the `SCCACHE` environment variable to its location:
+For the build system to locate `sccache`, either ensure its path is in your `PATH` environment variable or set the `SCCACHE_PATH` (or `SCCACHE`) environment variable to its location:
 
 .. code-block:: bash
 
-    export SCCACHE=/home/doe/.cargo/bin/sccache
+    export SCCACHE_PATH=/home/doe/.cargo/bin/sccache
 
 Additionally, enable `sccache` by setting the `DD_USE_SCCACHE` environment variable:
 
@@ -211,6 +211,15 @@ These environment variables modify aspects of the build process.
 
     version_added:
         v2.16.0:
+
+  DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY:
+    type: Boolean
+    default: False
+
+    description: |
+        If set to 1, it enables a memalloc-specific native build guard that aborts on reentrant allocator hook calls
+        (`malloc -> malloc` or `malloc -> free`). This is intended for memalloc testing and debugging builds, not
+        for production use.
 
   DD_CMAKE_INCREMENTAL_BUILD:
     type: Boolean

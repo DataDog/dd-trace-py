@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstdint>
+
 namespace Datadog {
-enum SampleType : unsigned int
+enum SampleType : std::uint16_t
 {
     Invalid = 0,
     CPU = 1 << 0,

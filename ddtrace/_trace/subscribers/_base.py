@@ -1,12 +1,11 @@
 from types import TracebackType
 from typing import Any
-from typing import Dict
 from typing import Generic
 from typing import Optional
-from typing import Tuple
 from typing import TypeVar
 
 from ddtrace import config
+from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.span import Span
 from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -14,7 +13,6 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.core.events import TracingEvent
 from ddtrace.internal.core.subscriber import ContextSubscriber
 from ddtrace.trace import tracer
 
@@ -23,7 +21,9 @@ TracingEventType = TypeVar("TracingEventType", bound=TracingEvent)
 
 
 def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
-    """Start a span from an event stored in the context.
+    """Adaptation of _start_span from trace_handlers to use the event directly
+    Once every integration adopted events API, trace_handlers _start_span
+    should be completely removed.
 
     Args:
         ctx: ExecutionContext containing the event
@@ -42,22 +42,25 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
             override=ctx.get_item("distributed_headers_config_override"),
         )
 
-    span_kwargs: Dict[str, Any] = {
+    span_kwargs: dict[str, Any] = {
         "span_type": event.span_type,
         "resource": event.resource,
         "service": event.service,
+        "activate": event.activate,
     }
 
-    if event.distributed_context and not event.call_trace:
-        span_kwargs["child_of"] = event.distributed_context
-
     if config._inferred_proxy_services_enabled:
+        # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
         # dispatch event for checking headers and possibly making an inferred proxy span
-        core.dispatch("inferred_proxy.start", (ctx, span_kwargs, event.call_trace))
+        core.dispatch("inferred_proxy.start", (ctx, span_kwargs, event.use_active_context))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
-    span = (tracer.trace if event.call_trace else tracer.start_span)(event.span_name, **span_kwargs)
+    default_child_of = tracer.context_provider.active() if event.use_active_context else event.distributed_context
+    if default_child_of is not None:
+        span_kwargs.setdefault("child_of", default_child_of)
+
+    span = tracer.start_span(event.span_name, **span_kwargs)
 
     span._meta.update({COMPONENT: event.component, SPAN_KIND: event.span_kind, **event.tags})
 
@@ -67,6 +70,7 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
+        # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
         # dispatch event for inferred proxy finish
         core.dispatch("inferred_proxy.finish", (ctx,))
 
@@ -81,7 +85,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
 
     Example:
         class MySpanSubscriber(SpanTracingSubscriber):
-            event_name = "my.span"
+            event_names = ("my.span",)
 
             @classmethod
             def on_started(cls, ctx):
@@ -91,12 +95,7 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
             def on_ended(cls, ctx, exc_info):
                 if exc_info[1]:
                     ctx.span.set_tag("error", True)
-
-    Attributes:
-        _end_span: If False, span won't be finished automatically (defaults to True)
     """
-
-    _end_span = True
 
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[TracingEventType]) -> None:
@@ -108,11 +107,11 @@ class TracingSubscriber(ContextSubscriber[TracingEventType], Generic[TracingEven
     def _on_context_ended(
         cls,
         ctx: core.ExecutionContext[TracingEventType],
-        exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         try:
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)
         finally:
-            if cls._end_span and getattr(ctx.event, "_end_span", True):
+            if getattr(ctx.event, "_end_span", True):
                 _finish_span(ctx, exc_info)

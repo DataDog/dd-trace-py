@@ -5,7 +5,7 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
-from ddtrace.contrib.events.http_client import HttpClientRequestEvent
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
@@ -30,8 +30,7 @@ def is_otlp_export(request: requests.models.Request) -> bool:
     return False
 
 
-def _extract_hostname_and_path(uri):
-    # type: (str) -> str
+def _extract_hostname_and_path(uri: str) -> str:
     parsed_uri = parse.urlparse(uri)
     hostname = parsed_uri.hostname
     try:
@@ -43,8 +42,7 @@ def _extract_hostname_and_path(uri):
     return hostname, parsed_uri.path
 
 
-def _extract_query_string(uri):
-    # type: (str) -> Optional[str]
+def _extract_query_string(uri: str) -> Optional[str]:
     start = uri.find("?") + 1
     if start == 0:
         return None
@@ -86,11 +84,13 @@ def _wrap_send(func, instance, args, kwargs):
 
     with core.context_with_event(
         HttpClientRequestEvent(
-            operation_name="requests.request",
+            http_operation="requests.request",
             service=_get_service_name(request, hostname),
+            component=config.requests.integration_name,
             resource=f"{method} {path}",
             config=config.requests,
-            request=request,
+            request_method=request.method,
+            request_headers=request.headers,
             url=request.url,
             query=_extract_query_string(url),
             target_host=host_without_port,
@@ -101,4 +101,6 @@ def _wrap_send(func, instance, args, kwargs):
             response = func(*args, **kwargs)
             return response
         finally:
-            ctx.set_item("response", response)
+            if response is not None:
+                event: HttpClientRequestEvent = ctx.event
+                event.set_response(response)

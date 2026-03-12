@@ -99,11 +99,17 @@ def _get_skippable_api_response():
     )
 
 
-def _get_tests_api_response(tests_body: t.Optional[t.Dict] = None):
+def _get_tests_api_response(
+    tests_body: t.Optional[dict] = None,
+    page_info: t.Optional[dict] = None,
+):
     response = {"data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}}
 
     if tests_body is not None:
         response["data"]["attributes"]["tests"].update(tests_body)
+
+    if page_info is not None:
+        response["data"]["attributes"]["page_info"] = page_info
 
     return Response(200, json.dumps(response))
 
@@ -116,7 +122,7 @@ def _make_fqdn_internal_test_id(module_name: str, suite_name: str, test_name: st
     return TestId(TestSuiteId(TestModuleId(module_name), suite_name), test_name, parameters)
 
 
-def _make_fqdn_test_ids(test_descs: t.List[t.Union[t.Tuple[str, str, str], t.Tuple[str, str, str, str]]]):
+def _make_fqdn_test_ids(test_descs: list[t.Union[tuple[str, str, str], tuple[str, str, str, str]]]):
     """An easy way to make multiple test ids"""
     return {
         _make_fqdn_internal_test_id(
@@ -130,7 +136,7 @@ def _make_fqdn_suite_id(module_name: str, suite_name: str):
     return TestSuiteId(TestModuleId(module_name), suite_name)
 
 
-def _make_fqdn_suite_ids(suite_descs: t.List[t.Tuple[str, str]]):
+def _make_fqdn_suite_ids(suite_descs: list[tuple[str, str]]):
     return {_make_fqdn_suite_id(suite_desc[0], suite_desc[1]) for suite_desc in suite_descs}
 
 
@@ -278,9 +284,13 @@ class TestTestVisibilityAPIClientBase:
         repository_url: t.Optional[str] = None,
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
+        page_state: t.Optional[str] = None,
     ):
         if repository_url is None:
             repository_url = self.default_git_data.repository_url
+
+        # First page: empty page_info; subsequent pages: only page_state.
+        page_info = {} if page_state is None else {"page_state": page_state}
 
         return {
             "data": {
@@ -297,6 +307,7 @@ class TestTestVisibilityAPIClientBase:
                         "runtime.name": "RPython",
                         "runtime.version": "11.5.2",
                     },
+                    "page_info": page_info,
                 },
             },
         }

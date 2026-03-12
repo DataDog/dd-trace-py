@@ -1,10 +1,9 @@
 from types import TracebackType
 from typing import Optional
-from typing import Tuple
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.events.llm import LlmRequestEvent
+from ddtrace.contrib._events.llm import LlmRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -23,7 +22,7 @@ class LlmTracingSubscriber(TracingSubscriber):
     to the integration object carried by the event.
     """
 
-    event_name = LlmRequestEvent.event_name
+    event_names = (LlmRequestEvent.event_name,)
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
@@ -53,7 +52,7 @@ class LlmTracingSubscriber(TracingSubscriber):
     def on_ended(
         cls,
         ctx: core.ExecutionContext,
-        exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ) -> None:
         event: LlmRequestEvent = ctx.event
         is_stream = ctx.get_item("is_stream", False)

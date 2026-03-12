@@ -46,7 +46,26 @@ suites:
     runner: riot
     snapshot: true
   pytest:
-    venvs_per_job: 1
+    venvs_per_job: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@coverage_utils'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    runner: riot
+    snapshot: true
+    pattern: 'pytest$'
+  pytest_benchmark:
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -60,12 +79,49 @@ suites:
       - '@testing'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    runner: riot
+    snapshot: true
+  pytest_bdd:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@coverage_utils'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
       - tests/contrib/pytest_bdd/*
+      - tests/contrib/internal/coverage/*
+      - tests/snapshots/tests.contrib.pytest.*
+    runner: riot
+    snapshot: true
+  pytest_flaky:
+    venvs_per_job: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@pytest'
+      - '@ci_visibility'
+      - '@coverage'
+      - '@coverage_utils'
+      - '@codeowners'
+      - '@testing'
+      - tests/contrib/pytest/*
       - tests/contrib/pytest_flaky/*
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
     runner: riot
     snapshot: true
+    pattern: 'pytest:flaky'
   testing:
     venvs_per_job: 1
     paths:

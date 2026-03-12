@@ -42,8 +42,17 @@ memalloc_free(void* ctx, void* ptr)
     if (ptr == NULL)
         return;
 
-    memalloc_heap_untrack_no_cpython(ptr);
+#ifdef MEMALLOC_ASSERT_ON_REENTRY
+    /* Abort in test builds if we're re-entering from the malloc hook.
+     * In production we can't abort or skip untrack (skipping would leak
+     * heap tracker entries), so we just let it proceed — direct struct
+     * access frame walking avoids calling CPython APIs that could free and is thus safe. */
+    if (_MEMALLOC_ON_THREAD) {
+        _memalloc_abort_free_reentry();
+    }
+#endif // MEMALLOC_ASSERT_ON_REENTRY
 
+    memalloc_heap_untrack_no_cpython(ptr);
     alloc->free(alloc->ctx, ptr);
 }
 
@@ -158,11 +167,6 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
         return nullptr;
     }
 
-    if (!traceback_t::init_invokes_cpython()) {
-        PyErr_SetString(PyExc_RuntimeError, "failed to initialize traceback module");
-        return nullptr;
-    }
-
     if (!memalloc_heap_tracker_init_no_cpython((uint32_t)heap_sample_size)) {
         PyErr_SetString(PyExc_RuntimeError, "failed to initialize heap tracker");
         return nullptr;
@@ -209,9 +213,6 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
 
     memalloc_heap_tracker_deinit_no_cpython();
-
-    /* Finally, we know in-progress sampling won't use the buffer pool, so clear it out */
-    traceback_t::deinit_invokes_cpython();
 
     memalloc_enabled = false;
 
