@@ -189,9 +189,11 @@ import opentelemetry
             "origin": "default",
             "value": r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|"
             r"secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
-            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
-            r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+            r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)"
+            r"|sign(?:ed|ature)?|auth(?:entication|orization)?|jsessionid|phpsessid"
+            r"|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
+            r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)'
+            r"|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})"
             r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
             r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})",
         },
