@@ -1,5 +1,4 @@
-from __future__ import absolute_import
-from __future__ import annotations
+# cython: annotation_typing=False
 
 import _thread
 import os.path
@@ -9,14 +8,10 @@ from types import CodeType
 from types import FrameType
 from types import ModuleType
 from types import TracebackType
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
-
-
-if TYPE_CHECKING:
-    from types import UnionType
+from typing import Union
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.settings.profiling import config
@@ -25,16 +20,18 @@ from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.trace import Tracer
 
+from ddtrace.profiling.collector._sampler cimport CaptureSampler
+
 
 ACQUIRE_RELEASE_CO_NAMES: frozenset[str] = frozenset(["_acquire", "_release"])
 ENTER_EXIT_CO_NAMES: frozenset[str] = frozenset(
     ["acquire", "release", "__enter__", "__exit__", "__aenter__", "__aexit__"]
 )
 
-CALLER_FRAME_INDEX: int = 3
+cdef int _CALLER_FRAME_INDEX = 3
 
 
-def _current_thread() -> tuple[int, str]:
+cdef tuple _current_thread():
     thread_id: int = _thread.get_ident()
     return thread_id, _threading.get_thread_name(thread_id)
 
@@ -44,7 +41,7 @@ def _get_original_lock_class(module_name: str, class_name: str) -> Callable[...,
     import importlib
 
     module: ModuleType = importlib.import_module(module_name)
-    obj: _LockAllocatorWrapper | Callable[..., Any] = getattr(module, class_name)
+    obj: Union[_LockAllocatorWrapper, Callable[..., Any]] = getattr(module, class_name)
 
     # If the object is still wrapped (profiling active in this process), unwrap it. Else, return the original object.
     if isinstance(obj, _LockAllocatorWrapper) and obj._original_class:
@@ -62,7 +59,7 @@ def _create_original_lock_instance(module_name: str, class_name: str) -> Any:
         elif class_name == "RLock":
             module_name, class_name = "threading", "RLock"
 
-    lock_class = _get_original_lock_class(module_name, class_name)
+    lock_class: Callable[..., Any] = _get_original_lock_class(module_name, class_name)
     return lock_class()
 
 
@@ -94,7 +91,7 @@ class _ProfiledLock:
         self.capture_sampler: collector.CaptureSampler = capture_sampler
         # Frame depth: 0=__init__, 1=_profiled_allocate_lock, 2=_LockAllocatorWrapper.__call__, 3=caller
         try:
-            frame: FrameType = sys._getframe(CALLER_FRAME_INDEX)
+            frame: FrameType = sys._getframe(_CALLER_FRAME_INDEX)
         except ValueError:
             # Shallow call stacks can happen in edge cases (e.g., interpreter bootstrap).
             if config.enable_asserts:
@@ -102,7 +99,7 @@ class _ProfiledLock:
             self.init_location = "unknown:0"
         else:
             code: CodeType = frame.f_code
-            self.init_location = f"{os.path.basename(code.co_filename)}:{frame.f_lineno}"
+            self.init_location = "%s:%d" % (os.path.basename(code.co_filename), frame.f_lineno)
         self.acquired_time: Optional[int] = None
         self.name: Optional[str] = None
         # If True, this lock is internal to another sync primitive (e.g., Lock inside Semaphore)
@@ -124,7 +121,7 @@ class _ProfiledLock:
         return hash(self.__wrapped__)
 
     def __repr__(self) -> str:
-        return f"<_ProfiledLock({self.__wrapped__!r}) at {self.init_location}>"
+        return "<_ProfiledLock(%r) at %s>" % (self.__wrapped__, self.init_location)
 
     def __reduce__(self) -> tuple[Callable[[str, str], Any], tuple[str, str]]:
         """Support pickling by returning the wrapped lock.
@@ -132,7 +129,7 @@ class _ProfiledLock:
         In the context of multiprocessing, the child process will get the unwrapped lock class, which will be re-wrapped
         if profiling is enabled there.
         """
-        wrapped_type = type(self.__wrapped__)
+        wrapped_type: type[Any] = type(self.__wrapped__)
         return (
             _create_original_lock_instance,
             (wrapped_type.__module__, wrapped_type.__qualname__),
@@ -154,17 +151,18 @@ class _ProfiledLock:
         return self._acquire(self.__wrapped__.__aenter__, *args, **kwargs)
 
     def _acquire(self, inner_func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
-        if not self.capture_sampler.capture():
+        cdef CaptureSampler sampler = <CaptureSampler>self.capture_sampler
+        if not sampler.capture():
             if config.enable_asserts:
                 # Ensure acquired_time is not set when acquire is not sampled
                 # (else a bogus release sample is produced)
                 assert self.acquired_time is None, (
-                    f"Expected acquired_time to be None when acquire is not sampled, got {self.acquired_time!r}"
+                    "Expected acquired_time to be None when acquire is not sampled, got %r" % (self.acquired_time,)
                 )  # nosec
 
             return inner_func(*args, **kwargs)
 
-        start: int = time.monotonic_ns()
+        cdef long long start = time.monotonic_ns()
         result: Any = None
         error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
         try:
@@ -172,12 +170,12 @@ class _ProfiledLock:
         except BaseException as exc:
             error_info = (exc, exc.__traceback__)
 
-        end: int = time.monotonic_ns()
+        cdef long long end = time.monotonic_ns()
         self.acquired_time = end
         if not self.is_internal:
             try:
                 self._update_name()
-                self._flush_sample(start, end, is_acquire=True)
+                self._flush_sample(start, end, True)
             except AssertionError:
                 if config.enable_asserts:
                     raise
@@ -214,7 +212,7 @@ class _ProfiledLock:
 
         if start and not self.is_internal:
             try:
-                self._flush_sample(start, end=time.monotonic_ns(), is_acquire=False)
+                self._flush_sample(start, time.monotonic_ns(), False)
             except AssertionError:
                 if config.enable_asserts:
                     raise
@@ -229,22 +227,22 @@ class _ProfiledLock:
 
         return result
 
-    def _flush_sample(self, start: int, end: int, is_acquire: bool) -> None:
+    def _flush_sample(self, long long start, long long end, bint is_acquire) -> None:
         """Push lock profiling data to ddup."""
         # Skip profiling for internal locks (e.g., Lock inside Semaphore/Condition)
         # to avoid double-counting when multiple collectors are active
         if self.is_internal:
             return
 
+        cdef long long duration_ns = end - start
         try:
             handle: ddup.SampleHandle = ddup.SampleHandle()
 
             handle.push_monotonic_ns(end)
 
-            lock_name: str = f"{self.init_location}:{self.name}" if self.name else self.init_location
+            lock_name: str = "%s:%s" % (self.init_location, self.name) if self.name else self.init_location
             handle.push_lock_name(lock_name)
 
-            duration_ns: int = end - start
             if is_acquire:
                 handle.push_acquire(duration_ns, 1)
             else:
@@ -270,7 +268,7 @@ class _ProfiledLock:
 
             # If we can't get the task frame, we use the caller frame.
             # Call stack: 0: _flush_sample, 1: _acquire/_release, 2: acquire/release/__enter__/__exit__, 3: caller
-            frame: FrameType = task_frame or sys._getframe(CALLER_FRAME_INDEX)
+            frame: FrameType = task_frame or sys._getframe(_CALLER_FRAME_INDEX)
             handle.push_pyframes(frame)
 
             handle.flush_sample()
@@ -311,14 +309,14 @@ class _ProfiledLock:
             if config.enable_asserts:
                 frame: FrameType = sys._getframe(1)
                 if frame.f_code.co_name not in ACQUIRE_RELEASE_CO_NAMES:
-                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+                    raise AssertionError("Unexpected frame in stack: '%s'" % frame.f_code.co_name)
 
                 frame = sys._getframe(2)
                 if frame.f_code.co_name not in ENTER_EXIT_CO_NAMES:
-                    raise AssertionError(f"Unexpected frame in stack: '{frame.f_code.co_name}'")
+                    raise AssertionError("Unexpected frame in stack: '%s'" % frame.f_code.co_name)
 
             # First, look at the local variables of the caller frame, and then the global variables
-            frame = sys._getframe(CALLER_FRAME_INDEX)
+            frame = sys._getframe(_CALLER_FRAME_INDEX)
             self.name = self._find_name(frame.f_locals) or self._find_name(frame.f_globals) or ""
         except AssertionError:
             if config.enable_asserts:
@@ -391,13 +389,13 @@ class _LockAllocatorWrapper:
         original_class: Optional[type[Any]] = object.__getattribute__(self, "_original_class")
         if original_class is not None:
             return getattr(original_class, name)
-        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        raise AttributeError("'%s' object has no attribute '%s'" % (type(self).__name__, name))
 
-    def __or__(self, other: type[Any] | None) -> UnionType:
+    def __or__(self, other: Optional[type[Any]]):
         """Support PEP 604 type union syntax (e.g., asyncio.Condition | None)."""
         return (self._original_class | other) if isinstance(self._original_class, type) else NotImplemented
 
-    def __ror__(self, other: type[Any] | None) -> UnionType:
+    def __ror__(self, other: Optional[type[Any]]):
         """Support PEP 604 type union syntax (e.g., None | asyncio.Condition)."""
         return (other | self._original_class) if isinstance(self._original_class, type) else NotImplemented
 
