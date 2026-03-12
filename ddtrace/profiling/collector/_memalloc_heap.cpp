@@ -29,7 +29,7 @@ using HeapMapType = absl::flat_hash_map<K, V>;
 #include <unordered_map>
 template<typename K, typename V>
 using HeapMapType = std::unordered_map<K, V>;
-#endif
+#endif // defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 
 /*
    How heap profiler sampling works:
@@ -162,7 +162,7 @@ heap_tracker_t::pool_get_with_alloc_data_invokes_cpython(size_t size, size_t wei
         auto tb = std::move(pool.back());
         pool.pop_back();
         /* Initialize it with the new allocation data */
-        tb->init_sample_invokes_cpython(size, weighted_size);
+        tb->init_sample(size, weighted_size, max_nframe);
         return tb;
     }
 
@@ -360,7 +360,8 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
         return;
     }
 
-    /* Avoid loops */
+    /* Skip tracking if we're already inside the malloc hook on this thread.
+     * Reentrant tracking would corrupt the heap tracker's data structures. */
     memalloc_reentrant_guard_t guard;
     if (!guard) {
         return;
@@ -388,7 +389,7 @@ memalloc_heap_track_invokes_cpython(uint16_t max_nframe, void* ptr, size_t size,
        RAII guard automatically re-enables GC when it goes out of scope. */
 #if defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
     pygc_temp_disable_guard_t gc_guard;
-#endif
+#endif // defined(_PY310_AND_LATER) && !defined(_PY312_AND_LATER)
 
     /* The weight of the allocation is described above, but briefly: it's the
        count of bytes allocated since the last sample, including this one, which

@@ -758,6 +758,35 @@ def test_agentless_trace_writer_uses_post():
     assert writer._encoder.content_type == "application/json"
 
 
+def test_agentless_trace_writer_buffer_size_capped_at_max():
+    """AgentlessTraceWriter caps buffer_size at MAX_BUFFER_SIZE (15 MB) regardless of config."""
+    max_size = AgentlessTraceWriter.MAX_BUFFER_SIZE
+
+    # Default: no explicit buffer_size -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+    )
+    assert writer._encoder.max_size == max_size
+
+    # Explicit buffer_size smaller than MAX_BUFFER_SIZE -> respected as-is
+    small = max_size // 2
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=small,
+    )
+    assert writer._encoder.max_size == small
+
+    # Explicit buffer_size larger than MAX_BUFFER_SIZE -> capped at MAX_BUFFER_SIZE
+    writer = AgentlessTraceWriter(
+        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
+        api_key="test-api-key",
+        buffer_size=max_size * 2,
+    )
+    assert writer._encoder.max_size == max_size
+
+
 def test_agentless_trace_writer_encode_traces():
     writer = AgentlessTraceWriter(
         intake_url="https://public-trace-http-intake.logs.datadoghq.com",

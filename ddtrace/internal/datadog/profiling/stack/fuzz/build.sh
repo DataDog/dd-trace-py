@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 
 FUZZ_TARGETS="fuzz_echion_remote_read fuzz_echion_strings fuzz_echion_mirrors fuzz_echion_stacks"
 BUILD_DIR=/tmp/fuzz/build
@@ -21,7 +21,12 @@ echo "=== Building Rust dependencies ==="
 # Ensure Rust toolchain is available
 if ! command -v cargo &> /dev/null; then
     echo "Rust not found, installing via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    for i in 1 2 3; do
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && break
+      echo "rustup install attempt $i failed, retrying..."
+      sleep 5
+      [ "$i" -eq 3 ] && { echo "Failed to install rustup after 3 attempts"; exit 1; }
+    done
     . "$HOME/.cargo/env"
 fi
 
