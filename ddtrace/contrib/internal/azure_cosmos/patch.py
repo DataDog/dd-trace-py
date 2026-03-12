@@ -13,13 +13,10 @@ from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import tracer
 
-
-log = get_logger(__name__)
 
 config._add(
     "azure_cosmos",
@@ -62,11 +59,14 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    client = get_argument_value(args, kwargs, 0, "client")
-    request_params = get_argument_value(args, kwargs, 1, "request_params")
-    request = get_argument_value(args, kwargs, 5, "request")
-    request_data = get_argument_value(args, kwargs, 6, "request_data")
-
+    try:
+        client = get_argument_value(args, kwargs, 0, "client")
+        request_params = get_argument_value(args, kwargs, 1, "request_params")
+        request = get_argument_value(args, kwargs, 5, "request")
+        request_data = get_argument_value(args, kwargs, 6, "request_data")
+    except:
+        return wrapped(*args, **kwargs)
+    
     if request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1:
         return wrapped(*args, **kwargs)
 
@@ -83,23 +83,23 @@ def _patched_synchronized_request(wrapped, instance, args, kwargs):
 
             sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
             if sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", sub_status)
+                span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
 
             return result
         except azure_cosmos.exceptions.CosmosResourceExistsError as e:
             if e.sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
-            span.set_tag(http.STATUS_CODE, 409)
+                span._set_attribute("cosmosdb.response.sub_status_code", e.sub_status)
+            span._set_attribute(http.STATUS_CODE, 409)
             raise e
         except azure_cosmos.exceptions.CosmosResourceNotFoundError as e:
             if e.sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
-            span.set_tag(http.STATUS_CODE, 404)
+                span._set_attribute("cosmosdb.response.sub_status_code", e.sub_status)
+            span._set_attribute(http.STATUS_CODE, 404)
             raise e
         except azure_cosmos.exceptions.CosmosAccessConditionFailedError as e:
             if e.sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
-            span.set_tag(http.STATUS_CODE, 412)
+                span._set_attribute("cosmosdb.response.sub_status_code", e.sub_status)
+            span._set_attribute(http.STATUS_CODE, 412)
             raise e
 
 
@@ -108,10 +108,13 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return await wrapped(*args, **kwargs)
 
-    client = get_argument_value(args, kwargs, 0, "client")
-    request_params = get_argument_value(args, kwargs, 1, "request_params")
-    request = get_argument_value(args, kwargs, 5, "request")
-    request_data = get_argument_value(args, kwargs, 6, "request_data")
+    try:
+        client = get_argument_value(args, kwargs, 0, "client")
+        request_params = get_argument_value(args, kwargs, 1, "request_params")
+        request = get_argument_value(args, kwargs, 5, "request")
+        request_data = get_argument_value(args, kwargs, 6, "request_data")
+    except:
+        return await wrapped(*args, **kwargs)
 
     if request_params.resource_type == "databaseaccount" and (request.url).find("/dbs") == -1:
         return await wrapped(*args, **kwargs)
@@ -129,43 +132,42 @@ async def _patch_asynchronous_request(wrapped, instance, args, kwargs):
 
             sub_status = headers.get(azure_cosmos.http_constants.HttpHeaders.SubStatus)
             if sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", sub_status)
+                span._set_attribute("cosmosdb.response.sub_status_code", sub_status)
 
             return result
         except azure_cosmos.exceptions.CosmosResourceExistsError as e:
             if e.sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
-            span.set_tag(http.STATUS_CODE, 409)
+                span._set_attribute("cosmosdb.response.sub_status_code", e.sub_status)
+            span._set_attribute(http.STATUS_CODE, 409)
             raise e
         except azure_cosmos.exceptions.CosmosResourceNotFoundError as e:
             if e.sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
-            span.set_tag(http.STATUS_CODE, 404)
+                span._set_attribute("cosmosdb.response.sub_status_code", e.sub_status)
+            span._set_attribute(http.STATUS_CODE, 404)
             raise e
         except azure_cosmos.exceptions.CosmosAccessConditionFailedError as e:
             if e.sub_status:
-                span._set_tag("cosmosdb.response.sub_status_code", e.sub_status)
-            span.set_tag(http.STATUS_CODE, 412)
+                span._set_attribute("cosmosdb.response.sub_status_code", e.sub_status)
+            span._set_attribute(http.STATUS_CODE, 412)
             raise e
 
 
 def _build_span_tags(span, client, request_params, request, request_data):
-    span._set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span._set_tag_str(db.SYSTEM, "cosmosdb")
-    span._set_tag_str(COMPONENT, config.azure_cosmos.integration_name)
-    span._set_tag_str(net.TARGET_HOST, client.url_connection)
-    span._set_tag_str(http.USER_AGENT, client._user_agent)
+    span._set_attribute(SPAN_KIND, SpanKind.CLIENT)
+    span._set_attribute(db.SYSTEM, "cosmosdb")
+    span._set_attribute(COMPONENT, config.azure_cosmos.integration_name)
+    span._set_attribute(net.TARGET_HOST, client.url_connection)
+    span._set_attribute(http.USER_AGENT, client._user_agent)
     connection_mode = client.connection_policy.ConnectionMode
     if connection_mode == 0:
-        span._set_tag_str("cosmosdb.connection.mode", "gateway")
+        span._set_attribute("cosmosdb.connection.mode", "gateway")
     else:
-        span._set_tag_str("cosmosdb.connection.mode", "other")
+        span._set_attribute("cosmosdb.connection.mode", "other")
 
+    resource_link = request.url
     idx = (request.url).find("/dbs")
     if idx != -1:
         resource_link = (request.url)[idx:]
-    else:
-        resource_link = request.url
 
     span.resource = request_params.operation_type + " " + resource_link
     if (
@@ -173,7 +175,7 @@ def _build_span_tags(span, client, request_params, request, request_data):
         and request_params.resource_type == "database"
         and (request_data.get("id") is not None)
     ):
-        span._set_tag_str(db.NAME, request_data["id"])
+        span._set_attribute(db.NAME, request_data["id"])
 
     if resource_link:
         if resource_link.startswith("/") and len(resource_link) > 1:
@@ -182,10 +184,10 @@ def _build_span_tags(span, client, request_params, request, request_data):
         parts = resource_link.split("/")
 
         if parts and parts[0].lower() == "dbs" and len(parts) >= 2:
-            span._set_tag_str(db.NAME, parts[1])
+            span._set_attribute(db.NAME, parts[1])
             if len(parts) >= 4:
                 if parts[2].lower() == "colls":
-                    span._set_tag_str("cosmosdb.container", parts[3])
+                    span._set_attribute("cosmosdb.container", parts[3])
 
 
 def unpatch():
