@@ -169,7 +169,6 @@ ddtrace/contrib/internal/ray                                  @DataDog/ml-observ
 ddtrace/contrib/internal/mcp                                  @DataDog/ml-observability
 ddtrace/contrib/internal/vllm                                 @DataDog/ml-observability
 ddtrace/contrib/internal/claude_agent_sdk                     @DataDog/ml-observability
-ddtrace/contrib/internal/mlflow                               @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
@@ -194,7 +193,6 @@ tests/contrib/ray                                             @DataDog/ml-observ
 tests/contrib/mcp                                             @DataDog/ml-observability
 tests/contrib/vllm                                            @DataDog/ml-observability
 tests/contrib/claude_agent_sdk                                @DataDog/ml-observability
-tests/contrib/mlflow                                          @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
