@@ -41,12 +41,6 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
         ctx: core.ExecutionContext[HttpClientRequestEvent],
         exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ):
-        """Override this method in child classes to handle context end events.
-
-        Args:
-            ctx: The ExecutionContext instance
-            exc_info: Tuple of (exception_type, exception_value, traceback) or (None, None, None)
-        """
         exc_type, _, _ = exc_info
         if exc_type is not None:
             return
