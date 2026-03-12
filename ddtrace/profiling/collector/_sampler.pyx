@@ -1,4 +1,5 @@
 # cython: cdivision=True
+# cython: annotation_typing=False
 
 import cython
 
@@ -11,7 +12,7 @@ cdef class CaptureSampler:
     hot path, where capture() is called on every lock acquire/release.
     """
 
-    def __cinit__(self, double capture_pct=100.0):
+    def __cinit__(self, double capture_pct=100.0) -> None:
         if capture_pct < 0 or capture_pct > 100:
             raise ValueError("Capture percentage should be between 0 and 100 included")
         self.capture_pct = capture_pct
