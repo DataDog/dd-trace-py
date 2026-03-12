@@ -3,7 +3,30 @@ import typing
 
 from ddtrace.internal import service
 from ddtrace.internal.settings.profiling import config
-from ddtrace.profiling.collector._sampler import CaptureSampler  # noqa: F401
+
+
+try:
+    from ddtrace.profiling.collector._sampler import CaptureSampler
+except ImportError:
+
+    class CaptureSampler(object):  # type: ignore[no-redef]
+        """Pure-Python fallback when Cython extensions are not available."""
+
+        def __init__(self, capture_pct: float = 100.0):
+            if capture_pct < 0 or capture_pct > 100:
+                raise ValueError("Capture percentage should be between 0 and 100 included")
+            self.capture_pct: float = capture_pct
+            self._counter: float = 0
+
+        def __repr__(self) -> str:
+            return "CaptureSampler(capture_pct=%r)" % self.capture_pct
+
+        def capture(self) -> bool:
+            self._counter += self.capture_pct
+            if self._counter >= 100:
+                self._counter -= 100
+                return True
+            return False
 
 
 class CaptureSampler:
