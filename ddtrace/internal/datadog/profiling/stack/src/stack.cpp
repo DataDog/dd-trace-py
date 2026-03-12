@@ -312,6 +312,7 @@ update_greenlet_frame(PyObject* Py_UNUSED(m), PyObject* args)
 // ---- Native call monitoring (C callback for sys.monitoring CALL events) ----
 
 // Cached sys.monitoring.DISABLE sentinel and tool ID (looked up at runtime)
+static constexpr const char* g_tool_name = "dd-profiling";
 static PyObject* g_disable_sentinel = nullptr;
 static int g_tool_id = -1;
 
@@ -473,12 +474,34 @@ start_native_monitoring(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     }
 
     // use_tool_id(g_tool_id, "dd-profiling")
-    PyObject* result = PyObject_CallMethod(monitoring, "use_tool_id", "is", g_tool_id, "dd-profiling");
+    // If the tool ID is already claimed, check whether it's ours (idempotent
+    // start) or belongs to another tool (raise RuntimeError).
+    PyObject* result = PyObject_CallMethod(monitoring, "use_tool_id", "is", g_tool_id, g_tool_name);
     if (!result) {
-        Py_DECREF(monitoring);
-        return NULL;
+        if (!PyErr_ExceptionMatches(PyExc_ValueError)) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+        PyErr_Clear();
+
+        PyObject* current_name = PyObject_CallMethod(monitoring, "get_tool", "i", g_tool_id);
+        if (!current_name) {
+            Py_DECREF(monitoring);
+            return NULL;
+        }
+
+        const char* name = PyUnicode_AsUTF8(current_name);
+        bool is_ours = name && strcmp(name, g_tool_name) == 0;
+        Py_DECREF(current_name);
+
+        if (!is_ours) {
+            Py_DECREF(monitoring);
+            PyErr_SetString(PyExc_RuntimeError, "sys.monitoring PROFILER_ID is already claimed by another tool");
+            return NULL;
+        }
+    } else {
+        Py_DECREF(result);
     }
-    Py_DECREF(result);
 
     // Get events.CALL
     PyObject* events = PyObject_GetAttrString(monitoring, "events");

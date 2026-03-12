@@ -3,12 +3,62 @@ import os
 from pathlib import Path
 import sys
 import time
+from unittest import mock
 
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.profiling.collector import stack
 from tests.profiling.collector import pprof_utils
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+def test_start_native_monitoring_raises_runtime_error() -> None:
+    """start_native_monitoring raises RuntimeError when PROFILER_ID is already claimed."""
+    from ddtrace.internal.datadog.profiling.stack._stack import start_native_monitoring
+
+    sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")
+    try:
+        with pytest.raises(RuntimeError, match="sys.monitoring PROFILER_ID is already claimed"):
+            start_native_monitoring()
+    finally:
+        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+def test_start_catches_runtime_error(caplog: pytest.LogCaptureFixture) -> None:
+    """start() catches RuntimeError, logs the conflicting tool name, and does not set _started."""
+    import logging
+
+    from ddtrace.internal.datadog.profiling import native_call_monitor
+
+    native_call_monitor._started = False
+
+    sys.monitoring.use_tool_id(sys.monitoring.PROFILER_ID, "conflict")
+    try:
+        with caplog.at_level(logging.ERROR, logger="ddtrace.internal.datadog.profiling.native_call_monitor"):
+            native_call_monitor.start()
+        assert native_call_monitor._started is False
+        assert "conflict" in caplog.text
+        assert "sys.monitoring already claimed by another tool" in caplog.text
+    finally:
+        sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
+def test_start_native_monitoring_success() -> None:
+    """start() should set _started when start_native_monitoring succeeds."""
+    from ddtrace.internal.datadog.profiling import native_call_monitor
+
+    native_call_monitor._started = False
+
+    with mock.patch(
+        "ddtrace.internal.datadog.profiling.stack._stack.start_native_monitoring",
+    ):
+        native_call_monitor.start()
+
+    assert native_call_monitor._started is True
+    native_call_monitor._started = False
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Native C frame tracking requires Python 3.12+")
