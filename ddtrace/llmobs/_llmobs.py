@@ -1805,11 +1805,10 @@ class LLMObs(Service):
         return None
 
     def _propagate_trace_details(self, span: Span) -> None:
-        """Inherit ml_app and session_id from context._meta onto the new span."""
-        ml_app = span.context._meta.get(PROPAGATED_ML_APP_KEY)
+        """Inherit ml_app and session_id from context._meta onto the new span, falling back to global config."""
+        ml_app = span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app or config.service
         session_id = span.context._meta.get(PROPAGATED_SESSION_ID_KEY)
-        if ml_app or session_id:
-            _annotate_llmobs_span_data(span, ml_app=ml_app or None, session_id=session_id or None)
+        _annotate_llmobs_span_data(span, ml_app=ml_app, session_id=session_id or None)
 
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
