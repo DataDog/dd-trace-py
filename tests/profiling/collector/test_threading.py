@@ -1506,6 +1506,9 @@ class TestGenericLockProfiling(LockCollectorTestBase):
                 "acquired_time",
                 "name",
                 "is_internal",
+                "_cached_thread_id",
+                "_cached_thread_name",
+                "_cached_thread_native_id",
             }
             assert set(_ProfiledLock.__slots__) == expected_slots
 
@@ -1984,6 +1987,8 @@ class TestGetThreadInfo:
         from ddtrace.profiling._threading import get_thread_info, get_thread_name, get_thread_native_id
 
         tid: int = _thread.get_ident()
+        name: Optional[str]
+        native_id: int
         name, native_id = get_thread_info(tid)
         assert name == get_thread_name(tid)
         assert native_id == get_thread_native_id(tid)
@@ -1995,14 +2000,16 @@ class TestGetThreadInfo:
         result: dict[str, object] = {}
 
         def target() -> None:
-            tid = _thread.get_ident()
+            tid: int = _thread.get_ident()
             result["tid"] = tid
             result["info"] = get_thread_info(tid)
 
-        t = threading.Thread(target=target, name="test-worker-42")
+        t: threading.Thread = threading.Thread(target=target, name="test-worker-42")
         t.start()
         t.join()
 
+        name: Optional[str]
+        native_id: int
         name, native_id = result["info"]  # type: ignore[misc]
         assert name == "test-worker-42"
         assert isinstance(native_id, int)
@@ -2013,6 +2020,8 @@ class TestGetThreadInfo:
         from ddtrace.profiling._threading import get_thread_info
 
         fake_tid: int = 0xDEADBEEF
+        name: Optional[str]
+        native_id: int
         name, native_id = get_thread_info(fake_tid)
         assert name is None
         assert native_id == fake_tid
@@ -2043,7 +2052,7 @@ class TestThreadInfoCache:
 
             # Use from a worker thread
             worker_result: dict[str, object] = {}
-            barrier = threading.Barrier(2)
+            barrier: threading.Barrier = threading.Barrier(2)
 
             def worker() -> None:
                 lock.acquire()
@@ -2054,7 +2063,7 @@ class TestThreadInfoCache:
                 worker_result["cached_name"] = lock._cached_thread_name
                 barrier.wait()
 
-            t = threading.Thread(target=worker, name="cache-test-worker")
+            t: threading.Thread = threading.Thread(target=worker, name="cache-test-worker")
             t.start()
             barrier.wait()
             t.join()
