@@ -58,7 +58,7 @@ def load_appsec() -> None:
             APIManager.enable()
 
 
-def load_common_appsec_modules():
+def load_common_appsec_modules() -> None:
     """Lazily load the common module patches."""
     from ddtrace.internal.settings.asm import config as asm_config
 

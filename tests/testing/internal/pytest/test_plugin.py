@@ -21,6 +21,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
 from ddtrace.testing.internal.pytest.plugin import _get_test_command
 from ddtrace.testing.internal.pytest.plugin import _get_test_location_info
+from ddtrace.testing.internal.pytest.plugin import _get_test_original_name
 from ddtrace.testing.internal.pytest.plugin import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
@@ -627,6 +628,20 @@ class TestHelperFunctions:
 
         result = _get_test_parameters_json(mock_item)
         assert result is None
+
+    def test_get_test_original_name_uses_originalname(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = "test_example"
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) == "test_example"
+
+    def test_get_test_original_name_falls_back_to_none(self) -> None:
+        mock_item = Mock()
+        mock_item.originalname = None
+        mock_item.name = "test_example[param]"
+
+        assert _get_test_original_name(mock_item) is None
 
     def test_encode_test_parameter_simple(self) -> None:
         """Test _encode_test_parameter with simple values."""
