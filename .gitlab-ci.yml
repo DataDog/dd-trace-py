@@ -462,6 +462,15 @@ system_tests:
 
 deploy_to_reliability_env:
   needs: []
+  rules:
+    # Always deploy on main nightly builds
+    - if: $NIGHTLY_BUILD == "true" && $CI_COMMIT_REF_NAME == "main"
+      when: always
+    # Original rules from one-pipeline.yml
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+      when: on_success
+    - when: manual
+      allow_failure: true
 
 deploy_to_di_backend:manual:
   stage: shared-pipeline
