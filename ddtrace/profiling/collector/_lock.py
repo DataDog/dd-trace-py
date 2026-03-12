@@ -173,6 +173,16 @@ class _ProfiledLock:
             error_info = (exc, exc.__traceback__)
 
         end: int = time.monotonic_ns()
+
+        if error_info is not None:
+            err: BaseException
+            tb: Optional[TracebackType]
+            err, tb = error_info
+            raise err.with_traceback(tb)
+
+        if result is False:
+            return result
+
         self.acquired_time = end
         if not self.is_internal:
             try:
@@ -184,11 +194,6 @@ class _ProfiledLock:
             except Exception:
                 # Instrumentation must never crash user code
                 pass  # nosec
-        if error_info is not None:
-            err: BaseException
-            tb: Optional[TracebackType]
-            err, tb = error_info
-            raise err.with_traceback(tb)
 
         return result
 
