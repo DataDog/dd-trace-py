@@ -40,6 +40,8 @@ from ddtrace.internal.settings.asm import config as asm_config
 
 log = get_logger(__name__)
 
+_DDWAF_NOT_INITIALIZED = object()  # sentinel: _ddwaf has not been initialized yet (distinct from None = init failed)
+
 
 def _transform_headers(data: Union[dict[str, str], list[tuple[str, str]]]) -> dict[str, Union[str, list[str]]]:
     normalized: dict[str, Union[str, list[str]]] = {}
@@ -98,11 +100,12 @@ class AppSecSpanProcessor(SpanProcessor):
 
     @property
     def enabled(self) -> bool:
-        return self._ddwaf is not None
+        return self._ddwaf is not _DDWAF_NOT_INITIALIZED and self._ddwaf is not None
 
     def __post_init__(self) -> None:
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
+        self._ddwaf: Optional[WAF] = _DDWAF_NOT_INITIALIZED  # type: ignore[assignment]
         self._rules: Optional[bytes] = None
         try:
             with open(self.rule_filename, "br") as f:
@@ -129,14 +132,14 @@ class AppSecSpanProcessor(SpanProcessor):
 
     def delayed_init(self) -> None:
         try:
-            if self._rules is not None and not hasattr(self, "_ddwaf"):
+            if self._rules is not None and self._ddwaf is _DDWAF_NOT_INITIALIZED:
                 from ddtrace.appsec._ddwaf import waf_module  # noqa: E402
                 import ddtrace.appsec._metrics as metrics  # noqa: E402
 
                 DDWaf = waf_module()
                 if DDWaf is None:
                     log.warning("DDWaf features disabled. WARNING: Dynamic Library not loaded")
-                    self._ddwaf: Optional[WAF] = None
+                    self._ddwaf = None
                     return
                 self.metrics = metrics
                 self._ddwaf = DDWaf(
@@ -164,7 +167,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def _update_rules(
         self, removals: Sequence[tuple[str, str]], updates: Sequence[tuple[str, str, PayloadType]]
     ) -> bool:
-        if not hasattr(self, "_ddwaf"):
+        if self._ddwaf is _DDWAF_NOT_INITIALIZED:
             self.delayed_init()
         if self._ddwaf is None:
             return False
@@ -199,7 +202,7 @@ class AppSecSpanProcessor(SpanProcessor):
     def on_span_start(self, span: Span) -> None:
         from ddtrace.contrib.internal import trace_utils
 
-        if not hasattr(self, "_ddwaf"):
+        if self._ddwaf is _DDWAF_NOT_INITIALIZED:
             self.delayed_init()
         if self._ddwaf is None:
             return
@@ -273,7 +276,7 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if not hasattr(self, "_ddwaf") or self._ddwaf is None:
+        if self._ddwaf is _DDWAF_NOT_INITIALIZED or self._ddwaf is None:
             return None
 
         if _asm_request_context.get_blocked():
