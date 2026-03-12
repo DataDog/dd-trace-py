@@ -178,9 +178,9 @@ class LlamaIndexIntegration(BaseLLMIntegration):
     ) -> None:
         """Set LLMObs tags for LLM (chat/completion) spans."""
         parameters = {}
-        if kwargs.get("max_tokens"):
+        if kwargs.get("max_tokens") is not None:
             parameters["max_tokens"] = kwargs["max_tokens"]
-        if kwargs.get("temperature"):
+        if kwargs.get("temperature") is not None:
             parameters["temperature"] = kwargs["temperature"]
 
         is_chat = span._get_ctx_item("_dd_is_chat") or False
