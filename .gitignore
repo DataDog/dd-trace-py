@@ -211,3 +211,6 @@ src/native/target*
 
 # Fuzzing corpus, output and artifacts
 .fuzz/
+
+# APM AI Toolkit Analysis Logs
+.analysis/

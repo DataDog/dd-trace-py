@@ -1,0 +1,22 @@
+interactions:
+- request:
+    body: '{"model": "gpt-4o-mini", "messages": [{"role": "system", "content": "You
+      are a helpful assistant."}, {"role": "user", "content": "What is Python?"}, {"role":
+      "assistant", "content": "Python is a programming language."}, {"role": "user",
+      "content": "Tell me more."}], "max_tokens": 15}'
+    headers:
+      Content-Type:
+      - application/json
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"chatcmpl-test5","object":"chat.completion","created":1700000000,"model":"gpt-4o-mini","choices":[{"index":0,"message":{"role":"assistant","content":"Python
+        is a high-level, interpreted programming language."},"finish_reason":"stop"}],"usage":{"prompt_tokens":30,"completion_tokens":15,"total_tokens":45}}'
+    headers:
+      Content-Type:
+      - application/json
+    status:
+      code: 200
+      message: OK
+version: 1
