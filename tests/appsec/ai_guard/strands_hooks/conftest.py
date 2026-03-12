@@ -32,6 +32,14 @@ def ai_guard_strands_hook():
         yield AIGuardStrandsHookProvider()
 
 
+@pytest.fixture
+def ai_guard_strands_plugin():
+    with override_ai_guard_config(_AI_GUARD_CONFIG):
+        from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin
+
+        yield AIGuardStrandsPlugin()
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers to build mock Strands event objects
 # ---------------------------------------------------------------------------
@@ -94,3 +102,11 @@ def make_hook(**kwargs):
 
     with override_ai_guard_config(_AI_GUARD_CONFIG):
         return AIGuardStrandsHookProvider(**kwargs)
+
+
+def make_plugin(**kwargs):
+    """Create an AIGuardStrandsPlugin with the given parameters."""
+    from ddtrace.appsec.ai_guard import AIGuardStrandsPlugin
+
+    with override_ai_guard_config(_AI_GUARD_CONFIG):
+        return AIGuardStrandsPlugin(**kwargs)
