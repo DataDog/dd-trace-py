@@ -166,22 +166,16 @@ class _ProfiledLock:
 
         start: int = time.monotonic_ns()
         result: Any = None
-        error_info: Optional[tuple[BaseException, Optional[TracebackType]]] = None
         try:
             result = inner_func(*args, **kwargs)
+            if result is False:
+                return False
         except BaseException as exc:
             error_info = (exc, exc.__traceback__)
-
-        end: int = time.monotonic_ns()
-
-        if error_info is not None:
-            err: BaseException
-            tb: Optional[TracebackType]
             err, tb = error_info
             raise err.with_traceback(tb)
 
-        if result is False:
-            return result
+        end: int = time.monotonic_ns()
 
         self.acquired_time = end
         if not self.is_internal:
@@ -195,7 +189,7 @@ class _ProfiledLock:
                 # Instrumentation must never crash user code
                 pass  # nosec
 
-        return result
+        return True
 
     def release(self, *args: Any, **kwargs: Any) -> Any:
         return self._release(self.__wrapped__.release, *args, **kwargs)
