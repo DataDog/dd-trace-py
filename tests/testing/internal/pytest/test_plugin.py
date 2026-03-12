@@ -27,6 +27,7 @@ from ddtrace.testing.internal.pytest.plugin import _get_user_property
 from ddtrace.testing.internal.pytest.utils import nodeid_to_names
 from ddtrace.testing.internal.test_data import TestStatus
 from ddtrace.testing.internal.test_data import TestTag
+from tests.testing.mocks import MockDefaults
 from tests.testing.mocks import TestDataFactory
 from tests.testing.mocks import mock_test
 from tests.testing.mocks import pytest_item_mock
@@ -159,7 +160,7 @@ class TestSkippingAndITRFeatures:
         test_ref = TestDataFactory.create_test_ref("test_module", "test_suite.py", "test_function")
 
         # Create plugin and mock dependencies
-        mock_manager = session_manager_mock().build_mock()
+        mock_manager = session_manager_mock().with_settings(MockDefaults.settings(test_management=True)).build_mock()
         plugin = TestOptPlugin(session_manager=mock_manager)
 
         # Create mock test that is disabled but NOT attempt_to_fix
