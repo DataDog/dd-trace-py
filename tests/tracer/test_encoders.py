@@ -251,24 +251,26 @@ class TestEncoders(TestCase):
         assert n_traces == 1
         assert data == {
             "traces": [
-                [
-                    {
-                        "trace_id": "1234567890abcdef",
-                        "parent_id": "0000000000000000",
-                        "span_id": "1234567890abcdef",
-                        "service": "svc",
-                        "resource": "/r",
-                        "name": "span1",
-                        "error": 1,
-                        "start": 1771941568700091000,
-                        "duration": 1000000000,
-                        "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
-                        "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
-                        "type": "web",
-                        "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
-                        "meta_struct": {"payload": {"key": "value"}},
-                    }
-                ]
+                {
+                    "spans": [
+                        {
+                            "trace_id": "1234567890abcdef",
+                            "parent_id": "0000000000000000",
+                            "span_id": "1234567890abcdef",
+                            "service": "svc",
+                            "resource": "/r",
+                            "name": "span1",
+                            "error": 1,
+                            "start": 1771941568700091000,
+                            "duration": 1000000000,
+                            "meta": {"tag1": "value1", "_dd.compute_stats": "1"},
+                            "metrics": {"munir.metric": 1.0, "_trace_root": 1, "_top_level": 1},
+                            "type": "web",
+                            "span_links": [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}],
+                            "meta_struct": {"payload": {"key": "value"}},
+                        }
+                    ]
+                }
             ]
         }
 

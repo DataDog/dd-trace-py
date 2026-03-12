@@ -203,7 +203,7 @@ class AgentlessTraceJSONEncoder(BufferedEncoder):
             # First span in the list: set compute_stats in meta so intake can compute stats.
             # Root and top-level are normally set by the Agent; set them here for trace views.
             item[0]._meta["_dd.compute_stats"] = "1"
-            encoded_trace = _json_dumps_bytes([self._item_to_dict(span) for span in item])
+            encoded_trace = _json_dumps_bytes({"spans": [self._item_to_dict(span) for span in item]})
             item_size = len(encoded_trace)
             if item_size > self.max_item_size:
                 raise BufferItemTooLarge(item_size)
