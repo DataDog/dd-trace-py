@@ -10,11 +10,11 @@ latest = ""
 
 SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 9),
-    # (3, 10),
-    # (3, 11),
-    # (3, 12),
-    # (3, 13),
-    # (3, 14),
+    (3, 10),
+    (3, 11),
+    (3, 12),
+    (3, 13),
+    (3, 14),
 ]
 
 
@@ -3230,7 +3230,7 @@ venv = Venv(
         Venv(
             name="azure_cosmos",
             command="pytest {cmdargs} tests/contrib/azure_cosmos",
-            pys=select_pys(min_version="3.9", max_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.14"),
             pkgs={
                 "azure.cosmos": ["~=4.14.6", latest],
                 "pytest-asyncio": "==0.23.7",
