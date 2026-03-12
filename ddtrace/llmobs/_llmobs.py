@@ -430,6 +430,7 @@ def _build_span_meta(
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
+    _ff_prompt_serving = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
     _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
@@ -886,6 +887,7 @@ class LLMObs(Service):
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
         LLMObs._prompt_manager = None
+        LLMObs._ff_prompt_serving = False
         if self.enabled:
             self._start_service()
 
@@ -959,6 +961,7 @@ class LLMObs(Service):
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
+        prompt_serving: Optional[str] = None,
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:
@@ -977,6 +980,9 @@ class LLMObs(Service):
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and
             returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
+        :param str prompt_serving: Set to ``"local"`` to enable FF-backed local prompt serving via OpenFeature.
+            When enabled, ``get_prompt()`` evaluates flags locally via the DD Agent instead of making HTTP calls.
+            Requires a Datadog Agent running with Remote Config enabled.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -1028,6 +1034,16 @@ class LLMObs(Service):
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
                 # we need to force telemetry to use agentless configuration
                 telemetry_writer.enable_agentless_client(True)
+
+            if prompt_serving == "local":
+                from ddtrace.internal.settings.openfeature import config as ffe_config
+
+                ffe_config.experimental_flagging_provider_enabled = True
+                from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
+
+                enable_featureflags_rc()
+                cls._ff_prompt_serving = True
+                log.debug("FF-backed prompt serving enabled")
 
             if integrations_enabled:
                 cls._patch_integrations()
@@ -1706,6 +1722,7 @@ class LLMObs(Service):
 
         cls._instance.stop()
         cls.enabled = False
+        cls._ff_prompt_serving = False
         cls._prompt_manager = None
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
@@ -1932,6 +1949,7 @@ class LLMObs(Service):
             file_cache_enabled=file_cache_enabled,
             cache_dir=cache_dir,
             timeout=timeout,
+            ff_prompt_serving=cls._ff_prompt_serving,
         )
 
     @classmethod

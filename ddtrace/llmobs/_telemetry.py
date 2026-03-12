@@ -34,6 +34,8 @@ class LLMObsTelemetryMetrics:
     USER_PROCESSOR_CALLED = "user_processor_called"
     PROMPT_SOURCE = "prompt.source"
     PROMPT_FETCH_ERROR = "prompt.fetch.error"
+    PROMPT_FF_EVAL_TIME = "prompt.ff_eval.time"
+    PROMPT_FF_ERROR = "prompt.ff_eval.error"
 
 
 def _find_tag_value_from_tags(tags, tag_key):
@@ -257,6 +259,26 @@ def record_prompt_fetch_error(error_type: str):
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.MLOBS,
         name=LLMObsTelemetryMetrics.PROMPT_FETCH_ERROR,
+        value=1,
+        tags=tuple(tags),
+    )
+
+
+def record_prompt_ff_eval_time(duration_ms: float):
+    """Record FF evaluation latency in milliseconds."""
+    telemetry_writer.add_distribution_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_FF_EVAL_TIME,
+        value=duration_ms,
+    )
+
+
+def record_prompt_ff_error(error_type: str):
+    """Record an FF evaluation error by type."""
+    tags = [("error_type", error_type)]
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.MLOBS,
+        name=LLMObsTelemetryMetrics.PROMPT_FF_ERROR,
         value=1,
         tags=tuple(tags),
     )
