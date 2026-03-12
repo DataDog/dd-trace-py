@@ -107,11 +107,14 @@ class ddwaf_object(ctypes.Structure):
     def __init__(
         self,
         struct: Optional[DDWafRulesType] = None,
-        observator: _observator = _observator(),  # noqa : B008
+        observator: Optional[_observator] = None,
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
         max_string_length: int = DDWAF_MAX_STRING_LENGTH,
     ) -> None:
+        if observator is None:
+            observator = _observator()
+
         def truncate_string(string: bytes) -> bytes:
             if len(string) > max_string_length:
                 observator.set_string_length(len(string))
