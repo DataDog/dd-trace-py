@@ -29,7 +29,7 @@ class TracingEvent(Event):
     # if False, handlers should not finish a span when the Context finishes.
     _end_span: bool = field(default=True, init=False)
 
-    # Optional tracing related attibutes
+    # Optional tracing related attributes
     activate: bool = True  # if False, does not activate the span as active span context
     use_active_context: bool = True  # if True, use the active span ctx as parent
     service: Optional[str] = None

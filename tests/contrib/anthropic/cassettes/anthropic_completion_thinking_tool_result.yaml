@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"max_tokens": 16000, "messages": [{"role": "user", "content": "What is
+      the weather in San Francisco, CA?"}, {"role": "assistant", "content": [{"type":
+      "thinking", "thinking": "I need to check the weather.", "signature": "sig_abc"},
+      {"type": "tool_use", "id": "toolu_thinking_001", "name": "get_weather", "input":
+      {"location": "San Francisco, CA"}}]}, {"role": "user", "content": [{"type": "tool_result",
+      "tool_use_id": "toolu_thinking_001", "content": [{"type": "text", "text": "The
+      weather is 73f"}]}]}], "model": "claude-sonnet-4-20250514", "temperature": 1,
+      "thinking": {"budget_tokens": 1024, "type": "enabled"}, "tools": [{"name": "get_weather",
+      "description": "Get the weather for a specific location", "input_schema": {"type":
+      "object", "properties": {"location": {"type": "string"}}}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      anthropic-version:
+      - '2023-06-01'
+      connection:
+      - keep-alive
+      content-type:
+      - application/json
+      host:
+      - api.anthropic.com
+      user-agent:
+      - Anthropic/Python 0.26.1
+    method: POST
+    uri: https://api.anthropic.com/v1/messages
+  response:
+    body:
+      string: !!binary |
+        H4sIAM74rmkC/1WPwWrDMAyGX0X43AwvaRnkNgZ9ge22DeM5IjF15cyS2UrIu8/2obCTpO+Tf9
+        ub8pMaQV15NrJ4uniajdaDOoCS24rNIbOdsaIUQ0OW2bNYkgpdJMHSjvC+3Q8J/jbZapnfFoQftL
+        JgAk/wagnOyZLz7OIBXp7BM7icUgkKN3gaPrLWX/r8oPbPknKNE4Ya44LNE3YciVC6Y9fr/qRPj8
+        d6FUtcTUJbZF1FmozkRHfF+J2RXH0e5RAKzu1fI2zK05rFSLwgcQG91kXHLP/ooPf9D0TffIIxAQ
+        AA
+    headers:
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 04 Jun 2024 18:39:16 GMT
+    status:
+      code: 200
+      message: OK
+version: 1

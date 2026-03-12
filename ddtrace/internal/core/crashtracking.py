@@ -60,8 +60,8 @@ def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
     library_version = version.__version__
     if library_version:
         tags["library_version"] = library_version
-    if process_tags.process_tags:
-        tags["process_tags"] = process_tags.process_tags
+    if p_tags := process_tags.process_tags:
+        tags["process_tags"] = p_tags
 
     for k, v in crashtracker_config.tags.items():
         if k and v:
