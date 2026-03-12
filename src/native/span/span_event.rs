@@ -67,10 +67,8 @@ impl SpanEvent {
                 self.time_unix_nano.into_pyobject(py)?.into_any().unbind(),
             ],
         )?;
-        let mut items: Vec<Py<PyAny>> = vec![
-            name_pair.into_any().unbind(),
-            time_pair.into_any().unbind(),
-        ];
+        let mut items: Vec<Py<PyAny>> =
+            vec![name_pair.into_any().unbind(), time_pair.into_any().unbind()];
         let attrs = self.attributes.bind(py);
         if !attrs.is_empty() {
             let attrs_pair = PyTuple::new(
@@ -98,10 +96,6 @@ impl SpanEvent {
                 self.time_unix_nano.into_pyobject(py)?.into_any().unbind(),
             ],
         )?;
-        Ok(PyTuple::new(
-            py,
-            [cls.into_any().unbind(), args.into_any().unbind()],
-        )?
-        .unbind())
+        Ok(PyTuple::new(py, [cls.into_any().unbind(), args.into_any().unbind()])?.unbind())
     }
 }
