@@ -750,7 +750,7 @@ class TestXdistHooksUnit:
         # Verify the session span was tagged with ITR results
         mock_session_span._set_tag_str.assert_any_call(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, "true")
         mock_session_span._set_tag_str.assert_any_call(test.ITR_DD_CI_ITR_TESTS_SKIPPED, "true")
-        mock_session_span.set_metric.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
+        mock_session_span._set_attribute.assert_called_with(test.ITR_TEST_SKIPPING_COUNT, 10)
 
         # Clean up
         delattr(pytest, "global_worker_itr_results")
