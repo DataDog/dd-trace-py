@@ -406,7 +406,7 @@ class AppSecSpanProcessor(SpanProcessor):
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
-        if getattr(self, "_ddwaf", None) is None:
+        if self._ddwaf is _DDWAF_NOT_INITIALIZED or self._ddwaf is None:
             return
         if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()
