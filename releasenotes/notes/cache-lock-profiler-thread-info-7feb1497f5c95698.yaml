@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    profiling: Improves lock profiler performance by caching per-lock thread
+    metadata. Previously, every sampled lock operation performed redundant
+    dictionary traversals to resolve thread name and native ID. Thread info
+    is now cached on each lock instance and reused when the thread ID has not
+    changed, eliminating repeated lookups on the sampled path.
