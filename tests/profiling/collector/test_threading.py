@@ -1945,7 +1945,9 @@ class TestGetThreadInfo:
 
     def test_matches_individual_lookups(self) -> None:
         """get_thread_info() must return the same values as get_thread_name() + get_thread_native_id()."""
-        from ddtrace.profiling._threading import get_thread_info, get_thread_name, get_thread_native_id
+        from ddtrace.profiling._threading import get_thread_info
+        from ddtrace.profiling._threading import get_thread_name
+        from ddtrace.profiling._threading import get_thread_native_id
 
         tid: int = _thread.get_ident()
         name: Optional[str]
