@@ -214,25 +214,30 @@ class BudgetRateLimiterWithJitter:
     def limit(self, f: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any) -> Any:
         """Make rate-limited calls to a function with the given arguments."""
         should_call = False
+        should_notify = False
         with self._lock:
             now = time.monotonic()
             self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
             should_call = self.budget >= 1.0
+            if should_call:
+                self.budget -= 1.0
+                self._on_exceed_called = False
             if self.budget > self.max_budget:
                 self.budget = self.max_budget
             self.last_time = now
 
+            if not should_call and self.on_exceed is not None:
+                if not self.call_once:
+                    should_notify = True
+                elif not self._on_exceed_called:
+                    should_notify = True
+                    self._on_exceed_called = True
+
         if should_call:
-            self._on_exceed_called = False
-            self.budget -= 1.0
             return f(*args, **kwargs) if f is not None else None
 
-        if self.on_exceed is not None:
-            if not self.call_once:
-                self.on_exceed()
-            elif not self._on_exceed_called:
-                self.on_exceed()
-                self._on_exceed_called = True
+        if should_notify:
+            self.on_exceed()
 
         if self.raise_on_exceed:
             raise RateLimitExceeded()
