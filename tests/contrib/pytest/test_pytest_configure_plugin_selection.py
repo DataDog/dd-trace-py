@@ -132,3 +132,43 @@ class TestPluginClassSelection:
     def test_with_protocol_plugin_has_runtest_protocol_hook(self):
         assert hasattr(TestOptPluginWithProtocol, "pytest_runtest_protocol")
         assert callable(TestOptPluginWithProtocol.pytest_runtest_protocol)
+
+    @pytest.mark.parametrize("is_quarantined,is_disabled", [(True, False), (False, True)])
+    def test_quarantine_and_disabled_not_applied_when_test_management_disabled(self, is_quarantined, is_disabled):
+        """When test_management is disabled, skip markers and quarantine properties must not be applied."""
+        plugin = mock.MagicMock()
+        plugin.manager.settings.test_management.enabled = False
+
+        test = mock.MagicMock()
+        test.is_quarantined.return_value = is_quarantined
+        test.is_disabled.return_value = is_disabled
+        test.is_attempt_to_fix.return_value = False
+
+        item = mock.MagicMock()
+        item.user_properties = []
+
+        TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
+
+        item.add_marker.assert_not_called()
+        assert item.user_properties == []
+
+    @pytest.mark.parametrize("is_quarantined,is_disabled", [(True, False), (False, True)])
+    def test_quarantine_and_disabled_applied_when_test_management_enabled(self, is_quarantined, is_disabled):
+        """When test_management is enabled, markers and properties are applied normally."""
+        plugin = mock.MagicMock()
+        plugin.manager.settings.test_management.enabled = True
+
+        test = mock.MagicMock()
+        test.is_quarantined.return_value = is_quarantined
+        test.is_disabled.return_value = is_disabled
+        test.is_attempt_to_fix.return_value = False
+
+        item = mock.MagicMock()
+        item.user_properties = []
+
+        TestOptPlugin._apply_test_management_markers(plugin, item=item, test=test)
+
+        if is_disabled:
+            item.add_marker.assert_called_once()
+        else:
+            assert item.user_properties == [("dd_quarantined", True)]

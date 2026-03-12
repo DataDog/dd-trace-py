@@ -377,6 +377,16 @@ class TestOptPlugin:
             on_new_test=_on_new_test,
         )
 
+    def _apply_test_management_markers(self, item: pytest.Item, test: "Test") -> None:
+        if not self.manager.settings.test_management.enabled:
+            return
+        if test.is_disabled() and not test.is_attempt_to_fix():
+            item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
+        elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
+            # A test that is disabled and attempt-to-fix will run, but a failure does not break the pipeline (i.e.,
+            # it is effectively quarantined). We may want to present it in a different way in the output though.
+            item.user_properties += [("dd_quarantined", True)]
+
     @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
     def pytest_runtest_protocol_wrapper(
         self, item: pytest.Item, nextitem: t.Optional[pytest.Item]
@@ -399,13 +409,7 @@ class TestOptPlugin:
         self.tests_by_nodeid[item.nodeid] = test
 
         self._handle_itr(item, test_ref, test)
-
-        if test.is_disabled() and not test.is_attempt_to_fix():
-            item.add_marker(pytest.mark.skip(reason=DISABLED_BY_TEST_MANAGEMENT_REASON))
-        elif test.is_quarantined() or (test.is_disabled() and test.is_attempt_to_fix()):
-            # A test that is disabled and attempt-to-fix will run, but a failure does not break the pipeline (i.e., it
-            # is effectively quarantined). We may want to present it in a different way in the output though.
-            item.user_properties += [("dd_quarantined", True)]
+        self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
             TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
