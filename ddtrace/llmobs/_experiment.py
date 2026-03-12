@@ -762,7 +762,7 @@ if PydanticEvaluator is not None:
             elif isinstance(_eval_result, PydanticEvaluationReason):
                 eval_result.value = _eval_result.value
                 eval_result.reasoning = _eval_result.reason
-                if isinstance(_eval_result.assessment, bool):
+                if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
                     eval_result.assessment = "pass" if _eval_result.value else "fail"
             else:
                 eval_result.value = eval_result
@@ -805,7 +805,7 @@ if PydanticEvaluator is not None:
             elif isinstance(_eval_result, PydanticEvaluationReason):
                 eval_result.value = _eval_result.value
                 eval_result.reasoning = _eval_result.reason
-                if isinstance(_eval_result.assessment, bool):
+                if hasattr(_eval_result, "assessment") and isinstance(_eval_result.assessment, bool):
                     eval_result.assessment = "pass" if _eval_result.value else "fail"
             else:
                 eval_result.value = eval_result
