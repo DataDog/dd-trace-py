@@ -335,7 +335,10 @@ codeowners:
     - apt-get update && apt install ca-certificates git wget curl -y
     - wget https://github.com/hmarr/codeowners/releases/download/v1.2.1/codeowners_1.2.1_linux_amd64.tar.gz
     - tar -xvzf codeowners_1.2.1_linux_amd64.tar.gz
-    - git diff-tree --no-commit-id --name-only -r $CI_COMMIT_SHA > /tmp/changed_all.txt
+    # Three-dot diff shows only files changed in this PR relative to the merge base, ignoring unrelated commits on the base branch.
+    # Falls back to main outside of MR pipelines where CI_MERGE_REQUEST_TARGET_BRANCH_NAME is not set.
+    - git fetch origin ${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-main}
+    - git diff --name-only origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-main}...HEAD > /tmp/changed_all.txt
     # Filter to only files that exist on disk (deleted files cause codeowners to crash)
     - |
       > /tmp/changed_files.txt
