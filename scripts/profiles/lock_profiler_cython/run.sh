@@ -86,12 +86,11 @@ cp "$SCRIPT_DIR/workload.py" "$BENCH_TMP/workload.py"
 cp "$SCRIPT_DIR/analyze.py" "$BENCH_TMP/analyze.py"
 
 # ---------------------------------------------------------------------------
-# Helper: clean compiled .so files for _lock, _sampler, _task, _threading
+# Helper: clean compiled .so files for _lock and _sampler (A/B tested modules only)
 # ---------------------------------------------------------------------------
 clean_so() {
-    rm -f "$COLLECTOR_DIR"/_lock.*.so "$COLLECTOR_DIR"/_sampler.*.so "$COLLECTOR_DIR"/_task.*.so
-    rm -f "$COLLECTOR_DIR"/_lock.c "$COLLECTOR_DIR"/_sampler.c "$COLLECTOR_DIR"/_task.c
-    rm -f "$REPO_ROOT/ddtrace/profiling"/_threading.*.so "$REPO_ROOT/ddtrace/profiling"/_threading.c
+    rm -f "$COLLECTOR_DIR"/_lock.*.so "$COLLECTOR_DIR"/_sampler.*.so
+    rm -f "$COLLECTOR_DIR"/_lock.c "$COLLECTOR_DIR"/_sampler.c
 }
 
 # ---------------------------------------------------------------------------
