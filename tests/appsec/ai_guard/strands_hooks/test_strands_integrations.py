@@ -1,8 +1,12 @@
-"""Integration tests for AI Guard Strands hook provider.
+"""Integration tests for AI Guard Strands integration.
 
 These tests simulate realistic agent lifecycle flows — building the conversation
 state step-by-step and calling hooks in the same order the Strands agent loop
 would — to verify that security violations are caught at the correct stage.
+
+Both ``AIGuardStrandsPlugin`` (Plugin API) and ``AIGuardStrandsHookProvider``
+(legacy HookProvider API) share the same base logic, so lifecycle tests exercise
+the shared ``_on_*_base`` methods.
 
 Blocking behavior differs by hook type:
 - BeforeModelCallEvent: always raises ``AIGuardAbortError``
@@ -26,6 +30,7 @@ from tests.appsec.ai_guard.strands_hooks.conftest import after_tool_event
 from tests.appsec.ai_guard.strands_hooks.conftest import before_model_event
 from tests.appsec.ai_guard.strands_hooks.conftest import before_tool_event
 from tests.appsec.ai_guard.strands_hooks.conftest import make_hook
+from tests.appsec.ai_guard.strands_hooks.conftest import make_plugin
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 
 
@@ -75,20 +80,39 @@ class TestNormalPromptLifecycle:
         assistant_text_msg = {"role": "assistant", "content": [{"text": "The current time is 10:30 AM UTC."}]}
 
         # Step 1: BeforeModelCallEvent — user prompt
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=[user_msg]))
 
         # Step 2: Model decides to call current_time -> BeforeToolCallEvent
-        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call_base(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
         # Step 3: AfterToolCallEvent — tool result evaluated
-        ai_guard_strands_hook._on_after_tool_call(
+        ai_guard_strands_hook._on_after_tool_call_base(
             after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
         # Step 4: AfterModelCallEvent — model text response
-        ai_guard_strands_hook._on_after_model_call(after_model_event(response_message=assistant_text_msg))
+        ai_guard_strands_hook._on_after_model_call_base(after_model_event(response_message=assistant_text_msg))
 
         # 4 evaluate calls: BeforeModel + BeforeTool + AfterTool + AfterModel
+        assert mock_req.call_count == 4
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_full_lifecycle_passes_plugin(self, mock_req, ai_guard_strands_plugin):
+        """Same lifecycle test using the Plugin API."""
+        mock_req.return_value = mock_evaluate_response("ALLOW")
+
+        user_msg = {"role": "user", "content": [{"text": "What is the current time?"}]}
+        tool_use = {"toolUseId": "tc1", "name": "current_time", "input": {}}
+        tool_result = {"toolUseId": "tc1", "content": [{"text": "2026-03-04T10:30:00Z"}], "status": "success"}
+        assistant_text_msg = {"role": "assistant", "content": [{"text": "The current time is 10:30 AM UTC."}]}
+
+        ai_guard_strands_plugin.on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_plugin.on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_plugin.on_after_tool_call(
+            after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
+        )
+        ai_guard_strands_plugin.on_after_model_call(after_model_event(response_message=assistant_text_msg))
+
         assert mock_req.call_count == 4
 
 
@@ -121,7 +145,7 @@ class TestDirectPromptInjection:
         )
 
         with pytest.raises(AIGuardAbortError) as exc_info:
-            ai_guard_strands_hook._on_before_model_call(event)
+            ai_guard_strands_hook._on_before_model_call_base(event)
 
         assert exc_info.value.action == "DENY"
         assert exc_info.value.reason == "prompt_injection"
@@ -150,7 +174,7 @@ class TestIndirectPromptInjection:
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
         )
 
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
         mock_req.assert_called_once()
 
@@ -163,7 +187,7 @@ class TestIndirectPromptInjection:
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
         )
 
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         mock_req.assert_called_once()
 
@@ -180,7 +204,7 @@ class TestIndirectPromptInjection:
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
         )
 
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         # Tool result should be replaced
         assert event.result["content"][0]["text"] == (
@@ -201,14 +225,14 @@ class TestIndirectPromptInjection:
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
         # Step 1: BeforeModelCallEvent — user prompt only
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=[user_msg]))
 
         # Step 2: BeforeToolCallEvent — benign tool call
-        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call_base(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
         # Step 3: AfterToolCallEvent — poisoned tool result -> replaced
         event = after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         assert event.result["content"][0]["text"] == (
             "[DATADOG AI GUARD] 'get_recent_transactions' has been canceled for security reasons"
@@ -228,7 +252,7 @@ class TestIndirectPromptInjection:
             messages=[{"role": "user", "content": [{"text": _BENIGN_TRANSACTIONS_PROMPT}]}],
         )
 
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         payload = mock_req.call_args[0][1]
         sent_messages = payload["data"]["attributes"]["messages"]
@@ -279,7 +303,7 @@ class TestExfiltrationViaToolCall:
         )
 
         # BeforeToolCallEvent cancels the tool with a descriptive message
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         assert event.cancel_tool == "[DATADOG AI GUARD] 'get_user_profile' has been canceled for security reasons"
         mock_req.assert_called_once()
@@ -301,7 +325,7 @@ class TestExfiltrationViaToolCall:
             ],
         )
 
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         payload = mock_req.call_args[0][1]
         sent_messages = payload["data"]["attributes"]["messages"]
@@ -345,7 +369,7 @@ class TestExfiltrationInModelResponse:
         event = after_model_event(response_message=response_message)
 
         with pytest.raises(AIGuardAbortError) as exc_info:
-            ai_guard_strands_hook._on_after_model_call(event)
+            ai_guard_strands_hook._on_after_model_call_base(event)
 
         assert exc_info.value.action == "DENY"
 
@@ -370,7 +394,7 @@ class TestExfiltrationInModelResponse:
         event = after_model_event(response_message=response_message)
 
         with pytest.raises(AIGuardAbortError) as exc_info:
-            ai_guard_strands_hook._on_after_model_call(event)
+            ai_guard_strands_hook._on_after_model_call_base(event)
 
         assert exc_info.value.action == "ABORT"
 
@@ -400,7 +424,7 @@ class TestPIIInToolArguments:
             ],
         )
 
-        ai_guard_strands_hook._on_before_model_call(event)
+        ai_guard_strands_hook._on_before_model_call_base(event)
 
         mock_req.assert_called_once()
 
@@ -429,7 +453,7 @@ class TestPIIInToolArguments:
             ],
         )
 
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         assert event.cancel_tool == "[DATADOG AI GUARD] 'register_customer' has been canceled for security reasons"
         mock_req.assert_called_once()
@@ -459,7 +483,7 @@ class TestPIIInToolArguments:
             ],
         )
 
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         payload = mock_req.call_args[0][1]
         sent_messages = payload["data"]["attributes"]["messages"]
@@ -481,7 +505,7 @@ class TestPIIInToolArguments:
         }
 
         # Step 1: BeforeModelCallEvent — benign prompt
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=[user_msg]))
 
         # Step 2: BeforeToolCallEvent — model generates PII in tool args -> cancelled
         tool_use = {
@@ -491,7 +515,7 @@ class TestPIIInToolArguments:
         }
 
         event = before_tool_event(tool_use=tool_use, messages=[user_msg])
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         assert event.cancel_tool == "[DATADOG AI GUARD] 'register_customer' has been canceled for security reasons"
         assert mock_req.call_count == 2
@@ -522,11 +546,11 @@ class TestIndirectInjectionFullChain:
         tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
-        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call_base(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
         event = after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
-        ai_guard_strands_hook._on_after_tool_call(event)
+        ai_guard_strands_hook._on_after_tool_call_base(event)
 
         assert event.result["content"][0]["text"] == (
             "[DATADOG AI GUARD] 'get_recent_transactions' has been canceled for security reasons"
@@ -550,9 +574,9 @@ class TestIndirectInjectionFullChain:
         first_tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
-        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=first_tool_use, messages=[user_msg]))
-        ai_guard_strands_hook._on_after_tool_call(
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call_base(before_tool_event(tool_use=first_tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_after_tool_call_base(
             after_tool_event(tool_use=first_tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
@@ -566,7 +590,7 @@ class TestIndirectInjectionFullChain:
         ]
 
         # BeforeModelCallEvent #2 passes (tool results excluded from evaluation)
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=messages_after_tool))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=messages_after_tool))
 
         # Verify BeforeModelCallEvent #2 excluded tool results from the payload
         call_4_payload = mock_req.call_args_list[3][0][1]
@@ -581,7 +605,7 @@ class TestIndirectInjectionFullChain:
             tool_use=exfiltration_tool_use,
             messages=messages_after_tool + [{"role": "assistant", "content": [{"toolUse": exfiltration_tool_use}]}],
         )
-        ai_guard_strands_hook._on_before_tool_call(event)
+        ai_guard_strands_hook._on_before_tool_call_base(event)
 
         assert event.cancel_tool == "[DATADOG AI GUARD] 'get_user_profile' has been canceled for security reasons"
         assert mock_req.call_count == 5
@@ -611,13 +635,13 @@ class TestIndirectInjectionFullChain:
         tool_result = {"toolUseId": "tc1", "content": [{"text": "Transaction data"}], "status": "success"}
 
         # Step 1: BeforeModelCallEvent #1
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=[user_msg]))
 
         # Step 2: BeforeToolCallEvent
-        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call_base(before_tool_event(tool_use=tool_use, messages=[user_msg]))
 
         # Step 3: AfterToolCallEvent
-        ai_guard_strands_hook._on_after_tool_call(
+        ai_guard_strands_hook._on_after_tool_call_base(
             after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
@@ -630,11 +654,11 @@ class TestIndirectInjectionFullChain:
                 "content": [{"toolResult": {"toolUseId": "tc1", "content": [{"text": "Transaction data"}]}}],
             },
         ]
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=messages_after_tool))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=messages_after_tool))
 
         # Step 5: AfterModelCallEvent
         response_msg = {"role": "assistant", "content": [{"text": "Here are your transactions."}]}
-        ai_guard_strands_hook._on_after_model_call(after_model_event(response_message=response_msg))
+        ai_guard_strands_hook._on_after_model_call_base(after_model_event(response_message=response_msg))
 
         assert mock_req.call_count == 5
 
@@ -698,9 +722,9 @@ class TestIndirectInjectionFullChain:
         tool_use = {"toolUseId": "tc1", "name": "get_recent_transactions", "input": {"account_id": "ACC-001"}}
         tool_result = {"toolUseId": "tc1", "content": [{"text": _POISONED_TOOL_RESPONSE}], "status": "success"}
 
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=[user_msg]))
-        ai_guard_strands_hook._on_before_tool_call(before_tool_event(tool_use=tool_use, messages=[user_msg]))
-        ai_guard_strands_hook._on_after_tool_call(
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=[user_msg]))
+        ai_guard_strands_hook._on_before_tool_call_base(before_tool_event(tool_use=tool_use, messages=[user_msg]))
+        ai_guard_strands_hook._on_after_tool_call_base(
             after_tool_event(tool_use=tool_use, tool_result=tool_result, messages=[user_msg])
         )
 
@@ -713,7 +737,7 @@ class TestIndirectInjectionFullChain:
             },
         ]
 
-        ai_guard_strands_hook._on_before_model_call(before_model_event(messages=messages_after_tool))
+        ai_guard_strands_hook._on_before_model_call_base(before_model_event(messages=messages_after_tool))
 
         # Model's response includes the exfiltration payload — always raises
         response_message = {
@@ -733,7 +757,7 @@ class TestIndirectInjectionFullChain:
         event = after_model_event(response_message=response_message)
 
         with pytest.raises(AIGuardAbortError):
-            ai_guard_strands_hook._on_after_model_call(event)
+            ai_guard_strands_hook._on_after_model_call_base(event)
 
         assert mock_req.call_count == 5
 
@@ -754,7 +778,7 @@ class TestDetailedError:
             messages=[],
         )
 
-        hook._on_before_tool_call(event)
+        hook._on_before_tool_call_base(event)
 
         assert event.cancel_tool == (
             "[DATADOG AI GUARD] 'register_customer' has been canceled for security reasons: pii_detected"
@@ -772,7 +796,7 @@ class TestDetailedError:
             messages=[],
         )
 
-        hook._on_after_tool_call(event)
+        hook._on_after_tool_call_base(event)
 
         assert event.result["content"][0]["text"] == (
             "[DATADOG AI GUARD] 'search' has been canceled for security reasons: prompt_injection"
@@ -788,6 +812,22 @@ class TestDetailedError:
         )
 
         with pytest.raises(AIGuardAbortError) as exc_info:
-            hook._on_after_model_call(event)
+            hook._on_after_model_call_base(event)
 
         assert exc_info.value.reason == "data_exfiltration"
+
+    @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+    def test_plugin_before_tool_detailed_error(self, mock_req):
+        """Plugin: with detailed_error=True, reason is appended to cancel message."""
+        mock_req.return_value = mock_evaluate_response("DENY", reason="pii_detected")
+        plugin = make_plugin(detailed_error=True)
+        event = before_tool_event(
+            tool_use={"toolUseId": "tc1", "name": "register_customer", "input": {"ssn": "123-45-6789"}},
+            messages=[],
+        )
+
+        plugin.on_before_tool_call(event)
+
+        assert event.cancel_tool == (
+            "[DATADOG AI GUARD] 'register_customer' has been canceled for security reasons: pii_detected"
+        )
