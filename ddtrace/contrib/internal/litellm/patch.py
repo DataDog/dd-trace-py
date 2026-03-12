@@ -10,6 +10,8 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
+from ddtrace.llmobs._constants import LITELLM_STREAM_MODEL_KEY
+from ddtrace.llmobs._constants import LITELLM_STREAM_PROVIDER_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
@@ -33,6 +35,14 @@ def _handle_router_stream_response(resp, span, kwargs, instance, integration, ar
     In litellm>=1.74.15, router streaming responses may be wrapped in FallbackStreamWrapper
     (for mid-stream fallback support) or other types that don't expose the .handler attribute.
     """
+    # extract model info from raw stream before wrapping for alias resolution
+    custom_llm_provider = getattr(resp, "custom_llm_provider", None)
+    if custom_llm_provider:
+        kwargs[LITELLM_STREAM_PROVIDER_KEY] = custom_llm_provider
+    stream_model = getattr(resp, "model", None)
+    if stream_model:
+        kwargs[LITELLM_STREAM_MODEL_KEY] = stream_model
+
     if hasattr(resp, "handler") and hasattr(resp.handler, "add_span"):
         resp.handler.add_span(span, kwargs, instance)
         return resp
