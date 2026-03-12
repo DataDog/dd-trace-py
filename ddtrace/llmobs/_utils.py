@@ -230,16 +230,6 @@ def _is_evaluation_span(span: Span) -> bool:
     return False
 
 
-def _get_ml_app(span: Span) -> Optional[str]:
-    """Return the ML app name for a span, falling back to global config."""
-    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) or config._llmobs_ml_app or config.service
-
-
-def _get_session_id(span: Span) -> Optional[str]:
-    """Return the session ID stored directly on this span."""
-    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
-
-
 def _unserializable_default_repr(obj):
     try:
         return str(obj)
@@ -339,6 +329,16 @@ def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
     """Get the llmobs data from span._meta_struct or return empty dict."""
     llmobs_span_data = cast("LLMObsSpanData", span._get_struct_tag(LLMOBS_STRUCT.KEY))
     return llmobs_span_data or {}
+
+
+def _get_ml_app(span: Span) -> Optional[str]:
+    """Return the ML app name for a span, falling back to global config."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.ML_APP) or config._llmobs_ml_app or config.service
+
+
+def _get_session_id(span: Span) -> Optional[str]:
+    """Return the session ID stored directly on this span."""
+    return _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.SESSION_ID)
 
 
 def _get_span_kind(span: Span) -> Optional[str]:
