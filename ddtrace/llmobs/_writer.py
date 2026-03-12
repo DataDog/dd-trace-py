@@ -23,6 +23,7 @@ from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.retry import RetryError
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
@@ -42,6 +43,7 @@ from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
+from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._http import get_connection
 from ddtrace.llmobs._utils import safe_json
@@ -118,12 +120,23 @@ class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     score_value: float
     boolean_value: bool
     json_value: dict[str, JSONType]
+    status: str
     error: Optional[dict[str, str]]
     tags: list[str]
     experiment_id: str
     reasoning: str
     assessment: str
     metadata: dict[str, JSONType]
+    eval_source_type: str
+
+
+class EvaluatorInferResponse(TypedDict, total=False):
+    """Response from the evaluator_infer API endpoint."""
+
+    value: JSONType
+    assessment: Optional[str]
+    reasoning: Optional[str]
+    status: Optional[str]
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -352,6 +365,21 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
+        try:
+            return self._request_with_retry(method, path, body, timeout)
+        except RetryError as e:
+            # Return the last response if all retries were exhausted on 5xx
+            if isinstance(e.args[0], Response):
+                return e.args[0]
+            raise
+
+    @fibonacci_backoff_with_jitter(
+        attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
+        # Retries on 5xx server errors and connection failures, returns immediately on 2xx/4xx
+        initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
+        until=lambda result: isinstance(result, Response) and result.status < 500,
+    )
+    def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
@@ -842,6 +870,50 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
         return None
+
+    def evaluator_infer(
+        self,
+        eval_name: str,
+        context: dict[str, Any],
+    ) -> EvaluatorInferResponse:
+        """Call backend to run inference on a LLM-as-Judge evaluator.
+
+        :param eval_name: The name of the LLM-as-Judge evaluator configured in Datadog
+        :param context: The evaluation context
+        :return: EvaluatorInferResponse with status, value, assessment, and reasoning
+        :raises RemoteEvaluatorError: If backend returns an evaluation error (structured error with
+            type/message/recommended_resolution)
+        :raises RuntimeError: If HTTP request fails and no structured error info is available
+        """
+        path = f"/api/unstable/llm-obs/v1/evaluators/{eval_name}/infer"
+        body: JSONType = {"data": {"type": "evaluator_inference", "attributes": {"context": context}}}
+
+        resp = self.request("POST", path, body)
+        response_data = resp.get_json() or {}
+
+        attributes = response_data.get("data", {}).get("attributes", {})
+
+        if resp.status != 200:
+            error_details = attributes.get("error", {})
+            if error_details:
+                raise RemoteEvaluatorError(
+                    f"Remote evaluator '{eval_name}' failed: {error_details.get('message', f'HTTP {resp.status}')}",
+                    status=attributes.get("status", "ERROR"),
+                    backend_error=error_details,
+                )
+            error_msg = f"HTTP {resp.status}"
+            if "errors" in response_data and response_data["errors"]:
+                error = response_data["errors"][0]
+                if isinstance(error, dict):
+                    error_msg = error.get("detail") or error.get("title") or error_msg
+            raise RuntimeError(f"Failed to call evaluator '{eval_name}': {error_msg}")
+
+        return {
+            "value": attributes.get("value"),
+            "assessment": attributes.get("assessment"),
+            "reasoning": attributes.get("reasoning"),
+            "status": attributes.get("status"),
+        }
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

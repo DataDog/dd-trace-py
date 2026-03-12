@@ -61,6 +61,9 @@ ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext
 [project.entry-points.pytest11]
 ddtrace = "ddtrace.testing.internal.pytest.entry_point"
 
+[project.entry-points.'mlflow.request_header_provider']
+datadog = "ddtrace.contrib.internal.mlflow.auth_plugin:DatadogHeaderProvider"
+
 [project.entry-points.'ddtrace.products']
 "apm-tracing-rc" = "ddtrace.internal.remoteconfig.products.apm_tracing"
 "code-origin-for-spans" = "ddtrace.debugging._products.code_origin.span"

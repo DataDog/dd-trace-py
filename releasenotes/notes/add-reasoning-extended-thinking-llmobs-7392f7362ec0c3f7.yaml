@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for reasoning and extended thinking content in Anthropic, LiteLLM, and OpenAI-compatible integrations.
+    Anthropic thinking blocks (``type: "thinking"``) are now captured as ``role: "reasoning"`` messages in both
+    streaming and non-streaming responses, as well as in input messages for tool use continuations.
+    LiteLLM now extracts ``reasoning_output_tokens`` from ``completion_tokens_details`` and captures
+    ``reasoning_content`` in output messages for OpenAI-compatible providers.
