@@ -7,8 +7,8 @@ import traceback
 from ddtrace import config
 from ddtrace import tracer
 from ddtrace._trace.span import Span
-from ddtrace._trace.span import SpanEvent
 from ddtrace.errortracking._handled_exceptions.collector import HandledExceptionCollector
+from ddtrace.errortracking._handled_exceptions.collector import SpanEventData
 
 
 _error_tuple_info = (None, None, None)
@@ -27,7 +27,7 @@ def _get_formatted_traceback(tb_hash):
     return buff.getvalue()
 
 
-def _generate_span_event(span: Span, exc=None) -> tuple[Exception, Span, SpanEvent] | None:
+def _generate_span_event(span: Span, exc=None) -> tuple[Exception, Span, SpanEventData] | None:
     """Generate the exception span event"""
     global _error_tuple_info
 
@@ -49,7 +49,7 @@ def _generate_span_event(span: Span, exc=None) -> tuple[Exception, Span, SpanEve
     return (
         exc,
         span,
-        SpanEvent(
+        SpanEventData(
             "exception",
             {
                 "exception.message": str(exc),
