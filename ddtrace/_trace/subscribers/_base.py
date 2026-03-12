@@ -67,6 +67,8 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     if event.measured:
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
+    maybe_set_service_source_tag(span, integration_config or dict())
+
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
