@@ -8,7 +8,7 @@ from typing import Callable
 from typing import Optional
 
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.process_tags import process_tags_config as config
+from ddtrace.internal.settings.process_tags import process_tags_config
 from ddtrace.internal.utils.fnv import fnv1_64
 
 
@@ -62,7 +62,7 @@ def _compute_process_tag(key: str, compute_value: Callable):
 
 
 def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
-    if not config.enabled:
+    if not process_tags_config.enabled:
         return None, None
 
     from ddtrace import config as ddtrace_config
@@ -90,7 +90,7 @@ def generate_process_tags() -> tuple[Optional[str], Optional[list[str]]]:
 
 
 def compute_base_hash(container_tags_hash):
-    if not config.enabled:
+    if not process_tags_config.enabled:
         return
 
     global base_hash, base_hash_bytes, process_tags
