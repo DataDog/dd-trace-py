@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any
+from typing import Iterator
 from typing import Literal
 from typing import Optional
 from typing import TypeVar
@@ -568,8 +569,14 @@ class SpanData:
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
 
-class SpanEventData:
-    def __init__(self, name: str, attributes: Optional[dict[str, Any]], time_unix_nano: Optional[int]): ...
+class SpanEvent:
+    name: str
+    time_unix_nano: int
+    attributes: dict[str, Any]
+    def __init__(self, name: str, attributes: Optional[dict[str, Any]] = None, time_unix_nano: Optional[int] = None): ...
+    def __repr__(self) -> str: ...
+    def __iter__(self) -> Iterator[tuple[str, Any]]: ...
+    def __reduce__(self) -> tuple: ...
 
 class SpanLinkData:
     def __init__(
