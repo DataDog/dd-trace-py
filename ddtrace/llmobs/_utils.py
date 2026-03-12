@@ -22,6 +22,7 @@ from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
+from ddtrace.llmobs._constants import IS_EVALUATION_TRACE
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
@@ -217,17 +218,8 @@ def _get_span_name(span: Span) -> str:
 
 
 def _is_evaluation_span(span: Span) -> bool:
-    """
-    Return whether or not a span is an evaluation span by checking the span's
-    nearest LLMObs span ancestor. Default to 'False'
-    """
-    current: Optional[Span] = span
-    while current:
-        llmobs_data = _get_llmobs_data_metastruct(current)
-        if llmobs_data.get(LLMOBS_STRUCT.IS_EVALUATION_SPAN):
-            return True
-        current = _get_nearest_llmobs_ancestor(current)
-    return False
+    """Return whether this span belongs to an evaluation trace (e.g. a ragas evaluator run)."""
+    return bool(span.context._meta.get(IS_EVALUATION_TRACE))
 
 
 def _unserializable_default_repr(obj):
@@ -319,10 +311,8 @@ def _get_parent_prompt(span: Span) -> Optional[Prompt]:
 
 
 def mark_as_evaluation_span(span: Span) -> None:
-    """Mark a span as an evaluation span in span._meta_struct."""
-    llmobs_data = _get_llmobs_data_metastruct(span)
-    llmobs_data[LLMOBS_STRUCT.IS_EVALUATION_SPAN] = True
-    span._set_struct_tag(LLMOBS_STRUCT.KEY, cast(dict, llmobs_data))
+    """Mark this span's trace as an evaluation trace via context._meta."""
+    span.context._meta[IS_EVALUATION_TRACE] = "1"
 
 
 def _get_llmobs_data_metastruct(span: Span) -> LLMObsSpanData:
